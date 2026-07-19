@@ -1,14 +1,20 @@
 {
   "name": "checkout",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.6",
+    "@legendapp/list": "^3.3.3",
+    "@swmansion/react-native-bottom-sheet": "^0.16.2",
+    "@tanstack/react-query": "^5.101.2",
     "expo": "~57.0.6",
+    "expo-audio": "~57.0.2",
     "expo-constants": "~57.0.5",
+    "expo-dev-client": "~57.0.6",
     "expo-device": "~57.0.1",
     "expo-font": "~57.0.1",
     "expo-glass-effect": "~57.0.1",
+    "expo-iap": "^4.5.2",
     "expo-image": "~57.0.1",
     "expo-linking": "~57.0.3",
     "expo-router": "~57.0.6",
@@ -21,21 +27,26 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-mmkv": "^4.3.2",
+    "react-native-nitro-modules": "^0.36.1",
     "react-native-reanimated": "4.5.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
+    "react-native-unistyles": "^3.3.0",
     "react-native-web": "~0.21.0",
-    "react-native-worklets": "0.10.0"
+    "react-native-worklets": "0.10.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.4",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"
   },
