@@ -1,8 +1,9 @@
 import { Text, useWindowDimensions, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { StoreShelf } from "@/@types/store";
+import { getShelfCapacity } from "@/data/shelf-capacity";
 import { useGameStore } from "@/stores/game-store";
-import { Shelf } from "../shelf-item";
+import { ShelfItem } from "../shelf-item";
 
 type ShelfGridProps = {
 	onPressShelf: (shelf: StoreShelf) => void;
@@ -13,7 +14,8 @@ export function ShelfGrid({ onPressShelf, shelves }: ShelfGridProps) {
 	const { width } = useWindowDimensions();
 	const inventory = useGameStore((state) => state.inventory);
 	const shelfStock = useGameStore((state) => state.shelfStock);
-	const shelfSize = Math.min((width - 80) / 4, 92);
+	const shelfUpgradeLevels = useGameStore((state) => state.shelfUpgradeLevels);
+	const shelfItemSize = Math.min((width - 90) / 4, 92);
 	const occupiedShelves = shelves.filter(
 		(shelf) => !shelf.locked && (shelfStock[shelf.id] ?? 0) > 0,
 	).length;
@@ -35,15 +37,16 @@ export function ShelfGrid({ onPressShelf, shelves }: ShelfGridProps) {
 			</View>
 			<View style={styles.grid}>
 				{shelves.map((shelf) => (
-					<Shelf
+					<ShelfItem
 						availableQuantity={
 							shelf.productId ? (inventory[shelf.productId] ?? 0) : 0
 						}
+						capacity={getShelfCapacity(shelfUpgradeLevels[shelf.id])}
 						key={shelf.id}
 						onPress={onPressShelf}
 						shelf={shelf}
 						shelfQuantity={shelfStock[shelf.id] ?? 0}
-						size={shelfSize}
+						size={shelfItemSize}
 					/>
 				))}
 			</View>

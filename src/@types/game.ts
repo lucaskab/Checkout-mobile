@@ -2,6 +2,8 @@ export type GameInventory = Record<number, number>;
 
 export type GameShelfStock = Record<string, number>;
 
+export type GameShelfUpgradeLevels = Record<string, number>;
+
 export type GameMarketCustomer = {
 	emoji: string;
 	id: string;
@@ -36,6 +38,7 @@ export type ExperienceProgress = {
 };
 
 import type { LogisticsState, PlaceSupplierOrderInput } from "./logistics";
+import type { ShelfUpgradeCurrency } from "./shelf-capacity";
 
 export type RestockShelfInput = {
 	amount?: number;
@@ -49,6 +52,7 @@ export type GameState = {
 	logistics: LogisticsState;
 	market: GameMarketState;
 	shelfStock: GameShelfStock;
+	shelfUpgradeLevels: GameShelfUpgradeLevels;
 };
 
 export type GameActions = {
@@ -65,6 +69,10 @@ export type GameActions = {
 	setMarketLevel: (level: number) => void;
 	setMarketOpen: (isOpen: boolean) => void;
 	unlockProduct: (productId: number) => void;
+	upgradeShelfCapacity: (
+		shelfId: string,
+		currency: ShelfUpgradeCurrency,
+	) => boolean;
 };
 
 export type GameStore = GameActions & GameState;

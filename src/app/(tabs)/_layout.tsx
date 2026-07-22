@@ -28,6 +28,10 @@ export default function RootLayout() {
 						}}
 					>
 						<Tabs.Screen name="index" options={{ title: "Loja" }} />
+						<Tabs.Screen
+							name="products"
+							options={{ headerShown: false, title: "Produtos" }}
+						/>
 						<Tabs.Screen name="suppliers" options={{ headerShown: false }} />
 						<Tabs.Screen
 							name="customers"

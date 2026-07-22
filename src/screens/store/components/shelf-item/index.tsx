@@ -2,14 +2,16 @@ import { Pressable, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { StoreShelf } from "@/@types/store";
 
-export const Shelf = ({
+export const ShelfItem = ({
 	availableQuantity,
+	capacity,
 	onPress,
 	shelf,
 	shelfQuantity,
 	size,
 }: {
 	availableQuantity: number;
+	capacity: number;
 	onPress: (shelf: StoreShelf) => void;
 	shelf: StoreShelf;
 	shelfQuantity: number;
@@ -28,7 +30,9 @@ export const Shelf = ({
 		>
 			{!shelf.locked && (
 				<View style={styles.quantityBadge}>
-					<Text style={styles.quantityText}>x{shelfQuantity}</Text>
+					<Text style={styles.quantityText}>
+						x{shelfQuantity}/{capacity}
+					</Text>
 				</View>
 			)}
 			<Text style={styles.shelfProduct}>
@@ -80,7 +84,7 @@ const styles = StyleSheet.create((theme) => ({
 		fontWeight: "700",
 	},
 	shelfProduct: {
-		fontSize: 35,
+		fontSize: 30,
 	},
 	shelfStatus: {
 		position: "absolute",

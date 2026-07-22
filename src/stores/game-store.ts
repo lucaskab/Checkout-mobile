@@ -6,11 +6,16 @@ import type {
 	GameMarketCustomer,
 	GameMarketState,
 	GameShelfStock,
+	GameShelfUpgradeLevels,
 	GameState,
 	GameStore,
 } from "@/@types/game";
 import type { LogisticsState, SupplierOrder } from "@/@types/logistics";
 import { getUnlockedProductIds, marketProducts } from "@/data/market-products";
+import {
+	getNextShelfCapacityUpgrade,
+	getShelfCapacity,
+} from "@/data/shelf-capacity";
 import {
 	getCustomerArrivalDelay,
 	simulateMarketVisit,
@@ -26,24 +31,26 @@ import {
 import { mmkvStorage } from "@/storage/mmkv";
 
 const initialInventory: GameInventory = {
-	1: 6,
+	1: 9,
 	5: 4,
-	9: 10,
-	12: 5,
-	13: 6,
+	9: 14,
+	12: 6,
+	13: 8,
 	15: 2,
 	17: 3,
 };
 
 const initialShelfStock: GameShelfStock = {
-	bakery: 7,
+	bakery: 3,
 	coffee: 2,
 	dairy: 3,
-	drinks: 5,
+	drinks: 3,
 	pizza: 1,
-	produce: 6,
-	snacks: 4,
+	produce: 3,
+	snacks: 3,
 };
+
+const initialShelfUpgradeLevels: GameShelfUpgradeLevels = {};
 
 const initialLogisticsState: LogisticsState = {
 	emergencyTokens: 1,
@@ -79,6 +86,7 @@ const initialGameState: GameState = {
 	logistics: initialLogisticsState,
 	market: initialMarketState,
 	shelfStock: initialShelfStock,
+	shelfUpgradeLevels: initialShelfUpgradeLevels,
 };
 
 function getInitialGameState(): GameState {
@@ -99,19 +107,32 @@ function getInitialGameState(): GameState {
 			unlockedProductIds: [...initialGameState.market.unlockedProductIds],
 		},
 		shelfStock: { ...initialGameState.shelfStock },
+		shelfUpgradeLevels: { ...initialGameState.shelfUpgradeLevels },
 	};
 }
 
 function migrateGameState(persistedState: unknown): GameState {
 	const state = persistedState as Partial<GameState>;
 	const market = state.market as Partial<GameMarketState> | undefined;
-
-	return {
-		coins: state.coins ?? initialGameState.coins,
-		inventory: {
+	const shelfUpgradeLevels = {
+		...initialGameState.shelfUpgradeLevels,
+		...state.shelfUpgradeLevels,
+	};
+	const normalizedShelfState = normalizeShelfState(
+		{
+			...initialGameState.shelfStock,
+			...state.shelfStock,
+		},
+		{
 			...initialGameState.inventory,
 			...state.inventory,
 		},
+		shelfUpgradeLevels,
+	);
+
+	return {
+		coins: state.coins ?? initialGameState.coins,
+		inventory: normalizedShelfState.inventory,
 		logistics: {
 			...initialGameState.logistics,
 			...state.logistics,
@@ -140,10 +161,8 @@ function migrateGameState(persistedState: unknown): GameState {
 				]),
 			),
 		},
-		shelfStock: {
-			...initialGameState.shelfStock,
-			...state.shelfStock,
-		},
+		shelfStock: normalizedShelfState.shelfStock,
+		shelfUpgradeLevels,
 	};
 }
 
@@ -462,10 +481,16 @@ export const useGameStore = create<GameStore>()(
 			},
 			resetGame: () => set(getInitialGameState()),
 			restockShelf: ({ amount = 1, productId, shelfId }) => {
-				const { inventory, shelfStock } = get();
+				const { inventory, shelfStock, shelfUpgradeLevels } = get();
 				const availableQuantity = inventory[productId] ?? 0;
+				const currentQuantity = shelfStock[shelfId] ?? 0;
+				const capacity = getShelfCapacity(shelfUpgradeLevels[shelfId]);
 
-				if (availableQuantity < amount || amount <= 0) {
+				if (
+					availableQuantity < amount ||
+					amount <= 0 ||
+					currentQuantity + amount > capacity
+				) {
 					return false;
 				}
 
@@ -476,7 +501,7 @@ export const useGameStore = create<GameStore>()(
 					},
 					shelfStock: {
 						...shelfStock,
-						[shelfId]: (shelfStock[shelfId] ?? 0) + amount,
+						[shelfId]: currentQuantity + amount,
 					},
 				});
 
@@ -524,22 +549,89 @@ export const useGameStore = create<GameStore>()(
 					},
 				});
 			},
+			upgradeShelfCapacity: (shelfId, currency) => {
+				const { coins, logistics, market, shelfUpgradeLevels } = get();
+				const upgradeLevel = shelfUpgradeLevels[shelfId] ?? 0;
+				const nextUpgrade = getNextShelfCapacityUpgrade(upgradeLevel);
+
+				if (!nextUpgrade || market.level < nextUpgrade.playerLevel) {
+					return false;
+				}
+
+				if (
+					(currency === "coins" && coins < nextUpgrade.coinCost) ||
+					(currency === "diamonds" &&
+						logistics.premiumCurrency < nextUpgrade.diamondCost)
+				) {
+					return false;
+				}
+
+				set({
+					coins: currency === "coins" ? coins - nextUpgrade.coinCost : coins,
+					logistics:
+						currency === "diamonds"
+							? {
+									...logistics,
+									premiumCurrency:
+										logistics.premiumCurrency - nextUpgrade.diamondCost,
+								}
+							: logistics,
+					shelfUpgradeLevels: {
+						...shelfUpgradeLevels,
+						[shelfId]: upgradeLevel + 1,
+					},
+				});
+
+				return true;
+			},
 		}),
 		{
 			migrate: migrateGameState,
 			name: "checkout.game",
-			partialize: ({ coins, inventory, logistics, market, shelfStock }) => ({
+			partialize: ({
 				coins,
 				inventory,
 				logistics,
 				market,
 				shelfStock,
+				shelfUpgradeLevels,
+			}) => ({
+				coins,
+				inventory,
+				logistics,
+				market,
+				shelfStock,
+				shelfUpgradeLevels,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
-			version: 6,
+			version: 7,
 		},
 	),
 );
+
+function normalizeShelfState(
+	shelfStock: GameShelfStock,
+	inventory: GameInventory,
+	shelfUpgradeLevels: GameShelfUpgradeLevels,
+) {
+	const nextInventory = { ...inventory };
+	const nextShelfStock = { ...shelfStock };
+
+	for (const product of marketProducts) {
+		const shelfQuantity = nextShelfStock[product.shelfId] ?? 0;
+		const capacity = getShelfCapacity(shelfUpgradeLevels[product.shelfId]);
+
+		if (shelfQuantity <= capacity) {
+			continue;
+		}
+
+		const overflow = shelfQuantity - capacity;
+		nextShelfStock[product.shelfId] = capacity;
+		nextInventory[product.id] = (nextInventory[product.id] ?? 0) + overflow;
+	}
+
+	return { inventory: nextInventory, shelfStock: nextShelfStock };
+}
 
 function createMarketCustomer(
 	visit: ReturnType<typeof simulateMarketVisit>,
