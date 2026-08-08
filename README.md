@@ -23,6 +23,15 @@ In the output, you'll find options to open the app in a
 - [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
 - [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
+## RevenueCat purchases
+
+1. Create the 15 consumable products from `src/data/currency-packs.ts` in App Store Connect and Google Play Console using the exact `productId` values.
+2. Import the products into RevenueCat and attach them to the iOS and Android apps.
+3. Copy `.env.example` to `.env.local` and set the public RevenueCat keys. The test key is used in development when present; release builds use the platform-specific keys.
+4. Rebuild the development client after installing or updating `react-native-purchases`. Real purchases are not available through Expo Go.
+
+The displayed price always comes from the store. The euro values in the local catalog are placeholders shown only while a product is unavailable.
+
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
 ## Get a fresh project

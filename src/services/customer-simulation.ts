@@ -113,9 +113,14 @@ export function simulateCustomers(
 
 export function simulateMarketVisit(options: MarketVisitOptions): MarketVisit {
 	const random = createSeededRandom(options.seed);
-	const customer = createCustomer(options.seed, random);
+	const customer = createCustomer(
+		options.seed,
+		random,
+		options.budgetMultiplier ?? 1,
+	);
 	const products = shuffleProducts(options.products, random);
-	const maxProducts = getMaxProducts(customer, random);
+	const maxProducts =
+		getMaxProducts(customer, random) + (options.maxProductsBonus ?? 0);
 	let remainingBudget = customer.budget;
 	const purchases = [];
 
@@ -148,7 +153,9 @@ export function simulateMarketVisit(options: MarketVisitOptions): MarketVisit {
 			continue;
 		}
 
-		const revenue = quantity * product.sellingPrice;
+		const revenue = Math.round(
+			quantity * product.sellingPrice * (options.revenueMultiplier ?? 1),
+		);
 		purchases.push({
 			productId: product.productId,
 			quantity,
@@ -173,23 +180,31 @@ export function getCustomerArrivalDelay(
 	level: number,
 	unlockedProductCount: number,
 	seed: number,
+	arrivalMultiplier = 1,
 ) {
 	const random = createSeededRandom(seed);
 	const levelBonus = Math.max(level - 1, 0) * 0.08;
 	const varietyBonus = Math.max(unlockedProductCount - 1, 0) * 0.025;
-	const averageDelay = 82_000 / (1 + levelBonus + varietyBonus);
+	const averageDelay =
+		32_000 / ((1 + levelBonus + varietyBonus) * arrivalMultiplier);
 	const randomVariation = randomBetween(random, 0.75, 1.25);
 
-	return Math.round(clamp(averageDelay * randomVariation, 22_000, 90_000));
+	return Math.round(clamp(averageDelay * randomVariation, 15_000, 60_000));
 }
 
-function createCustomer(index: number, random: Random): CustomerProfile {
+function createCustomer(
+	index: number,
+	random: Random,
+	budgetMultiplier = 1,
+): CustomerProfile {
 	const archetype = archetypes[index % archetypes.length];
 	const settings = archetypeSettings[archetype];
 
 	return {
 		archetype,
-		budget: roundCurrency(settings.budget * randomBetween(random, 0.75, 1.3)),
+		budget: roundCurrency(
+			settings.budget * randomBetween(random, 0.75, 1.3) * budgetMultiplier,
+		),
 		id: `customer-${index + 1}`,
 		impulsivity: clamp(
 			settings.impulsivity + randomBetween(random, -0.1, 0.1),

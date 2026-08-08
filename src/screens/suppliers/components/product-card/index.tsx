@@ -1,6 +1,10 @@
-import { Pressable, Text, View } from "react-native";
+import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { SupplierProduct } from "@/@types/supplier";
+import { GameButton } from "@/components/game-button";
+import { GameIcon } from "@/components/game-icon";
+import { GameText as Text } from "@/components/game-text";
+import { ProductImage } from "@/components/product-image";
 
 type ProductCardProps = {
 	isBuying: boolean;
@@ -20,21 +24,39 @@ export function ProductCard({
 			<View style={styles.card}>
 				{product.owned > 0 && (
 					<View style={styles.ownedBadge}>
-						<Text style={styles.ownedBadgeText}>{product.owned}</Text>
+						<Text style={styles.ownedBadgeText}>
+							{product.owned}/{product.capacity}
+						</Text>
 					</View>
 				)}
 				<View style={styles.productVisual}>
-					<Text style={styles.productEmoji}>{product.emoji}</Text>
+					<ProductImage productId={product.id} style={styles.productImage} />
 				</View>
 				<Text numberOfLines={1} style={styles.productName}>
 					{product.name}
 				</Text>
+				{product.productionSavingsPercent !== undefined && (
+					<View style={styles.productionBadge}>
+						<View style={styles.inlineRow}>
+							<GameIcon icon="warehouse" style={styles.inlineIcon} />
+							<Text style={styles.productionBadgeText}>
+								Fabricar economiza {product.productionSavingsPercent}%
+							</Text>
+						</View>
+					</View>
+				)}
 				<View style={styles.productDetails}>
 					<View style={styles.detailChip}>
-						<Text style={styles.detailText}>📦 {product.quantity} unid.</Text>
+						<View style={styles.inlineRow}>
+							<GameIcon icon="package" style={styles.inlineIcon} />
+							<Text style={styles.detailText}>{product.quantity} unid.</Text>
+						</View>
 					</View>
 					<View style={styles.detailChip}>
-						<Text style={styles.detailText}>🚚 {product.shelfTime}</Text>
+						<View style={styles.inlineRow}>
+							<GameIcon icon="deliveryTruck" style={styles.inlineIcon} />
+							<Text style={styles.detailText}>{product.shelfTime}</Text>
+						</View>
 					</View>
 				</View>
 				<Text style={styles.deliveryEstimate}>
@@ -42,26 +64,20 @@ export function ProductCard({
 				</Text>
 				<View style={styles.sellValue}>
 					<Text style={styles.sellValueLabel}>Vende por</Text>
-					<Text style={styles.sellValueText}>🪙 {product.sellPrice}/un</Text>
+					<View style={styles.inlineRow}>
+						<GameIcon icon="coin" style={styles.inlineIcon} />
+						<Text style={styles.sellValueText}>{product.sellPrice}/un</Text>
+					</View>
 				</View>
-				<Pressable
+				<GameButton
 					disabled={!canAfford || isBuying}
+					fullWidth
+					icon={isBuying ? undefined : "coin"}
+					label={isBuying ? "Criando pedido..." : `Pedir · ${product.price}`}
 					onPress={() => onBuy(product)}
-					style={[
-						styles.buyButton,
-						!canAfford && styles.disabledBuyButton,
-						isBuying && styles.buyingButton,
-					]}
-				>
-					<Text
-						style={[
-							styles.buyButtonText,
-							!canAfford && styles.disabledBuyButtonText,
-						]}
-					>
-						{isBuying ? "Criando pedido..." : `Pedir · 🪙 ${product.price}`}
-					</Text>
-				</Pressable>
+					style={styles.buyButton}
+					variant="primary"
+				/>
 			</View>
 		</View>
 	);
@@ -84,6 +100,15 @@ const styles = StyleSheet.create((theme) => ({
 		shadowRadius: 8,
 		elevation: 2,
 	},
+	inlineRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.25),
+	},
+	inlineIcon: {
+		width: 18,
+		height: 18,
+	},
 	ownedBadge: {
 		position: "absolute",
 		top: theme.gap(1),
@@ -98,6 +123,7 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["blue-500"],
 	},
 	ownedBadgeText: {
+		fontFamily: theme.fonts.family.badge,
 		color: theme.colors["neutral-0"],
 		fontSize: 11,
 		fontWeight: "700",
@@ -112,16 +138,33 @@ const styles = StyleSheet.create((theme) => ({
 		borderRadius: theme.gap(2.25),
 		backgroundColor: theme.colors["blue-50"],
 	},
-	productEmoji: {
-		fontSize: 34,
+	productImage: {
+		width: theme.gap(7),
+		height: theme.gap(7),
 	},
 	productName: {
 		width: "100%",
 		marginTop: theme.gap(1.25),
 		color: theme.colors["neutral-800"],
+		fontFamily: theme.fonts.family.headline,
 		fontSize: theme.fonts.size.medium,
 		fontWeight: "700",
 		textAlign: "center",
+	},
+	productionBadge: {
+		marginTop: theme.gap(0.75),
+		paddingHorizontal: theme.gap(0.75),
+		paddingVertical: theme.gap(0.5),
+		borderWidth: 1,
+		borderColor: theme.colors["violet-100"],
+		borderRadius: theme.gap(1.5),
+		backgroundColor: theme.colors["violet-50"],
+	},
+	productionBadgeText: {
+		fontFamily: theme.fonts.family.badge,
+		color: theme.colors["violet-600"],
+		fontSize: 9,
+		fontWeight: "700",
 	},
 	productDetails: {
 		flexDirection: "row",
@@ -159,30 +202,11 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	sellValueText: {
 		color: theme.colors["amber-600"],
+		fontFamily: theme.fonts.family.numberBold,
 		fontSize: 11,
 		fontWeight: "700",
 	},
 	buyButton: {
-		width: "100%",
-		alignItems: "center",
-		justifyContent: "center",
-		minHeight: theme.gap(4.75),
 		marginTop: "auto",
-		borderRadius: theme.gap(3),
-		backgroundColor: theme.colors["blue-500"],
-	},
-	disabledBuyButton: {
-		backgroundColor: theme.colors["neutral-200"],
-	},
-	buyingButton: {
-		backgroundColor: theme.colors["blue-300"],
-	},
-	buyButtonText: {
-		color: theme.colors["neutral-0"],
-		fontSize: theme.fonts.size.small,
-		fontWeight: "700",
-	},
-	disabledBuyButtonText: {
-		color: theme.colors["neutral-500"],
 	},
 }));

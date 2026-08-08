@@ -1,6 +1,9 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { ItemDefinition } from "@/@types/item";
+import { GameIcon } from "@/components/game-icon";
+import { GameText as Text } from "@/components/game-text";
+import { ProductImage } from "@/components/product-image";
 
 export const LockedProductCard = ({
 	playerLevel,
@@ -20,8 +23,8 @@ export const LockedProductCard = ({
 			<View style={styles.cardTopRow}>
 				<View style={styles.productIdentity}>
 					<View style={styles.lockedVisual}>
-						<Text style={styles.lockedEmoji}>{product.emoji}</Text>
-						<Text style={styles.lockIcon}>🔒</Text>
+						<ProductImage productId={product.id} style={styles.lockedImage} />
+						<GameIcon icon="lock" style={styles.lockIcon} />
 					</View>
 					<View style={styles.productCopy}>
 						<Text numberOfLines={1} style={styles.lockedName}>
@@ -35,9 +38,12 @@ export const LockedProductCard = ({
 				</View>
 			</View>
 			<View style={styles.lockedRewards}>
-				<Text style={styles.lockedRewardText}>
-					🪙 {product.sellingPrice} por venda
-				</Text>
+				<View style={styles.inlineRow}>
+					<GameIcon icon="coin" style={styles.inlineIcon} />
+					<Text style={styles.lockedRewardText}>
+						{product.sellingPrice} por venda
+					</Text>
+				</View>
 				<Text style={styles.lockedRewardText}>+{product.xpPerSale} XP</Text>
 			</View>
 			<View style={styles.unlockProgressTrack}>
@@ -85,16 +91,28 @@ const styles = StyleSheet.create((theme) => ({
 		borderRadius: theme.gap(1.5),
 		backgroundColor: theme.colors["neutral-150"],
 	},
-	lockedEmoji: {
+	lockedImage: {
+		width: theme.gap(5),
+		height: theme.gap(5),
 		opacity: 0.35,
-		fontSize: 25,
 	},
 	lockIcon: {
 		position: "absolute",
-		fontSize: 13,
+		width: 20,
+		height: 20,
+	},
+	inlineRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.25),
+	},
+	inlineIcon: {
+		width: 18,
+		height: 18,
 	},
 	lockedName: {
 		color: theme.colors["neutral-600"],
+		fontFamily: theme.fonts.family.headline,
 		fontSize: theme.fonts.size.medium,
 		fontWeight: "700",
 	},
@@ -112,6 +130,7 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	unlockLevelText: {
 		color: theme.colors["neutral-600"],
+		fontFamily: theme.fonts.family.badge,
 		fontSize: 10,
 		fontWeight: "700",
 	},

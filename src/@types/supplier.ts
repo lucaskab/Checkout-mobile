@@ -2,11 +2,12 @@ export type SupplierCategory = string;
 
 export type SupplierProduct = {
 	id: number;
-	emoji: string;
 	name: string;
 	category: string;
+	capacity: number;
 	price: number;
 	quantity: number;
+	productionSavingsPercent?: number;
 	shelfTime: string;
 	sellPrice: number;
 	owned: number;
@@ -14,7 +15,6 @@ export type SupplierProduct = {
 
 export type SupplierCategoryOption = {
 	id: SupplierCategory;
-	emoji: string;
 	label: string;
 };
 

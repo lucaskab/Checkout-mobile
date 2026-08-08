@@ -1,30 +1,40 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { StoreTopSeller } from "@/@types/store";
+import { GameIcon } from "@/components/game-icon";
+import { GameText as Text } from "@/components/game-text";
+import { ProductImage } from "@/components/product-image";
 
 type TopSellersCardProps = {
 	items: StoreTopSeller[];
 };
-
-const medals = ["🥇", "🥈", "🥉"];
 
 export function TopSellersCard({ items }: TopSellersCardProps) {
 	const highestSold = items[0]?.sold ?? 1;
 
 	return (
 		<View style={styles.card}>
-			<Text style={styles.title}>🏆 Mais vendidos hoje</Text>
+			<View style={styles.titleRow}>
+				<GameIcon icon="trophy" style={styles.titleIcon} />
+				<Text style={styles.title}>Mais vendidos hoje</Text>
+			</View>
 			<View style={styles.list}>
 				{items.map((item, index) => (
 					<View key={item.id} style={styles.item}>
 						<View style={[styles.rank, index === 0 && styles.firstRank]}>
-							<Text style={styles.rankText}>{medals[index]}</Text>
+							<GameIcon icon="medal" style={styles.rankText} />
 						</View>
-						<Text style={styles.itemEmoji}>{item.emoji}</Text>
+						<ProductImage
+							productId={item.productId ?? Number(item.id)}
+							style={styles.itemImage}
+						/>
 						<View style={styles.itemCopy}>
 							<View style={styles.itemHeader}>
 								<Text style={styles.itemName}>{item.name}</Text>
-								<Text style={styles.itemRevenue}>🪙 {item.revenue}</Text>
+								<View style={styles.revenueRow}>
+									<GameIcon icon="coin" style={styles.revenueIcon} />
+									<Text style={styles.itemRevenue}>{item.revenue}</Text>
+								</View>
 							</View>
 							<View style={styles.progressTrack}>
 								<View
@@ -49,8 +59,8 @@ export function TopSellersCard({ items }: TopSellersCardProps) {
 const styles = StyleSheet.create((theme) => ({
 	card: {
 		padding: theme.gap(2),
-		borderWidth: 1,
-		borderColor: theme.colors["neutral-150"],
+		borderWidth: 2,
+		borderColor: theme.colors["neutral-200"],
 		borderRadius: theme.gap(2.5),
 		backgroundColor: theme.colors["neutral-0"],
 		shadowColor: theme.colors["neutral-800"],
@@ -60,9 +70,19 @@ const styles = StyleSheet.create((theme) => ({
 		elevation: 2,
 	},
 	title: {
+		fontFamily: theme.fonts.family.headline,
 		color: theme.colors["neutral-800"],
 		fontSize: theme.fonts.size.small,
 		fontWeight: "700",
+	},
+	titleRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.5),
+	},
+	titleIcon: {
+		width: 22,
+		height: 22,
 	},
 	list: {
 		gap: theme.gap(1.25),
@@ -85,13 +105,24 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["amber-100"],
 	},
 	rankText: {
-		fontSize: 15,
+		width: 24,
+		height: 24,
 	},
-	itemEmoji: {
-		fontSize: 21,
+	itemImage: {
+		width: theme.gap(4.5),
+		height: theme.gap(4.5),
 	},
 	itemCopy: {
 		flex: 1,
+	},
+	revenueRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.2),
+	},
+	revenueIcon: {
+		width: 16,
+		height: 16,
 	},
 	itemHeader: {
 		flexDirection: "row",
@@ -104,6 +135,7 @@ const styles = StyleSheet.create((theme) => ({
 		fontWeight: "700",
 	},
 	itemRevenue: {
+		fontFamily: theme.fonts.family.numberBold,
 		color: theme.colors["amber-600"],
 		fontSize: 12,
 		fontWeight: "700",

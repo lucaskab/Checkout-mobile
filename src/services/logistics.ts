@@ -34,9 +34,8 @@ export function getSupplierDeliveryDuration(
 ) {
 	const minutes = Number.parseInt(supplierTime, 10);
 	const baseDuration = Math.max(1, Number.isFinite(minutes) ? minutes : 5);
-	const hasVip = (logistics.vipExpiresAt ?? 0) > now;
 	const hasBoost = (logistics.logisticsBoostExpiresAt ?? 0) > now;
-	const multiplier = (hasVip ? 0.9 : 1) * (hasBoost ? 0.7 : 1);
+	const multiplier = hasBoost ? 0.7 : 1;
 
 	return Math.round(baseDuration * minuteInMilliseconds * multiplier);
 }

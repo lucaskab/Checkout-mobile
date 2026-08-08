@@ -12,9 +12,9 @@ export type ItemRarity =
 export type SaleVelocity = "lenta" | "media" | "rapida" | "muito-rapida";
 
 export type ItemDefinition = {
+	acquisition: "production" | "supplier";
 	category: string;
 	demand: number;
-	emoji: string;
 	expirationHours: number | null;
 	id: number;
 	maxPrice: number;

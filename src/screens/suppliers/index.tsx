@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type {
 	SupplierCategory,
 	SupplierCategoryOption,
 } from "@/@types/supplier";
-import { itemCategories } from "@/data/market-products";
+import { GameIcon } from "@/components/game-icon";
+import { GameText as Text } from "@/components/game-text";
+import { getInventoryCapacity } from "@/data/inventory-capacity";
+import { itemCatalog, itemCategories } from "@/data/market-products";
+import { getActiveGameEventEffects } from "@/services/game-events";
 import { useGameStore } from "@/stores/game-store";
 import { CategoryList } from "./components/category-list";
 import { ItemsList } from "./components/items-list";
@@ -14,19 +17,25 @@ import { initialProducts } from "./components/items-list/static";
 import { LogisticsPanel } from "./components/logistics-panel";
 
 const categories: SupplierCategoryOption[] = [
-	{ id: "todos", emoji: "🛒", label: "Todos" },
+	{ id: "todos", label: "Todos" },
 	...itemCategories,
 ];
 
 export function SuppliersScreen() {
-	const insets = useSafeAreaInsets();
 	const [activeCategory, setActiveCategory] =
 		useState<SupplierCategory>("todos");
 	const coins = useGameStore((state) => state.coins);
+	const events = useGameStore((state) => state.events);
 	const inventory = useGameStore((state) => state.inventory);
+	const inventoryCapacityLevels = useGameStore(
+		(state) => state.inventoryCapacityLevels,
+	);
 	const orders = useGameStore((state) => state.logistics.orders);
 	const emergencyTokens = useGameStore(
 		(state) => state.logistics.emergencyTokens,
+	);
+	const supplierOrderSlots = useGameStore(
+		(state) => state.logistics.supplierOrderSlots,
 	);
 	const unlockedProductIds = useGameStore(
 		(state) => state.market.unlockedProductIds,
@@ -38,15 +47,35 @@ export function SuppliersScreen() {
 	const deliverOrderInstantly = useGameStore(
 		(state) => state.deliverOrderInstantly,
 	);
+	const eventEffects = getActiveGameEventEffects(events);
 	const products = initialProducts
 		.filter((product) => unlockedProductIds.includes(product.id))
-		.map((product) => ({
-			...product,
-			owned: inventory[product.id] ?? 0,
-		}));
+		.map((product) => {
+			const catalogProduct = itemCatalog.find((item) => item.id === product.id);
+
+			return {
+				...product,
+				capacity: catalogProduct
+					? getInventoryCapacity(
+							catalogProduct,
+							inventoryCapacityLevels[product.id],
+						)
+					: 0,
+				owned: inventory[product.id] ?? 0,
+				price: Math.ceil(product.price * eventEffects.supplierCostMultiplier),
+				shelfTime: formatSupplierTime(
+					product.shelfTime,
+					eventEffects.supplierDurationMultiplier,
+				),
+			};
+		});
 
 	const totalOwned = products.reduce(
 		(total, product) => total + product.owned,
+		0,
+	);
+	const totalCapacity = products.reduce(
+		(total, product) => total + product.capacity,
 		0,
 	);
 
@@ -58,40 +87,33 @@ export function SuppliersScreen() {
 		return placeSupplierOrder({
 			productId: product.id,
 			quantity: product.quantity,
-			totalCost: product.price,
 		});
 	}
 
 	return (
-		<View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
+		<View style={styles.screen}>
 			<View style={styles.header}>
-				<View style={styles.headerRow}>
-					<View style={styles.headerCopy}>
-						<Text style={styles.title}>Fornecedores</Text>
-						<Text style={styles.subtitle}>
-							Compre produtos para abastecer suas prateleiras.
-						</Text>
-					</View>
-					<View style={styles.coinChip}>
-						<Text style={styles.coinChipText}>
-							🪙 {coins.toLocaleString("pt-BR")}
-						</Text>
-					</View>
-				</View>
 				<View style={styles.stockSummary}>
 					<View style={styles.stockIconWrap}>
-						<Text style={styles.stockIcon}>📦</Text>
+						<GameIcon icon="package" style={styles.stockIcon} />
 					</View>
 					<View style={styles.stockCopy}>
 						<View style={styles.stockTitleRow}>
 							<Text style={styles.stockTitle}>Meu estoque</Text>
-							<Text style={styles.stockValue}>{totalOwned} unidades</Text>
+							<Text style={styles.stockValue}>
+								{totalOwned} / {totalCapacity} unid.
+							</Text>
 						</View>
 						<View style={styles.progressTrack}>
 							<View
 								style={[
 									styles.progressFill,
-									{ width: `${Math.min((totalOwned / 60) * 100, 100)}%` },
+									{
+										width: `${Math.min(
+											(totalOwned / Math.max(totalCapacity, 1)) * 100,
+											100,
+										)}%`,
+									},
 								]}
 							/>
 						</View>
@@ -114,6 +136,7 @@ export function SuppliersScreen() {
 				onCompleteOrderFinalStage={completeOrderFinalStage}
 				onDeliverOrderInstantly={deliverOrderInstantly}
 				onPlaceOrder={placeOrder}
+				supplierOrderSlots={supplierOrderSlots}
 			/>
 		</View>
 	);
@@ -126,49 +149,15 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	header: {
 		paddingHorizontal: theme.gap(2),
-		paddingBottom: theme.gap(1.75),
+		paddingVertical: theme.gap(1.25),
 		backgroundColor: theme.colors["neutral-0"],
 		borderBottomWidth: 1,
 		borderBottomColor: theme.colors["neutral-150"],
-	},
-	headerRow: {
-		flexDirection: "row",
-		alignItems: "flex-start",
-		justifyContent: "space-between",
-	},
-	headerCopy: {
-		flex: 1,
-		paddingRight: theme.gap(1),
-	},
-	title: {
-		color: theme.colors["neutral-800"],
-		fontSize: theme.fonts.size.large + 4,
-		fontWeight: "700",
-	},
-	subtitle: {
-		marginTop: theme.gap(0.5),
-		color: theme.colors["neutral-500"],
-		fontSize: theme.fonts.size.small,
-		lineHeight: theme.gap(2),
-	},
-	coinChip: {
-		paddingHorizontal: theme.gap(1.25),
-		paddingVertical: theme.gap(0.75),
-		borderWidth: 1,
-		borderColor: theme.colors["amber-200"],
-		borderRadius: theme.gap(3),
-		backgroundColor: theme.colors["amber-50"],
-	},
-	coinChipText: {
-		color: theme.colors["amber-600"],
-		fontSize: theme.fonts.size.small,
-		fontWeight: "700",
 	},
 	stockSummary: {
 		flexDirection: "row",
 		alignItems: "center",
 		gap: theme.gap(1.25),
-		marginTop: theme.gap(1.75),
 		padding: theme.gap(1.25),
 		borderWidth: 1,
 		borderColor: theme.colors["blue-200"],
@@ -184,7 +173,8 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["neutral-0"],
 	},
 	stockIcon: {
-		fontSize: 22,
+		width: theme.gap(3.5),
+		height: theme.gap(3.5),
 	},
 	stockCopy: {
 		flex: 1,
@@ -194,11 +184,13 @@ const styles = StyleSheet.create((theme) => ({
 		justifyContent: "space-between",
 	},
 	stockTitle: {
+		fontFamily: theme.fonts.family.headline,
 		color: theme.colors["neutral-800"],
 		fontSize: theme.fonts.size.small,
 		fontWeight: "700",
 	},
 	stockValue: {
+		fontFamily: theme.fonts.family.numberBold,
 		color: theme.colors["blue-600"],
 		fontSize: theme.fonts.size.small,
 		fontWeight: "700",
@@ -240,3 +232,9 @@ const styles = StyleSheet.create((theme) => ({
 		textAlign: "center",
 	},
 }));
+
+function formatSupplierTime(supplierTime: string, multiplier: number) {
+	const minutes = Number.parseInt(supplierTime, 10);
+
+	return `${Math.max(1, Math.ceil(minutes * multiplier))}m`;
+}

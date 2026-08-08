@@ -1,7 +1,9 @@
+import type { ShelfSlotUpgrade } from "./shelf-capacity";
+
 export type StoreShelf = {
 	id: string;
 	name?: string;
-	product?: string;
+	nextSlotUpgrade?: ShelfSlotUpgrade;
 	productId?: number;
 	locked?: boolean;
 };
@@ -10,32 +12,27 @@ export type StoreCustomerStatus = "pagou" | "saiu sem comprar";
 
 export type StoreActiveCustomer = {
 	id: string;
-	emoji: string;
 	item: string;
+	mood?: "calmo" | "com-pressa" | "feliz" | "estressado";
 	name: string;
+	satisfaction?: number;
 	spent: number;
 	status: StoreCustomerStatus;
 };
 
 export type StoreAlert = {
 	actionLabel: string;
-	emoji: string;
 	id: string;
 	issue: string;
 	name: string;
+	productId?: number;
 	type: "low" | "notice";
 };
 
 export type StoreTopSeller = {
-	emoji: string;
 	id: string;
 	name: string;
+	productId?: number;
 	revenue: number;
 	sold: number;
-};
-
-export type StoreQuickStat = {
-	icon: string;
-	label: string;
-	value: string;
 };

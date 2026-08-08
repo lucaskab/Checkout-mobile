@@ -2,7 +2,13 @@ import {
 	ModalBottomSheet,
 	BottomSheetProvider as NativeBottomSheetProvider,
 } from "@swmansion/react-native-bottom-sheet";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import {
+	createContext,
+	type ReactNode,
+	useContext,
+	useRef,
+	useState,
+} from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 
@@ -20,22 +26,26 @@ type BottomSheetProviderProps = {
 export function BottomSheetProvider({ children }: BottomSheetProviderProps) {
 	const [content, setContent] = useState<ReactNode>(null);
 	const [index, setIndex] = useState(0);
+	const isOpenRef = useRef(false);
 
 	function openBottomSheet(bottomSheetContent: ReactNode) {
+		isOpenRef.current = true;
 		setContent(bottomSheetContent);
 		setIndex(1);
 	}
 
 	function closeBottomSheet() {
+		isOpenRef.current = false;
 		setIndex(0);
 	}
 
 	function handleIndexChange(nextIndex: number) {
+		isOpenRef.current = nextIndex > 0;
 		setIndex(nextIndex);
 	}
 
 	function handleSettle(settledIndex: number) {
-		if (settledIndex === 0) {
+		if (settledIndex === 0 && !isOpenRef.current) {
 			setContent(null);
 		}
 	}

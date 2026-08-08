@@ -14,8 +14,6 @@ export function BackgroundMusic() {
 		player.loop = true;
 		player.volume = 0.35;
 		player.play();
-
-		return () => player.pause();
 	}, [player]);
 
 	return null;

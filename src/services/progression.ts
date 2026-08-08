@@ -1,6 +1,6 @@
 import type { MarketPurchase } from "@/@types/customer-simulation";
 import type { ExperienceProgress } from "@/@types/game";
-import type { MarketProduct } from "@/data/market-products";
+import type { ItemDefinition } from "@/@types/item";
 
 export function getExperienceToNextLevel(level: number) {
 	return Math.round(80 * level ** 1.45 + 20 * level);
@@ -8,12 +8,12 @@ export function getExperienceToNextLevel(level: number) {
 
 export function getExperienceFromSales(
 	purchases: MarketPurchase[],
-	products: MarketProduct[],
+	products: Pick<ItemDefinition, "id" | "xpPerSale">[],
 ) {
 	return purchases.reduce((total, purchase) => {
 		const product = products.find((item) => item.id === purchase.productId);
 
-		return total + (product?.experience ?? 0) * purchase.quantity;
+		return total + (product?.xpPerSale ?? 0) * purchase.quantity;
 	}, 0);
 }
 

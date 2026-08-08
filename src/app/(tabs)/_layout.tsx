@@ -1,69 +1,110 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Tabs } from "expo-router";
-import { StyleSheet } from "react-native-unistyles";
-import { BackgroundMusic } from "@/components/background-music";
-import { BottomSheetProvider } from "@/components/bottom-sheet";
-import { IapProvider } from "@/components/iap-provider";
-import { MarketSimulation } from "@/components/market-simulation";
-import { SupplierLogisticsSimulation } from "@/components/supplier-logistics-simulation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import { GameHeader } from "@/components/game-header";
+import { TabBarIcon } from "@/components/tab-bar-icon";
 
-const queryClient = new QueryClient();
-export default function RootLayout() {
+export default function TabsLayout() {
+	const { theme } = useUnistyles();
+	const insets = useSafeAreaInsets();
+
 	return (
-		<QueryClientProvider client={queryClient}>
-			<IapProvider>
-				<BottomSheetProvider>
-					<BackgroundMusic />
-					<MarketSimulation />
-					<SupplierLogisticsSimulation />
-					<Tabs
-						safeAreaInsets={{ bottom: 0 }}
-						screenOptions={{
-							headerStatusBarHeight: 0,
-							headerStyle: styles.header,
-							headerTitleStyle: styles.headerTitle,
-							tabBarStyle: styles.tabBar,
-							tabBarItemStyle: styles.tabBarItem,
-							tabBarLabelStyle: styles.tabBarLabel,
-						}}
-					>
-						<Tabs.Screen name="index" options={{ title: "Loja" }} />
-						<Tabs.Screen
-							name="products"
-							options={{ headerShown: false, title: "Produtos" }}
-						/>
-						<Tabs.Screen name="suppliers" options={{ headerShown: false }} />
-						<Tabs.Screen
-							name="customers"
-							options={{ headerShown: false, title: "Clientes" }}
-						/>
-					</Tabs>
-				</BottomSheetProvider>
-			</IapProvider>
-		</QueryClientProvider>
+		<Tabs
+			safeAreaInsets={{ bottom: insets.bottom }}
+			screenOptions={{
+				header: () => <GameHeader />,
+				tabBarStyle: styles.tabBar,
+				tabBarItemStyle: styles.tabBarItem,
+				tabBarLabelStyle: styles.tabBarLabel,
+				tabBarActiveTintColor: theme.colors["blue-700"],
+				tabBarInactiveTintColor: theme.colors["neutral-500"],
+			}}
+		>
+			<Tabs.Screen
+				name="index"
+				options={{
+					title: "Loja",
+					tabBarIcon: ({ focused }) => (
+						<TabBarIcon icon="market" focused={focused} />
+					),
+				}}
+			/>
+			<Tabs.Screen
+				name="products"
+				options={{
+					title: "Produtos",
+					tabBarIcon: ({ focused }) => (
+						<TabBarIcon icon="basket" focused={focused} />
+					),
+				}}
+			/>
+			<Tabs.Screen
+				name="sectors"
+				options={{
+					title: "Setores",
+					tabBarIcon: ({ focused }) => (
+						<TabBarIcon icon="shelf" focused={focused} />
+					),
+				}}
+			/>
+			<Tabs.Screen
+				name="shop"
+				options={{
+					title: "Shop",
+					tabBarIcon: ({ focused }) => (
+						<TabBarIcon icon="diamond" focused={focused} />
+					),
+				}}
+			/>
+			<Tabs.Screen
+				name="suppliers"
+				options={{
+					title: "Fornecedores",
+					tabBarIcon: ({ focused }) => (
+						<TabBarIcon icon="deliveryTruck" focused={focused} />
+					),
+				}}
+			/>
+			<Tabs.Screen
+				name="currency-store"
+				options={{ href: null, tabBarStyle: { display: "none" } }}
+			/>
+			<Tabs.Screen
+				name="missions"
+				options={{ href: null, tabBarStyle: { display: "none" } }}
+			/>
+			<Tabs.Screen
+				name="achievements"
+				options={{ href: null, tabBarStyle: { display: "none" } }}
+			/>
+			<Tabs.Screen
+				name="expansions"
+				options={{ href: null, tabBarStyle: { display: "none" } }}
+			/>
+			<Tabs.Screen
+				name="team"
+				options={{ href: null, tabBarStyle: { display: "none" } }}
+			/>
+			<Tabs.Screen
+				name="market-evolution"
+				options={{ href: null, tabBarStyle: { display: "none" } }}
+			/>
+		</Tabs>
 	);
 }
 
 const styles = StyleSheet.create((theme) => ({
-	header: {
-		backgroundColor: theme.colors["neutral-0"],
-	},
-	headerTitle: {
-		color: theme.colors["neutral-700"],
-		fontFamily: theme.fonts.weight.bold,
-		fontSize: theme.fonts.size.medium,
-	},
 	tabBar: {
-		paddingTop: theme.gap(0.5),
-		paddingBottom: theme.gap(0.5),
-		borderTopColor: theme.colors["neutral-100"],
-		backgroundColor: theme.colors["neutral-0"],
+		height: theme.gap(9),
+		paddingTop: theme.gap(0.75),
+		paddingBottom: theme.gap(0.75),
 	},
 	tabBarItem: {
-		paddingVertical: 0,
+		paddingVertical: theme.gap(0.25),
 	},
 	tabBarLabel: {
-		fontFamily: theme.fonts.weight.bold,
-		fontSize: theme.fonts.size.small,
+		fontFamily: theme.fonts.family.badge,
+		fontSize: 10,
+		marginTop: theme.gap(0.25),
 	},
 }));

@@ -1,0 +1,31 @@
+{
+  "snapshot": {
+    "coins": 1248,
+    "premiumCurrency": 10,
+    "level": 1,
+    "experience": 0,
+    "experienceToNextLevel": 120,
+    "customersServed": 0,
+    "unitsSold": 0,
+    "todayRevenue": 0,
+    "customerSatisfaction": 55,
+    "marketOpen": false,
+    "employeeHired": false,
+    "shelves": [
+      { "id": "produce", "displayName": "Hortifruti", "productId": "1", "productName": "Tomate", "stock": 3, "capacity": 8, "sellingPrice": 18, "unlocked": true, "x": -4, "z": 2 }
+    ],
+    "inventory": [ { "productId": "1", "productName": "Tomate", "quantity": 9 } ],
+    "deliveries": [],
+    "production": { "recipeId": "", "recipeName": "", "outputQuantity": 0, "remainingSeconds": 0, "running": false }
+  },
+  "actions": [
+    { "type": "toggle_market" },
+    { "type": "restock", "targetId": "produce", "amount": 5 },
+    { "type": "order", "targetId": "1", "amount": 6 },
+    { "type": "produce", "targetId": "baguete-rustica" },
+    { "type": "build", "targetId": "expansion-1", "x": 2, "z": 4 }
+  ],
+  "events": [
+    { "type": "sale", "targetId": "produce", "amount": 1, "coins": 18, "level": 1, "message": "Tomate vendido" }
+  ]
+}

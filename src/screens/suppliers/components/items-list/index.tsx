@@ -3,10 +3,13 @@ import {
 	type LegendListRenderItemProps,
 } from "@legendapp/list/react-native";
 import { useEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { SupplierOrder } from "@/@types/logistics";
 import type { SupplierCategory, SupplierProduct } from "@/@types/supplier";
+import { GameIcon } from "@/components/game-icon";
+import { GameText as Text } from "@/components/game-text";
+import { ProductImage } from "@/components/product-image";
 import { itemCatalog } from "@/data/market-products";
 import {
 	getOrderProgress,
@@ -24,6 +27,7 @@ interface ItemsListProps {
 	onCompleteOrderFinalStage: (orderId: string) => boolean;
 	onDeliverOrderInstantly: (orderId: string) => boolean;
 	orders: SupplierOrder[];
+	supplierOrderSlots: number;
 }
 
 export const ItemsList = ({
@@ -35,9 +39,11 @@ export const ItemsList = ({
 	onCompleteOrderFinalStage,
 	onDeliverOrderInstantly,
 	orders,
+	supplierOrderSlots,
 }: ItemsListProps) => {
 	const [buyingId, setBuyingId] = useState<number | null>(null);
 	const [currentTime, setCurrentTime] = useState(Date.now());
+	const [orderFeedback, setOrderFeedback] = useState<string | null>(null);
 	const filteredProducts =
 		activeCategory === "todos"
 			? products
@@ -45,6 +51,11 @@ export const ItemsList = ({
 	const activeOrders = orders.filter(
 		(order) => getSupplierOrderStatus(order, currentTime) !== "entregue",
 	);
+	const visibleOrders = orders.filter((order) => {
+		const status = getSupplierOrderStatus(order, currentTime);
+
+		return status !== "entregue" || order.status !== "entregue";
+	});
 
 	useEffect(() => {
 		if (activeOrders.length === 0) {
@@ -57,13 +68,39 @@ export const ItemsList = ({
 	}, [activeOrders.length]);
 
 	function placeOrder(product: SupplierProduct) {
-		if (coins < product.price) {
+		if (activeOrders.length >= supplierOrderSlots) {
+			setOrderFeedback(
+				`Limite de ${supplierOrderSlots} pedidos simultâneos atingido. Expanda a capacidade na Central logística.`,
+			);
+			setTimeout(() => setOrderFeedback(null), 2_600);
+			return;
+		}
+
+		if (
+			coins < product.price ||
+			product.owned + product.quantity > product.capacity
+		) {
+			if (product.owned + product.quantity > product.capacity) {
+				setOrderFeedback(
+					"Sem espaço para este pedido. Amplie a capacidade do item em Produtos.",
+				);
+				setTimeout(() => setOrderFeedback(null), 2_600);
+			}
+
 			return;
 		}
 
 		setBuyingId(product.id);
 		setTimeout(() => {
-			onPlaceOrder(product);
+			const orderPlaced = onPlaceOrder(product);
+
+			if (!orderPlaced) {
+				setOrderFeedback(
+					"Não foi possível criar o pedido. Aguarde o caminhão voltar ou verifique suas moedas.",
+				);
+				setTimeout(() => setOrderFeedback(null), 2_600);
+			}
+
 			setBuyingId(null);
 		}, 350);
 	}
@@ -73,7 +110,9 @@ export const ItemsList = ({
 	}: LegendListRenderItemProps<SupplierProduct>) => {
 		return (
 			<ProductCard
-				canAfford={coins >= item.price}
+				canAfford={
+					coins >= item.price && item.owned + item.quantity <= item.capacity
+				}
 				isBuying={buyingId === item.id}
 				onBuy={placeOrder}
 				product={item}
@@ -85,43 +124,62 @@ export const ItemsList = ({
 			contentContainerStyle={styles.productsList}
 			data={filteredProducts}
 			estimatedItemSize={250}
+			extraData={{ currentTime, products, supplierOrderSlots }}
 			keyExtractor={(product) => product.id.toString()}
 			numColumns={2}
 			renderItem={renderProduct}
 			ListHeaderComponent={
 				<View>
-					{activeOrders.length > 0 && (
+					{orderFeedback && (
+						<View style={styles.orderFeedback}>
+							<Text style={styles.orderFeedbackText}>{orderFeedback}</Text>
+						</View>
+					)}
+					{visibleOrders.length > 0 && (
 						<View style={styles.ordersHeader}>
 							<Text style={styles.ordersTitle}>Pedidos em andamento</Text>
 							<Text style={styles.ordersCount}>
-								{activeOrders.length} ativo(s)
+								{activeOrders.length}/{supplierOrderSlots} ativo(s)
 							</Text>
 						</View>
 					)}
-					{activeOrders.map((order) => {
+					{visibleOrders.map((order) => {
 						const product = itemCatalog.find(
 							(item) => item.id === order.productId,
 						);
 						const status = getSupplierOrderStatus(order, currentTime);
 						const progress = getOrderProgress(order, currentTime);
+						const isWaitingForInventory =
+							status === "entregue" && order.status !== "entregue";
 
 						return (
 							<View key={order.id} style={styles.orderCard}>
 								<View style={styles.orderContent}>
-									<Text style={styles.orderEmoji}>{product?.emoji}</Text>
+									{product ? (
+										<ProductImage
+											productId={product.id}
+											style={styles.orderImage}
+										/>
+									) : (
+										<GameIcon icon="package" style={styles.orderEmoji} />
+									)}
 									<View style={styles.orderCopy}>
 										<Text style={styles.orderTitle}>
 											{product?.name} · {order.quantity} unid.
 										</Text>
 										<Text style={styles.orderStatus}>
-											{status === "em-producao"
-												? "Em produção"
-												: status === "enviado"
-													? "Pedido enviado"
-													: "Em transporte"}
+											{isWaitingForInventory
+												? "Aguardando espaço no estoque"
+												: status === "em-producao"
+													? "Em produção"
+													: status === "enviado"
+														? "Pedido enviado"
+														: "Em transporte"}
 										</Text>
 										<Text style={styles.orderTime}>
-											Chega em {getOrderRemainingTime(order, currentTime)}
+											{isWaitingForInventory
+												? "Amplie a capacidade ou libere espaço"
+												: `Chega em ${getOrderRemainingTime(order, currentTime)}`}
 										</Text>
 									</View>
 								</View>
@@ -133,28 +191,39 @@ export const ItemsList = ({
 										]}
 									/>
 								</View>
-								<View style={styles.orderActions}>
-									<Pressable
-										onPress={() => onDeliverOrderInstantly(order.id)}
-										style={styles.orderAction}
-									>
-										<Text style={styles.orderActionText}>
-											{emergencyTokens > 0
-												? "Entrega agora · 🎫"
-												: "Entrega agora · 5 💎"}
-										</Text>
-									</Pressable>
-									{status === "em-transporte" && (
+								{!isWaitingForInventory && (
+									<View style={styles.orderActions}>
 										<Pressable
-											onPress={() => onCompleteOrderFinalStage(order.id)}
-											style={styles.orderActionSecondary}
+											onPress={() => onDeliverOrderInstantly(order.id)}
+											style={styles.orderAction}
 										>
-											<Text style={styles.orderActionSecondaryText}>
-												Finalizar por 2 💎
-											</Text>
+											<View style={styles.actionLabelRow}>
+												<GameIcon
+													icon={emergencyTokens > 0 ? "ticket" : "diamond"}
+													style={styles.actionIcon}
+												/>
+												<Text style={styles.orderActionText}>
+													{emergencyTokens > 0
+														? "Entrega agora"
+														: "Entrega agora · 5"}
+												</Text>
+											</View>
 										</Pressable>
-									)}
-								</View>
+										{status === "em-transporte" && (
+											<Pressable
+												onPress={() => onCompleteOrderFinalStage(order.id)}
+												style={styles.orderActionSecondary}
+											>
+												<View style={styles.actionLabelRow}>
+													<GameIcon icon="diamond" style={styles.actionIcon} />
+													<Text style={styles.orderActionSecondaryText}>
+														Finalizar por 2
+													</Text>
+												</View>
+											</Pressable>
+										)}
+									</View>
+								)}
 							</View>
 						);
 					})}
@@ -190,12 +259,28 @@ const styles = StyleSheet.create((theme) => ({
 		marginHorizontal: theme.gap(1.25),
 		marginTop: theme.gap(1.25),
 	},
+	orderFeedback: {
+		marginHorizontal: theme.gap(1.25),
+		marginTop: theme.gap(1.25),
+		paddingHorizontal: theme.gap(1.25),
+		paddingVertical: theme.gap(1),
+		borderRadius: theme.gap(1.5),
+		backgroundColor: theme.colors["red-50"],
+	},
+	orderFeedbackText: {
+		color: theme.colors["red-500"],
+		fontSize: 11,
+		fontWeight: "600",
+		lineHeight: theme.gap(1.75),
+	},
 	ordersTitle: {
+		fontFamily: theme.fonts.family.headline,
 		color: theme.colors["neutral-800"],
 		fontSize: theme.fonts.size.medium,
 		fontWeight: "700",
 	},
 	ordersCount: {
+		fontFamily: theme.fonts.family.numberBold,
 		color: theme.colors["blue-600"],
 		fontSize: theme.fonts.size.small,
 		fontWeight: "700",
@@ -226,6 +311,15 @@ const styles = StyleSheet.create((theme) => ({
 		fontSize: 10,
 		fontWeight: "700",
 	},
+	actionLabelRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.25),
+	},
+	actionIcon: {
+		width: 16,
+		height: 16,
+	},
 	orderActionSecondary: {
 		paddingHorizontal: theme.gap(1),
 		paddingVertical: theme.gap(0.5),
@@ -243,12 +337,18 @@ const styles = StyleSheet.create((theme) => ({
 		gap: theme.gap(1),
 	},
 	orderEmoji: {
-		fontSize: 22,
+		width: 34,
+		height: 34,
+	},
+	orderImage: {
+		width: theme.gap(5),
+		height: theme.gap(5),
 	},
 	orderCopy: {
 		flex: 1,
 	},
 	orderTitle: {
+		fontFamily: theme.fonts.family.headline,
 		color: theme.colors["neutral-800"],
 		fontSize: theme.fonts.size.small,
 		fontWeight: "700",
@@ -277,11 +377,13 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["blue-500"],
 	},
 	listTitle: {
+		fontFamily: theme.fonts.family.headline,
 		color: theme.colors["neutral-800"],
 		fontSize: theme.fonts.size.medium,
 		fontWeight: "700",
 	},
 	listCount: {
+		fontFamily: theme.fonts.family.numberBold,
 		color: theme.colors["neutral-500"],
 		fontSize: theme.fonts.size.small,
 		fontWeight: "600",

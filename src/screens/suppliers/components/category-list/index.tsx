@@ -1,14 +1,13 @@
-import {
-	FlatList,
-	type ListRenderItemInfo,
-	Pressable,
-	Text,
-} from "react-native";
+import { FlatList, type ListRenderItemInfo, Pressable } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type {
 	SupplierCategory,
 	SupplierCategoryOption,
 } from "@/@types/supplier";
+import { GameIcon } from "@/components/game-icon";
+import { GameText as Text } from "@/components/game-text";
+import { ProductImage } from "@/components/product-image";
+import { getMarketCategoryProductId } from "@/data/game-icon-assets";
 
 type CategoryListProps = {
 	activeCategory: SupplierCategory;
@@ -29,7 +28,14 @@ export function CategoryList({
 				onPress={() => onSelectCategory(item.id)}
 				style={[styles.categoryItem, isActive && styles.activeCategoryItem]}
 			>
-				<Text style={styles.categoryEmoji}>{item.emoji}</Text>
+				{item.id === "todos" ? (
+					<GameIcon icon="cart" style={styles.categoryEmoji} />
+				) : (
+					<ProductImage
+						productId={getMarketCategoryProductId(item.id)}
+						style={styles.categoryEmoji}
+					/>
+				)}
 				<Text
 					style={[styles.categoryName, isActive && styles.activeCategoryName]}
 				>
@@ -72,16 +78,19 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["blue-50"],
 	},
 	categoryEmoji: {
-		fontSize: 16,
+		width: 24,
+		height: 24,
 	},
 	categoryName: {
 		color: theme.colors["neutral-500"],
+		fontFamily: theme.fonts.family.badge,
 		fontSize: theme.fonts.size.small,
 		fontWeight: theme.fonts.weight.medium,
 		lineHeight: theme.gap(2),
 	},
 	activeCategoryName: {
 		color: theme.colors["blue-600"],
+		fontFamily: theme.fonts.family.badge,
 		fontWeight: theme.fonts.weight.bold,
 	},
 }));

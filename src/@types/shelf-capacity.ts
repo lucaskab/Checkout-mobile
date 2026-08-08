@@ -6,3 +6,9 @@ export type ShelfCapacityUpgrade = {
 	diamondCost: number;
 	playerLevel: number;
 };
+
+export type ShelfSlotUpgrade = {
+	coinCost: number;
+	playerLevel: number;
+	unlockedSlots: number;
+};

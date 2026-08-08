@@ -17,17 +17,15 @@ export type SupplierOrder = {
 
 export type LogisticsState = {
 	emergencyTokens: number;
-	extraTruckExpiresAt: number | null;
 	freightCoupons: number;
 	logisticsBoostExpiresAt: number | null;
 	orders: SupplierOrder[];
 	premiumCurrency: number;
-	vipExpiresAt: number | null;
+	supplierOrderSlots: number;
 };
 
 export type PlaceSupplierOrderInput = {
 	productId: number;
 	quantity: number;
-	totalCost: number;
 	useFreightCoupon?: boolean;
 };

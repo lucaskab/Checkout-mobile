@@ -75,7 +75,10 @@ export type MarketVisit = {
 };
 
 export type MarketVisitOptions = {
+	budgetMultiplier?: number;
+	maxProductsBonus?: number;
 	products: MarketSimulationProduct[];
+	revenueMultiplier?: number;
 	seed: number;
 	storeReputation: number;
 };

@@ -1,71 +1,83 @@
 import { StyleSheet } from "react-native-unistyles";
 
+export const gameFontFamilies = {
+	headline: "Fredoka_700Bold",
+	badge: "Fredoka_600SemiBold",
+	body: "Nunito_400Regular",
+	bodyMedium: "Nunito_600SemiBold",
+	bodyBold: "Nunito_700Bold",
+	bodyExtraBold: "Nunito_800ExtraBold",
+	number: "JetBrainsMono_500Medium",
+	numberBold: "JetBrainsMono_700Bold",
+} as const;
+
 const lightTheme = {
 	colors: {
-		/* ── Blue (primary brand — retail trust, Carrefour/Walmart style) ── */
-		"blue-50": "#EFF6FF",
-		"blue-100": "#DBEAFE",
-		"blue-200": "#BFDBFE",
-		"blue-300": "#93C5FD",
-		"blue-400": "#60A5FA",
-		"blue-500": "#2563EB" /* primary action */,
-		"blue-600": "#1D4ED8",
-		"blue-700": "#1E40AF",
-		"blue-800": "#1E3A8A",
+		/* ── Blue (primary action — friendly cozy sky/teal, shop signage) ─── */
+		"blue-50": "#E9F6FA",
+		"blue-100": "#CDEBF3",
+		"blue-200": "#A3D9E8",
+		"blue-300": "#6FC0D6",
+		"blue-400": "#3FA3C0",
+		"blue-500": "#2E8CAE" /* primary action — cozy teal-blue */,
+		"blue-600": "#1F718F",
+		"blue-700": "#175A73",
+		"blue-800": "#123F52",
 
-		/* ── Red (sale tags, urgency, promos) ───────────────────────────── */
-		"red-50": "#FFF1F2",
-		"red-100": "#FFE4E6",
-		"red-200": "#FECDD3",
-		"red-400": "#F87171",
-		"red-500": "#DC2626" /* sale red */,
-		"red-600": "#B91C1C",
+		/* ── Red (sale tags, urgency — warm ripe tomato) ─────────────────── */
+		"red-50": "#FDF0EB",
+		"red-100": "#FBDDD1",
+		"red-200": "#F6BFA9",
+		"red-400": "#EF8A63",
+		"red-500": "#E15533" /* tomato sale red */,
+		"red-600": "#C0401F",
 
-		/* ── Green (positive outcomes and successful purchases) ─────────── */
-		"green-50": "#ECFDF3",
-		"green-100": "#D1FADF",
-		"green-500": "#12B76A",
-		"green-600": "#039855",
+		/* ── Green (fresh produce, success, growth) ──────────────────────── */
+		"green-50": "#EEF7E4",
+		"green-100": "#D6EDBE",
+		"green-500": "#5DA637" /* leafy produce green */,
+		"green-600": "#427A24",
 
-		/* ── Amber / Gold (coins, warmth, bakery) ───────────────────────── */
-		"amber-50": "#FFFBEB",
-		"amber-100": "#FEF3C7",
-		"amber-200": "#FDE68A",
-		"amber-400": "#FBBF24" /* coin gold */,
-		"amber-500": "#D97706",
-		"amber-600": "#B45309",
+		/* ── Amber / Gold (coins, bakery warmth, wood glow) ──────────────── */
+		"amber-50": "#FEF6E4",
+		"amber-100": "#FBE9C2",
+		"amber-200": "#F6D68C",
+		"amber-400": "#F2B03D" /* coin gold */,
+		"amber-500": "#D98A2B",
+		"amber-600": "#A9651C",
 
-		/* ── Violet (gems, premium) ─────────────────────────────────────── */
-		"violet-50": "#F5F3FF",
-		"violet-100": "#EDE9FE",
-		"violet-400": "#A78BFA",
-		"violet-500": "#7C3AED" /* gem violet */,
-		"violet-600": "#6D28D9",
+		/* ── Violet (gems, premium — ripe berry/plum) ────────────────────── */
+		"violet-50": "#F4EEF7",
+		"violet-100": "#E6D9EE",
+		"violet-400": "#B48FCB",
+		"violet-500": "#8B5C9E" /* gem plum */,
+		"violet-600": "#6D4487",
 
-		/* ── Neutrals (structure, text, borders) ────────────────────────── */
+		/* ── Neutrals (warm parchment surfaces → wood-brown text) ────────── */
 		"neutral-0": "#FFFFFF",
-		"neutral-50": "#F8FAFF" /* page bg — faint blue tint */,
-		"neutral-100": "#EEF2FF",
-		"neutral-150": "#E0E7FF",
-		"neutral-200": "#C7D2FE",
-		"neutral-300": "#A5B4FC",
-		"neutral-400": "#818CF8",
-		"neutral-500": "#6366F1",
-		"neutral-600": "#4338CA",
-		"neutral-700": "#1E2060" /* deep navy for text */,
-		"neutral-800": "#0F1240",
+		"neutral-50": "#FFF7EC" /* page bg — warm cream */,
+		"neutral-100": "#FBEEDA",
+		"neutral-150": "#F1E1C6" /* warm wood border */,
+		"neutral-200": "#E6CFA6",
+		"neutral-300": "#D4B482",
+		"neutral-400": "#BC9560",
+		"neutral-500": "#977552" /* muted wood text */,
+		"neutral-600": "#6E5237",
+		"neutral-700": "#4A3624" /* deep wood text */,
+		"neutral-800": "#2E2013",
 
 		/* ── Game aliases (shared store and supplier surfaces) ───────────── */
-		gameBackground: "#F8FAFF",
-		gameText: "#0F1240",
-		gameMuted: "#6366F1",
-		gameAccentSoft: "#EFF6FF",
-		gameBorder: "#E0E7FF",
-		gameShelf: "#FEF3C7",
-		gameShelfBorder: "#B45309",
-		gameLockedShelf: "#F8FAFF",
+		gameBackground: "#FFF7EC",
+		gameText: "#2E2013",
+		gameMuted: "#977552",
+		gameAccentSoft: "#FFF1DE",
+		gameBorder: "#F1E1C6",
+		gameShelf: "#F0D39B" /* warm pine shelf */,
+		gameShelfBorder: "#A9651C" /* wood edge */,
+		gameLockedShelf: "#F5ECDD",
 	},
 	fonts: {
+		family: gameFontFamilies,
 		size: {
 			/** 13px */
 			small: 13,

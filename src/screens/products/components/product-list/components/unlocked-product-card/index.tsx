@@ -1,13 +1,21 @@
-import { Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { ItemDefinition, ItemRarity } from "@/@types/item";
+import { GameIcon } from "@/components/game-icon";
+import { GameText as Text } from "@/components/game-text";
+import { ProductImage } from "@/components/product-image";
+import { getMarketCategoryProductId } from "@/data/game-icon-assets";
 import { itemCategories } from "@/data/market-products";
 
 export const UnlockedProductCard = ({
 	inventoryAmount,
+	inventoryCapacity,
+	onPress,
 	product,
 }: {
 	inventoryAmount: number;
+	inventoryCapacity: number;
+	onPress: () => void;
 	product: ItemDefinition;
 }) => {
 	const category = itemCategories.find((item) => item.id === product.category);
@@ -52,29 +60,49 @@ export const UnlockedProductCard = ({
 		return rarity.charAt(0).toUpperCase() + rarity.slice(1);
 	}
 
-	function Metric({ label, value }: { label: string; value: string }) {
+	function Metric({
+		icon,
+		label,
+		value,
+	}: {
+		icon?: "coin";
+		label: string;
+		value: string;
+	}) {
 		return (
 			<View style={styles.metric}>
-				<Text style={styles.metricValue}>{value}</Text>
+				<View style={styles.metricValueRow}>
+					{icon && <GameIcon icon={icon} style={styles.metricIcon} />}
+					<Text style={styles.metricValue}>{value}</Text>
+				</View>
 				<Text style={styles.metricLabel}>{label}</Text>
 			</View>
 		);
 	}
 
 	return (
-		<View style={[styles.card, getRarityCardStyle(product.rarity)]}>
+		<Pressable
+			onPress={onPress}
+			style={[styles.card, getRarityCardStyle(product.rarity)]}
+		>
 			<View style={styles.cardTopRow}>
 				<View style={styles.productIdentity}>
 					<View style={styles.productVisual}>
-						<Text style={styles.productEmoji}>{product.emoji}</Text>
+						<ProductImage productId={product.id} style={styles.productImage} />
 					</View>
 					<View style={styles.productCopy}>
 						<Text numberOfLines={1} style={styles.productName}>
 							{product.name}
 						</Text>
-						<Text style={styles.categoryText}>
-							{category?.emoji} {category?.label ?? product.category}
-						</Text>
+						<View style={styles.categoryRow}>
+							<ProductImage
+								productId={getMarketCategoryProductId(product.category)}
+								style={styles.categoryIcon}
+							/>
+							<Text style={styles.categoryText}>
+								{category?.label ?? product.category}
+							</Text>
+						</View>
 					</View>
 				</View>
 				<View style={[styles.rarityChip, getRarityChipStyle(product.rarity)]}>
@@ -84,15 +112,19 @@ export const UnlockedProductCard = ({
 				</View>
 			</View>
 			<View style={styles.metricsRow}>
-				<Metric label="Venda" value={`🪙 ${product.sellingPrice}`} />
-				<Metric label="Lucro" value={`+🪙 ${product.profitPerUnit}`} />
+				<Metric
+					icon="coin"
+					label="Venda"
+					value={product.sellingPrice.toString()}
+				/>
+				<Metric icon="coin" label="Lucro" value={`+${product.profitPerUnit}`} />
 				<Metric label="XP" value={`+${product.xpPerSale}`} />
 			</View>
 			<View style={styles.stockRow}>
 				<View style={styles.stockCopy}>
 					<Text style={styles.stockLabel}>Estoque atual</Text>
 					<Text style={styles.stockValue}>
-						{inventoryAmount} / {product.recommendedStock} unid.
+						{inventoryAmount} / {inventoryCapacity} unid.
 					</Text>
 				</View>
 				<View style={styles.stockTrack}>
@@ -102,9 +134,7 @@ export const UnlockedProductCard = ({
 							{
 								width: `${Math.min(
 									100,
-									Math.round(
-										(inventoryAmount / product.recommendedStock) * 100,
-									),
+									Math.round((inventoryAmount / inventoryCapacity) * 100),
 								)}%`,
 							},
 						]}
@@ -119,7 +149,8 @@ export const UnlockedProductCard = ({
 					{inventoryAmount > 0 ? "Disponível" : "Reabasteça"}
 				</Text>
 			</View>
-		</View>
+			<Text style={styles.upgradeHint}>Toque para ampliar o estoque</Text>
+		</Pressable>
 	);
 };
 
@@ -153,22 +184,33 @@ const styles = StyleSheet.create((theme) => ({
 		borderRadius: theme.gap(1.5),
 		backgroundColor: theme.colors["blue-50"],
 	},
-	productEmoji: {
-		fontSize: 25,
+	productImage: {
+		width: theme.gap(5),
+		height: theme.gap(5),
 	},
 	productCopy: {
 		flex: 1,
 	},
 	productName: {
 		color: theme.colors["neutral-800"],
+		fontFamily: theme.fonts.family.headline,
 		fontSize: theme.fonts.size.medium,
 		fontWeight: "700",
 	},
 	categoryText: {
-		marginTop: 2,
 		color: theme.colors["neutral-500"],
 		fontSize: 11,
 		fontWeight: "600",
+	},
+	categoryRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.25),
+		marginTop: 2,
+	},
+	categoryIcon: {
+		width: 18,
+		height: 18,
 	},
 	rarityChip: {
 		paddingHorizontal: theme.gap(0.75),
@@ -176,6 +218,7 @@ const styles = StyleSheet.create((theme) => ({
 		borderRadius: theme.gap(1),
 	},
 	rarityText: {
+		fontFamily: theme.fonts.family.badge,
 		fontSize: 10,
 		fontWeight: "700",
 	},
@@ -192,9 +235,19 @@ const styles = StyleSheet.create((theme) => ({
 		alignItems: "center",
 	},
 	metricValue: {
+		fontFamily: theme.fonts.family.numberBold,
 		color: theme.colors["neutral-800"],
 		fontSize: 11,
 		fontWeight: "700",
+	},
+	metricValueRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.2),
+	},
+	metricIcon: {
+		width: 16,
+		height: 16,
 	},
 	metricLabel: {
 		marginTop: 2,
@@ -217,6 +270,7 @@ const styles = StyleSheet.create((theme) => ({
 		fontWeight: "600",
 	},
 	stockValue: {
+		fontFamily: theme.fonts.family.numberBold,
 		marginTop: 2,
 		color: theme.colors["neutral-700"],
 		fontSize: 11,
@@ -240,6 +294,13 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	stockReady: { color: theme.colors["green-600"] },
 	stockEmpty: { color: theme.colors["red-500"] },
+	upgradeHint: {
+		marginTop: theme.gap(0.75),
+		color: theme.colors["violet-600"],
+		fontSize: 10,
+		fontWeight: "700",
+		textAlign: "right",
+	},
 	commonCard: { borderLeftColor: theme.colors["blue-400"] },
 	uncommonCard: { borderLeftColor: theme.colors["green-500"] },
 	rareCard: { borderLeftColor: theme.colors["violet-500"] },

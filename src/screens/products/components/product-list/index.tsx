@@ -3,9 +3,14 @@ import {
 	type LegendListRenderItemProps,
 } from "@legendapp/list/react-native";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import type { GameInventoryCapacityLevels } from "@/@types/game";
 import type { ItemDefinition } from "@/@types/item";
+import { GameIcon } from "@/components/game-icon";
+import { GameText as Text } from "@/components/game-text";
+import type { GameIconId } from "@/data/game-icon-assets";
+import { getInventoryCapacity } from "@/data/inventory-capacity";
 import { itemCatalog } from "@/data/market-products";
 import { LockedProductCard } from "./components/locked-product-card";
 import { UnlockedProductCard } from "./components/unlocked-product-card";
@@ -14,7 +19,9 @@ type ProductFilter = "todos" | "desbloqueados" | "bloqueados";
 
 type ProductListProps = {
 	inventory: Record<number, number>;
+	inventoryCapacityLevels: GameInventoryCapacityLevels;
 	level: number;
+	onPressProduct: (product: ItemDefinition) => void;
 	unlockedProductIds: number[];
 };
 
@@ -26,7 +33,9 @@ const filters: { id: ProductFilter; label: string }[] = [
 
 export function ProductList({
 	inventory,
+	inventoryCapacityLevels,
 	level,
+	onPressProduct,
 	unlockedProductIds,
 }: ProductListProps) {
 	const [filter, setFilter] = useState<ProductFilter>("todos");
@@ -53,6 +62,11 @@ export function ProductList({
 		return isUnlocked ? (
 			<UnlockedProductCard
 				inventoryAmount={inventory[item.id] ?? 0}
+				inventoryCapacity={getInventoryCapacity(
+					item,
+					inventoryCapacityLevels[item.id],
+				)}
+				onPress={() => onPressProduct(item)}
 				product={item}
 			/>
 		) : (
@@ -65,18 +79,23 @@ export function ProductList({
 			contentContainerStyle={styles.content}
 			data={filteredProducts}
 			estimatedItemSize={145}
-			extraData={{ inventory, level, unlockedProductIds }}
+			extraData={{
+				inventory,
+				inventoryCapacityLevels,
+				level,
+				unlockedProductIds,
+			}}
 			keyExtractor={(product) => product.id.toString()}
 			ListHeaderComponent={
 				<View>
 					<View style={styles.summaryRow}>
 						<SummaryCard
-							icon="✅"
+							icon="success"
 							label="Desbloqueados"
 							value={unlockedProducts.length.toString()}
 						/>
 						<SummaryCard
-							icon="📦"
+							icon="package"
 							label="Em estoque"
 							value={unlockedProducts
 								.reduce(
@@ -86,7 +105,7 @@ export function ProductList({
 								.toString()}
 						/>
 						<SummaryCard
-							icon="🔒"
+							icon="lock"
 							label="Próximo nível"
 							value={`Nv ${getNextUnlockLevel(level)}`}
 						/>
@@ -127,7 +146,7 @@ export function ProductList({
 }
 
 type SummaryCardProps = {
-	icon: string;
+	icon: GameIconId;
 	label: string;
 	value: string;
 };
@@ -135,7 +154,7 @@ type SummaryCardProps = {
 function SummaryCard({ icon, label, value }: SummaryCardProps) {
 	return (
 		<View style={styles.summaryCard}>
-			<Text style={styles.summaryIcon}>{icon}</Text>
+			<GameIcon icon={icon} style={styles.summaryIcon} />
 			<Text style={styles.summaryValue}>{value}</Text>
 			<Text style={styles.summaryLabel}>{label}</Text>
 		</View>
@@ -169,9 +188,11 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["neutral-0"],
 	},
 	summaryIcon: {
-		fontSize: 16,
+		width: 24,
+		height: 24,
 	},
 	summaryValue: {
+		fontFamily: theme.fonts.family.numberBold,
 		marginTop: theme.gap(0.5),
 		color: theme.colors["blue-600"],
 		fontSize: theme.fonts.size.medium,
@@ -213,11 +234,13 @@ const styles = StyleSheet.create((theme) => ({
 		marginBottom: theme.gap(0.5),
 	},
 	listTitle: {
+		fontFamily: theme.fonts.family.headline,
 		color: theme.colors["neutral-800"],
 		fontSize: theme.fonts.size.medium,
 		fontWeight: "700",
 	},
 	listCount: {
+		fontFamily: theme.fonts.family.numberBold,
 		color: theme.colors["neutral-500"],
 		fontSize: theme.fonts.size.small,
 		fontWeight: "600",

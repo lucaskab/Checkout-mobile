@@ -13,7 +13,7 @@ export function MarketSimulation() {
 		}
 
 		processNextCustomer();
-		const interval = setInterval(processNextCustomer, 5_000);
+		const interval = setInterval(processNextCustomer, 1_000);
 
 		return () => clearInterval(interval);
 	}, [isMarketOpen, processNextCustomer]);
