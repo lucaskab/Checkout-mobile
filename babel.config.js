@@ -10,6 +10,7 @@ module.exports = (api) => {
 
 		// other config
 		plugins: [
+			["react-native-worklets-core/plugin"],
 			["react-native-worklets/plugin"],
 			// other plugins
 			[

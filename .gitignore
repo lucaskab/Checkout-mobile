@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# Godot editor cache (source and exported builds remain versioned)
+/godot/.godot/

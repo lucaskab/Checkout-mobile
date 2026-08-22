@@ -1,39 +1,65 @@
+import { type Href, router } from "expo-router";
 import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 
-export function GameModeToggle() {
+type GameMode = "system" | "simulator";
+
+export function GameModeToggle({ activeMode = "system" }: { activeMode?: GameMode }) {
+	function selectMode(mode: GameMode) {
+		if (mode === activeMode) {
+			return;
+		}
+
+		if (mode === "simulator") {
+			router.push("/simulator" as Href);
+			return;
+		}
+
+		router.replace("/" as Href);
+	}
+
 	return (
 		<View style={styles.container}>
-			<ModeOption active icon="computer" label="Sistema" />
-			<ModeOption disabled icon="controller" label="Simulador" />
+			<ModeOption
+				active={activeMode === "system"}
+				icon="computer"
+				label="Sistema"
+				onPress={() => selectMode("system")}
+			/>
+			<ModeOption
+				active={activeMode === "simulator"}
+				icon="controller"
+				label="Simulador"
+				onPress={() => selectMode("simulator")}
+			/>
 		</View>
 	);
 }
 
 function ModeOption({
 	active = false,
-	disabled = false,
 	icon,
 	label,
+	onPress,
 }: {
 	active?: boolean;
-	disabled?: boolean;
 	icon: "computer" | "controller";
 	label: string;
+	onPress: () => void;
 }) {
 	return (
 		<Pressable
 			accessibilityLabel={`Ativar modo ${label.toLowerCase()}`}
 			accessibilityRole="tab"
-			accessibilityState={{ disabled, selected: active }}
-			disabled={disabled || active}
+			accessibilityState={{ selected: active }}
+			disabled={active}
+			onPress={onPress}
 			style={({ pressed }) => [
 				styles.option,
 				active && styles.activeOption,
-				disabled && styles.disabledOption,
-				pressed && !active && !disabled && styles.pressedOption,
+				pressed && !active && styles.pressedOption,
 			]}
 		>
 			<GameIcon icon={icon} style={styles.icon} />
@@ -65,9 +91,6 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	activeOption: {
 		backgroundColor: theme.colors["blue-500"],
-	},
-	disabledOption: {
-		opacity: 0.45,
 	},
 	pressedOption: {
 		backgroundColor: theme.colors["neutral-200"],

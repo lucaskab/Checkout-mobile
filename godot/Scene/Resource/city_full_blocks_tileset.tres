@@ -1,0 +1,71 @@
+[gd_resource type="TileSet" format=3]
+
+[ext_resource type="Texture2D" path="res://Assets/OriginalStyle/ground_blocks.png" id="1_e61kh"]
+[ext_resource type="Texture2D" path="res://Assets/OriginalStyle/path_full_blocks.png" id="2_kccvw"]
+[ext_resource type="Texture2D" path="res://Assets/OriginalStyle/road_full_blocks.png" id="3_7rgpc"]
+[ext_resource type="Texture2D" path="res://Assets/OriginalStyle/water_full_blocks.png" id="4_0xapk"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xqh87"]
+texture = ExtResource("1_e61kh")
+texture_region_size = Vector2i(110, 110)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, -25)
+1:0/0 = 0
+1:0/0/texture_origin = Vector2i(0, -25)
+2:0/0 = 0
+2:0/0/texture_origin = Vector2i(0, -25)
+3:0/0 = 0
+3:0/0/texture_origin = Vector2i(0, -25)
+4:0/0 = 0
+4:0/0/texture_origin = Vector2i(0, -25)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_2diht"]
+texture = ExtResource("2_kccvw")
+texture_region_size = Vector2i(110, 110)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, -25)
+1:0/0 = 0
+1:0/0/texture_origin = Vector2i(0, -25)
+2:0/0 = 0
+2:0/0/texture_origin = Vector2i(0, -25)
+3:0/0 = 0
+3:0/0/texture_origin = Vector2i(0, -25)
+4:0/0 = 0
+4:0/0/texture_origin = Vector2i(0, -25)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_mgkw0"]
+texture = ExtResource("3_7rgpc")
+texture_region_size = Vector2i(110, 110)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, -25)
+1:0/0 = 0
+1:0/0/texture_origin = Vector2i(0, -25)
+2:0/0 = 0
+2:0/0/texture_origin = Vector2i(0, -25)
+3:0/0 = 0
+3:0/0/texture_origin = Vector2i(0, -25)
+4:0/0 = 0
+4:0/0/texture_origin = Vector2i(0, -25)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_mc7vv"]
+texture = ExtResource("4_0xapk")
+texture_region_size = Vector2i(110, 110)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, -25)
+1:0/0 = 0
+1:0/0/texture_origin = Vector2i(0, -25)
+2:0/0 = 0
+2:0/0/texture_origin = Vector2i(0, -25)
+3:0/0 = 0
+3:0/0/texture_origin = Vector2i(0, -25)
+4:0/0 = 0
+4:0/0/texture_origin = Vector2i(0, -25)
+
+[resource]
+tile_shape = 1
+tile_layout = 5
+tile_size = Vector2i(110, 52)
+sources/0 = SubResource("TileSetAtlasSource_xqh87")
+sources/1 = SubResource("TileSetAtlasSource_2diht")
+sources/2 = SubResource("TileSetAtlasSource_mgkw0")
+sources/3 = SubResource("TileSetAtlasSource_mc7vv")

@@ -52,7 +52,10 @@
         }
       ],
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "expo-image",
+      "expo-web-browser",
+      "./plugins/with-godot-assets"
     ],
     "experiments": {
       "typedRoutes": true,

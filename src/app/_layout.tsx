@@ -64,6 +64,10 @@ export default function RootLayout() {
 					<SupplierLogisticsSimulation />
 					<Stack screenOptions={{ headerShown: false }}>
 						<Stack.Screen name="(tabs)" />
+						<Stack.Screen
+							name="simulator"
+							options={{ animation: "fade", gestureEnabled: false }}
+						/>
 					</Stack>
 				</BottomSheetProvider>
 			</GestureHandlerRootView>

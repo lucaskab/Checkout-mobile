@@ -1,5 +1,71 @@
 # Welcome to your Expo app 👋
 
+Checkout is an Expo/React Native mobile app with the Market Simulator embedded
+natively through LibGodot. The editable Godot project lives in `godot/`; fresh
+mobile exports live in `godot-exports/` and are committed for reproducible builds.
+
+## Continue development on macOS
+
+Install these prerequisites first:
+
+- Xcode and its command-line tools;
+- CocoaPods;
+- Android Studio/JDK 17 if you also build Android;
+- Bun or Node.js;
+- Godot 4.5.1 (standard app in `/Applications/Godot.app`).
+
+Then clone and prepare the project:
+
+```bash
+git clone https://github.com/lucaskab/Checkout-mobile.git
+cd Checkout-mobile
+bun install
+bunx expo prebuild --clean
+```
+
+`bun install` downloads the official LibGodot 4.5.1 native packages for iOS and
+Android and applies the React Native 0.86 compatibility adjustments. The Expo
+config plugin copies the committed Android export and the iOS PCK into the native
+projects during prebuild.
+
+Run on a physical iPhone:
+
+```bash
+bunx expo run:ios --device
+```
+
+Run on a physical ARM Android device:
+
+```bash
+bun android --device
+```
+
+The simulator is native and is not available in Expo Go. The current Android
+LibGodot binaries target ARM devices; x86 Android emulators display the safe
+compatibility screen. The app also deliberately uses that screen in an iOS
+Simulator, while the complete simulator runs on a physical iPhone.
+
+## Develop and export the Godot game
+
+Open `godot/project.godot` in Godot 4.5.1. Scenes, GDScript, textures, import
+settings and development tools are all versioned there. The `.godot/` directory
+is only an editor cache and is intentionally ignored.
+
+After changing the game, regenerate both mobile exports:
+
+```bash
+bun run godot:export
+```
+
+This produces:
+
+- `godot-exports/android/CheckoutMarket/` for Android APK assets;
+- `godot-exports/ios/CheckoutMarket.pck` for the iOS application bundle.
+
+If `android/` already exists, the export command updates its embedded game too.
+For iOS, run `bunx expo prebuild --clean` after a new export so Xcode receives the
+latest PCK.
+
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started

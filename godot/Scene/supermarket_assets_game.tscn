@@ -1,0 +1,336 @@
+[gd_scene load_steps=29 format=3]
+
+[ext_resource type="Script" path="res://Scene/Scripts/asset_market_game.gd" id="1_root"]
+[ext_resource type="TileSet" path="res://Scene/Resource/isometric_ground.tres" id="2_ground"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Fixtures/market_foundation.png" id="3_foundation"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Fixtures/grocery_shelf.png" id="4_shelf"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Fixtures/produce_island.png" id="5_produce"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Fixtures/checkout_animated.png" id="6_checkout"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Fixtures/freezer_animated.png" id="7_freezer"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Fixtures/bakery_counter.png" id="8_bakery"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Fixtures/seafood_butcher_counter.png" id="9_seafood"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Characters/customer_woman_walk.png" id="10_woman"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Characters/customer_man_walk.png" id="11_man"]
+[ext_resource type="Script" path="res://Scene/Scripts/movable_asset.gd" id="12_move"]
+[ext_resource type="Script" path="res://Scene/Scripts/customer_walker.gd" id="13_walk"]
+[ext_resource type="Texture2D" path="res://Assets/Buildings/city_row.png" id="14_cityrow"]
+[ext_resource type="Texture2D" path="res://Assets/Buildings/warehouse.png" id="15_warehouse"]
+[ext_resource type="Texture2D" path="res://Assets/Decor/farm_plots.png" id="16_farm"]
+[ext_resource type="Texture2D" path="res://Assets/AnimatedMarket/Fixtures/delivery_van_animated.png" id="17_van"]
+
+[sub_resource type="RectangleShape2D" id="ShelfShape"]
+size = Vector2(138, 48)
+
+[sub_resource type="RectangleShape2D" id="ProduceShape"]
+size = Vector2(112, 55)
+
+[sub_resource type="RectangleShape2D" id="CounterShape"]
+size = Vector2(100, 48)
+
+[sub_resource type="RectangleShape2D" id="WideCounterShape"]
+size = Vector2(166, 55)
+
+[sub_resource type="RectangleShape2D" id="BakeryShape"]
+size = Vector2(155, 60)
+
+[sub_resource type="CircleShape2D" id="CustomerShape"]
+radius = 10.0
+
+[sub_resource type="RectangleShape2D" id="WallLong"]
+size = Vector2(770, 20)
+
+[sub_resource type="RectangleShape2D" id="WallSide"]
+size = Vector2(360, 20)
+
+[sub_resource type="RectangleShape2D" id="BuildingShape"]
+size = Vector2(210, 75)
+
+[sub_resource type="RectangleShape2D" id="FarmShape"]
+size = Vector2(180, 70)
+
+[sub_resource type="RectangleShape2D" id="VanShape"]
+size = Vector2(92, 40)
+
+[node name="SupermarketAssetsGame" type="Node2D"]
+script = ExtResource("1_root")
+
+[node name="Ground" type="TileMapLayer" parent="."]
+z_index = -20
+tile_set = ExtResource("2_ground")
+
+[node name="MarketFoundation" type="Sprite2D" parent="."]
+z_index = -5
+position = Vector2(0, 25)
+scale = Vector2(0.9, 0.9)
+texture_filter = 2
+texture = ExtResource("3_foundation")
+
+[node name="MarketBounds" type="Node2D" parent="."]
+
+[node name="BackWall" type="StaticBody2D" parent="MarketBounds"]
+position = Vector2(0, -170)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketBounds/BackWall"]
+shape = SubResource("WallLong")
+
+[node name="LeftWall" type="StaticBody2D" parent="MarketBounds"]
+position = Vector2(-392, -5)
+rotation = -0.47
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketBounds/LeftWall"]
+shape = SubResource("WallSide")
+
+[node name="RightWall" type="StaticBody2D" parent="MarketBounds"]
+position = Vector2(392, -5)
+rotation = 0.47
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketBounds/RightWall"]
+shape = SubResource("WallSide")
+
+[node name="MarketAssets" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="BakeryCounter" type="StaticBody2D" parent="MarketAssets"]
+position = Vector2(-260, -82)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="MarketAssets/BakeryCounter"]
+position = Vector2(0, -52)
+scale = Vector2(0.44, 0.44)
+texture_filter = 2
+texture = ExtResource("8_bakery")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketAssets/BakeryCounter"]
+shape = SubResource("BakeryShape")
+
+[node name="SeafoodButcher" type="StaticBody2D" parent="MarketAssets"]
+position = Vector2(232, -72)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="MarketAssets/SeafoodButcher"]
+position = Vector2(0, -38)
+scale = Vector2(0.45, 0.45)
+texture_filter = 2
+texture = ExtResource("9_seafood")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketAssets/SeafoodButcher"]
+shape = SubResource("WideCounterShape")
+
+[node name="ShelfA" type="StaticBody2D" parent="MarketAssets"]
+position = Vector2(-118, 34)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="MarketAssets/ShelfA"]
+position = Vector2(0, -60)
+scale = Vector2(0.48, 0.48)
+texture_filter = 2
+texture = ExtResource("4_shelf")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketAssets/ShelfA"]
+shape = SubResource("ShelfShape")
+
+[node name="ShelfB" type="StaticBody2D" parent="MarketAssets"]
+position = Vector2(95, 62)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="MarketAssets/ShelfB"]
+position = Vector2(0, -60)
+scale = Vector2(0.48, 0.48)
+texture_filter = 2
+texture = ExtResource("4_shelf")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketAssets/ShelfB"]
+shape = SubResource("ShelfShape")
+
+[node name="ProduceIsland" type="StaticBody2D" parent="MarketAssets"]
+position = Vector2(8, -54)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="MarketAssets/ProduceIsland"]
+position = Vector2(0, -45)
+scale = Vector2(0.42, 0.42)
+texture_filter = 2
+texture = ExtResource("5_produce")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketAssets/ProduceIsland"]
+shape = SubResource("ProduceShape")
+
+[node name="Checkout" type="StaticBody2D" parent="MarketAssets"]
+position = Vector2(-254, 145)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="MarketAssets/Checkout" groups=["animated_fixture"]]
+position = Vector2(0, -58)
+scale = Vector2(0.52, 0.52)
+texture_filter = 2
+texture = ExtResource("6_checkout")
+hframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketAssets/Checkout"]
+shape = SubResource("CounterShape")
+
+[node name="Freezer" type="StaticBody2D" parent="MarketAssets"]
+position = Vector2(264, 132)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="MarketAssets/Freezer" groups=["animated_fixture"]]
+position = Vector2(0, -58)
+scale = Vector2(0.52, 0.52)
+texture_filter = 2
+texture = ExtResource("7_freezer")
+hframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MarketAssets/Freezer"]
+shape = SubResource("CounterShape")
+
+[node name="CityAssets" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="WestShops" type="StaticBody2D" parent="CityAssets"]
+position = Vector2(-710, -235)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="CityAssets/WestShops"]
+position = Vector2(0, -75)
+scale = Vector2(0.32, 0.32)
+texture_filter = 2
+texture = ExtResource("14_cityrow")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CityAssets/WestShops"]
+shape = SubResource("BuildingShape")
+
+[node name="Warehouse" type="StaticBody2D" parent="CityAssets"]
+position = Vector2(705, -220)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="CityAssets/Warehouse"]
+position = Vector2(0, -80)
+scale = Vector2(0.34, 0.34)
+texture_filter = 2
+texture = ExtResource("15_warehouse")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CityAssets/Warehouse"]
+shape = SubResource("BuildingShape")
+
+[node name="FarmPlots" type="StaticBody2D" parent="CityAssets"]
+position = Vector2(-690, 285)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="CityAssets/FarmPlots"]
+position = Vector2(0, -55)
+scale = Vector2(0.34, 0.34)
+texture_filter = 2
+texture = ExtResource("16_farm")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CityAssets/FarmPlots"]
+shape = SubResource("FarmShape")
+
+[node name="DeliveryVan" type="StaticBody2D" parent="CityAssets"]
+position = Vector2(610, 270)
+script = ExtResource("12_move")
+
+[node name="Sprite2D" type="Sprite2D" parent="CityAssets/DeliveryVan" groups=["animated_fixture"]]
+position = Vector2(0, -48)
+scale = Vector2(0.48, 0.48)
+texture_filter = 2
+texture = ExtResource("17_van")
+hframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CityAssets/DeliveryVan"]
+shape = SubResource("VanShape")
+
+[node name="Customers" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="CustomerWomanA" type="CharacterBody2D" parent="Customers"]
+position = Vector2(-330, 190)
+script = ExtResource("13_walk")
+route = PackedVector2Array(-330, 190, -178, 110, -205, -5, -55, -135, 142, -125, 322, -20, 320, 188, 145, 170, 35, 125, -85, 155)
+route_offset = 1
+
+[node name="Sprite2D" type="Sprite2D" parent="Customers/CustomerWomanA"]
+position = Vector2(0, -28)
+scale = Vector2(0.29, 0.29)
+texture_filter = 2
+texture = ExtResource("10_woman")
+hframes = 4
+vframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Customers/CustomerWomanA"]
+shape = SubResource("CustomerShape")
+
+[node name="CustomerManA" type="CharacterBody2D" parent="Customers"]
+position = Vector2(330, 185)
+script = ExtResource("13_walk")
+speed = 52.0
+route = PackedVector2Array(330, 185, 178, 115, 210, 5, 64, -135, -132, -125, -320, -15, -315, 180, -145, 170, -32, 122, 92, 150)
+route_offset = 3
+
+[node name="Sprite2D" type="Sprite2D" parent="Customers/CustomerManA"]
+position = Vector2(0, -28)
+scale = Vector2(0.29, 0.29)
+texture_filter = 2
+texture = ExtResource("11_man")
+hframes = 4
+vframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Customers/CustomerManA"]
+shape = SubResource("CustomerShape")
+
+[node name="CustomerWomanB" type="CharacterBody2D" parent="Customers"]
+position = Vector2(20, 180)
+script = ExtResource("13_walk")
+speed = 48.0
+route = PackedVector2Array(-330, 190, -178, 110, -205, -5, -55, -135, 142, -125, 322, -20, 320, 188, 145, 170, 35, 125, -85, 155)
+route_offset = 6
+
+[node name="Sprite2D" type="Sprite2D" parent="Customers/CustomerWomanB"]
+position = Vector2(0, -28)
+scale = Vector2(0.27, 0.27)
+texture_filter = 2
+texture = ExtResource("10_woman")
+hframes = 4
+vframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Customers/CustomerWomanB"]
+shape = SubResource("CustomerShape")
+
+[node name="CustomerManB" type="CharacterBody2D" parent="Customers"]
+position = Vector2(-25, -135)
+script = ExtResource("13_walk")
+speed = 62.0
+route = PackedVector2Array(330, 185, 178, 115, 210, 5, 64, -135, -132, -125, -320, -15, -315, 180, -145, 170, -32, 122, 92, 150)
+route_offset = 7
+
+[node name="Sprite2D" type="Sprite2D" parent="Customers/CustomerManB"]
+position = Vector2(0, -28)
+scale = Vector2(0.27, 0.27)
+texture_filter = 2
+texture = ExtResource("11_man")
+hframes = 4
+vframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Customers/CustomerManB"]
+shape = SubResource("CustomerShape")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(0, 18)
+zoom = Vector2(0.9, 0.9)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="Panel" parent="HUD"]
+offset_left = 18.0
+offset_top = 18.0
+offset_right = 396.0
+offset_bottom = 92.0
+modulate = Color(1, 1, 1, 0.94)
+
+[node name="Title" type="Label" parent="HUD/Panel"]
+offset_left = 18.0
+offset_top = 10.0
+offset_right = 360.0
+offset_bottom = 58.0
+theme_override_colors/font_color = Color(0.08, 0.32, 0.31, 1)
+theme_override_font_sizes/font_size = 20
+text = "MERCADO MODULAR\nArraste os assets • Setas/WASD • Rodinha: zoom"
