@@ -5,7 +5,6 @@ import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { employeeDefinitions } from "@/data/employees";
-import { marketExpansions } from "@/data/market-expansions";
 import { itemCatalog } from "@/data/market-products";
 import { productionSectors } from "@/data/production-sectors";
 import { getNextShelfSlotUpgrade } from "@/data/shelf-capacity";
@@ -20,9 +19,6 @@ export function ProgressionRoadmap() {
 	const employees = useGameStore((state) => state.employees.employees);
 	const market = useGameStore((state) => state.market);
 	const offlineSummary = useGameStore((state) => state.offlineSummary);
-	const unlockedExpansions = useGameStore(
-		(state) => state.unlockedMarketExpansionIds,
-	);
 	const unlockedShelfSlots = useGameStore((state) => state.unlockedShelfSlots);
 	const claimDailyGoal = useGameStore((state) => state.claimDailyGoal);
 	const experienceToNextLevel = getExperienceToNextLevel(market.level);
@@ -35,9 +31,6 @@ export function ProgressionRoadmap() {
 	);
 	const nextSector = productionSectors.find(
 		(sector) => sector.requiredLevel > market.level,
-	);
-	const nextExpansion = marketExpansions.find(
-		(expansion) => !unlockedExpansions.includes(expansion.id),
 	);
 	const nextEmployee = employeeDefinitions.find(
 		(definition) =>
@@ -81,28 +74,6 @@ export function ProgressionRoadmap() {
 						: "Você desbloqueou todo o catálogo disponível."}
 				</Text>
 			</View>
-
-			<Pressable
-				onPress={() => open("/market-evolution")}
-				style={({ pressed }) => [
-					styles.evolutionCard,
-					pressed && styles.pressed,
-				]}
-			>
-				<View style={styles.evolutionBadge}>
-					<GameIcon icon="market" style={styles.evolutionIcon} />
-				</View>
-				<View style={styles.evolutionCopy}>
-					<Text style={styles.cardEyebrow}>MAPA VIVO EM 3D</Text>
-					<Text style={styles.cardTitle}>Ver a cidade do mercado</Text>
-					<Text style={styles.evolutionHint}>
-						{nextExpansion
-							? `Próxima construção: ${nextExpansion.name} · nível ${nextExpansion.requiredLevel}`
-							: "Todas as áreas do bairro estão abertas."}
-					</Text>
-				</View>
-				<Text style={styles.cardArrow}>›</Text>
-			</Pressable>
 
 			<View style={styles.dailyCard}>
 				<View style={styles.dailyCopy}>
@@ -329,26 +300,6 @@ const styles = StyleSheet.create((theme) => ({
 		color: theme.colors["blue-100"],
 		fontSize: 11,
 	},
-	evolutionCard: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: theme.gap(1),
-		padding: theme.gap(1),
-		borderWidth: 2,
-		borderColor: theme.colors["green-100"],
-		borderRadius: theme.gap(1.5),
-		backgroundColor: theme.colors["green-50"],
-	},
-	evolutionBadge: {
-		width: theme.gap(5),
-		height: theme.gap(5),
-		alignItems: "center",
-		justifyContent: "center",
-		borderRadius: theme.gap(1.5),
-		backgroundColor: theme.colors["green-100"],
-	},
-	evolutionIcon: { width: theme.gap(3), height: theme.gap(3) },
-	evolutionCopy: { flex: 1 },
 	pressed: { opacity: 0.78 },
 	cardEyebrow: {
 		color: theme.colors["green-600"],
@@ -362,12 +313,6 @@ const styles = StyleSheet.create((theme) => ({
 		fontFamily: theme.fonts.family.headline,
 		fontSize: 15,
 		fontWeight: "700",
-	},
-	cardArrow: { color: theme.colors["green-600"], fontSize: 28, lineHeight: 28 },
-	evolutionHint: {
-		marginTop: theme.gap(0.35),
-		color: theme.colors["neutral-600"],
-		fontSize: 11,
 	},
 	dailyCard: {
 		flexDirection: "row",

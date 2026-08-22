@@ -87,11 +87,11 @@ export type ExperienceProgress = {
 };
 
 import type { GameStatistics } from "./achievement";
-import type { EmployeeRole, GameEmployeesState } from "./employee";
 import type {
 	CurrencyPurchaseState,
 	GrantCurrencyPurchaseInput,
 } from "./currency-purchase";
+import type { EmployeeRole, GameEmployeesState } from "./employee";
 import type { GameEventsState } from "./game-event";
 import type { GameInventoryLots, GameShelfLots } from "./inventory-lot";
 import type { LogisticsState, PlaceSupplierOrderInput } from "./logistics";
@@ -168,9 +168,7 @@ export type GameActions = {
 	setMarketOpen: (isOpen: boolean) => void;
 	setShelfPrice: (shelfId: string, price: number) => boolean;
 	startProduction: (input: StartProductionInput) => boolean;
-	upgradeSupplierOrderSlots: (
-		currency: SupplierOrderSlotCurrency,
-	) => boolean;
+	upgradeSupplierOrderSlots: (currency: SupplierOrderSlotCurrency) => boolean;
 	upgradeInventoryCapacity: (productId: number) => boolean;
 	unlockNextShelfSlot: () => boolean;
 	unlockMarketExpansion: (expansionId: MarketExpansionId) => boolean;

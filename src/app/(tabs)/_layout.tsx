@@ -85,10 +85,6 @@ export default function TabsLayout() {
 				name="team"
 				options={{ href: null, tabBarStyle: { display: "none" } }}
 			/>
-			<Tabs.Screen
-				name="market-evolution"
-				options={{ href: null, tabBarStyle: { display: "none" } }}
-			/>
 		</Tabs>
 	);
 }

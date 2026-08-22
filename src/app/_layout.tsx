@@ -11,6 +11,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BackgroundMusic } from "@/components/background-music";
 import { BottomSheetProvider } from "@/components/bottom-sheet";
 import { EmployeeSimulation } from "@/components/employee-simulation";
@@ -50,20 +51,22 @@ export default function RootLayout() {
 
 	return (
 		<QueryClientProvider client={queryClient}>
-			<BottomSheetProvider>
-				<BackgroundMusic />
-				<GameEventSimulation />
-				<GameSessionLifecycle />
-				<EmployeeSimulation />
-				<InventorySpoilageSimulation />
-				<MarketSimulation />
-				<ProductionSimulation />
-				<RevenueCatInitializer />
-				<SupplierLogisticsSimulation />
-				<Stack screenOptions={{ headerShown: false }}>
-					<Stack.Screen name="(tabs)" />
-				</Stack>
-			</BottomSheetProvider>
+			<GestureHandlerRootView style={{ flex: 1 }}>
+				<BottomSheetProvider>
+					<BackgroundMusic />
+					<GameEventSimulation />
+					<GameSessionLifecycle />
+					<EmployeeSimulation />
+					<InventorySpoilageSimulation />
+					<MarketSimulation />
+					<ProductionSimulation />
+					<RevenueCatInitializer />
+					<SupplierLogisticsSimulation />
+					<Stack screenOptions={{ headerShown: false }}>
+						<Stack.Screen name="(tabs)" />
+					</Stack>
+				</BottomSheetProvider>
+			</GestureHandlerRootView>
 		</QueryClientProvider>
 	);
 }

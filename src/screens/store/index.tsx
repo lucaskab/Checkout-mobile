@@ -9,6 +9,7 @@ import type { StoreAlert, StoreShelf } from "@/@types/store";
 import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
+import { GameModeToggle } from "@/components/game-mode-toggle";
 import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
 import { itemCatalog } from "@/data/market-products";
@@ -21,10 +22,10 @@ import { getCurrentShelf } from "@/services/shelf-selection";
 import { useGameStore } from "@/stores/game-store";
 import { ActiveCustomersCard } from "./components/active-customers-card";
 import { AttentionCard } from "./components/attention-card";
-import { ShelfGrid } from "./components/shelf-grid";
-import { StorefrontHero } from "./components/storefront-hero";
 import { ProgressionRoadmap } from "./components/progression-roadmap";
+import { ShelfGrid } from "./components/shelf-grid";
 import { ShiftSummarySheet } from "./components/shift-summary-sheet";
+import { StorefrontHero } from "./components/storefront-hero";
 import { TopSellersCard } from "./components/top-sellers-card";
 import { shelves } from "./data";
 
@@ -148,7 +149,7 @@ export function StoreScreen() {
 	function renderSection({
 		item,
 	}: LegendListRenderItemProps<DashboardSection>) {
-			switch (item) {
+		switch (item) {
 			case "shelves":
 				return <ShelfGrid onPressShelf={openStock} shelves={shelves} />;
 			case "progression":
@@ -178,19 +179,19 @@ export function StoreScreen() {
 			}}
 			keyExtractor={(section) => section}
 			ListHeaderComponent={
-				<StorefrontHero
-					activeCustomers={market.recentCustomers.length}
-					customerSatisfaction={market.customerSatisfaction}
-					experience={market.experience}
-					experienceToNextLevel={experienceToNextLevel}
-					isOpen={market.isOpen}
-					nextCustomerAt={market.nextCustomerAt}
-					lastExperienceGain={market.lastExperienceGain}
-					level={market.level}
-					onToggle={toggleMarket}
-					recentUnlocks={recentUnlocks}
-					unlockedProductCount={market.unlockedProductIds.length}
-				/>
+				<View style={styles.storeHeader}>
+					<GameModeToggle />
+					<StorefrontHero
+						customerSatisfaction={market.customerSatisfaction}
+						experience={market.experience}
+						experienceToNextLevel={experienceToNextLevel}
+						isOpen={market.isOpen}
+						lastExperienceGain={market.lastExperienceGain}
+						onToggle={toggleMarket}
+						recentUnlocks={recentUnlocks}
+						unlockedProductCount={market.unlockedProductIds.length}
+					/>
+				</View>
 			}
 			renderItem={renderSection}
 		/>
@@ -586,6 +587,9 @@ const styles = StyleSheet.create((theme) => ({
 		padding: theme.gap(1.75),
 		paddingBottom: theme.gap(3),
 		backgroundColor: theme.colors["neutral-50"],
+	},
+	storeHeader: {
+		gap: theme.gap(1.5),
 	},
 	sheetContent: {
 		paddingHorizontal: theme.gap(2.75),

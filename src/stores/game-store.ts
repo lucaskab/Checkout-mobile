@@ -1,21 +1,21 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { GameStatistics } from "@/@types/achievement";
-import type { EmployeeRole, GameEmployeesState } from "@/@types/employee";
 import type { CurrencyPurchaseState } from "@/@types/currency-purchase";
 import type { CustomerArchetype } from "@/@types/customer-simulation";
+import type { EmployeeRole, GameEmployeesState } from "@/@types/employee";
 import type {
 	GameInventory,
 	GameInventoryCapacityLevels,
 	GameMarketCustomer,
 	GameMarketState,
-	OfflineRewardSummary,
 	GameShelfAssignments,
 	GameShelfPrices,
 	GameShelfStock,
 	GameShelfUpgradeLevels,
 	GameState,
 	GameStore,
+	OfflineRewardSummary,
 } from "@/@types/game";
 import type { GameEventsState } from "@/@types/game-event";
 import type { GameInventoryLots, GameShelfLots } from "@/@types/inventory-lot";
@@ -24,11 +24,16 @@ import type { GameMissionsState } from "@/@types/mission";
 import type { GameProductionState, ProductionJob } from "@/@types/production";
 import type { GameShopState } from "@/@types/shop";
 import type { SupplierOrderSlotCurrency } from "@/@types/supplier-capacity";
+import { getEmployeeDefinition } from "@/data/employees";
 import {
 	getInventoryCapacity,
 	getNextInventoryCapacityUpgrade,
 	normalizeInventoryCapacityLevel,
 } from "@/data/inventory-capacity";
+import {
+	getMarketExpansion,
+	normalizeMarketExpansionIds,
+} from "@/data/market-expansions";
 import {
 	getUnlockedProductIds,
 	initialShelfAssignments,
@@ -37,7 +42,6 @@ import {
 	shelves,
 } from "@/data/market-products";
 import { getMission } from "@/data/missions";
-import { getEmployeeDefinition } from "@/data/employees";
 import {
 	getProductionSector,
 	productionRecipes,
@@ -51,18 +55,29 @@ import {
 } from "@/data/shelf-capacity";
 import { shopItems } from "@/data/shop-items";
 import {
-	getCustomerArrivalDelay,
-	simulateMarketVisit,
-} from "@/services/customer-simulation";
-import {
-	getMarketExpansion,
-	normalizeMarketExpansionIds,
-} from "@/data/market-expansions";
-import {
 	getNextSupplierOrderSlotUpgrade,
 	initialSupplierOrderSlots,
 	normalizeSupplierOrderSlots,
 } from "@/data/supplier-capacity";
+import {
+	getCustomerArrivalDelay,
+	simulateMarketVisit,
+} from "@/services/customer-simulation";
+import {
+	createInitialDailyState,
+	markDailySale,
+	normalizeDailyState,
+} from "@/services/daily-progress";
+import {
+	getEmployeeTrainingCost,
+	grantEmployeeExperience,
+	trainEmployee as promoteEmployee,
+} from "@/services/employee-progression";
+import {
+	EMPLOYEE_PAYROLL_INTERVAL_MS,
+	getEmployeeEffects,
+	getEmployeePayrollCost,
+} from "@/services/employees";
 import {
 	activateGameEvent,
 	advanceGameEvents,
@@ -71,15 +86,17 @@ import {
 	normalizeGameEventsState,
 } from "@/services/game-events";
 import {
+	appendInventoryLots,
+	createInventoryLots,
+	discardExpiredInventoryLots,
+	reconcileInventoryLots,
+	takeInventoryLots,
+} from "@/services/inventory-lots";
+import {
 	getSupplierDeliveryDuration,
 	getSupplierOrderStatus,
 } from "@/services/logistics";
 import { getMissionProgress } from "@/services/missions";
-import {
-	createInitialDailyState,
-	markDailySale,
-	normalizeDailyState,
-} from "@/services/daily-progress";
 import {
 	getProductionDiamondCost,
 	getSupplierOrderPrice,
@@ -88,23 +105,6 @@ import {
 	applyExperience,
 	getExperienceFromSales,
 } from "@/services/progression";
-import {
-	EMPLOYEE_PAYROLL_INTERVAL_MS,
-	getEmployeeEffects,
-	getEmployeePayrollCost,
-} from "@/services/employees";
-import {
-	getEmployeeTrainingCost,
-	grantEmployeeExperience,
-	trainEmployee as promoteEmployee,
-} from "@/services/employee-progression";
-import {
-	appendInventoryLots,
-	createInventoryLots,
-	discardExpiredInventoryLots,
-	reconcileInventoryLots,
-	takeInventoryLots,
-} from "@/services/inventory-lots";
 import { getShopEffects } from "@/services/shop-effects";
 import { mmkvStorage } from "@/storage/mmkv";
 
@@ -146,7 +146,8 @@ const initialShopState: GameShopState = {
 	ownedItemIds: [],
 };
 
-const initialUnlockedMarketExpansionIds: GameState["unlockedMarketExpansionIds"] = [];
+const initialUnlockedMarketExpansionIds: GameState["unlockedMarketExpansionIds"] =
+	[];
 
 const initialProductionState: GameProductionState = {
 	jobs: [],
@@ -382,7 +383,8 @@ function migrateGameState(persistedState: unknown): GameState {
 	const previousTotalRevenue =
 		market?.totalRevenue ?? market?.todayRevenue ?? 0;
 	const lastSessionAt =
-		typeof state.lastSessionAt === "number" && Number.isFinite(state.lastSessionAt)
+		typeof state.lastSessionAt === "number" &&
+		Number.isFinite(state.lastSessionAt)
 			? state.lastSessionAt
 			: Date.now();
 
@@ -533,13 +535,11 @@ export const useGameStore = create<GameStore>()(
 					market: {
 						...state.market,
 						customersServed: state.market.customersServed + customers,
-						customersWhoBought:
-							state.market.customersWhoBought + customers,
+						customersWhoBought: state.market.customersWhoBought + customers,
 						experience: progression.experience,
 						level: progression.level,
 						todayRevenue: nextDaily.revenue,
-						totalExperience:
-							state.market.totalExperience + customers * 2,
+						totalExperience: state.market.totalExperience + customers * 2,
 						totalRevenue: state.market.totalRevenue + offlineCoins,
 						unitsSold: state.market.unitsSold + customers,
 					},
@@ -1064,7 +1064,7 @@ export const useGameStore = create<GameStore>()(
 
 				const order: SupplierOrder = {
 					createdAt: now,
-					 deliveryDurationMs: Math.round(
+					deliveryDurationMs: Math.round(
 						getSupplierDeliveryDuration(product.supplierTime, logistics, now) *
 							eventEffects.supplierDurationMultiplier *
 							shopEffects.supplierDurationMultiplier,
@@ -1194,7 +1194,7 @@ export const useGameStore = create<GameStore>()(
 				const shopEffects = getShopEffects(get().shop.ownedItemIds);
 				const restockAmount = Math.ceil(
 					getEmployeeEffects(employees).restockAmount *
-					shopEffects.restockMultiplier,
+						shopEffects.restockMultiplier,
 				);
 
 				if (restockAmount <= 0) {
@@ -1206,7 +1206,9 @@ export const useGameStore = create<GameStore>()(
 					.filter((shelf) => shelfAssignments[shelf.id])
 					.sort((left, right) => {
 						const leftCapacity = getShelfCapacity(shelfUpgradeLevels[left.id]);
-						const rightCapacity = getShelfCapacity(shelfUpgradeLevels[right.id]);
+						const rightCapacity = getShelfCapacity(
+							shelfUpgradeLevels[right.id],
+						);
 						return (
 							(shelfStock[left.id] ?? 0) / leftCapacity -
 							(shelfStock[right.id] ?? 0) / rightCapacity
@@ -1219,7 +1221,7 @@ export const useGameStore = create<GameStore>()(
 
 				const productId = shelfAssignments[targetShelf.id];
 				const capacity = getShelfCapacity(shelfUpgradeLevels[targetShelf.id]);
-				const available = productId ? inventory[productId] ?? 0 : 0;
+				const available = productId ? (inventory[productId] ?? 0) : 0;
 				const quantity = Math.min(
 					restockAmount,
 					available,
@@ -1280,9 +1282,9 @@ export const useGameStore = create<GameStore>()(
 						employees: canPay
 							? employees.employees
 							: employees.employees.map((employee) => ({
-								...employee,
-								isWorking: false,
-							})),
+									...employee,
+									isWorking: false,
+								})),
 						nextPayrollAt: now + EMPLOYEE_PAYROLL_INTERVAL_MS,
 						totalSalariesPaid:
 							employees.totalSalariesPaid + (canPay ? payrollCost : 0),
@@ -1292,7 +1294,14 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			processInventorySpoilage: () => {
-				const { inventory, inventoryLots, shelfAssignments, shelfLots, shelfStock, statistics } = get();
+				const {
+					inventory,
+					inventoryLots,
+					shelfAssignments,
+					shelfLots,
+					shelfStock,
+					statistics,
+				} = get();
 				const now = Date.now();
 				const nextInventory = { ...inventory };
 				const nextInventoryLots: GameInventoryLots = { ...inventoryLots };
@@ -1311,13 +1320,15 @@ export const useGameStore = create<GameStore>()(
 					);
 					const discarded = discardExpiredInventoryLots(lots, now);
 					nextInventoryLots[numericProductId] = discarded.remainingLots;
-					hasLotChanges ||= JSON.stringify(inventoryLots[numericProductId] ?? []) !== JSON.stringify(discarded.remainingLots);
+					hasLotChanges ||=
+						JSON.stringify(inventoryLots[numericProductId] ?? []) !==
+						JSON.stringify(discarded.remainingLots);
 
 					if (discarded.expiredQuantity > 0) {
 						nextInventory[numericProductId] = Math.max(
-						0,
-						quantity - discarded.expiredQuantity,
-					);
+							0,
+							quantity - discarded.expiredQuantity,
+						);
 						spoiledUnits += discarded.expiredQuantity;
 					}
 				}
@@ -1336,13 +1347,15 @@ export const useGameStore = create<GameStore>()(
 					);
 					const discarded = discardExpiredInventoryLots(lots, now);
 					nextShelfLots[shelfId] = discarded.remainingLots;
-					hasLotChanges ||= JSON.stringify(shelfLots[shelfId] ?? []) !== JSON.stringify(discarded.remainingLots);
+					hasLotChanges ||=
+						JSON.stringify(shelfLots[shelfId] ?? []) !==
+						JSON.stringify(discarded.remainingLots);
 
 					if (discarded.expiredQuantity > 0) {
 						nextShelfStock[shelfId] = Math.max(
-						0,
-						quantity - discarded.expiredQuantity,
-					);
+							0,
+							quantity - discarded.expiredQuantity,
+						);
 						spoiledUnits += discarded.expiredQuantity;
 					}
 				}
@@ -1416,7 +1429,8 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			processSupplierOrders: () => {
-				const { inventory, inventoryCapacityLevels, inventoryLots, logistics } = get();
+				const { inventory, inventoryCapacityLevels, inventoryLots, logistics } =
+					get();
 				const now = Date.now();
 				let hasChanges = false;
 				const nextInventory = { ...inventory };
@@ -1589,7 +1603,6 @@ export const useGameStore = create<GameStore>()(
 				const eventEffects = getActiveGameEventEffects(events, now);
 				const shopEffects = getShopEffects(shop.ownedItemIds);
 				const employeeEffects = getEmployeeEffects(employees);
-
 				if (
 					!market.isOpen ||
 					!market.nextCustomerAt ||
@@ -1637,8 +1650,8 @@ export const useGameStore = create<GameStore>()(
 					seed: market.randomSeed,
 					storeReputation:
 						market.customerSatisfaction +
-							shopEffects.storeReputationBonus +
-							employeeEffects.storeReputationBonus,
+						shopEffects.storeReputationBonus +
+						employeeEffects.storeReputationBonus,
 				});
 				const nextDaily = markDailySale(
 					daily,
@@ -1693,7 +1706,6 @@ export const useGameStore = create<GameStore>()(
 					shelfPrices,
 					market.customerSatisfaction,
 				);
-
 				set({
 					coins: coins + visit.revenue,
 					daily: nextDaily,
@@ -1711,10 +1723,12 @@ export const useGameStore = create<GameStore>()(
 						customersServed: market.customersServed + 1,
 						customersWhoBought:
 							market.customersWhoBought + (visit.purchases.length > 0 ? 1 : 0),
-						customerSatisfaction: Math.round(
-							(market.customerSatisfaction * 0.88 + customer.satisfaction * 0.12) *
-								10,
-						) / 10,
+						customerSatisfaction:
+							Math.round(
+								(market.customerSatisfaction * 0.88 +
+									customer.satisfaction * 0.12) *
+									10,
+							) / 10,
 						experience: progression.experience,
 						lastExperienceGain: experienceGained,
 						level: progression.level,
@@ -1899,7 +1913,10 @@ export const useGameStore = create<GameStore>()(
 					},
 					shelfLots: {
 						...shelfLots,
-						[shelfId]: appendInventoryLots(shelfLots[shelfId], movedLots.takenLots),
+						[shelfId]: appendInventoryLots(
+							shelfLots[shelfId],
+							movedLots.takenLots,
+						),
 					},
 					shelfStock: {
 						...shelfStock,
@@ -1941,10 +1958,7 @@ export const useGameStore = create<GameStore>()(
 								customersServed:
 									market.customersServed -
 									market.currentShift.startingCustomersServed,
-								durationMs: Math.max(
-									0,
-									now - market.currentShift.startedAt,
-								),
+								durationMs: Math.max(0, now - market.currentShift.startedAt),
 								experienceGained:
 									market.totalExperience -
 									market.currentShift.startingExperience,
@@ -2042,7 +2056,9 @@ export const useGameStore = create<GameStore>()(
 			setEmployeeWorking: (employeeId, isWorking) => {
 				const { employees } = get();
 
-				if (!employees.employees.some((employee) => employee.id === employeeId)) {
+				if (
+					!employees.employees.some((employee) => employee.id === employeeId)
+				) {
 					return false;
 				}
 
@@ -2050,7 +2066,9 @@ export const useGameStore = create<GameStore>()(
 					employees: {
 						...employees,
 						employees: employees.employees.map((employee) =>
-							employee.id === employeeId ? { ...employee, isWorking } : employee,
+							employee.id === employeeId
+								? { ...employee, isWorking }
+								: employee,
 						),
 					},
 				});
@@ -2059,7 +2077,9 @@ export const useGameStore = create<GameStore>()(
 			},
 			trainEmployee: (employeeId) => {
 				const { coins, employees } = get();
-				const employee = employees.employees.find((item) => item.id === employeeId);
+				const employee = employees.employees.find(
+					(item) => item.id === employeeId,
+				);
 				const trainedEmployee = employee ? promoteEmployee(employee) : null;
 
 				if (!employee || !trainedEmployee) {
@@ -2207,9 +2227,9 @@ export const useGameStore = create<GameStore>()(
 				currencyPurchases,
 				daily,
 				employees,
-					events,
-					inventory,
-					inventoryLots,
+				events,
+				inventory,
+				inventoryLots,
 				inventoryCapacityLevels,
 				logistics,
 				market,
@@ -2219,9 +2239,9 @@ export const useGameStore = create<GameStore>()(
 				missions,
 				production,
 				shop,
-					shelfAssignments,
-					shelfLots,
-					shelfStock,
+				shelfAssignments,
+				shelfLots,
+				shelfStock,
 				shelfPrices,
 				unlockedShelfSlots,
 				shelfUpgradeLevels,
@@ -2231,9 +2251,9 @@ export const useGameStore = create<GameStore>()(
 				currencyPurchases,
 				daily,
 				employees,
-					events,
-					inventory,
-					inventoryLots,
+				events,
+				inventory,
+				inventoryLots,
 				inventoryCapacityLevels,
 				logistics,
 				market,
@@ -2243,9 +2263,9 @@ export const useGameStore = create<GameStore>()(
 				missions,
 				production,
 				shop,
-					shelfAssignments,
-					shelfLots,
-					shelfStock,
+				shelfAssignments,
+				shelfLots,
+				shelfStock,
 				shelfPrices,
 				unlockedShelfSlots,
 				shelfUpgradeLevels,
@@ -2356,29 +2376,30 @@ function normalizeEmployeesState(value: unknown): GameEmployeesState {
 				return [];
 			}
 
-			return [{
-				efficiency:
-					typeof employee.efficiency === "number" && employee.efficiency > 0
-						? employee.efficiency
-						: definition.efficiency,
-				experience:
-					typeof employee.experience === "number" &&
-					employee.experience >= 0
-						? Math.floor(employee.experience)
-						: 0,
-				id: employee.id,
-				isWorking: employee.isWorking !== false,
-				level:
-					typeof employee.level === "number" && employee.level >= 1
-						? Math.min(5, Math.floor(employee.level))
-						: 1,
-				name: employee.name,
-				role: definition.id,
-				salary:
-					typeof employee.salary === "number" && employee.salary >= 0
-						? employee.salary
-						: definition.salary,
-			}];
+			return [
+				{
+					efficiency:
+						typeof employee.efficiency === "number" && employee.efficiency > 0
+							? employee.efficiency
+							: definition.efficiency,
+					experience:
+						typeof employee.experience === "number" && employee.experience >= 0
+							? Math.floor(employee.experience)
+							: 0,
+					id: employee.id,
+					isWorking: employee.isWorking !== false,
+					level:
+						typeof employee.level === "number" && employee.level >= 1
+							? Math.min(5, Math.floor(employee.level))
+							: 1,
+					name: employee.name,
+					role: definition.id,
+					salary:
+						typeof employee.salary === "number" && employee.salary >= 0
+							? employee.salary
+							: definition.salary,
+				},
+			];
 		}),
 		nextHireNumber:
 			typeof state?.nextHireNumber === "number" && state.nextHireNumber > 0
@@ -2526,8 +2547,11 @@ function createMarketCustomer(
 		.join(" e ");
 	const averagePriceDifference = visit.purchases.length
 		? visit.purchases.reduce((total, purchase) => {
-				const product = itemCatalog.find((item) => item.id === purchase.productId);
-				const price = shelfPrices[purchase.shelfId] ?? product?.sellingPrice ?? 0;
+				const product = itemCatalog.find(
+					(item) => item.id === purchase.productId,
+				);
+				const price =
+					shelfPrices[purchase.shelfId] ?? product?.sellingPrice ?? 0;
 
 				return total + (price - (product?.suggestedPrice ?? price));
 			}, 0) / visit.purchases.length

@@ -1,50 +1,30 @@
 import { View } from "react-native";
-import { useEffect, useState } from "react";
 import { StyleSheet } from "react-native-unistyles";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
-import { SupermarketAnimation } from "../supermarket-animation";
 
 type StorefrontHeroProps = {
-	activeCustomers: number;
 	customerSatisfaction: number;
 	experience: number;
 	experienceToNextLevel: number;
 	isOpen: boolean;
 	lastExperienceGain: number;
-	level: number;
-	nextCustomerAt: number | null;
 	onToggle: () => void;
 	recentUnlocks: string[];
 	unlockedProductCount: number;
 };
 
 export function StorefrontHero({
-	activeCustomers,
 	customerSatisfaction,
 	experience,
 	experienceToNextLevel,
 	isOpen,
 	lastExperienceGain,
 	onToggle,
-	nextCustomerAt,
 	recentUnlocks,
 	unlockedProductCount,
 }: StorefrontHeroProps) {
-	const [now, setNow] = useState(Date.now());
-
-	useEffect(() => {
-		if (!isOpen || !nextCustomerAt) {
-			return;
-		}
-
-		setNow(Date.now());
-		const interval = setInterval(() => setNow(Date.now()), 1_000);
-
-		return () => clearInterval(interval);
-	}, [isOpen, nextCustomerAt]);
-
 	const experienceProgress = Math.min(
 		Math.round((experience / experienceToNextLevel) * 100),
 		100,
@@ -54,12 +34,6 @@ export function StorefrontHero({
 		: lastExperienceGain > 0
 			? `+${lastExperienceGain} XP na última venda`
 			: `${unlockedProductCount} produtos desbloqueados`;
-	const arrivalUpdate =
-		isOpen && nextCustomerAt
-			? nextCustomerAt > now
-				? `Próximo cliente em ${Math.ceil((nextCustomerAt - now) / 1_000)}s`
-				: "Cliente chegando agora"
-			: activityUpdate;
 
 	return (
 		<View style={styles.frame}>
@@ -79,10 +53,6 @@ export function StorefrontHero({
 				</View>
 			</View>
 
-			<View style={styles.scene}>
-				<SupermarketAnimation isOpen={isOpen} />
-			</View>
-
 			<View style={styles.footer}>
 				<View style={styles.storeSummary}>
 					<View style={styles.storeSummaryRow}>
@@ -93,7 +63,7 @@ export function StorefrontHero({
 							/>
 							<Text numberOfLines={1} style={styles.footerText}>
 								{isOpen
-									? `${activeCustomers} freguês${activeCustomers === 1 ? "" : "es"} agora`
+									? "Loja em funcionamento"
 									: "Loja pronta para o próximo turno"}
 							</Text>
 						</View>
@@ -116,7 +86,7 @@ export function StorefrontHero({
 						</Text>
 					</View>
 					<Text numberOfLines={1} style={styles.activityUpdate}>
-						{arrivalUpdate}
+						{activityUpdate}
 					</Text>
 				</View>
 				<GameButton
@@ -211,9 +181,6 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	closedPillText: {
 		color: theme.colors["neutral-100"],
-	},
-	scene: {
-		backgroundColor: theme.colors["blue-50"],
 	},
 	footer: {
 		flexDirection: "row",
