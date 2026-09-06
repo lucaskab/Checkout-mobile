@@ -1,0 +1,9 @@
+import { test, expect } from "bun:test";
+import { createSimulatorCommandHandler } from "./simulator-protocol.ts";
+function host(){let revision=4,coins=100,calls=0;const actions={restockShelf:()=>{coins-=10;revision++;calls++;return true;},setMarketOpen:()=>{revision++;calls++;},claimMission:()=>false};const run=createSimulatorCommandHandler("test",()=>actions,()=>revision);return {run,read:()=>({revision,coins,calls})};}
+const command={protocol:1,session:"test",id:"c1",revision:4,action:"restockShelf",args:[{shelfId:"bakery",productId:1,amount:2}]};
+test("a duplicate Unity command cannot spend inventory twice",()=>{const h=host();expect(h.run(command).ok).toBe(true);expect(h.run(command).ok).toBe(true);expect(h.read()).toEqual({revision:5,coins:90,calls:1});});
+test("rejects messages from an old renderer session",()=>{const h=host();expect(h.run({...command,session:"old"}).reason).toBe("session-mismatch");expect(h.read().calls).toBe(0);});
+test("stale and future revisions cannot execute purchases",()=>{const h=host();expect(h.run({...command,revision:3}).reason).toBe("stale-revision");expect(h.run({...command,revision:8}).ok).toBe(false);expect(h.read().coins).toBe(100);});
+test("rejects malformed, nonfinite and privileged commands",()=>{const h=host();for(const action of ["resetGame","devAdjustCoins","grantCurrencyPurchase","processNextCustomer","__proto__"]){expect(h.run({...command,action,args:[]}).ok).toBe(false);}for(const amount of [-1,0,NaN,Infinity,1.5])expect(h.run({...command,args:[{shelfId:"bakery",productId:1,amount}]}).ok).toBe(false);expect(h.read().calls).toBe(0);});
+test("void store actions count as success and failed rules remain failures",()=>{const h=host();expect(h.run({...command,action:"claimMission",args:["locked"]}).ok).toBe(false);expect(h.run({...command,id:"c2",action:"setMarketOpen",args:[true]}).ok).toBe(true);});

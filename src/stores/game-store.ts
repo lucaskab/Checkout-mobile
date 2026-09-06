@@ -2577,6 +2577,7 @@ function createMarketCustomer(
 
 	return {
 		id: `${visit.customer.id}-${seed}`,
+		purchases: visit.purchases,
 		item: purchasedProducts || "Não encontrou produtos",
 		mood: visit.customer.mood,
 		name,

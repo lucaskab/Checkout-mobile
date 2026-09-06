@@ -1,65 +1,44 @@
-import { type Href, router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 
-type GameMode = "system" | "simulator";
-
-export function GameModeToggle({ activeMode = "system" }: { activeMode?: GameMode }) {
-	function selectMode(mode: GameMode) {
-		if (mode === activeMode) {
-			return;
-		}
-
-		if (mode === "simulator") {
-			router.push("/simulator" as Href);
-			return;
-		}
-
-		router.replace("/" as Href);
-	}
-
+export function GameModeToggle() {
+	const simulator=usePathname()==="/simulator";
 	return (
 		<View style={styles.container}>
-			<ModeOption
-				active={activeMode === "system"}
-				icon="computer"
-				label="Sistema"
-				onPress={() => selectMode("system")}
-			/>
-			<ModeOption
-				active={activeMode === "simulator"}
-				icon="controller"
-				label="Simulador"
-				onPress={() => selectMode("simulator")}
-			/>
+			<ModeOption active={!simulator} icon="computer" label="Sistema" onPress={()=>router.replace("/")} />
+			<ModeOption active={simulator} icon="controller" label="Simulador" onPress={()=>router.push("/simulator")} />
 		</View>
 	);
 }
 
 function ModeOption({
 	active = false,
+	disabled = false,
 	icon,
 	label,
 	onPress,
 }: {
 	active?: boolean;
+	disabled?: boolean;
 	icon: "computer" | "controller";
 	label: string;
 	onPress: () => void;
 }) {
 	return (
 		<Pressable
+			onPress={onPress}
 			accessibilityLabel={`Ativar modo ${label.toLowerCase()}`}
 			accessibilityRole="tab"
-			accessibilityState={{ selected: active }}
-			disabled={active}
-			onPress={onPress}
+			accessibilityState={{ disabled, selected: active }}
+			disabled={disabled || active}
 			style={({ pressed }) => [
 				styles.option,
 				active && styles.activeOption,
-				pressed && !active && styles.pressedOption,
+				disabled && styles.disabledOption,
+				pressed && !active && !disabled && styles.pressedOption,
 			]}
 		>
 			<GameIcon icon={icon} style={styles.icon} />
@@ -91,6 +70,9 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	activeOption: {
 		backgroundColor: theme.colors["blue-500"],
+	},
+	disabledOption: {
+		opacity: 0.45,
 	},
 	pressedOption: {
 		backgroundColor: theme.colors["neutral-200"],

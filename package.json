@@ -3,7 +3,7 @@
   "main": "index.ts",
   "version": "1.0.0",
   "dependencies": {
-    "@borndotcom/react-native-godot": "1.0.1",
+    "@azesmway/react-native-unity": "^1.1.1",
     "@expo-google-fonts/fredoka": "^0.4.1",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo-google-fonts/nunito": "^0.4.2",
@@ -42,8 +42,6 @@
     "react-native-unistyles": "^3.3.0",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1",
-    "react-native-worklets-core": "1.6.2",
-    "setimmediate": "^1.0.5",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -51,11 +49,11 @@
     "@types/react": "~19.2.2",
     "convert-source-map": "^2.0.0",
     "debug": "^4.3.4",
+    "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "postinstall": "node scripts/setup-godot-native.mjs",
-    "godot:export": "node scripts/export-godot.mjs",
+    "postinstall": "patch-package",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",

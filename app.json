@@ -42,6 +42,14 @@
         }
       ],
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      [
         "expo-dev-client",
         {
           "launchMode": "most-recent",
@@ -55,7 +63,8 @@
       "expo-asset",
       "expo-image",
       "expo-web-browser",
-      "./plugins/with-godot-assets"
+      "@azesmway/react-native-unity",
+      "./plugins/with-unity-manifest"
     ],
     "experiments": {
       "typedRoutes": true,

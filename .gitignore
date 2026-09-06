@@ -44,3 +44,19 @@ example
 
 # Godot editor cache (source and exported builds remain versioned)
 /godot/.godot/
+
+# Unity generated caches and local build artifacts
+unity/**/Library/
+unity/**/Temp/
+unity/**/Logs/
+unity/**/Obj/
+unity/**/UserSettings/
+unity/Builds/
+unity/builds/
+unity/WindowsPreview/
+CheckoutSimulator-debug.apk
+package-lock.json
+modules/checkout-unity/
+plugins/with-checkout-unity.js
+unity/checkout-android-build.log
+unity/**/ArtSource/*.blend1

@@ -11,6 +11,7 @@ export type GameShelfPrices = Record<string, number>;
 export type GameShelfUpgradeLevels = Record<string, number>;
 
 export type GameMarketCustomer = {
+	purchases?: { shelfId: string; productId: number; quantity: number; revenue: number }[];
 	id: string;
 	item: string;
 	mood: "calmo" | "com-pressa" | "feliz" | "estressado";
