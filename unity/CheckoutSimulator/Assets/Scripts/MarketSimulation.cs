@@ -36,11 +36,11 @@ namespace MarketDay
         readonly Queue<int> requests=new Queue<int>();
         Walker routingWalker;
         Vector2 pointerDown,lastPointer;bool dragged;float saveTimer;float autoTimer;
-        float zoom=13.5f;Vector3 focus=new Vector3(-.6f,.1f,2.4f);bool initialized;
+        float zoom=20.5f;Vector3 focus=new Vector3(0f,.1f,6f);bool initialized;
         const string SaveName="market-save-v1.json";
         public string SavePath=>Path.Combine(Application.persistentDataPath,SaveName);
         static readonly Vector3 Entrance=P(-1.75f,-8.7f);
-        static readonly Vector3 Register=P(-3.5f,-5.70f);
+        public static readonly Vector3 Register=P(-3.15f,-4.70f);
         void Start(){Initialize();}
 
         public void Initialize(bool load=true)
@@ -55,17 +55,27 @@ namespace MarketDay
             }
             Application.targetFrameRate=60;Application.runInBackground=true;
             // Obstacles use the same coordinate map as the exported Blender asset.
+            if(world.GetComponentInChildren<Checkout.CheckoutShelfSlots>())
+            {
+                foreach(var p in Checkout.CheckoutShelfSlots.Positions)Block(p.x,p.z,2.05f,1.4f);
+                Block(-3.9f,-4.7f,2.6f,1.6f);
+                foreach(Transform sector in world)if(sector.name.StartsWith("Sector_"))
+                    foreach(var renderer in sector.GetComponentsInChildren<Renderer>(true))if(renderer.enabled){var b=renderer.bounds;Block(b.center.x,b.center.z,b.size.x,b.size.z);}
+            }
+            else
+            {
             Block(-1.6f,.3f,1.50f,3.90f);Block(2,-1.18f,1.50f,4.75f);
             Block(-6.45f,1.05f,4.05f,1.98f);Block(-6.4f,-1.6f,4.05f,1.98f);Block(4.85f,-5.36f,4.15f,2);
             Block(-4.5f,4.14f,3.6f,1.9f);Block(-7.15f,5.6f,2.9f,2.8f);
-            Block(1.5f,4.3f,3.85f,1.9f);Block(6.5f,4.29f,4.15f,1.9f);Block(6.55f,.45f,3.3f,2.5f);
+            Block(1.5f,4.71f,3.85f,2.74f);Block(6.5f,4.65f,4.15f,2.62f);Block(6.55f,.45f,3.3f,2.5f);
             Block(7.33f,-2.68f,2.6f,2.3f);
             Block(-3.9f,-4.70f,3.4f,1.94f);Block(-2.2f,6.37f,3.8f,1.5f);
-            Block(-.1f,5.3f,1.32f,1.1f);
+            Block(-3.8f,4.15f,2.4f,1.61f);
+            }
             BuildNavigation();
-            for(int i=1;i<=5;i++)
+            for(int i=1;i<=9;i++)
             {
-                var t=world.Find("Customer_0"+i);if(t==null)continue;
+                var t=world.Find($"Customer_{i:00}");if(t==null)continue;
                 var w=NewWalker(t,false);w.department=(i-1)%5;w.wait=i*2.5f;w.phase=0;w.root.position=Entrance+new Vector3(0,0,-(i-1)*1.3f);w.root.gameObject.SetActive(false);customers.Add(w);
             }
             var stocker=world.Find("Worker_Stocker");
@@ -81,7 +91,7 @@ namespace MarketDay
         Walker NewWalker(Transform root,bool worker)
         {
             var limbs=new List<Transform>();foreach(Transform t in root.GetComponentsInChildren<Transform>())if(t.name.StartsWith("Arm_")||t.name.StartsWith("Leg_"))limbs.Add(t);
-            bool cart=root.name=="Customer_02"||root.name=="Customer_05";
+            bool cart=root.name=="Customer_02"||root.name=="Customer_05"||root.name=="Customer_07";
             var agent=root.GetComponent<NavMeshAgent>();if(!agent)agent=root.gameObject.AddComponent<NavMeshAgent>();agent.radius=cart?.48f:.30f;agent.height=2.3f;agent.baseOffset=0;agent.updatePosition=false;agent.updateRotation=false;
             agent.acceleration=4;agent.angularSpeed=220;agent.stoppingDistance=.13f;agent.obstacleAvoidanceType=ObstacleAvoidanceType.HighQualityObstacleAvoidance;agent.avoidancePriority=worker?35:45+customers.Count*4;
             return new Walker{root=root,limbs=limbs.ToArray(),worker=worker,baseline=root.position,cart=cart,radius=agent.radius,agent=agent};
@@ -92,20 +102,25 @@ namespace MarketDay
             var sources=new List<NavMeshBuildSource>();
             void Box(Vector3 center,Vector3 size,int area,Quaternion rotation){sources.Add(new NavMeshBuildSource{shape=NavMeshBuildSourceShape.Box,transform=Matrix4x4.TRS(center,rotation,Vector3.one),size=size,area=area});}
             Box(new Vector3(0,.64f,0),new Vector3(18,.2f,14),0,Quaternion.identity);
-            Box(new Vector3(-1.75f,.411f,-7.874f),new Vector3(2.8f,.2f,1.763f),0,Quaternion.Euler(-15.3f,0,0));
-            Box(new Vector3(-1.75f,.175f,-9.35f),new Vector3(2.8f,.2f,1.35f),0,Quaternion.identity);
+            Box(new Vector3(-1.75f,.345f,-8.825f),new Vector3(2.8f,.2f,3.6f),0,Quaternion.Euler(-9.44f,0,0));
             Box(new Vector3(4,.37f,7.8f),new Vector3(1.1f,.2f,2.2f),0,Quaternion.Euler(20,0,0));
-            Box(new Vector3(4,.05f,9.2f),new Vector3(1.1f,.2f,1.4f),0,Quaternion.identity);
+            Box(new Vector3(4,.05f,13.2f),new Vector3(1.1f,.2f,9.4f),0,Quaternion.identity);
+            // Outdoor customers use the same sidewalk surfaces as city pedestrians.
+            // Do not bake the vehicle aisle: it creates shortcuts through parking bays.
+            if(FindAnyObjectByType<Checkout.CheckoutCityTraffic>())
+                for(int bay=0;bay<3;bay++)Box(new Vector3(-17.1f,.05f,Checkout.CheckoutCityTraffic.BayZ(bay)-1.9f),new Vector3(5.4f,.2f,1.3f),0,Quaternion.identity);
+            var streets=FindAnyObjectByType<Checkout.CheckoutCityStreets>();
+            if(streets)streets.AddNavigation(sources);
             foreach(var r in obstacles)Box(new Vector3(r.center.x,1.5f,r.center.y),new Vector3(r.width,3,r.height),1,Quaternion.identity);
             var settings=NavMesh.GetSettingsByID(0);settings.agentRadius=.28f;settings.agentHeight=2.3f;settings.agentClimb=.3f;settings.agentSlope=45;settings.overrideVoxelSize=true;settings.voxelSize=.075f;
-            var data=NavMeshBuilder.BuildNavMeshData(settings,sources,new Bounds(Vector3.zero,new Vector3(24,12,25)),Vector3.zero,Quaternion.identity);
+            var data=NavMeshBuilder.BuildNavMeshData(settings,sources,new Bounds(new Vector3(0,0,8),new Vector3(80,12,80)),Vector3.zero,Quaternion.identity);
             if(data==null)throw new InvalidOperationException("Navigation surface could not be built.");navigation=NavMesh.AddNavMeshData(data);
         }
         void OnDestroy(){if(navigation.valid)navigation.Remove();}
         void Block(float x,float z,float w,float d){obstacles.Add(new Rect(x-w/2,z-d/2,w,d));}
         bool Clear(Vector3 p,float radius=.30f)
         {
-            if(p.x < -8.9f+radius||p.x>8.9f-radius||p.z>9.5f||p.z< -9.5f)return false;
+            if(p.x < -8.9f+radius||p.x>8.9f-radius||p.z>17.5f||p.z< -9.5f)return false;
             if(p.z>6.65f&&(p.x<3.45f+radius||p.x>4.50f-radius))return false;
             // Store entrance is the only opening through the front wall.
             if(p.z< -6.9f+radius&&(p.x< -3.1f+radius||p.x>-.42f-radius))return false;
@@ -113,8 +128,8 @@ namespace MarketDay
             if(routingWalker!=null)foreach(var other in Crowd())if(other!=routingWalker&&Vector3.Distance(p,Anchor(other))<radius+other.radius+.05f)return false;
             return true;
         }
-        const float Step=.2f;const int W=94,H=97;
-        public static float Ground(float z)=>z< -7.05f?Mathf.Lerp(.275f,.74f,Mathf.InverseLerp(-8.75f,-7.05f,z)):Mathf.Lerp(.74f,.15f,Mathf.InverseLerp(7.1f,8.7f,z));
+        const float Step=.2f;const int W=94,H=137;
+        public static float Ground(float z)=>z< -7.05f?Mathf.Lerp(.15f,.74f,Mathf.InverseLerp(-10.6f,-7.05f,z)):Mathf.Lerp(.74f,.15f,Mathf.InverseLerp(7.1f,8.7f,z));
         Vector3 Cell(int id){float z=-9.6f+(id/W)*Step;return new Vector3(-9.2f+(id%W)*Step,Ground(z),z);}
         int Nearest(Vector3 p,float radius)
         {
@@ -279,7 +294,7 @@ namespace MarketDay
                 if(w.job<0)
                 {
                     if(requests.Count==0){if(w.agent.hasPath)Walk(w,dt);continue;}
-                    w.job=requests.Dequeue();w.phase=0;Go(w,P(4,9.2f));
+                    w.job=requests.Dequeue();w.phase=0;Go(w,P(4,17.2f));
                 }
                 if(w.wait>0){w.wait-=dt;Idle(w);continue;}
                 if(!Walk(w,dt))continue;
@@ -314,8 +329,8 @@ namespace MarketDay
         }
         void OnApplicationPause(bool paused){if(paused)Save();}
         void OnApplicationQuit(){Save();}
-        public void HomeCamera(){focus=new Vector3(-.6f,.1f,2.4f);zoom=13.5f;UpdateCamera();}
-        public void Zoom(float amount){zoom=Mathf.Clamp(zoom+amount,6,20);UpdateCamera();}
+        public void HomeCamera(){focus=new Vector3(0f,.1f,6f);zoom=20.5f;UpdateCamera();}
+        public void Zoom(float amount){zoom=Mathf.Clamp(zoom+amount,6,38);UpdateCamera();}
         void UpdateCamera(){if(!view)return;view.orthographicSize=zoom;view.transform.position=focus+new Vector3(28,33,-38);view.transform.LookAt(focus);}
         public void ExternalCamera(){HandleCamera();}
         void HandleCamera()
@@ -332,7 +347,7 @@ namespace MarketDay
             {
                 Vector2 now=Input.mousePosition;var delta=now-lastPointer;
                 if((now-pointerDown).magnitude>10)dragged=true;
-                if(dragged){Vector3 right=view.transform.right;Vector3 forward=Vector3.Cross(right,Vector3.up);focus-=(right*delta.x+forward*delta.y)*zoom*2/Screen.height;focus.x=Mathf.Clamp(focus.x,-12,12);focus.z=Mathf.Clamp(focus.z,-8,14);UpdateCamera();}
+                if(dragged){Vector3 right=view.transform.right;Vector3 forward=Vector3.Cross(right,Vector3.up);focus-=(right*delta.x+forward*delta.y)*zoom*2/Screen.height;focus.x=Mathf.Clamp(focus.x,-26,26);focus.z=Mathf.Clamp(focus.z,-16,34);UpdateCamera();}
                 lastPointer=now;
             }
             if(Input.GetMouseButtonUp(0)&&!over&&!dragged)
@@ -347,4 +362,3 @@ namespace MarketDay
         }
     }
 }
-

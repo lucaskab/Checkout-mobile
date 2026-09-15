@@ -2,16 +2,19 @@ import {
 	LegendList,
 	type LegendListRenderItemProps,
 } from "@legendapp/list/react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { GameInventoryCapacityLevels } from "@/@types/game";
 import type { ItemDefinition } from "@/@types/item";
-import { GameIcon } from "@/components/game-icon";
+import type { SupplierOrder } from "@/@types/logistics";
 import { GameText as Text } from "@/components/game-text";
-import type { GameIconId } from "@/data/game-icon-assets";
 import { getInventoryCapacity } from "@/data/inventory-capacity";
 import { itemCatalog } from "@/data/market-products";
+import {
+	getOrderRemainingTime,
+	getSupplierOrderStatus,
+} from "@/services/logistics";
 import { LockedProductCard } from "./components/locked-product-card";
 import { UnlockedProductCard } from "./components/unlocked-product-card";
 
@@ -21,7 +24,9 @@ type ProductListProps = {
 	inventory: Record<number, number>;
 	inventoryCapacityLevels: GameInventoryCapacityLevels;
 	level: number;
-	onPressProduct: (product: ItemDefinition) => void;
+	onUpgradeProduct: (product: ItemDefinition) => void;
+	onRestockProduct: (product: ItemDefinition) => void;
+	orders: SupplierOrder[];
 	unlockedProductIds: number[];
 };
 
@@ -35,29 +40,53 @@ export function ProductList({
 	inventory,
 	inventoryCapacityLevels,
 	level,
-	onPressProduct,
+	onUpgradeProduct,
+	onRestockProduct,
+	orders,
 	unlockedProductIds,
 }: ProductListProps) {
 	const [filter, setFilter] = useState<ProductFilter>("todos");
-	const unlockedProducts = itemCatalog.filter((product) =>
-		unlockedProductIds.includes(product.id),
+	const [currentTime, setCurrentTime] = useState(Date.now());
+	const hasActiveOrders = orders.some(
+		(order) => getSupplierOrderStatus(order, currentTime) !== "entregue",
 	);
-	const filteredProducts = itemCatalog.filter((product) => {
-		const isUnlocked = unlockedProductIds.includes(product.id);
+	const filteredProducts = itemCatalog
+		.filter((product) => {
+			const isUnlocked = unlockedProductIds.includes(product.id);
 
-		if (filter === "desbloqueados") {
-			return isUnlocked;
+			if (filter === "desbloqueados") {
+				return isUnlocked;
+			}
+
+			if (filter === "bloqueados") {
+				return !isUnlocked;
+			}
+
+			return true;
+		})
+		.sort(
+			(firstProduct, secondProduct) =>
+				firstProduct.unlockLevel - secondProduct.unlockLevel ||
+				firstProduct.name.localeCompare(secondProduct.name, "pt-BR"),
+		);
+
+	useEffect(() => {
+		if (!hasActiveOrders) {
+			return;
 		}
 
-		if (filter === "bloqueados") {
-			return !isUnlocked;
-		}
+		const interval = setInterval(() => setCurrentTime(Date.now()), 1_000);
 
-		return true;
-	});
+		return () => clearInterval(interval);
+	}, [hasActiveOrders]);
 
 	function renderProduct({ item }: LegendListRenderItemProps<ItemDefinition>) {
 		const isUnlocked = unlockedProductIds.includes(item.id);
+		const incomingOrder = orders.find(
+			(order) =>
+				order.productId === item.id &&
+				getSupplierOrderStatus(order, currentTime) !== "entregue",
+		);
 
 		return isUnlocked ? (
 			<UnlockedProductCard
@@ -66,7 +95,14 @@ export function ProductList({
 					item,
 					inventoryCapacityLevels[item.id],
 				)}
-				onPress={() => onPressProduct(item)}
+				incomingQuantity={incomingOrder?.quantity}
+				incomingTime={
+					incomingOrder
+						? getOrderRemainingTime(incomingOrder, currentTime)
+						: undefined
+				}
+				onUpgrade={() => onUpgradeProduct(item)}
+				onRestock={() => onRestockProduct(item)}
 				product={item}
 			/>
 		) : (
@@ -78,38 +114,18 @@ export function ProductList({
 		<LegendList
 			contentContainerStyle={styles.content}
 			data={filteredProducts}
-			estimatedItemSize={145}
+			estimatedItemSize={120}
 			extraData={{
+				currentTime,
 				inventory,
 				inventoryCapacityLevels,
 				level,
+				orders,
 				unlockedProductIds,
 			}}
 			keyExtractor={(product) => product.id.toString()}
 			ListHeaderComponent={
 				<View>
-					<View style={styles.summaryRow}>
-						<SummaryCard
-							icon="success"
-							label="Desbloqueados"
-							value={unlockedProducts.length.toString()}
-						/>
-						<SummaryCard
-							icon="package"
-							label="Em estoque"
-							value={unlockedProducts
-								.reduce(
-									(total, product) => total + (inventory[product.id] ?? 0),
-									0,
-								)
-								.toString()}
-						/>
-						<SummaryCard
-							icon="lock"
-							label="Próximo nível"
-							value={`Nv ${getNextUnlockLevel(level)}`}
-						/>
-					</View>
 					<View style={styles.filterRow}>
 						{filters.map((filterOption) => {
 							const isActive = filter === filterOption.id;
@@ -133,7 +149,7 @@ export function ProductList({
 						})}
 					</View>
 					<View style={styles.listHeader}>
-						<Text style={styles.listTitle}>Catálogo de produtos</Text>
+						<Text style={styles.listTitle}>Catálogo por nível</Text>
 						<Text style={styles.listCount}>
 							{filteredProducts.length} itens
 						</Text>
@@ -145,29 +161,6 @@ export function ProductList({
 	);
 }
 
-type SummaryCardProps = {
-	icon: GameIconId;
-	label: string;
-	value: string;
-};
-
-function SummaryCard({ icon, label, value }: SummaryCardProps) {
-	return (
-		<View style={styles.summaryCard}>
-			<GameIcon icon={icon} style={styles.summaryIcon} />
-			<Text style={styles.summaryValue}>{value}</Text>
-			<Text style={styles.summaryLabel}>{label}</Text>
-		</View>
-	);
-}
-
-function getNextUnlockLevel(level: number) {
-	return (
-		itemCatalog.find((product) => product.unlockLevel > level)?.unlockLevel ??
-		level
-	);
-}
-
 const styles = StyleSheet.create((theme) => ({
 	content: {
 		paddingHorizontal: theme.gap(1.75),
@@ -175,39 +168,9 @@ const styles = StyleSheet.create((theme) => ({
 		paddingBottom: theme.gap(3),
 		backgroundColor: theme.colors["neutral-50"],
 	},
-	summaryRow: {
-		flexDirection: "row",
-		gap: theme.gap(0.75),
-	},
-	summaryCard: {
-		flex: 1,
-		padding: theme.gap(1.25),
-		borderWidth: 1,
-		borderColor: theme.colors["neutral-150"],
-		borderRadius: theme.gap(1.75),
-		backgroundColor: theme.colors["neutral-0"],
-	},
-	summaryIcon: {
-		width: 24,
-		height: 24,
-	},
-	summaryValue: {
-		fontFamily: theme.fonts.family.numberBold,
-		marginTop: theme.gap(0.5),
-		color: theme.colors["blue-600"],
-		fontSize: theme.fonts.size.medium,
-		fontWeight: "700",
-	},
-	summaryLabel: {
-		marginTop: 2,
-		color: theme.colors["neutral-500"],
-		fontSize: 10,
-		fontWeight: "600",
-	},
 	filterRow: {
 		flexDirection: "row",
 		gap: theme.gap(0.75),
-		marginTop: theme.gap(1.5),
 	},
 	filter: {
 		paddingHorizontal: theme.gap(1.25),

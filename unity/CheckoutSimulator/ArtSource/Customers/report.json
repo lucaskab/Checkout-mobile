@@ -1,0 +1,148 @@
+{
+  "customers": [
+    {
+      "name": "Customer_01",
+      "source": "CustomerChild.glb",
+      "rig": "Customer_01",
+      "sourceVertices": 1026005,
+      "vertices": 21223,
+      "triangles": 23999,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    },
+    {
+      "name": "Customer_02",
+      "source": "CustomerChild.glb",
+      "rig": "Customer_02",
+      "sourceVertices": 1026005,
+      "vertices": 21223,
+      "triangles": 23999,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    },
+    {
+      "name": "Customer_03",
+      "source": "CustomerChild.glb",
+      "rig": "Customer_03",
+      "sourceVertices": 1026005,
+      "vertices": 21223,
+      "triangles": 23999,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    },
+    {
+      "name": "Customer_04",
+      "source": "CustomerChild.glb",
+      "rig": "Customer_04",
+      "sourceVertices": 1026005,
+      "vertices": 21223,
+      "triangles": 23999,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    },
+    {
+      "name": "Customer_05",
+      "source": "CustomerChild.glb",
+      "rig": "Customer_05",
+      "sourceVertices": 1026005,
+      "vertices": 21223,
+      "triangles": 23999,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    },
+    {
+      "name": "Customer_06",
+      "source": "Customer_06.glb",
+      "rig": "Customer_01",
+      "sourceVertices": 100513,
+      "vertices": 18003,
+      "triangles": 24000,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    },
+    {
+      "name": "Customer_07",
+      "source": "Customer_07.glb",
+      "rig": "Customer_02",
+      "sourceVertices": 97944,
+      "vertices": 17412,
+      "triangles": 24000,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    },
+    {
+      "name": "Customer_08",
+      "source": "Customer_08.glb",
+      "rig": "Customer_03",
+      "sourceVertices": 100040,
+      "vertices": 18136,
+      "triangles": 23999,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    },
+    {
+      "name": "Customer_09",
+      "source": "Customer_09.glb",
+      "rig": "Customer_04",
+      "sourceVertices": 100724,
+      "vertices": 17278,
+      "triangles": 23999,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking",
+        "WalkingWithBasket"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "validatedIn": "Unity 6000.5.7f1 Play Mode",
+  "suppliedModels": [
+    "FruitMarketStand",
+    "VegetableCrate",
+    "CardboardBox",
+    "ConstructionWorker"
+  ],
+  "animatedClips": [
+    "Idle",
+    "Walking",
+    "CarryIdle",
+    "CarryWalking",
+    "Pickup",
+    "PutDown"
+  ],
+  "checks": {
+    "animatedSkin": true,
+    "plantedFeetDuringCrouch": true,
+    "completedDeliveryTrips": 2,
+    "truckStationaryDuringUnload": true,
+    "boxReleasedAtWarehouseDoor": true,
+    "boxBottomOnGround": true,
+    "emptyHandedReturn": true,
+    "routeClearOfTrucks": true,
+    "reachableStoreAisles": 7,
+    "customerShoppingCheckoutAndExit": true,
+    "inventoryAndOrdersUnchanged": true
+  }
+}

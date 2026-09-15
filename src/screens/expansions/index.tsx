@@ -2,13 +2,14 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { marketExpansions } from "@/data/market-expansions";
 import { useGameStore } from "@/stores/game-store";
 
-export function ExpansionsScreen() {
+export function ExpansionsScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	const coins = useGameStore((state) => state.coins);
 	const level = useGameStore((state) => state.market.level);
 	const unlockedIds = useGameStore((state) => state.unlockedMarketExpansionIds);
@@ -127,7 +128,7 @@ export function ExpansionsScreen() {
 				);
 			})}
 
-			<Pressable onPress={() => router.back()} style={styles.backButton}>
+			<Pressable onPress={onBack ?? router.back} style={styles.backButton}>
 				<Text style={styles.backText}>Voltar para o mercado</Text>
 			</Pressable>
 		</ScrollView>

@@ -1,0 +1,43 @@
+{
+  "workers": [
+    {
+      "name": "Worker_Baker",
+      "sourceVertices": 9580,
+      "vertices": 9580,
+      "triangles": 10361,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking"
+      ]
+    },
+    {
+      "name": "Worker_Butcher",
+      "sourceVertices": 9380,
+      "vertices": 9380,
+      "triangles": 10229,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking"
+      ]
+    },
+    {
+      "name": "Worker_Fishmonger",
+      "sourceVertices": 1030112,
+      "vertices": 21626,
+      "triangles": 24000,
+      "clips": [
+        "BuyAtSpecialSector",
+        "GetFromShelf",
+        "Idle",
+        "PayAtCheckout",
+        "Walking"
+      ]
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { getShelfSlotIds } from "@/data/shelf-slots";
 import { useWindowDimensions, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { StoreShelf } from "@/@types/store";
@@ -29,7 +30,12 @@ export function ShelfGrid({ onPressShelf, shelves }: ShelfGridProps) {
 	const shelfItemSize = Math.min((width - 96) / SHELF_COLUMNS, 84);
 	const unlockedShelves = shelves.slice(0, unlockedShelfSlots).map((shelf) => {
 		const product = itemCatalog.find(
-			(item) => item.id === shelfAssignments[shelf.id],
+			(item) =>
+				item.id ===
+				shelfAssignments[
+					getShelfSlotIds(shelf.id).find((id) => shelfAssignments[id]) ??
+						shelf.id
+				],
 		);
 
 		return {
@@ -64,7 +70,7 @@ export function ShelfGrid({ onPressShelf, shelves }: ShelfGridProps) {
 						<Text style={styles.title}>Minhas Gôndolas</Text>
 					</View>
 					<Text style={styles.subtitle}>
-						Toque numa vaga para abastecer ou trocar o produto.
+						Cada prateleira tem 4 espaços. Toque para gerenciar.
 					</Text>
 				</View>
 				<View style={styles.occupancyBadge}>
@@ -80,12 +86,15 @@ export function ShelfGrid({ onPressShelf, shelves }: ShelfGridProps) {
 							availableQuantity={
 								shelf.productId ? (inventory[shelf.productId] ?? 0) : 0
 							}
-							capacity={getShelfCapacity(shelfUpgradeLevels[shelf.id])}
+							capacity={getShelfCapacity(shelfUpgradeLevels[shelf.id]) * 4}
 							key={shelf.id}
 							onPress={onPressShelf}
 							price={shelfPrices[shelf.id]}
 							shelf={shelf}
-							shelfQuantity={shelfStock[shelf.id] ?? 0}
+							shelfQuantity={getShelfSlotIds(shelf.id).reduce(
+								(total, id) => total + (shelfStock[id] ?? 0),
+								0,
+							)}
 							size={shelfItemSize}
 						/>
 					))}

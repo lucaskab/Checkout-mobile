@@ -2,7 +2,7 @@ diff --git a/node_modules/@azesmway/react-native-unity/android/build.gradle b/no
 index a10543a..e0f1645 100644
 --- a/node_modules/@azesmway/react-native-unity/android/build.gradle
 +++ b/node_modules/@azesmway/react-native-unity/android/build.gradle
-@@ -98,7 +98,6 @@ repositories {
+@@ -98,7 +98,6 @@
    }
    google()
    mavenCentral()
@@ -10,3 +10,118 @@ index a10543a..e0f1645 100644
  }
  
  
+diff --git a/node_modules/@azesmway/react-native-unity/react-native-unity.podspec b/node_modules/@azesmway/react-native-unity/react-native-unity.podspec
+index c02cef6..22be0b9 100644
+--- a/node_modules/@azesmway/react-native-unity/react-native-unity.podspec
++++ b/node_modules/@azesmway/react-native-unity/react-native-unity.podspec
+@@ -14,7 +14,7 @@
+   s.platforms    = { :ios => "12.4" }
+   s.source       = { :git => "https://github.com/azesmway/react-native-unity.git", :tag => "#{s.version}" }
+ 
+-  s.source_files = "ios/**/*.{h,m,mm}"
++  s.source_files = "ios/*.{h,m,mm}"
+ 
+   # Use install_modules_dependencies helper to install the dependencies if React Native version >=0.71.0.
+   # See https://github.com/facebook/react-native/blob/febf6b7f33fdb4904669f99d795eba4c0f95d7bf/scripts/cocoapods/new_architecture.rb#L79.
+@@ -43,9 +43,20 @@
+ 
++  s.pod_target_xcconfig = (s.attributes_hash["pod_target_xcconfig"] || {}).merge(
++    "FRAMEWORK_SEARCH_PATHS" => "$(inherited) \"$(PODS_XCFRAMEWORKS_BUILD_DIR)/react-native-unity\" \"$(PODS_TARGET_SRCROOT)/ios/UnityFramework.xcframework/ios-arm64-simulator\"",
++    "HEADER_SEARCH_PATHS" => "$(inherited) \"$(PODS_ROOT)/../../node_modules/react-native/ReactCommon/yoga\""
++  )
++
+   # Copy the framework to the plugin folder so that xcode can install it
+   # The framework should be placed in the <YOUR_PROJECT>/unity/builds/ios folder.
+   s.prepare_command =
+   <<-CMD
++    rm -rf ios/UnityFramework.xcframework
+    cp -R ../../../unity/builds/ios/ ios/
++    rm -rf ios/UnityFramework
++    if [ -d ios/UnityFramework.xcframework ]; then
++      rm -rf ios/UnityFramework.xcframework/ios-arm64-simulator/UnityFramework.framework/Data
++      cp -R ios/Data ios/UnityFramework.xcframework/ios-arm64-simulator/UnityFramework.framework/Data
++    fi
+   CMD
+ 
+   # Prefer an XCFramework when the Unity export provides one (device + simulator slices,
+diff --git a/node_modules/@azesmway/react-native-unity/ios/RNUnityView.h b/node_modules/@azesmway/react-native-unity/ios/RNUnityView.h
+index 0780c6c..f747efe 100644
+--- a/node_modules/@azesmway/react-native-unity/ios/RNUnityView.h
++++ b/node_modules/@azesmway/react-native-unity/ios/RNUnityView.h
+@@ -1,7 +1,7 @@
+ #import <React/RCTView.h>
+ #import <React/RCTEventDispatcher.h>
+ #include <UnityFramework/UnityFramework.h>
+-#include <UnityFramework/NativeCallProxy.h>
++#include "Libraries/Plugins/iOS/NativeCallProxy.h"
+ 
+ // This guard prevent this file to be compiled in the old architecture.
+ #ifdef RCT_NEW_ARCH_ENABLED
+diff --git a/node_modules/@azesmway/react-native-unity/ios/RNUnityView.mm b/node_modules/@azesmway/react-native-unity/ios/RNUnityView.mm
+index 0068aec..85cd82f 100644
+--- a/node_modules/@azesmway/react-native-unity/ios/RNUnityView.mm
++++ b/node_modules/@azesmway/react-native-unity/ios/RNUnityView.mm
+@@ -53,8 +53,19 @@
+             return;
+         }
+ 
+-        [self setUfw: UnityFrameworkLoad()];
++        UnityFramework* framework = UnityFrameworkLoad();
++        BOOL unityWasInitialized = [framework appController] != nil;
++        [self setUfw: framework];
+         [[self ufw] registerFrameworkListener: self];
++
++        if (unityWasInitialized) {
++            [NSClassFromString(@"FrameworkLibAPI") registerAPIforNativeCalls:self];
++            [[self ufw] pause:NO];
++            dispatch_async(dispatch_get_main_queue(), ^{
++                [self sendMessageToMobileApp:@"{\"kind\":\"ready\"}"];
++            });
++            return;
++        }
+ 
+         unsigned count = (int) [[[NSProcessInfo processInfo] arguments] count];
+         char **array = (char **)malloc((count + 1) * sizeof(char*));
+diff --git a/node_modules/@azesmway/react-native-unity/lib/commonjs/UnityView.js b/node_modules/@azesmway/react-native-unity/lib/commonjs/UnityView.js
+index 7bf39b2..d2c1265 100644
+--- a/node_modules/@azesmway/react-native-unity/lib/commonjs/UnityView.js
++++ b/node_modules/@azesmway/react-native-unity/lib/commonjs/UnityView.js
+@@ -40,16 +40,21 @@
+     }
+   }
+   getProps() {
++    const {
++      keepPlayerMounted: _keepPlayerMounted,
++      ...props
++    } = this.props;
+     return {
+-      ...this.props
++      ...props
+     };
+   }
+   componentWillUnmount() {
+-    // Full React unmount is a permanent teardown, so we unload the engine here.
+-    // This is intentionally different from Fabric view *recycling*
+-    // (RNUnityView.prepareForRecycle), which only pauses the shared instance so
+-    // it can be reused on the next mount. See issue #180.
+     if (this.ref.current) {
++      if (this.props.keepPlayerMounted) {
++        _UnityViewNativeComponent.Commands.pauseUnity(this.ref.current, true);
++        return;
++      }
++
+       _UnityViewNativeComponent.Commands.unloadUnity(this.ref.current);
+     }
+   }
+diff --git a/node_modules/@azesmway/react-native-unity/lib/typescript/src/UnityView.d.ts b/node_modules/@azesmway/react-native-unity/lib/typescript/src/UnityView.d.ts
+index 25ef9a1..bd10cdd 100644
+--- a/node_modules/@azesmway/react-native-unity/lib/typescript/src/UnityView.d.ts
++++ b/node_modules/@azesmway/react-native-unity/lib/typescript/src/UnityView.d.ts
+@@ -9,6 +9,7 @@
+ type RNUnityViewProps = ViewProps & {
+     androidKeepPlayerMounted?: boolean;
+     fullScreen?: boolean;
++    keepPlayerMounted?: boolean;
+     onUnityMessage?: DirectEventHandler<UnityViewContentUpdateEvent>;
+     onPlayerUnload?: DirectEventHandler<UnityViewContentUpdateEvent>;
+     onPlayerQuit?: DirectEventHandler<UnityViewContentUpdateEvent>;

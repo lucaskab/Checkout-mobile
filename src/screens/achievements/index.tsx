@@ -12,6 +12,7 @@ import type {
 	AchievementDefinition,
 	AchievementRarity,
 } from "@/@types/achievement";
+import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
@@ -57,7 +58,7 @@ const rarityLabels: Record<AchievementRarity, string> = {
 	legendary: "Lendária",
 };
 
-export function AchievementsScreen() {
+export function AchievementsScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	const [filter, setFilter] = useState<AchievementFilter>("all");
 	const game = useGameStore();
 	const totals = getAchievementTotals(game);
@@ -128,7 +129,7 @@ export function AchievementsScreen() {
 							<View style={styles.heroTopBar}>
 								<Pressable
 									accessibilityLabel="Voltar"
-									onPress={() => router.back()}
+									onPress={onBack ?? router.back}
 									style={styles.backButton}
 								>
 									<Text style={styles.backButtonText}>‹</Text>

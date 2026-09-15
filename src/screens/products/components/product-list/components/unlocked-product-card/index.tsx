@@ -10,12 +10,18 @@ import { itemCategories } from "@/data/market-products";
 export const UnlockedProductCard = ({
 	inventoryAmount,
 	inventoryCapacity,
-	onPress,
+	incomingQuantity,
+	incomingTime,
+	onUpgrade,
+	onRestock,
 	product,
 }: {
 	inventoryAmount: number;
 	inventoryCapacity: number;
-	onPress: () => void;
+	incomingQuantity?: number;
+	incomingTime?: string;
+	onUpgrade: () => void;
+	onRestock: () => void;
 	product: ItemDefinition;
 }) => {
 	const category = itemCategories.find((item) => item.id === product.category);
@@ -71,20 +77,15 @@ export const UnlockedProductCard = ({
 	}) {
 		return (
 			<View style={styles.metric}>
-				<View style={styles.metricValueRow}>
-					{icon && <GameIcon icon={icon} style={styles.metricIcon} />}
-					<Text style={styles.metricValue}>{value}</Text>
-				</View>
 				<Text style={styles.metricLabel}>{label}</Text>
+				{icon && <GameIcon icon={icon} style={styles.metricIcon} />}
+				<Text style={styles.metricValue}>{value}</Text>
 			</View>
 		);
 	}
 
 	return (
-		<Pressable
-			onPress={onPress}
-			style={[styles.card, getRarityCardStyle(product.rarity)]}
-		>
+		<View style={[styles.card, getRarityCardStyle(product.rarity)]}>
 			<View style={styles.cardTopRow}>
 				<View style={styles.productIdentity}>
 					<View style={styles.productVisual}>
@@ -120,13 +121,26 @@ export const UnlockedProductCard = ({
 				<Metric icon="coin" label="Lucro" value={`+${product.profitPerUnit}`} />
 				<Metric label="XP" value={`+${product.xpPerSale}`} />
 			</View>
+			{incomingTime && (
+				<View style={styles.deliveryIndicator}>
+					<GameIcon icon="deliveryTruck" style={styles.deliveryIcon} />
+					<Text style={styles.deliveryText}>
+						A caminho · +{incomingQuantity} unid. · {incomingTime}
+					</Text>
+				</View>
+			)}
 			<View style={styles.stockRow}>
-				<View style={styles.stockCopy}>
-					<Text style={styles.stockLabel}>Estoque atual</Text>
+				<Pressable
+					accessibilityLabel={`Ampliar estoque de ${product.name}`}
+					accessibilityRole="button"
+					onPress={onUpgrade}
+					style={styles.stockCopy}
+				>
+					<Text style={styles.stockLabel}>Depósito · ampliar</Text>
 					<Text style={styles.stockValue}>
 						{inventoryAmount} / {inventoryCapacity} unid.
 					</Text>
-				</View>
+				</Pressable>
 				<View style={styles.stockTrack}>
 					<View
 						style={[
@@ -140,24 +154,24 @@ export const UnlockedProductCard = ({
 						]}
 					/>
 				</View>
-				<Text
-					style={[
-						styles.stockStatus,
-						inventoryAmount > 0 ? styles.stockReady : styles.stockEmpty,
-					]}
+				<Pressable
+					accessibilityLabel={`Pedir ${product.name} aos fornecedores`}
+					accessibilityRole="button"
+					onPress={onRestock}
+					style={styles.restockButton}
 				>
-					{inventoryAmount > 0 ? "Disponível" : "Reabasteça"}
-				</Text>
+					<GameIcon icon="deliveryTruck" style={styles.restockIcon} />
+					<Text style={styles.restockButtonText}>Abastecer</Text>
+				</Pressable>
 			</View>
-			<Text style={styles.upgradeHint}>Toque para ampliar o estoque</Text>
-		</Pressable>
+		</View>
 	);
 };
 
 const styles = StyleSheet.create((theme) => ({
 	card: {
 		marginTop: theme.gap(1),
-		padding: theme.gap(1.5),
+		padding: theme.gap(1),
 		borderLeftWidth: theme.gap(0.5),
 		borderWidth: 1,
 		borderColor: theme.colors["neutral-150"],
@@ -173,20 +187,20 @@ const styles = StyleSheet.create((theme) => ({
 		flex: 1,
 		flexDirection: "row",
 		alignItems: "center",
-		gap: theme.gap(1),
+		gap: theme.gap(0.75),
 		paddingRight: theme.gap(1),
 	},
 	productVisual: {
-		width: theme.gap(5.5),
-		height: theme.gap(5.5),
+		width: theme.gap(4.75),
+		height: theme.gap(4.75),
 		alignItems: "center",
 		justifyContent: "center",
 		borderRadius: theme.gap(1.5),
 		backgroundColor: theme.colors["blue-50"],
 	},
 	productImage: {
-		width: theme.gap(5),
-		height: theme.gap(5),
+		width: theme.gap(4.25),
+		height: theme.gap(4.25),
 	},
 	productCopy: {
 		flex: 1,
@@ -194,12 +208,12 @@ const styles = StyleSheet.create((theme) => ({
 	productName: {
 		color: theme.colors["neutral-800"],
 		fontFamily: theme.fonts.family.headline,
-		fontSize: theme.fonts.size.medium,
+		fontSize: theme.fonts.size.small,
 		fontWeight: "700",
 	},
 	categoryText: {
 		color: theme.colors["neutral-500"],
-		fontSize: 11,
+		fontSize: 10,
 		fontWeight: "600",
 	},
 	categoryRow: {
@@ -209,48 +223,62 @@ const styles = StyleSheet.create((theme) => ({
 		marginTop: 2,
 	},
 	categoryIcon: {
-		width: 18,
-		height: 18,
+		width: 15,
+		height: 15,
 	},
 	rarityChip: {
-		paddingHorizontal: theme.gap(0.75),
-		paddingVertical: theme.gap(0.375),
+		paddingHorizontal: theme.gap(0.625),
+		paddingVertical: theme.gap(0.25),
 		borderRadius: theme.gap(1),
 	},
 	rarityText: {
 		fontFamily: theme.fonts.family.badge,
-		fontSize: 10,
+		fontSize: 9,
 		fontWeight: "700",
 	},
 	metricsRow: {
 		flexDirection: "row",
-		gap: theme.gap(0.75),
-		marginTop: theme.gap(1.25),
-	},
-	metric: {
-		flex: 1,
-		paddingVertical: theme.gap(0.75),
-		borderRadius: theme.gap(1.25),
-		backgroundColor: theme.colors["neutral-100"],
 		alignItems: "center",
+		justifyContent: "space-between",
+		marginTop: theme.gap(0.5),
 	},
-	metricValue: {
-		fontFamily: theme.fonts.family.numberBold,
-		color: theme.colors["neutral-800"],
-		fontSize: 11,
+	deliveryIndicator: {
+		alignSelf: "flex-start",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.25),
+		marginTop: theme.gap(0.5),
+		paddingHorizontal: theme.gap(0.5),
+		paddingVertical: theme.gap(0.25),
+		borderRadius: theme.gap(1),
+		backgroundColor: theme.colors["blue-50"],
+	},
+	deliveryIcon: {
+		width: 13,
+		height: 13,
+	},
+	deliveryText: {
+		color: theme.colors["blue-700"],
+		fontFamily: theme.fonts.family.badge,
+		fontSize: 9,
 		fontWeight: "700",
 	},
-	metricValueRow: {
+	metric: {
 		flexDirection: "row",
 		alignItems: "center",
 		gap: theme.gap(0.2),
 	},
+	metricValue: {
+		fontFamily: theme.fonts.family.numberBold,
+		color: theme.colors["neutral-800"],
+		fontSize: 9,
+		fontWeight: "700",
+	},
 	metricIcon: {
-		width: 16,
-		height: 16,
+		width: 12,
+		height: 12,
 	},
 	metricLabel: {
-		marginTop: 2,
 		color: theme.colors["neutral-500"],
 		fontSize: 9,
 		fontWeight: "600",
@@ -258,27 +286,28 @@ const styles = StyleSheet.create((theme) => ({
 	stockRow: {
 		flexDirection: "row",
 		alignItems: "center",
-		gap: theme.gap(1),
-		marginTop: theme.gap(1.25),
+		gap: theme.gap(0.75),
+		marginTop: theme.gap(0.75),
 	},
 	stockCopy: {
-		width: theme.gap(12),
+		width: theme.gap(11.5),
+		paddingVertical: theme.gap(0.25),
 	},
 	stockLabel: {
 		color: theme.colors["neutral-500"],
-		fontSize: 10,
+		fontSize: 9,
 		fontWeight: "600",
 	},
 	stockValue: {
 		fontFamily: theme.fonts.family.numberBold,
 		marginTop: 2,
 		color: theme.colors["neutral-700"],
-		fontSize: 11,
+		fontSize: 10,
 		fontWeight: "700",
 	},
 	stockTrack: {
 		flex: 1,
-		height: theme.gap(0.75),
+		height: theme.gap(0.625),
 		overflow: "hidden",
 		borderRadius: theme.gap(1),
 		backgroundColor: theme.colors["neutral-150"],
@@ -288,18 +317,24 @@ const styles = StyleSheet.create((theme) => ({
 		borderRadius: theme.gap(1),
 		backgroundColor: theme.colors["green-500"],
 	},
-	stockStatus: {
-		fontSize: 10,
-		fontWeight: "700",
+	restockButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.25),
+		paddingHorizontal: theme.gap(0.625),
+		paddingVertical: theme.gap(0.5),
+		borderRadius: theme.gap(1),
+		backgroundColor: theme.colors["amber-100"],
 	},
-	stockReady: { color: theme.colors["green-600"] },
-	stockEmpty: { color: theme.colors["red-500"] },
-	upgradeHint: {
-		marginTop: theme.gap(0.75),
-		color: theme.colors["violet-600"],
-		fontSize: 10,
+	restockIcon: {
+		width: 14,
+		height: 14,
+	},
+	restockButtonText: {
+		color: theme.colors["amber-600"],
+		fontFamily: theme.fonts.family.badge,
+		fontSize: 9,
 		fontWeight: "700",
-		textAlign: "right",
 	},
 	commonCard: { borderLeftColor: theme.colors["blue-400"] },
 	uncommonCard: { borderLeftColor: theme.colors["green-500"] },

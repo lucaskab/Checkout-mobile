@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { Pressable, ScrollView, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
@@ -8,7 +9,7 @@ import { employeeDefinitions } from "@/data/employees";
 import { getEmployeeTrainingCost } from "@/services/employee-progression";
 import { useGameStore } from "@/stores/game-store";
 
-export function TeamScreen() {
+export function TeamScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	const coins = useGameStore((state) => state.coins);
 	const level = useGameStore((state) => state.market.level);
 	const employees = useGameStore((state) => state.employees.employees);
@@ -110,7 +111,7 @@ export function TeamScreen() {
 				);
 			})}
 
-			<Pressable onPress={() => router.back()} style={styles.backButton}>
+			<Pressable onPress={onBack ?? router.back} style={styles.backButton}>
 				<Text style={styles.backText}>Voltar para o mercado</Text>
 			</Pressable>
 		</ScrollView>

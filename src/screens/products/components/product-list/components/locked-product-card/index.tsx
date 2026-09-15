@@ -38,13 +38,10 @@ export const LockedProductCard = ({
 				</View>
 			</View>
 			<View style={styles.lockedRewards}>
-				<View style={styles.inlineRow}>
-					<GameIcon icon="coin" style={styles.inlineIcon} />
-					<Text style={styles.lockedRewardText}>
-						{product.sellingPrice} por venda
-					</Text>
-				</View>
-				<Text style={styles.lockedRewardText}>+{product.xpPerSale} XP</Text>
+				<GameIcon icon="coin" style={styles.inlineIcon} />
+				<Text style={styles.lockedRewardText}>
+					{product.sellingPrice} por venda · +{product.xpPerSale} XP
+				</Text>
 			</View>
 			<View style={styles.unlockProgressTrack}>
 				<View style={[styles.unlockProgressFill, { width: `${progress}%` }]} />
@@ -61,7 +58,7 @@ export const LockedProductCard = ({
 const styles = StyleSheet.create((theme) => ({
 	lockedCard: {
 		marginTop: theme.gap(1),
-		padding: theme.gap(1.5),
+		padding: theme.gap(1),
 		borderWidth: 1,
 		borderColor: theme.colors["neutral-150"],
 		borderRadius: theme.gap(2),
@@ -76,7 +73,7 @@ const styles = StyleSheet.create((theme) => ({
 		flex: 1,
 		flexDirection: "row",
 		alignItems: "center",
-		gap: theme.gap(1),
+		gap: theme.gap(0.75),
 		paddingRight: theme.gap(1),
 	},
 	productCopy: {
@@ -84,22 +81,22 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	lockedVisual: {
 		position: "relative",
-		width: theme.gap(5.5),
-		height: theme.gap(5.5),
+		width: theme.gap(4.75),
+		height: theme.gap(4.75),
 		alignItems: "center",
 		justifyContent: "center",
 		borderRadius: theme.gap(1.5),
 		backgroundColor: theme.colors["neutral-150"],
 	},
 	lockedImage: {
-		width: theme.gap(5),
-		height: theme.gap(5),
+		width: theme.gap(4.25),
+		height: theme.gap(4.25),
 		opacity: 0.35,
 	},
 	lockIcon: {
 		position: "absolute",
-		width: 20,
-		height: 20,
+		width: 18,
+		height: 18,
 	},
 	inlineRow: {
 		flexDirection: "row",
@@ -107,47 +104,48 @@ const styles = StyleSheet.create((theme) => ({
 		gap: theme.gap(0.25),
 	},
 	inlineIcon: {
-		width: 18,
-		height: 18,
+		width: 14,
+		height: 14,
 	},
 	lockedName: {
 		color: theme.colors["neutral-600"],
 		fontFamily: theme.fonts.family.headline,
-		fontSize: theme.fonts.size.medium,
+		fontSize: theme.fonts.size.small,
 		fontWeight: "700",
 	},
 	lockedCategory: {
 		marginTop: 2,
 		color: theme.colors["neutral-500"],
-		fontSize: 11,
+		fontSize: 10,
 		fontWeight: "600",
 	},
 	unlockLevelChip: {
-		paddingHorizontal: theme.gap(0.75),
-		paddingVertical: theme.gap(0.375),
+		paddingHorizontal: theme.gap(0.625),
+		paddingVertical: theme.gap(0.25),
 		borderRadius: theme.gap(1),
 		backgroundColor: theme.colors["neutral-150"],
 	},
 	unlockLevelText: {
 		color: theme.colors["neutral-600"],
 		fontFamily: theme.fonts.family.badge,
-		fontSize: 10,
+		fontSize: 9,
 		fontWeight: "700",
 	},
 	lockedRewards: {
 		flexDirection: "row",
-		gap: theme.gap(1.5),
-		marginTop: theme.gap(1.25),
+		alignItems: "center",
+		gap: theme.gap(0.25),
+		marginTop: theme.gap(0.75),
 	},
 	lockedRewardText: {
 		color: theme.colors["neutral-500"],
-		fontSize: 11,
+		fontSize: 10,
 		fontWeight: "600",
 	},
 	unlockProgressTrack: {
-		height: theme.gap(0.625),
+		height: theme.gap(0.5),
 		overflow: "hidden",
-		marginTop: theme.gap(1.25),
+		marginTop: theme.gap(0.75),
 		borderRadius: theme.gap(1),
 		backgroundColor: theme.colors["neutral-200"],
 	},
@@ -157,9 +155,9 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["blue-400"],
 	},
 	unlockProgressText: {
-		marginTop: theme.gap(0.75),
+		marginTop: theme.gap(0.5),
 		color: theme.colors["neutral-500"],
-		fontSize: 10,
+		fontSize: 9,
 		fontWeight: "600",
 	},
 }));

@@ -1,0 +1,13 @@
+{
+  "source": "ArtSource/MapModels/ConstructionWorker.glb",
+  "vertices": 17766,
+  "triangles": 24000,
+  "clips": [
+    "CarryIdle",
+    "CarryWalking",
+    "Idle",
+    "Pickup",
+    "PutDown",
+    "Walking"
+  ]
+}

@@ -29,6 +29,8 @@ export function LogisticsPanel() {
 
 	return (
 		<Pressable
+			accessibilityLabel="Abrir central logística"
+			accessibilityRole="button"
 			onPress={() => openBottomSheet(<LogisticsSheet />)}
 			style={styles.trigger}
 		>
@@ -51,6 +53,7 @@ export function LogisticsPanel() {
 }
 
 function LogisticsSheet() {
+	const { closeBottomSheet } = useBottomSheet();
 	const coins = useGameStore((state) => state.coins);
 	const activateLogisticsBoost = useGameStore(
 		(state) => state.activateLogisticsBoost,
@@ -64,9 +67,17 @@ function LogisticsSheet() {
 	const nextUpgrade = getNextSupplierOrderSlotUpgrade(
 		logistics.supplierOrderSlots,
 	);
+	const canActivateBoost = logistics.premiumCurrency >= 3;
 
 	function activateBoost() {
-		activateLogisticsBoost();
+		if (activateLogisticsBoost()) {
+			setFeedback(
+				"Turbo ativado. Novos pedidos chegam 30% mais rápido por 15 minutos.",
+			);
+			return;
+		}
+
+		setFeedback("Você precisa de 3 diamantes para ativar o turbo.");
 	}
 
 	function upgradeSlots(currency: "coins" | "diamonds") {
@@ -107,6 +118,7 @@ function LogisticsSheet() {
 				</View>
 			</View>
 			<LogisticsOption
+				disabled={!canActivateBoost}
 				description="Pedidos novos chegam 30% mais rápido por 15 minutos."
 				onPress={activateBoost}
 				title="Turbo logística · 3 diamantes"
@@ -156,23 +168,37 @@ function LogisticsSheet() {
 				</>
 			)}
 			{feedback && <Text style={styles.feedback}>{feedback}</Text>}
+			<GameButton
+				fullWidth
+				label="Fechar"
+				onPress={closeBottomSheet}
+				variant="secondary"
+			/>
 		</View>
 	);
 }
 
 type LogisticsOptionProps = {
 	description: string;
+	disabled?: boolean;
 	onPress: () => void;
 	title: string;
 };
 
 function LogisticsOption({
 	description,
+	disabled = false,
 	onPress,
 	title,
 }: LogisticsOptionProps) {
 	return (
-		<Pressable onPress={onPress} style={styles.option}>
+		<Pressable
+			accessibilityLabel={title}
+			accessibilityRole="button"
+			disabled={disabled}
+			onPress={onPress}
+			style={[styles.option, disabled && styles.disabledOption]}
+		>
 			<View style={styles.optionCopy}>
 				<Text style={styles.optionTitle}>{title}</Text>
 				<Text style={styles.optionDescription}>{description}</Text>
@@ -277,6 +303,7 @@ const styles = StyleSheet.create((theme) => ({
 		borderRadius: theme.gap(1.5),
 		backgroundColor: theme.colors["neutral-0"],
 	},
+	disabledOption: { opacity: 0.45 },
 	optionCopy: {
 		flex: 1,
 	},

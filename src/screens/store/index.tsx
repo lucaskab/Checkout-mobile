@@ -1,3 +1,5 @@
+import { shelfProductSlots, getPhysicalShelfId } from "@/data/shelf-slots";
+import { ShelfManagementScreen } from "@/screens/shelf-management";
 import {
 	LegendList,
 	type LegendListRenderItemProps,
@@ -9,7 +11,6 @@ import type { StoreAlert, StoreShelf } from "@/@types/store";
 import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
-import { GameModeToggle } from "@/components/game-mode-toggle";
 import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
 import { itemCatalog } from "@/data/market-products";
@@ -22,22 +23,15 @@ import { getCurrentShelf } from "@/services/shelf-selection";
 import { useGameStore } from "@/stores/game-store";
 import { ActiveCustomersCard } from "./components/active-customers-card";
 import { AttentionCard } from "./components/attention-card";
-import { ProgressionRoadmap } from "./components/progression-roadmap";
 import { ShelfGrid } from "./components/shelf-grid";
 import { ShiftSummarySheet } from "./components/shift-summary-sheet";
 import { StorefrontHero } from "./components/storefront-hero";
 import { TopSellersCard } from "./components/top-sellers-card";
 import { shelves } from "./data";
 
-type DashboardSection =
-	| "shelves"
-	| "progression"
-	| "customers"
-	| "attention"
-	| "topSellers";
+type DashboardSection = "shelves" | "customers" | "attention" | "topSellers";
 
 const dashboardSections: DashboardSection[] = [
-	"progression",
 	"shelves",
 	"customers",
 	"attention",
@@ -45,7 +39,7 @@ const dashboardSections: DashboardSection[] = [
 ];
 
 export function StoreScreen() {
-	const { openBottomSheet } = useBottomSheet();
+	const { openBottomSheet, closeBottomSheet } = useBottomSheet();
 	const market = useGameStore((state) => state.market);
 	const shelfAssignments = useGameStore((state) => state.shelfAssignments);
 	const shelfPrices = useGameStore((state) => state.shelfPrices);
@@ -79,8 +73,12 @@ export function StoreScreen() {
 		.sort((first, second) => second.sold - first.sold)
 		.slice(0, 3);
 
-	const shelfAlerts: StoreAlert[] = shelves
-		.slice(0, unlockedShelfSlots)
+	const shelfAlerts: StoreAlert[] = shelfProductSlots
+		.filter((slot) =>
+			shelves
+				.slice(0, unlockedShelfSlots)
+				.some((shelf) => shelf.id === getPhysicalShelfId(slot.id)),
+		)
 		.flatMap((shelf) => {
 			const product = itemCatalog.find(
 				(item) => item.id === shelfAssignments[shelf.id],
@@ -112,21 +110,15 @@ export function StoreScreen() {
 			return;
 		}
 
-		const configuredShelf = getCurrentShelf(
-			shelf,
-			() => useGameStore.getState().shelfAssignments,
+		openBottomSheet(
+			<ShelfManagementScreen shelfId={shelf.id} onClose={closeBottomSheet} />,
 		);
-
-		if (!configuredShelf.productId) {
-			openBottomSheet(<ShelfProductPicker shelf={configuredShelf} />);
-			return;
-		}
-
-		openBottomSheet(<StockSheet shelf={configuredShelf} />);
 	}
 
 	function handleAlertPress(alert: StoreAlert) {
-		const shelf = shelves.find((item) => item.id === alert.id);
+		const shelf = shelves.find(
+			(item) => item.id === getPhysicalShelfId(alert.id),
+		);
 
 		if (shelf) {
 			openStock(shelf);
@@ -152,8 +144,6 @@ export function StoreScreen() {
 		switch (item) {
 			case "shelves":
 				return <ShelfGrid onPressShelf={openStock} shelves={shelves} />;
-			case "progression":
-				return <ProgressionRoadmap />;
 			case "customers":
 				return <ActiveCustomersCard customers={market.recentCustomers} />;
 			case "attention":
@@ -180,7 +170,6 @@ export function StoreScreen() {
 			keyExtractor={(section) => section}
 			ListHeaderComponent={
 				<View style={styles.storeHeader}>
-					<GameModeToggle />
 					<StorefrontHero
 						customerSatisfaction={market.customerSatisfaction}
 						experience={market.experience}

@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
+import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import type {
 	MissionCategory,
 	MissionDefinition,
@@ -38,7 +39,7 @@ const categoryLabels: Record<MissionCategory, string> = {
 	sales: "VENDAS",
 };
 
-export function MissionsScreen() {
+export function MissionsScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	const [filter, setFilter] = useState<MissionFilter>("active");
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const game = useGameStore();
@@ -128,7 +129,7 @@ export function MissionsScreen() {
 							<View style={styles.heroTopBar}>
 								<Pressable
 									accessibilityLabel="Voltar"
-									onPress={() => router.back()}
+									onPress={onBack ?? router.back}
 									style={styles.backButton}
 								>
 									<Text style={styles.backButtonText}>‹</Text>

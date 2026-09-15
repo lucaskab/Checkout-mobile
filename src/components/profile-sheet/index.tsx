@@ -14,9 +14,9 @@ import {
 import { marketProducts } from "@/data/market-products";
 import { getShelfCapacity } from "@/data/shelf-capacity";
 import { shopItems } from "@/data/shop-items";
+import { ProgressionRoadmap } from "@/screens/store/components/progression-roadmap";
 import { getAchievementTotals } from "@/services/achievements";
 import { getActiveGameEventEffects } from "@/services/game-events";
-import { getExperienceToNextLevel } from "@/services/progression";
 import { getShopEffects } from "@/services/shop-effects";
 import { useGameStore } from "@/stores/game-store";
 
@@ -33,11 +33,6 @@ export function ProfileSheet() {
 	const shop = useGameStore((state) => state.shop);
 	const achievementStars = useGameStore(
 		(state) => getAchievementTotals(state).stars,
-	);
-	const experienceToNextLevel = getExperienceToNextLevel(market.level);
-	const experienceProgress = Math.min(
-		100,
-		Math.round((market.experience / experienceToNextLevel) * 100),
 	);
 	const shopEffects = getShopEffects(shop.ownedItemIds);
 	const eventEffects = getActiveGameEventEffects(events);
@@ -79,6 +74,11 @@ export function ProfileSheet() {
 		router.push("/achievements" as Href);
 	}
 
+	function openProgressionDestination(path: string) {
+		closeBottomSheet();
+		router.push(path as Href);
+	}
+
 	return (
 		<ScrollView
 			contentContainerStyle={styles.content}
@@ -99,19 +99,7 @@ export function ProfileSheet() {
 				</Pressable>
 			</View>
 
-			<View style={styles.levelCard}>
-				<View style={styles.levelRow}>
-					<Text style={styles.levelTitle}>Nível {market.level}</Text>
-					<Text style={styles.levelValue}>
-						{market.experience}/{experienceToNextLevel} XP
-					</Text>
-				</View>
-				<View style={styles.progressTrack}>
-					<View
-						style={[styles.progressFill, { width: `${experienceProgress}%` }]}
-					/>
-				</View>
-			</View>
+			<ProgressionRoadmap onNavigate={openProgressionDestination} />
 
 			<Pressable
 				onPress={openAchievements}
@@ -361,39 +349,6 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["neutral-100"],
 	},
 	closeText: { color: theme.colors["neutral-600"], fontSize: 20 },
-	levelCard: {
-		marginTop: theme.gap(1.5),
-		padding: theme.gap(1.25),
-		borderWidth: 1,
-		borderColor: theme.colors["blue-200"],
-		borderRadius: theme.gap(1.5),
-		backgroundColor: theme.colors["blue-50"],
-	},
-	levelRow: { flexDirection: "row", justifyContent: "space-between" },
-	levelTitle: {
-		fontFamily: theme.fonts.family.badge,
-		color: theme.colors["neutral-800"],
-		fontSize: theme.fonts.size.small,
-		fontWeight: "700",
-	},
-	levelValue: {
-		fontFamily: theme.fonts.family.numberBold,
-		color: theme.colors["blue-600"],
-		fontSize: 11,
-		fontWeight: "700",
-	},
-	progressTrack: {
-		height: theme.gap(0.75),
-		overflow: "hidden",
-		marginTop: theme.gap(0.75),
-		borderRadius: theme.gap(1),
-		backgroundColor: theme.colors["blue-100"],
-	},
-	progressFill: {
-		height: "100%",
-		borderRadius: theme.gap(1),
-		backgroundColor: theme.colors["blue-500"],
-	},
 	achievementsCard: {
 		flexDirection: "row",
 		alignItems: "center",

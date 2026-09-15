@@ -11,7 +11,12 @@ export type GameShelfPrices = Record<string, number>;
 export type GameShelfUpgradeLevels = Record<string, number>;
 
 export type GameMarketCustomer = {
-	purchases?: { shelfId: string; productId: number; quantity: number; revenue: number }[];
+	purchases?: {
+		shelfId: string;
+		productId: number;
+		quantity: number;
+		revenue: number;
+	}[];
 	id: string;
 	item: string;
 	mood: "calmo" | "com-pressa" | "feliz" | "estressado";
@@ -160,7 +165,11 @@ export type GameActions = {
 	processSessionResume: () => boolean;
 	dismissOfflineSummary: () => void;
 	resetGame: () => void;
-	assignProductToShelf: (shelfId: string, productId: number) => boolean;
+	assignProductToShelf: (
+		shelfId: string,
+		productId: number,
+		replace?: boolean,
+	) => boolean;
 	clearShelf: (shelfId: string) => boolean;
 	restockShelf: (input: RestockShelfInput) => boolean;
 	setMarketLevel: (level: number) => void;

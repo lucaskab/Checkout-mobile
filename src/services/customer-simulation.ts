@@ -320,7 +320,12 @@ function getMaxProducts(customer: CustomerProfile, random: Random) {
 }
 
 function shuffleProducts(products: MarketSimulationProduct[], random: Random) {
-	return [...products].sort(() => random() - 0.5);
+	const shuffled = [...products];
+	for (let i = shuffled.length - 1; i > 0; i--) {
+		const j = Math.floor(random() * (i + 1));
+		[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+	}
+	return shuffled;
 }
 
 function createSeededRandom(seed: number): Random {

@@ -1,0 +1,506 @@
+Unity Editor version:    6000.5.7f1 (017862109af0)
+Branch:                  6000.5/staging
+Build type:              Release
+Batch mode:              YES
+macOS version:           Version 26.5.2 (Build 25F84)
+Darwin version:          25.5.0
+Architecture:            arm64
+Running under Rosetta:   NO
+Available memory:        36864 MB
+Date:                    2026-09-10T15:00:43Z
+[Licensing::Module] Trying to connect to existing licensing client channel...
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-lucas-furini" at "2026-09-10T15:00:43.559211Z"
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Helpers/PackageManager/Server/UnityPackageManager
+
+COMMAND LINE ARGUMENTS:
+/Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/MacOS/Unity
+-batchmode
+-quit
+-projectPath
+/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator
+-logFile
+/Users/lucas-furini/repos/checkout/unity/parity-compile.log
+Successfully changed project path to: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator
+/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator
+[UnityMemory] Configuration Parameters - Can be set up in boot.config
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-nav-mesh-worker=65536"
+    "memorysetup-temp-allocator-size-audio-worker=65536"
+    "memorysetup-temp-allocator-size-cloud-worker=32768"
+    "memorysetup-allocator-temp-initial-block-size-main=262144"
+    "memorysetup-allocator-temp-initial-block-size-worker=262144"
+    "memorysetup-temp-allocator-size-preload-manager=33554432"
+    "memorysetup-temp-allocator-size-gfx=262144"
+    "memorysetup-temp-allocator-size-background-worker=32768"
+    "memorysetup-temp-allocator-size-job-worker=262144"
+    "memorysetup-bucket-allocator-granularity=16"
+    "memorysetup-bucket-allocator-bucket-count=8"
+    "memorysetup-bucket-allocator-block-size=33554432"
+    "memorysetup-bucket-allocator-block-count=8"
+    "memorysetup-main-allocator-block-size=16777216"
+    "memorysetup-thread-allocator-block-size=16777216"
+    "memorysetup-main-allocator-mimalloc-enabled=0"
+    "memorysetup-gfx-main-allocator-block-size=16777216"
+    "memorysetup-gfx-thread-allocator-block-size=16777216"
+    "memorysetup-cache-allocator-block-size=4194304"
+    "memorysetup-typetree-allocator-block-size=2097152"
+    "memorysetup-profiler-bucket-allocator-granularity=16"
+    "memorysetup-profiler-bucket-allocator-bucket-count=8"
+    "memorysetup-profiler-bucket-allocator-block-size=33554432"
+    "memorysetup-profiler-bucket-allocator-block-count=8"
+    "memorysetup-profiler-allocator-block-size=16777216"
+    "memorysetup-profiler-editor-allocator-block-size=1048576"
+    "memorysetup-temp-allocator-size-main=16777216"
+    "memorysetup-job-temp-allocator-block-size=2097152"
+    "memorysetup-job-temp-allocator-block-size-background=1048576"
+    "memorysetup-job-temp-allocator-reduction-small-platforms=262144"
+Logging is directed to a specific file, skipping project log.Player connection [8420842880]  Target information:
+
+Player connection [8420842880]  * "[IP] 10.60.18.41 [Port] 55504 [Flags] 2 [Guid] 1430287305 [EditorId] 1430287305 [Version] 1048832 [Id] OSXEditor(0,S24-LT1PYPMVF1) [Debug] 1 [PackageName] OSXEditor [ProjectName] Editor" 
+
+Player connection [8420842880] Host joined multi-casting on [225.0.0.222:54997]...
+Player connection [8420842880] Host joined alternative multi-casting on [225.0.0.222:34997]...
+Input System module state changed to: Initialized.
+[Physics::Module] Initialized fallback backend.
+[Physics::Module] Id: 0xdecafbad
+[Package Manager] Connected to IPC stream "Upm-39138" after 0.2 seconds.
+[Licensing::Module] Licensing is not yet initialized.
+[Licensing::Client] Error: HandshakeResponse reported an error:
+	ResponseCode: 505
+	ResponseStatus: Unsupported protocol version '1.18.1'.
+[Licensing::Module] Error: Failed to handshake to channel: "LicenseClient-lucas-furini"
+[Licensing::IpcConnector] LicenseClient-lucas-furini channel disconnected successfully.
+[Licensing::IpcConnector] Channel LicenseClient-lucas-furini-6000.5.7 doesn't exist
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Helpers/UnityLicensingClient.app/Contents/MacOS/Unity.Licensing.Client
+[Licensing::Module] Successfully launched the LicensingClient (PId: 39225)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-lucas-furini-6000.5.7" at "2026-09-10T15:00:55.457605Z"
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.18.1+9fbee8e
+  Session Id:              c04854273f2b4065a433b966da5a6ad4
+  Correlation Id:          ced2780cbe080c6b70c5f578381f32ea
+  External correlation Id: 8065857900735690119
+  Machine Id:              ndsxFgK9oCM6n9D0/BNZ1wKm9RU=
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-lucas-furini-6000.5.7" (connect: 4.38s, validation: 0.03s, handshake: 6.13s)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-lucas-furini-6000.5.7-notifications" at "2026-09-10T15:01:01.618108Z"
+[Licensing::Module] Connected to LicensingClient (PId: 39225, launch time: 0.02, total connection time: 10.54s)
+[Licensing::Module] Error: Access token is unavailable; failed to update
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: 9072431765316-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+[Licensing::Client] Successfully updated license, isAsync: True, time: 0.01
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] Licensing Background thread has ended after 18.13s
+[Licensing::Module] Licensing is initialized (took 17.65s).
+[Licensing::Client] Successfully resolved entitlement details
+Library Redirect Path: Library/
+[Physics::Module] Selected backend.
+[Physics::Module] Name: PhysX
+[Physics::Module] Id: 0xf2b8ea05
+[Physics::Module] SDK Version: 4.1.2
+[Physics::Module] Integration Version: 1.0.0
+[Physics::Module] Threading Mode: Multi-Threaded
+[Licensing::Client] Successfully resolved entitlement details
+Initialize engine version: 6000.5.7f1 (017862109af0)
+[Subsystems] Discovering subsystems at path /Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/UnitySubsystems
+[Subsystems] Discovering subsystems at path /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets
+GfxDevice: creating device client; kGfxThreadingModeNonThreaded
+ preferred device: Apple M3 Pro (high power)
+Metal devices available: 1
+0: Apple M3 Pro (high power)
+Using device Apple M3 Pro (high power)
+Initializing Metal device caps: Apple M3 Pro
+Mac GPU Family: 2
+Apple GPU Family: 9
+MSL Version: 3.0
+Has Float MSAA: 1
+Has Float Filtering: 1
+ReadWrite Texture Tier: 2
+Initialize mono
+Mono path[0] = '/Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/Scripting/Managed'
+Mono path[1] = '/Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/Scripting/BCLExtensions/runtime/netstandard2.1'
+Mono path[2] = '/Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/Scripting/MonoBleedingEdge/lib/mono/unityjit-macos'
+Mono config path = '/Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/Scripting/MonoBleedingEdge/etc'
+Using monoOptions --debugger-agent=transport=dt_socket,embedding=1,server=y,suspend=n,address=127.0.0.1:56138
+CodeReloadManager initialized
+ImportWorker Server TCP listen port: 0
+AcceleratorClientConnectionCallback - disconnected - :0
+Begin MonoManager ReloadAssembly
+Registering precompiled unity dll's ...
+Register platform support module: /Applications/Unity/Hub/Editor/6000.5.7f1/PlaybackEngines/MacStandaloneSupport/UnityEditor.OSXStandalone.Extensions.dll
+Register platform support module: /Applications/Unity/Hub/Editor/6000.5.7f1/PlaybackEngines/iOSSupport/UnityEditor.iOS.Extensions.dll
+Registered in 0.033681 seconds.
+[usbmuxd] Start listen thread
+[usbmuxd] Listen thread started
+[usbmuxd] Send listen message
+Native extension for iOS target not found
+Native extension for OSXStandalone target not found
+Package Manager log level set to [2]
+ScheduleIndexationOnStartup MainProcess:False IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  0.464 seconds
+Domain Reload Profiling: 1521ms
+	BeginReloadAssembly (579ms)
+		CreateAndSetChildDomain (20ms)
+	RebuildCommonClasses (3ms)
+	RebuildNativeTypeToScriptingClass (24ms)
+	initialDomainReloadingComplete (94ms)
+	LoadAllAssembliesAndSetupDomain (355ms)
+		LoadAssemblies (571ms)
+		AnalyzeDomain (299ms)
+			TypeCache.Refresh (298ms)
+				TypeCache.ScanAssembly (276ms)
+	FinalizeReload (465ms)
+		SetupLoadedEditorAssemblies (0ms)
+			InitializePlatformSupportModulesInManaged (140ms)
+			BeforeProcessingInitializeOnLoad (53ms)
+			ProcessInitializeOnLoadAttributes (103ms)
+			ProcessInitializeOnLoadMethodAttributes (123ms)
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Client] Successfully resolved entitlement details
+Application.AssetDatabase Initial Refresh Start
+[Package Manager] Restoring resolved packages state from cache
+[Licensing::Client] Successfully resolved entitlement details
+[Package Manager] Registered 46 packages:
+  Packages from [https://packages.unity.com]:
+    com.unity.2d.tilemap.extras@8.0.3 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.2d.tilemap.extras@a80140457adc)
+    com.unity.ai.assistant@2.19.0-pre.2 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.ai.assistant@8d1e3e89e3a7)
+    com.unity.nuget.mono-cecil@1.11.6 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.nuget.mono-cecil@ecb9724e46ff)
+    com.unity.nuget.newtonsoft-json@3.2.2 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.nuget.newtonsoft-json@4dfd81071c64)
+  Built-in packages:
+    com.unity.multiplayer.center@1.0.1 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.multiplayer.center@b860850997d0)
+    com.unity.ugui@2.5.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.ugui@67707a67a4ab)
+    com.unity.modules.accessibility@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.accessibility)
+    com.unity.modules.adaptiveperformance@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.adaptiveperformance)
+    com.unity.modules.ai@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.ai)
+    com.unity.modules.androidjni@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.androidjni)
+    com.unity.modules.animation@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.animation)
+    com.unity.modules.assetbundle@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.assetbundle)
+    com.unity.modules.audio@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.audio)
+    com.unity.modules.cloth@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.cloth)
+    com.unity.modules.director@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.director)
+    com.unity.modules.imageconversion@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.imageconversion)
+    com.unity.modules.imgui@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.imgui)
+    com.unity.modules.jsonserialize@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.jsonserialize)
+    com.unity.modules.particlesystem@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.particlesystem)
+    com.unity.modules.physics@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.physics)
+    com.unity.modules.physics2d@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.physics2d)
+    com.unity.modules.physicscore2d@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.physicscore2d)
+    com.unity.modules.screencapture@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.screencapture)
+    com.unity.modules.terrain@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.terrain)
+    com.unity.modules.terrainphysics@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.terrainphysics)
+    com.unity.modules.tilemap@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.tilemap)
+    com.unity.modules.ui@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.ui)
+    com.unity.modules.uielements@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.uielements)
+    com.unity.modules.umbra@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.umbra)
+    com.unity.modules.unityanalytics@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.unityanalytics)
+    com.unity.modules.unitywebrequest@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.unitywebrequest)
+    com.unity.modules.unitywebrequestassetbundle@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.unitywebrequestassetbundle)
+    com.unity.modules.unitywebrequestaudio@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.unitywebrequestaudio)
+    com.unity.modules.unitywebrequesttexture@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.unitywebrequesttexture)
+    com.unity.modules.unitywebrequestwww@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.unitywebrequestwww)
+    com.unity.modules.vectorgraphics@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.vectorgraphics)
+    com.unity.modules.vehicles@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.vehicles)
+    com.unity.modules.video@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.video)
+    com.unity.modules.wind@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.wind)
+    com.unity.modules.xr@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.xr)
+    com.unity.modules.subsystems@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.subsystems)
+    com.unity.modules.hierarchycore@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.modules.hierarchycore)
+    com.unity.2d.sprite@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.2d.sprite@053a968eab56)
+    com.unity.mathematics@1.4.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.mathematics@981956d94fb6)
+    com.unity.2d.tilemap@1.0.0 (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Library/PackageCache/com.unity.2d.tilemap@b959501fd678)
+  Embedded packages:
+    com.tripo3d.unitybridge@file:/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Packages/com.tripo3d.unitybridge (location: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Packages/com.tripo3d.unitybridge)
+[Subsystems] No new subsystems found in resolved package list.
+[Package Manager] Done registering packages in 0.22 seconds
+[ScriptCompilation] Requested script compilation because: AssetDatabase observed changes in script compilation related files
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://unix:/tmp/ilpp.sock-43d6a90eb382e8e04bf8c41d9ed1d025
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/Ping - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/Ping'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/Ping'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/Ping - 200 - application/grpc 56.7727ms
+Refreshing native plugins compatible for Editor in 2.02 ms, found 0 plugins.
+Starting: /Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/BuildPipeline/bee_backend --ipc --defer-dag-verification --dagfile="Library/Bee/900b0aE.dag" --continue-on-failure --profile="Library/Bee/backend1.traceevents" ScriptAssemblies
+WorkingDir: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator
+DisplayProgressbar: Compiling Scripts
+ExitCode: 4 Duration: 4s893ms
+[379/647    0s] CopyFiles Library/ScriptAssemblies/UnityEngine.UI.dll
+[381/647    0s] CopyFiles Library/ScriptAssemblies/UnityEngine.UI.pdb
+[383/647    0s] CopyFiles Library/ScriptAssemblies/UnityEditor.UI.pdb
+[384/647    0s] CopyFiles Library/ScriptAssemblies/UnityEditor.UI.dll
+[440/647    0s] CopyFiles Library/ScriptAssemblies/Unity.Mathematics.dll
+[455/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Tracing.dll
+[459/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Animate.Motion.Runtime.dll
+[460/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Runtime.dll
+[461/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Animate.Motion.Runtime.pdb
+[463/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.MCP.Runtime.dll
+[464/647    0s] CopyFiles Library/ScriptAssemblies/Tripo3D.UnityBridge.Editor.dll
+[467/647    0s] CopyFiles Library/ScriptAssemblies/Tripo3D.UnityBridge.Editor.pdb
+[480/647    0s] CopyFiles Library/ScriptAssemblies/Unity.InternalAPIEngineBridge.004.dll
+[507/647    0s] CopyFiles Library/ScriptAssemblies/Unity.Multiplayer.Center.Common.dll
+[513/647    0s] CopyFiles Library/ScriptAssemblies/Unity.InternalAPIEngineBridge.004.pdb
+[515/647    0s] CopyFiles Library/ScriptAssemblies/Unity.Multiplayer.Center.Editor.dll
+[516/647    0s] CopyFiles Library/ScriptAssemblies/Unity.Multiplayer.Center.Editor.pdb
+[517/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Accounts.dll
+[524/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Accounts.pdb
+[525/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Search.Editor.pdb
+[526/647    0s] CopyFiles Library/ScriptAssemblies/Unity.TextMeshPro.dll
+[527/647    0s] CopyFiles Library/ScriptAssemblies/Unity.2D.Tilemap.Extras.dll
+[528/647    0s] CopyFiles Library/ScriptAssemblies/UnityEditor.UI.Analytics.pdb
+[529/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Search.Editor.dll
+[548/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.ModelSelector.pdb
+[555/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Tools.Editor.dll
+[556/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Pbr.dll
+[558/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.ModelSelector.dll
+[559/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Tools.Editor.pdb
+[560/647    0s] CopyFiles Library/ScriptAssemblies/Unity.2D.Tilemap.Extras.Editor.pdb
+[561/647    0s] CopyFiles Library/ScriptAssemblies/UnityEditor.UI.Analytics.dll
+[562/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Pbr.pdb
+[563/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Animate.dll
+[564/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Sound.dll
+[568/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Tools.pdb
+[570/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.AssetGenerators.Editor.dll
+[571/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Integrations.Profiler.Editor.dll
+[572/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Integrations.Profiler.Editor.pdb
+[573/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Tools.dll
+[574/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.UI.Editor.dll
+[575/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.API.Editor.pdb
+[576/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.API.Editor.dll
+[577/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.UI.Editor.pdb
+[578/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.AssetGenerators.Editor.pdb
+[579/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Image.dll
+[580/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.MCP.Editor.dll
+[581/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.MCP.Editor.pdb
+[582/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Sound.pdb
+[583/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Animate.pdb
+[584/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Image.pdb
+[585/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Mesh.pdb
+[586/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Sdk.pdb
+[587/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Mesh.dll
+[588/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Sdk.dll
+[589/647    0s] CopyFiles Library/ScriptAssemblies/Unity.2D.Tilemap.Extras.Editor.dll
+[590/647    0s] CopyFiles Library/ScriptAssemblies/Unity.TextMeshPro.Editor.dll
+[591/647    0s] CopyFiles Library/ScriptAssemblies/Unity.TextMeshPro.Editor.pdb
+[592/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Editor.pdb
+[593/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.IO.dll
+Rebuilding DAG because FileSignature timestamp changed: Library/Bee/900b0aE-inputdata.json
+[594/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.UI.pdb
+[595/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.UI.dll
+[596/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Editor.dll
+[597/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.IO.pdb
+[598/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.UI.AIDropdownIntegrations.dll
+[599/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.UI.AIDropdownIntegrations.pdb
+[600/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.GenerationObjectPicker.pdb
+[601/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.GenerationContextMenu.pdb
+[602/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.GenerationObjectPicker.dll
+[603/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.GenerationContextMenu.dll
+*** Tundra requires additional run (4.86 seconds), 70 items updated, 593 evaluated
+Starting: /Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/Scripting/netcorerun/netcorerun "/Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/BuildPipeline/ScriptCompilationBuildProgram.exe" "Library/Bee/900b0aE.dag.json" "Library/Bee/900b0aE-inputdata.json" "Library/Bee/buildprogram0.traceevents"
+WorkingDir: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator
+ExitCode: 0 Duration: 4s387ms
+Starting: /Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Resources/BuildPipeline/bee_backend --ipc --defer-dag-verification --dagfile="Library/Bee/900b0aE.dag" --continue-on-failure --dagfilejson="Library/Bee/900b0aE.dag.json" --profile="Library/Bee/backend2.traceevents" ScriptAssemblies
+WorkingDir: /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator
+ExitCode: 0 Duration: 2s664ms
+Finished compiling graph: 650 nodes, 11588 flattened edges (10562 ToBuild, 110 ToUse), maximum node priority 521
+[376/647    0s] WriteText Library/Bee/artifacts/900b0aE.dag/Assembly-CSharp.rsp
+[444/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Pbr.Srp.dll
+[446/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Pbr.Srp.pdb
+[449/647    0s] CopyFiles Library/ScriptAssemblies/Unity.2D.Tilemap.Editor.dll
+[460/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Asset.pdb
+[461/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Runtime.pdb
+[474/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Asset.dll
+[476/647    0s] CopyFiles Library/ScriptAssemblies/Unity.Mathematics.pdb
+[488/647    0s] CopyFiles Library/ScriptAssemblies/Unity.2D.Tilemap.Editor.pdb
+[555/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.MCP.Runtime.pdb
+[602/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Redux.pdb
+[614/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Redux.dll
+[615/647    0s] CopyFiles Library/ScriptAssemblies/Unity.2D.Tilemap.Extras.pdb
+[616/647    0s] CopyFiles Library/ScriptAssemblies/Unity.Multiplayer.Center.Common.pdb
+[617/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Agent.Dynamic.Extension.Editor.pdb
+[618/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Asset.dll
+[619/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Agent.Dynamic.Extension.Editor.dll
+[620/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Asset.pdb
+[621/647    0s] CopyFiles Library/ScriptAssemblies/Unity.TextMeshPro.pdb
+[622/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Annotations.Editor.dll
+[623/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Annotations.Editor.pdb
+[624/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Compliance.dll
+[625/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Compliance.pdb
+[626/647    0s] CopyFiles Library/ScriptAssemblies/Unity.2D.Sprite.Editor.pdb
+[627/647    0s] CopyFiles Library/ScriptAssemblies/Unity.2D.Sprite.Editor.dll
+[628/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.IO.Srp.pdb
+[629/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.IO.Srp.dll
+[630/647    0s] CopyFiles Library/ScriptAssemblies/HFDownloader.pdb
+[631/647    0s] CopyFiles Library/ScriptAssemblies/HFDownloader.dll
+[632/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Async.dll
+[633/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Bridge.Editor.dll
+[634/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Assistant.Bridge.Editor.pdb
+[635/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Contexts.pdb
+[636/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Async.pdb
+[637/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Generators.Contexts.dll
+[638/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Utility.dll
+[639/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Toolkit.Utility.pdb
+[640/647    0s] CopyFiles Library/ScriptAssemblies/Unity.AI.Tracing.pdb
+[641/647    0s] Csc Library/Bee/artifacts/900b0aE.dag/Assembly-CSharp.dll (+2 others)
+[642/647    0s] CopyFiles Library/ScriptAssemblies/Assembly-CSharp.pdb
+[643/647    0s] CopyFiles Library/ScriptAssemblies/Assembly-CSharp.dll
+[644/647    0s] Csc Library/Bee/artifacts/900b0aE.dag/Assembly-CSharp-Editor.dll (+2 others)
+[645/647    0s] CopyFiles Library/ScriptAssemblies/Assembly-CSharp-Editor.pdb
+[646/647    0s] CopyFiles Library/ScriptAssemblies/Assembly-CSharp-Editor.dll
+*** Tundra build success (2.64 seconds), 44 items updated, 647 evaluated
+Total cache size 268348196
+Total cache size after purge 268348196, took 00:00:00.3546705
+AssetDatabase: script compilation time: 27.549071s
+Begin MonoManager ReloadAssembly
+Symbol file LoadedFromMemory is not a mono symbol file
+Native extension for iOS target not found
+Native extension for OSXStandalone target not found
+[Licensing::Client] Error: Code 404 while processing request (status: Found 0 entitlement groups and 0 free entitlements matching requested entitlement ids)
+[Licensing::Client] Error: Code 404 while processing request (status: Found 0 entitlement groups and 0 free entitlements matching requested entitlement ids)
+[Licensing::Client] Error: Code 404 while processing request (status: Found 0 entitlement groups and 0 free entitlements matching requested entitlement ids)
+ScheduleIndexationOnStartup MainProcess:True IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  0.872 seconds
+Domain Reload Profiling: 2059ms
+	BeginReloadAssembly (194ms)
+		DisableScriptedObjects (21ms)
+		CreateAndSetChildDomain (44ms)
+	RebuildCommonClasses (6ms)
+	RebuildNativeTypeToScriptingClass (12ms)
+	initialDomainReloadingComplete (53ms)
+	LoadAllAssembliesAndSetupDomain (922ms)
+		LoadAssemblies (803ms)
+		AnalyzeDomain (160ms)
+			TypeCache.Refresh (143ms)
+				TypeCache.ScanAssembly (132ms)
+			BuildScriptInfoCaches (14ms)
+	FinalizeReload (872ms)
+		SetupLoadedEditorAssemblies (0ms)
+			InitializePlatformSupportModulesInManaged (13ms)
+			BeforeProcessingInitializeOnLoad (67ms)
+			ProcessInitializeOnLoadAttributes (483ms)
+			ProcessInitializeOnLoadMethodAttributes (181ms)
+		AwakeInstancesAfterBackupRestoration (12ms)
+Starting new worker id: 0 with log in /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Logs/AssetImportWorkerHW0.log
+
+Asset Pipeline Refresh (id=c1e7533abc8074cad8390d904057b129): Total: 40.579 seconds - Initiated by InitialRefreshV2(ForceSynchronousImport)
+	(Values over 0.05ms)
+	Summary:
+		Imports: total=0 (actual=0, local cache=0, cache server=0)
+		Asset DB Process Time: managed=0 ms, native=11269 ms
+		Asset DB Callback time: managed=214 ms, native=244 ms
+		Scripting: domain reloads=1, domain reload time=1283 ms, compile time=27550 ms, other=17 ms
+		Project Asset Count: scripts=838, non-scripts=1343
+		Asset File Changes: new=0, changed=4, moved=0, deleted=0
+		Scan Filter Count: 1
+	InvokePackagesCallback: 240.623ms
+	ApplyChangesToAssetFolders: 0.265ms
+	Scan: 7265.229ms
+	Collect global state as custom dependencies: 8.804ms
+	OnSourceAssetsModified: 0.576ms
+	CategorizeScriptCompilationAssets: 977.247ms
+	ProcessAssetsWithTransientArtifactChanges: 27.252ms
+	CategorizeAssets: 17.795ms
+	CompileScripts: 27550.408ms
+	ImportOutOfDateAssets: 895.664ms (880.876ms without children)
+		UnloadImportedAssets: 0.155ms
+		EnsureUptoDateAssetsAreRegisteredWithGuidPM: 0.270ms
+		ImportSchedulerStart: 14.361ms
+	PostProcessAllAssets: 214.969ms
+		VCAutoAddAssetPostprocess 0.965ms
+		MonoPostProcessAllAssets: 213.599ms
+			AssetPostprocessor.OnPostprocessAllAssets 38.959ms
+			AssetReferenceReimportMonitor.OnPostprocessAllAssets 20.276ms
+			StyleCatalogPostProcessor.OnPostprocessAllAssets 15.754ms
+			BuilderAssetPostprocessor.OnPostprocessAllAssets 4.318ms
+			SyncVS.PostprocessSyncProject 1.909ms
+			WindowAssetPostprocessingWatcher.OnPostprocessAllAssets 1.411ms
+			SpriteSlicePostprocessor.OnPostprocessAllAssets 1.279ms
+			GraphRefreshPostprocessor.OnPostprocessAllAssets 1.046ms
+			AssetChangedListener.OnPostprocessAllAssets 0.801ms
+			RetainedModeAssetPostprocessor.OnPostprocessAllAssets 0.712ms
+			EditModeScopePostprocessor.OnPostprocessAllAssets 0.556ms
+			ArtifactBrowserPostProcessor.OnPostprocessAllAssets 0.528ms
+			AssetChangeDetector.OnPostprocessAllAssets 0.502ms
+			SpeedTree9Postprocessor.OnPostprocessAllAssets 0.416ms
+			SpriteEditorTexturePostprocessor.OnPostprocessAllAssets 0.317ms
+			TextAssetPostProcessor.OnPostprocessAllAssets 0.310ms
+			SkillsProjectAssetPostprocessor.OnPostprocessAllAssets 0.245ms
+			AudioMixerPostprocessor.OnPostprocessAllAssets 0.214ms
+			TMPro_TexturePostProcessor.OnPostprocessAllAssets 0.188ms
+			AssetEvents.OnPostprocessAllAssets 0.184ms
+			ReferencedClipsPostProcessor.OnPostprocessAllAssets 0.176ms
+			TerrainToolbarOverlayPostProcessor.OnPostprocessAllAssets 0.112ms
+			AssetDatabaseCallbacks.OnPostprocessAllAssets 0.108ms
+			AssetProcessor.OnPostprocessAllAssets 0.102ms
+			SpeedTreePostProcessor.OnPostprocessAllAssets 0.081ms
+			ConfigAssetsTracker.OnPostprocessAllAssets 0.060ms
+			RenderPipelineGlobalSettingsPostprocessor.OnPostprocessAllAssets 0.055ms
+			TrackSelectedAssetsProcessor.OnPostprocessAllAssets 0.054ms
+			ScenarioDriftAssetsTracker.OnPostprocessAllAssets 0.052ms
+	PostAssetChangesProfiler: 7.878ms
+	UnloadStreamsBegin: 1.212ms
+	GenerateScriptTypeHashes: 1.246ms
+	GenerateScriptTypeSerializationHashes: 2.097ms
+	Untracked: 3366.730ms
+
+Application.AssetDatabase Initial Refresh End
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/Helpers/UnityShaderCompiler
+Launched and connected shader compiler UnityShaderCompiler after 0.15 seconds
+Scanning for USB devices : 0.037ms
+Initializing Unity extensions:
+[MODES] ModeService[none].Initialize
+[MODES] ModeService[none].LoadModes
+[MODES] Loading mode Default (0) for mode-current-id-Checkout Simulator
+2026-09-10 17:01:46.961 Unity[39138:3410037] NSEventModifierFlagFunction specified to -setKeyEquivalentModifierMask: for item <NSMenuItem: 0xb23d7e760 SDF, ke='Command-F12'>, but is only supported for system-provided menu items; will not be used
+Unloading 16 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 2730 unused Assets / (2.2 MB). Loaded Objects now: 3364.
+Memory consumption went from 168.0 MB to 165.8 MB.
+Total: 17.956000 ms (FindLiveObjects: 0.168375 ms CreateObjectMapping: 0.365416 ms MarkObjects: 16.242583 ms  DeleteObjects: 1.178708 ms)
+
+2026-09-10 17:01:47.040 Unity[39138:3410037] NSEventModifierFlagFunction specified to -setKeyEquivalentModifierMask: for item <NSMenuItem: 0xb23d8caa0 SDF, ke='Command-F12'>, but is only supported for system-provided menu items; will not be used
+Thread 0x17fc53000 may have been prematurely finalized
+Batchmode quit successfully invoked - shutting down!
+Thread 0x306647000 may have been prematurely finalized
+Input System module state changed to: ShutdownInProgress.
+Input Polling Thread exited.
+Input System module state changed to: Shutdown.
+Worker ready: AssetImportWorkerHW0 0
+[Physics::Module] Cleanup current backend.
+[Physics::Module] Id: 0xf2b8ea05
+[Licensing::IpcConnector] LicenseClient-lucas-furini-6000.5.7-notifications channel disconnected successfully.
+[Licensing::IpcConnector] LicenseClient-lucas-furini-6000.5.7 channel disconnected successfully.
+Thread 0x16e253000 may have been prematurely finalized
+Thread 0x16e2df000 may have been prematurely finalized
+AcceleratorClientConnectionCallback - disconnected - :0
+Thread 0x171b3f000 may have been prematurely finalized
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+Cleanup mono
+CodeReloadManager destroyed
+debugger-agent: Unable to listen on 44
+[usbmuxd] Stop listen thread
+[usbmuxd] Error: 
+[usbmuxd] Listen thread exiting
+Exiting batchmode successfully now!
+Shutting down MSBuild server...
+Shutting down VB/C# compiler server...
+[Package Manager] Server process was shutdown
+VB/C# compiler server shut down successfully.
+MSBuild server shut down successfully.

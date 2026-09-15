@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native-unistyles";
 import type { ItemDefinition } from "@/@types/item";
 import { useBottomSheet } from "@/components/bottom-sheet";
 import { useGameStore } from "@/stores/game-store";
+import { SupplierOrderSheet } from "../suppliers/components/supplier-order-sheet";
 import { InventoryCapacitySheet } from "./components/inventory-capacity-sheet";
 import { ProductList } from "./components/product-list";
 
@@ -12,10 +13,15 @@ export function ProductsScreen() {
 	const inventoryCapacityLevels = useGameStore(
 		(state) => state.inventoryCapacityLevels,
 	);
+	const orders = useGameStore((state) => state.logistics.orders);
 	const market = useGameStore((state) => state.market);
 
 	function openInventoryCapacity(product: ItemDefinition) {
 		openBottomSheet(<InventoryCapacitySheet product={product} />);
+	}
+
+	function openSupplierOrder(product: ItemDefinition) {
+		openBottomSheet(<SupplierOrderSheet productId={product.id} />);
 	}
 
 	return (
@@ -24,7 +30,9 @@ export function ProductsScreen() {
 				inventory={inventory}
 				inventoryCapacityLevels={inventoryCapacityLevels}
 				level={market.level}
-				onPressProduct={openInventoryCapacity}
+				onUpgradeProduct={openInventoryCapacity}
+				onRestockProduct={openSupplierOrder}
+				orders={orders}
 				unlockedProductIds={market.unlockedProductIds}
 			/>
 		</View>

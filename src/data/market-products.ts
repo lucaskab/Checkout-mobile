@@ -136,7 +136,7 @@ function createItem(seed: CatalogSeed): ItemDefinition {
 		shelfSpace:
 			seed.rarity === "luxo" || seed.rarity === "colecionavel" ? 2 : 1,
 		spoilChance: perishable ? 0.04 + (100 - (seed.demand ?? 50)) / 2500 : 0,
-		supplierQuantity: Math.max(2, Math.round((seed.demand ?? 50) / 10)),
+		supplierQuantity: 1,
 		supplierTime: perishable ? "4m" : "8m",
 		suggestedPrice: seed.sellingPrice,
 		unlockLevel: seed.unlockLevel,

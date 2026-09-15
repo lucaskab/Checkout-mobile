@@ -7,18 +7,11 @@ import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
 
 type ProductCardProps = {
-	isBuying: boolean;
-	canAfford: boolean;
-	onBuy: (product: SupplierProduct) => void;
+	onOpenOrder: () => void;
 	product: SupplierProduct;
 };
 
-export function ProductCard({
-	isBuying,
-	canAfford,
-	onBuy,
-	product,
-}: ProductCardProps) {
+export function ProductCard({ onOpenOrder, product }: ProductCardProps) {
 	return (
 		<View style={styles.wrapper}>
 			<View style={styles.card}>
@@ -45,22 +38,8 @@ export function ProductCard({
 						</View>
 					</View>
 				)}
-				<View style={styles.productDetails}>
-					<View style={styles.detailChip}>
-						<View style={styles.inlineRow}>
-							<GameIcon icon="package" style={styles.inlineIcon} />
-							<Text style={styles.detailText}>{product.quantity} unid.</Text>
-						</View>
-					</View>
-					<View style={styles.detailChip}>
-						<View style={styles.inlineRow}>
-							<GameIcon icon="deliveryTruck" style={styles.inlineIcon} />
-							<Text style={styles.detailText}>{product.shelfTime}</Text>
-						</View>
-					</View>
-				</View>
 				<Text style={styles.deliveryEstimate}>
-					Entrega estimada: {product.shelfTime}
+					Escolha a quantidade · Entrega: {product.shelfTime}
 				</Text>
 				<View style={styles.sellValue}>
 					<Text style={styles.sellValueLabel}>Vende por</Text>
@@ -70,11 +49,10 @@ export function ProductCard({
 					</View>
 				</View>
 				<GameButton
-					disabled={!canAfford || isBuying}
 					fullWidth
-					icon={isBuying ? undefined : "coin"}
-					label={isBuying ? "Criando pedido..." : `Pedir · ${product.price}`}
-					onPress={() => onBuy(product)}
+					icon="deliveryTruck"
+					label="Escolher quantidade"
+					onPress={onOpenOrder}
 					style={styles.buyButton}
 					variant="primary"
 				/>

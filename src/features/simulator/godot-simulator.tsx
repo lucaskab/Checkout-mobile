@@ -131,7 +131,7 @@ export default function GodotSimulator() {
 			<RTNGodotView style={styles.game} />
 
 			<View style={styles.modeToggle}>
-				<GameModeToggle activeMode="simulator" />
+				<GameModeToggle />
 			</View>
 
 			<View pointerEvents="none" style={styles.topStatus}>

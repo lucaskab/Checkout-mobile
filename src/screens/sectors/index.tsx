@@ -2,19 +2,21 @@ import {
 	LegendList,
 	type LegendListRenderItemProps,
 } from "@legendapp/list/react-native";
-import { type Href, router } from "expo-router";
 import { Pressable, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
 import type { ProductionSector } from "@/@types/production";
+import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
 import { getProductionSectorProductId } from "@/data/game-icon-assets";
 import { productionSectors } from "@/data/production-sectors";
+import { SectorDetailScreen } from "@/screens/sector-detail";
 import { useGameStore } from "@/stores/game-store";
 
 export function SectorsScreen() {
+	const { closeBottomSheet, openBottomSheet } = useBottomSheet();
 	const level = useGameStore((state) => state.market.level);
 	const jobs = useGameStore((state) => state.production.jobs);
 	const totalCrafted = useGameStore((state) => state.production.totalCrafted);
@@ -27,7 +29,9 @@ export function SectorsScreen() {
 			return;
 		}
 
-		router.push(`/sectors/${sector.id}` as Href);
+		openBottomSheet(
+			<SectorDetailScreen onBack={closeBottomSheet} sectorId={sector.id} />,
+		);
 	}
 
 	function renderSector({

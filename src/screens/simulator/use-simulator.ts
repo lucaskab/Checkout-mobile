@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import type UnityView from "@azesmway/react-native-unity";
+import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import { AppState } from "react-native";
-import UnityView from "@azesmway/react-native-unity";
+import type { ProductionSector } from "@/@types/production";
 import type { SimulatorPanel } from "@/@types/simulator";
+import { shelves } from "@/data/market-products";
 import { createSimulatorCommandHandler } from "@/services/simulator-protocol";
+import { getUnlockedSimulatorSectorId } from "@/services/simulator-sector-selection";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
 import { useGameStore } from "@/stores/game-store";
 
@@ -26,9 +29,13 @@ const panels: SimulatorPanel[] = [
 ];
 export function useSimulator(
 	unityRef: React.RefObject<UnityView | null>,
-	openPanel: (panel: SimulatorPanel) => void,
+	setPanel: Dispatch<SetStateAction<SimulatorPanel | null>>,
+	setShelfId: Dispatch<SetStateAction<string | null>>,
+	setSectorId: Dispatch<SetStateAction<ProductionSector["id"] | null>>,
 ) {
-	const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+	const [status, setStatus] = useState<"loading" | "ready" | "error">(
+		"loading",
+	);
 	useEffect(() => {
 		const session = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 		let revision = 0,
@@ -70,7 +77,29 @@ export function useSimulator(
 					setStatus("ready");
 					snapshot();
 				} else if (message.kind === "panel" && panels.includes(message.panel)) {
-					openPanel(message.panel);
+					const unlockedSectorId =
+						message.panel === "sectors"
+							? getUnlockedSimulatorSectorId(
+									message.sectorId,
+									useGameStore.getState().market.level,
+								)
+							: null;
+
+					if (
+						message.panel === "store" &&
+						shelves.some((shelf) => shelf.id === message.shelfId)
+					) {
+						setSectorId(null);
+						setShelfId(message.shelfId);
+					} else if (unlockedSectorId) {
+						setPanel(null);
+						setShelfId(null);
+						setSectorId(unlockedSectorId);
+					} else {
+						setSectorId(null);
+						setShelfId(null);
+						setPanel(message.panel);
+					}
 				} else if (message.kind === "command") {
 					void send(command(message));
 					snapshot();
@@ -102,12 +131,9 @@ export function useSimulator(
 			clearInterval(timer);
 			clearTimeout(timeout);
 		};
-	}, [openPanel, unityRef]);
-	const onUnityMessage = useCallback(
-		(event: { nativeEvent: { message: string } }) => {
-			checkoutGlobal.__checkoutUnityMessage?.(event.nativeEvent.message);
-		},
-		[],
-	);
+	}, [setPanel, setSectorId, setShelfId, unityRef]);
+	function onUnityMessage(event: { nativeEvent: { message: string } }) {
+		checkoutGlobal.__checkoutUnityMessage?.(event.nativeEvent.message);
+	}
 	return { status, onUnityMessage };
 }

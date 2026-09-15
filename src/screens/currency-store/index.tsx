@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { CurrencyPack } from "@/@types/currency-purchase";
+import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
@@ -30,7 +31,7 @@ const listItems: CurrencyStoreListItem[] = currencyPackSections.flatMap(
 	],
 );
 
-export function CurrencyStoreScreen() {
+export function CurrencyStoreScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	const coins = useGameStore((state) => state.coins);
 	const diamonds = useGameStore((state) => state.logistics.premiumCurrency);
 	const {
@@ -97,7 +98,7 @@ export function CurrencyStoreScreen() {
 			}
 			ListHeaderComponent={
 				<View>
-					<Pressable onPress={router.back} style={styles.backButton}>
+					<Pressable onPress={onBack ?? router.back} style={styles.backButton}>
 						<Text style={styles.backIcon}>‹</Text>
 						<Text style={styles.backText}>Voltar</Text>
 					</Pressable>

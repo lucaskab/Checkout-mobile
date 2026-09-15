@@ -5,16 +5,17 @@ import type {
 	SupplierCategory,
 	SupplierCategoryOption,
 } from "@/@types/supplier";
+import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { getInventoryCapacity } from "@/data/inventory-capacity";
 import { itemCatalog, itemCategories } from "@/data/market-products";
-import { getActiveGameEventEffects } from "@/services/game-events";
 import { useGameStore } from "@/stores/game-store";
 import { CategoryList } from "./components/category-list";
 import { ItemsList } from "./components/items-list";
 import { initialProducts } from "./components/items-list/static";
 import { LogisticsPanel } from "./components/logistics-panel";
+import { SupplierOrderSheet } from "./components/supplier-order-sheet";
 
 const categories: SupplierCategoryOption[] = [
 	{ id: "todos", label: "Todos" },
@@ -22,10 +23,9 @@ const categories: SupplierCategoryOption[] = [
 ];
 
 export function SuppliersScreen() {
+	const { openBottomSheet } = useBottomSheet();
 	const [activeCategory, setActiveCategory] =
 		useState<SupplierCategory>("todos");
-	const coins = useGameStore((state) => state.coins);
-	const events = useGameStore((state) => state.events);
 	const inventory = useGameStore((state) => state.inventory);
 	const inventoryCapacityLevels = useGameStore(
 		(state) => state.inventoryCapacityLevels,
@@ -40,14 +40,12 @@ export function SuppliersScreen() {
 	const unlockedProductIds = useGameStore(
 		(state) => state.market.unlockedProductIds,
 	);
-	const placeSupplierOrder = useGameStore((state) => state.placeSupplierOrder);
 	const completeOrderFinalStage = useGameStore(
 		(state) => state.completeOrderFinalStage,
 	);
 	const deliverOrderInstantly = useGameStore(
 		(state) => state.deliverOrderInstantly,
 	);
-	const eventEffects = getActiveGameEventEffects(events);
 	const products = initialProducts
 		.filter((product) => unlockedProductIds.includes(product.id))
 		.map((product) => {
@@ -62,11 +60,6 @@ export function SuppliersScreen() {
 						)
 					: 0,
 				owned: inventory[product.id] ?? 0,
-				price: Math.ceil(product.price * eventEffects.supplierCostMultiplier),
-				shelfTime: formatSupplierTime(
-					product.shelfTime,
-					eventEffects.supplierDurationMultiplier,
-				),
 			};
 		});
 
@@ -83,11 +76,8 @@ export function SuppliersScreen() {
 		setActiveCategory(category);
 	}
 
-	function placeOrder(product: (typeof products)[number]) {
-		return placeSupplierOrder({
-			productId: product.id,
-			quantity: product.quantity,
-		});
+	function openSupplierOrder(productId: number) {
+		openBottomSheet(<SupplierOrderSheet productId={productId} />);
 	}
 
 	return (
@@ -130,12 +120,11 @@ export function SuppliersScreen() {
 			<ItemsList
 				products={products}
 				activeCategory={activeCategory}
-				coins={coins}
 				emergencyTokens={emergencyTokens}
 				orders={orders}
 				onCompleteOrderFinalStage={completeOrderFinalStage}
 				onDeliverOrderInstantly={deliverOrderInstantly}
-				onPlaceOrder={placeOrder}
+				onOpenOrder={openSupplierOrder}
 				supplierOrderSlots={supplierOrderSlots}
 			/>
 		</View>
@@ -232,9 +221,3 @@ const styles = StyleSheet.create((theme) => ({
 		textAlign: "center",
 	},
 }));
-
-function formatSupplierTime(supplierTime: string, multiplier: number) {
-	const minutes = Number.parseInt(supplierTime, 10);
-
-	return `${Math.max(1, Math.ceil(minutes * multiplier))}m`;
-}

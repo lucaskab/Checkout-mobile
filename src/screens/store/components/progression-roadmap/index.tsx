@@ -11,7 +11,13 @@ import { getNextShelfSlotUpgrade } from "@/data/shelf-capacity";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { useGameStore } from "@/stores/game-store";
 
-export function ProgressionRoadmap() {
+type ProgressionRoadmapProps = {
+	onNavigate?: (path: string) => void;
+};
+
+export function ProgressionRoadmap({
+	onNavigate,
+}: ProgressionRoadmapProps = {}) {
 	const daily = useGameStore((state) => state.daily);
 	const dismissOfflineSummary = useGameStore(
 		(state) => state.dismissOfflineSummary,
@@ -40,6 +46,11 @@ export function ProgressionRoadmap() {
 	const nextShelfSlot = getNextShelfSlotUpgrade(unlockedShelfSlots);
 
 	function open(path: string) {
+		if (onNavigate) {
+			onNavigate(path);
+			return;
+		}
+
 		router.push(path as Href);
 	}
 

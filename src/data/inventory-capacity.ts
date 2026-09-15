@@ -9,15 +9,12 @@ export const inventoryCapacityUpgrades: InventoryCapacityUpgrade[] = [
 ];
 
 export function getInventoryCapacity(
-	product: Pick<ItemDefinition, "recommendedStock" | "supplierQuantity">,
+	_product: Pick<ItemDefinition, "id">,
 	upgradeLevel = 0,
 ) {
-	const baseCapacity = Math.max(
-		20,
-		product.supplierQuantity,
-		Math.ceil(product.recommendedStock * 1.5),
-	);
-	const upgrade = inventoryCapacityUpgrades[Math.max(0, upgradeLevel - 1)];
+	const baseCapacity = 5;
+	const upgrade =
+		upgradeLevel > 0 ? inventoryCapacityUpgrades[upgradeLevel - 1] : undefined;
 
 	return baseCapacity + (upgrade?.storageBonus ?? 0);
 }

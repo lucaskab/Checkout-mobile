@@ -1,0 +1,14 @@
+{
+  "admitted": true,
+  "reasons": [],
+  "provenance": {
+    "viewpoint": "reference",
+    "sourcePath": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Shelves/Procedural/references/shelf-full-reference.png",
+    "width": 1312,
+    "height": 1199,
+    "foregroundCoverage": 0.6303,
+    "largestComponentFraction": 1.0,
+    "pHash": 13773901873761382540,
+    "duplicateOfHash": null
+  }
+}

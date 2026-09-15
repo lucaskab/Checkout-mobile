@@ -2,14 +2,24 @@ import { router, usePathname } from "expo-router";
 import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { GameIcon } from "@/components/game-icon";
-import { GameText as Text } from "@/components/game-text";
 
 export function GameModeToggle() {
-	const simulator=usePathname()==="/simulator";
+	const simulator = usePathname() === "/simulator";
+
 	return (
 		<View style={styles.container}>
-			<ModeOption active={!simulator} icon="computer" label="Sistema" onPress={()=>router.replace("/")} />
-			<ModeOption active={simulator} icon="controller" label="Simulador" onPress={()=>router.push("/simulator")} />
+			<ModeOption
+				active={!simulator}
+				icon="computer"
+				label="Sistema"
+				onPress={() => router.replace("/")}
+			/>
+			<ModeOption
+				active={simulator}
+				icon="controller"
+				label="Simulador"
+				onPress={() => router.push("/simulator")}
+			/>
 		</View>
 	);
 }
@@ -42,31 +52,25 @@ function ModeOption({
 			]}
 		>
 			<GameIcon icon={icon} style={styles.icon} />
-			<Text style={[styles.label, active && styles.activeLabel]}>{label}</Text>
 		</Pressable>
 	);
 }
 
 const styles = StyleSheet.create((theme) => ({
 	container: {
-		alignSelf: "center",
 		flexDirection: "row",
-		padding: theme.gap(0.375),
-		borderWidth: 2,
-		borderBottomWidth: 5,
+		padding: 2,
+		borderWidth: 1,
 		borderColor: theme.colors["neutral-300"],
-		borderRadius: theme.gap(1.75),
-		backgroundColor: theme.colors["neutral-100"],
+		borderRadius: theme.gap(1.25),
+		backgroundColor: theme.colors["neutral-50"],
 	},
 	option: {
-		minWidth: 106,
-		minHeight: 38,
-		flexDirection: "row",
+		width: theme.gap(3.5),
+		height: theme.gap(3.5),
 		alignItems: "center",
 		justifyContent: "center",
-		gap: theme.gap(0.5),
-		paddingHorizontal: theme.gap(1),
-		borderRadius: theme.gap(1.25),
+		borderRadius: theme.gap(1),
 	},
 	activeOption: {
 		backgroundColor: theme.colors["blue-500"],
@@ -76,18 +80,10 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	pressedOption: {
 		backgroundColor: theme.colors["neutral-200"],
-		transform: [{ translateY: 1 }],
+		transform: [{ scale: 0.94 }],
 	},
 	icon: {
-		width: 21,
-		height: 21,
-	},
-	label: {
-		color: theme.colors["neutral-600"],
-		fontFamily: theme.fonts.family.badge,
-		fontSize: 10,
-	},
-	activeLabel: {
-		color: theme.colors["neutral-0"],
+		width: theme.gap(2),
+		height: theme.gap(2),
 	},
 }));

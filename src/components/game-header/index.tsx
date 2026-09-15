@@ -6,6 +6,7 @@ import { useBottomSheet } from "@/components/bottom-sheet";
 import { DevCheatSheet } from "@/components/dev-cheat-sheet";
 import { GameEventBanner } from "@/components/game-event-banner";
 import { GameIcon } from "@/components/game-icon";
+import { GameModeToggle } from "@/components/game-mode-toggle";
 import { GameText as Text } from "@/components/game-text";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { SupermarketAwning } from "@/components/supermarket-awning";
@@ -45,6 +46,7 @@ export const GameHeader = () => {
 						<Text style={styles.brandEyebrow}>CHECKOUT</Text>
 						<Text style={styles.brandTitle}>MARKET</Text>
 					</View>
+					<GameModeToggle />
 					{__DEV__ && (
 						<Pressable
 							accessibilityLabel="Abrir menu de desenvolvimento"

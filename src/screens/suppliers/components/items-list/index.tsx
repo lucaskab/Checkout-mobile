@@ -21,9 +21,8 @@ import { ProductCard } from "../product-card";
 interface ItemsListProps {
 	products: SupplierProduct[];
 	activeCategory: SupplierCategory;
-	coins: number;
 	emergencyTokens: number;
-	onPlaceOrder: (product: SupplierProduct) => boolean;
+	onOpenOrder: (productId: number) => void;
 	onCompleteOrderFinalStage: (orderId: string) => boolean;
 	onDeliverOrderInstantly: (orderId: string) => boolean;
 	orders: SupplierOrder[];
@@ -33,17 +32,14 @@ interface ItemsListProps {
 export const ItemsList = ({
 	products,
 	activeCategory,
-	coins,
 	emergencyTokens,
-	onPlaceOrder,
+	onOpenOrder,
 	onCompleteOrderFinalStage,
 	onDeliverOrderInstantly,
 	orders,
 	supplierOrderSlots,
 }: ItemsListProps) => {
-	const [buyingId, setBuyingId] = useState<number | null>(null);
 	const [currentTime, setCurrentTime] = useState(Date.now());
-	const [orderFeedback, setOrderFeedback] = useState<string | null>(null);
 	const filteredProducts =
 		activeCategory === "todos"
 			? products
@@ -67,56 +63,11 @@ export const ItemsList = ({
 		return () => clearInterval(interval);
 	}, [activeOrders.length]);
 
-	function placeOrder(product: SupplierProduct) {
-		if (activeOrders.length >= supplierOrderSlots) {
-			setOrderFeedback(
-				`Limite de ${supplierOrderSlots} pedidos simultâneos atingido. Expanda a capacidade na Central logística.`,
-			);
-			setTimeout(() => setOrderFeedback(null), 2_600);
-			return;
-		}
-
-		if (
-			coins < product.price ||
-			product.owned + product.quantity > product.capacity
-		) {
-			if (product.owned + product.quantity > product.capacity) {
-				setOrderFeedback(
-					"Sem espaço para este pedido. Amplie a capacidade do item em Produtos.",
-				);
-				setTimeout(() => setOrderFeedback(null), 2_600);
-			}
-
-			return;
-		}
-
-		setBuyingId(product.id);
-		setTimeout(() => {
-			const orderPlaced = onPlaceOrder(product);
-
-			if (!orderPlaced) {
-				setOrderFeedback(
-					"Não foi possível criar o pedido. Aguarde o caminhão voltar ou verifique suas moedas.",
-				);
-				setTimeout(() => setOrderFeedback(null), 2_600);
-			}
-
-			setBuyingId(null);
-		}, 350);
-	}
-
 	const renderProduct = ({
 		item,
 	}: LegendListRenderItemProps<SupplierProduct>) => {
 		return (
-			<ProductCard
-				canAfford={
-					coins >= item.price && item.owned + item.quantity <= item.capacity
-				}
-				isBuying={buyingId === item.id}
-				onBuy={placeOrder}
-				product={item}
-			/>
+			<ProductCard onOpenOrder={() => onOpenOrder(item.id)} product={item} />
 		);
 	};
 	return (
@@ -130,11 +81,6 @@ export const ItemsList = ({
 			renderItem={renderProduct}
 			ListHeaderComponent={
 				<View>
-					{orderFeedback && (
-						<View style={styles.orderFeedback}>
-							<Text style={styles.orderFeedbackText}>{orderFeedback}</Text>
-						</View>
-					)}
 					{visibleOrders.length > 0 && (
 						<View style={styles.ordersHeader}>
 							<Text style={styles.ordersTitle}>Pedidos em andamento</Text>

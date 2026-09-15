@@ -10,6 +10,14 @@ export type SimulatorPanel =
 	| "missions"
 	| "achievements"
 	| "currency";
+
+export type SimulatorUnlock = {
+	id: string;
+	label: string;
+	panel: SimulatorPanel;
+	requiredLevel: number;
+	type: "employee" | "expansion" | "product" | "sector" | "shelf" | "shop";
+};
 export type SimulatorAction = Exclude<
 	keyof GameActions,
 	| `dev${string}`
@@ -45,10 +53,16 @@ export type SimulatorSnapshot = {
 	sentAt: number;
 	coins: number;
 	diamonds: number;
+	experience: number;
+	experienceToNextLevel: number;
 	level: number;
 	isOpen: boolean;
 	satisfaction: number;
 	served: number;
+	dailyRevenue: number;
+	dailyGoal: number;
+	dailyClaimable: boolean;
+	claimableMissions: number;
 	shelves: {
 		id: string;
 		name: string;
@@ -60,14 +74,29 @@ export type SimulatorSnapshot = {
 		capacity: number;
 		price: number;
 		unlocked: boolean;
+		requiredLevel: number;
 		expiresAt: number;
 	}[];
-	sectors: { id: string; name: string; unlocked: boolean; jobs: number }[];
+	sectors: {
+		id: string;
+		name: string;
+		unlocked: boolean;
+		requiredLevel: number;
+		jobs: number;
+	}[];
 	employees: GameState["employees"]["employees"];
-	orders: GameState["logistics"]["orders"];
+	orders: Array<
+		GameState["logistics"]["orders"][number] & { productCategory: string }
+	>;
 	jobs: GameState["production"]["jobs"];
 	customers: GameState["market"]["recentCustomers"];
 	expansions: string[];
+	expansionStates: {
+		id: string;
+		name: string;
+		requiredLevel: number;
+		unlocked: boolean;
+	}[];
 	ownedItems: string[];
 	event: {
 		id: string;

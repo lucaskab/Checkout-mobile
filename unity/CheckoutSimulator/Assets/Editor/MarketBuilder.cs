@@ -87,6 +87,11 @@ public static class MarketBuilder
         PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel26;
         PlayerSettings.iOS.targetOSVersionString="15.0";
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
+        CheckoutCustomerBuilder.ApplyToWorld(world.transform);
+        CheckoutWorkerBuilder.ApplyToWorld(world.transform);
+        CheckoutBakeryDisplayBuilder.ApplyToWorld(world.transform);
+        CheckoutChickenBuilder.ApplyToWorld(world.transform);
+        CheckoutMapModelsBuilder.ApplyToWorld(world.transform);
         EditorSceneManager.SaveScene(scene,ScenePath);AssetDatabase.SaveAssets();
         if(SceneView.lastActiveSceneView){SceneView.lastActiveSceneView.LookAt(focus,cam.transform.rotation,24,true);SceneView.lastActiveSceneView.Repaint();}
         Debug.Log("MARKET_BUILD_OK | "+world.GetComponentsInChildren<MeshFilter>().Sum(f=>f.sharedMesh.vertexCount)+" vertices | "+world.GetComponentsInChildren<Renderer>().Length+" renderers");
@@ -152,4 +157,3 @@ public static class MarketBuilder
         Debug.Log("MARKET_ANDROID_BUILD_OK "+report.summary.totalSize);
     }
 }
-

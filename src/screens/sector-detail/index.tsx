@@ -12,6 +12,7 @@ import Animated, {
 	withTiming,
 } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
+import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import type {
 	ProductionJob,
 	ProductionRecipe,
@@ -36,11 +37,14 @@ import {
 } from "@/services/production";
 import { useGameStore } from "@/stores/game-store";
 
-type SectorDetailScreenProps = {
+type SectorDetailScreenProps = EmbeddedNavigationProps & {
 	sectorId: string;
 };
 
-export function SectorDetailScreen({ sectorId }: SectorDetailScreenProps) {
+export function SectorDetailScreen({
+	onBack,
+	sectorId,
+}: SectorDetailScreenProps) {
 	const sector = getProductionSector(sectorId);
 
 	if (!sector) {
@@ -48,17 +52,20 @@ export function SectorDetailScreen({ sectorId }: SectorDetailScreenProps) {
 			<View style={styles.notFound}>
 				<GameIcon icon="construction" style={styles.notFoundEmoji} />
 				<Text style={styles.notFoundTitle}>Setor não encontrado</Text>
-				<Pressable onPress={() => router.back()} style={styles.backButton}>
+				<Pressable onPress={onBack ?? router.back} style={styles.backButton}>
 					<Text style={styles.backButtonText}>Voltar aos setores</Text>
 				</Pressable>
 			</View>
 		);
 	}
 
-	return <UnlockedSectorScreen sector={sector} />;
+	return <UnlockedSectorScreen onBack={onBack} sector={sector} />;
 }
 
-function UnlockedSectorScreen({ sector }: { sector: ProductionSector }) {
+function UnlockedSectorScreen({
+	onBack,
+	sector,
+}: EmbeddedNavigationProps & { sector: ProductionSector }) {
 	const [currentTime, setCurrentTime] = useState(Date.now());
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const diamonds = useGameStore((state) => state.logistics.premiumCurrency);
@@ -281,7 +288,10 @@ function UnlockedSectorScreen({ sector }: { sector: ProductionSector }) {
 				<View>
 					<View style={[styles.detailHero, getHeroStyle(sector.id)]}>
 						<View style={styles.detailTopBar}>
-							<Pressable onPress={() => router.back()} style={styles.heroBack}>
+							<Pressable
+								onPress={onBack ?? router.back}
+								style={styles.heroBack}
+							>
 								<Text style={styles.heroBackText}>‹</Text>
 							</Pressable>
 							<Text style={styles.heroEyebrow}>SETOR ESPECIAL</Text>

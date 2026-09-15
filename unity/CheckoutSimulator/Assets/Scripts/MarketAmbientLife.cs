@@ -16,6 +16,7 @@ namespace MarketDay
             {
                 if(!t.name.StartsWith("Anim_")&&!t.name.StartsWith("Worker_"))continue;
                 if(t.name.Contains("Stocker"))continue;
+                if(t.GetComponent<MarketDeliveryWorker>())continue;
                 var limbs=new List<Transform>();
                 foreach(var part in t.GetComponentsInChildren<Transform>())if(part.name.StartsWith("Arm_")||part.name.StartsWith("Leg_"))limbs.Add(part);
                 var a=new Actor{root=t,home=t.position,rotation=t.rotation,limbs=limbs.ToArray(),rest=new Quaternion[limbs.Count]};
@@ -31,11 +32,12 @@ namespace MarketDay
                 var a=actors[i];string n=a.root.name;float t=clock+i*1.73f;
                 if(n.StartsWith("Anim_Door"))
                 {
-                    bool near=false;foreach(Transform person in sim.world)if(person.name.StartsWith("Customer_")&&Vector3.Distance(person.position,new Vector3(-1.75f,.74f,-7.2f))<2.3f){near=true;break;}
+                    bool near=false;foreach(Transform person in sim.world)if(person.gameObject.activeInHierarchy&&person.name.StartsWith("Customer_")&&Mathf.Abs(person.position.x+1.75f)<1.65f&&Mathf.Abs(person.position.z+7.2f)<2.1f){near=true;break;}
                     a.root.position=Vector3.MoveTowards(a.root.position,a.home+Vector3.right*(near?(n.EndsWith("Left")?-1.32f:1.32f):0),Time.deltaTime*2.5f*sim.speed);
                 }
                 else if(n.StartsWith("Anim_Chicken"))
                 {
+                    if(a.root.GetComponent<MarketChickenAnimator>())continue;
                     float step=Mathf.Max(0,Mathf.Sin(t*.7f));
                     a.root.position=a.home+new Vector3(Mathf.Sin(t*.65f)*.16f,Mathf.Abs(Mathf.Sin(t*9))*.024f*step,Mathf.Cos(t*.65f)*.14f);
                     a.root.rotation=a.rotation*Quaternion.Euler(Mathf.Min(0,Mathf.Sin(t*2))*12,Mathf.Sin(t*.65f)*25,0);
@@ -44,6 +46,7 @@ namespace MarketDay
                 {a.root.position=a.home+Vector3.up*Mathf.Sin(t*1.6f)*.012f;a.root.rotation=a.rotation*Quaternion.Euler(0,Mathf.Sin(t*.35f)*3,Mathf.Sin(t*.8f)*.7f);}
                 else if(n.StartsWith("Anim_Truck")&&sim.enabled)
                 {
+                    if(MarketDeliveryWorker.IsUnloading(a.root)){a.root.position=Vector3.MoveTowards(a.root.position,a.home,Time.deltaTime*2*sim.speed);continue;}
                     float incoming=0;foreach(var d in sim.Economy.departments)incoming=Mathf.Max(incoming,d.incoming>0?d.deliveryRemaining:0);
                     a.root.position=Vector3.MoveTowards(a.root.position,a.home+Vector3.forward*Mathf.Clamp(incoming-7,0,5),Time.deltaTime*2*sim.speed);
                 }
@@ -62,4 +65,3 @@ namespace MarketDay
         }
     }
 }
-

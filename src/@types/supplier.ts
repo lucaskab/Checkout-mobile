@@ -5,8 +5,6 @@ export type SupplierProduct = {
 	name: string;
 	category: string;
 	capacity: number;
-	price: number;
-	quantity: number;
 	productionSavingsPercent?: number;
 	shelfTime: string;
 	sellPrice: number;
