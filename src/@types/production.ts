@@ -2,7 +2,9 @@ export type ProductionSectorId =
 	| "padaria"
 	| "queijaria"
 	| "acougue"
-	| "peixaria";
+	| "peixaria"
+	| "bebidas"
+	| "sorvetes";
 
 export type ProductionIngredient = {
 	productId: number;

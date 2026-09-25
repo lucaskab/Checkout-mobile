@@ -17,6 +17,7 @@ const checkoutGlobal = globalThis as CheckoutGlobal;
 
 const panels: SimulatorPanel[] = [
 	"store",
+	"storage",
 	"products",
 	"suppliers",
 	"sectors",

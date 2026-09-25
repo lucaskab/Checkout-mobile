@@ -7,77 +7,113 @@ import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
 import { shelves } from "@/data/market-products";
-import { getShelfSlotIds } from "@/data/shelf-slots";
-import { getNextShelfSlotUpgrade } from "@/data/shelf-capacity";
+import {
+	getNextShelfSlotUpgrade,
+	getNextShelfUnlockUpgrade,
+} from "@/data/shelf-capacity";
+import {
+	getShelfSlotCount,
+	getShelfSlotIds,
+	getUnlockedPhysicalShelfCount,
+	resolveShelfSlotCounts,
+} from "@/data/shelf-slots";
 import { useGameStore } from "@/stores/game-store";
 import { ShelfManagementScreen } from ".";
 
 export function ShelfListScreen() {
 	const state = useGameStore();
 	const { openBottomSheet, closeBottomSheet } = useBottomSheet();
-	const upgrade = getNextShelfSlotUpgrade(state.unlockedShelfSlots);
+	const shelfSlotCounts = resolveShelfSlotCounts(
+		state.shelfSlotCounts,
+		state.unlockedShelfSlots,
+	);
+	const unlockedShelves = getUnlockedPhysicalShelfCount(shelfSlotCounts);
+	const nextShelfUpgrade = getNextShelfUnlockUpgrade(unlockedShelves);
 	return (
 		<LegendList
 			recycleItems={false}
-			data={shelves.slice(0, state.unlockedShelfSlots)}
+			data={shelves.slice(0, unlockedShelves)}
+			extraData={state}
 			keyExtractor={(shelf) => shelf.id}
 			contentContainerStyle={styles.list}
 			ListHeaderComponent={
 				<Text style={styles.subtitle}>
-					Seu mix de produtos, do seu jeito. Cada prateleira tem quatro espaços.
+					Seu mix de produtos, do seu jeito. Cada prateleira começa com quatro
+					espaços.
 				</Text>
 			}
 			ListFooterComponent={
-				upgrade ? (
+				nextShelfUpgrade ? (
 					<GameButton
 						fullWidth
-						label={`Nova prateleira · Nv. ${upgrade.playerLevel} · ${upgrade.coinCost} moedas`}
+						label={`Nova prateleira · Nv. ${nextShelfUpgrade.playerLevel} · ${nextShelfUpgrade.coinCost} moedas`}
 						variant="coin"
 						disabled={
-							state.market.level < upgrade.playerLevel ||
-							state.coins < upgrade.coinCost
+							state.market.level < nextShelfUpgrade.playerLevel ||
+							state.coins < nextShelfUpgrade.coinCost
 						}
-						onPress={() => state.unlockNextShelfSlot()}
+						onPress={() => state.unlockNextShelf()}
 					/>
 				) : null
 			}
-			renderItem={({ item }) => (
-				<View style={styles.card}>
-					<Text style={styles.title}>{item.name}</Text>
-					<View style={styles.row}>
-						{getShelfSlotIds(item.id).map((slotId) => (
-							<View key={slotId} style={styles.slot}>
-								{state.shelfAssignments[slotId] ? (
-									<ProductImage
-										productId={state.shelfAssignments[slotId]!}
-										style={styles.image}
-									/>
-								) : (
-									<GameIcon icon="basket" style={styles.image} />
-								)}
-								<Text style={styles.subtitle}>
-									{state.shelfAssignments[slotId]
-										? `${state.shelfStock[slotId] ?? 0} unid.`
-										: "Livre"}
-								</Text>
-							</View>
-						))}
+			renderItem={({ item }) => {
+				const slotCount = getShelfSlotCount(item.id, shelfSlotCounts);
+				const slotUpgrade = getNextShelfSlotUpgrade(slotCount);
+
+				return (
+					<View style={styles.card}>
+						<Text style={styles.title}>{item.name}</Text>
+						<View style={styles.row}>
+							{getShelfSlotIds(item.id, slotCount).map((slotId) => {
+								const productId = state.shelfAssignments[slotId];
+
+								return (
+									<View key={slotId} style={styles.slot}>
+										{productId ? (
+											<ProductImage
+												productId={productId}
+												style={styles.image}
+											/>
+										) : (
+											<GameIcon icon="basket" style={styles.image} />
+										)}
+										<Text style={styles.subtitle}>
+											{productId
+												? `${state.shelfStock[slotId] ?? 0} unid.`
+												: "Livre"}
+										</Text>
+									</View>
+								);
+							})}
+						</View>
+						<GameButton
+							fullWidth
+							label="Gerenciar prateleira"
+							onPress={() =>
+								openBottomSheet(
+									<ShelfManagementScreen
+										key={item.id}
+										shelfId={item.id}
+										onClose={closeBottomSheet}
+									/>,
+								)
+							}
+						/>
+						{slotUpgrade && (
+							<GameButton
+								fullWidth
+								label={`Expandir slots · Nv. ${slotUpgrade.playerLevel} · ${slotUpgrade.coinCost.toLocaleString("pt-BR")} moedas`}
+								variant="coin"
+								disabled={
+									state.market.level < slotUpgrade.playerLevel ||
+									state.coins < slotUpgrade.coinCost
+								}
+								onPress={() => state.expandShelfSlots(item.id)}
+							/>
+						)}
 					</View>
-					<GameButton
-						fullWidth
-						label="Gerenciar prateleira"
-						onPress={() =>
-							openBottomSheet(
-								<ShelfManagementScreen
-									key={item.id}
-									shelfId={item.id}
-									onClose={closeBottomSheet}
-								/>,
-							)
-						}
-					/>
-				</View>
-			)}
+				);
+			}}
 		/>
 	);
 }

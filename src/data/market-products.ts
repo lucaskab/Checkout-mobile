@@ -98,15 +98,46 @@ const raritySettings: Record<
 	},
 };
 
+const maxSupplierDeliveryLevel = 20;
+const maxSupplierDeliveryProfit = 350;
+
+function getSupplierTime(unlockLevel: number, profitPerUnit: number) {
+	const minMinutes = 3;
+	const maxMinutes = 24 * 60;
+	const levelProgress = Math.min(
+		1,
+		Math.max(0, (unlockLevel - 1) / (maxSupplierDeliveryLevel - 1)),
+	);
+	const profitProgress = Math.min(
+		1,
+		Math.max(0, profitPerUnit / maxSupplierDeliveryProfit),
+	);
+	const deliveryProgress = profitProgress ** 2 * (0.2 + levelProgress * 0.8);
+	const minutes = Math.round(
+		minMinutes + deliveryProgress * (maxMinutes - minMinutes),
+	);
+	const roundedMinutes =
+		minutes < 60
+			? minutes
+			: Math.min(maxMinutes, Math.round(minutes / 15) * 15);
+
+	if (roundedMinutes < 60) {
+		return `${roundedMinutes}m`;
+	}
+
+	const hours = Math.floor(roundedMinutes / 60);
+	const remainingMinutes = roundedMinutes % 60;
+	return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
 function createItem(seed: CatalogSeed): ItemDefinition {
 	const rarity = raritySettings[seed.rarity];
-	const perishable = [
-		"hortifruti",
-		"laticinios",
-		"padaria",
-		"carnes",
-		"frios",
-	].includes(seed.category);
+	const perishable =
+		["hortifruti", "laticinios", "padaria", "carnes", "frios"].includes(
+			seed.category,
+		) ||
+		(seed.acquisition === "production" &&
+			["bebidas", "congelados"].includes(seed.category));
 
 	return {
 		acquisition: seed.acquisition ?? "supplier",
@@ -137,7 +168,10 @@ function createItem(seed: CatalogSeed): ItemDefinition {
 			seed.rarity === "luxo" || seed.rarity === "colecionavel" ? 2 : 1,
 		spoilChance: perishable ? 0.04 + (100 - (seed.demand ?? 50)) / 2500 : 0,
 		supplierQuantity: 1,
-		supplierTime: perishable ? "4m" : "8m",
+		supplierTime: getSupplierTime(
+			seed.unlockLevel,
+			seed.sellingPrice - seed.purchasePrice,
+		),
 		suggestedPrice: seed.sellingPrice,
 		unlockLevel: seed.unlockLevel,
 		visualAttractiveness: rarity.visualAttractiveness,
@@ -925,6 +959,84 @@ const catalogSeeds: CatalogSeed[] = [
 		xpPerSale: 54,
 		acquisition: "production",
 	},
+	{
+		id: 113,
+		name: "Suco gelado da casa",
+		category: "bebidas",
+		purchasePrice: 12,
+		sellingPrice: 25,
+		rarity: "incomum",
+		unlockLevel: 12,
+		demand: 67,
+		popularity: 78,
+		preferredCustomers: ["normal", "familia"],
+		acquisition: "production",
+	},
+	{
+		id: 114,
+		name: "Chá gelado artesanal",
+		category: "bebidas",
+		purchasePrice: 14,
+		sellingPrice: 29,
+		rarity: "raro",
+		unlockLevel: 15,
+		demand: 48,
+		popularity: 75,
+		preferredCustomers: ["normal", "premium"],
+		acquisition: "production",
+	},
+	{
+		id: 115,
+		name: "Vitamina cremosa",
+		category: "bebidas",
+		purchasePrice: 33,
+		sellingPrice: 55,
+		rarity: "epico",
+		unlockLevel: 18,
+		demand: 41,
+		popularity: 84,
+		preferredCustomers: ["familia", "premium"],
+		acquisition: "production",
+	},
+	{
+		id: 116,
+		name: "Sorvete de creme",
+		category: "congelados",
+		purchasePrice: 24,
+		sellingPrice: 43,
+		rarity: "raro",
+		unlockLevel: 24,
+		demand: 69,
+		popularity: 89,
+		preferredCustomers: ["familia", "impulsivo"],
+		acquisition: "production",
+	},
+	{
+		id: 117,
+		name: "Sundae de chocolate",
+		category: "doces",
+		purchasePrice: 55,
+		sellingPrice: 89,
+		rarity: "epico",
+		unlockLevel: 26,
+		demand: 40,
+		popularity: 92,
+		preferredCustomers: ["familia", "premium"],
+		acquisition: "production",
+	},
+	{
+		id: 118,
+		name: "Pote de sorvete família",
+		category: "congelados",
+		purchasePrice: 58,
+		sellingPrice: 98,
+		rarity: "lendario",
+		unlockLevel: 28,
+		demand: 35,
+		popularity: 90,
+		preferredCustomers: ["familia", "premium"],
+		acquisition: "production",
+	},
 ];
 
 const baseItemCatalog = catalogSeeds.map(createItem);
@@ -986,6 +1098,10 @@ function balanceCraftedProductEconomy(catalog: ItemDefinition[]) {
 				profitPerUnit: sellingPrice - productionUnitCost,
 				purchasePrice: productionUnitCost,
 				sellingPrice,
+				supplierTime: getSupplierTime(
+					product.unlockLevel,
+					sellingPrice - productionUnitCost,
+				),
 				suggestedPrice: sellingPrice,
 			};
 		});

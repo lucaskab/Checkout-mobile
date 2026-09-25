@@ -1,9 +1,9 @@
-import type { ShelfSlotUpgrade } from "./shelf-capacity";
+import type { ShelfUnlockUpgrade } from "./shelf-capacity";
 
 export type StoreShelf = {
 	id: string;
 	name?: string;
-	nextSlotUpgrade?: ShelfSlotUpgrade;
+	nextShelfUpgrade?: ShelfUnlockUpgrade;
 	productId?: number;
 	locked?: boolean;
 };

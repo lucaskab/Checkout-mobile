@@ -29,6 +29,14 @@ export const shopItems: ShopItemDefinition[] = [
 		description: "Clientes entram 10% mais rápido.",
 	},
 	{
+		id: "extra-checkout",
+		name: "Caixa Extra",
+		category: "equipamentos",
+		level: 8,
+		coinPrice: 25_000,
+		description: "Abre um segundo caixa com atendente.",
+	},
+	{
 		id: "large-cart",
 		name: "Carrinho Grande",
 		category: "equipamentos",

@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
@@ -11,6 +11,7 @@ type StorefrontHeroProps = {
 	isOpen: boolean;
 	lastExperienceGain: number;
 	onToggle: () => void;
+	onOpenExpansions: () => void;
 	recentUnlocks: string[];
 	unlockedProductCount: number;
 };
@@ -22,6 +23,7 @@ export function StorefrontHero({
 	isOpen,
 	lastExperienceGain,
 	onToggle,
+	onOpenExpansions,
 	recentUnlocks,
 	unlockedProductCount,
 }: StorefrontHeroProps) {
@@ -45,6 +47,18 @@ export function StorefrontHero({
 					</View>
 					<Text style={styles.signTitle}>CHECKOUT MARKET</Text>
 				</View>
+				<Pressable
+					accessibilityLabel="Ver expansões do mercado"
+					accessibilityRole="button"
+					onPress={onOpenExpansions}
+					style={({ pressed }) => [
+						styles.expansionButton,
+						pressed && styles.expansionButtonPressed,
+					]}
+				>
+					<GameIcon icon="construction" style={styles.expansionButtonIcon} />
+					<Text style={styles.expansionButtonText}>EXPANDIR</Text>
+				</Pressable>
 				<View style={[styles.openPill, !isOpen && styles.closedPill]}>
 					<View style={[styles.openDot, !isOpen && styles.closedDot]} />
 					<Text style={[styles.openPillText, !isOpen && styles.closedPillText]}>
@@ -162,6 +176,26 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	closedPill: {
 		backgroundColor: theme.colors["neutral-400"],
+	},
+	expansionButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.35),
+		paddingHorizontal: theme.gap(0.75),
+		paddingVertical: theme.gap(0.5),
+		borderWidth: 1,
+		borderColor: theme.colors["blue-400"],
+		borderRadius: theme.gap(2),
+		backgroundColor: theme.colors["blue-50"],
+	},
+	expansionButtonPressed: { opacity: 0.72 },
+	expansionButtonIcon: { width: 16, height: 16 },
+	expansionButtonText: {
+		color: theme.colors["blue-700"],
+		fontFamily: theme.fonts.family.badge,
+		fontSize: 8,
+		fontWeight: "800",
+		letterSpacing: 0.4,
 	},
 	openDot: {
 		width: theme.gap(0.75),

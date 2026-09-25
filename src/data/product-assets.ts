@@ -1,6 +1,6 @@
 import type { ImageSourcePropType } from "react-native";
 
-const productAssets: Record<number, ImageSourcePropType> = {
+export const productAssets: Record<number, ImageSourcePropType> = {
 	1: require("../../assets/game-art/products/product-001.png"),
 	2: require("../../assets/game-art/products/product-002.png"),
 	3: require("../../assets/game-art/products/product-003.png"),
@@ -58,6 +58,12 @@ const productAssets: Record<number, ImageSourcePropType> = {
 	110: require("../../assets/game-art/products/product-110.png"),
 	111: require("../../assets/game-art/products/product-111.png"),
 	112: require("../../assets/game-art/products/product-112.png"),
+	113: require("../../assets/game-art/products/product-113.png"),
+	114: require("../../assets/game-art/products/product-114.png"),
+	115: require("../../assets/game-art/products/product-115.png"),
+	116: require("../../assets/game-art/products/product-116.png"),
+	117: require("../../assets/game-art/products/product-117.png"),
+	118: require("../../assets/game-art/products/product-118.png"),
 };
 
 export function getProductAsset(productId: number): ImageSourcePropType {

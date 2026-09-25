@@ -11,13 +11,14 @@ import Animated, {
 	useSharedValue,
 	withTiming,
 } from "react-native-reanimated";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import type {
 	ProductionJob,
 	ProductionRecipe,
 	ProductionSector,
 } from "@/@types/production";
+import { useBottomSheetHeaderColor } from "@/components/bottom-sheet";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
@@ -68,6 +69,16 @@ function UnlockedSectorScreen({
 }: EmbeddedNavigationProps & { sector: ProductionSector }) {
 	const [currentTime, setCurrentTime] = useState(Date.now());
 	const [feedback, setFeedback] = useState<string | null>(null);
+	const { theme } = useUnistyles();
+	const heroColors = {
+		acougue: theme.colors["red-100"],
+		bebidas: theme.colors["green-100"],
+		padaria: theme.colors["amber-100"],
+		peixaria: theme.colors["blue-100"],
+		queijaria: theme.colors["violet-100"],
+		sorvetes: theme.colors["violet-100"],
+	};
+	useBottomSheetHeaderColor(heroColors[sector.id]);
 	const diamonds = useGameStore((state) => state.logistics.premiumCurrency);
 	const events = useGameStore((state) => state.events);
 	const inventory = useGameStore((state) => state.inventory);
@@ -472,6 +483,10 @@ function getAmbientCopy(sectorId: ProductionSector["id"]) {
 			return "Bancada preparada · defumador ativo";
 		case "peixaria":
 			return "Balcão a 2°C · frescor garantido";
+		case "bebidas":
+			return "Refrigerador ligado · bebidas fresquinhas";
+		case "sorvetes":
+			return "Freezer a -18°C · sobremesas geladas";
 	}
 }
 
@@ -485,6 +500,10 @@ function getHeroStyle(sectorId: ProductionSector["id"]) {
 			return styles.butcherHero;
 		case "peixaria":
 			return styles.fishHero;
+		case "bebidas":
+			return styles.drinksHero;
+		case "sorvetes":
+			return styles.iceCreamHero;
 	}
 }
 
@@ -498,6 +517,10 @@ function getRecipeAccentStyle(sectorId: ProductionSector["id"]) {
 			return styles.butcherRecipe;
 		case "peixaria":
 			return styles.fishRecipe;
+		case "bebidas":
+			return styles.drinksRecipe;
+		case "sorvetes":
+			return styles.iceCreamRecipe;
 	}
 }
 
@@ -511,6 +534,10 @@ function getButtonStyle(sectorId: ProductionSector["id"]) {
 			return styles.butcherButton;
 		case "peixaria":
 			return styles.fishButton;
+		case "bebidas":
+			return styles.drinksButton;
+		case "sorvetes":
+			return styles.iceCreamButton;
 	}
 }
 
@@ -556,6 +583,8 @@ const styles = StyleSheet.create((theme) => ({
 	cheeseHero: { backgroundColor: theme.colors["violet-100"] },
 	butcherHero: { backgroundColor: theme.colors["red-100"] },
 	fishHero: { backgroundColor: theme.colors["blue-100"] },
+	drinksHero: { backgroundColor: theme.colors["green-100"] },
+	iceCreamHero: { backgroundColor: theme.colors["violet-100"] },
 	detailTopBar: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -803,6 +832,8 @@ const styles = StyleSheet.create((theme) => ({
 	cheeseRecipe: { borderColor: theme.colors["violet-100"] },
 	butcherRecipe: { borderColor: theme.colors["red-200"] },
 	fishRecipe: { borderColor: theme.colors["blue-200"] },
+	drinksRecipe: { borderColor: theme.colors["green-100"] },
+	iceCreamRecipe: { borderColor: theme.colors["violet-100"] },
 	recipeHeader: { flexDirection: "row", alignItems: "center" },
 	productEmojiFrame: {
 		width: theme.gap(5.5),
@@ -981,6 +1012,8 @@ const styles = StyleSheet.create((theme) => ({
 	cheeseButton: { backgroundColor: theme.colors["violet-500"] },
 	butcherButton: { backgroundColor: theme.colors["red-500"] },
 	fishButton: { backgroundColor: theme.colors["blue-500"] },
+	drinksButton: { backgroundColor: theme.colors["green-500"] },
+	iceCreamButton: { backgroundColor: theme.colors["violet-500"] },
 	disabledButton: { backgroundColor: theme.colors["neutral-300"] },
 	pressedButton: { opacity: 0.75 },
 	produceButtonText: {

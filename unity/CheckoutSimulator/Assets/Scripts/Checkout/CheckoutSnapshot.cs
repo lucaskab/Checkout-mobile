@@ -1,6 +1,6 @@
 using System;
 namespace Checkout {
- [Serializable] public class Snapshot { public string kind,session;public int protocol,revision,level,served,experience,experienceToNextLevel,claimableMissions;public double sentAt,coins,diamonds,dailyRevenue,dailyGoal;public bool isOpen,dailyClaimable;public float satisfaction;public Shelf[] shelves;public Sector[] sectors;public Employee[] employees;public Order[] orders;public Job[] jobs;public Customer[] customers;public string[] expansions,ownedItems;public Expansion[] expansionStates;public MarketEvent @event; }
+ [Serializable] public class Snapshot { public MarketLayout layout; public string kind,session;public int protocol,revision,level,served,experience,experienceToNextLevel,claimableMissions;public double sentAt,coins,diamonds,dailyRevenue,dailyGoal;public bool isOpen,dailyClaimable;public float satisfaction;public Shelf[] shelves;public Sector[] sectors;public Employee[] employees;public Order[] orders;public Job[] jobs;public Customer[] customers;public string[] expansions,ownedItems;public Expansion[] expansionStates;public MarketEvent @event; }
  [Serializable] public class Shelf { public string id,name,productName,category;public int productId,stock,reserve,capacity,requiredLevel;public double price,expiresAt;public bool unlocked; }
  [Serializable] public class Sector {public string id,name;public bool unlocked;public int requiredLevel,jobs;}
  [Serializable] public class Expansion {public string id,name;public int requiredLevel;public bool unlocked;}

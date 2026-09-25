@@ -3,7 +3,7 @@ import { employeeDefinitions } from "@/data/employees";
 import { marketExpansions } from "@/data/market-expansions";
 import { itemCatalog } from "@/data/market-products";
 import { productionSectors } from "@/data/production-sectors";
-import { getNextShelfSlotUpgrade } from "@/data/shelf-capacity";
+import { getNextShelfUnlockUpgrade } from "@/data/shelf-capacity";
 import { shopItems } from "@/data/shop-items";
 
 const priority: Record<SimulatorUnlock["type"], number> = {
@@ -17,9 +17,9 @@ const priority: Record<SimulatorUnlock["type"], number> = {
 
 export function getNextSimulatorUnlocks(
 	level: number,
-	unlockedShelfSlots: number,
+	unlockedShelfCount: number,
 ) {
-	const shelf = getNextShelfSlotUpgrade(unlockedShelfSlots);
+	const shelf = getNextShelfUnlockUpgrade(unlockedShelfCount);
 	const candidates: SimulatorUnlock[] = [
 		...productionSectors.map((sector) => ({
 			id: sector.id,
@@ -59,7 +59,7 @@ export function getNextSimulatorUnlocks(
 		...(shelf
 			? [
 					{
-						id: `shelf-${shelf.unlockedSlots}`,
+						id: `shelf-${shelf.unlockedShelves}`,
 						label: "Nova gôndola",
 						panel: "store" as const,
 						requiredLevel: shelf.playerLevel,

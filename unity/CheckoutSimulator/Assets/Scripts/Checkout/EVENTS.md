@@ -23,7 +23,7 @@ restores the original light and ambient colors.
 | caixa-da-sorte | Checkout gift and animated coins |
 | dia-perfeito | Entrance flowers, balloons and warmer sunshine |
 | chuva-forte | Exterior rain, wet pavement, umbrellas and overcast lighting |
-| obras-na-rua | Excavation, rubble, safety cones, barrier and tools |
+| obras-na-rua | Curbside trench in front of the entrance (Blender prop `RoadWorks`): cut asphalt, dirt, sand, pipe, wheelbarrow, cones, barricades and a warning sign; neighborhood cars swerve around it |
 | concorrente-em-promocao | Competitor stall, discount board and balloon |
 | clientes-economicos | Shoppers comparing a checklist and calculator |
 | instabilidade-nos-caixas | Error terminal and repair toolbox |

@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BackgroundMusic } from "@/components/background-music";
 import { BottomSheetProvider } from "@/components/bottom-sheet";
@@ -22,12 +22,14 @@ import { MarketSimulation } from "@/components/market-simulation";
 import { ProductionSimulation } from "@/components/production-simulation";
 import { RevenueCatInitializer } from "@/components/revenue-cat-initializer";
 import { SupplierLogisticsSimulation } from "@/components/supplier-logistics-simulation";
+import { preloadGameImages } from "@/services/image-preloader";
 
 const queryClient = new QueryClient();
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+	const [imagesLoaded, setImagesLoaded] = useState(false);
 	const [fontsLoaded, fontError] = useFonts({
 		Fredoka_600SemiBold,
 		Fredoka_700Bold,
@@ -40,12 +42,16 @@ export default function RootLayout() {
 	});
 
 	useEffect(() => {
-		if (fontsLoaded || fontError) {
+		void preloadGameImages().finally(() => setImagesLoaded(true));
+	}, []);
+
+	useEffect(() => {
+		if ((fontsLoaded || fontError) && imagesLoaded) {
 			SplashScreen.hideAsync();
 		}
-	}, [fontError, fontsLoaded]);
+	}, [fontError, fontsLoaded, imagesLoaded]);
 
-	if (!fontsLoaded && !fontError) {
+	if ((!fontsLoaded && !fontError) || !imagesLoaded) {
 		return null;
 	}
 

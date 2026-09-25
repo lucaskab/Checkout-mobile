@@ -7,7 +7,11 @@ import { GameText as Text } from "@/components/game-text";
 import { employeeDefinitions } from "@/data/employees";
 import { itemCatalog } from "@/data/market-products";
 import { productionSectors } from "@/data/production-sectors";
-import { getNextShelfSlotUpgrade } from "@/data/shelf-capacity";
+import { getNextShelfUnlockUpgrade } from "@/data/shelf-capacity";
+import {
+	getUnlockedPhysicalShelfCount,
+	resolveShelfSlotCounts,
+} from "@/data/shelf-slots";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { useGameStore } from "@/stores/game-store";
 
@@ -25,6 +29,7 @@ export function ProgressionRoadmap({
 	const employees = useGameStore((state) => state.employees.employees);
 	const market = useGameStore((state) => state.market);
 	const offlineSummary = useGameStore((state) => state.offlineSummary);
+	const shelfSlotCounts = useGameStore((state) => state.shelfSlotCounts);
 	const unlockedShelfSlots = useGameStore((state) => state.unlockedShelfSlots);
 	const claimDailyGoal = useGameStore((state) => state.claimDailyGoal);
 	const experienceToNextLevel = getExperienceToNextLevel(market.level);
@@ -43,7 +48,11 @@ export function ProgressionRoadmap({
 			market.level >= definition.level &&
 			!employees.some((employee) => employee.role === definition.id),
 	);
-	const nextShelfSlot = getNextShelfSlotUpgrade(unlockedShelfSlots);
+	const nextShelf = getNextShelfUnlockUpgrade(
+		getUnlockedPhysicalShelfCount(
+			resolveShelfSlotCounts(shelfSlotCounts, unlockedShelfSlots),
+		),
+	);
 
 	function open(path: string) {
 		if (onNavigate) {
@@ -154,10 +163,10 @@ export function ProgressionRoadmap({
 					}
 					onPress={() => open("/team")}
 				/>
-				{nextShelfSlot && (
+				{nextShelf && (
 					<Milestone
 						complete={false}
-						detail={`Nível ${nextShelfSlot.playerLevel}`}
+						detail={`Nível ${nextShelf.playerLevel}`}
 						icon="shelf"
 						label="Abrir nova gôndola"
 						onPress={() => open("/")}

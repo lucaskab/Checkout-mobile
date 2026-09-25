@@ -29,12 +29,19 @@ namespace Checkout {
   public void Receive(string json){try {var next=JsonUtility.FromJson<Snapshot>(json);if(next.kind!="snapshot"||next.protocol!=1||next.shelves==null||next.@event==null)return;
    bool newSession=State==null||State.session!=next.session;if(!newSession&&next.revision<State.revision)return;
    if(newSession){seen.Clear();visits.Clear();if(traffic)traffic.ResetVisits();foreach(var w in walkers)w.CancelVisit();Queue.Clear();}
+   bool parkingOpened=next.layout!=null&&next.layout.parking&&(State?.layout==null||!State.layout.parking);
    if(next.customers!=null)foreach(var customer in next.customers.Reverse())if(seen.Add(customer.id)&&!newSession)visits.Enqueue(customer);
+   // Recent customers are already paid by the app. Replay a short visual arrival when
+   // opening the simulator or unlocking parking; never generate another transaction.
+   if((newSession||parkingOpened)&&next.isOpen&&visits.Count==0&&next.customers!=null)
+    foreach(var customer in next.customers.Take(3).Reverse())visits.Enqueue(customer);
+   // A closed market takes no one new; pending arrivals stay seen so reopening never replays them.
+   if(!next.isOpen)visits.Clear();
    State=next;map.Apply(next);if(seen.Count>2000){seen.Clear();foreach(var c in next.customers??Array.Empty<Customer>())seen.Add(c.id);}
   }catch(Exception ex){Debug.LogError("CHECKOUT_SNAPSHOT_ERROR "+ex.Message);}}
   void Update(){simulation.ExternalCamera();if(State==null){hello+=Time.unscaledDeltaTime;if(hello>1){hello=0;Emit("{\"kind\":\"ready\",\"protocol\":1}");}return;}
    simulation.speed=1;
-   if(visits.Count>0){var walker=NextAvailableWalker();if(walker){if(traffic){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(walkers.All(w=>!w.gameObject.activeSelf||Vector3.Distance(w.transform.position,new Vector3(-1.75f,.3f,-8.7f))>1.5f)){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
+   if(visits.Count>0&&State.isOpen){var walker=NextAvailableWalker();if(walker){if(traffic&&map.HasParking){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(walkers.All(w=>!w.gameObject.activeSelf||Vector3.Distance(w.transform.position,map.Entrance)>1.5f)){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
    if(Input.GetMouseButtonDown(0)){pointerStart=Input.mousePosition;pointerDragged=false;}
    if(Input.touchCount>1||(Input.GetMouseButton(0)&&Vector2.Distance(pointerStart,Input.mousePosition)>10))pointerDragged=true;
    if(Input.GetMouseButtonUp(0)&&!pointerDragged&&UnityEngine.EventSystems.EventSystem.current&&!UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()){
@@ -57,6 +64,7 @@ namespace Checkout {
 #elif UNITY_IOS && !UNITY_EDITOR
    sendMessageToMobileApp(json);
 #else
+   if(CheckoutDesktopHost.Active&&CheckoutDesktopHost.Active.Send(json))return;
    Debug.Log("CHECKOUT_EVENT "+json);
 #endif
   }

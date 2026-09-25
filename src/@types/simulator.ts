@@ -1,6 +1,7 @@
 import type { GameActions, GameState } from "./game";
 export type SimulatorPanel =
 	| "store"
+	| "storage"
 	| "products"
 	| "suppliers"
 	| "sectors"
@@ -46,6 +47,7 @@ export type SimulatorReceipt = {
 	revision: number;
 };
 export type SimulatorSnapshot = {
+	layout: SimulatorLayout;
 	kind: "snapshot";
 	protocol: 1;
 	session: string;
@@ -108,4 +110,15 @@ export type SimulatorSnapshot = {
 		arrivalMultiplier: number;
 		productionMultiplier: number;
 	};
+};
+
+export type SimulatorLayout = {
+	stage: number;
+	widthScale: number;
+	depthScale: number;
+	storage: boolean;
+	parking: boolean;
+	loadingYard: boolean;
+	premium: boolean;
+	sectorIds: string[];
 };

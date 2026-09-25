@@ -10,6 +10,7 @@ namespace Checkout
         public bool IsRevealing=>animating;
         public int RevealCount {get;private set;}
         void Awake(){Cache();}
+        public void RebaseHomes(){Cache();finishedHome=finished.position;if(worker)workerHome=worker.position;animating=false;}
         void Cache(){if(initialized)return;initialized=true;constructionScale=construction.localScale;finishedHome=finished.position;if(worker)workerHome=worker.position;}
         public void Apply(bool next,bool animate)
         {

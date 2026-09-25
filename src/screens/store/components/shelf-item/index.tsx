@@ -70,7 +70,11 @@ export const ShelfItem = ({
 						style={styles.productImage}
 					/>
 				) : (
-					<Text style={styles.product}>＋</Text>
+					<GameIcon
+						accessibilityLabel="Slot livre para adicionar produto"
+						icon="emptyShelfSlot"
+						style={styles.product}
+					/>
 				)}
 
 				{!shelf.locked && hasProduct && (
@@ -96,16 +100,20 @@ export const ShelfItem = ({
 			</View>
 
 			<View style={styles.caption}>
-				{shelf.locked && shelf.nextSlotUpgrade ? (
+				{shelf.locked && shelf.nextShelfUpgrade ? (
 					<View style={styles.captionRow}>
 						<Text numberOfLines={1} style={styles.captionMeta}>
-							Nv.{shelf.nextSlotUpgrade.playerLevel} ·
+							Nv.{shelf.nextShelfUpgrade.playerLevel} ·
 						</Text>
 						<GameIcon icon="coin" style={styles.captionIcon} />
 						<Text numberOfLines={1} style={styles.captionMeta}>
-							{shelf.nextSlotUpgrade.coinCost.toLocaleString("pt-BR")}
+							{shelf.nextShelfUpgrade.coinCost.toLocaleString("pt-BR")}
 						</Text>
 					</View>
+				) : shelf.locked ? (
+					<Text numberOfLines={1} style={styles.captionMeta}>
+						Bloqueado
+					</Text>
 				) : !hasProduct ? (
 					<Text numberOfLines={1} style={styles.captionMeta}>
 						Escolher

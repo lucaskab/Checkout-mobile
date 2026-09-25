@@ -8,20 +8,31 @@ import {
 	productionSectors,
 } from "@/data/production-sectors";
 import {
+	getNextShelfUnlockUpgrade,
 	getShelfCapacity,
-	initialUnlockedShelfSlots,
-	shelfSlotUpgrades,
 } from "@/data/shelf-capacity";
-import { getPhysicalShelfId, getShelfSlotIds } from "@/data/shelf-slots";
+import {
+	getPhysicalShelfId,
+	getShelfSlotCount,
+	getShelfSlotIds,
+	productsPerShelf,
+	resolveShelfSlotCounts,
+} from "@/data/shelf-slots";
 import { getActiveGameEventEffects } from "@/services/game-events";
 import { getClaimableMissionCount } from "@/services/missions";
 import { getExperienceToNextLevel } from "@/services/progression";
+import { getSimulatorLayout } from "@/services/simulator-layout";
 export function createSimulatorSnapshot(
 	state: GameState,
 	session: string,
 	revision: number,
 	now = Date.now(),
 ): SimulatorSnapshot {
+	const layout = getSimulatorLayout(state.unlockedMarketExpansionIds);
+	const shelfSlotCounts = resolveShelfSlotCounts(
+		state.shelfSlotCounts,
+		state.unlockedShelfSlots,
+	);
 	const active =
 		state.events.activeEvent && state.events.activeEvent.endsAt > now
 			? state.events.activeEvent
@@ -29,6 +40,7 @@ export function createSimulatorSnapshot(
 	const event = getGameEvent(active?.eventId),
 		effects = getActiveGameEventEffects(state.events, now);
 	return {
+		layout,
 		kind: "snapshot",
 		protocol: 1,
 		session,
@@ -47,16 +59,17 @@ export function createSimulatorSnapshot(
 		dailyClaimable: state.daily.goalReached && !state.daily.claimed,
 		claimableMissions: getClaimableMissionCount(state),
 		shelves: shelves.map((s, index) => {
-			const slots = getShelfSlotIds(s.id);
-			const firstSlot = slots.find((id) => state.shelfAssignments[id]) ?? s.id;
-			const id = state.shelfAssignments[firstSlot] ?? 0;
+			const slotCount = getShelfSlotCount(s.id, shelfSlotCounts);
+			const slots = getShelfSlotIds(
+				s.id,
+				slotCount > 0 ? slotCount : productsPerShelf,
+			);
+			const firstSlot =
+				slots.find((id) => state.shelfAssignments[id]) ?? slots[0];
+			const id = firstSlot ? (state.shelfAssignments[firstSlot] ?? 0) : 0;
 			const product = itemCatalog.find((p) => p.id === id);
 			const requiredLevel =
-				index < initialUnlockedShelfSlots
-					? 1
-					: (shelfSlotUpgrades.find(
-							(upgrade) => upgrade.unlockedSlots === index + 1,
-						)?.playerLevel ?? 1);
+				index === 0 ? 1 : (getNextShelfUnlockUpgrade(index)?.playerLevel ?? 1);
 			return {
 				id: s.id,
 				name: s.name ?? s.id,
@@ -68,9 +81,12 @@ export function createSimulatorSnapshot(
 					0,
 				),
 				reserve: state.inventory[id] ?? 0,
-				price: state.shelfPrices[firstSlot] ?? product?.sellingPrice ?? 0,
+				price:
+					(firstSlot ? state.shelfPrices[firstSlot] : undefined) ??
+					product?.sellingPrice ??
+					0,
 				capacity: getShelfCapacity(state.shelfUpgradeLevels[s.id] ?? 0),
-				unlocked: index < state.unlockedShelfSlots,
+				unlocked: slotCount > 0,
 				requiredLevel,
 				expiresAt: Math.min(
 					...(state.shelfLots[s.id] ?? []).map(
@@ -105,7 +121,9 @@ export function createSimulatorSnapshot(
 				return {
 					...purchase,
 					shelfId:
-						sector && state.market.level >= sector.requiredLevel
+						sector &&
+						layout.sectorIds.includes(sector.id) &&
+						state.market.level >= sector.requiredLevel
 							? `sector-${sector.id}`
 							: getPhysicalShelfId(purchase.shelfId),
 				};

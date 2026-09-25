@@ -1,4 +1,3 @@
-import { getShelfSlotIds } from "@/data/shelf-slots";
 import { useWindowDimensions, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { StoreShelf } from "@/@types/store";
@@ -6,9 +5,15 @@ import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { itemCatalog } from "@/data/market-products";
 import {
-	getNextShelfSlotUpgrade,
+	getNextShelfUnlockUpgrade,
 	getShelfCapacity,
 } from "@/data/shelf-capacity";
+import {
+	getShelfSlotCount,
+	getShelfSlotIds,
+	getUnlockedPhysicalShelfCount,
+	resolveShelfSlotCounts,
+} from "@/data/shelf-slots";
 import { useGameStore } from "@/stores/game-store";
 import { ShelfItem } from "../shelf-item";
 
@@ -25,41 +30,49 @@ export function ShelfGrid({ onPressShelf, shelves }: ShelfGridProps) {
 	const shelfAssignments = useGameStore((state) => state.shelfAssignments);
 	const shelfStock = useGameStore((state) => state.shelfStock);
 	const shelfPrices = useGameStore((state) => state.shelfPrices);
+	const shelfSlotCounts = useGameStore((state) => state.shelfSlotCounts);
 	const unlockedShelfSlots = useGameStore((state) => state.unlockedShelfSlots);
 	const shelfUpgradeLevels = useGameStore((state) => state.shelfUpgradeLevels);
 	const shelfItemSize = Math.min((width - 96) / SHELF_COLUMNS, 84);
-	const unlockedShelves = shelves.slice(0, unlockedShelfSlots).map((shelf) => {
-		const product = itemCatalog.find(
-			(item) =>
-				item.id ===
-				shelfAssignments[
-					getShelfSlotIds(shelf.id).find((id) => shelfAssignments[id]) ??
-						shelf.id
-				],
-		);
+	const resolvedShelfSlotCounts = resolveShelfSlotCounts(
+		shelfSlotCounts,
+		unlockedShelfSlots,
+	);
+	const unlockedShelves = shelves.slice(
+		0,
+		getUnlockedPhysicalShelfCount(resolvedShelfSlotCounts),
+	);
+	const nextShelfUpgrade = getNextShelfUnlockUpgrade(unlockedShelves.length);
+	const occupiedShelves = unlockedShelves.filter((shelf) =>
+		getShelfSlotIds(
+			shelf.id,
+			getShelfSlotCount(shelf.id, resolvedShelfSlotCounts),
+		).some((slotId) => shelfAssignments[slotId]),
+	).length;
 
-		return {
+	function renderSlot(shelf: StoreShelf, slotId: string) {
+		const product = itemCatalog.find(
+			(item) => item.id === shelfAssignments[slotId],
+		);
+		const slot: StoreShelf = {
 			...shelf,
-			name: product?.name ?? shelf.name,
+			id: slotId,
 			productId: product?.id,
 		};
-	});
-	const nextSlotUpgrade = getNextShelfSlotUpgrade(unlockedShelfSlots);
-	const visibleShelves: StoreShelf[] = [
-		...unlockedShelves,
-		...(nextSlotUpgrade
-			? [
-					{
-						id: "next-shelf-slot",
-						locked: true,
-						nextSlotUpgrade,
-					},
-				]
-			: []),
-	];
-	const occupiedShelves = unlockedShelves.filter((shelf) =>
-		Boolean(shelf.productId),
-	).length;
+
+		return (
+			<ShelfItem
+				availableQuantity={product ? (inventory[product.id] ?? 0) : 0}
+				capacity={getShelfCapacity(shelfUpgradeLevels[shelf.id])}
+				key={slotId}
+				onPress={() => onPressShelf(shelf)}
+				price={shelfPrices[slotId] ?? product?.sellingPrice}
+				shelf={slot}
+				shelfQuantity={shelfStock[slotId] ?? 0}
+				size={shelfItemSize}
+			/>
+		);
+	}
 
 	return (
 		<View style={styles.card}>
@@ -70,7 +83,7 @@ export function ShelfGrid({ onPressShelf, shelves }: ShelfGridProps) {
 						<Text style={styles.title}>Minhas Gôndolas</Text>
 					</View>
 					<Text style={styles.subtitle}>
-						Cada prateleira tem 4 espaços. Toque para gerenciar.
+						Cada prateleira começa com 4 espaços. Toque para gerenciar.
 					</Text>
 				</View>
 				<View style={styles.occupancyBadge}>
@@ -80,25 +93,34 @@ export function ShelfGrid({ onPressShelf, shelves }: ShelfGridProps) {
 				</View>
 			</View>
 			<View style={styles.unit}>
-				<View style={styles.grid}>
-					{visibleShelves.map((shelf) => (
+				{unlockedShelves.map((shelf) => (
+					<View key={shelf.id} style={styles.shelfSection}>
+						<Text style={styles.shelfTitle}>{shelf.name}</Text>
+						<View style={styles.grid}>
+							{getShelfSlotIds(
+								shelf.id,
+								getShelfSlotCount(shelf.id, resolvedShelfSlotCounts),
+							).map((slotId) => renderSlot(shelf, slotId))}
+						</View>
+					</View>
+				))}
+				{nextShelfUpgrade && (
+					<View style={styles.nextSlot}>
 						<ShelfItem
-							availableQuantity={
-								shelf.productId ? (inventory[shelf.productId] ?? 0) : 0
-							}
-							capacity={getShelfCapacity(shelfUpgradeLevels[shelf.id]) * 4}
-							key={shelf.id}
+							availableQuantity={0}
+							capacity={0}
+							key="next-shelf-slot"
 							onPress={onPressShelf}
-							price={shelfPrices[shelf.id]}
-							shelf={shelf}
-							shelfQuantity={getShelfSlotIds(shelf.id).reduce(
-								(total, id) => total + (shelfStock[id] ?? 0),
-								0,
-							)}
+							shelf={{
+								id: "next-shelf-slot",
+								locked: true,
+								nextShelfUpgrade,
+							}}
+							shelfQuantity={0}
 							size={shelfItemSize}
 						/>
-					))}
-				</View>
+					</View>
+				)}
 			</View>
 		</View>
 	);
@@ -167,9 +189,16 @@ const styles = StyleSheet.create((theme) => ({
 		borderRadius: theme.gap(1.75),
 		backgroundColor: theme.colors["neutral-200"],
 	},
+	shelfSection: { gap: theme.gap(0.375) },
+	shelfTitle: {
+		color: theme.colors["neutral-600"],
+		fontSize: 10,
+		fontWeight: "800",
+	},
 	grid: {
 		flexDirection: "row",
 		flexWrap: "wrap",
 		columnGap: theme.gap(0.75),
 	},
+	nextSlot: { marginTop: theme.gap(0.75) },
 }));

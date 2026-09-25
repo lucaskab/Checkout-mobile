@@ -7,6 +7,7 @@ namespace MarketDay
     {
         public Animation animationPlayer;
         public bool CarryingBasket {get;set;}
+        public bool Busy=>actionRemaining>0;
         public float walkCycleDistance=.733f;
         Vector3 previous; float walkPhase; string current; float actionRemaining;
         MarketSimulation simulation; GameObject handledItem; float actionLength;
@@ -24,10 +25,10 @@ namespace MarketDay
             }
             previous=transform.position;current=null;actionRemaining=0;}
         void Start(){simulation=FindAnyObjectByType<MarketSimulation>();if(!animationPlayer)animationPlayer=GetComponentInChildren<Animation>();}
-        public float Perform(string clip)
+        public float Perform(string clip,bool counted=true)
         {
             if(!animationPlayer||!animationPlayer[clip]){Debug.LogError("Missing character clip: "+name+" / "+clip);return 2;}
-            if(clip=="GetFromShelf")shelfActions++;if(clip=="BuyAtSpecialSector")sectorActions++;if(clip=="PayAtCheckout")paymentActions++;
+            if(counted){if(clip=="GetFromShelf")shelfActions++;if(clip=="BuyAtSpecialSector")sectorActions++;if(clip=="PayAtCheckout")paymentActions++;}
             current=clip;animationPlayer[clip].time=0;animationPlayer.CrossFade(clip,.16f);
             actionRemaining=actionLength=animationPlayer[clip].length;
             if(!handledItem)

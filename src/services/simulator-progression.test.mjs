@@ -11,7 +11,7 @@ test("prioritizes major gameplay unlocks at the next level", () => {
 });
 
 test("keeps shelf expansion in the shared level roadmap", () => {
-	const unlocks = getNextSimulatorUnlocks(2, 4);
+	const unlocks = getNextSimulatorUnlocks(2, 1);
 
 	expect(unlocks).toEqual(
 		expect.arrayContaining([

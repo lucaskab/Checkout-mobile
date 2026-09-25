@@ -20,6 +20,9 @@ MODELS = {'DeliveryTruck': 'delivery truck', 'DisplayShelf': 'display shelf',
           'CartoonCar': 'cartoon car', 'StylizedBuilding': 'stylized building',
           'StylizedCar': 'stylized car', 'StylizedHouse': 'stylized house', 'ToyVan': 'toy van', 'BeverageShelf':'beverage shelf', 'GroceryShelf':'grocery shelf', 'GroceryDisplay':'grocery display', 'CheckoutWoman':'cartoon character checkout', 'GirlCustomer':'stylized girl customer', 'ConstructionPlatform':'construction platform', 'PickupBed':'pickup bed', 'PlaygroundForge':'playground forge', 'Sandbox':'sandbox', 'BakeryConstruction':'bakery construction', 'CheeseryConstruction':'cheesery construction', 'ButcheryConstruction':'butchery construction', 'FishConstruction':'fish construction'}
 SOURCES.mkdir(parents=True, exist_ok=True)
+MODELS.update({'Hospital': 'hospital building', 'Pharmacy': 'pharmacy', 'Gym': 'gym building'})
+MODELS.update({'AmusementPark': 'amusement park', 'TrafficLight': 'traffic light'})
+MODELS.update({'Refrigerator': 'refrigerator', 'IceCreamFreezer': 'ice cream freezer'})
 selected = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else list(MODELS)
 for name in selected:
     source = MODELS[name]

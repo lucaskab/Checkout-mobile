@@ -6,6 +6,10 @@ Shader "MarketDay/City Tiles"
         _LoadingAccessEnabled ("Loading yard entrance", Float) = 0
         _LoadingAccess ("Loading entrance center and half size", Vector) = (9.5,26,5,1.5)
         _WideStreets ("Wide city streets", Float) = 0
+        _ExpansionProjection ("Project purchased market areas", Float) = 0
+        _ExpansionFeatures ("Storage parking loading premium", Vector) = (1,1,1,1)
+        _ParkingSpaces ("Purchased parking spaces", Float) = 5
+        _MarketFootprint ("Market center and half size", Vector) = (0,0,9.4,7.4)
         _Color ("Pavement tint", Color) = (0.72,0.75,0.78,1)
     }
     SubShader
@@ -18,6 +22,9 @@ Shader "MarketDay/City Tiles"
         sampler2D _MainTex;
         fixed4 _Color;
         float _WideStreets;
+        float _ParkingSpaces;
+        float _ExpansionProjection;
+        float4 _ExpansionFeatures, _MarketFootprint;
         float _LoadingAccessEnabled;
         float4 _LoadingAccess;
         struct Input { float2 uv_MainTex; float3 worldPos; float4 tileData; };
@@ -117,6 +124,12 @@ Shader "MarketDay/City Tiles"
                 float crossE=step(abs(world.y),1.25)*step(abs(world.x-23.5),2.7);
                 float crossN=step(abs(world.x+4),1.25)*step(abs(world.y-30),2.7);
                 float crossS=step(abs(world.x+1.75),1.25)*step(abs(world.y+15.5),2.7);
+                float cornerZ=min(min(abs(world.y+21),abs(world.y+10)),min(abs(world.y-24.5),abs(world.y-35.5)));
+                float cornerX=min(abs(abs(world.x)-29),abs(abs(world.x)-18));
+                crossV=max(crossV,step(cornerZ,.8)*step(abs(world.x+23.5),3));
+                crossE=max(crossE,step(cornerZ,.8)*step(abs(world.x-23.5),3));
+                crossN=max(crossN,step(cornerX,.8)*step(abs(world.y-30),3));
+                crossS=max(crossS,step(cornerX,.8)*step(abs(world.y+15.5),3));
                 float markings=max(dashV,dashH);
                 markings=lerp(markings,step(.40,frac(world.x/ .7)),max(crossV,crossE));
                 markings=lerp(markings,step(.40,frac(world.y/ .7)),max(crossN,crossS));
@@ -128,6 +141,31 @@ Shader "MarketDay/City Tiles"
                 color=lerp(color,asphalt,loadingAccess);
                 float loadingCross=loadingAccess*step(loadingDelta.y,.7)*step(.42,frac((world.x-_LoadingAccess.x)/.9));
                 color=lerp(color,float3(.79,.78,.70),loadingCross);
+            }
+            if(_ExpansionProjection>.5)
+            {
+                // The whole market block uses the same gray square paving as the surrounding city
+                // blocks. Purchased areas draw only their own surfaces below, so the old painted
+                // tiles never show through as loose asphalt patches around the building.
+                float block=step(abs(world.x),19)*step(abs(world.y-6.5),19);
+                float2 pavementUV=(float2(854,482)+frac(world/4)*float2(344,332))/1254;
+                float3 pavement=tex2D(_MainTex,pavementUV).rgb*_Color.rgb;
+                // Keep only the painted plaza stones of the purchased park.
+                float plaza=step(abs(kind-3),.5)*step(abs(world.x+14.1),4.6)*step(abs(world.y-21),4)*_ExpansionFeatures.w;
+                color=lerp(color,pavement,block*(1-plaza));
+                // These connections remain public even while the surrounding lots are locked.
+                float frontWalk=step(abs(world.y+11.5),1)*step(abs(world.x),20.4);
+                float2 slab=abs(frac(world)-.5);
+                float joints=smoothstep(.475,.495,max(slab.x,slab.y));
+                color=lerp(color,lerp(float3(.43,.45,.44),float3(.30,.32,.31),joints*.35),frontWalk);
+                float entranceDrive=step(abs(world.x+11.2),2.2)*step(abs(world.y+12),4)*_ExpansionFeatures.y;
+                float lotEnd=-5.5+max(0,_ParkingSpaces-1)*4+2;
+                float lot=step(abs(world.x+14.1),4.6)*step(-7.5,world.y)*step(world.y,lotEnd)*_ExpansionFeatures.y;
+                // Loading yard apron under the truck bays, joined to the north street entrance.
+                float yard=step(abs(world.x-9.25),6.95)*step(abs(world.y-20.35),5.15)*_ExpansionFeatures.z;
+                color=lerp(color,asphalt,max(max(entranceDrive,lot),yard));
+                float crossing=entranceDrive*step(abs(world.y+11.5),.8)*step(.4,frac(world.x/.7));
+                color=lerp(color,float3(.79,.78,.70),crossing);
             }
             o.Albedo=color;
             o.Alpha=1;

@@ -1,6 +1,6 @@
 import type { ImageSourcePropType } from "react-native";
 
-const gameIconAssets = {
+export const gameIconAssets = {
 	aiBrain: require("../../assets/game-art/icons/ai-brain.png"),
 	bank: require("../../assets/game-art/icons/bank.png"),
 	banner: require("../../assets/game-art/icons/banner.png"),
@@ -22,6 +22,7 @@ const gameIconAssets = {
 	diamond: require("../../assets/game-art/icons/diamond.png"),
 	distributionCenter: require("../../assets/game-art/icons/distribution-center.png"),
 	drone: require("../../assets/game-art/icons/drone.png"),
+	emptyShelfSlot: require("../../assets/game-art/icons/empty-shelf-slot.png"),
 	festival: require("../../assets/game-art/icons/festival.png"),
 	flame: require("../../assets/game-art/icons/flame.png"),
 	forklift: require("../../assets/game-art/icons/forklift.png"),
@@ -252,9 +253,11 @@ export const marketCategoryProductIds: Record<string, number> = {
 
 export const productionSectorProductIds: Record<string, number> = {
 	acougue: 27,
+	bebidas: 113,
 	padaria: 101,
 	peixaria: 44,
 	queijaria: 104,
+	sorvetes: 116,
 };
 
 export const currencySectionIcons: Record<string, GameIconId> = {

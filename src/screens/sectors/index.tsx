@@ -159,6 +159,10 @@ function getSectorCardStyle(sectorId: ProductionSector["id"]) {
 			return styles.butcherCard;
 		case "peixaria":
 			return styles.fishCard;
+		case "bebidas":
+			return styles.drinksCard;
+		case "sorvetes":
+			return styles.iceCreamCard;
 	}
 }
 
@@ -172,6 +176,10 @@ function getSectorIconStyle(sectorId: ProductionSector["id"]) {
 			return styles.butcherIcon;
 		case "peixaria":
 			return styles.fishIcon;
+		case "bebidas":
+			return styles.drinksIcon;
+		case "sorvetes":
+			return styles.iceCreamIcon;
 	}
 }
 
@@ -296,6 +304,14 @@ const styles = StyleSheet.create((theme) => ({
 		borderColor: theme.colors["blue-200"],
 		backgroundColor: theme.colors["blue-50"],
 	},
+	drinksCard: {
+		borderColor: theme.colors["green-100"],
+		backgroundColor: theme.colors["green-50"],
+	},
+	iceCreamCard: {
+		borderColor: theme.colors["violet-100"],
+		backgroundColor: theme.colors["violet-50"],
+	},
 	pressedCard: { opacity: 0.75, transform: [{ scale: 0.99 }] },
 	lockedCard: { opacity: 0.58 },
 	cardHeader: { flexDirection: "row", alignItems: "center" },
@@ -310,6 +326,8 @@ const styles = StyleSheet.create((theme) => ({
 	cheeseIcon: { backgroundColor: theme.colors["violet-100"] },
 	butcherIcon: { backgroundColor: theme.colors["red-100"] },
 	fishIcon: { backgroundColor: theme.colors["blue-100"] },
+	drinksIcon: { backgroundColor: theme.colors["green-100"] },
+	iceCreamIcon: { backgroundColor: theme.colors["violet-100"] },
 	sectorImage: { width: 44, height: 44 },
 	cardTitleCopy: { flex: 1, marginLeft: theme.gap(1.25) },
 	sectorName: {

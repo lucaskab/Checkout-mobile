@@ -3,21 +3,29 @@ import {
 	BottomSheetProvider as NativeBottomSheetProvider,
 } from "@swmansion/react-native-bottom-sheet";
 import {
+	cloneElement,
 	createContext,
+	type Dispatch,
+	isValidElement,
 	type ReactNode,
+	type SetStateAction,
 	useContext,
+	useEffect,
 	useRef,
 	useState,
 } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { useGameStore } from "@/stores/game-store";
 
 type BottomSheetContextValue = {
 	closeBottomSheet: () => void;
 	openBottomSheet: (content: ReactNode) => void;
+	setHeaderColor: Dispatch<SetStateAction<string>>;
 };
 
 const BottomSheetContext = createContext<BottomSheetContextValue | null>(null);
+const DEFAULT_HEADER_COLOR = "#FFFFFF";
 
 type BottomSheetProviderProps = {
 	children: ReactNode;
@@ -26,21 +34,43 @@ type BottomSheetProviderProps = {
 export function BottomSheetProvider({ children }: BottomSheetProviderProps) {
 	const [content, setContent] = useState<ReactNode>(null);
 	const [index, setIndex] = useState(0);
+	const [headerColor, setHeaderColor] = useState(DEFAULT_HEADER_COLOR);
 	const isOpenRef = useRef(false);
+
+	useEffect(
+		() =>
+			useGameStore.subscribe(() => {
+				if (!isOpenRef.current) {
+					return;
+				}
+
+				setContent((currentContent) =>
+					isValidElement(currentContent)
+						? cloneElement(currentContent)
+						: currentContent,
+				);
+			}),
+		[],
+	);
 
 	function openBottomSheet(bottomSheetContent: ReactNode) {
 		isOpenRef.current = true;
+		setHeaderColor(DEFAULT_HEADER_COLOR);
 		setContent(bottomSheetContent);
 		setIndex(1);
 	}
 
 	function closeBottomSheet() {
 		isOpenRef.current = false;
+		setHeaderColor(DEFAULT_HEADER_COLOR);
 		setIndex(0);
 	}
 
 	function handleIndexChange(nextIndex: number) {
 		isOpenRef.current = nextIndex > 0;
+		if (nextIndex === 0) {
+			setHeaderColor(DEFAULT_HEADER_COLOR);
+		}
 		setIndex(nextIndex);
 	}
 
@@ -51,7 +81,9 @@ export function BottomSheetProvider({ children }: BottomSheetProviderProps) {
 	}
 
 	return (
-		<BottomSheetContext.Provider value={{ closeBottomSheet, openBottomSheet }}>
+		<BottomSheetContext.Provider
+			value={{ closeBottomSheet, openBottomSheet, setHeaderColor }}
+		>
 			<NativeBottomSheetProvider>
 				{children}
 				<ModalBottomSheet
@@ -60,7 +92,15 @@ export function BottomSheetProvider({ children }: BottomSheetProviderProps) {
 					onIndexChange={handleIndexChange}
 					onSettle={handleSettle}
 					scrimColor="rgba(0, 0, 0, 0.32)"
-					surface={<View style={[StyleSheet.absoluteFill, styles.surface]} />}
+					surface={
+						<View
+							style={[
+								StyleSheet.absoluteFill,
+								styles.surface,
+								{ backgroundColor: headerColor },
+							]}
+						/>
+					}
 				>
 					<View style={styles.content}>
 						<View style={styles.indicator} />
@@ -82,6 +122,14 @@ export function useBottomSheet() {
 	return context;
 }
 
+export function useBottomSheetHeaderColor(color: string) {
+	const { setHeaderColor } = useBottomSheet();
+
+	useEffect(() => {
+		setHeaderColor(color);
+	}, [color, setHeaderColor]);
+}
+
 const styles = StyleSheet.create({
 	content: {
 		paddingTop: 12,
@@ -98,6 +146,5 @@ const styles = StyleSheet.create({
 	surface: {
 		borderTopLeftRadius: 24,
 		borderTopRightRadius: 24,
-		backgroundColor: "#FFFFFF",
 	},
 });

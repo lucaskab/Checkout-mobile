@@ -13,10 +13,12 @@ import {
 import { useGameStore } from "@/stores/game-store";
 
 type InventoryCapacitySheetProps = {
+	onClose?: () => void;
 	product: ItemDefinition;
 };
 
 export function InventoryCapacitySheet({
+	onClose,
 	product,
 }: InventoryCapacitySheetProps) {
 	const { closeBottomSheet } = useBottomSheet();
@@ -51,6 +53,15 @@ export function InventoryCapacitySheet({
 				? `Alcance o nível ${nextUpgrade.playerLevel} para ampliar este estoque.`
 				: "Você não tem moedas suficientes para esta ampliação.",
 		);
+	}
+
+	function close() {
+		if (onClose) {
+			onClose();
+			return;
+		}
+
+		closeBottomSheet();
 	}
 
 	return (
@@ -111,7 +122,7 @@ export function InventoryCapacitySheet({
 				</Text>
 			)}
 			{feedback && <Text style={styles.feedback}>{feedback}</Text>}
-			<Pressable onPress={closeBottomSheet} style={styles.closeButton}>
+			<Pressable onPress={close} style={styles.closeButton}>
 				<Text style={styles.closeButtonText}>Concluir</Text>
 			</Pressable>
 		</View>

@@ -2,7 +2,7 @@ import UnityView from "@azesmway/react-native-unity";
 import { LegendList } from "@legendapp/list/react-native";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet } from "react-native-unistyles";
 import type { ProductionSector } from "@/@types/production";
@@ -14,7 +14,6 @@ import { GameText as Text } from "@/components/game-text";
 import type { GameIconId } from "@/data/game-icon-assets";
 import { AchievementsScreen } from "@/screens/achievements";
 import { CurrencyStoreScreen } from "@/screens/currency-store";
-import { ExpansionsScreen } from "@/screens/expansions";
 import { MissionsScreen } from "@/screens/missions";
 import { ProductsScreen } from "@/screens/products";
 import { SectorDetailScreen } from "@/screens/sector-detail";
@@ -22,6 +21,8 @@ import { SectorsScreen } from "@/screens/sectors";
 import { ShelfManagementScreen } from "@/screens/shelf-management";
 import { ShelfListScreen } from "@/screens/shelf-management/shelf-list";
 import { ShopScreen } from "@/screens/shop";
+import { getStorageSheetDetent, StorageScreen } from "@/screens/storage";
+import { MarketExpansionsSheet } from "@/screens/store/components/market-expansions-sheet";
 import { SuppliersScreen } from "@/screens/suppliers";
 import { TeamScreen } from "@/screens/team";
 import { useGameStore } from "@/stores/game-store";
@@ -37,6 +38,7 @@ const entries: {
 }[] = [
 	{ id: "store", label: "Prateleiras", icon: "shelf", requiredLevel: 1 },
 	{ id: "products", label: "Estoque", icon: "basket", requiredLevel: 1 },
+	{ id: "storage", label: "Depósito", icon: "warehouse", requiredLevel: 1 },
 	{
 		id: "suppliers",
 		label: "Entregas",
@@ -46,7 +48,12 @@ const entries: {
 	{ id: "sectors", label: "Produção", icon: "market", requiredLevel: 2 },
 	{ id: "team", label: "Equipe", icon: "computer", requiredLevel: 2 },
 	{ id: "shop", label: "Melhorias", icon: "toolbox", requiredLevel: 2 },
-	{ id: "expansions", label: "Expansões", icon: "market", requiredLevel: 4 },
+	{
+		id: "expansions",
+		label: "Expansões",
+		icon: "construction",
+		requiredLevel: 4,
+	},
 	{ id: "missions", label: "Missões", icon: "trophy", requiredLevel: 1 },
 	{
 		id: "achievements",
@@ -59,6 +66,7 @@ const entries: {
 export function SimulatorScreen() {
 	const [shelfId, setShelfId] = useState<string | null>(null);
 	const [sectorId, setSectorId] = useState<ProductionSector["id"] | null>(null);
+	const { height: windowHeight } = useWindowDimensions();
 	const { openBottomSheet, closeBottomSheet } = useBottomSheet();
 	useEffect(() => {
 		if (!shelfId) return;
@@ -83,8 +91,12 @@ export function SimulatorScreen() {
 		);
 		setSectorId(null);
 	}, [sectorId, openBottomSheet, closeBottomSheet]);
-	const [menuOpen, setMenuOpen] = useState(false);
 	const [panel, setPanel] = useState<SimulatorPanel | null>(null);
+	useEffect(() => {
+		if (panel !== "expansions") return;
+		openBottomSheet(<MarketExpansionsSheet />);
+		setPanel(null);
+	}, [panel, openBottomSheet]);
 	const unityRef = useRef<UnityView>(null);
 	const { status, onUnityMessage } = useSimulator(
 		unityRef,
@@ -105,11 +117,12 @@ export function SimulatorScreen() {
 
 	function openPanel(nextPanel: SimulatorPanel) {
 		setPanel(nextPanel);
-		setMenuOpen(false);
 	}
 
 	function renderPanel() {
 		switch (panel) {
+			case "storage":
+				return <StorageScreen presentation="inline" />;
 			case "store":
 				return <ShelfListScreen />;
 			case "products":
@@ -122,8 +135,6 @@ export function SimulatorScreen() {
 				return <TeamScreen onBack={closePanel} />;
 			case "shop":
 				return <ShopScreen />;
-			case "expansions":
-				return <ExpansionsScreen onBack={closePanel} />;
 			case "missions":
 				return <MissionsScreen onBack={closePanel} />;
 			case "achievements":
@@ -136,6 +147,7 @@ export function SimulatorScreen() {
 	}
 
 	const panelContent = renderPanel();
+	const isStoragePanel = panel === "storage";
 	return (
 		<View style={styles.root}>
 			<StatusBar animated hidden />
@@ -156,38 +168,39 @@ export function SimulatorScreen() {
 					pointerEvents={panelContent ? "none" : "box-none"}
 					style={styles.controls}
 				>
-					<View style={[styles.topHud, { top: insets.top + 8 }]}>
-						<GameModeToggle />
-						<View style={styles.playerStats}>
-							<CurrencyChip icon="coin" value={coins} />
-							<CurrencyChip icon="diamond" value={diamonds} />
-						</View>
-					</View>
-					<View style={[styles.progressHud, { top: insets.top + 62 }]}>
-						<SimulatorProgress onOpenPanel={openPanel} />
-					</View>
 					<View
 						pointerEvents="box-none"
-						style={[styles.eventHud, { top: insets.top + 124 }]}
+						style={[styles.hud, { top: insets.top + 8 }]}
 					>
-						<SimulatorEvent />
+						<View style={styles.topHud}>
+							<GameModeToggle />
+							<View style={styles.playerStats}>
+								<CurrencyChip icon="coin" value={coins} />
+								<CurrencyChip icon="diamond" value={diamonds} />
+							</View>
+						</View>
+						<SimulatorProgress onOpenPanel={openPanel} />
+						<View pointerEvents="box-none" style={styles.statusRow}>
+							<View pointerEvents="box-none" style={styles.eventHud}>
+								<SimulatorEvent />
+							</View>
+							<Pressable
+								accessibilityRole="button"
+								accessibilityLabel={opened ? "Fechar mercado" : "Abrir mercado"}
+								onPress={() => setOpen(!opened)}
+								style={({ pressed }) => [
+									styles.marketButton,
+									opened && styles.openMarketButton,
+									pressed && styles.pressedMarketButton,
+								]}
+							>
+								<GameIcon icon="market" style={styles.marketButtonIcon} />
+								<Text style={styles.marketButtonText}>
+									{opened ? "Fechar" : "Abrir"}
+								</Text>
+							</Pressable>
+						</View>
 					</View>
-					<Pressable
-						accessibilityRole="button"
-						accessibilityLabel={opened ? "Fechar mercado" : "Abrir mercado"}
-						onPress={() => setOpen(!opened)}
-						style={({ pressed }) => [
-							styles.marketButton,
-							{ top: insets.top + 124 },
-							opened && styles.openMarketButton,
-							pressed && styles.pressedMarketButton,
-						]}
-					>
-						<GameIcon icon="market" style={styles.marketButtonIcon} />
-						<Text style={styles.marketButtonText}>
-							{opened ? "Fechar" : "Abrir"}
-						</Text>
-					</Pressable>
 					{status !== "ready" && (
 						<View style={styles.notice}>
 							<Text style={styles.noticeTitle}>
@@ -209,7 +222,7 @@ export function SimulatorScreen() {
 							contentContainerStyle={styles.toolbarContent}
 							horizontal
 							recycleItems
-							data={menuOpen ? entries : entries.slice(0, 5)}
+							data={entries}
 							keyExtractor={(e) => e.id}
 							renderItem={({ item }) => {
 								const locked = level < item.requiredLevel;
@@ -242,29 +255,32 @@ export function SimulatorScreen() {
 							showsHorizontalScrollIndicator={false}
 							style={styles.toolbarList}
 						/>
-						<Pressable
-							accessibilityRole="button"
-							accessibilityLabel={menuOpen ? "Recolher ações" : "Mais ações"}
-							accessibilityState={{ expanded: menuOpen }}
-							onPress={() => setMenuOpen(!menuOpen)}
-							style={styles.tool}
-						>
-							<GameIcon
-								icon={menuOpen ? "controller" : "toolbox"}
-								style={styles.toolIcon}
-							/>
-							<Text style={styles.toolText}>{menuOpen ? "Menos" : "Mais"}</Text>
-						</Pressable>
 					</View>
 				</View>
 			</View>
+			{panelContent && isStoragePanel && (
+				<Pressable
+					accessibilityRole="button"
+					accessibilityLabel="Fechar depósito"
+					onPress={closePanel}
+					style={styles.storageScrim}
+				/>
+			)}
 			{panelContent && (
 				<View
 					style={[
 						styles.panel,
-						{ top: insets.top + 8, paddingBottom: insets.bottom },
+						isStoragePanel && styles.storagePanel,
+						{
+							top: isStoragePanel ? undefined : insets.top + 8,
+							height: isStoragePanel
+								? getStorageSheetDetent(windowHeight)
+								: undefined,
+							paddingBottom: insets.bottom,
+						},
 					]}
 				>
+					{isStoragePanel && <View style={styles.storageHandle} />}
 					<View style={styles.panelHeader}>
 						<Text style={styles.panelTitle}>
 							{entries.find((e) => e.id === panel)?.label}
@@ -309,23 +325,24 @@ const styles = StyleSheet.create((theme) => ({
 	overlay: { flex: 1 },
 	controls: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
 	spacer: { flex: 1 },
-	topHud: {
+	hud: {
 		position: "absolute",
-		top: 0,
-		left: 0,
-		right: 0,
-		paddingHorizontal: theme.gap(1),
+		left: theme.gap(1),
+		right: theme.gap(1),
+		gap: theme.gap(0.5),
+	},
+	topHud: {
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "space-between",
 		gap: theme.gap(0.5),
 	},
-	eventHud: { position: "absolute", left: theme.gap(1), right: theme.gap(10) },
-	progressHud: {
-		position: "absolute",
-		left: theme.gap(1),
-		right: theme.gap(1),
+	statusRow: {
+		flexDirection: "row",
+		alignItems: "flex-start",
+		gap: theme.gap(0.5),
 	},
+	eventHud: { flex: 1 },
 	buttonText: {
 		fontFamily: theme.fonts.family.badge,
 		fontSize: 11,
@@ -352,13 +369,10 @@ const styles = StyleSheet.create((theme) => ({
 	currencyIcon: { width: 19, height: 19 },
 	currencyValue: {
 		fontFamily: theme.fonts.family.numberBold,
-		fontSize: 12,
+		fontSize: 13,
 		color: theme.colors["neutral-700"],
 	},
 	marketButton: {
-		position: "absolute",
-		right: theme.gap(1),
-		top: 112,
 		alignItems: "center",
 		gap: theme.gap(0.25),
 		paddingHorizontal: theme.gap(0.875),
@@ -380,7 +394,7 @@ const styles = StyleSheet.create((theme) => ({
 	marketButtonIcon: { width: 28, height: 28 },
 	marketButtonText: {
 		fontFamily: theme.fonts.family.badge,
-		fontSize: 10,
+		fontSize: 11,
 		color: theme.colors["neutral-0"],
 	},
 	panelButton: {
@@ -425,11 +439,15 @@ const styles = StyleSheet.create((theme) => ({
 	toolIcon: { width: 27, height: 27 },
 	toolText: {
 		fontFamily: theme.fonts.family.badge,
-		fontSize: 9,
+		fontSize: 10,
 		color: theme.colors["neutral-700"],
 		textAlign: "center",
 	},
-	lockedTool: { opacity: 0.82 },
+	lockedTool: {
+		opacity: 0.6,
+		borderColor: theme.colors["neutral-200"],
+		backgroundColor: theme.colors["neutral-200"],
+	},
 	toolLock: {
 		position: "absolute",
 		top: -5,
@@ -449,7 +467,7 @@ const styles = StyleSheet.create((theme) => ({
 	toolLockIcon: { width: 11, height: 11 },
 	toolLockText: {
 		fontFamily: theme.fonts.family.numberBold,
-		fontSize: 8,
+		fontSize: 9,
 		color: theme.colors["neutral-800"],
 	},
 	notice: {
@@ -483,6 +501,27 @@ const styles = StyleSheet.create((theme) => ({
 		borderTopRightRadius: 22,
 		borderWidth: 2,
 		borderColor: theme.colors["neutral-300"],
+	},
+	storageScrim: {
+		position: "absolute",
+		top: 0,
+		left: 0,
+		right: 0,
+		bottom: 0,
+		backgroundColor: "rgba(0, 0, 0, 0.32)",
+	},
+	storagePanel: {
+		zIndex: 10,
+		maxHeight: "90%",
+		paddingTop: theme.gap(0.75),
+	},
+	storageHandle: {
+		alignSelf: "center",
+		width: 36,
+		height: 4,
+		marginBottom: theme.gap(0.5),
+		borderRadius: 999,
+		backgroundColor: theme.colors["neutral-400"],
 	},
 	panelHeader: {
 		flexDirection: "row",

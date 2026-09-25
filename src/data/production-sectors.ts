@@ -36,6 +36,15 @@ export const productionSectors: ProductionSector[] = [
 	},
 	{
 		description:
+			"Prepare bebidas geladas e combinações exclusivas no refrigerador.",
+		id: "bebidas",
+		name: "Bebidas",
+		requiredLevel: 12,
+		slotCount: 2,
+		subtitle: "Sucos & bebidas geladas",
+	},
+	{
+		description:
 			"Uma bancada gelada para receitas frescas e pratos de alto prestígio.",
 
 		id: "peixaria",
@@ -43,6 +52,15 @@ export const productionSectors: ProductionSector[] = [
 		requiredLevel: 16,
 		slotCount: 3,
 		subtitle: "Pescados & frutos do mar",
+	},
+	{
+		description:
+			"Produza sorvetes artesanais e sobremesas para a vitrine fria.",
+		id: "sorvetes",
+		name: "Sorvetes",
+		requiredLevel: 24,
+		slotCount: 3,
+		subtitle: "Sorvetes & sobremesas",
 	},
 ];
 
@@ -192,6 +210,79 @@ export const productionRecipes: ProductionRecipe[] = [
 		outputQuantity: 3,
 		requiredLevel: 22,
 		sectorId: "peixaria",
+	},
+	{
+		durationMs: 90_000,
+		id: "suco-gelado",
+		ingredients: [
+			{ productId: 13, quantity: 2 },
+			{ productId: 21, quantity: 1 },
+		],
+		outputProductId: 113,
+		outputQuantity: 4,
+		requiredLevel: 12,
+		sectorId: "bebidas",
+	},
+	{
+		durationMs: 180_000,
+		id: "cha-gelado",
+		ingredients: [
+			{ productId: 16, quantity: 2 },
+			{ productId: 21, quantity: 1 },
+		],
+		outputProductId: 114,
+		outputQuantity: 4,
+		requiredLevel: 15,
+		sectorId: "bebidas",
+	},
+	{
+		durationMs: 300_000,
+		id: "vitamina-cremosa",
+		ingredients: [
+			{ productId: 5, quantity: 2 },
+			{ productId: 8, quantity: 1 },
+			{ productId: 13, quantity: 1 },
+		],
+		outputProductId: 115,
+		outputQuantity: 3,
+		requiredLevel: 18,
+		sectorId: "bebidas",
+	},
+	{
+		durationMs: 180_000,
+		id: "sorvete-creme",
+		ingredients: [
+			{ productId: 5, quantity: 2 },
+			{ productId: 8, quantity: 1 },
+		],
+		outputProductId: 116,
+		outputQuantity: 4,
+		requiredLevel: 24,
+		sectorId: "sorvetes",
+	},
+	{
+		durationMs: 360_000,
+		id: "sundae-chocolate",
+		ingredients: [
+			{ productId: 116, quantity: 2 },
+			{ productId: 24, quantity: 1 },
+		],
+		outputProductId: 117,
+		outputQuantity: 3,
+		requiredLevel: 26,
+		sectorId: "sorvetes",
+	},
+	{
+		durationMs: 600_000,
+		id: "pote-sorvete-familia",
+		ingredients: [
+			{ productId: 116, quantity: 2 },
+			{ productId: 113, quantity: 1 },
+		],
+		outputProductId: 118,
+		outputQuantity: 3,
+		requiredLevel: 28,
+		sectorId: "sorvetes",
 	},
 ];
 

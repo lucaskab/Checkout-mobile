@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.AI;
@@ -97,24 +98,50 @@ namespace MarketDay
             return new Walker{root=root,limbs=limbs.ToArray(),worker=worker,baseline=root.position,cart=cart,radius=agent.radius,agent=agent};
         }
         NavMeshDataInstance navigation;
+        Checkout.MarketLayout marketLayout=new Checkout.MarketLayout();
+        public void RebuildLayoutNavigation(Checkout.MarketLayout layout)
+        {
+            marketLayout=layout;
+            obstacles.Clear();
+            var slots=world.GetComponentInChildren<Checkout.CheckoutShelfSlots>();
+            if(slots)foreach(Transform slot in slots.transform)if(slot.gameObject.activeSelf)
+            {
+                var p=Checkout.CheckoutMarketLayout.Project(Checkout.CheckoutShelfSlots.Position(slot.name),layout);
+                Block(p.x,p.z,2.05f*layout.widthScale,1.4f*layout.depthScale);
+            }
+            var register=Checkout.CheckoutMarketLayout.CheckoutPoint(new Vector3(-3.9f,.74f,-4.7f),layout);
+            Block(register.x,register.z,2.6f*layout.widthScale,1.6f*layout.depthScale);
+            foreach(Transform sector in world)if(sector.name.StartsWith("Sector_")&&(layout.sectorIds==null||Array.IndexOf(layout.sectorIds,sector.name.Substring(7))>=0))
+                foreach(var renderer in sector.GetComponentsInChildren<Renderer>(true))if(renderer.enabled){var b=renderer.bounds;Block(b.center.x,b.center.z,b.size.x,b.size.z);}
+            var pedestrians=FindObjectsByType<NavMeshAgent>().Where(a=>a.isOnNavMesh&&!a.GetComponent<Checkout.CheckoutWalker>()).Select(a=>(agent:a,position:a.nextPosition,destination:a.destination,moving:a.hasPath)).ToArray();
+            BuildNavigation();
+            foreach(var pedestrian in pedestrians)if(NavMesh.SamplePosition(pedestrian.position,out var hit,2,NavMesh.AllAreas))
+            {pedestrian.agent.Warp(hit.position);if(pedestrian.moving)pedestrian.agent.SetDestination(pedestrian.destination);}
+        }
         void BuildNavigation()
         {
             var sources=new List<NavMeshBuildSource>();
             void Box(Vector3 center,Vector3 size,int area,Quaternion rotation){sources.Add(new NavMeshBuildSource{shape=NavMeshBuildSourceShape.Box,transform=Matrix4x4.TRS(center,rotation,Vector3.one),size=size,area=area});}
-            Box(new Vector3(0,.64f,0),new Vector3(18,.2f,14),0,Quaternion.identity);
-            Box(new Vector3(-1.75f,.345f,-8.825f),new Vector3(2.8f,.2f,3.6f),0,Quaternion.Euler(-9.44f,0,0));
-            Box(new Vector3(4,.37f,7.8f),new Vector3(1.1f,.2f,2.2f),0,Quaternion.Euler(20,0,0));
-            Box(new Vector3(4,.05f,13.2f),new Vector3(1.1f,.2f,9.4f),0,Quaternion.identity);
+            var anchor=Checkout.CheckoutMarketLayout.Anchor;
+            var layoutMatrix=Matrix4x4.Translate(anchor)*Matrix4x4.Scale(new Vector3(marketLayout.widthScale,1,marketLayout.depthScale))*Matrix4x4.Translate(-anchor);
+            void Interior(Vector3 center,Vector3 size,Quaternion rotation){sources.Add(new NavMeshBuildSource{shape=NavMeshBuildSourceShape.Box,transform=layoutMatrix*Matrix4x4.TRS(center,rotation,Vector3.one),size=size,area=0});}
+            Interior(new Vector3(0,.64f,0),new Vector3(18,.2f,14),Quaternion.identity);
+            Interior(new Vector3(-1.75f,.345f,-8.825f),new Vector3(2.8f,.2f,3.6f),Quaternion.Euler(-9.44f,0,0));
+            Interior(new Vector3(4,.37f,7.8f),new Vector3(1.1f,.2f,2.2f),Quaternion.Euler(20,0,0));
+            var rear=Checkout.CheckoutMarketLayout.Project(new Vector3(4,.05f,8.8f),marketLayout);
+            Box(new Vector3(rear.x,.05f,(rear.z+17.9f)*.5f),new Vector3(1.3f,.2f,17.9f-rear.z),0,Quaternion.identity);
             // Outdoor customers use the same sidewalk surfaces as city pedestrians.
             // Do not bake the vehicle aisle: it creates shortcuts through parking bays.
             if(FindAnyObjectByType<Checkout.CheckoutCityTraffic>())
-                for(int bay=0;bay<3;bay++)Box(new Vector3(-17.1f,.05f,Checkout.CheckoutCityTraffic.BayZ(bay)-1.9f),new Vector3(5.4f,.2f,1.3f),0,Quaternion.identity);
+                for(int bay=0;bay<(marketLayout.stage>=3?5:3);bay++)Box(new Vector3(-17.1f,.05f,Checkout.CheckoutCityTraffic.BayZ(bay)-1.9f),new Vector3(5.4f,.2f,1.3f),0,Quaternion.identity);
             var streets=FindAnyObjectByType<Checkout.CheckoutCityStreets>();
             if(streets)streets.AddNavigation(sources);
             foreach(var r in obstacles)Box(new Vector3(r.center.x,1.5f,r.center.y),new Vector3(r.width,3,r.height),1,Quaternion.identity);
             var settings=NavMesh.GetSettingsByID(0);settings.agentRadius=.28f;settings.agentHeight=2.3f;settings.agentClimb=.3f;settings.agentSlope=45;settings.overrideVoxelSize=true;settings.voxelSize=.075f;
-            var data=NavMeshBuilder.BuildNavMeshData(settings,sources,new Bounds(new Vector3(0,0,8),new Vector3(80,12,80)),Vector3.zero,Quaternion.identity);
-            if(data==null)throw new InvalidOperationException("Navigation surface could not be built.");navigation=NavMesh.AddNavMeshData(data);
+            var navigationBounds=streets?streets.cityBounds:new Bounds(new Vector3(0,0,8),new Vector3(80,12,80));
+            navigationBounds.Expand(new Vector3(4,12,4));
+            var data=NavMeshBuilder.BuildNavMeshData(settings,sources,navigationBounds,Vector3.zero,Quaternion.identity);
+            if(data==null)throw new InvalidOperationException("Navigation surface could not be built.");if(navigation.valid)navigation.Remove();navigation=NavMesh.AddNavMeshData(data);
         }
         void OnDestroy(){if(navigation.valid)navigation.Remove();}
         void Block(float x,float z,float w,float d){obstacles.Add(new Rect(x-w/2,z-d/2,w,d));}

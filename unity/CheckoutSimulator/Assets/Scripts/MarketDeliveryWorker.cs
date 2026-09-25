@@ -14,7 +14,7 @@ namespace MarketDay
             public double endsAt;
         }
 
-        public enum DeliveryPhase { Waiting, ToTruck, Pickup, ToStorage, PutDown }
+        public enum DeliveryPhase { Waiting, ToTruck, Pickup, ToStorage, PutDown, Returning }
         public Animation animationPlayer;
         public Transform truck, leftHand, rightHand, cargo, storageDoor;
         public Vector3 truckHome, pickupPoint;
@@ -22,7 +22,7 @@ namespace MarketDay
         public float walkSpeed = 1.25f;
         public DeliveryPhase Phase { get; private set; }
         public int CompletedDeliveries { get; private set; }
-        public bool HoldingTruck => Phase != DeliveryPhase.Waiting;
+        public bool HoldingTruck => Phase != DeliveryPhase.Waiting && Phase != DeliveryPhase.Returning;
         public bool Carrying { get; private set; }
         public Vector3 LastDropPosition { get; private set; }
 
@@ -30,12 +30,23 @@ namespace MarketDay
         readonly HashSet<Transform> reservedTrucks = new HashSet<Transform>();
         MarketSimulation simulation;
         Transform cargoParent;
+        Renderer[] bodyRenderers;
         Vector3 cargoScale, pickupLocalPosition;
         float clock;
         int waypoint;
         string currentClip;
         bool released;
         double deliveryEndsAt;
+
+        public void SetDestination(Vector3 doorstep, Vector3[] path)
+        {
+            storageDoor.position = doorstep;
+            route = path;
+            if (Phase == DeliveryPhase.ToTruck) waypoint = 0;
+            else if (Phase == DeliveryPhase.ToStorage) waypoint = route.Length - 2;
+            else if (Phase == DeliveryPhase.Returning) waypoint = Mathf.Min(waypoint, route.Length - 1);
+            else if (Phase == DeliveryPhase.Waiting) transform.position = route[0];
+        }
 
         public bool QueueDelivery(Transform candidate, Vector3 home, double endsAt = double.PositiveInfinity)
         {
@@ -65,6 +76,9 @@ namespace MarketDay
             cargoScale = cargo.localScale;
             pickupLocalPosition = truck ? truck.InverseTransformPoint(pickupPoint) : Vector3.zero;
             cargo.gameObject.SetActive(false);
+            // Off shift the worker is out of sight; they come out of the door when a truck needs unloading.
+            bodyRenderers = Array.FindAll(GetComponentsInChildren<Renderer>(true), r => !r.transform.IsChildOf(cargo));
+            SetVisible(false);
             Play("Idle");
         }
 
@@ -74,7 +88,7 @@ namespace MarketDay
             float dt = Time.deltaTime * rate;
             if (animationPlayer && currentClip != null) animationPlayer[currentClip].speed = rate;
             if (dt <= 0 || !storageDoor || route == null || route.Length == 0) return;
-            if (Phase != DeliveryPhase.Waiting && DeliveryTimeHasElapsed())
+            if (Phase != DeliveryPhase.Waiting && Phase != DeliveryPhase.Returning && DeliveryTimeHasElapsed())
             {
                 FinishDelivery();
                 return;
@@ -135,6 +149,15 @@ namespace MarketDay
                         BeginAnotherUnloadTrip();
                     }
                     break;
+                case DeliveryPhase.Returning:
+                    // Walk back along the route and go in through the door before disappearing.
+                    if (Move(route[Mathf.Max(0, waypoint)], dt, false) && --waypoint < 0)
+                    {
+                        Phase = DeliveryPhase.Waiting;
+                        Play("Idle");
+                        SetVisible(deliveries.Count > 0);
+                    }
+                    break;
             }
         }
 
@@ -158,6 +181,7 @@ namespace MarketDay
             Carrying = false;
             cargo.gameObject.SetActive(false);
             Phase = DeliveryPhase.ToTruck;
+            SetVisible(true);
         }
 
         void BeginAnotherUnloadTrip()
@@ -179,9 +203,17 @@ namespace MarketDay
             reservedTrucks.Remove(truck);
             truck = null;
             deliveryEndsAt = double.PositiveInfinity;
-            Phase = DeliveryPhase.Waiting;
+            // Heading out, the next target is behind the worker; heading in, it is still ahead.
+            if (Phase == DeliveryPhase.ToTruck) waypoint--;
+            else if (Phase == DeliveryPhase.Pickup) waypoint = route.Length - 2;
+            else if (Phase == DeliveryPhase.PutDown) waypoint = -1;
+            Phase = DeliveryPhase.Returning;
             clock = 0;
-            Play("Idle");
+        }
+
+        void SetVisible(bool visible)
+        {
+            foreach (var body in bodyRenderers) if (body) body.enabled = visible;
         }
 
         bool DeliveryTimeHasElapsed()

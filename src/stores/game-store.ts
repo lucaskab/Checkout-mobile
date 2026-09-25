@@ -11,6 +11,7 @@ import type {
 	GameMarketState,
 	GameShelfAssignments,
 	GameShelfPrices,
+	GameShelfSlotCounts,
 	GameShelfStock,
 	GameShelfUpgradeLevels,
 	GameState,
@@ -39,6 +40,7 @@ import {
 	initialShelfAssignments,
 	itemCatalog,
 	marketProducts,
+	shelves,
 } from "@/data/market-products";
 import { getMission } from "@/data/missions";
 import {
@@ -48,13 +50,18 @@ import {
 import {
 	getNextShelfCapacityUpgrade,
 	getNextShelfSlotUpgrade,
+	getNextShelfUnlockUpgrade,
 	getShelfCapacity,
 	initialUnlockedShelfSlots,
-	normalizeUnlockedShelfSlots,
 } from "@/data/shelf-capacity";
 import {
 	getPhysicalShelfId,
+	getShelfSlotCount,
+	getTotalUnlockedShelfSlots,
+	getUnlockedPhysicalShelfCount,
 	isShelfSlotUnlocked,
+	normalizeShelfSlotCounts,
+	resolveShelfSlotCounts,
 	shelfProductSlots,
 } from "@/data/shelf-slots";
 import { shopItems } from "@/data/shop-items";
@@ -141,6 +148,11 @@ const initialShelfPrices: GameShelfPrices = Object.fromEntries(
 	marketProducts.flatMap((product) =>
 		product.shelfId ? [[product.shelfId, product.sellingPrice]] : [],
 	),
+);
+
+const initialShelfSlotCounts = normalizeShelfSlotCounts(
+	undefined,
+	initialUnlockedShelfSlots,
 );
 
 const initialShelfUpgradeLevels: GameShelfUpgradeLevels = {};
@@ -237,6 +249,7 @@ const initialGameState: GameState = {
 	shelfLots: initialShelfLots,
 	shelfStock: initialShelfStock,
 	shelfPrices: initialShelfPrices,
+	shelfSlotCounts: initialShelfSlotCounts,
 	unlockedShelfSlots: initialUnlockedShelfSlots,
 	shelfUpgradeLevels: initialShelfUpgradeLevels,
 	statistics: initialStatistics,
@@ -301,6 +314,7 @@ function getInitialGameState(): GameState {
 		shelfLots: { ...initialGameState.shelfLots },
 		shelfStock: { ...initialGameState.shelfStock },
 		shelfPrices: { ...initialGameState.shelfPrices },
+		shelfSlotCounts: { ...initialGameState.shelfSlotCounts },
 		unlockedShelfSlots: initialGameState.unlockedShelfSlots,
 		shelfUpgradeLevels: { ...initialGameState.shelfUpgradeLevels },
 		statistics: { ...initialGameState.statistics },
@@ -322,9 +336,11 @@ function migrateGameState(persistedState: unknown): GameState {
 		state.events as Partial<GameEventsState> | undefined,
 	);
 	const employees = normalizeEmployeesState(state.employees);
-	const unlockedShelfSlots = normalizeUnlockedShelfSlots(
+	const shelfSlotCounts = normalizeShelfSlotCounts(
+		state.shelfSlotCounts,
 		state.unlockedShelfSlots,
 	);
+	const unlockedShelfSlots = getTotalUnlockedShelfSlots(shelfSlotCounts);
 	const shelfAssignments = normalizeShelfAssignments(state.shelfAssignments);
 	const normalizedShelfState = normalizeShelfState(
 		{
@@ -336,7 +352,7 @@ function migrateGameState(persistedState: unknown): GameState {
 			...state.inventory,
 		},
 		shelfUpgradeLevels,
-		unlockedShelfSlots,
+		shelfSlotCounts,
 		shelfAssignments,
 	);
 	const inventoryLots = normalizeInventoryLots(
@@ -463,6 +479,7 @@ function migrateGameState(persistedState: unknown): GameState {
 		shelfLots,
 		shelfStock: normalizedShelfState.shelfStock,
 		shelfPrices,
+		shelfSlotCounts,
 		unlockedShelfSlots,
 		shelfUpgradeLevels,
 		statistics,
@@ -1193,7 +1210,6 @@ export const useGameStore = create<GameStore>()(
 					shelfStock,
 					shelfUpgradeLevels,
 					statistics,
-					unlockedShelfSlots,
 				} = get();
 				const shopEffects = getShopEffects(get().shop.ownedItemIds);
 				const restockAmount = Math.ceil(
@@ -1206,7 +1222,9 @@ export const useGameStore = create<GameStore>()(
 				}
 
 				const targetShelf = shelfProductSlots
-					.filter((shelf) => isShelfUnlocked(shelf.id, unlockedShelfSlots))
+					.filter((shelf) =>
+						isShelfUnlocked(shelf.id, getCurrentShelfSlotCounts(get())),
+					)
 					.filter((shelf) => shelfAssignments[shelf.id])
 					.sort((left, right) => {
 						const leftCapacity = getShelfCapacity(
@@ -1604,7 +1622,6 @@ export const useGameStore = create<GameStore>()(
 					shelfPrices,
 					shelfStock,
 					shop,
-					unlockedShelfSlots,
 				} = get();
 				const now = Date.now();
 				const daily = normalizeDailyState(get().daily, market.level, now);
@@ -1620,7 +1637,9 @@ export const useGameStore = create<GameStore>()(
 				}
 
 				const availableProducts = shelfProductSlots
-					.filter((shelf) => isShelfUnlocked(shelf.id, unlockedShelfSlots))
+					.filter((shelf) =>
+						isShelfUnlocked(shelf.id, getCurrentShelfSlotCounts(get())),
+					)
 					.flatMap((shelf) => {
 						const productId = shelfAssignments[shelf.id];
 						const product = itemCatalog.find((item) => item.id === productId);
@@ -1785,7 +1804,6 @@ export const useGameStore = create<GameStore>()(
 					shelfAssignments,
 					shelfPrices,
 					shelfStock,
-					unlockedShelfSlots,
 				} = get();
 				const product = itemCatalog.find((item) => item.id === productId);
 				const isAssignedElsewhere = Object.entries(shelfAssignments).some(
@@ -1796,7 +1814,7 @@ export const useGameStore = create<GameStore>()(
 				if (
 					!product ||
 					!market.unlockedProductIds.includes(productId) ||
-					!isShelfUnlocked(shelfId, unlockedShelfSlots) ||
+					!isShelfUnlocked(shelfId, getCurrentShelfSlotCounts(get())) ||
 					isAssignedElsewhere ||
 					(!replace && (shelfStock[shelfId] ?? 0) > 0)
 				) {
@@ -1857,14 +1875,13 @@ export const useGameStore = create<GameStore>()(
 					shelfAssignments,
 					shelfLots,
 					shelfStock,
-					unlockedShelfSlots,
 				} = get();
 				const productId = shelfAssignments[shelfId];
 				const quantity = shelfStock[shelfId] ?? 0;
 
 				if (
 					!productId ||
-					!isShelfUnlocked(shelfId, unlockedShelfSlots) ||
+					!isShelfUnlocked(shelfId, getCurrentShelfSlotCounts(get())) ||
 					!canAddToInventory(
 						productId,
 						quantity,
@@ -1919,7 +1936,6 @@ export const useGameStore = create<GameStore>()(
 					shelfStock,
 					shelfUpgradeLevels,
 					statistics,
-					unlockedShelfSlots,
 				} = get();
 				const availableQuantity = inventory[productId] ?? 0;
 				const currentQuantity = shelfStock[shelfId] ?? 0;
@@ -1929,7 +1945,7 @@ export const useGameStore = create<GameStore>()(
 
 				if (
 					shelfAssignments[shelfId] !== productId ||
-					!isShelfUnlocked(shelfId, unlockedShelfSlots)
+					!isShelfUnlocked(shelfId, getCurrentShelfSlotCounts(get()))
 				) {
 					return false;
 				}
@@ -2150,40 +2166,92 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
-			unlockNextShelfSlot: () => {
-				const { coins, market, unlockedShelfSlots } = get();
-				const nextUpgrade = getNextShelfSlotUpgrade(unlockedShelfSlots);
+			unlockNextShelf: () => {
+				const state = get();
+				const shelfSlotCounts = getCurrentShelfSlotCounts(state);
+				const unlockedShelves = getUnlockedPhysicalShelfCount(shelfSlotCounts);
+				const nextUpgrade = getNextShelfUnlockUpgrade(unlockedShelves);
+				const nextShelf = shelves[unlockedShelves];
 
 				if (
 					!nextUpgrade ||
-					market.level < nextUpgrade.playerLevel ||
-					coins < nextUpgrade.coinCost
+					!nextShelf ||
+					state.market.level < nextUpgrade.playerLevel ||
+					state.coins < nextUpgrade.coinCost
 				) {
 					return false;
 				}
 
+				const nextShelfSlotCounts = {
+					...shelfSlotCounts,
+					[nextShelf.id]: initialUnlockedShelfSlots,
+				};
+
 				set({
-					coins: coins - nextUpgrade.coinCost,
-					unlockedShelfSlots: nextUpgrade.unlockedSlots,
+					coins: state.coins - nextUpgrade.coinCost,
+					shelfSlotCounts: nextShelfSlotCounts,
+					unlockedShelfSlots: getTotalUnlockedShelfSlots(nextShelfSlotCounts),
 				});
 
 				return true;
 			},
-			unlockMarketExpansion: (expansionId) => {
-				const { coins, market, unlockedMarketExpansionIds } = get();
+			unlockNextShelfSlot: () => get().unlockNextShelf(),
+			expandShelfSlots: (shelfId) => {
+				const state = get();
+				const physicalShelfId = getPhysicalShelfId(shelfId);
+				const shelfSlotCounts = getCurrentShelfSlotCounts(state);
+				const currentSlotCount = getShelfSlotCount(
+					physicalShelfId,
+					shelfSlotCounts,
+				);
+				const nextUpgrade = getNextShelfSlotUpgrade(currentSlotCount);
+
+				if (
+					currentSlotCount <= 0 ||
+					!nextUpgrade ||
+					state.market.level < nextUpgrade.playerLevel ||
+					state.coins < nextUpgrade.coinCost
+				) {
+					return false;
+				}
+
+				const nextShelfSlotCounts = {
+					...shelfSlotCounts,
+					[physicalShelfId]: nextUpgrade.unlockedSlots,
+				};
+
+				set({
+					coins: state.coins - nextUpgrade.coinCost,
+					shelfSlotCounts: nextShelfSlotCounts,
+					unlockedShelfSlots: getTotalUnlockedShelfSlots(nextShelfSlotCounts),
+				});
+
+				return true;
+			},
+			unlockMarketExpansion: (expansionId, currency = "coins") => {
+				const { coins, logistics, market, unlockedMarketExpansionIds } = get();
 				const expansion = getMarketExpansion(expansionId);
 
 				if (
 					!expansion ||
 					unlockedMarketExpansionIds.includes(expansionId) ||
 					market.level < expansion.requiredLevel ||
-					coins < expansion.coinCost
+					(currency === "coins" && coins < expansion.coinCost) ||
+					(currency === "diamonds" &&
+						logistics.premiumCurrency < expansion.diamondCost)
 				) {
 					return false;
 				}
 
 				set({
-					coins: coins - expansion.coinCost,
+					coins: currency === "coins" ? coins - expansion.coinCost : coins,
+					logistics: {
+						...logistics,
+						premiumCurrency:
+							currency === "diamonds"
+								? logistics.premiumCurrency - expansion.diamondCost
+								: logistics.premiumCurrency,
+					},
 					unlockedMarketExpansionIds: [
 						...unlockedMarketExpansionIds,
 						expansionId,
@@ -2231,7 +2299,9 @@ export const useGameStore = create<GameStore>()(
 				});
 			},
 			upgradeShelfCapacity: (shelfId, currency) => {
-				if (!isShelfUnlocked(shelfId, get().unlockedShelfSlots)) return false;
+				if (!isShelfUnlocked(shelfId, getCurrentShelfSlotCounts(get()))) {
+					return false;
+				}
 				shelfId = getPhysicalShelfId(shelfId);
 				const { coins, logistics, market, shelfUpgradeLevels } = get();
 				const upgradeLevel = shelfUpgradeLevels[shelfId] ?? 0;
@@ -2270,18 +2340,22 @@ export const useGameStore = create<GameStore>()(
 		}),
 		{
 			migrate: (persistedState, version) => {
-				// Adding empty product slots must not re-normalize an existing player's progress.
+				// Convert the legacy global slot count into complete physical shelves.
 				if (version === 28) {
 					const state = persistedState as GameState;
-					return {
+					return migrateGameState({
 						...state,
+						// This field did not exist in v28. Ignore the current in-memory
+						// default when tests or a hot reload provide one alongside the
+						// legacy total slot count.
+						shelfSlotCounts: undefined,
 						shelfAssignments: {
 							...Object.fromEntries(
 								shelfProductSlots.map((slot) => [slot.id, null]),
 							),
 							...state.shelfAssignments,
 						},
-					};
+					});
 				}
 				return migrateGameState(persistedState);
 			},
@@ -2307,6 +2381,7 @@ export const useGameStore = create<GameStore>()(
 				shelfLots,
 				shelfStock,
 				shelfPrices,
+				shelfSlotCounts,
 				unlockedShelfSlots,
 				shelfUpgradeLevels,
 				statistics,
@@ -2331,12 +2406,13 @@ export const useGameStore = create<GameStore>()(
 				shelfLots,
 				shelfStock,
 				shelfPrices,
+				shelfSlotCounts,
 				unlockedShelfSlots,
 				shelfUpgradeLevels,
 				statistics,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
-			version: 29,
+			version: 30,
 		},
 	),
 );
@@ -2345,7 +2421,7 @@ function normalizeShelfState(
 	shelfStock: GameShelfStock,
 	inventory: GameInventory,
 	shelfUpgradeLevels: GameShelfUpgradeLevels,
-	unlockedShelfSlots: number,
+	shelfSlotCounts: GameShelfSlotCounts,
 	shelfAssignments: GameShelfAssignments,
 ) {
 	const nextInventory = { ...inventory };
@@ -2360,7 +2436,7 @@ function normalizeShelfState(
 			continue;
 		}
 
-		if (!isShelfUnlocked(shelf.id, unlockedShelfSlots)) {
+		if (!isShelfUnlocked(shelf.id, shelfSlotCounts)) {
 			nextShelfStock[shelf.id] = 0;
 			nextInventory[productId] =
 				(nextInventory[productId] ?? 0) + shelfQuantity;
@@ -2516,8 +2592,20 @@ function normalizeShelfAssignments(
 	return nextAssignments;
 }
 
-function isShelfUnlocked(shelfId: string, unlockedShelfSlots: number) {
-	return isShelfSlotUnlocked(shelfId, unlockedShelfSlots);
+function getCurrentShelfSlotCounts(
+	state: Pick<GameState, "shelfSlotCounts" | "unlockedShelfSlots">,
+) {
+	return resolveShelfSlotCounts(
+		state.shelfSlotCounts,
+		state.unlockedShelfSlots,
+	);
+}
+
+function isShelfUnlocked(
+	shelfId: string,
+	shelfSlotCounts: GameShelfSlotCounts | number,
+) {
+	return isShelfSlotUnlocked(shelfId, shelfSlotCounts);
 }
 
 function canAddToInventory(

@@ -5,6 +5,10 @@ import type { SimulatorPanel } from "@/@types/simulator";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { itemCatalog } from "@/data/market-products";
+import {
+	getUnlockedPhysicalShelfCount,
+	resolveShelfSlotCounts,
+} from "@/data/shelf-slots";
 import { getClaimableMissionCount } from "@/services/missions";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getNextSimulatorUnlocks } from "@/services/simulator-progression";
@@ -23,7 +27,9 @@ export function SimulatorProgress({ onOpenPanel }: SimulatorProgressProps) {
 	);
 	const nextUnlocks = getNextSimulatorUnlocks(
 		game.market.level,
-		game.unlockedShelfSlots,
+		getUnlockedPhysicalShelfCount(
+			resolveShelfSlotCounts(game.shelfSlotCounts, game.unlockedShelfSlots),
+		),
 	);
 	const nextUnlock = nextUnlocks[0];
 	const claimableMissions = getClaimableMissionCount(game);
@@ -173,21 +179,21 @@ const styles = StyleSheet.create((theme) => ({
 		alignItems: "center",
 		gap: theme.gap(0.25),
 	},
-	levelIcon: { width: 15, height: 15 },
+	levelIcon: { width: 17, height: 17 },
 	level: {
 		fontFamily: theme.fonts.family.badge,
-		fontSize: 9,
+		fontSize: 11,
 		color: theme.colors["blue-700"],
 	},
 	nextUnlock: {
 		flex: 1,
 		fontFamily: theme.fonts.family.badge,
-		fontSize: 9,
+		fontSize: 11,
 		color: theme.colors["neutral-700"],
 	},
 	unlockLevel: {
 		fontFamily: theme.fonts.family.numberBold,
-		fontSize: 8,
+		fontSize: 10,
 		color: theme.colors["amber-600"],
 	},
 	experienceRow: {
@@ -198,7 +204,7 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	experienceTrack: {
 		flex: 1,
-		height: 7,
+		height: 8,
 		overflow: "hidden",
 		borderRadius: theme.gap(0.5),
 		backgroundColor: theme.colors["blue-100"],
@@ -210,7 +216,7 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	experienceValue: {
 		fontFamily: theme.fonts.family.numberBold,
-		fontSize: 8,
+		fontSize: 10,
 		color: theme.colors["neutral-600"],
 	},
 	shortcuts: { flexDirection: "row", gap: theme.gap(0.375) },
@@ -257,7 +263,7 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	badgeText: {
 		fontFamily: theme.fonts.family.numberBold,
-		fontSize: 9,
+		fontSize: 10,
 		color: theme.colors["neutral-0"],
 	},
 	pressed: {

@@ -7,6 +7,7 @@ export type GameShelfStock = Record<string, number>;
 export type GameShelfAssignments = Record<string, number | null>;
 
 export type GameShelfPrices = Record<string, number>;
+export type GameShelfSlotCounts = Record<string, number>;
 
 export type GameShelfUpgradeLevels = Record<string, number>;
 
@@ -101,7 +102,10 @@ import type { EmployeeRole, GameEmployeesState } from "./employee";
 import type { GameEventsState } from "./game-event";
 import type { GameInventoryLots, GameShelfLots } from "./inventory-lot";
 import type { LogisticsState, PlaceSupplierOrderInput } from "./logistics";
-import type { MarketExpansionId } from "./market-expansion";
+import type {
+	MarketExpansionCurrency,
+	MarketExpansionId,
+} from "./market-expansion";
 import type { GameMissionsState } from "./mission";
 import type { GameProductionState, StartProductionInput } from "./production";
 import type { ShelfUpgradeCurrency } from "./shelf-capacity";
@@ -135,6 +139,7 @@ export type GameState = {
 	shelfLots: GameShelfLots;
 	shelfStock: GameShelfStock;
 	shelfPrices: GameShelfPrices;
+	shelfSlotCounts: GameShelfSlotCounts;
 	unlockedShelfSlots: number;
 	shelfUpgradeLevels: GameShelfUpgradeLevels;
 	statistics: GameStatistics;
@@ -180,8 +185,13 @@ export type GameActions = {
 	startProduction: (input: StartProductionInput) => boolean;
 	upgradeSupplierOrderSlots: (currency: SupplierOrderSlotCurrency) => boolean;
 	upgradeInventoryCapacity: (productId: number) => boolean;
+	expandShelfSlots: (shelfId: string) => boolean;
+	unlockNextShelf: () => boolean;
 	unlockNextShelfSlot: () => boolean;
-	unlockMarketExpansion: (expansionId: MarketExpansionId) => boolean;
+	unlockMarketExpansion: (
+		expansionId: MarketExpansionId,
+		currency?: MarketExpansionCurrency,
+	) => boolean;
 	unlockProduct: (productId: number) => void;
 	upgradeShelfCapacity: (
 		shelfId: string,

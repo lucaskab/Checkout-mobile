@@ -1,6 +1,6 @@
 import type { GameState } from "@/@types/game";
-import { itemCatalog } from "@/data/market-products";
 import { getInventoryCapacity } from "@/data/inventory-capacity";
+import { itemCatalog } from "@/data/market-products";
 import { getActiveGameEventEffects } from "./game-events";
 import {
 	getSupplierDeliveryDuration,
@@ -54,4 +54,22 @@ export function getShelfOrderQuote(
 						? "Moedas insuficientes."
 						: null;
 	return { total, duration, incoming, availableSpace, capacity, reason };
+}
+
+export function getMaxShelfOrderQuantity(state: GameState, productId: number) {
+	const quote = getShelfOrderQuote(state, productId, 1);
+	if (!quote) return 0;
+
+	let minimum = 0;
+	let maximum = quote.availableSpace;
+	while (minimum < maximum) {
+		const quantity = Math.ceil((minimum + maximum) / 2);
+		if (getShelfOrderQuote(state, productId, quantity)?.reason === null) {
+			minimum = quantity;
+		} else {
+			maximum = quantity - 1;
+		}
+	}
+
+	return minimum;
 }

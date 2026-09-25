@@ -1,4 +1,5 @@
-import { Image, type ImageStyle, type StyleProp } from "react-native";
+import { Image } from "expo-image";
+import type { ImageStyle, StyleProp } from "react-native";
 import { getProductAsset } from "@/data/product-assets";
 
 type ProductImageProps = {
@@ -10,9 +11,11 @@ export function ProductImage({ productId, style }: ProductImageProps) {
 	return (
 		<Image
 			accessibilityIgnoresInvertColors
-			resizeMode="contain"
+			cachePolicy="memory-disk"
+			contentFit="contain"
 			source={getProductAsset(productId)}
 			style={style}
+			transition={0}
 		/>
 	);
 }

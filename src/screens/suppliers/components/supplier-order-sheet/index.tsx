@@ -1,31 +1,43 @@
+import { SymbolView } from "expo-symbols";
 import { useState } from "react";
-import { View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { Pressable, View } from "react-native";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
 import { itemCatalog } from "@/data/market-products";
-import { getShelfOrderQuote } from "@/services/shelf-order-quote";
+import { formatSupplierDeliveryTime } from "@/services/logistics";
+import {
+	getMaxShelfOrderQuantity,
+	getShelfOrderQuote,
+} from "@/services/shelf-order-quote";
 import { useGameStore } from "@/stores/game-store";
 
 type SupplierOrderSheetProps = {
+	onBack?: () => void;
+	onClose?: () => void;
 	productId: number;
 	onOrdered?: (message: string) => void;
 };
 
 export function SupplierOrderSheet({
+	onBack,
+	onClose,
 	productId,
 	onOrdered,
 }: SupplierOrderSheetProps) {
 	const { closeBottomSheet } = useBottomSheet();
+	const { theme } = useUnistyles();
 	const state = useGameStore();
 	const product = itemCatalog.find((item) => item.id === productId);
 	const [quantity, setQuantity] = useState(1);
 	const [feedback, setFeedback] = useState("");
 	const productName = product?.name ?? "produto";
 	const quote = getShelfOrderQuote(state, productId, quantity);
+	const unitQuote = getShelfOrderQuote(state, productId, 1);
+	const maxQuantity = getMaxShelfOrderQuantity(state, productId);
 
 	if (!product || !quote) {
 		return null;
@@ -51,18 +63,46 @@ export function SupplierOrderSheet({
 		);
 	}
 
+	function close() {
+		if (onClose) {
+			onClose();
+			return;
+		}
+
+		closeBottomSheet();
+	}
+
 	return (
 		<View style={styles.content}>
 			<View style={styles.header}>
-				<View style={styles.productVisual}>
-					<ProductImage productId={product.id} style={styles.productImage} />
-				</View>
+				{onBack ? (
+					<Pressable
+						accessibilityRole="button"
+						accessibilityLabel="Voltar ao depósito"
+						onPress={onBack}
+						style={styles.backButton}
+					>
+						<SymbolView
+							name={{
+								ios: "chevron.left",
+								android: "chevron_left",
+								web: "chevron_left",
+							}}
+							size={18}
+							tintColor={theme.colors["neutral-700"]}
+						/>
+					</Pressable>
+				) : (
+					<View style={styles.productVisual}>
+						<ProductImage productId={product.id} style={styles.productImage} />
+					</View>
+				)}
 				<View style={styles.productCopy}>
 					<Text style={styles.eyebrow}>FORNECEDORES</Text>
 					<Text style={styles.title}>Pedir {product.name}</Text>
 					<Text style={styles.subtitle}>
-						Entrega no depósito em cerca de {Math.ceil(quote.duration / 60_000)}{" "}
-						min.
+						Entrega no depósito em cerca de{" "}
+						{formatSupplierDeliveryTime(quote.duration)}.
 					</Text>
 				</View>
 			</View>
@@ -84,7 +124,7 @@ export function SupplierOrderSheet({
 				<View style={styles.quantityControl}>
 					<GameButton
 						accessibilityLabel="Diminuir quantidade"
-						disabled={quantity <= 1 || Boolean(feedback)}
+						disabled={quantity <= 0 || Boolean(feedback)}
 						label="−"
 						onPress={() => setQuantity(quantity - 1)}
 						size="small"
@@ -103,13 +143,36 @@ export function SupplierOrderSheet({
 						variant="secondary"
 					/>
 				</View>
+				<View style={styles.quantityShortcuts}>
+					<GameButton
+						accessibilityLabel="Definir quantidade como zero"
+						disabled={quantity === 0 || Boolean(feedback)}
+						label="0"
+						onPress={() => setQuantity(0)}
+						size="small"
+						style={styles.quantityShortcut}
+						variant="secondary"
+					/>
+					<GameButton
+						accessibilityLabel={`Definir quantidade máxima: ${maxQuantity}`}
+						disabled={quantity === maxQuantity || Boolean(feedback)}
+						label={`Máx · ${maxQuantity}`}
+						onPress={() => setQuantity(maxQuantity)}
+						size="small"
+						style={styles.quantityShortcut}
+						variant="secondary"
+					/>
+				</View>
 			</View>
 
 			<View style={styles.summaryCard}>
 				<View style={styles.summaryRow}>
 					<Text style={styles.summaryLabel}>Preço por unidade</Text>
 					<Text style={styles.summaryValue}>
-						{Number((quote.total / quantity).toFixed(2))} moedas
+						{quantity > 0
+							? Number((quote.total / quantity).toFixed(2))
+							: (unitQuote?.total ?? 0)}{" "}
+						moedas
 					</Text>
 				</View>
 				<View style={styles.summaryRow}>
@@ -130,7 +193,7 @@ export function SupplierOrderSheet({
 					<GameButton
 						fullWidth
 						label="Concluir"
-						onPress={closeBottomSheet}
+						onPress={close}
 						variant="secondary"
 					/>
 				</>
@@ -164,6 +227,16 @@ const styles = StyleSheet.create((theme) => ({
 		flexDirection: "row",
 		alignItems: "center",
 		gap: theme.gap(1.25),
+	},
+	backButton: {
+		width: theme.gap(5),
+		height: theme.gap(5),
+		alignItems: "center",
+		justifyContent: "center",
+		borderWidth: 1,
+		borderColor: theme.colors["neutral-200"],
+		borderRadius: theme.gap(1.25),
+		backgroundColor: theme.colors["neutral-0"],
 	},
 	productVisual: {
 		width: theme.gap(6.5),
@@ -247,11 +320,21 @@ const styles = StyleSheet.create((theme) => ({
 	quantityControl: {
 		flexDirection: "row",
 		alignItems: "center",
-		justifyContent: "space-between",
+		justifyContent: "center",
+		gap: theme.gap(2),
 		marginTop: theme.gap(1),
 	},
 	quantityValue: {
 		alignItems: "center",
+		minWidth: theme.gap(8),
+	},
+	quantityShortcuts: {
+		flexDirection: "row",
+		gap: theme.gap(0.75),
+		marginTop: theme.gap(1),
+	},
+	quantityShortcut: {
+		flex: 1,
 	},
 	quantityNumber: {
 		color: theme.colors["neutral-800"],

@@ -1,4 +1,5 @@
-import { Image, type ImageStyle, type StyleProp } from "react-native";
+import { Image } from "expo-image";
+import type { ImageStyle, StyleProp } from "react-native";
 import { type GameIconId, getGameIconAsset } from "@/data/game-icon-assets";
 
 type GameIconProps = {
@@ -12,9 +13,11 @@ export function GameIcon({ accessibilityLabel, icon, style }: GameIconProps) {
 		<Image
 			accessibilityLabel={accessibilityLabel}
 			accessibilityIgnoresInvertColors
-			resizeMode="contain"
+			cachePolicy="memory-disk"
+			contentFit="contain"
 			source={getGameIconAsset(icon)}
 			style={style}
+			transition={0}
 		/>
 	);
 }

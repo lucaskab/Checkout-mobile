@@ -12,13 +12,13 @@ export function GameModeToggle() {
 				active={!simulator}
 				icon="computer"
 				label="Sistema"
-				onPress={() => router.replace("/")}
+				onPress={() => router.navigate("/(tabs)")}
 			/>
 			<ModeOption
 				active={simulator}
 				icon="controller"
 				label="Simulador"
-				onPress={() => router.push("/simulator")}
+				onPress={() => router.navigate("/simulator")}
 			/>
 		</View>
 	);

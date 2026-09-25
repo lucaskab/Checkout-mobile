@@ -8,6 +8,7 @@ namespace Checkout
     public class CheckoutCityTraffic : MonoBehaviour
     {
         public Transform[] vehicles;
+        public int Capacity {get;set;}=3;
         public int ParkedVisits { get; private set; }
         public int PaidVisits { get; private set; }
         public int CompletedVisits { get; private set; }
@@ -23,9 +24,10 @@ namespace Checkout
         }
         Trip[] trips;
         CheckoutCityPedestrian[] pedestrians;
+        CheckoutNeighborhoodTraffic neighborhood;
         float nextArrival;
         int maneuverOwner = -1;
-        void Awake() { pedestrians=FindObjectsByType<CheckoutCityPedestrian>();ResetVisits(); }
+        void Awake() { pedestrians=FindObjectsByType<CheckoutCityPedestrian>();neighborhood=FindAnyObjectByType<CheckoutNeighborhoodTraffic>();ResetVisits(); }
         public void ResetVisits()
         {
             if (trips != null)
@@ -38,7 +40,7 @@ namespace Checkout
         public bool TryBegin(Customer customer, CheckoutWalker walker)
         {
             if (Time.time < nextArrival || maneuverOwner >= 0) return false;
-            for (int i = 0; i < trips.Length; i++)
+            for (int i = 0; i < Mathf.Min(Capacity,trips.Length); i++)
             {
                 var trip = trips[i];
                 if (trip.phase != Phase.Available) continue;
@@ -80,6 +82,7 @@ namespace Checkout
                 Vector3 delta = trip.route[trip.waypoint] - car.position;
                 if (delta.magnitude < .06f) { trip.waypoint++; continue; }
                 Vector3 direction = delta.normalized;
+                if(CheckoutTrafficJunctions.MustWait(car,direction))continue;
                 bool reverse = trip.phase == Phase.Leaving && car.position.x < -11.25f && Mathf.Abs(car.position.z-BayZ(i)) < .2f;
                 float speed = car.position.x > -20 && car.position.x < -8 && car.position.z > -12 ? 1.6f : 4.2f;
                 // Keep a safe following gap, and yield to customers crossing the parking aisle.
@@ -89,7 +92,7 @@ namespace Checkout
                     if (j != i && trips[j].phase != Phase.Available)
                     {
                         var separation=vehicles[j].position-car.position;
-                        if(separation.magnitude<4.1f && Vector3.Dot(direction,separation.normalized)>.65f) blocked=true;
+                        if(CheckoutTrafficJunctions.Ahead(car.position,direction,vehicles[j].position,4.1f))blocked=true;
                     }
                     var pedestrian=trips[j].walker;
                     if(pedestrian&&pedestrian.gameObject.activeSelf)
@@ -102,7 +105,14 @@ namespace Checkout
                 {
                     if(!pedestrian||!pedestrian.gameObject.activeInHierarchy)continue;
                     var gap=pedestrian.transform.position-car.position;gap.y=0;
-                    if(gap.magnitude<4&&Vector3.Dot(direction,gap.normalized)>.4f)blocked=true;
+                    if(CheckoutTrafficJunctions.Ahead(car.position,direction,pedestrian.transform.position,2.8f,.7f))blocked=true;
+                }
+                if(neighborhood)foreach(var other in neighborhood.cars)
+                {
+                    if(!other.vehicle.gameObject.activeSelf)continue;
+                    var gap=other.vehicle.position-car.position;gap.y=0;
+                    float ahead=Vector3.Dot(direction,gap);
+                    if(ahead>0&&ahead<4.4f&&(gap-direction*ahead).sqrMagnitude<1.6f)blocked=true;
                 }
                 if (blocked) continue;
                 var heading=Quaternion.LookRotation(reverse?-direction:direction);
@@ -121,7 +131,7 @@ namespace Checkout
             // Reverse into the aisle, then follow the right-hand lane around the neighborhood.
             trip.route=Smooth(new[]{P(-16.1f,z),P(-11.2f,z),P(-11.2f,-13),P(-9,-17),P(22,-17),P(25,-14),P(25,28.5f),P(22,31.5f),P(-38,31.5f)});
         }
-        public static float BayZ(int index) => -5.5f + index*8f;
+        public static float BayZ(int index) => -5.5f + index*4f;
         static Vector3 P(float x,float z) => new Vector3(x,.15f,z);
         // Rounded waypoint corners avoid snapping the vehicle by ninety degrees at a junction.
         static Vector3[] Smooth(Vector3[] points)

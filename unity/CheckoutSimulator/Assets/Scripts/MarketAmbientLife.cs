@@ -9,6 +9,8 @@ namespace MarketDay
         class Actor { public Transform root;public Vector3 home;public Quaternion rotation;public Transform[] limbs;public Quaternion[] rest; }
         readonly List<Actor> actors=new List<Actor>();
         MarketSimulation sim;float clock;
+        Checkout.CheckoutMarketLayout layout;
+        public void RebaseDoors(){foreach(var actor in actors)if(actor.root.name.StartsWith("Anim_Door"))actor.home=actor.root.position;}
         void Start()
         {
             sim=GetComponent<MarketSimulation>();
@@ -32,8 +34,10 @@ namespace MarketDay
                 var a=actors[i];string n=a.root.name;float t=clock+i*1.73f;
                 if(n.StartsWith("Anim_Door"))
                 {
-                    bool near=false;foreach(Transform person in sim.world)if(person.gameObject.activeInHierarchy&&person.name.StartsWith("Customer_")&&Mathf.Abs(person.position.x+1.75f)<1.65f&&Mathf.Abs(person.position.z+7.2f)<2.1f){near=true;break;}
-                    a.root.position=Vector3.MoveTowards(a.root.position,a.home+Vector3.right*(near?(n.EndsWith("Left")?-1.32f:1.32f):0),Time.deltaTime*2.5f*sim.speed);
+                    bool near=false;foreach(Transform person in sim.world)if(person.gameObject.activeInHierarchy&&person.name.StartsWith("Customer_")&&Mathf.Abs(person.position.x+1.75f)<1.65f&&Mathf.Abs(person.position.z-a.home.z)<2.1f){near=true;break;}
+                    if(!layout)layout=FindAnyObjectByType<Checkout.CheckoutMarketLayout>();
+                    float width=layout?layout.State.widthScale:1;
+                    a.root.position=Vector3.MoveTowards(a.root.position,a.home+Vector3.right*(near?(n.EndsWith("Left")?-1.32f:1.32f)*width:0),Time.deltaTime*2.5f*sim.speed);
                 }
                 else if(n.StartsWith("Anim_Chicken"))
                 {

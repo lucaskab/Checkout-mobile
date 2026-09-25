@@ -1,5 +1,3 @@
-import { shelfProductSlots, getPhysicalShelfId } from "@/data/shelf-slots";
-import { ShelfManagementScreen } from "@/screens/shelf-management";
 import {
 	LegendList,
 	type LegendListRenderItemProps,
@@ -18,25 +16,24 @@ import {
 	getNextShelfCapacityUpgrade,
 	getShelfCapacity,
 } from "@/data/shelf-capacity";
+import {
+	getPhysicalShelfId,
+	isShelfSlotUnlocked,
+	resolveShelfSlotCounts,
+	shelfProductSlots,
+} from "@/data/shelf-slots";
+import { ShelfManagementScreen } from "@/screens/shelf-management";
 import { getExperienceToNextLevel } from "@/services/progression";
-import { getCurrentShelf } from "@/services/shelf-selection";
 import { useGameStore } from "@/stores/game-store";
-import { ActiveCustomersCard } from "./components/active-customers-card";
 import { AttentionCard } from "./components/attention-card";
+import { MarketExpansionsSheet } from "./components/market-expansions-sheet";
 import { ShelfGrid } from "./components/shelf-grid";
 import { ShiftSummarySheet } from "./components/shift-summary-sheet";
 import { StorefrontHero } from "./components/storefront-hero";
 import { TopSellersCard } from "./components/top-sellers-card";
 import { shelves } from "./data";
 
-type DashboardSection = "shelves" | "customers" | "attention" | "topSellers";
-
-const dashboardSections: DashboardSection[] = [
-	"shelves",
-	"customers",
-	"attention",
-	"topSellers",
-];
+type DashboardSection = "shelves" | "attention" | "topSellers";
 
 export function StoreScreen() {
 	const { openBottomSheet, closeBottomSheet } = useBottomSheet();
@@ -44,7 +41,12 @@ export function StoreScreen() {
 	const shelfAssignments = useGameStore((state) => state.shelfAssignments);
 	const shelfPrices = useGameStore((state) => state.shelfPrices);
 	const shelfStock = useGameStore((state) => state.shelfStock);
+	const shelfSlotCounts = useGameStore((state) => state.shelfSlotCounts);
 	const unlockedShelfSlots = useGameStore((state) => state.unlockedShelfSlots);
+	const resolvedShelfSlotCounts = resolveShelfSlotCounts(
+		shelfSlotCounts,
+		unlockedShelfSlots,
+	);
 	const setMarketOpen = useGameStore((state) => state.setMarketOpen);
 	const experienceToNextLevel = getExperienceToNextLevel(market.level);
 	const recentUnlocks = itemCatalog
@@ -74,11 +76,7 @@ export function StoreScreen() {
 		.slice(0, 3);
 
 	const shelfAlerts: StoreAlert[] = shelfProductSlots
-		.filter((slot) =>
-			shelves
-				.slice(0, unlockedShelfSlots)
-				.some((shelf) => shelf.id === getPhysicalShelfId(slot.id)),
-		)
+		.filter((slot) => isShelfSlotUnlocked(slot.id, resolvedShelfSlotCounts))
 		.flatMap((shelf) => {
 			const product = itemCatalog.find(
 				(item) => item.id === shelfAssignments[shelf.id],
@@ -103,6 +101,13 @@ export function StoreScreen() {
 				},
 			];
 		});
+	const dashboardSections: DashboardSection[] = ["shelves"];
+	if (shelfAlerts.length > 0) {
+		dashboardSections.push("attention");
+	}
+	if (topSellers.length > 0) {
+		dashboardSections.push("topSellers");
+	}
 
 	function openStock(shelf: StoreShelf) {
 		if (shelf.locked) {
@@ -138,14 +143,16 @@ export function StoreScreen() {
 		}
 	}
 
+	function openMarketExpansions() {
+		openBottomSheet(<MarketExpansionsSheet />);
+	}
+
 	function renderSection({
 		item,
 	}: LegendListRenderItemProps<DashboardSection>) {
 		switch (item) {
 			case "shelves":
 				return <ShelfGrid onPressShelf={openStock} shelves={shelves} />;
-			case "customers":
-				return <ActiveCustomersCard customers={market.recentCustomers} />;
 			case "attention":
 				return (
 					<AttentionCard alerts={shelfAlerts} onPressAlert={handleAlertPress} />
@@ -165,6 +172,7 @@ export function StoreScreen() {
 				shelfAssignments,
 				shelfPrices,
 				shelfStock,
+				shelfSlotCounts,
 				unlockedShelfSlots,
 			}}
 			keyExtractor={(section) => section}
@@ -176,6 +184,7 @@ export function StoreScreen() {
 						experienceToNextLevel={experienceToNextLevel}
 						isOpen={market.isOpen}
 						lastExperienceGain={market.lastExperienceGain}
+						onOpenExpansions={openMarketExpansions}
 						onToggle={toggleMarket}
 						recentUnlocks={recentUnlocks}
 						unlockedProductCount={market.unlockedProductIds.length}
@@ -183,6 +192,7 @@ export function StoreScreen() {
 				</View>
 			}
 			renderItem={renderSection}
+			style={styles.screen}
 		/>
 	);
 }
@@ -191,44 +201,42 @@ function ShelfSlotUnlockSheet({ shelf }: { shelf: StoreShelf }) {
 	const { closeBottomSheet } = useBottomSheet();
 	const coins = useGameStore((state) => state.coins);
 	const marketLevel = useGameStore((state) => state.market.level);
-	const unlockNextShelfSlot = useGameStore(
-		(state) => state.unlockNextShelfSlot,
-	);
+	const unlockNextShelf = useGameStore((state) => state.unlockNextShelf);
 	const [feedback, setFeedback] = useState<string | null>(null);
-	if (!shelf.nextSlotUpgrade) {
+	if (!shelf.nextShelfUpgrade) {
 		return null;
 	}
 
-	const nextSlotUpgrade = shelf.nextSlotUpgrade;
+	const nextShelfUpgrade = shelf.nextShelfUpgrade;
 
-	const hasRequiredLevel = marketLevel >= nextSlotUpgrade.playerLevel;
-	const hasEnoughCoins = coins >= nextSlotUpgrade.coinCost;
+	const hasRequiredLevel = marketLevel >= nextShelfUpgrade.playerLevel;
+	const hasEnoughCoins = coins >= nextShelfUpgrade.coinCost;
 
 	function unlockShelfSlot() {
-		if (unlockNextShelfSlot()) {
-			setFeedback("Nova vaga liberada. Agora você pode abastecê-la.");
+		if (unlockNextShelf()) {
+			setFeedback("Nova prateleira liberada com quatro espaços disponíveis.");
 			return;
 		}
 
 		setFeedback(
 			hasRequiredLevel
 				? "Você não tem moedas suficientes para liberar esta vaga."
-				: `Alcance o nível ${nextSlotUpgrade.playerLevel} para liberar esta vaga.`,
+				: `Alcance o nível ${nextShelfUpgrade.playerLevel} para liberar esta prateleira.`,
 		);
 	}
 
 	return (
 		<View style={styles.sheetContent}>
-			<Text style={styles.sheetTitle}>Expanda suas prateleiras</Text>
+			<Text style={styles.sheetTitle}>Desbloqueie uma nova prateleira</Text>
 			<Text style={styles.sheetDescription}>
-				Libere uma nova vaga para expor mais produtos e atender mais clientes.
+				Cada nova prateleira começa com quatro espaços disponíveis.
 			</Text>
 			<View style={styles.shelfSlotCard}>
 				<GameIcon icon="market" style={styles.shelfSlotIcon} />
 				<View style={styles.shelfSlotDetails}>
-					<Text style={styles.shelfSlotTitle}>Próxima vaga de prateleira</Text>
+					<Text style={styles.shelfSlotTitle}>Próxima prateleira</Text>
 					<Text style={styles.shelfSlotRequirement}>
-						Requer nível {nextSlotUpgrade.playerLevel}
+						Requer nível {nextShelfUpgrade.playerLevel}
 					</Text>
 				</View>
 			</View>
@@ -236,15 +244,15 @@ function ShelfSlotUnlockSheet({ shelf }: { shelf: StoreShelf }) {
 				disabled={!hasRequiredLevel || !hasEnoughCoins}
 				fullWidth
 				icon="coin"
-				label={`Liberar por ${nextSlotUpgrade.coinCost.toLocaleString("pt-BR")}`}
+				label={`Liberar por ${nextShelfUpgrade.coinCost.toLocaleString("pt-BR")}`}
 				onPress={unlockShelfSlot}
 				style={styles.sheetActionButton}
 				variant="gem"
 			/>
 			{!hasRequiredLevel && (
 				<Text style={styles.lockedUpgradeText}>
-					Faltam {nextSlotUpgrade.playerLevel - marketLevel} nível
-					{nextSlotUpgrade.playerLevel - marketLevel === 1 ? "" : "is"}.
+					Faltam {nextShelfUpgrade.playerLevel - marketLevel} nível
+					{nextShelfUpgrade.playerLevel - marketLevel === 1 ? "" : "is"}.
 				</Text>
 			)}
 			{feedback && <Text style={styles.feedback}>{feedback}</Text>}
@@ -259,7 +267,7 @@ function ShelfSlotUnlockSheet({ shelf }: { shelf: StoreShelf }) {
 	);
 }
 
-function StockSheet({ shelf }: { shelf: StoreShelf }) {
+function _StockSheet({ shelf }: { shelf: StoreShelf }) {
 	const { closeBottomSheet, openBottomSheet } = useBottomSheet();
 	const clearShelf = useGameStore((state) => state.clearShelf);
 	const coins = useGameStore((state) => state.coins);
@@ -571,11 +579,15 @@ function ShelfProductPicker({ shelf }: { shelf: StoreShelf }) {
 }
 
 const styles = StyleSheet.create((theme) => ({
+	screen: {
+		flex: 1,
+		backgroundColor: theme.colors.gameBackground,
+	},
 	content: {
 		gap: theme.gap(1.5),
 		padding: theme.gap(1.75),
 		paddingBottom: theme.gap(3),
-		backgroundColor: theme.colors["neutral-50"],
+		backgroundColor: theme.colors.gameBackground,
 	},
 	storeHeader: {
 		gap: theme.gap(1.5),

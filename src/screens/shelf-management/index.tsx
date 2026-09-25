@@ -1,12 +1,19 @@
 import { LegendList } from "@legendapp/list/react-native";
 import { useEffect, useState } from "react";
-import { TextInput, useWindowDimensions, View } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
-import { StyleSheet } from "react-native-unistyles";
+import { Pressable, TextInput, useWindowDimensions, View } from "react-native";
+import Animated, {
+	FadeInDown,
+	useAnimatedStyle,
+	useSharedValue,
+	withTiming,
+} from "react-native-reanimated";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import type { SupplierOrder } from "@/@types/logistics";
 import type {
 	ShelfManagementPage,
 	ShelfManagementProps,
 } from "@/@types/shelf-management";
+import { useBottomSheetHeaderColor } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
@@ -14,9 +21,17 @@ import { ProductImage } from "@/components/product-image";
 import { itemCatalog, shelves } from "@/data/market-products";
 import {
 	getNextShelfCapacityUpgrade,
+	getNextShelfSlotUpgrade,
+	getNextShelfUnlockUpgrade,
 	getShelfCapacity,
 } from "@/data/shelf-capacity";
-import { getShelfSlotIds, isShelfSlotUnlocked } from "@/data/shelf-slots";
+import {
+	getShelfSlotCount,
+	getShelfSlotIds,
+	getUnlockedPhysicalShelfCount,
+	resolveShelfSlotCounts,
+} from "@/data/shelf-slots";
+import { getOrderProgress, getOrderRemainingTime } from "@/services/logistics";
 import { useGameStore } from "@/stores/game-store";
 import { SupplierOrderSheet } from "../suppliers/components/supplier-order-sheet";
 
@@ -27,18 +42,28 @@ export function ShelfManagementScreen({
 	const [page, setPage] = useState<ShelfManagementPage>({ kind: "slots" });
 	const [notice, setNotice] = useState("");
 	const [search, setSearch] = useState("");
-	const [state, setState] = useState(() => useGameStore.getState());
+	const [, setShelfStateRevision] = useState(0);
+	const state = useGameStore();
 	const { height } = useWindowDimensions();
+	const { theme } = useUnistyles();
+	useBottomSheetHeaderColor(theme.colors.gameBackground);
 
-	useEffect(() => useGameStore.subscribe(setState), []);
-
-	const slotIds = getShelfSlotIds(shelfId);
+	const shelfSlotCounts = resolveShelfSlotCounts(
+		state.shelfSlotCounts,
+		state.unlockedShelfSlots,
+	);
+	const slotCount = getShelfSlotCount(shelfId, shelfSlotCounts);
+	const slotIds = getShelfSlotIds(shelfId, slotCount);
+	const unlockedShelves = getUnlockedPhysicalShelfCount(shelfSlotCounts);
+	const shelfIndex = shelves.findIndex((shelf) => shelf.id === shelfId);
+	const nextShelfUpgrade = getNextShelfUnlockUpgrade(unlockedShelves);
+	const canUnlockHere = shelfIndex === unlockedShelves && !!nextShelfUpgrade;
 	const capacity = getShelfCapacity(state.shelfUpgradeLevels[shelfId]);
 	const upgrade = getNextShelfCapacityUpgrade(
 		state.shelfUpgradeLevels[shelfId],
 	);
-	const occupied = slotIds.filter((id) => state.shelfAssignments[id]).length;
-	const unlocked = isShelfSlotUnlocked(shelfId, state.unlockedShelfSlots);
+	const unlocked = slotCount > 0;
+	const slotUpgrade = getNextShelfSlotUpgrade(slotCount);
 	const products = itemCatalog.filter(
 		(product) =>
 			state.market.unlockedProductIds.includes(product.id) &&
@@ -58,6 +83,10 @@ export function ShelfManagementScreen({
 		setPage({ kind: "picker", slotId });
 		setNotice("");
 	}
+	function refreshShelfState() {
+		setShelfStateRevision((revision) => revision + 1);
+	}
+
 	return (
 		<Animated.View
 			entering={FadeInDown.duration(220)}
@@ -87,13 +116,13 @@ export function ShelfManagementScreen({
 						onPress={page.kind === "slots" ? onClose : back}
 					/>
 				</View>
-				<Text style={styles.subtitle}>
-					{page.kind === "slots"
-						? `${occupied}/4 espaços ocupados · ${capacity} unidades por produto`
-						: page.kind === "picker"
+				{page.kind !== "slots" && (
+					<Text style={styles.subtitle}>
+						{page.kind === "picker"
 							? "Escolha um produto diferente para este espaço."
 							: "Do fornecedor direto para o seu depósito."}
-				</Text>
+					</Text>
+				)}
 			</View>
 			<View style={styles.awning}>
 				{[0, 1, 2, 3, 4, 5, 6, 7].map((stripe) => (
@@ -109,9 +138,32 @@ export function ShelfManagementScreen({
 				</Text>
 			)}
 			{!unlocked ? (
-				<Text style={styles.notice}>
-					Desbloqueie esta prateleira no painel do mercado.
-				</Text>
+				<View style={styles.list}>
+					<Text style={styles.notice}>
+						{canUnlockHere
+							? "Desbloqueie esta prateleira para começar com quatro espaços disponíveis."
+							: "Desbloqueie as prateleiras anteriores para acessar esta área."}
+					</Text>
+					{canUnlockHere && nextShelfUpgrade && (
+						<GameButton
+							fullWidth
+							icon="coin"
+							label={`Desbloquear · ${nextShelfUpgrade.coinCost.toLocaleString("pt-BR")}`}
+							variant="coin"
+							disabled={
+								state.market.level < nextShelfUpgrade.playerLevel ||
+								state.coins < nextShelfUpgrade.coinCost
+							}
+							onPress={() =>
+								setNotice(
+									state.unlockNextShelf()
+										? "Prateleira liberada com quatro espaços disponíveis."
+										: "Confira seu nível e saldo.",
+								)
+							}
+						/>
+					)}
+				</View>
 			) : page.kind === "order" ? (
 				<SupplierOrderSheet
 					productId={page.productId}
@@ -132,6 +184,7 @@ export function ShelfManagementScreen({
 					<LegendList
 						recycleItems={false}
 						data={products}
+						extraData={state}
 						keyExtractor={(product) => String(product.id)}
 						contentContainerStyle={styles.list}
 						ListEmptyComponent={
@@ -155,11 +208,7 @@ export function ShelfManagementScreen({
 									</View>
 								</View>
 								<GameButton
-									label={
-										state.shelfAssignments[page.slotId]
-											? "Substituir produto"
-											: "Adicionar produto"
-									}
+									label="Adicionar produto"
 									fullWidth
 									onPress={() => {
 										if (
@@ -169,10 +218,7 @@ export function ShelfManagementScreen({
 											setNotice(
 												`${item.name} adicionado. Reabasteça para começar a vender.`,
 											);
-										} else
-											setNotice(
-												"Não foi possível trocar. Confira o espaço no depósito para devolver o produto atual.",
-											);
+										} else setNotice("Não foi possível adicionar o produto.");
 									}}
 								/>
 							</View>
@@ -183,52 +229,82 @@ export function ShelfManagementScreen({
 				<LegendList
 					recycleItems={false}
 					data={slotIds}
+					extraData={state}
 					keyExtractor={(id) => id}
 					contentContainerStyle={styles.list}
 					ListFooterComponent={
-						upgrade ? (
-							<View style={styles.card}>
-								<Text style={styles.productName}>
-									Mais produtos para vender
-								</Text>
-								<Text style={styles.subtitle}>
-									Aumente cada espaço para {upgrade.capacity} unidades · Nível{" "}
-									{upgrade.playerLevel}
-								</Text>
-								<GameButton
-									label={`Ampliar · ${upgrade.coinCost} moedas`}
-									variant="coin"
-									fullWidth
-									disabled={
-										state.market.level < upgrade.playerLevel ||
-										state.coins < upgrade.coinCost
-									}
-									onPress={() =>
-										setNotice(
-											state.upgradeShelfCapacity(shelfId, "coins")
-												? "Capacidade ampliada nos quatro espaços!"
-												: "Confira seu nível e saldo.",
-										)
-									}
-								/>
-								<GameButton
-									label={`Ampliar · ${upgrade.diamondCost} diamantes`}
-									variant="gem"
-									fullWidth
-									disabled={
-										state.market.level < upgrade.playerLevel ||
-										state.logistics.premiumCurrency < upgrade.diamondCost
-									}
-									onPress={() =>
-										setNotice(
-											state.upgradeShelfCapacity(shelfId, "diamonds")
-												? "Capacidade ampliada nos quatro espaços!"
-												: "Confira seu nível e saldo.",
-										)
-									}
-								/>
-							</View>
-						) : null
+						<>
+							{slotUpgrade && (
+								<View style={styles.card}>
+									<Text style={styles.productName}>
+										Mais espaços nesta prateleira
+									</Text>
+									<Text style={styles.subtitle}>
+										Aumente esta prateleira para {slotUpgrade.unlockedSlots}{" "}
+										espaços · Nível {slotUpgrade.playerLevel}
+									</Text>
+									<GameButton
+										label={`Expandir · ${slotUpgrade.coinCost} moedas`}
+										variant="coin"
+										fullWidth
+										disabled={
+											state.market.level < slotUpgrade.playerLevel ||
+											state.coins < slotUpgrade.coinCost
+										}
+										onPress={() => {
+											setNotice(
+												state.expandShelfSlots(shelfId)
+													? "Espaço adicional liberado nesta prateleira."
+													: "Confira seu nível e saldo.",
+											);
+										}}
+									/>
+								</View>
+							)}
+							{upgrade && (
+								<View style={styles.card}>
+									<Text style={styles.productName}>
+										Mais produtos para vender
+									</Text>
+									<Text style={styles.subtitle}>
+										Aumente cada espaço para {upgrade.capacity} unidades · Nível{" "}
+										{upgrade.playerLevel}
+									</Text>
+									<GameButton
+										label={`Ampliar · ${upgrade.coinCost} moedas`}
+										variant="coin"
+										fullWidth
+										disabled={
+											state.market.level < upgrade.playerLevel ||
+											state.coins < upgrade.coinCost
+										}
+										onPress={() =>
+											setNotice(
+												state.upgradeShelfCapacity(shelfId, "coins")
+													? "Capacidade ampliada nos quatro espaços!"
+													: "Confira seu nível e saldo.",
+											)
+										}
+									/>
+									<GameButton
+										label={`Ampliar · ${upgrade.diamondCost} diamantes`}
+										variant="gem"
+										fullWidth
+										disabled={
+											state.market.level < upgrade.playerLevel ||
+											state.logistics.premiumCurrency < upgrade.diamondCost
+										}
+										onPress={() =>
+											setNotice(
+												state.upgradeShelfCapacity(shelfId, "diamonds")
+													? "Capacidade ampliada nos quatro espaços!"
+													: "Confira seu nível e saldo.",
+											)
+										}
+									/>
+								</View>
+							)}
+						</>
 					}
 					renderItem={({ item: slotId, index }) => {
 						const product = itemCatalog.find(
@@ -238,6 +314,20 @@ export function ShelfManagementScreen({
 						const price =
 							state.shelfPrices[slotId] ?? product?.sellingPrice ?? 0;
 						const reserve = product ? (state.inventory[product.id] ?? 0) : 0;
+						const incomingOrder = product
+							? state.logistics.orders
+									.filter(
+										(order) =>
+											order.productId === product.id &&
+											order.status !== "entregue",
+									)
+									.sort(
+										(firstOrder, secondOrder) =>
+											firstOrder.createdAt +
+											firstOrder.deliveryDurationMs -
+											(secondOrder.createdAt + secondOrder.deliveryDurationMs),
+									)[0]
+							: undefined;
 						return (
 							<View style={styles.card}>
 								<View style={styles.headingRow}>
@@ -272,7 +362,10 @@ export function ShelfManagementScreen({
 												variant="secondary"
 												accessibilityLabel={`Reduzir preço de ${product.name}`}
 												disabled={price <= product.minPrice}
-												onPress={() => state.setShelfPrice(slotId, price - 1)}
+												onPress={() => {
+													state.setShelfPrice(slotId, price - 1);
+													refreshShelfState();
+												}}
 											/>
 											<Text style={[styles.subtitle, styles.quantity]}>
 												Preço de venda: {price}
@@ -283,7 +376,10 @@ export function ShelfManagementScreen({
 												variant="secondary"
 												accessibilityLabel={`Aumentar preço de ${product.name}`}
 												disabled={price >= product.maxPrice}
-												onPress={() => state.setShelfPrice(slotId, price + 1)}
+												onPress={() => {
+													state.setShelfPrice(slotId, price + 1);
+													refreshShelfState();
+												}}
 											/>
 										</View>
 										<View style={styles.metrics}>
@@ -311,44 +407,7 @@ export function ShelfManagementScreen({
 												]}
 											/>
 										</View>
-										<GameButton
-											label={
-												reserve === 0
-													? "Pedir mais estoque"
-													: stock >= capacity
-														? "Prateleira cheia"
-														: `Reabastecer +${Math.min(reserve, capacity - stock)}`
-											}
-											icon={reserve === 0 ? "deliveryTruck" : "basket"}
-											variant={reserve === 0 ? "coin" : "success"}
-											disabled={reserve > 0 && stock >= capacity}
-											fullWidth
-											onPress={() => {
-												if (reserve === 0) {
-													setNotice("");
-													setPage({ kind: "order", productId: product.id });
-												} else
-													setNotice(
-														state.restockShelf({
-															shelfId: slotId,
-															productId: product.id,
-															amount: Math.min(reserve, capacity - stock),
-														})
-															? "Tudo pronto para vender!"
-															: "O estoque mudou. Confira as quantidades e tente novamente.",
-													);
-											}}
-										/>
 										<View style={styles.actions}>
-											<View style={styles.flex}>
-												<GameButton
-													label="Substituir"
-													variant="secondary"
-													size="small"
-													fullWidth
-													onPress={() => picker(slotId)}
-												/>
-											</View>
 											<View style={styles.flex}>
 												<GameButton
 													label="Remover"
@@ -363,6 +422,43 @@ export function ShelfManagementScreen({
 														)
 													}
 												/>
+											</View>
+											<View style={styles.flex}>
+												{incomingOrder && reserve === 0 ? (
+													<DeliveryProgressButton order={incomingOrder} />
+												) : (
+													<GameButton
+														label={
+															reserve === 0
+																? "Pedir estoque"
+																: stock >= capacity
+																	? "Prateleira cheia"
+																	: `Reabastecer +${Math.min(reserve, capacity - stock)}`
+														}
+														icon={reserve === 0 ? "deliveryTruck" : "basket"}
+														variant={reserve === 0 ? "coin" : "success"}
+														size="small"
+														disabled={reserve > 0 && stock >= capacity}
+														fullWidth
+														onPress={() => {
+															setNotice("");
+															if (reserve === 0) {
+																setPage({
+																	kind: "order",
+																	productId: product.id,
+																});
+																return;
+															}
+
+															state.restockShelf({
+																shelfId: slotId,
+																productId: product.id,
+																amount: Math.min(reserve, capacity - stock),
+															});
+															refreshShelfState();
+														}}
+													/>
+												)}
 											</View>
 										</View>
 									</>
@@ -379,6 +475,58 @@ export function ShelfManagementScreen({
 				/>
 			)}
 		</Animated.View>
+	);
+}
+
+function DeliveryProgressButton({ order }: { order: SupplierOrder }) {
+	const [currentTime, setCurrentTime] = useState(() => Date.now());
+	const processSupplierOrders = useGameStore(
+		(state) => state.processSupplierOrders,
+	);
+	const progress = getOrderProgress(order, currentTime);
+	const remainingTime = getOrderRemainingTime(order, currentTime);
+	const animatedProgress = useSharedValue(progress);
+
+	useEffect(() => {
+		function updateDeliveryTime() {
+			const nextTime = Date.now();
+			setCurrentTime(nextTime);
+
+			if (nextTime >= order.createdAt + order.deliveryDurationMs) {
+				processSupplierOrders();
+			}
+		}
+
+		updateDeliveryTime();
+		const interval = setInterval(updateDeliveryTime, 1_000);
+
+		return () => clearInterval(interval);
+	}, [order.createdAt, order.deliveryDurationMs, processSupplierOrders]);
+
+	useEffect(() => {
+		animatedProgress.value = withTiming(progress, { duration: 900 });
+	}, [animatedProgress, progress]);
+
+	const progressStyle = useAnimatedStyle(() => ({
+		width: `${animatedProgress.value * 100}%`,
+	}));
+
+	return (
+		<Pressable
+			accessibilityLabel={`Entrega a caminho. Chega em ${remainingTime}`}
+			accessibilityRole="button"
+			accessibilityState={{ disabled: true }}
+			disabled
+			style={styles.deliveryButton}
+		>
+			<Animated.View style={[styles.deliveryButtonFill, progressStyle]} />
+			<View pointerEvents="none" style={styles.deliveryButtonContent}>
+				<GameIcon icon="deliveryTruck" style={styles.deliveryButtonIcon} />
+				<Text numberOfLines={1} style={styles.deliveryButtonText}>
+					A caminho · {remainingTime}
+				</Text>
+			</View>
+		</Pressable>
 	);
 }
 
@@ -417,6 +565,7 @@ const styles = StyleSheet.create((theme) => ({
 		borderColor: theme.colors.gameBorder,
 		backgroundColor: theme.colors["neutral-0"],
 	},
+	lockedCard: { opacity: 0.62 },
 	productWell: {
 		backgroundColor: theme.colors["blue-50"],
 		borderRadius: 18,
@@ -453,6 +602,40 @@ const styles = StyleSheet.create((theme) => ({
 		backgroundColor: theme.colors["green-500"],
 	},
 	actions: { flexDirection: "row", gap: 10 },
+	deliveryButton: {
+		alignSelf: "stretch",
+		minHeight: 32,
+		overflow: "hidden",
+		borderWidth: 2,
+		borderBottomWidth: 5,
+		borderColor: theme.colors["neutral-200"],
+		borderBottomColor: theme.colors["neutral-300"],
+		borderRadius: theme.gap(1.25),
+		backgroundColor: theme.colors["neutral-100"],
+	},
+	deliveryButtonFill: {
+		position: "absolute",
+		top: 0,
+		bottom: 0,
+		left: 0,
+		borderRadius: theme.gap(0.5),
+		backgroundColor: theme.colors["amber-400"],
+	},
+	deliveryButtonContent: {
+		flex: 1,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: theme.gap(0.375),
+		paddingHorizontal: theme.gap(0.75),
+	},
+	deliveryButtonIcon: { width: 16, height: 16 },
+	deliveryButtonText: {
+		color: theme.colors["neutral-800"],
+		fontFamily: theme.fonts.family.badge,
+		fontSize: 11,
+		fontWeight: "700",
+	},
 	notice: {
 		padding: 12,
 		fontSize: 14,
