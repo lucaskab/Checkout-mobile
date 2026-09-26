@@ -36,6 +36,26 @@ dependencies: run `bun install` in the repository root. If Node reports missing 
 `node_modules` (for example `zustand/esm/index.mjs`), clear the bun cache with `bun pm cache rm`, delete
 `node_modules` and install again.
 
+## Windows and macOS desktop players
+
+Install Node.js and run `bun install` from the repository root before launching a desktop player. The
+Unity player starts `desktop/host.ts` to provide the same game store and desktop interface on both OSes.
+It locates the repository by walking up from the player data folder; set `CHECKOUT_REPO` if the repository
+is stored elsewhere. Player saves remain in the platform's persistent-data folder.
+
+Build from Unity's `Checkout → Desktop` menu, or from the command line with:
+
+```sh
+"/Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/MacOS/Unity" -batchmode -quit \
+  -projectPath unity/CheckoutSimulator -executeMethod CheckoutDesktopBuilder.BuildMacOS
+"/Applications/Unity/Hub/Editor/6000.5.7f1/Unity.app/Contents/MacOS/Unity" -batchmode -quit \
+  -projectPath unity/CheckoutSimulator -executeMethod CheckoutDesktopBuilder.BuildWindows
+```
+
+The outputs are `unity/builds/desktop/macOS/Checkout.app` and
+`unity/builds/desktop/Windows/Checkout.exe`. The Windows build requires Unity's Windows Build Support
+(Mono) module. `CheckoutDesktopBuilder.BuildAll` builds both targets from one editor session.
+
 | Event ID | Scene assets |
 | --- | --- |
 | hora-do-pico | Stanchion queue to the door, shoppers with carts waiting, more arriving, rising arrow |

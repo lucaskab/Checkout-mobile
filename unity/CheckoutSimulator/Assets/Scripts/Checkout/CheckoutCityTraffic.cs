@@ -47,7 +47,9 @@ namespace Checkout
                 trip.customer = customer; trip.walker = walker; walker.Reserve();
                 trip.phase = Phase.Arriving; trip.waypoint = 0; maneuverOwner = i;
                 float z = BayZ(i);
-                trip.route = Smooth(new[] { P(-38,-17),P(-13.4f,-17),P(-11.2f,-14),P(-11.2f,z),P(-16.1f,z) });
+                // Arrive in the inner eastbound avenue lane and turn left across the westbound lanes.
+                // The west junction may be a roundabout: the route then goes round its island.
+                trip.route = Smooth(CheckoutRoundabout.Route(new[] { P(-38,-20),P(-13.4f,-20),P(-11.2f,-16.5f),P(-11.2f,z),P(-16.1f,z) }));
                 vehicles[i].SetPositionAndRotation(trip.route[0], Quaternion.LookRotation(Vector3.right));
                 vehicles[i].gameObject.SetActive(true); nextArrival = Time.time + 6f;
                 return true;
@@ -85,7 +87,6 @@ namespace Checkout
                 Vector3 delta = trip.route[trip.waypoint] - car.position;
                 if (delta.magnitude < .06f) { trip.waypoint++; continue; }
                 Vector3 direction = delta.normalized;
-                if(CheckoutTrafficJunctions.MustWait(car,direction))continue;
                 bool reverse = trip.phase == Phase.Leaving && car.position.x < -11.25f && Mathf.Abs(car.position.z-BayZ(i)) < .2f;
                 float speed = car.position.x > -20 && car.position.x < -8 && car.position.z > -12 ? 1.6f : 4.2f;
                 // Keep a safe following gap, and yield to customers crossing the parking aisle.
@@ -117,7 +118,7 @@ namespace Checkout
                     float ahead=Vector3.Dot(direction,gap);
                     if(ahead>0&&ahead<4.4f&&(gap-direction*ahead).sqrMagnitude<1.6f)blocked=true;
                 }
-                if (blocked) continue;
+                if (CheckoutTrafficJunctions.Hold(car,direction,blocked)) continue;
                 var heading=Quaternion.LookRotation(reverse?-direction:direction);
                 speed*=Mathf.Lerp(.3f,1f,1-Mathf.Clamp01(Quaternion.Angle(car.rotation,heading)/70));
                 car.rotation = Quaternion.RotateTowards(car.rotation,heading,Time.deltaTime*130);
@@ -131,8 +132,8 @@ namespace Checkout
             trip.walker=null;
             trip.phase = Phase.Leaving; trip.waypoint = 0; trip.delay = .8f;
             float z=BayZ(index);
-            // Reverse into the aisle, then follow the right-hand lane around the neighborhood.
-            trip.route=Smooth(new[]{P(-16.1f,z),P(-11.2f,z),P(-11.2f,-13),P(-9,-17),P(22,-17),P(25,-14),P(25,28.5f),P(22,31.5f),P(-38,31.5f)});
+            // Reverse into the aisle, then turn right into the westbound curbside lane of the avenue.
+            trip.route=Smooth(CheckoutRoundabout.Route(new[]{P(-16.1f,z),P(-11.2f,z),P(-11.2f,-13),P(-13.6f,-14),P(-38,-14)}));
         }
         public static float BayZ(int index) => -5.5f + index*4f;
         static Vector3 P(float x,float z) => new Vector3(x,.15f,z);

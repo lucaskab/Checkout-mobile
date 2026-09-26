@@ -29,10 +29,23 @@ namespace Checkout {
    return "node";
   }
   static string Repo(){
-   var root=Environment.GetEnvironmentVariable("CHECKOUT_REPO");if(!string.IsNullOrEmpty(root))return root;
-   // Assets → CheckoutSimulator → unity → repository.
+   var configured=Environment.GetEnvironmentVariable("CHECKOUT_REPO");
+   if(!string.IsNullOrEmpty(configured)&&HasHost(configured))return Path.GetFullPath(configured);
+   foreach(var start in new[]{Application.dataPath,Environment.CurrentDirectory}){
+    var root=FindRepoRoot(start);if(!string.IsNullOrEmpty(root))return root;
+   }
    return Path.GetFullPath(Path.Combine(Application.dataPath,"..","..",".."));
   }
+  static string FindRepoRoot(string start){
+   if(string.IsNullOrEmpty(start))return null;
+   var path=Path.GetFullPath(start);
+   while(!string.IsNullOrEmpty(path)){
+    if(HasHost(path))return path;
+    var parent=Directory.GetParent(path);if(parent==null)break;path=parent.FullName;
+   }
+   return null;
+  }
+  static bool HasHost(string root)=>Directory.Exists(root)&&File.Exists(Path.Combine(root,"desktop","host.ts"));
 
   void Awake(){
    bridge=GetComponent<CheckoutBridge>();var repo=Repo();

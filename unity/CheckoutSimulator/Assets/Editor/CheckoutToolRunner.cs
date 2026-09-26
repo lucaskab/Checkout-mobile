@@ -14,6 +14,7 @@ using UnityEditor;
 //     "editorlog"         copies the end of the editor log to Logs/editor_log.txt
 //     "play a,b,c"        compiles if needed, enters play mode and runs CheckoutAutoTest scenarios
 //     "stop" / "refresh"
+//     "menu Supermarket/Some item"   runs an editor menu item; errors logged meanwhile go to the result
 //   Logs/tool_result.txt   exit code and output.
 // A background thread watches for requests (the editor barely ticks while it is in the
 // background); work that needs the editor's main thread brings the editor window to the front.
@@ -63,6 +64,7 @@ public static class CheckoutToolRunner {
    case "play":File.WriteAllText(P("Logs/autotest.txt"),rest);File.WriteAllText(P(PlayPending),rest);Write($"kind=play\nscenario={rest}\nwaiting for the editor");Wake(null);return;
    case "stop":Wake("stop");return;
    case "refresh":Wake("refresh");return;
+   case "menu":Write($"kind=menu\nitem={rest}\nwaiting for the editor");Wake("menu:"+rest);return;
   }
  }
  static void Run(string kind,string exe,string args,string cwd){
@@ -109,6 +111,15 @@ public static class CheckoutToolRunner {
   switch(work){
    case "refresh":AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);break;
    case "stop":EditorApplication.isPlaying=false;Write("kind=stop");break;
+   default:if(work.StartsWith("menu:"))RunMenu(work.Substring(5));break;
   }
+ }
+ static void RunMenu(string item){
+  var errors=new System.Text.StringBuilder();
+  void Log(string message,string stack,UnityEngine.LogType type){if(type!=UnityEngine.LogType.Log&&type!=UnityEngine.LogType.Warning)errors.AppendLine(type+": "+message+"\n"+stack);}
+  UnityEngine.Application.logMessageReceived+=Log;bool ran=false;
+  try{ran=EditorApplication.ExecuteMenuItem(item);}catch(Exception e){errors.AppendLine(e.ToString());}
+  finally{UnityEngine.Application.logMessageReceived-=Log;}
+  Write($"kind=menu\nitem={item}\nran={ran}\nexit={(ran&&errors.Length==0?0:1)}\n{errors}");
  }
 }

@@ -160,11 +160,11 @@ namespace Checkout {
     if(prefab){var model=Instantiate(prefab,works,false);model.transform.localRotation=Quaternion.Euler(0,180,0);foreach(var part in model.GetComponentsInChildren<Transform>(true))part.gameObject.layer=2;PaintNamed(model.transform);}break;}
    case "concorrente-em-promocao":{
     // Rival pop-up on the opposite sidewalk: magenta tent, huge promo board and a dancing tube man.
-    var rival=Group(root,"Competitor promotional stand",W(7.5f,.34f,-20.4f));
+    var rival=Group(root,"Competitor promotional stand",W(7.5f,.34f,-26.4f));
     M(rival,"RivalTent",Vector3.zero,0);M(rival,"RivalBoard",new Vector3(-2.6f,0,.4f),0);
     var tube=M(rival,"TubeMan",new Vector3(2.5f,0,-.3f),Face);Animated(tube,"sway");
-    for(int i=0;i<2;i++){var w=Group(root,"Tempted shopper",W(1.5f,.34f,-19.2f));art.Actor(w,i==0?"Customer_05":"Customer_08",Vector3.zero,90,"Walking");Lane(w,Vector3.right,5,.9f,i*2.6f);}
-    Icon(root,"PriceTag",W(7.5f,4.4f,-20.4f),1.6f);break;}
+    for(int i=0;i<2;i++){var w=Group(root,"Tempted shopper",W(1.5f,.34f,-25.2f));art.Actor(w,i==0?"Customer_05":"Customer_08",Vector3.zero,90,"Walking");Lane(w,Vector3.right,5,.9f,i*2.6f);}
+    Icon(root,"PriceTag",W(7.5f,4.4f,-26.4f),1.6f);break;}
    case "clientes-economicos":{
     // Thrifty shoppers comparing prices: shopping lists, calculators and bargain tags over their heads.
     for(int i=0;i<2;i++){var shopper=Group(root,"Comparing prices",In(-.2f+i*3.2f,.74f,-3.2f));art.Actor(shopper,i==0?"Customer_04":"Customer_09",Vector3.zero,ActorFace,"Idle");M(shopper,i==0?"CartEmpty":"CartFull",new Vector3(.7f,0,.1f),Face+60,.9f);

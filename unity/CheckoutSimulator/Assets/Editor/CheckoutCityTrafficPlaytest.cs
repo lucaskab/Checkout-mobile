@@ -40,7 +40,8 @@ public static class CheckoutCityTrafficPlaytest
                 var snapshot=new Snapshot{kind="snapshot",protocol=1,session="city-traffic-preview",revision=1,isOpen=true,
                     shelves=new[]{"produce","dairy","bakery","snacks","drinks","coffee","pizza"}.Select(id=>new Shelf{id=id,unlocked=true,stock=15,capacity=20}).ToArray(),
                     sectors=new[]{"padaria","acougue","peixaria","queijaria"}.Select(id=>new Sector{id=id,unlocked=true}).ToArray(),
-                    employees=Array.Empty<Employee>(),jobs=Array.Empty<Job>(),customers=Array.Empty<Customer>(),orders=Array.Empty<Order>(),expansions=Array.Empty<string>(),ownedItems=Array.Empty<string>(),@event=new MarketEvent()};
+                    employees=Array.Empty<Employee>(),jobs=Array.Empty<Job>(),customers=Array.Empty<Customer>(),orders=Array.Empty<Order>(),expansions=Array.Empty<string>(),ownedItems=Array.Empty<string>(),@event=new MarketEvent(),
+                    layout=new MarketLayout{stage=4,storage=true,parking=true,loadingYard=true,premium=true}};
                 bridge.Receive(JsonUtility.ToJson(snapshot));
                 snapshot.revision=2;
                 snapshot.customers=Enumerable.Range(0,6).Select(i=>new Customer{id="city-visitor-"+i,spent=12,purchases=new[]{new Purchase{shelfId=i%2==0?"snacks":"drinks",quantity=1}}}).ToArray();

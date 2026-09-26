@@ -4,13 +4,19 @@ Shader "MarketDay/City Tiles"
     {
         [PerRendererData] _MainTex ("Tileset", 2D) = "white" {}
         _LoadingAccessEnabled ("Loading yard entrance", Float) = 0
-        _LoadingAccess ("Loading entrance center and half size", Vector) = (9.5,26,5,1.5)
+        _LoadingAccess ("Loading entrance center and half size", Vector) = (12.97,27.9,8.38,2.5)
         _WideStreets ("Wide city streets", Float) = 0
         _ExpansionProjection ("Project purchased market areas", Float) = 0
         _ExpansionFeatures ("Storage parking loading premium", Vector) = (1,1,1,1)
         _ParkingSpaces ("Purchased parking spaces", Float) = 5
         _MarketFootprint ("Market center and half size", Vector) = (0,0,9.4,7.4)
         _Color ("Pavement tint", Color) = (0.72,0.75,0.78,1)
+        _RoundaboutEnabled ("Columbus Circle roundabout", Float) = 0
+        _Roundabout ("Roundabout center xz, island and outer radius", Vector) = (-23.5,-18.5,3.4,7.5)
+        _CityPark ("Central Park block across 59th Street", Float) = 0
+        _HarbourPlaza ("Harbour Quay public plaza on the market block", Float) = 0
+        _Basin ("Harbour basin center and half size", Vector) = (7.4,36.5,6.9,3)
+        _DerelictLot ("Abandoned warehouse lot center and half size", Vector) = (-10.55,33.6,7.85,6.2)
     }
     SubShader
     {
@@ -27,6 +33,8 @@ Shader "MarketDay/City Tiles"
         float4 _ExpansionFeatures, _MarketFootprint;
         float _LoadingAccessEnabled;
         float4 _LoadingAccess;
+        float _RoundaboutEnabled, _CityPark, _HarbourPlaza;
+        float4 _Roundabout, _Basin, _DerelictLot;
         struct Input { float2 uv_MainTex; float3 worldPos; float4 tileData; };
         void vert(inout appdata_full v, out Input o)
         {
@@ -45,6 +53,30 @@ Shader "MarketDay/City Tiles"
         {
             float2 i=floor(p),f=frac(p);f=f*f*(3-2*f);
             return lerp(lerp(hash(i),hash(i+float2(1,0)),f.x),lerp(hash(i+float2(0,1)),hash(i+1),f.x),f.y);
+        }
+        float segment(float2 p,float2 a,float2 b){float2 pa=p-a,ba=b-a;float h=saturate(dot(pa,ba)/dot(ba,ba));return length(pa-ba*h);}
+        // Central Park South layout; mirrors CheckoutCityPark.cs.
+        float driveZ(float x){return -30.8+1.1*sin(x*.21+1.3);}
+        float pondDistance(float2 p){float2 q=(p-float2(9.5,-37.5))/float2(5.2,3.3);return (length(q)-1)*3.3;}
+        float parkPaths(float2 p,out float drive)
+        {
+            drive=abs(p.y-driveZ(p.x))-1.35;
+            float diagonal=min(segment(p,float2(-16.5,-29),float2(-11.5,-33.5)),min(segment(p,float2(-11.5,-33.5),float2(-8,-38.5)),segment(p,float2(-8,-38.5),float2(-7,-44.5))))-.75;
+            float central=abs(p.x-(-1.75+1.4*sin((p.y+26.5)*.28)))-.7;
+            float ring=abs(pondDistance(p)-1.6)-.6;
+            float east=min(segment(p,float2(15.5,-26.5),float2(15.2,-31.5)),segment(p,float2(15.2,-31.5),float2(13.6,-35)))-.7;
+            return min(min(diagonal,central),min(ring,east));
+        }
+        // Central Park's hexagonal asphalt pavers: 1 inside a joint, 0 on a block.
+        float hexJoint(float2 p)
+        {
+            p/=.46;
+            float2 r=float2(1,1.7320508);
+            float2 a=(frac(p/r)-.5)*r, b=(frac((p-r*.5)/r)-.5)*r;
+            float2 g=dot(a,a)<dot(b,b)?a:b;
+            float2 q=abs(g);
+            float edge=max(q.x,dot(q,float2(.5,.8660254)));
+            return smoothstep(.43,.48,edge);
         }
         void surf(Input IN,inout SurfaceOutput o)
         {
@@ -98,86 +130,219 @@ Shader "MarketDay/City Tiles"
             else if(kind>3.5 && kind<4.5) color=asphalt;
             if(_WideStreets>.5)
             {
-                float dx=abs(abs(world.x)-23.5)-3;
-                float dz=min(abs(world.y+15.5),abs(world.y-30))-3;
+                // Narrow local streets at x ±23.5 (4.5 m) and a four-lane avenue in front of the market
+                // (z -24.5 to -12.5). There is no street behind the market block any more.
+                float dx=abs(abs(world.x)-23.5)-2.25;
+                float dz=abs(world.y+18.5)-6;
                 float blend=saturate(.5+.5*(dz-dx)/.8);
                 float street=lerp(dz,dx,blend)-.8*blend*(1-blend);
+                // Columbus Circle: the west junction becomes a ring road around a monument island.
+                float2 circleDelta=world-_Roundabout.xy;
+                float rc=length(circleDelta);
+                float circle=_RoundaboutEnabled*step(world.x,0);
+                if(circle>.5)
+                {
+                    float ring=max(rc-_Roundabout.w,_Roundabout.z-rc);
+                    street=min(max(street,_Roundabout.z-rc),ring);
+                    // The circle's outer sidewalk is a plain avenue-style walk (no grass lawn).
+                    blend*=step(_Roundabout.w+2.2,rc);
+                }
+                float ringClear=1-circle*(1-step(_Roundabout.w+.35,rc));
                 float2 drive=abs(world-float2(-11.2,-10))-float2(2.2,5.5);
                 float driveway=max(drive.x,drive.y);
                 float distance=min(street,driveway);
                 float aa=max(fwidth(distance),.015);
                 float2 uv=(float2(854,482)+frac(world/4)*float2(344,332))/1254;
                 if(kind<1.5)color=tex2D(_MainTex,uv).rgb*_Color.rgb;
-                float pavement=step(.03,street)*(1-smoothstep(1.95,2.05,street));
+                // Local streets keep the old outer sidewalk edge, so their band is wider (tree lawn + walk).
+                float band=lerp(2,2.75,blend);
+                float pavement=step(.03,street)*(1-smoothstep(band-.05,band+.05,street));
                 float2 slab=abs(frac(world)-.5);
                 float joint=smoothstep(.475,.495,max(slab.x,slab.y));
                 float3 sidewalk=lerp(float3(.43,.45,.44),float3(.30,.32,.31),joint*.35);
+                // Central Park South sidewalks use the park's dark hexagonal pavers.
+                float hexWalk=_CityPark*step(world.y,-24.45)*step(abs(world.x),21.35)*(1-circle*step(rc,_Roundabout.w+2.2));
+                sidewalk=lerp(sidewalk,lerp(float3(.33,.34,.33),float3(.21,.22,.22),hexJoint(world)),hexWalk);
                 color=lerp(color,sidewalk,pavement);
+                float vaxis=abs(abs(world.x)-23.5), haxis=abs(world.y+18.5);
+                float crossV=step(abs(world.y+8.5),1.25)*step(world.x,0);
+                float crossE=step(abs(world.y),1.25)*step(0,world.x);
+                float crossS=step(abs(world.x+1.75),1.25);
+                float cornerZ=min(abs(world.y+10),abs(world.y+27));
+                float cornerX=min(abs(abs(world.x)-18.75),abs(abs(world.x)-28.25));
+                // Around the roundabout the crossings move out onto the approach arms.
+                cornerZ=lerp(cornerZ,abs(world.y+28.5),circle);
+                cornerX=lerp(cornerX,min(abs(world.x+14.75),abs(world.x+32.25)),circle);
+                // Grass tree lawn between the curb and the walk of the local streets, open at every crossing.
+                float lawnOpen=max(max(crossV,crossE),step(cornerZ,1.1))+step(dz,1.5);
+                float lawn=step(.99,blend)*step(.12,street)*(1-step(.85,street))*(1-saturate(lawnOpen));
+                float3 grass=float3(.33,.47,.25)+(noise(world*3.1)-.5)*.06;
+                color=lerp(color,grass,lawn);
                 float curb=(1-smoothstep(.04,.12,abs(distance)));
                 color=lerp(color,float3(.65,.65,.60),curb);
                 float road=1-smoothstep(-aa,aa,distance);
                 color=lerp(color,asphalt,road);
-                float vaxis=abs(abs(world.x)-23.5), haxis=min(abs(world.y+15.5),abs(world.y-30));
                 // Centre-line dashes are whole 1.6 m segments. Each segment is kept or dropped as a unit,
                 // judged at its own centre, so no stub is ever cut by a junction, crosswalk or driveway.
                 float zc=floor(world.y/3)*3+1.5, xc=floor(world.x/3)*3+1.5;
                 float dashShapeV=step(abs(world.y-zc),.8), dashShapeH=step(abs(world.x-xc),.8);
-                // Clearance from the dash centre to every crossing on that street (junction box + corner
-                // crosswalks reach 6.3 m from the junction centre).
-                float clearV=min(abs(zc+15.5),abs(zc-30))-6.3;
+                // Junction box plus corner crosswalks reach 9.3 m (local street) / 5.55 m (avenue) from the centre.
+                float clearV=abs(zc+18.5)-lerp(9.3,10.9,circle);
                 clearV=min(clearV,world.x<0?abs(zc+8.5)-1.25:abs(zc)-1.25);
-                float clearH=abs(abs(xc)-23.5)-6.3;
-                clearH=min(clearH,world.y>7?abs(xc+4)-1.25:min(abs(xc+1.75)-1.25,abs(xc+11.2)-2.2));
+                float clearH=abs(abs(xc)-23.5)-lerp(5.55,10.1,circle);
+                clearH=min(clearH,min(abs(xc+1.75)-1.25,abs(xc+11.2)-2.2));
                 float dashV=dashShapeV*(1-smoothstep(.06,.10,vaxis))*step(1.3,clearV);
-                float dashH=dashShapeH*(1-smoothstep(.06,.10,haxis))*step(1.3,clearH);
-                float crossV=step(abs(world.y+8.5),1.25)*step(world.x,0);
-                float crossE=step(abs(world.y),1.25)*step(0,world.x);
-                float crossN=step(abs(world.x+4),1.25)*step(7,world.y);
-                float crossS=step(abs(world.x+1.75),1.25)*step(world.y,7);
-                float cornerZ=min(min(abs(world.y+21),abs(world.y+10)),min(abs(world.y-24.5),abs(world.y-35.5)));
-                float cornerX=min(abs(abs(world.x)-29),abs(abs(world.x)-18));
-                float crossAlongV=max(max(crossV,crossE),step(cornerZ,.8))*step(vaxis,2.8);
-                float crossAlongH=max(max(crossN,crossS),step(cornerX,.8))*step(haxis,2.8);
-                // Zebra bars are symmetric about the centre line: eight bars, a gap on the axis itself,
-                // so the lane divider never appears to run through a crosswalk.
+                // Avenue: dashed lane dividers 3 m either side of a solid double centre line.
+                float dashH=dashShapeH*(1-smoothstep(.06,.10,abs(haxis-3)))*step(1.3,clearH);
+                float clearSolid=min(abs(abs(world.x)-23.5)-lerp(5.55,10.1,circle),min(abs(world.x+1.75)-1.25,abs(world.x+11.2)-2.2));
+                float centre=(1-smoothstep(.05,.08,abs(haxis-.14)))*step(0,clearSolid)*step(haxis,1);
+                float crossAlongV=max(max(crossV,crossE),step(cornerZ,.8))*step(vaxis,2.05)*step(.99,blend);
+                float crossAlongH=max(crossS,step(cornerX,.8))*step(haxis,5.8)*step(blend,.01);
+                // Zebra bars are symmetric about the centre line, with a gap on the axis itself.
                 float barsV=step(abs(frac(vaxis/.7)-.5),.3);
                 float barsH=step(abs(frac(haxis/.7)-.5),.3);
                 float markings=max(dashV,dashH);
                 markings=lerp(markings,barsV,crossAlongV);
                 markings=lerp(markings,barsH,crossAlongH);
-                color=lerp(color,float3(.79,.78,.70),markings*road*step(.1,driveway));
+                float onRoad=road*step(.1,driveway)*ringClear;
+                color=lerp(color,float3(.79,.78,.70),markings*onRoad);
+                color=lerp(color,float3(.86,.70,.28),centre*onRoad*(1-max(crossAlongH,crossAlongV)));
                 float parkingCross=step(abs(world.x+11.2),2.05)*step(abs(world.y+11.5),.85);
                 color=lerp(color,float3(.79,.78,.70),parkingCross*road*step(.4,frac(world.x/.7)));
-                float2 loadingDelta=abs(world-_LoadingAccess.xy);
-                float loadingAccess=step(loadingDelta.x,_LoadingAccess.z)*step(loadingDelta.y,_LoadingAccess.w)*_LoadingAccessEnabled;
-                color=lerp(color,asphalt,loadingAccess);
-                float loadingCross=loadingAccess*step(loadingDelta.y,.7)*step(.42,frac((world.x-_LoadingAccess.x)/.9));
-                color=lerp(color,float3(.79,.78,.70),loadingCross);
+                if(circle>.5)
+                {
+                    float angle=atan2(circleDelta.y,circleDelta.x);
+                    // Lane edge around the island and give-way dashes where each arm meets the ring.
+                    float islandLine=(1-smoothstep(.05,.09,abs(rc-(_Roundabout.z+.45))))*step(.5,frac(angle*rc/1.6));
+                    float arm=step(0,-lerp(dz,dx,saturate(.5+.5*(dz-dx)/.8)));
+                    float giveWay=(1-smoothstep(.12,.2,abs(rc-(_Roundabout.w+.25))))*step(.45,frac(angle*rc/.9))*arm;
+                    color=lerp(color,float3(.86,.85,.78),saturate(islandLine+giveWay)*road);
+                    if(rc<_Roundabout.z)
+                    {
+                        // Monument island: granite curb, a lawn ring and a paved fountain terrace.
+                        float3 granite=lerp(float3(.66,.64,.60),float3(.58,.56,.52),step(.5,frac(rc/.55))*.5+hash(floor(float2(angle*6,rc*2)))*.3);
+                        float3 lawnColor=float3(.34,.50,.26)+(noise(world*3.3)-.5)*.05;
+                        float3 island=lerp(granite,lawnColor,step(rc,_Roundabout.z-.45)*step(_Roundabout.z-1.25,rc));
+                        island=lerp(island,float3(.74,.72,.67),1-smoothstep(_Roundabout.z-.3,_Roundabout.z-.22,rc));
+                        color=lerp(island,float3(.74,.72,.67),step(_Roundabout.z-.22,rc));
+                    }
+                }
+            }
+            if(_CityPark>.5 && world.y<-26.45 && abs(world.x)<18.55)
+            {
+                // Southern tip of the park: meadows, a drive, winding paths, a pond and Merchants' Gate plaza.
+                float driveDistance;
+                float paths=parkPaths(world,driveDistance);
+                float3 grass=float3(.33,.49,.25)+(noise(world*.9)-.5)*.07+(noise(world*6.5)-.5)*.035;
+                // Blades and clover: fine light/dark flecks so the lawn is not a flat fill.
+                float blade=hash(floor(world*18));
+                grass*=.9+.2*blade;
+                grass=lerp(grass,float3(.44,.60,.30),step(.94,hash(floor(world*9)))*.6);
+                grass*=1-.06*step(.5,frac((world.x+world.y*.3)/2.2)); // mown stripes
+                float3 park=grass;
+                float aa=.04;
+                // Fine gravel on the footpaths: speckled stones over a sandy base.
+                float gravel=hash(floor(world*14));
+                float3 pathColor=lerp(float3(.62,.60,.55),float3(.52,.50,.46),noise(world*4)*.7+gravel*.3);
+                pathColor=lerp(pathColor,float3(.40,.38,.35),step(.9,gravel)*.6);
+                park=lerp(park,float3(.42,.40,.32),1-smoothstep(0,.18,paths)); // soft soil edge
+                park=lerp(park,pathColor,1-smoothstep(-aa,aa,paths));
+                float3 driveColor=float3(.25,.27,.30)+(noise(world*18)-.5)*.01;
+                park=lerp(park,float3(.42,.40,.32),1-smoothstep(0,.18,driveDistance));
+                park=lerp(park,driveColor,1-smoothstep(-aa,aa,driveDistance));
+                float driveOffset=world.y-driveZ(world.x);
+                float bikeLine=(1-smoothstep(.03,.06,abs(abs(driveOffset)-.55)))*step(.5,frac(world.x/1.4));
+                park=lerp(park,float3(.82,.80,.72),bikeLine*step(driveDistance,0));
+                // Merchants' Gate plaza with radial granite joints.
+                float2 gate=world-float2(-18.5,-26.5);
+                float plaza=length(gate)-6;
+                float3 stone=lerp(float3(.72,.70,.65),float3(.63,.61,.57),hash(floor(float2(atan2(gate.y,gate.x)*9,length(gate)*1.3))));
+                float plazaJoint=max(1-smoothstep(.02,.05,abs(frac(length(gate)*1.3)-.5)*2-.9),0);
+                park=lerp(park,lerp(stone,float3(.52,.50,.47),plazaJoint*.6),1-smoothstep(-aa,aa,plaza));
+                park=lerp(park,float3(.55,.54,.50),(1-smoothstep(.0,.12,abs(plaza)))*.8);
+                // The Pond with a rocky shore.
+                float pond=pondDistance(world);
+                float ripple=noise(world*2.2+_Time.y*float2(.35,.2))*.05;
+                float3 water=lerp(float3(.19,.39,.47),float3(.30,.52,.58),saturate(-pond*.35)+ripple);
+                float3 shore=lerp(float3(.47,.46,.42),float3(.36,.35,.33),noise(world*5.5));
+                park=lerp(park,shore,1-smoothstep(.45,.55,pond));
+                park=lerp(park,water,1-smoothstep(-aa,aa,pond));
+                color=park;
+            }
+            if(_HarbourPlaza>.5)
+            {
+                // Harbour Quay public square on the market block (behind the avenue sidewalk).
+                float block=step(abs(world.x),18.5)*step(-10.5,world.y);
+                float plaza=step(abs(kind-3),.5)*step(abs(world.x+14.1),4.6)*step(abs(world.y-21),4)*_ExpansionFeatures.w*_ExpansionProjection;
+                // Harbour Quay style public square: pale granite slabs with long basalt bands, a red cycle
+                // track and the cracked yard of the abandoned warehouse.
+                float slabRow=floor(world.y/.75);
+                float2 slabUV=float2(frac((world.x+slabRow*.5)/1.5),frac(world.y/.75));
+                float slabJoint=smoothstep(.46,.49,max(abs(slabUV.x-.5),abs(slabUV.y-.5)));
+                float slabTone=hash(float2(floor((world.x+slabRow*.5)/1.5),slabRow));
+                float3 quay=lerp(float3(.71,.69,.64),float3(.61,.59,.55),slabTone);
+                quay*=.93+.1*noise(world*6.3)+.04*noise(world*23);           // grain
+                quay=lerp(quay,float3(.46,.45,.42),slabJoint*.7);             // joints
+                quay*=1-.07*smoothstep(.40,.47,slabUV.y)+.05*smoothstep(.1,.02,slabUV.y); // bevelled edges
+                // Long dark basalt bands (1.1 m) every 7 m, laid in smaller setts.
+                float basalt=smoothstep(2.9,2.95,abs(frac(world.y/7)-.5)*7);
+                float2 sett=abs(frac(world*float2(2.5,2.5))-.5);
+                float3 dark=lerp(float3(.36,.37,.38),float3(.30,.31,.32),hash(floor(world*2.5)))*(1-.35*smoothstep(.42,.49,max(sett.x,sett.y)));
+                quay=lerp(quay,dark,basalt);
+                color=lerp(color,quay,block*(1-plaza));
+                // Meandering cycle track; mirrors CheckoutCycleTrack.cs.
+                float eastX=15.5+.9*sin((world.y+12.5)*.19)*smoothstep(0,6,38.5-world.y);
+                float northZ=42.5+.75*sin((11.5-world.x)*.24)*smoothstep(0,6,11.5-world.x);
+                float2 bend=world-float2(11.5,38.5);
+                float trackCentre=min(min(max(abs(world.x-eastX),max(-12.5-world.y,world.y-38.5)),max(abs(world.y-northZ),max(-20-world.x,world.x-11.5))),
+                    bend.x>=0&&bend.y>=0?abs(length(bend)-4):99);
+                float track=trackCentre-.9;
+                float3 cycle=float3(.55,.24,.20)+(noise(world*14)-.5)*.02;
+                float centreDash=(1-smoothstep(.03,.06,trackCentre))*step(.5,frac((world.y-world.x)/1.2));
+                cycle=lerp(cycle,float3(.88,.86,.80),centreDash);
+                color=lerp(color,cycle,block*(1-smoothstep(-.03,.03,track)));
+                color=lerp(color,float3(.86,.84,.78),block*(1-smoothstep(.02,.06,abs(track+.08))));
+                float2 lotBox=abs(world-_DerelictLot.xy)-_DerelictLot.zw;
+                float derelict=step(max(lotBox.x,lotBox.y),0);
+                float cracks=1-smoothstep(.0,.035,abs(noise(world*.9)-.5)-.01*noise(world*7));
+                float3 concrete=lerp(float3(.55,.54,.50),float3(.47,.46,.43),noise(world*1.7))*(1-cracks*.35);
+                concrete=lerp(concrete,float3(.36,.44,.24),smoothstep(.62,.7,noise(world*.8+3.1))*.8);
+                color=lerp(color,concrete,derelict);
             }
             if(_ExpansionProjection>.5)
             {
                 // The whole market block uses the same gray square paving as the surrounding city
                 // blocks. Purchased areas draw only their own surfaces below, so the old painted
                 // tiles never show through as loose asphalt patches around the building.
-                float block=step(abs(world.x),19)*step(abs(world.y-6.5),19);
+                // The block runs from the avenue sidewalk to the north edge of the map (no back street).
+                float block=step(abs(world.x),18.5)*step(-12.5,world.y);
                 float2 pavementUV=(float2(854,482)+frac(world/4)*float2(344,332))/1254;
                 float3 pavement=tex2D(_MainTex,pavementUV).rgb*_Color.rgb;
                 // Keep only the painted plaza stones of the purchased park.
                 float plaza=step(abs(kind-3),.5)*step(abs(world.x+14.1),4.6)*step(abs(world.y-21),4)*_ExpansionFeatures.w;
-                color=lerp(color,pavement,block*(1-plaza));
+                color=lerp(color,pavement,block*(1-plaza)*(1-_HarbourPlaza));
                 // These connections remain public even while the surrounding lots are locked.
-                float frontWalk=step(abs(world.y+11.5),1)*step(abs(world.x),20.4);
+                float frontWalk=step(abs(world.y+11.5),1)*step(abs(world.x),21.2)*(1-_RoundaboutEnabled*step(length(world-_Roundabout.xy),_Roundabout.w+.05));
                 float2 slab=abs(frac(world)-.5);
                 float joints=smoothstep(.475,.495,max(slab.x,slab.y));
                 color=lerp(color,lerp(float3(.43,.45,.44),float3(.30,.32,.31),joints*.35),frontWalk);
                 float entranceDrive=step(abs(world.x+11.2),2.2)*step(abs(world.y+12),4)*_ExpansionFeatures.y;
                 float lotEnd=-5.5+max(0,_ParkingSpaces-1)*4+2;
                 float lot=step(abs(world.x+14.1),4.6)*step(-7.5,world.y)*step(world.y,lotEnd)*_ExpansionFeatures.y;
-                // Loading yard apron under the truck bays, joined to the north street entrance.
+                // Loading yard apron under the truck bays, joined to the east street driveway.
                 float yard=step(abs(world.x-9.25),6.95)*step(abs(world.y-20.35),5.15)*_ExpansionFeatures.z;
                 color=lerp(color,asphalt,max(max(entranceDrive,lot),yard));
                 float crossing=entranceDrive*step(abs(world.y+11.5),.8)*step(.4,frac(world.x/.7));
                 color=lerp(color,float3(.79,.78,.70),crossing);
+            }
+            if(_WideStreets>.5)
+            {
+                // Truck apron from the loading yard across the east sidewalk to the local street.
+                float2 loadingDelta=abs(world-_LoadingAccess.xy);
+                float loadingAccess=step(loadingDelta.x,_LoadingAccess.z)*step(loadingDelta.y,_LoadingAccess.w)*_LoadingAccessEnabled;
+                color=lerp(color,asphalt,loadingAccess);
+                float loadingEdge=loadingAccess*step(_LoadingAccess.w-.12,loadingDelta.y)*step(abs(abs(world.x)-19.9),1.4);
+                color=lerp(color,float3(.79,.78,.70),loadingEdge);
             }
             o.Albedo=color;
             o.Alpha=1;

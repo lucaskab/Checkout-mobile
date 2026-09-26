@@ -69,7 +69,7 @@ public static class CheckoutMapModelsPlaytest
                 snapshot.customers = new[] { new Customer { id = "map-preview-customer", spent = 12,
                     purchases = new[] { new Purchase { shelfId = "snacks", quantity = 1 }, new Purchase { shelfId = "drinks", quantity = 1 } } } };
                 bridge.Receive(JsonUtility.ToJson(snapshot));
-                shopper = world.Find("Customer_01");
+                shopper = null;
                 started = Time.time;
                 applied = true;
                 return;
@@ -78,6 +78,8 @@ public static class CheckoutMapModelsPlaytest
             if (Time.time - started < 3) return;
             if (initialChecks)
             {
+                // The bridge hands visits to a random walker, so follow whichever one took the preview customer.
+                if (!shopper) shopper = UnityEngine.Object.FindObjectsByType<CheckoutWalker>().FirstOrDefault(w => w.CustomerId == "map-preview-customer")?.transform;
                 sawShopper |= shopper && shopper.gameObject.activeSelf;
                 if (bridge.Queue.Count > 0 && !sawCheckout)
                 {
