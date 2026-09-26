@@ -79,6 +79,51 @@ import {
 	markDailySale,
 	normalizeDailyState,
 } from "@/services/daily-progress";
+import type { PendingCheckout } from "@/@types/checkout-counter";
+import {
+	type CheckoutPayment,
+	completeCheckout as completeCheckoutRule,
+	createCheckoutCounterState,
+	createPendingCheckout,
+	enqueueCheckout,
+	expireCheckouts,
+	nextAutoCheckout,
+	normalizeCheckoutCounterState,
+} from "@/services/checkout-counter";
+import {
+	createStoreIncident,
+	createStoreIncidentsState,
+	fixStoreIncident,
+	freezerSpoilage,
+	getIncidentEffects,
+	nextStaffFix,
+	normalizeStoreIncidentsState,
+	spawnStoreIncident,
+} from "@/services/store-incidents";
+import { getIncidentShelves } from "@/services/store-incidents-context";
+import {
+	acceptsCustomers,
+	addSpecialRequest,
+	advanceMarketDay,
+	closeMarketDay,
+	createInitialDayState,
+	createSpecialRequest,
+	expireSpecialRequests,
+	FREE_DAY_CONTRACT_ID,
+	getLoyaltyArrivalMultiplier,
+	isDayOver,
+	normalizeDayState,
+	recordDayCheckoutLost,
+	recordDayCustomer,
+	recordDayIncidentFixed,
+	recordDaySale,
+	resolveSpecialRequest as resolveDayRequest,
+	startDay as startMarketDay,
+} from "@/services/market-day";
+import {
+	getDayProduct,
+	getDayStoreContext,
+} from "@/services/market-day-context";
 import {
 	getEmployeeTrainingCost,
 	grantEmployeeExperience,
@@ -116,6 +161,13 @@ import {
 	applyExperience,
 	getExperienceFromSales,
 } from "@/services/progression";
+import {
+	addDockDelivery,
+	createReceivingState,
+	nextStaffUnload,
+	normalizeReceivingState,
+	unloadDock,
+} from "@/services/receiving";
 import { getShopEffects } from "@/services/shop-effects";
 import { mmkvStorage } from "@/storage/mmkv";
 
@@ -229,11 +281,15 @@ const initialMarketState: GameMarketState = {
 };
 
 const initialGameState: GameState = {
+	checkout: createCheckoutCounterState(),
 	coins: 1248,
 	currencyPurchases: initialCurrencyPurchaseState,
 	daily: createInitialDailyState(1),
+	day: createInitialDayState(1),
 	events: createInitialGameEventsState(),
 	employees: initialEmployeesState,
+	incidents: createStoreIncidentsState(),
+	receiving: createReceivingState(),
 	inventory: initialInventory,
 	inventoryLots: initialInventoryLots,
 	inventoryCapacityLevels: initialInventoryCapacityLevels,
@@ -257,6 +313,7 @@ const initialGameState: GameState = {
 
 function getInitialGameState(): GameState {
 	return {
+		checkout: createCheckoutCounterState(),
 		coins: initialGameState.coins,
 		currencyPurchases: {
 			processedTransactionIds: [
@@ -264,6 +321,7 @@ function getInitialGameState(): GameState {
 			],
 		},
 		daily: createInitialDailyState(1),
+		day: createInitialDayState(1),
 		events: createInitialGameEventsState(),
 		employees: {
 			employees: initialGameState.employees.employees.map((employee) => ({
@@ -273,6 +331,8 @@ function getInitialGameState(): GameState {
 			nextPayrollAt: Date.now() + EMPLOYEE_PAYROLL_INTERVAL_MS,
 			totalSalariesPaid: 0,
 		},
+		incidents: createStoreIncidentsState(),
+		receiving: createReceivingState(),
 		inventory: { ...initialGameState.inventory },
 		inventoryLots: { ...initialGameState.inventoryLots },
 		inventoryCapacityLevels: {
@@ -400,6 +460,11 @@ function migrateGameState(persistedState: unknown): GameState {
 		state.logistics?.supplierOrderSlots,
 	);
 	const daily = normalizeDailyState(state.daily, normalizedLevel);
+	const day = normalizeDayState(
+		state.day,
+		normalizedLevel,
+		market?.isOpen === true,
+	);
 	const previousTotalRevenue =
 		market?.totalRevenue ?? market?.todayRevenue ?? 0;
 	const lastSessionAt =
@@ -409,6 +474,7 @@ function migrateGameState(persistedState: unknown): GameState {
 			: Date.now();
 
 	return {
+		checkout: normalizeCheckoutCounterState(state.checkout),
 		coins: state.coins ?? initialGameState.coins,
 		currencyPurchases: {
 			processedTransactionIds:
@@ -416,8 +482,11 @@ function migrateGameState(persistedState: unknown): GameState {
 				initialGameState.currencyPurchases.processedTransactionIds,
 		},
 		daily,
+		day,
 		events,
 		employees,
+		incidents: normalizeStoreIncidentsState(state.incidents),
+		receiving: normalizeReceivingState(state.receiving),
 		inventory: normalizedShelfState.inventory,
 		inventoryLots,
 		inventoryCapacityLevels,
@@ -527,9 +596,22 @@ export const useGameStore = create<GameStore>()(
 				const activeEmployees = state.employees.employees.filter(
 					(employee) => employee.isWorking,
 				).length;
-				const customers = state.market.isOpen
-					? Math.min(120, Math.floor(elapsedMs / 90_000) + activeEmployees)
-					: 0;
+				// Offline customers only arrive while the current day is still running.
+				const openMs =
+					state.day.phase === "open" && state.day.endsAt
+						? Math.max(
+								0,
+								Math.min(now, state.day.endsAt) - state.lastSessionAt,
+							)
+						: elapsedMs;
+				const customers =
+					state.market.isOpen && openMs > 0
+						? Math.min(
+								120,
+								Math.floor(Math.min(elapsedMs, openMs) / 90_000) +
+									activeEmployees,
+							)
+						: 0;
 				const averageRevenue =
 					state.market.customersWhoBought > 0
 						? state.market.totalRevenue / state.market.customersWhoBought
@@ -552,6 +634,20 @@ export const useGameStore = create<GameStore>()(
 				set({
 					coins: state.coins + offlineCoins,
 					daily: nextDaily,
+					day:
+						state.day.phase === "open" && customers > 0
+							? {
+									...state.day,
+									stats: {
+										...state.day.stats,
+										customers: state.day.stats.customers + customers,
+										profit:
+											state.day.stats.profit + Math.round(offlineCoins * 0.35),
+										revenue: state.day.stats.revenue + offlineCoins,
+										unitsSold: state.day.stats.unitsSold + customers,
+									},
+								}
+							: state.day,
 					lastSessionAt: now,
 					market: {
 						...state.market,
@@ -900,6 +996,52 @@ export const useGameStore = create<GameStore>()(
 						: market,
 				});
 
+				return true;
+			},
+			// Test helpers: a truck at the dock right now, or a given mishap on a fitting shelf.
+			devArriveDelivery: (productId, quantity = 30) => {
+				if (!__DEV__) return false;
+				const product = itemCatalog.find((item) => item.id === productId);
+				if (!product || !Number.isFinite(quantity) || quantity <= 0) return false;
+				const now = Date.now();
+				// As much as the stockroom still takes (a full stockroom still gets the whole load).
+				const room =
+					getInventoryCapacity(product, get().inventoryCapacityLevels[productId]) -
+					(get().inventory[productId] ?? 0);
+				const units = Math.floor(room > 0 ? Math.min(quantity, room) : quantity);
+				set({
+					receiving: addDockDelivery(
+						get().receiving,
+						{ id: `dev-${now}`, productId, quantity: units },
+						{ category: product.category, name: product.name },
+						now,
+					),
+				});
+				return true;
+			},
+			// Sends away the test trucks (devArriveDelivery); real orders stay at the dock.
+			devClearDock: () => {
+				if (!__DEV__) return false;
+				const { receiving } = get();
+				const dock = receiving.dock.filter((item) => !item.orderId.startsWith("dev-"));
+				if (dock.length === receiving.dock.length) return false;
+				set({ receiving: { ...receiving, dock } });
+				return true;
+			},
+			devTriggerIncident: (kind) => {
+				if (!__DEV__) return false;
+				const state = get().incidents;
+				const shelves = getIncidentShelves(get());
+				const now = Date.now();
+				const level = get().market.level;
+				// A fitting shelf when there is one (a cooler for cooler mishaps), else any shelf.
+				const incident =
+					createStoreIncident(state, shelves, now, level, kind) ??
+					createStoreIncident(state, shelves, now, level, kind, true);
+				if (!incident) return false;
+				set({
+					incidents: { ...state, active: [...state.active, incident], seed: state.seed + 1 },
+				});
 				return true;
 			},
 			finishProductionNow: (jobId) => {
@@ -1455,12 +1597,12 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			processSupplierOrders: () => {
-				const { inventory, inventoryCapacityLevels, inventoryLots, logistics } =
-					get();
+				const { logistics } = get();
 				const now = Date.now();
 				let hasChanges = false;
-				const nextInventory = { ...inventory };
-				const nextInventoryLots: GameInventoryLots = { ...inventoryLots };
+				// A delivered order parks its truck at the dock; the goods only become stock once
+				// someone unloads them (unloadDelivery / a stock clerk).
+				let nextReceiving = get().receiving;
 				const orders = logistics.orders.map((order) => {
 					if (order.status === "entregue") {
 						return order;
@@ -1469,23 +1611,13 @@ export const useGameStore = create<GameStore>()(
 					const status = getSupplierOrderStatus(order, now);
 
 					if (status === "entregue") {
-						if (
-							!canAddToInventory(
-								order.productId,
-								order.quantity,
-								nextInventory,
-								inventoryCapacityLevels,
-							)
-						) {
-							return order;
-						}
-
+						const product = itemCatalog.find((item) => item.id === order.productId);
 						hasChanges = true;
-						nextInventory[order.productId] =
-							(nextInventory[order.productId] ?? 0) + order.quantity;
-						nextInventoryLots[order.productId] = appendInventoryLots(
-							nextInventoryLots[order.productId],
-							createInventoryLots(order.productId, order.quantity, now),
+						nextReceiving = addDockDelivery(
+							nextReceiving,
+							order,
+							{ category: product?.category ?? "", name: product?.name ?? "Produto" },
+							now,
 						);
 						return { ...order, deliveredAt: now, status };
 					}
@@ -1503,12 +1635,65 @@ export const useGameStore = create<GameStore>()(
 				}
 
 				set({
-					inventory: nextInventory,
-					inventoryLots: nextInventoryLots,
 					logistics: { ...logistics, orders },
+					receiving: nextReceiving,
 				});
 
 				return true;
+			},
+			// Moves up to `units` from a truck at the dock into the stockroom (as much as fits).
+			unloadDelivery: (deliveryId, units) => {
+				const state = get();
+				const delivery = state.receiving.dock.find((item) => item.id === deliveryId);
+				const product = delivery
+					? itemCatalog.find((item) => item.id === delivery.productId)
+					: undefined;
+				if (!delivery || !product) return false;
+				const room =
+					getInventoryCapacity(product, state.inventoryCapacityLevels[product.id]) -
+					(state.inventory[product.id] ?? 0);
+				const now = Date.now();
+				const result = unloadDock(
+					state.receiving,
+					deliveryId,
+					units ?? delivery.quantity,
+					room,
+				);
+				if (!result) return false;
+				set({
+					inventory: {
+						...state.inventory,
+						[product.id]: (state.inventory[product.id] ?? 0) + result.moved,
+					},
+					inventoryLots: {
+						...state.inventoryLots,
+						[product.id]: appendInventoryLots(
+							state.inventoryLots[product.id],
+							createInventoryLots(product.id, result.moved, now),
+						),
+					},
+					lastSessionAt: now,
+					receiving: result.state,
+				});
+				return true;
+			},
+			unloadAllDeliveries: () => {
+				let moved = false;
+				for (const delivery of [...get().receiving.dock])
+					moved = get().unloadDelivery(delivery.id, delivery.quantity) || moved;
+				return moved;
+			},
+			// Working stock clerks unload the trucks box by box on their own.
+			processReceiving: () => {
+				const efficiency = get()
+					.employees.employees.filter(
+						(employee) => employee.isWorking && employee.role === "stock_clerk",
+					)
+					.reduce((total, employee) => total + employee.efficiency, 0);
+				const step = nextStaffUnload(get().receiving, Date.now(), efficiency);
+				if (step.state !== get().receiving) set({ receiving: step.state });
+				if (!step.box) return false;
+				return get().unloadDelivery(step.box.deliveryId, step.box.units);
 			},
 			startProduction: ({ recipeId, sectorId }) => {
 				const {
@@ -1613,7 +1798,6 @@ export const useGameStore = create<GameStore>()(
 			},
 			processNextCustomer: () => {
 				const {
-					coins,
 					employees,
 					events,
 					market,
@@ -1628,17 +1812,26 @@ export const useGameStore = create<GameStore>()(
 				const eventEffects = getActiveGameEventEffects(events, now);
 				const shopEffects = getShopEffects(shop.ownedItemIds);
 				const employeeEffects = getEmployeeEffects(employees);
+				const { day } = get();
 				if (
 					!market.isOpen ||
 					!market.nextCustomerAt ||
-					now < market.nextCustomerAt
+					now < market.nextCustomerAt ||
+					!acceptsCustomers(day, now)
 				) {
 					return false;
 				}
 
+				// Store mishaps: a broken freezer blocks its shelf, a wrong tag sells at half
+				// price, and every open incident lowers the store's reputation.
+				const incidentEffects = getIncidentEffects(get().incidents.active);
 				const availableProducts = shelfProductSlots
-					.filter((shelf) =>
-						isShelfUnlocked(shelf.id, getCurrentShelfSlotCounts(get())),
+					.filter(
+						(shelf) =>
+							isShelfUnlocked(shelf.id, getCurrentShelfSlotCounts(get())) &&
+							!incidentEffects.blockedShelfIds.includes(
+								getPhysicalShelfId(shelf.id),
+							),
 					)
 					.flatMap((shelf) => {
 						const productId = shelfAssignments[shelf.id];
@@ -1660,7 +1853,15 @@ export const useGameStore = create<GameStore>()(
 								necessity: product.demand,
 								productId: product.id,
 								promotionRate: 0,
-								sellingPrice: shelfPrices[shelf.id] ?? product.sellingPrice,
+								sellingPrice: Math.max(
+									1,
+									Math.round(
+										(shelfPrices[shelf.id] ?? product.sellingPrice) *
+											(incidentEffects.priceMultipliers[
+												getPhysicalShelfId(shelf.id)
+											] ?? 1),
+									),
+								),
 								shelfId: shelf.id,
 							},
 						];
@@ -1678,34 +1879,17 @@ export const useGameStore = create<GameStore>()(
 					storeReputation:
 						market.customerSatisfaction +
 						shopEffects.storeReputationBonus +
-						employeeEffects.storeReputationBonus,
+						employeeEffects.storeReputationBonus -
+						incidentEffects.reputationPenalty,
 				});
-				const nextDaily = markDailySale(
-					daily,
-					visit.revenue,
-					1,
-					visit.totalUnits,
-				);
+				// The visit is counted now; money, XP and sales arrive when the customer pays at
+				// the register (completeCheckout), which may be the player or a cashier.
+				const nextDaily = markDailySale(daily, 0, 1, 0);
 				const nextShelfStock = { ...shelfStock };
 				const nextShelfLots: GameShelfLots = { ...shelfLots };
-				const nextSoldByProduct = { ...market.soldByProduct };
 				const experienceGained = Math.round(
 					getExperienceFromSales(visit.purchases, itemCatalog) *
 						eventEffects.experienceMultiplier,
-				);
-				const progression = applyExperience(
-					market.level,
-					market.experience,
-					experienceGained,
-				);
-				const unlockedProductIds = Array.from(
-					new Set([
-						...market.unlockedProductIds,
-						...getUnlockedProductIds(progression.level),
-					]),
-				);
-				const recentUnlockProductIds = unlockedProductIds.filter(
-					(productId) => !market.unlockedProductIds.includes(productId),
 				);
 
 				for (const purchase of visit.purchases) {
@@ -1722,20 +1906,82 @@ export const useGameStore = create<GameStore>()(
 					);
 					nextShelfStock[purchase.shelfId] -= purchase.quantity;
 					nextShelfLots[purchase.shelfId] = soldLots.remainingLots;
-					nextSoldByProduct[purchase.productId] =
-						(nextSoldByProduct[purchase.productId] ?? 0) + purchase.quantity;
 				}
 
 				const nextSeed = market.randomSeed + 1;
-				const customer = createMarketCustomer(
+				const visitor = createMarketCustomer(
 					visit,
 					market.randomSeed,
 					shelfPrices,
-					market.customerSatisfaction,
+					market.customerSatisfaction - incidentEffects.reputationPenalty,
 				);
+				const saleCategories: Record<string, number> = {};
+				let saleProfit = 0;
+				for (const purchase of visit.purchases) {
+					const product = getDayProduct(purchase.productId);
+					if (!product) continue;
+					saleCategories[product.category] =
+						(saleCategories[product.category] ?? 0) + purchase.quantity;
+					saleProfit +=
+						purchase.revenue - product.purchasePrice * purchase.quantity;
+				}
+				const checkout = createPendingCheckout(
+					{
+						archetype: visit.customer.archetype,
+						categories: saleCategories,
+						customerId: visitor.id,
+						customerName: visitor.name,
+						experience: experienceGained,
+						items: visit.purchases.map((purchase) => ({
+							name:
+								itemCatalog.find((item) => item.id === purchase.productId)
+									?.name ?? "",
+							productId: purchase.productId,
+							quantity: purchase.quantity,
+							shelfId: purchase.shelfId,
+							unitPrice: Math.max(
+								1,
+								Math.round(purchase.revenue / purchase.quantity),
+							),
+						})),
+						mood: visitor.mood,
+						profit: Math.round(saleProfit),
+						satisfaction: visitor.satisfaction,
+						seed: market.randomSeed,
+					},
+					now,
+				);
+				const customer = checkout
+					? { ...visitor, status: "no caixa" as const }
+					: visitor;
+				let nextDay = recordDayCustomer(day, {
+					categories: {},
+					profit: 0,
+					revenue: 0,
+					satisfaction: customer.satisfaction,
+					units: 0,
+				});
+				const specialRequest = createSpecialRequest(
+					nextDay,
+					{
+						archetype: visit.customer.archetype,
+						customerId: customer.id,
+						customerName: customer.name,
+						mood: customer.mood,
+						seed: market.randomSeed,
+					},
+					getDayStoreContext({ ...get(), shelfStock: nextShelfStock }),
+					now,
+				);
+				if (specialRequest) {
+					nextDay = addSpecialRequest(nextDay, specialRequest);
+				}
 				set({
-					coins: coins + visit.revenue,
+					checkout: checkout
+						? enqueueCheckout(get().checkout, checkout)
+						: get().checkout,
 					daily: nextDaily,
+					day: nextDay,
 					lastSessionAt: now,
 					employees: {
 						...employees,
@@ -1748,39 +1994,25 @@ export const useGameStore = create<GameStore>()(
 					market: {
 						...market,
 						customersServed: market.customersServed + 1,
-						customersWhoBought:
-							market.customersWhoBought + (visit.purchases.length > 0 ? 1 : 0),
 						customerSatisfaction:
 							Math.round(
 								(market.customerSatisfaction * 0.88 +
 									customer.satisfaction * 0.12) *
 									10,
 							) / 10,
-						experience: progression.experience,
-						lastExperienceGain: experienceGained,
-						level: progression.level,
 						nextCustomerAt:
 							now +
 							getCustomerArrivalDelay(
-								progression.level,
+								market.level,
 								market.unlockedProductIds.length,
 								nextSeed,
 								shopEffects.customerArrivalMultiplier *
 									eventEffects.customerArrivalMultiplier *
-									employeeEffects.customerArrivalMultiplier,
+									employeeEffects.customerArrivalMultiplier *
+									getLoyaltyArrivalMultiplier(day.loyalty),
 							),
 						recentCustomers: [customer, ...market.recentCustomers].slice(0, 3),
 						randomSeed: nextSeed,
-						recentUnlockProductIds:
-							recentUnlockProductIds.length > 0
-								? recentUnlockProductIds
-								: market.recentUnlockProductIds,
-						soldByProduct: nextSoldByProduct,
-						todayRevenue: nextDaily.revenue,
-						totalExperience: market.totalExperience + experienceGained,
-						totalRevenue: market.totalRevenue + visit.revenue,
-						unitsSold: market.unitsSold + visit.totalUnits,
-						unlockedProductIds,
 					},
 					shelfStock: nextShelfStock,
 					shelfLots: nextShelfLots,
@@ -1788,6 +2020,140 @@ export const useGameStore = create<GameStore>()(
 
 				get().processEmployeeWork();
 				return true;
+			},
+			completeCheckout: (checkoutId, charged) => {
+				const state = get();
+				const now = Date.now();
+				const payment = completeCheckoutRule(
+					state.checkout,
+					checkoutId,
+					now,
+					charged,
+				);
+				if (!payment) return false;
+				set(applyCheckoutPayment(state, payment, now));
+				return true;
+			},
+			processCheckoutCounter: () => {
+				const now = Date.now();
+				let changed = false;
+				// Customers who gave up leave their basket; the goods go back on the shelf.
+				const expired = expireCheckouts(get().checkout, now);
+				if (expired.expired.length > 0) {
+					set(returnAbandonedCheckouts(get(), expired, now));
+					changed = true;
+				}
+				// A working cashier rings up the line without the player.
+				const cashierEfficiency = get()
+					.employees.employees.filter(
+						(employee) => employee.isWorking && employee.role === "cashier",
+					)
+					.reduce((total, employee) => total + employee.efficiency, 0);
+				const next = nextAutoCheckout(get().checkout, now, cashierEfficiency);
+				if (next.state !== get().checkout) set({ checkout: next.state });
+				if (next.checkoutId) {
+					const payment = completeCheckoutRule(
+						get().checkout,
+						next.checkoutId,
+						now,
+						undefined,
+						true,
+					);
+					if (payment) {
+						set(applyCheckoutPayment(get(), payment, now));
+						changed = true;
+					}
+				}
+				return changed;
+			},
+			fixIncident: (incidentId) => {
+				const state = get();
+				const now = Date.now();
+				const incident = state.incidents.active.find(
+					(item) => item.id === incidentId,
+				);
+				if (!incident || state.coins < incident.fixCost) return false;
+				const fixed = fixStoreIncident(state.incidents, incidentId, now, "player");
+				if (!fixed) return false;
+				set({
+					coins: state.coins - incident.fixCost,
+					day: recordDayIncidentFixed(state.day),
+					incidents: fixed.state,
+					lastSessionAt: now,
+					market: {
+						...state.market,
+						customerSatisfaction: clampSatisfaction(
+							state.market.customerSatisfaction + 1,
+						),
+					},
+				});
+				return true;
+			},
+			processStoreIncidents: () => {
+				const now = Date.now();
+				let changed = false;
+				const open = get().market.isOpen && get().day.phase === "open";
+				const spawned = spawnStoreIncident(
+					get().incidents,
+					getIncidentShelves(get()),
+					now,
+					get().market.level,
+					open,
+				);
+				if (spawned.state !== get().incidents) {
+					set({ incidents: spawned.state });
+					changed = Boolean(spawned.incident);
+				}
+				// A broken freezer loses one unit of its shelf now and then.
+				const spoil = freezerSpoilage(get().incidents, now);
+				if (spoil.state !== get().incidents) set({ incidents: spoil.state });
+				if (spoil.shelfIds.length > 0) {
+					const { shelfLots, shelfStock } = get();
+					const nextStock = { ...shelfStock };
+					const nextLots = { ...shelfLots };
+					for (const shelfId of spoil.shelfIds) {
+						const slot = shelfProductSlots.find(
+							(item) =>
+								getPhysicalShelfId(item.id) === shelfId &&
+								(nextStock[item.id] ?? 0) > 0,
+						);
+						if (!slot) continue;
+						nextLots[slot.id] = takeInventoryLots(
+							nextLots[slot.id],
+							1,
+						).remainingLots;
+						nextStock[slot.id] -= 1;
+					}
+					set({ shelfLots: nextLots, shelfStock: nextStock });
+					changed = true;
+				}
+				// Cleaners and stock clerks deal with the mishaps they know how to fix.
+				const working = get().employees.employees.filter(
+					(employee) => employee.isWorking,
+				);
+				const efficiency = {
+					cleaner: working
+						.filter((employee) => employee.role === "cleaner")
+						.reduce((total, employee) => total + employee.efficiency, 0),
+					stock_clerk: working
+						.filter((employee) => employee.role === "stock_clerk")
+						.reduce((total, employee) => total + employee.efficiency, 0),
+				};
+				const staff = nextStaffFix(get().incidents, now, efficiency);
+				if (staff.state !== get().incidents) set({ incidents: staff.state });
+				if (staff.incidentId) {
+					const fixed = fixStoreIncident(
+						get().incidents,
+						staff.incidentId,
+						now,
+						"staff",
+					);
+					if (fixed) {
+						set({ incidents: fixed.state });
+						changed = true;
+					}
+				}
+				return changed;
 			},
 			resetGame: () => {
 				const { currencyPurchases } = get();
@@ -1994,14 +2360,45 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			setMarketOpen: (isOpen) => {
+				// Closing time: the customers already in line are rung up before the doors lock.
+				if (!isOpen && get().market.isOpen)
+					for (const pending of [...get().checkout.queue]) {
+						const payment = completeCheckoutRule(
+							get().checkout,
+							pending.id,
+							Date.now(),
+							undefined,
+							true,
+						);
+						if (payment) set(applyCheckoutPayment(get(), payment, Date.now()));
+					}
 				const { employees, events, market, shop, statistics } = get();
 				const now = Date.now();
 				const daily = normalizeDailyState(get().daily, market.level, now);
 				const eventEffects = getActiveGameEventEffects(events, now);
 				const shopEffects = getShopEffects(shop.ownedItemIds);
 				const employeeEffects = getEmployeeEffects(employees);
+				let day = get().day;
+				// Opening always happens inside a day: without a chosen contract it is a free day.
+				// A finished day must be reviewed (claimDayResult) before the next one opens.
+				if (isOpen && !market.isOpen) {
+					if (day.phase === "results") return;
+					if (day.phase === "planning") day = startMarketDay(day, null, now) ?? day;
+				}
 				const isOpening = isOpen && !market.isOpen;
 				const isClosing = !isOpen && market.isOpen;
+				let customerSatisfaction = market.customerSatisfaction;
+				if (isClosing && day.phase === "open") {
+					const closed = closeMarketDay(day, now, market.level);
+					if (closed) {
+						customerSatisfaction = clampSatisfaction(
+							customerSatisfaction +
+								closed.stats.reputationChange -
+								day.stats.reputationChange,
+						);
+						day = closed;
+					}
+				}
 				const firstCustomer =
 					market.customersServed === 0 && market.recentCustomers.length === 0;
 				const nextCustomerDelay = firstCustomer
@@ -2012,7 +2409,8 @@ export const useGameStore = create<GameStore>()(
 							market.randomSeed,
 							shopEffects.customerArrivalMultiplier *
 								eventEffects.customerArrivalMultiplier *
-								employeeEffects.customerArrivalMultiplier,
+								employeeEffects.customerArrivalMultiplier *
+								getLoyaltyArrivalMultiplier(day.loyalty),
 						);
 				const lastShiftSummary =
 					isClosing && market.currentShift
@@ -2030,11 +2428,11 @@ export const useGameStore = create<GameStore>()(
 									market.currentShift.startingTotalRevenue,
 								satisfactionChange: Number(
 									(
-										market.customerSatisfaction -
+										customerSatisfaction -
 										market.currentShift.startingSatisfaction
 									).toFixed(1),
 								),
-								satisfaction: market.customerSatisfaction,
+								satisfaction: customerSatisfaction,
 								unitsSold:
 									market.unitsSold - market.currentShift.startingUnitsSold,
 							}
@@ -2042,9 +2440,11 @@ export const useGameStore = create<GameStore>()(
 
 				set({
 					daily,
+					day,
 					lastSessionAt: now,
 					market: {
 						...market,
+						customerSatisfaction,
 						currentShift: isOpening
 							? {
 									startedAt: now,
@@ -2069,6 +2469,181 @@ export const useGameStore = create<GameStore>()(
 								}
 							: statistics,
 				});
+			},
+			startDay: (contractId) => {
+				const { day, market } = get();
+				if (day.phase !== "planning" || market.isOpen) return false;
+				const started = startMarketDay(
+					day,
+					contractId === FREE_DAY_CONTRACT_ID ? null : contractId,
+					Date.now(),
+				);
+				if (!started) return false;
+				set({ day: started });
+				get().setMarketOpen(true);
+				return get().market.isOpen;
+			},
+			closeDay: () => {
+				const { day, market } = get();
+				if (day.phase !== "open") return false;
+				if (market.isOpen) {
+					get().setMarketOpen(false);
+				} else {
+					// Defensive: a day left open without an open market still gets its results.
+					const closed = closeMarketDay(day, Date.now(), market.level);
+					if (closed) set({ day: closed });
+				}
+				return get().day.phase === "results";
+			},
+			claimDayResult: () => {
+				const state = get();
+				const { day, market } = state;
+				if (day.phase !== "results" || !day.result) return false;
+				const reward = day.result.total;
+				const progression = applyExperience(
+					market.level,
+					market.experience,
+					reward.experience,
+				);
+				const unlockedProductIds = Array.from(
+					new Set([
+						...market.unlockedProductIds,
+						...getUnlockedProductIds(progression.level),
+					]),
+				);
+				const recentUnlockProductIds = unlockedProductIds.filter(
+					(productId) => !market.unlockedProductIds.includes(productId),
+				);
+				const nextMarket = {
+					...market,
+					experience: progression.experience,
+					lastExperienceGain: reward.experience,
+					level: progression.level,
+					recentUnlockProductIds:
+						recentUnlockProductIds.length > 0
+							? recentUnlockProductIds
+							: market.recentUnlockProductIds,
+					totalExperience: market.totalExperience + reward.experience,
+					unlockedProductIds,
+				};
+				const nextDay = advanceMarketDay(
+					day,
+					progression.level,
+					getDayStoreContext({ ...state, market: nextMarket }),
+				);
+				if (!nextDay) return false;
+				set({
+					coins: state.coins + reward.coins,
+					day: nextDay,
+					logistics: {
+						...state.logistics,
+						premiumCurrency: state.logistics.premiumCurrency + reward.diamonds,
+					},
+					market: nextMarket,
+				});
+				return true;
+			},
+			resolveSpecialRequest: (requestId, optionId) => {
+				const state = get();
+				const now = Date.now();
+				const resolution = resolveDayRequest(
+					state.day,
+					requestId,
+					optionId,
+					now,
+					state.market.level,
+				);
+				if (!resolution) return false;
+				let { day } = resolution;
+				let coins = state.coins + resolution.tip;
+				let { daily, inventory, inventoryLots, market } = state;
+				// "Buscar no depósito": sell one unit straight from storage.
+				if (resolution.option.source === "stock" && resolution.option.productId) {
+					const productId = resolution.option.productId;
+					const product = itemCatalog.find((item) => item.id === productId);
+					const available = inventory[productId] ?? 0;
+					if (!product || available <= 0) return false;
+					const lots = takeInventoryLots(
+						reconcileInventoryLots(productId, available, inventoryLots[productId]),
+						1,
+					);
+					const price = product.sellingPrice;
+					inventory = { ...inventory, [productId]: available - 1 };
+					inventoryLots = { ...inventoryLots, [productId]: lots.remainingLots };
+					coins += price;
+					daily = markDailySale(
+						normalizeDailyState(daily, market.level, now),
+						price,
+						0,
+						1,
+					);
+					market = {
+						...market,
+						soldByProduct: {
+							...market.soldByProduct,
+							[productId]: (market.soldByProduct[productId] ?? 0) + 1,
+						},
+						todayRevenue: daily.revenue,
+						totalRevenue: market.totalRevenue + price,
+						unitsSold: market.unitsSold + 1,
+					};
+					day = {
+						...day,
+						stats: {
+							...day.stats,
+							profit: day.stats.profit + price - product.purchasePrice,
+							revenue: day.stats.revenue + price,
+							soldByCategory: {
+								...day.stats.soldByCategory,
+								[product.category]:
+									(day.stats.soldByCategory[product.category] ?? 0) + 1,
+							},
+							unitsSold: day.stats.unitsSold + 1,
+						},
+					};
+				}
+				set({
+					coins,
+					daily,
+					day,
+					inventory,
+					inventoryLots,
+					lastSessionAt: now,
+					market: {
+						...market,
+						customerSatisfaction: clampSatisfaction(
+							market.customerSatisfaction + resolution.satisfactionDelta,
+						),
+					},
+				});
+				return true;
+			},
+			processMarketDay: () => {
+				const { day, market } = get();
+				const now = Date.now();
+				// Saves from before turns (or a desync) never leave an open market outside a day.
+				if (market.isOpen && day.phase === "planning") {
+					const started = startMarketDay(day, null, now);
+					if (started) set({ day: started });
+					return Boolean(started);
+				}
+				if (day.phase !== "open") return false;
+				const expired = expireSpecialRequests(day, now);
+				if (expired.expired.length > 0) {
+					set({
+						day: expired.day,
+						market: {
+							...market,
+							customerSatisfaction: clampSatisfaction(
+								market.customerSatisfaction + expired.satisfactionDelta,
+							),
+						},
+					});
+				}
+				if (isDayOver(get().day, now)) {
+					return get().closeDay();
+				}
+				return expired.expired.length > 0;
 			},
 			setShelfPrice: (shelfId, price) => {
 				const { shelfAssignments, shelfPrices, statistics } = get();
@@ -2361,11 +2936,14 @@ export const useGameStore = create<GameStore>()(
 			},
 			name: "checkout.game",
 			partialize: ({
+				checkout,
 				coins,
 				currencyPurchases,
 				daily,
+				day,
 				employees,
 				events,
+				incidents,
 				inventory,
 				inventoryLots,
 				inventoryCapacityLevels,
@@ -2386,11 +2964,14 @@ export const useGameStore = create<GameStore>()(
 				shelfUpgradeLevels,
 				statistics,
 			}) => ({
+				checkout,
 				coins,
 				currencyPurchases,
 				daily,
+				day,
 				employees,
 				events,
+				incidents,
 				inventory,
 				inventoryLots,
 				inventoryCapacityLevels,
@@ -2412,7 +2993,7 @@ export const useGameStore = create<GameStore>()(
 				statistics,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
-			version: 30,
+			version: 34,
 		},
 	),
 );
@@ -2737,6 +3318,129 @@ function createMarketCustomer(
 		spent: visit.revenue,
 		status: visit.revenue > 0 ? "pagou" : "saiu sem comprar",
 	};
+}
+
+// Money, XP and sales of a paid basket (the register is where revenue is booked).
+function applyCheckoutPayment(
+	state: GameState,
+	payment: CheckoutPayment,
+	now: number,
+): Partial<GameState> {
+	const { checkout, revenue, tip } = payment;
+	const { market } = state;
+	const daily = markDailySale(
+		normalizeDailyState(state.daily, market.level, now),
+		revenue,
+		0,
+		checkout.units,
+	);
+	const progression = applyExperience(
+		market.level,
+		market.experience,
+		checkout.experience,
+	);
+	const unlockedProductIds = Array.from(
+		new Set([
+			...market.unlockedProductIds,
+			...getUnlockedProductIds(progression.level),
+		]),
+	);
+	const recentUnlockProductIds = unlockedProductIds.filter(
+		(productId) => !market.unlockedProductIds.includes(productId),
+	);
+	const soldByProduct = { ...market.soldByProduct };
+	for (const [productId, quantity] of Object.entries(checkout.soldByProduct))
+		soldByProduct[Number(productId)] =
+			(soldByProduct[Number(productId)] ?? 0) + quantity;
+	return {
+		checkout: payment.state,
+		coins: state.coins + revenue + tip,
+		daily,
+		day: recordDaySale(state.day, {
+			categories: checkout.categories,
+			profit: checkout.profit - (checkout.total - revenue),
+			revenue,
+			units: checkout.units,
+		}),
+		lastSessionAt: now,
+		market: {
+			...market,
+			customerSatisfaction: clampSatisfaction(
+				market.customerSatisfaction + payment.satisfactionDelta,
+			),
+			customersWhoBought: market.customersWhoBought + 1,
+			experience: progression.experience,
+			lastExperienceGain: checkout.experience,
+			level: progression.level,
+			recentCustomers: market.recentCustomers.map((customer) =>
+				customer.id === checkout.customerId
+					? { ...customer, spent: revenue, status: "pagou" as const }
+					: customer,
+			),
+			recentUnlockProductIds:
+				recentUnlockProductIds.length > 0
+					? recentUnlockProductIds
+					: market.recentUnlockProductIds,
+			soldByProduct,
+			todayRevenue: daily.revenue,
+			totalExperience: market.totalExperience + checkout.experience,
+			totalRevenue: market.totalRevenue + revenue,
+			unitsSold: market.unitsSold + checkout.units,
+			unlockedProductIds,
+		},
+	};
+}
+
+// Abandoned baskets: items return to their shelf (or storage if the shelf changed product).
+function returnAbandonedCheckouts(
+	state: GameState,
+	expired: {
+		expired: PendingCheckout[];
+		satisfactionDelta: number;
+		state: GameState["checkout"];
+	},
+	now: number,
+): Partial<GameState> {
+	const shelfStock = { ...state.shelfStock };
+	const inventory = { ...state.inventory };
+	const inventoryLots = { ...state.inventoryLots };
+	for (const checkout of expired.expired)
+		for (const item of checkout.items) {
+			if (state.shelfAssignments[item.shelfId] === item.productId)
+				shelfStock[item.shelfId] = (shelfStock[item.shelfId] ?? 0) + item.quantity;
+			else {
+				inventory[item.productId] = (inventory[item.productId] ?? 0) + item.quantity;
+				inventoryLots[item.productId] = reconcileInventoryLots(
+					item.productId,
+					inventory[item.productId],
+					inventoryLots[item.productId],
+					now,
+				);
+			}
+		}
+	const left = new Set(expired.expired.map((checkout) => checkout.customerId));
+	return {
+		checkout: expired.state,
+		day: recordDayCheckoutLost(state.day, expired.expired.length),
+		inventory,
+		inventoryLots,
+		market: {
+			...state.market,
+			customerSatisfaction: clampSatisfaction(
+				state.market.customerSatisfaction + expired.satisfactionDelta,
+			),
+			recentCustomers: state.market.recentCustomers.map((customer) =>
+				left.has(customer.id)
+					? { ...customer, spent: 0, status: "saiu sem comprar" as const }
+					: customer,
+			),
+		},
+		shelfStock,
+	};
+}
+
+function clampSatisfaction(value: number) {
+	return Math.round(Math.min(100, Math.max(0, value)) * 10) / 10;
 }
 
 const customerProfiles: Record<CustomerArchetype, { names: string[] }> = {

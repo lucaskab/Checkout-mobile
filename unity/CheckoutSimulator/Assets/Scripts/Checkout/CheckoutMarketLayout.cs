@@ -168,6 +168,8 @@ namespace Checkout
                 var properties=new MaterialPropertyBlock();renderer.GetPropertyBlock(properties);
                 var center=Point(Vector3.zero);
                 properties.SetFloat("_ExpansionProjection",1);
+                // The service driveway across the north sidewalk only exists once the loading yard is bought.
+                properties.SetFloat("_LoadingAccessEnabled",next.loadingYard?1:0);
                 properties.SetFloat("_ParkingSpaces",next.parking?(next.stage>=3?5:3):0);
                 properties.SetVector("_ExpansionFeatures",new Vector4(next.storage?1:0,next.parking?1:0,next.loadingYard?1:0,next.premium?1:0));
                 properties.SetVector("_MarketFootprint",new Vector4(center.x,center.z,9.4f*next.widthScale,7.4f*next.depthScale));

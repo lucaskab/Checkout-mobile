@@ -2,6 +2,7 @@ import type { GameState } from "@/@types/game";
 import type { SimulatorSnapshot } from "@/@types/simulator";
 import { getGameEvent } from "@/data/game-events";
 import { marketExpansions } from "@/data/market-expansions";
+import { getInventoryCapacity } from "@/data/inventory-capacity";
 import { itemCatalog, shelves } from "@/data/market-products";
 import {
 	productionRecipes,
@@ -19,8 +20,11 @@ import {
 	resolveShelfSlotCounts,
 } from "@/data/shelf-slots";
 import { getActiveGameEventEffects } from "@/services/game-events";
+import { getContractProgress } from "@/services/market-day";
+import { getIncidentShelves } from "@/services/store-incidents-context";
 import { getClaimableMissionCount } from "@/services/missions";
 import { getExperienceToNextLevel } from "@/services/progression";
+import { getBoxUnits, getWarehouseZone } from "@/services/receiving";
 import { getSimulatorLayout } from "@/services/simulator-layout";
 export function createSimulatorSnapshot(
 	state: GameState,
@@ -39,6 +43,7 @@ export function createSimulatorSnapshot(
 			: null;
 	const event = getGameEvent(active?.eventId),
 		effects = getActiveGameEventEffects(state.events, now);
+	const dayProgress = getContractProgress(state.day.contract, state.day.stats);
 	return {
 		layout,
 		kind: "snapshot",
@@ -137,6 +142,122 @@ export function createSimulatorSnapshot(
 			requiredLevel: expansion.requiredLevel,
 			unlocked: state.unlockedMarketExpansionIds.includes(expansion.id),
 		})),
+		// The register line: Unity keeps these customers waiting at the till until they are paid.
+		checkouts: state.checkout.queue.map((checkout) => ({
+			id: checkout.id,
+			customerId: checkout.customerId,
+			customerName: checkout.customerName,
+			mood: checkout.mood,
+			method: checkout.method,
+			total: checkout.total,
+			cashGiven: checkout.cashGiven,
+			readyAt: checkout.readyAt,
+			expiresAt: checkout.expiresAt,
+			items: checkout.items.map((item) => ({
+				productId: item.productId,
+				name: item.name,
+				quantity: item.quantity,
+				unitPrice: item.unitPrice,
+			})),
+		})),
+		dock: state.receiving.dock.map((delivery) => ({
+			id: delivery.id,
+			productId: delivery.productId,
+			productName: delivery.productName,
+			category: delivery.category,
+			zone: delivery.zone,
+			quantity: delivery.quantity,
+			unloaded: delivery.unloaded,
+			boxUnits: getBoxUnits(delivery.quantity),
+			// Free space for this product in the stockroom (a full stockroom refuses the boxes).
+			room: Math.max(
+				0,
+				getInventoryCapacity(
+					{ id: delivery.productId },
+					state.inventoryCapacityLevels[delivery.productId],
+				) - (state.inventory[delivery.productId] ?? 0),
+			),
+			arrivedAt: delivery.arrivedAt,
+		})),
+		restockSlots: shelves.flatMap((shelf) => {
+			const count = getShelfSlotCount(shelf.id, shelfSlotCounts);
+			if (count <= 0) return [];
+			const capacity = getShelfCapacity(state.shelfUpgradeLevels[shelf.id] ?? 0);
+			return getShelfSlotIds(shelf.id, count).flatMap((slotId) => {
+				const productId = state.shelfAssignments[slotId];
+				const product = productId
+					? itemCatalog.find((item) => item.id === productId)
+					: undefined;
+				if (!product) return [];
+				return [
+					{
+						slotId,
+						shelfId: shelf.id,
+						shelfName: shelf.name ?? shelf.id,
+						productId: product.id,
+						productName: product.name,
+						zone: getWarehouseZone(product.category),
+						stock: state.shelfStock[slotId] ?? 0,
+						capacity,
+						reserve: state.inventory[product.id] ?? 0,
+					},
+				];
+			});
+		}),
+		// Store mishaps, shown at their shelf; clicking one opens its small task in Unity.
+		incidents: state.incidents.active.map((incident) => ({
+			id: incident.id,
+			kind: incident.kind,
+			shelfId: incident.shelfId,
+			shelfName: incident.shelfName,
+			productId: incident.productId,
+			productName: incident.productName,
+			createdAt: incident.createdAt,
+			fixCost: incident.fixCost,
+			tagPrice: incident.tagPrice,
+			price:
+				getIncidentShelves(state).find((shelf) => shelf.shelfId === incident.shelfId)
+					?.price ?? 0,
+		})),
+		checkoutResults: state.checkout.recent.map((outcome) => ({
+			id: outcome.id,
+			customerId: outcome.customerId,
+			status: outcome.status,
+			mistake: outcome.mistake,
+			charged: outcome.charged,
+			tip: outcome.tip,
+		})),
+		day: {
+			phase: state.day.phase,
+			dayNumber: state.day.dayNumber,
+			startedAt: state.day.startedAt ?? 0,
+			endsAt: state.day.endsAt ?? 0,
+			loyalty: state.day.loyalty,
+			contractTitle: state.day.contract?.title ?? "Dia livre",
+			contractLabel: dayProgress.label,
+			contractProgress: dayProgress.ratio,
+			contractCompleted: dayProgress.completed,
+			grade: state.day.result?.grade ?? "",
+			// Pending requests plus the ones answered in the last seconds, so Unity can react.
+			requests: state.day.requests
+				.filter(
+					(request) =>
+						request.status === "pending" ||
+						now - (request.resolvedAt ?? 0) < 8_000,
+				)
+				.map((request) => ({
+					id: request.id,
+					customerId: request.customerId,
+					customerName: request.customerName,
+					kind: request.kind,
+					message: request.message,
+					productId: request.productId,
+					productName: request.productName,
+					createdAt: request.createdAt,
+					expiresAt: request.expiresAt,
+					status: request.status,
+				})),
+		},
 		event: {
 			id: event?.id ?? "",
 			name: event?.name ?? "",

@@ -17,10 +17,16 @@ const object = (v: unknown): v is Record<string, unknown> =>
 const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	activateLogisticsBoost: [],
 	claimDailyGoal: [],
+	claimDayResult: [],
+	closeDay: [],
+	completeCheckout: [text, positive],
 	completeOrderFinalStage: [text],
 	claimMission: [text],
 	deliverOrderInstantly: [text],
 	finishProductionNow: [text],
+	fixIncident: [text],
+	unloadDelivery: [text, integer],
+	unloadAllDeliveries: [],
 	hireEmployee: [
 		(v) => ["cashier", "stock_clerk", "cleaner"].includes(String(v)),
 	],
@@ -43,7 +49,9 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	],
 	setEmployeeWorking: [text, boolean],
 	trainEmployee: [text],
+	resolveSpecialRequest: [text, text],
 	setMarketOpen: [boolean],
+	startDay: [text],
 	setShelfPrice: [text, positive],
 	startProduction: [
 		(v) =>

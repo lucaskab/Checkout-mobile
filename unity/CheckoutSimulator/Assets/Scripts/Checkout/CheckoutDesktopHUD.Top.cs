@@ -22,7 +22,7 @@ namespace Checkout {
    var row=N.Row(bar.gameObject,12);row.childAlignment=TextAnchor.UpperLeft;
 
    // Level + XP + next unlock. Clicking opens the panel of the next unlock, like the app.
-   var level=Panel(bar,"Level",380,96,out var levelEdge,out _);Clickable(levelEdge.gameObject,()=>{if(view!=null)host.Route("!"+view.progressRoute);});
+   var level=Panel(bar,"Level",330,96,out var levelEdge,out _);Clickable(levelEdge.gameObject,()=>{if(view!=null)host.Route("!"+view.progressRoute);});
    N.Column(level.gameObject,4,new RectOffset(14,14,8,8));
    var head=N.Node("Head",level);N.Row(head.gameObject,8);
    var crown=N.Image(head,"Crown",Color.white,0);crown.sprite=K.Icon("Icons/crown");crown.preserveAspect=true;var cl=crown.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();cl.preferredWidth=cl.preferredHeight=26;
@@ -31,8 +31,10 @@ namespace Checkout {
    Bar(level,12,K.C("8B5C9E"),out xpFill);
    progressText=N.Text(level,"Next",K.Body,14,K.Muted);progressText.textWrappingMode=TextWrappingModes.NoWrap;progressText.overflowMode=TextOverflowModes.Ellipsis;
 
+   BuildDayPanel(bar);
+
    // Daily goal, with the claim button once it is reached.
-   var daily=Panel(bar,"Daily",300,96,out dailyEdge,out _);Clickable(dailyEdge.gameObject,()=>host.Route("!store"));
+   var daily=Panel(bar,"Daily",250,96,out dailyEdge,out _);Clickable(dailyEdge.gameObject,()=>host.Route("!store"));
    N.Column(daily.gameObject,4,new RectOffset(14,14,8,8));
    var dhead=N.Node("Head",daily);N.Row(dhead.gameObject,8);
    var coin=N.Image(dhead,"Coin",Color.white,0);coin.sprite=K.Icon("Icons/coin");coin.preserveAspect=true;var dl=coin.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();dl.preferredWidth=dl.preferredHeight=24;
@@ -42,7 +44,7 @@ namespace Checkout {
    claimButton=CheckoutDesktopButton.Create(daily,30,13,10);claimButton.Clicked=Press;
 
    // Active event chip, only while an event runs.
-   var ev=Panel(bar,"Event",300,96,out eventEdge,out eventFace);eventPanel=eventEdge.gameObject;
+   var ev=Panel(bar,"Event",270,96,out eventEdge,out eventFace);eventPanel=eventEdge.gameObject;
    N.Row(ev.gameObject,10,new RectOffset(12,12,8,8));
    eventIcon=N.Image(ev,"Icon",Color.white,0);eventIcon.preserveAspect=true;var el=eventIcon.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();el.preferredWidth=el.preferredHeight=44;
    var etexts=N.Node("Texts",ev);N.Column(etexts.gameObject,1);etexts.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
@@ -68,7 +70,8 @@ namespace Checkout {
    eventPanel.SetActive(v.hasEvent);
    if(v.hasEvent){var tone=K.Tone(v.eventNegative?"danger":"success");eventEdge.color=tone.edge;eventFace.color=tone.face;eventName.text=v.eventName;eventTimer.text=v.eventTimer;eventEffect.text=v.eventEffect;eventIcon.sprite=K.Icon(v.eventIcon);}
    coinsText.text=v.coins;gemsText.text=v.diamonds;
-   marketButton.Apply(new DesktopButton{label=v.isOpen?"Fechar":"Abrir",icon="Icons/market",variant=v.isOpen?"danger":"success",enabled=true,action="setMarketOpen",args=v.isOpen?"[false]":"[true]",ok=v.isOpen?"Mercado fechado":"Mercado aberto!",route="",after="",fail=""});
+   marketButton.Apply(MarketButton(v));
+   ApplyDay(v);
   }
  }
 }

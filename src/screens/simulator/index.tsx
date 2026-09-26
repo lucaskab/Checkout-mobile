@@ -1,7 +1,7 @@
 import UnityView from "@azesmway/react-native-unity";
 import { LegendList } from "@legendapp/list/react-native";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet } from "react-native-unistyles";
@@ -11,6 +11,13 @@ import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameIcon } from "@/components/game-icon";
 import { GameModeToggle } from "@/components/game-mode-toggle";
 import { GameText as Text } from "@/components/game-text";
+import {
+	DayPlanningSheet,
+	DayResultSheet,
+	DayStatusCard,
+	SpecialRequestAlert,
+	SpecialRequestsSheet,
+} from "@/components/market-day";
 import type { GameIconId } from "@/data/game-icon-assets";
 import { AchievementsScreen } from "@/screens/achievements";
 import { CurrencyStoreScreen } from "@/screens/currency-store";
@@ -98,17 +105,31 @@ export function SimulatorScreen() {
 		setPanel(null);
 	}, [panel, openBottomSheet]);
 	const unityRef = useRef<UnityView>(null);
+	const openDayPanel = useCallback(
+		(dayPanel: "day" | "requests", requestId?: string) => {
+			const phase = useGameStore.getState().day.phase;
+			if (dayPanel === "requests") {
+				openBottomSheet(<SpecialRequestsSheet focusId={requestId} />);
+			} else if (phase === "results") {
+				openBottomSheet(<DayResultSheet />);
+			} else if (phase === "planning") {
+				openBottomSheet(<DayPlanningSheet />);
+			}
+		},
+		[openBottomSheet],
+	);
 	const { status, onUnityMessage } = useSimulator(
 		unityRef,
 		setPanel,
 		setShelfId,
 		setSectorId,
+		openDayPanel,
 	);
 	const opened = useGameStore((s) => s.market.isOpen);
 	const level = useGameStore((s) => s.market.level);
 	const coins = useGameStore((s) => s.coins);
 	const diamonds = useGameStore((s) => s.logistics.premiumCurrency);
-	const setOpen = useGameStore((s) => s.setMarketOpen);
+	const closeDay = useGameStore((s) => s.closeDay);
 	const insets = useSafeAreaInsets();
 
 	function closePanel() {
@@ -180,6 +201,8 @@ export function SimulatorScreen() {
 							</View>
 						</View>
 						<SimulatorProgress onOpenPanel={openPanel} />
+						<DayStatusCard compact />
+						<SpecialRequestAlert />
 						<View pointerEvents="box-none" style={styles.statusRow}>
 							<View pointerEvents="box-none" style={styles.eventHud}>
 								<SimulatorEvent />
@@ -187,7 +210,7 @@ export function SimulatorScreen() {
 							<Pressable
 								accessibilityRole="button"
 								accessibilityLabel={opened ? "Fechar mercado" : "Abrir mercado"}
-								onPress={() => setOpen(!opened)}
+								onPress={() => (opened ? closeDay() : openDayPanel("day"))}
 								style={({ pressed }) => [
 									styles.marketButton,
 									opened && styles.openMarketButton,

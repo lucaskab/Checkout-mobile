@@ -7,7 +7,11 @@ import { DevCheatSheet } from "@/components/dev-cheat-sheet";
 import { GameEventBanner } from "@/components/game-event-banner";
 import { GameIcon } from "@/components/game-icon";
 import { GameModeToggle } from "@/components/game-mode-toggle";
+import { CheckoutAlert } from "@/components/checkout-counter";
 import { GameText as Text } from "@/components/game-text";
+import { SpecialRequestAlert } from "@/components/market-day";
+import { DeliveryAlert } from "@/components/receiving";
+import { IncidentAlert } from "@/components/store-incidents";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { SupermarketAwning } from "@/components/supermarket-awning";
 import type { GameIconId } from "@/data/game-icon-assets";
@@ -103,6 +107,10 @@ export const GameHeader = () => {
 				</View>
 			</View>
 			<GameEventBanner />
+			<SpecialRequestAlert />
+			<CheckoutAlert />
+			<IncidentAlert />
+			<DeliveryAlert />
 			<SupermarketAwning />
 		</View>
 	);

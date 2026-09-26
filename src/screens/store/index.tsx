@@ -10,6 +10,11 @@ import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
+import {
+	DayPlanningSheet,
+	DayResultSheet,
+	DayStatusCard,
+} from "@/components/market-day";
 import { ProductImage } from "@/components/product-image";
 import { itemCatalog } from "@/data/market-products";
 import {
@@ -28,7 +33,6 @@ import { useGameStore } from "@/stores/game-store";
 import { AttentionCard } from "./components/attention-card";
 import { MarketExpansionsSheet } from "./components/market-expansions-sheet";
 import { ShelfGrid } from "./components/shelf-grid";
-import { ShiftSummarySheet } from "./components/shift-summary-sheet";
 import { StorefrontHero } from "./components/storefront-hero";
 import { TopSellersCard } from "./components/top-sellers-card";
 import { shelves } from "./data";
@@ -47,7 +51,8 @@ export function StoreScreen() {
 		shelfSlotCounts,
 		unlockedShelfSlots,
 	);
-	const setMarketOpen = useGameStore((state) => state.setMarketOpen);
+	const dayPhase = useGameStore((state) => state.day.phase);
+	const closeDay = useGameStore((state) => state.closeDay);
 	const experienceToNextLevel = getExperienceToNextLevel(market.level);
 	const recentUnlocks = itemCatalog
 		.filter((product) => market.recentUnlockProductIds.includes(product.id))
@@ -130,17 +135,16 @@ export function StoreScreen() {
 		}
 	}
 
+	// Opening starts a day (contract first); closing ends it and shows the results.
 	function toggleMarket() {
-		const wasOpen = market.isOpen;
-		setMarketOpen(!wasOpen);
-
-		if (wasOpen) {
-			const summary = useGameStore.getState().market.lastShiftSummary;
-
-			if (summary) {
-				openBottomSheet(<ShiftSummarySheet summary={summary} />);
-			}
+		if (market.isOpen) {
+			closeDay();
+			return;
 		}
+
+		openBottomSheet(
+			dayPhase === "results" ? <DayResultSheet /> : <DayPlanningSheet />,
+		);
 	}
 
 	function openMarketExpansions() {
@@ -189,6 +193,7 @@ export function StoreScreen() {
 						recentUnlocks={recentUnlocks}
 						unlockedProductCount={market.unlockedProductIds.length}
 					/>
+					<DayStatusCard />
 				</View>
 			}
 			renderItem={renderSection}

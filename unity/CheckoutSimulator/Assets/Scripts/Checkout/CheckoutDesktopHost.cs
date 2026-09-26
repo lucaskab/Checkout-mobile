@@ -68,7 +68,7 @@ namespace Checkout {
     if(kind=="view")latestView=line;
     else if(kind=="snapshot")bridge.Receive(line);
     else if(kind=="result")hud.Result(line);
-    else if(kind=="receipt"){}
+    else if(kind=="receipt")bridge.Receipt(line); // retries stale commands, logs other rejections
    }
    if(latestView!=null)hud.Apply(latestView);
    if(process!=null&&process.HasExited&&Active==this){Active=null;hud.Offline("O processo do jogo (node) parou. Veja o Console.");}

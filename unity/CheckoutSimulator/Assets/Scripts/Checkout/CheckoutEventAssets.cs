@@ -4,30 +4,67 @@ using UnityEngine.Rendering;
 using MarketDay;
 
 namespace Checkout {
- // Reusable low-poly props, built once per event and shared-material batched.
+ // Event props: Blender-authored FBX models (Resources/EventProps) with the shared painted shader,
+ // cloned market characters, and a few primitive helpers. Built once per event and cached.
  public sealed class CheckoutEventAssets {
+  public static readonly Color Ink=new Color(.22f,.115f,.055f,1);
   readonly Dictionary<string,Material> materials=new Dictionary<string,Material>();
+  readonly Dictionary<string,Material> textured=new Dictionary<string,Material>();
+  readonly Dictionary<string,Material> atlases=new Dictionary<string,Material>();
   readonly List<Mesh> meshes=new List<Mesh>();
-  public Material Material(string color){if(!materials.TryGetValue(color,out var material)){material=new Material(Shader.Find("MarketDay/Soft Painted"));material.name="Event "+color;material.color=MarketSimulation.C(color);material.SetFloat("_Outline",.8f);material.SetColor("_OutlineColor",new Color(.22f,.115f,.055f,1));materials[color]=material;}return material;}
+  static Shader painted;
+  static Shader Painted=>painted?painted:(painted=Shader.Find("MarketDay/Soft Painted"));
+  public Material Material(string color){if(!materials.TryGetValue(color,out var material)){material=new Material(Painted);material.name="Event "+color;material.color=MarketSimulation.C(color);material.SetFloat("_Outline",.8f);material.SetColor("_OutlineColor",Ink);materials[color]=material;}return material;}
+  public Material Textured(string texture){if(!textured.TryGetValue(texture,out var material)){material=new Material(Painted);material.name="Event texture "+texture;material.mainTexture=Resources.Load<Texture2D>("EventProps/Textures/"+texture);material.color=Color.white;material.SetFloat("_Outline",.8f);material.SetColor("_OutlineColor",Ink);textured[texture]=material;}return material;}
+  // Baked Blender atlases and the supplied game models share the Standard shader used by the map's Tripo models.
+  public Material Atlas(string name){if(!atlases.TryGetValue(name,out var material)){material=new Material(Shader.Find("Standard"));material.name="Event atlas "+name;material.mainTexture=Resources.Load<Texture2D>("EventProps/Tex/"+name);material.color=Color.white;material.SetFloat("_Glossiness",.12f);material.SetFloat("_Metallic",0);atlases[name]=material;}return material;}
   public Transform Group(Transform parent,string name,Vector3 position){var go=new GameObject(name);go.transform.SetParent(parent,false);go.transform.localPosition=position;return go.transform;}
+
+  // Blender material names: C_RRGGBB (painted colour) or T_<texture> (painted texture). See scripts/blender/build_event_props.py.
+  Material Remap(Material source){if(!source)return Material("FFFFFF");var name=source.name.Replace(" (Instance)","");int dot=name.IndexOf('.');if(dot>0)name=name.Substring(0,dot);
+   if(name.StartsWith("C_")&&name.Length>=8)return Material(name.Substring(2,6));if(name.StartsWith("T_"))return Textured(name.Substring(2));if(name.StartsWith("G_"))return Atlas(name.Substring(2));return source;}
+  public Transform Model(Transform parent,string model,Vector3 p,float yaw=0,float scale=1){
+   var holder=Group(parent,model,p);holder.gameObject.layer=2;holder.localRotation=Quaternion.Euler(0,yaw,0);holder.localScale=Vector3.one*scale;
+   var prefab=Resources.Load<GameObject>("EventProps/"+model);if(!prefab){Debug.LogWarning("CHECKOUT_EVENT_PROP_MISSING "+model);return holder;}
+   var go=Object.Instantiate(prefab,holder,false);go.name=model+" model";
+   foreach(var t in go.GetComponentsInChildren<Transform>(true))t.gameObject.layer=2;
+   foreach(var c in go.GetComponentsInChildren<Collider>(true))Object.Destroy(c);
+   foreach(var r in go.GetComponentsInChildren<Renderer>(true)){var shared=r.sharedMaterials;for(int i=0;i<shared.Length;i++)shared[i]=Remap(shared[i]);r.sharedMaterials=shared;r.shadowCastingMode=ShadowCastingMode.On;}
+   return holder;}
+
+  // A live copy of one of the market's rigged characters, looping one of its Blender clips.
+  public Transform Actor(Transform parent,string source,Vector3 p,float yaw,string clip="Idle",float speed=1){
+   var holder=Group(parent,"Event actor "+source,p);holder.localRotation=Quaternion.Euler(0,yaw,0);
+   var world=Object.FindAnyObjectByType<MarketSimulation>();var root=world&&world.world?world.world.Find(source):null;
+   // The simulation renames the stocker to StockWorker_0 when it spawns the stock team.
+   if(!root&&world&&world.world&&source=="Worker_Stocker")foreach(var alt in new[]{"StockWorker_0","Worker_Delivery","Worker_Cashier"}){root=world.world.Find(alt);if(root)break;}
+   if(!root){foreach(var a in Object.FindObjectsByType<MarketCharacterAnimator>(FindObjectsInactive.Include))if(a.name==source){root=a.transform;break;}}
+   if(!root){Debug.LogWarning("CHECKOUT_EVENT_ACTOR_MISSING "+source);return holder;}
+   var animator=root.GetComponent<MarketCharacterAnimator>();var player=animator&&animator.animationPlayer?animator.animationPlayer:root.GetComponentInChildren<Animation>(true);
+   var visual=player?player.gameObject:root.gameObject;
+   bool wasActive=holder.gameObject.activeSelf;holder.gameObject.SetActive(false);
+   var clone=Object.Instantiate(visual,holder,false);clone.name="Visual";
+   foreach(var b in clone.GetComponentsInChildren<MonoBehaviour>(true))Object.DestroyImmediate(b);
+   foreach(var n in clone.GetComponentsInChildren<UnityEngine.AI.NavMeshAgent>(true))Object.DestroyImmediate(n);
+   foreach(var c in clone.GetComponentsInChildren<Collider>(true))Object.DestroyImmediate(c);
+   foreach(var t in clone.GetComponentsInChildren<Transform>(true)){t.gameObject.layer=2;if(t.name=="Handled purchase")t.gameObject.SetActive(false);}
+   clone.transform.localPosition=visual==root.gameObject?Vector3.zero:Quaternion.Inverse(root.rotation)*(visual.transform.position-root.position);
+   clone.transform.localRotation=visual==root.gameObject?Quaternion.identity:Quaternion.Inverse(root.rotation)*visual.transform.rotation;
+   clone.transform.localScale=visual.transform.lossyScale;clone.SetActive(true);
+   foreach(var r in clone.GetComponentsInChildren<Renderer>(true))r.enabled=true;
+   var anim=clone.GetComponent<Animation>();if(!anim)anim=clone.GetComponentInChildren<Animation>(true);
+   if(anim){anim.enabled=true;anim.cullingType=AnimationCullingType.AlwaysAnimate;var state=anim[clip]??anim["Idle"];if(state){state.wrapMode=WrapMode.Loop;state.speed=speed;state.time=Random.value*state.length;anim.Play(state.name);}}
+   holder.gameObject.SetActive(wasActive);return holder;}
+
+  // Primitive helpers (still used for tiny accents and fallbacks).
   public Transform Part(Transform parent,string name,Vector3 p,Vector3 size,string color,PrimitiveType shape=PrimitiveType.Cube){var go=GameObject.CreatePrimitive(shape);go.name=name;go.layer=2;go.transform.SetParent(parent,false);go.transform.localPosition=p;go.transform.localScale=size;Object.Destroy(go.GetComponent<Collider>());go.GetComponent<Renderer>().sharedMaterial=Material(color);return go.transform;}
   public void Bar(Transform parent,Vector3 a,Vector3 b,float width,string color){var t=Part(parent,"Frame",(a+b)*.5f,new Vector3(width,(a-b).magnitude,width),color);t.up=b-a;}
-  public Transform Coin(Transform parent,Vector3 p){var t=Group(parent,"Gold coin",p);Part(t,"Rim",Vector3.zero,new Vector3(.62f,.09f,.62f),"E9A52E",PrimitiveType.Cylinder).localRotation=Quaternion.Euler(90,0,0);Part(t,"Face",new Vector3(0,0,-.1f),new Vector3(.48f,.025f,.48f),"FFD975",PrimitiveType.Cylinder).localRotation=Quaternion.Euler(90,0,0);Bar(t,new Vector3(0,-.16f,-.14f),new Vector3(0,.16f,-.14f),.055f,"C98522");return t;}
-  public void Crate(Transform parent,Vector3 p){var t=Group(parent,"Wholesale crate",p);Part(t,"Box",Vector3.zero,new Vector3(.85f,.65f,.7f),"C99560");for(int i=-1;i<=1;i++)Part(t,"Slat",new Vector3(i*.32f,0,-.37f),new Vector3(.09f,.68f,.06f),"936545");Part(t,"Label",new Vector3(.14f,.04f,-.405f),new Vector3(.28f,.22f,.02f),"FFF2CF");}
-  public Transform Cart(Transform parent,Vector3 p){var t=Group(parent,"Shopping cart",p);Part(t,"Basket base",new Vector3(0,.6f,0),new Vector3(.65f,.09f,.8f),"699A9C");for(int i=0;i<4;i++){float z=-.35f+i*.23f;for(int j=-1;j<=1;j+=2)Bar(t,new Vector3(j*.32f,.6f,z),new Vector3(j*.4f,1.04f,z),.045f,"BCD4CF");}for(int j=-1;j<=1;j+=2){Bar(t,new Vector3(j*.4f,1.04f,-.4f),new Vector3(j*.4f,1.04f,.4f),.05f,"BCD4CF");Bar(t,new Vector3(j*.26f,.18f,.4f),new Vector3(j*.26f,1.15f,.5f),.06f,"699A9C");}Bar(t,new Vector3(-.3f,1.15f,.5f),new Vector3(.3f,1.15f,.5f),.1f,"EAAC54");for(int x=-1;x<=1;x+=2)for(int z=-1;z<=1;z+=2)Part(t,"Wheel",new Vector3(x*.28f,.18f,z*.32f),Vector3.one*.2f,"344655",PrimitiveType.Sphere);Part(t,"Groceries",new Vector3(0,.8f,0),new Vector3(.4f,.32f,.4f),"DF8050");return t;}
-  public Transform Person(Transform parent,Vector3 p,string coat,bool clipboard=false){var t=Group(parent,"Event visitor",p);for(int i=-1;i<=1;i+=2){Part(t,"Trouser",new Vector3(i*.13f,.4f,0),new Vector3(.18f,.7f,.2f),"3D5366");Part(t,"Shoe",new Vector3(i*.13f,.1f,-.08f),new Vector3(.22f,.16f,.34f),"283F49");}Part(t,"Coat",new Vector3(0,1.02f,0),new Vector3(.57f,.66f,.32f),coat);Part(t,"Head",new Vector3(0,1.61f,0),Vector3.one*.45f,"E8B38B",PrimitiveType.Sphere);Part(t,"Hair",new Vector3(0,1.78f,.025f),new Vector3(.46f,.19f,.42f),"4C393D",PrimitiveType.Sphere);for(int eye=-1;eye<=1;eye+=2)Part(t,"Eye",new Vector3(eye*.085f,1.63f,-.207f),new Vector3(.045f,.055f,.025f),"3F3939",PrimitiveType.Sphere);for(int i=-1;i<=1;i+=2)Part(t,"Sleeve",new Vector3(i*.37f,1.01f,-.07f),new Vector3(.17f,.5f,.2f),coat);if(clipboard){Part(t,"Clipboard",new Vector3(.25f,1.06f,-.35f),new Vector3(.43f,.57f,.08f),"916645");Part(t,"Report",new Vector3(.25f,1.06f,-.4f),new Vector3(.34f,.44f,.015f),"FFF4DA");for(int i=0;i<3;i++)Part(t,"Checklist",new Vector3(.25f,1.18f-i*.11f,-.414f),new Vector3(.22f,.025f,.01f),"547976");}return t;}
-  public Transform Vehicle(Transform parent,Vector3 p,string color,bool delivery=false){var t=Group(parent,delivery?"Express delivery van":"Traffic car",p);Part(t,"Body",new Vector3(0,.65f,0),new Vector3(1.25f,.55f,2.2f),color);Part(t,"Cabin",new Vector3(0,1.13f,.15f),new Vector3(1.12f,.5f,1.25f),delivery?"FFF1D6":color);Part(t,"Windshield",new Vector3(0,1.16f,-.49f),new Vector3(.95f,.33f,.025f),"9BD3DE");for(int x=-1;x<=1;x+=2){for(int z=-1;z<=1;z+=2)Part(t,"Wheel",new Vector3(x*.62f,.4f,z*.7f),new Vector3(.28f,.55f,.55f),"35434D",PrimitiveType.Sphere);Part(t,"Headlight",new Vector3(x*.43f,.67f,-1.12f),new Vector3(.26f,.16f,.04f),"FFF0AB");}if(delivery){Part(t,"Parcel emblem",new Vector3(.642f,1.1f,.2f),new Vector3(.04f,.35f,.45f),"DEA54D");}return t;}
+
+  // Primitive safety cone kept for the expansion plots.
   public void Cone(Transform parent,Vector3 p){Part(parent,"Cone foot",p+Vector3.up*.05f,new Vector3(.55f,.1f,.55f),"354451");for(int i=0;i<4;i++){float width=.4f-i*.085f;Part(parent,"Safety cone",p+Vector3.up*(.18f+i*.17f),new Vector3(width,.17f,width),i==2?"FFF3DC":"EF8B40");}}
-  public void Barrier(Transform parent,Vector3 p){var t=Group(parent,"Road barrier",p);for(int i=-1;i<=1;i+=2)Part(t,"Leg",new Vector3(i*.72f,.55f,0),new Vector3(.13f,1.1f,.13f),"344655");Part(t,"Board",new Vector3(0,.95f,0),new Vector3(1.9f,.42f,.14f),"FFF2CF");for(int i=-2;i<=2;i++){var stripe=Part(t,"Orange stripe",new Vector3(i*.36f,.95f,-.08f),new Vector3(.18f,.44f,.02f),"ED8840");stripe.localRotation=Quaternion.Euler(0,0,-25);}}
-  public Transform Balloon(Transform parent,Vector3 p,string color){var t=Group(parent,"Balloon",p);Part(t,"Balloon",Vector3.zero,new Vector3(.55f,.7f,.55f),color,PrimitiveType.Sphere);Bar(t,new Vector3(0,-.3f,0),new Vector3(.06f,-1.65f,0),.018f,"F7E6CD");return t;}
-  public void Stall(Transform parent,Vector3 p,string color){var t=Group(parent,"Neighborhood market stall",p);Part(t,"Counter",Vector3.up*.7f,new Vector3(2,.95f,1.1f),"CB965E");for(int i=-1;i<=1;i+=2)Part(t,"Pole",new Vector3(i*.95f,1.5f,.4f),new Vector3(.09f,2.3f,.09f),"875E44");for(int i=0;i<8;i++)Part(t,"Striped canopy",new Vector3(-1.05f+i*.3f,2.55f,0),new Vector3(.3f,.15f,1.5f),i%2==0?color:"FFF3D7");for(int i=0;i<6;i++)Part(t,"Fresh produce",new Vector3(-.75f+i*.3f,1.3f,-.1f),Vector3.one*.27f,i%2==0?"E18449":"8DB660",PrimitiveType.Sphere);}
-  public Transform Board(Transform parent,Vector3 p,string color){var t=Group(parent,"Event display",p);for(int i=-1;i<=1;i+=2)Part(t,"Stand",new Vector3(i*.6f,.8f,0),new Vector3(.12f,1.6f,.13f),"906B4E");Part(t,"Frame",new Vector3(0,1.65f,0),new Vector3(1.85f,1.2f,.18f),"FFF0D5");Part(t,"Panel",new Vector3(0,1.65f,-.105f),new Vector3(1.62f,.99f,.04f),color);return t;}
-  public void Percent(Transform parent,Vector3 p){for(int i=-1;i<=1;i+=2)Part(parent,"Percent dot",p+new Vector3(i*.22f,-i*.2f,0),Vector3.one*.2f,"FFF1D3",PrimitiveType.Sphere);Bar(parent,p+new Vector3(-.26f,-.34f,0),p+new Vector3(.26f,.34f,0),.08f,"FFF1D3");}
-  public Transform Toolbox(Transform parent,Vector3 p){var t=Group(parent,"Repair toolbox",p);Part(t,"Tool case",new Vector3(0,.3f,0),new Vector3(.9f,.5f,.5f),"DF7850");Part(t,"Lid",new Vector3(0,.57f,0),new Vector3(.95f,.1f,.54f),"F4AF60");Bar(t,new Vector3(-.2f,.68f,0),new Vector3(.2f,.68f,0),.08f,"344655");Bar(t,new Vector3(.12f,.4f,-.29f),new Vector3(.5f,1.1f,-.29f),.1f,"B7D2CE");Part(t,"Wrench head",new Vector3(.5f,1.12f,-.29f),new Vector3(.3f,.24f,.1f),"B7D2CE");return t;}
-  public void Cup(Transform parent,Vector3 p){Part(parent,"Coffee cup",p,new Vector3(.28f,.2f,.28f),"FFF0D4",PrimitiveType.Cylinder);Part(parent,"Coffee",p+Vector3.up*.21f,new Vector3(.22f,.01f,.22f),"745143",PrimitiveType.Cylinder);Bar(parent,p+new Vector3(.17f,-.03f,0),p+new Vector3(.17f,.13f,0),.06f,"FFF0D4");}
-  // Each static prop becomes one mesh per palette color, retaining only group animation.
-  public void Batch(Transform root){var groups=new Dictionary<Material,List<CombineInstance>>();var parts=root.GetComponentsInChildren<MeshFilter>();foreach(var part in parts){var renderer=part.GetComponent<MeshRenderer>();if(!renderer)continue;var material=renderer.sharedMaterial;if(!groups.ContainsKey(material))groups[material]=new List<CombineInstance>();groups[material].Add(new CombineInstance{mesh=part.sharedMesh,transform=root.worldToLocalMatrix*part.transform.localToWorldMatrix});Object.Destroy(renderer);Object.Destroy(part);}
+  // Static single-material parts become one mesh per material; multi-material models are already single meshes.
+  public void Batch(Transform root){var groups=new Dictionary<Material,List<CombineInstance>>();var parts=root.GetComponentsInChildren<MeshFilter>();foreach(var part in parts){var renderer=part.GetComponent<MeshRenderer>();if(!renderer||renderer.sharedMaterials.Length!=1||!part.sharedMesh||!part.sharedMesh.isReadable||part.GetComponentInParent<Animation>())continue;var material=renderer.sharedMaterial;if(!groups.ContainsKey(material))groups[material]=new List<CombineInstance>();groups[material].Add(new CombineInstance{mesh=part.sharedMesh,transform=root.worldToLocalMatrix*part.transform.localToWorldMatrix});Object.Destroy(renderer);Object.Destroy(part);}
    foreach(var pair in groups){var mesh=new Mesh{name=root.name+" geometry",indexFormat=IndexFormat.UInt32};mesh.CombineMeshes(pair.Value.ToArray());meshes.Add(mesh);var go=new GameObject("Batched "+pair.Key.name);go.layer=2;go.transform.SetParent(root,false);go.AddComponent<MeshFilter>().sharedMesh=mesh;var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=pair.Key;renderer.shadowCastingMode=ShadowCastingMode.On;}}
-  public void Dispose(){foreach(var mat in materials.Values)Object.Destroy(mat);foreach(var mesh in meshes)Object.Destroy(mesh);}
+  public void Dispose(){foreach(var mat in materials.Values)Object.Destroy(mat);foreach(var mat in textured.Values)Object.Destroy(mat);foreach(var mat in atlases.Values)Object.Destroy(mat);foreach(var mesh in meshes)Object.Destroy(mesh);}
  }
 }

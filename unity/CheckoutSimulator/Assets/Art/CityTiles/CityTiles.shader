@@ -118,21 +118,33 @@ Shader "MarketDay/City Tiles"
                 float road=1-smoothstep(-aa,aa,distance);
                 color=lerp(color,asphalt,road);
                 float vaxis=abs(abs(world.x)-23.5), haxis=min(abs(world.y+15.5),abs(world.y-30));
-                float dashV=step(.42,frac(world.y/3))*(1-smoothstep(.06,.10,vaxis))*step(4.2,haxis);
-                float dashH=step(.42,frac(world.x/3))*(1-smoothstep(.06,.10,haxis))*step(4.2,vaxis);
-                float crossV=step(abs(world.y+8.5),1.25)*step(abs(world.x+23.5),2.7);
-                float crossE=step(abs(world.y),1.25)*step(abs(world.x-23.5),2.7);
-                float crossN=step(abs(world.x+4),1.25)*step(abs(world.y-30),2.7);
-                float crossS=step(abs(world.x+1.75),1.25)*step(abs(world.y+15.5),2.7);
+                // Centre-line dashes are whole 1.6 m segments. Each segment is kept or dropped as a unit,
+                // judged at its own centre, so no stub is ever cut by a junction, crosswalk or driveway.
+                float zc=floor(world.y/3)*3+1.5, xc=floor(world.x/3)*3+1.5;
+                float dashShapeV=step(abs(world.y-zc),.8), dashShapeH=step(abs(world.x-xc),.8);
+                // Clearance from the dash centre to every crossing on that street (junction box + corner
+                // crosswalks reach 6.3 m from the junction centre).
+                float clearV=min(abs(zc+15.5),abs(zc-30))-6.3;
+                clearV=min(clearV,world.x<0?abs(zc+8.5)-1.25:abs(zc)-1.25);
+                float clearH=abs(abs(xc)-23.5)-6.3;
+                clearH=min(clearH,world.y>7?abs(xc+4)-1.25:min(abs(xc+1.75)-1.25,abs(xc+11.2)-2.2));
+                float dashV=dashShapeV*(1-smoothstep(.06,.10,vaxis))*step(1.3,clearV);
+                float dashH=dashShapeH*(1-smoothstep(.06,.10,haxis))*step(1.3,clearH);
+                float crossV=step(abs(world.y+8.5),1.25)*step(world.x,0);
+                float crossE=step(abs(world.y),1.25)*step(0,world.x);
+                float crossN=step(abs(world.x+4),1.25)*step(7,world.y);
+                float crossS=step(abs(world.x+1.75),1.25)*step(world.y,7);
                 float cornerZ=min(min(abs(world.y+21),abs(world.y+10)),min(abs(world.y-24.5),abs(world.y-35.5)));
                 float cornerX=min(abs(abs(world.x)-29),abs(abs(world.x)-18));
-                crossV=max(crossV,step(cornerZ,.8)*step(abs(world.x+23.5),3));
-                crossE=max(crossE,step(cornerZ,.8)*step(abs(world.x-23.5),3));
-                crossN=max(crossN,step(cornerX,.8)*step(abs(world.y-30),3));
-                crossS=max(crossS,step(cornerX,.8)*step(abs(world.y+15.5),3));
+                float crossAlongV=max(max(crossV,crossE),step(cornerZ,.8))*step(vaxis,2.8);
+                float crossAlongH=max(max(crossN,crossS),step(cornerX,.8))*step(haxis,2.8);
+                // Zebra bars are symmetric about the centre line: eight bars, a gap on the axis itself,
+                // so the lane divider never appears to run through a crosswalk.
+                float barsV=step(abs(frac(vaxis/.7)-.5),.3);
+                float barsH=step(abs(frac(haxis/.7)-.5),.3);
                 float markings=max(dashV,dashH);
-                markings=lerp(markings,step(.40,frac(world.x/ .7)),max(crossV,crossE));
-                markings=lerp(markings,step(.40,frac(world.y/ .7)),max(crossN,crossS));
+                markings=lerp(markings,barsV,crossAlongV);
+                markings=lerp(markings,barsH,crossAlongH);
                 color=lerp(color,float3(.79,.78,.70),markings*road*step(.1,driveway));
                 float parkingCross=step(abs(world.x+11.2),2.05)*step(abs(world.y+11.5),.85);
                 color=lerp(color,float3(.79,.78,.70),parkingCross*road*step(.4,frac(world.x/.7)));

@@ -1,5 +1,11 @@
 import type UnityView from "@azesmway/react-native-unity";
-import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
+import {
+	type Dispatch,
+	type SetStateAction,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { AppState } from "react-native";
 import type { ProductionSector } from "@/@types/production";
 import type { SimulatorPanel } from "@/@types/simulator";
@@ -33,10 +39,14 @@ export function useSimulator(
 	setPanel: Dispatch<SetStateAction<SimulatorPanel | null>>,
 	setShelfId: Dispatch<SetStateAction<string | null>>,
 	setSectorId: Dispatch<SetStateAction<ProductionSector["id"] | null>>,
+	onDayPanel?: (panel: "day" | "requests", requestId?: string) => void,
 ) {
 	const [status, setStatus] = useState<"loading" | "ready" | "error">(
 		"loading",
 	);
+	// Latest handler without reconnecting the Unity session when it changes.
+	const dayPanel = useRef(onDayPanel);
+	dayPanel.current = onDayPanel;
 	useEffect(() => {
 		const session = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 		let revision = 0,
@@ -77,6 +87,15 @@ export function useSimulator(
 					ready = true;
 					setStatus("ready");
 					snapshot();
+				} else if (
+					message.kind === "panel" &&
+					(message.panel === "day" || message.panel === "requests")
+				) {
+					// Unity: the day button, or a click on a customer waiting with a request.
+					dayPanel.current?.(
+						message.panel,
+						typeof message.requestId === "string" ? message.requestId : undefined,
+					);
 				} else if (message.kind === "panel" && panels.includes(message.panel)) {
 					const unlockedSectorId =
 						message.panel === "sectors"

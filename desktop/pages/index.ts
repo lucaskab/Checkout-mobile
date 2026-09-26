@@ -1,4 +1,5 @@
 import { page, type Page, type State } from "../view-kit";
+import { routes as day } from "./day";
 import { routes as dev } from "./dev";
 import { routes as progress } from "./progress";
 import { routes as production } from "./production";
@@ -18,6 +19,7 @@ const all: Routes = {
 	...upgrades,
 	...progress,
 	...dev,
+	...day,
 };
 
 export function pages(state: State, route: string): Page {

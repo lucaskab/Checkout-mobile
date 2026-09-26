@@ -14,6 +14,7 @@ namespace Checkout {
   public string kind;public int revision,level,xp,xpGoal,claimableMissions;
   public string progressLabel,progressRoute,coins,diamonds,daily,eventName,eventTimer,eventEffect,eventIcon;
   public bool isOpen,dailyClaimable,hasEvent,eventNegative,hasOffline,hasPage,canBack;public float dailyProgress;
+  public string dayPhase,dayTitle,dayDetail,requestLabel;public float dayProgress;public int requestCount;public bool requestUrgent;
   public DesktopButton[] tools;public DesktopCard offline;public DesktopPage page;
  }
  [Serializable] public class DesktopResult {public string kind,id,action,reason;public bool ok;}

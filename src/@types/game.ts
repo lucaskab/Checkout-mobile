@@ -24,7 +24,7 @@ export type GameMarketCustomer = {
 	name: string;
 	satisfaction: number;
 	spent: number;
-	status: "pagou" | "saiu sem comprar";
+	status: "pagou" | "no caixa" | "saiu sem comprar";
 };
 
 export type GameMarketState = {
@@ -94,6 +94,7 @@ export type ExperienceProgress = {
 };
 
 import type { GameStatistics } from "./achievement";
+import type { CheckoutCounterState } from "./checkout-counter";
 import type {
 	CurrencyPurchaseState,
 	GrantCurrencyPurchaseInput,
@@ -106,10 +107,13 @@ import type {
 	MarketExpansionCurrency,
 	MarketExpansionId,
 } from "./market-expansion";
+import type { GameDayState } from "./market-day";
 import type { GameMissionsState } from "./mission";
 import type { GameProductionState, StartProductionInput } from "./production";
 import type { ShelfUpgradeCurrency } from "./shelf-capacity";
 import type { GameShopState, ShopCurrency } from "./shop";
+import type { ReceivingState } from "./receiving";
+import type { StoreIncidentKind, StoreIncidentsState } from "./store-incident";
 import type { SupplierOrderSlotCurrency } from "./supplier-capacity";
 
 export type RestockShelfInput = {
@@ -119,11 +123,15 @@ export type RestockShelfInput = {
 };
 
 export type GameState = {
+	checkout: CheckoutCounterState;
 	coins: number;
 	currencyPurchases: CurrencyPurchaseState;
 	daily: GameDailyState;
+	day: GameDayState;
 	events: GameEventsState;
 	employees: GameEmployeesState;
+	incidents: StoreIncidentsState;
+	receiving: ReceivingState;
 	inventory: GameInventory;
 	inventoryLots: GameInventoryLots;
 	inventoryCapacityLevels: GameInventoryCapacityLevels;
@@ -148,6 +156,9 @@ export type GameState = {
 export type GameActions = {
 	activateLogisticsBoost: () => boolean;
 	claimDailyGoal: () => boolean;
+	claimDayResult: () => boolean;
+	closeDay: () => boolean;
+	completeCheckout: (checkoutId: string, charged: number) => boolean;
 	completeOrderFinalStage: (orderId: string) => boolean;
 	claimMission: (missionId: string) => boolean;
 	deliverOrderInstantly: (orderId: string) => boolean;
@@ -155,11 +166,21 @@ export type GameActions = {
 	devAdjustDiamonds: (amount: number) => void;
 	devAdjustInventory: (productId: number, amount: number) => void;
 	devActivateGameEvent: (eventId: string) => boolean;
+	devArriveDelivery: (productId: number, quantity?: number) => boolean;
+	devTriggerIncident: (kind: StoreIncidentKind) => boolean;
+	devClearDock: () => boolean;
 	finishProductionNow: (jobId: string) => boolean;
+	fixIncident: (incidentId: string) => boolean;
 	hireEmployee: (role: EmployeeRole) => boolean;
 	grantCurrencyPurchase: (input: GrantCurrencyPurchaseInput) => boolean;
 	placeSupplierOrder: (input: PlaceSupplierOrderInput) => boolean;
 	processGameEvents: () => boolean;
+	processCheckoutCounter: () => boolean;
+	processMarketDay: () => boolean;
+	processStoreIncidents: () => boolean;
+	processReceiving: () => boolean;
+	unloadAllDeliveries: () => boolean;
+	unloadDelivery: (deliveryId: string, units?: number) => boolean;
 	processEmployeeWork: () => boolean;
 	processEmployeePayroll: () => boolean;
 	processProductionJobs: () => boolean;
@@ -170,6 +191,8 @@ export type GameActions = {
 	processSessionResume: () => boolean;
 	dismissOfflineSummary: () => void;
 	resetGame: () => void;
+	resolveSpecialRequest: (requestId: string, optionId: string) => boolean;
+	startDay: (contractId: string) => boolean;
 	assignProductToShelf: (
 		shelfId: string,
 		productId: number,

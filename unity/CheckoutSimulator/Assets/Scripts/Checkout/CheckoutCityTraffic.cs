@@ -56,12 +56,15 @@ namespace Checkout
         }
         void Update()
         {
+            if (trips == null) return;
             for (int i = 0; i < trips.Length; i++)
             {
                 var trip = trips[i];
                 if (trip.phase == Phase.Available || trip.phase == Phase.Shopping) continue;
                 if (trip.delay > 0) { trip.delay -= Time.deltaTime; continue; }
                 var car = vehicles[i];
+                // A visit cancelled mid-drive (the walker was reused) or without a route just ends.
+                if (!car || trip.route == null || (trip.phase == Phase.Arriving && !trip.walker)) { if (maneuverOwner == i) maneuverOwner = -1; trip.phase = Phase.Available; trip.walker = null; trip.customer = null; if (car) car.gameObject.SetActive(false); continue; }
                 if (trip.phase == Phase.Leaving && car.position.z > -14f && car.position.z < 20f && car.position.x < -8)
                 {
                     if (maneuverOwner >= 0 && maneuverOwner != i) continue;
@@ -89,7 +92,7 @@ namespace Checkout
                 bool blocked = false;
                 for (int j = 0; j < trips.Length; j++)
                 {
-                    if (j != i && trips[j].phase != Phase.Available)
+                    if (j != i && trips[j].phase != Phase.Available && vehicles[j])
                     {
                         var separation=vehicles[j].position-car.position;
                         if(CheckoutTrafficJunctions.Ahead(car.position,direction,vehicles[j].position,4.1f))blocked=true;
@@ -101,15 +104,15 @@ namespace Checkout
                         if(separation.magnitude<2.5f&&Vector3.Dot(direction,separation.normalized)>.35f)blocked=true;
                     }
                 }
-                foreach(var pedestrian in pedestrians)
+                if(pedestrians!=null)foreach(var pedestrian in pedestrians)
                 {
                     if(!pedestrian||!pedestrian.gameObject.activeInHierarchy)continue;
                     var gap=pedestrian.transform.position-car.position;gap.y=0;
                     if(CheckoutTrafficJunctions.Ahead(car.position,direction,pedestrian.transform.position,2.8f,.7f))blocked=true;
                 }
-                if(neighborhood)foreach(var other in neighborhood.cars)
+                if(neighborhood&&neighborhood.cars!=null)foreach(var other in neighborhood.cars)
                 {
-                    if(!other.vehicle.gameObject.activeSelf)continue;
+                    if(other==null||!other.vehicle||!other.vehicle.gameObject.activeSelf)continue;
                     var gap=other.vehicle.position-car.position;gap.y=0;
                     float ahead=Vector3.Dot(direction,gap);
                     if(ahead>0&&ahead<4.4f&&(gap-direction*ahead).sqrMagnitude<1.6f)blocked=true;

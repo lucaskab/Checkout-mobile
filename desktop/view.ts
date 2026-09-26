@@ -6,6 +6,10 @@ import {
 	getUnlockedPhysicalShelfCount,
 	resolveShelfSlotCounts,
 } from "@/data/shelf-slots";
+import {
+	getContractProgress,
+	getPendingRequests,
+} from "@/services/market-day";
 import { getClaimableMissionCount } from "@/services/missions";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getNextSimulatorUnlocks } from "@/services/simulator-progression";
@@ -39,6 +43,14 @@ export type DesktopView = {
 	daily: string;
 	dailyProgress: number;
 	dailyClaimable: boolean;
+	// Market day (turn): planning → open → results.
+	dayPhase: string;
+	dayTitle: string;
+	dayDetail: string;
+	dayProgress: number;
+	requestCount: number;
+	requestLabel: string;
+	requestUrgent: boolean;
 	claimableMissions: number;
 	hasEvent: boolean;
 	eventName: string;
@@ -121,6 +133,15 @@ export function createDesktopView(
 	const seconds = active ? Math.ceil((active.endsAt - Date.now()) / 1000) : 0;
 	const hasEvent = Boolean(event && active && seconds > 0);
 	const summary = offline(state);
+	const now = Date.now();
+	const day = state.day;
+	const contract = getContractProgress(day.contract, day.stats);
+	const pending = getPendingRequests(day).sort((a, b) => a.expiresAt - b.expiresAt);
+	const urgent = pending[0];
+	const clock = (ms: number) => {
+		const s = Math.max(0, Math.ceil(ms / 1_000));
+		return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+	};
 	const current = route ? pages(state, route) : page("", "", []);
 	return {
 		kind: "view",
@@ -136,6 +157,27 @@ export function createDesktopView(
 		daily: `${fmt(state.daily.revenue)} / ${fmt(state.daily.goal)}`,
 		dailyProgress: ratio(state.daily.revenue, state.daily.goal),
 		dailyClaimable: state.daily.goalReached && !state.daily.claimed,
+		dayPhase: day.phase,
+		dayTitle:
+			day.phase === "open"
+				? `DIA ${day.dayNumber} · ${clock((day.endsAt ?? now) - now)}`
+				: day.phase === "results"
+					? `DIA ${day.dayNumber} · NOTA ${day.result?.grade ?? "-"}`
+					: `DIA ${day.dayNumber}`,
+		dayDetail:
+			day.phase === "open"
+				? day.contract
+					? `${day.contract.title} · ${contract.completed ? "cumprido!" : contract.label}`
+					: "Dia livre"
+				: day.phase === "results"
+					? "Resultado pronto para coletar"
+					: "Escolha o contrato e abra",
+		dayProgress: day.phase === "open" && day.contract ? contract.ratio : day.phase === "results" ? 1 : 0,
+		requestCount: pending.length,
+		requestLabel: urgent
+			? `${clock(urgent.expiresAt - now)} · ${urgent.customerName}: ${urgent.message}`
+			: "",
+		requestUrgent: Boolean(urgent && urgent.expiresAt - now < 15_000),
 		claimableMissions: getClaimableMissionCount(state),
 		hasEvent,
 		eventName: hasEvent && event ? event.name : "",

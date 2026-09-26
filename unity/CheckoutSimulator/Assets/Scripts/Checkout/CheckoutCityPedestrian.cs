@@ -20,24 +20,44 @@ namespace Checkout
         void Start()
         {
             agent=GetComponent<NavMeshAgent>();
+            // The rigs face -Z, so this script owns the heading. Letting the agent rotate the transform
+            // as well made the two fight: characters left doorways sideways and slowly turned.
+            agent.updateRotation=false;
             streets=FindAnyObjectByType<CheckoutCityStreets>();
             body=GetComponentsInChildren<Renderer>().Where(r=>r.enabled).ToArray();
             if(!NavMesh.SamplePosition(home,out var hit,12,NavMesh.AllAreas)){enabled=false;return;}
             agent.Warp(hit.position);
             destination=Mathf.Abs(GetEntityId().GetHashCode()) % streets.entrances.Length;
             VisitNext();
+            FacePath();
         }
         void Update()
         {
             if(!agent||!agent.isOnNavMesh)return;
-            var velocity=agent.velocity;velocity.y=0;
-            if(velocity.sqrMagnitude>.004f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-velocity),Time.deltaTime*180);
+            var heading=agent.desiredVelocity;heading.y=0;
+            if(heading.sqrMagnitude<.004f){heading=agent.velocity;heading.y=0;}
+            if(heading.sqrMagnitude>.004f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-heading),Time.deltaTime*540);
             if(agent.pathPending||agent.remainingDistance>.35f)return;
             wait+=Time.deltaTime;
-            if(visitingBuilding && !inside && wait>.2f){inside=true;foreach(var r in body)r.enabled=false;}
+            if(visitingBuilding && !inside && wait>.2f){inside=true;agent.isStopped=true;foreach(var r in body)r.enabled=false;}
             if(wait<(visitingBuilding?1.2f:.1f))return;
-            if(inside){foreach(var r in body)r.enabled=true;inside=false;CheckoutShoppingProps.SetVisible(transform,false);}
             wait=0;completedVisits++;VisitNext();
+            if(inside)
+            {
+                // Step out already facing the street: plan the next route first, turn to it, then appear.
+                agent.isStopped=false;FacePath();
+                foreach(var r in body)r.enabled=true;inside=false;CheckoutShoppingProps.SetVisible(transform,false);
+            }
+        }
+        void FacePath()
+        {
+            if(!agent.hasPath)return;
+            var corners=agent.path.corners;
+            for(int i=0;i<corners.Length;i++)
+            {
+                var direction=corners[i]-transform.position;direction.y=0;
+                if(direction.sqrMagnitude>.01f){transform.rotation=Quaternion.LookRotation(-direction);return;}
+            }
         }
         void VisitNext()
         {

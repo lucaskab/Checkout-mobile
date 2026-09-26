@@ -6,6 +6,14 @@ export function MarketSimulation() {
 	const processNextCustomer = useGameStore(
 		(state) => state.processNextCustomer,
 	);
+	const processMarketDay = useGameStore((state) => state.processMarketDay);
+	const processCheckoutCounter = useGameStore(
+		(state) => state.processCheckoutCounter,
+	);
+	const processStoreIncidents = useGameStore(
+		(state) => state.processStoreIncidents,
+	);
+	const processReceiving = useGameStore((state) => state.processReceiving);
 
 	useEffect(() => {
 		if (!isMarketOpen) {
@@ -17,6 +25,20 @@ export function MarketSimulation() {
 
 		return () => clearInterval(interval);
 	}, [isMarketOpen, processNextCustomer]);
+
+	// Day clock (requests, closing time) and the register line (patience, cashier).
+	useEffect(() => {
+		const tick = () => {
+			processCheckoutCounter();
+			processStoreIncidents();
+			processReceiving();
+			processMarketDay();
+		};
+		tick();
+		const interval = setInterval(tick, 1_000);
+
+		return () => clearInterval(interval);
+	}, [processCheckoutCounter, processMarketDay, processReceiving, processStoreIncidents]);
 
 	return null;
 }

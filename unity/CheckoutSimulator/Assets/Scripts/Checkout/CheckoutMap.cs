@@ -30,7 +30,7 @@ namespace Checkout {
    foreach(var pair in fixtures){markers[pair.Key]=Marker(pair.Key,Fixture(pair.Key)+Vector3.up*1.35f);Target(Fixture(pair.Key),new Vector3(1.4f,2,1.1f),"store",pair.Key);}
    events=gameObject.AddComponent<CheckoutEventVisuals>();events.Initialize();
    foreach(Transform t in world)if(t.name.StartsWith("Anim_Truck")){homes[t.name]=t.position;truckRotations[t.name]=t.rotation;t.gameObject.SetActive(false);}deliveryWorker=world.GetComponentInChildren<MarketDeliveryWorker>(true);
-   Target(P(3,18),new Vector3(8,5,4),"suppliers");Target(P(-3.9f,-4.7f),new Vector3(3,2,1.7f),"team");
+   Target(P(3,18),new Vector3(8,5,4),"suppliers");Target(P(-3.9f,-4.7f),new Vector3(3,2,1.7f),"checkout"); // The register opens the playable checkout.
   }
   public void Apply(Snapshot next){bool newSession=state==null||state.session!=next.session;bool animateSectors=!newSession; if(newSession)dispatchedDeliveryOrders.Clear();bool navigationChanged=state==null||!next.shelves.Select(s=>s.unlocked).SequenceEqual(state.shelves.Select(s=>s.unlocked))||!next.sectors.Select(s=>s.unlocked).SequenceEqual(state.sectors.Select(s=>s.unlocked));state=next;var previousLayout=layout.State;bool resized=layout.Apply(next.layout);
    if(resized)foreach(var actor in staff.Values){var home=homes[actor.name];var original=CheckoutMarketLayout.Anchor+Vector3.Scale(home-CheckoutMarketLayout.Anchor,new Vector3(1/previousLayout.widthScale,1,1/previousLayout.depthScale));homes[actor.name]=Point(original);actor.position=homes[actor.name];}world.GetComponentInChildren<CheckoutShelfSlots>()?.Apply(next.shelves);
@@ -56,7 +56,7 @@ namespace Checkout {
    foreach(var pair in staff)if(!next.employees.Any(e=>e.id==pair.Key&&e.isWorking))pair.Value.gameObject.SetActive(false);
    foreach(string id in next.ownedItems)if(id!=CheckoutLanes.ExtraItem&&id!=CheckoutLanes.SelfItem&&!decorations.ContainsKey("shop-"+id)){int i=decorations.Keys.Count(k=>k.StartsWith("shop-"));var item=Box("Upgrade "+id,new Vector3(-8.2f,1.25f,3.6f-i*.45f),new Vector3(.32f,.6f,.32f),teal);decorations["shop-"+id]=item;}
    foreach(var pair in decorations.Where(p=>p.Key.StartsWith("shop-")))pair.Value.SetActive(next.ownedItems.Contains(pair.Key.Substring(5)));
-   foreach(var pair in targets){var target=pair.Key.GetComponent<CheckoutTarget>();if(!string.IsNullOrEmpty(target.sectorId)){pair.Key.gameObject.SetActive(layout.HasSector(target.sectorId));pair.Key.position=SectorPosition("sector-"+target.sectorId);}else if(pair.Value.z<8&&Mathf.Abs(pair.Value.x)<10)pair.Key.position=target.panel=="team"&&pair.Value==P(-3.9f,-4.7f)?CheckoutPoint(pair.Value):Point(pair.Value);}
+   foreach(var pair in targets){var target=pair.Key.GetComponent<CheckoutTarget>();if(!string.IsNullOrEmpty(target.sectorId)){pair.Key.gameObject.SetActive(layout.HasSector(target.sectorId));pair.Key.position=SectorPosition("sector-"+target.sectorId);}else if(pair.Value.z<8&&Mathf.Abs(pair.Value.x)<10)pair.Key.position=target.panel=="checkout"?CheckoutPoint(pair.Value):Point(pair.Value);}
    if(Lanes.Apply(next.ownedItems))navigationChanged=true;Lanes.Rebase(layout.State);
    if(resized||navigationChanged){FindAnyObjectByType<MarketSimulation>().RebuildLayoutNavigation(layout.State);foreach(var walker in FindObjectsByType<CheckoutWalker>(FindObjectsInactive.Include))walker.RebaseLayout(previousLayout,layout.State);}
    events.Apply(next.@event);
@@ -78,11 +78,18 @@ namespace Checkout {
    foreach(var sector in state.sectors)if(sector.unlocked&&sector.jobs>0&&Mathf.FloorToInt(workClock)!=Mathf.FloorToInt(workClock-Time.deltaTime)&&Mathf.FloorToInt(workClock)%3==0){string name=sector.id=="padaria"?"Worker_Baker":sector.id=="queijaria"?"Worker_Cheesemaker":sector.id=="acougue"?"Worker_Butcher":sector.id=="peixaria"?"Worker_Fishmonger":"";var worker=string.IsNullOrEmpty(name)?null:world.Find(name);if(worker&&worker.gameObject.activeSelf)worker.GetComponent<MarketCharacterAnimator>()?.Perform("BuyAtSpecialSector");}
    UpdateSupplierDeliveries();
   }
-  void UpdateSupplierDeliveries(){var claimed=new HashSet<Transform>();foreach(var order in state.orders.Where(order=>order.status=="em-transporte").OrderBy(order=>order.createdAt)){var truck=TruckFor(order,claimed);if(!truck||!homes.TryGetValue(truck.name,out var home))continue;claimed.Add(truck);if(!truck.gameObject.activeSelf){truck.position=home+truck.forward*9f;truck.rotation=truckRotations[truck.name];truck.gameObject.SetActive(true);}
+  void UpdateSupplierDeliveries(){var claimed=new HashSet<Transform>();var docked=new HashSet<string>((state.dock??System.Array.Empty<DockEntry>()).Select(d=>d.id));foreach(var order in state.orders.Where(order=>order.status=="em-transporte"||docked.Contains("entrega-"+order.id)).OrderBy(order=>order.createdAt)){var truck=TruckFor(order,claimed);if(!truck||!homes.TryGetValue(truck.name,out var home))continue;claimed.Add(truck);if(!truck.gameObject.activeSelf){truck.position=home+truck.forward*9f;truck.rotation=truckRotations[truck.name];truck.gameObject.SetActive(true);}
    truck.rotation=Quaternion.RotateTowards(truck.rotation,truckRotations[truck.name],Time.deltaTime*180);truck.position=Vector3.MoveTowards(truck.position,home,Time.deltaTime*3.25f);
    if(Vector3.Distance(truck.position,home)<.04f&&dispatchedDeliveryOrders.Add(order.id))deliveryWorker?.QueueDelivery(truck,home,order.createdAt+order.deliveryDurationMs);
+   DockClick(truck,docked.Contains("entrega-"+order.id)&&Vector3.Distance(truck.position,home)<.1f);
   }
    foreach(var pair in homes){var truck=world.Find(pair.Key);if(!truck||claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck)))continue;truck.gameObject.SetActive(false);}
+  }
+  // A truck parked with goods still to unload can be clicked to open the unloading mini-game.
+  static void DockClick(Transform truck,bool on){
+   var click=truck.Find("DockClick");
+   if(on&&!click){var go=new GameObject("DockClick");go.transform.SetParent(truck,false);var box=go.AddComponent<BoxCollider>();var s=truck.lossyScale;box.size=new Vector3(3.2f/Mathf.Max(.01f,s.x),3.4f/Mathf.Max(.01f,s.y),7f/Mathf.Max(.01f,s.z));box.center=new Vector3(0,box.size.y*.5f,0);go.AddComponent<CheckoutTarget>().panel="dock";click=go.transform;}
+   if(click)click.gameObject.SetActive(on);
   }
   Transform TruckFor(Order order,HashSet<Transform> claimed){string name=order.productCategory=="peixes"?"Anim_Truck_8":order.productCategory=="congelados"?"Anim_Truck_11":"Anim_Truck_5";var truck=world.Find(name);return truck&&!claimed.Contains(truck)?truck:null;}
   void OnDestroy(){markerArt.Dispose();if(teal)Destroy(teal);}

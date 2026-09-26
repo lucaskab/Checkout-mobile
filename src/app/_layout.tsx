@@ -18,6 +18,7 @@ import { EmployeeSimulation } from "@/components/employee-simulation";
 import { GameEventSimulation } from "@/components/game-event-simulation";
 import { GameSessionLifecycle } from "@/components/game-session-lifecycle";
 import { InventorySpoilageSimulation } from "@/components/inventory-spoilage-simulation";
+import { MarketDayPrompts } from "@/components/market-day";
 import { MarketSimulation } from "@/components/market-simulation";
 import { ProductionSimulation } from "@/components/production-simulation";
 import { RevenueCatInitializer } from "@/components/revenue-cat-initializer";
@@ -65,6 +66,7 @@ export default function RootLayout() {
 					<EmployeeSimulation />
 					<InventorySpoilageSimulation />
 					<MarketSimulation />
+					<MarketDayPrompts />
 					<ProductionSimulation />
 					<RevenueCatInitializer />
 					<SupplierLogisticsSimulation />

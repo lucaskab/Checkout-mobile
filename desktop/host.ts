@@ -32,32 +32,43 @@ const hudActions: (keyof GameActions)[] = [
 	"activateLogisticsBoost",
 	"assignProductToShelf",
 	"claimDailyGoal",
+	"claimDayResult",
 	"claimMission",
 	"clearShelf",
+	"completeCheckout",
+	"closeDay",
 	"completeOrderFinalStage",
 	"deliverOrderInstantly",
 	"devActivateGameEvent",
 	"devAdjustCoins",
 	"devAdjustDiamonds",
 	"devAdjustInventory",
+	"devArriveDelivery",
+	"devClearDock",
+	"devTriggerIncident",
 	"dismissOfflineSummary",
 	"expandShelfSlots",
 	"finishProductionNow",
+	"fixIncident",
 	"grantCurrencyPurchase",
 	"hireEmployee",
 	"placeSupplierOrder",
 	"purchaseShopItem",
 	"resetGame",
+	"resolveSpecialRequest",
 	"restockShelf",
 	"setEmployeeWorking",
 	"setMarketLevel",
 	"setMarketOpen",
 	"setShelfPrice",
+	"startDay",
 	"startProduction",
 	"trainEmployee",
 	"unlockMarketExpansion",
 	"unlockNextShelf",
 	"unlockNextShelfSlot",
+	"unloadAllDeliveries",
+	"unloadDelivery",
 	"unlockProduct",
 	"upgradeInventoryCapacity",
 	"upgradeShelfCapacity",
@@ -152,6 +163,15 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		ready = true;
 		snapshot();
 		view();
+	} else if (message.kind === "panel" && message.panel === "requests") {
+		// A click on a customer waiting with a special request in the Unity world.
+		navigate(
+			typeof message.requestId === "string" && message.requestId
+				? `!request:${message.requestId}`
+				: "!requests",
+		);
+	} else if (message.kind === "panel" && message.panel === "day") {
+		navigate("!day");
 	} else if (
 		message.kind === "panel" &&
 		panels.includes(message.panel as SimulatorPanel)
@@ -182,8 +202,20 @@ setInterval(() => store().market.isOpen && store().processNextCustomer(), 1_000)
 setInterval(() => store().processProductionJobs(), 1_000);
 setInterval(() => store().processSupplierOrders(), 1_000);
 setInterval(() => {
+	store().processCheckoutCounter();
+	store().processStoreIncidents();
+	store().processReceiving();
+	store().processMarketDay();
+}, 1_000);
+// When a day ends (timer or button) its results open on their own, like the app's sheet.
+let dayPhase = store().day.phase;
+setInterval(() => {
+	const phase = store().day.phase;
+	if (phase !== dayPhase && phase === "results") navigate("!day-result");
+	dayPhase = phase;
 	if (dirty) snapshot();
-	// Pages carry live timers, so an open page refreshes every second even when idle.
-	const stale = routes.length > 0 && Date.now() - viewSentAt > 1_000;
+	// Pages and the day clock carry live timers, so they refresh every second even when idle.
+	const stale =
+		(routes.length > 0 || phase === "open") && Date.now() - viewSentAt > 1_000;
 	if ((viewDirty || stale) && Date.now() - viewSentAt > 250) view();
 }, 100);

@@ -59,13 +59,16 @@ namespace Checkout {
   public static TMP_FontAsset Body=>Font("Nunito_700Bold");
   public static TMP_FontAsset Number=>Font("JetBrainsMono_700Bold");
 
-  static readonly Dictionary<string,Sprite> icons=new Dictionary<string,Sprite>();
+  static readonly Dictionary<string,Sprite> icons=new Dictionary<string,Sprite>();static readonly Dictionary<string,float> misses=new Dictionary<string,float>();
   public static Sprite Icon(string path){
    if(string.IsNullOrEmpty(path))return null;
    if(icons.TryGetValue(path,out var cached))return cached;
+   // Misses are retried after a moment: a texture that was still importing loads next time.
+   if(misses.TryGetValue(path,out var missedAt)&&Time.realtimeSinceStartup-missedAt<2)return null;
    var texture=Resources.Load<Texture2D>("CheckoutDesktop/"+path);
    var sprite=texture?Sprite.Create(texture,new Rect(0,0,texture.width,texture.height),new Vector2(.5f,.5f)):null;
-   icons[path]=sprite;return sprite;
+   if(sprite){icons[path]=sprite;misses.Remove(path);}else misses[path]=Time.realtimeSinceStartup;
+   return sprite;
   }
  }
 }

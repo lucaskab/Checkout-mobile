@@ -7,7 +7,7 @@ using UnityEngine;
 namespace Checkout {
  public sealed class CheckoutEventVisuals:MonoBehaviour {
   public static readonly string[] EventIds={"hora-do-pico","pagamento-caiu","influenciadora-local","feira-do-bairro","desconto-atacadista","rota-livre","equipe-inspirada","treinamento-expresso","caixa-da-sorte","dia-perfeito","chuva-forte","obras-na-rua","concorrente-em-promocao","clientes-economicos","instabilidade-nos-caixas","alta-do-combustivel","transito-pesado","manutencao-de-equipamentos","equipe-cansada","fiscalizacao-surpresa"};
- class Motion {public Transform root;public Vector3 home;public string kind;public float phase;}
+ class Motion {public Transform root;public Vector3 home,dir,scale;public Quaternion rot;public string kind;public float phase,range,speed;}
   class StreetlightState {public Light light;public bool enabled;public float intensity,range,spotAngle;}
   class GlowState {public Renderer renderer;public Material[] original,glowing;}
   readonly Dictionary<string,GameObject> scenes=new Dictionary<string,GameObject>();
@@ -21,23 +21,34 @@ namespace Checkout {
   public string ActiveId=>active;
   public static bool RoadWorks{get;private set;}
   public void Initialize(){sun=FindObjectsByType<Light>().FirstOrDefault(l=>l.type==LightType.Directional);if(sun){sunColor=sun.color;sunIntensity=sun.intensity;}ambient=RenderSettings.ambientLight;view=Camera.main;if(view)background=view.backgroundColor;particleMaterial=new Material(Shader.Find("Sprites/Default"));rainPuddles=gameObject.AddComponent<CheckoutRainPuddles>();rainPuddles.Initialize();umbrellaPrefab=Resources.Load<GameObject>("Rain/StreetUmbrella");EnsureOriginalStreetlights();CacheStreetlights();CacheStreetlightGlow();}
-  public void Apply(MarketEvent value){string id=value!=null&&value.endsAt>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()?value.id:"";expiresAt=value?.endsAt??0;SetEvent(id??"");}
+  MarketEvent lastSnapshot;bool previewing;
+  public bool Previewing=>previewing;
+  public void Apply(MarketEvent value){lastSnapshot=value;if(previewing)return;string id=value!=null&&value.endsAt>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()?value.id:"";expiresAt=value?.endsAt??0;SetEvent(id??"");}
+  // Editor/dev preview: shows an event regardless of the game store; an empty id hands control back to the snapshots.
+  public void Preview(string id){if(string.IsNullOrEmpty(id)){previewing=false;Apply(lastSnapshot);return;}previewing=true;expiresAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+3600000;SetEvent(id);}
   void SetEvent(string id){if(active==id)return;if(scenes.TryGetValue(active,out var previous)){previous.SetActive(false);foreach(var particles in previous.GetComponentsInChildren<ParticleSystem>(true))particles.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);}active=id;RoadWorks=id=="obras-na-rua";clock=0;umbrellaRefresh=0;rainPuddles.SetRaining(id=="chuva-forte");SetCustomerUmbrellas(id=="chuva-forte");
    RestoreLight();SetStreetlights(id=="chuva-forte");if(string.IsNullOrEmpty(id))return;
-   if(!scenes.TryGetValue(id,out var scene)){building=id;scene=new GameObject("Event · "+id);scene.transform.SetParent(transform,false);scene.SetActive(false);scenes[id]=scene;motions[id]=new List<Motion>();Build(id,scene.transform);}
-   foreach(var motion in motions[id]){motion.root.localPosition=motion.home;motion.root.localRotation=Quaternion.identity;}scene.SetActive(true);foreach(var particles in scene.GetComponentsInChildren<ParticleSystem>())particles.Play();
+   if(scenes.TryGetValue(id,out var stale)&&builtFor.TryGetValue(id,out var key)&&key!=LayoutKey()){Destroy(stale);scenes.Remove(id);}
+   if(!scenes.TryGetValue(id,out var scene)){building=id;builtFor[id]=LayoutKey();scene=new GameObject("Event · "+id);scene.transform.SetParent(transform,false);scene.SetActive(false);scenes[id]=scene;motions[id]=new List<Motion>();Build(id,scene.transform);}
+   foreach(var motion in motions[id]){motion.root.localPosition=motion.home;motion.root.localRotation=motion.rot;motion.root.localScale=motion.scale;}scene.SetActive(true);foreach(var particles in scene.GetComponentsInChildren<ParticleSystem>())particles.Play();
    if(id=="chuva-forte"){if(sun){sun.color=new Color(.66f,.77f,.94f);sun.intensity=sunIntensity*.68f;}RenderSettings.ambientLight=new Color(.39f,.46f,.55f);if(view)view.backgroundColor=new Color(.52f,.63f,.66f);}
    if(id=="dia-perfeito"&&sun){sun.color=new Color(1,.94f,.75f);sun.intensity=sunIntensity*1.08f;}
   }
   void SetCustomerUmbrellas(bool enabled){foreach(var customer in FindObjectsByType<MarketCharacterAnimator>(FindObjectsInactive.Include).Where(c=>c.GetComponent<CheckoutCityPedestrian>()||c.GetComponent<CheckoutCityAppearance>())){var pedestrian=customer.GetComponent<CheckoutCityPedestrian>();var rig=customer.GetComponent<MarketRainUmbrellaRig>();if(enabled&&!rig)rig=customer.gameObject.AddComponent<MarketRainUmbrellaRig>();if(!rig)continue;rig.Initialize(customer.animationPlayer,umbrellaPrefab);rig.SetRainShelter(enabled&&!(pedestrian&&pedestrian.IsSheltered));}}
   void Update(){if(active=="chuva-forte"&&(umbrellaRefresh+=Time.deltaTime)>.5f){umbrellaRefresh=0;SetCustomerUmbrellas(true);}if(string.IsNullOrEmpty(active))return;if(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()>=expiresAt){SetEvent("");return;}clock+=Time.deltaTime;
-   foreach(var m in motions[active]){float t=clock+m.phase;switch(m.kind){
+   if(!motions.TryGetValue(active,out var activeMotions))return;
+   foreach(var m in activeMotions){float t=clock+m.phase;switch(m.kind){
     case "float":m.root.localPosition=m.home+Vector3.up*Mathf.Sin(t*1.5f)*.14f;break;
-    case "coin":m.root.localPosition=m.home+Vector3.up*Mathf.Sin(t*1.8f)*.13f;m.root.localRotation=Quaternion.Euler(0,t*45,0);break;
+    case "hover":m.root.localPosition=m.home+Vector3.up*Mathf.Sin(t*1.6f)*.16f;m.root.localRotation=m.rot*Quaternion.Euler(0,Mathf.Sin(t*.9f)*22,0);break;
+    case "rise":{float k=Mathf.Repeat(t*.35f,1);m.root.localPosition=m.home+Vector3.up*k*1.6f+Vector3.right*Mathf.Sin(t*2.2f)*.12f;m.root.localScale=m.scale*Mathf.Sin(k*Mathf.PI);break;}
+    case "coin":m.root.localPosition=m.home+Vector3.up*Mathf.Sin(t*1.8f)*.13f;m.root.localRotation=m.rot*Quaternion.Euler(0,t*90,0);break;
+    case "spin":m.root.localRotation=m.rot*Quaternion.Euler(0,0,t*60);break;
     case "drive":m.root.localPosition=m.home+Vector3.forward*(Mathf.PingPong(t*1.25f,6)-3);break;
-    case "queue":m.root.localPosition=m.home+Vector3.forward*Mathf.Sin(t*.45f)*.12f;break;
-    case "pulse":m.root.localScale=Vector3.one*(1+Mathf.Sin(t*2)*.06f);break;
-    case "rock":m.root.localRotation=Quaternion.Euler(0,0,Mathf.Sin(t)*4);break;
+    case "lane":m.root.localPosition=m.home+m.dir*(Mathf.Repeat(t*m.speed,m.range)-m.range*.5f);break;
+    case "queue":m.root.localPosition=m.home+m.dir*(Mathf.Max(0,Mathf.Sin(t*.8f))*.35f)+Vector3.up*Mathf.Abs(Mathf.Sin(t*9))*.015f;break;
+    case "pulse":m.root.localScale=m.scale*(1+Mathf.Sin(t*3)*.08f);break;
+    case "rock":m.root.localRotation=m.rot*Quaternion.Euler(0,0,Mathf.Sin(t)*4);break;
+    case "sway":m.root.localRotation=m.rot*Quaternion.Euler(Mathf.Sin(t*2.3f)*7,0,Mathf.Sin(t*1.7f)*14);break;
    }}
   }
   void RestoreLight(){if(sun){sun.color=sunColor;sun.intensity=sunIntensity;}RenderSettings.ambientLight=ambient;if(view)view.backgroundColor=background;}
@@ -48,55 +59,163 @@ namespace Checkout {
   void RestoreStreetlightMaterials(){foreach(var state in streetlightGlow){if(state.renderer)state.renderer.sharedMaterials=state.original;foreach(var material in state.glowing)if(material&& !state.original.Contains(material))Destroy(material);}streetlightGlow.Clear();}
   void OnDestroy(){RoadWorks=false;RestoreLight();SetStreetlights(false);RestoreStreetlightMaterials();art.Dispose();if(particleMaterial)Destroy(particleMaterial);}
   static Vector3 P(float x,float y,float z)=>new Vector3(x,y,z);
-  void Animated(Transform prop,string kind){art.Batch(prop);motions[building].Add(new Motion{root=prop,home=prop.localPosition,kind=kind,phase=motions[building].Count*.7f});}
+  void Animated(Transform prop,string kind){art.Batch(prop);motions[building].Add(new Motion{root=prop,home=prop.localPosition,rot=prop.localRotation,scale=prop.localScale,kind=kind,phase=motions[building].Count*.7f});}
+  void Lane(Transform prop,Vector3 dir,float range,float speed,float phase=0){motions[building].Add(new Motion{root=prop,home=prop.localPosition,rot=prop.localRotation,scale=prop.localScale,dir=dir,range=range,speed=speed,kind="lane",phase=phase});}
+  void Queue(Transform prop,Vector3 dir,float phase){motions[building].Add(new Motion{root=prop,home=prop.localPosition,rot=prop.localRotation,scale=prop.localScale,dir=dir,kind="queue",phase=phase});}
   void Prop(Transform prop)=>art.Batch(prop);
   Transform Group(Transform root,string name,Vector3 p)=>art.Group(root,name,p);
-  void Build(string id,Transform root){switch(id){
-   case "hora-do-pico":
-    for(int i=0;i<4;i++){var arrival=Group(root,"Busy entrance group",P(-4.6f+i*1.2f,.34f,-10.4f));art.Person(arrival,Vector3.zero,i%2==0?"ECA663":"64A8A1");art.Cart(arrival,P(.55f,0,-.7f));Animated(arrival,"queue");}break;
-   case "pagamento-caiu":
-    for(int i=0;i<3;i++){var cart=art.Cart(root,P(-4.9f+i*1.5f,.74f,-6.1f));Prop(cart);Animated(art.Coin(root,P(-4.9f+i*1.5f,2.65f,-6.1f)),"coin");}break;
+  // Blender props face -Z at yaw 0 (ModelYaw corrects the FBX axis). Face turns a prop towards the isometric
+  // camera, which looks from +X/-Z. Rigged market characters walk along +Z, so ActorFace turns them to the camera.
+  const float Face=-36,ActorFace=144,ModelYaw=180;
+  Transform M(Transform root,string model,Vector3 p,float yaw=Face,float scale=1)=>art.Model(root,model,p,yaw+ModelYaw,scale);
+  Transform Icon(Transform root,string model,Vector3 p,float scale=1,string kind="hover"){var t=M(root,model,p,Face,scale);Animated(t,kind);return t;}
+  // World-space anchors (street lanes, the entrance, the counter workers) converted into this component's space.
+  Vector3 W(float x,float y,float z)=>transform.InverseTransformPoint(new Vector3(x,y,z));
+  // Interior points follow the purchased store size (CheckoutMarketLayout scales the shell around its anchor).
+  Vector3 In(float x,float y,float z){var layout=GetComponent<CheckoutMarketLayout>();var p=new Vector3(x,y,z);return transform.InverseTransformPoint(layout?layout.Point(p):p);}
+  string LayoutKey(){var layout=GetComponent<CheckoutMarketLayout>();return layout&&layout.State!=null?layout.State.widthScale.ToString("0.00")+"x"+layout.State.depthScale.ToString("0.00"):"";}
+  readonly Dictionary<string,string> builtFor=new Dictionary<string,string>();
+  Vector3 WorldPoint(string name,Vector3 fallback){var sim=FindAnyObjectByType<MarketSimulation>();var t=sim&&sim.world?sim.world.Find(name):null;return t?transform.InverseTransformPoint(t.position):fallback;}
+  Vector3 Door{get{var map=GetComponent<CheckoutMap>();var d=map?transform.InverseTransformPoint(map.Entrance):W(-1.75f,.74f,-8.7f);return new Vector3(d.x,.34f,d.z);}}
+  Vector3 Till=>WorldPoint("Worker_Cashier",W(-.4f,.74f,-6.9f));
+  static readonly Dictionary<string,string> NamedColors=new Dictionary<string,string>{{"Teal","188F86"},{"Cream","F4DFA4"},{"Orange","EC862E"},{"Dark","384444"},{"Metal","A3B9AD"},{"Screen","93DBDF"},{"Lamp","83B749"},{"Red","D74A3C"},{"White","FFF1D1"},{"Asphalt","4A4D4A"},{"Dirt","805035"},{"Sand","D69C53"},{"Yellow","F4BA42"},{"Stone","B8B2A2"}};
+  // The original Blender props (road works, umbrellas) carry colour names only; give them the painted palette.
+  void PaintNamed(Transform prop){foreach(var r in prop.GetComponentsInChildren<Renderer>(true)){var shared=r.sharedMaterials;for(int i=0;i<shared.Length;i++){if(!shared[i])continue;var name=shared[i].name.Replace(" (Instance)","");int cut=name.LastIndexOf('_');if(cut>=0)name=name.Substring(cut+1);if(NamedColors.TryGetValue(name,out var hex))shared[i]=art.Material(hex);}r.sharedMaterials=shared;}}
+  // Renderer bounds of a map object (warehouse, delivery trucks…) in this component's space.
+  Bounds WorldBounds(string name,Bounds fallback){var sim=FindAnyObjectByType<MarketSimulation>();var t=sim&&sim.world?sim.world.Find(name):null;var rs=t&&t.gameObject.activeInHierarchy?t.GetComponentsInChildren<Renderer>().Where(r=>r.enabled).ToArray():new Renderer[0];if(rs.Length==0)return fallback;var b=rs[0].bounds;foreach(var r in rs.Skip(1))b.Encapsulate(r.bounds);b.center=transform.InverseTransformPoint(b.center);return b;}
+  bool Has(string name){var sim=FindAnyObjectByType<MarketSimulation>();var t=sim&&sim.world?sim.world.Find(name):null;return t&&t.gameObject.activeInHierarchy&&t.GetComponentsInChildren<Renderer>().Any(r=>r.enabled);}
+  void Build(string id,Transform root){var door=Door;var till=Till;switch(id){
+   case "hora-do-pico":{
+    // Rush hour: a stanchion queue along the storefront to the door, shoppers with carts waiting and more arriving.
+    M(root,"QueueStanchions",door+new Vector3(-2.9f,0,-1.9f),0);
+    string[] people={"Customer_01","Customer_03","Customer_04","Customer_06"};
+    for(int i=0;i<4;i++){var spot=Group(root,"Waiting shopper",door+new Vector3(-1.2f-i*1.25f,0,-1.9f));art.Actor(spot,people[i],Vector3.zero,90,"Idle");if(i%2==1)M(spot,"CartFull",new Vector3(-.62f,0,.05f),-90,.9f);Queue(spot,Vector3.right,i*.9f);}
+    for(int i=0;i<3;i++){var walker=Group(root,"Arriving shopper",door+new Vector3(-9,0,-3.3f));art.Actor(walker,people[(i+1)%4],Vector3.zero,90,"Walking");Lane(walker,Vector3.right,7,1.1f,i*2.3f);}
+    Icon(root,"UpArrow",door+new Vector3(-3.2f,3.3f,-1.9f),1.2f,"float");break;}
+   case "pagamento-caiu":{
+    // Payday: shoppers with loaded carts heading to the till, coins over the counter and a bulging money bag.
+    string[] shoppers={"Customer_02","Customer_05","Customer_07"};
+    for(int i=0;i<3;i++){var spot=Group(root,"Payday shopper",till+new Vector3(2.2f+i*1.3f,0,.6f+i*.5f));art.Actor(spot,shoppers[i],Vector3.zero,ActorFace,"Idle");M(spot,"CartFull",new Vector3(.2f,0,-.7f),Face,.9f);}
+    Icon(root,"MoneyBag",till+new Vector3(.2f,2.8f,.3f),1.5f);
+    for(int i=0;i<5;i++)Icon(root,"GoldCoin",till+new Vector3(-1.4f+i*.95f,2.1f+(i%2)*.5f,-.4f),1.1f,"coin");
+    M(root,"CoinStack",till+new Vector3(-1.3f,.5f,-.2f),Face,.9f);break;}
    case "influenciadora-local":{
-    var stage=Group(root,"Creator filming corner",P(-5,.35f,-10.2f));art.Part(stage,"Photo mat",P(0,.03f,0),P(2.4f,.06f,1.7f),"D99BAC");art.Person(stage,P(-.5f,0,0),"B984AD");art.Bar(stage,P(.65f,0,-.5f),P(.65f,1.7f,-.5f),.06f,"3E5365");for(int i=-1;i<=1;i++)art.Bar(stage,P(.65f,.55f,-.5f),P(.65f+i*.38f,0,-.7f+Mathf.Abs(i)*.35f),.045f,"3E5365");for(int i=0;i<16;i++){float a=i*Mathf.PI/8;art.Part(stage,"Ring light",P(.65f+Mathf.Cos(a)*.35f,1.9f+Mathf.Sin(a)*.35f,-.5f),Vector3.one*.1f,"FFF2CC",PrimitiveType.Sphere);}art.Part(stage,"Phone",P(.65f,1.9f,-.48f),P(.2f,.34f,.06f),"3E5365");Prop(stage);for(int i=0;i<3;i++)Animated(Heart(root,P(-5.6f+i*.5f,2.6f+i*.28f,-10.2f)),"float");break;}
+    // Creator corner on the sidewalk right of the door: pastel backdrop, ring light and floating hearts.
+    var corner=Group(root,"Creator filming corner",door+new Vector3(4.6f,0,-2.5f));M(corner,"CreatorBackdrop",Vector3.zero,0);
+    art.Actor(corner,"Customer_03",new Vector3(-.2f,.05f,.1f),170,"Idle");M(corner,"RingLight",new Vector3(.5f,.05f,-1.2f),200);
+    for(int i=0;i<4;i++)Icon(root,"Heart",door+new Vector3(3.9f+i*.55f,2.8f,-2.4f),1.1f+(i%2)*.3f,"rise");break;}
    case "feira-do-bairro":{
-    var stalls=Group(root,"Street fair stalls",P(0,.34f,-11.3f));art.Stall(stalls,P(-5,0,0),"EC9471");art.Stall(stalls,P(3,0,0),"65ADA2");Prop(stalls);for(int i=0;i<7;i++)Animated(art.Balloon(root,P(-6+i*1.5f,3.4f,-11.3f),i%2==0?"EFA877":"89BEB2"),"float");break;}
+    // Street fair on the front sidewalk: striped tents, the market's own produce stands and crates, bunting, neighbours.
+    M(root,"FairStallRed",door+new Vector3(-5.4f,0,-2.3f),0);M(root,"FairStallTeal",door+new Vector3(5.2f,0,-2.3f),0);
+    M(root,"GameFruitStand",door+new Vector3(-8.6f,0,-2.3f),Face+36,1);M(root,"GameFruitStand",door+new Vector3(8.4f,0,-2.3f),Face+36,1);
+    foreach(var x in new[]{-3.2f,3f})M(root,"GameVegetableCrate",door+new Vector3(x,0,-3.3f),Face+20,1.1f);
+    M(root,"FairBunting",door+new Vector3(0,0,-3.6f),0);
+    art.Actor(Group(root,"Fair shopper",door+new Vector3(-5.8f,0,-3.9f)),"Customer_04",Vector3.zero,10,"Idle");
+    art.Actor(Group(root,"Fair shopper",door+new Vector3(4.6f,0,-3.9f)),"Customer_06",Vector3.zero,-15,"Idle");
+    Icon(root,"BalloonBunch",door+new Vector3(-7f,0,-3.4f),1,"float");Icon(root,"BalloonBunch",door+new Vector3(7f,0,-3.4f),1,"float");break;}
    case "desconto-atacadista":{
-    var delivery=Group(root,"Wholesale pallet offer",P(8.7f,.34f,7));art.Part(delivery,"Pallet",P(0,.1f,0),P(2.3f,.2f,1.7f),"906B4E");for(int i=0;i<6;i++)art.Crate(delivery,P((i%3-1)*.72f,.55f+(i/3)*.66f,0));var board=art.Board(delivery,P(1.8f,0,0),"69A69A");art.Percent(board,P(0,1.65f,-.16f));Prop(delivery);break;}
+    // Wholesale drop at the warehouse doorstep: stacks of the market's cardboard boxes, pallet jack, stocker and price board.
+    // At the warehouse doorstep once the storage is bought; before that, on the sidewalk right of the entrance.
+    var house=WorldBounds("Warehouse",new Bounds(W(3,.34f,19),new Vector3(8,4,6)));bool storage=Has("Warehouse");
+    var dock=storage?new Vector3(house.center.x+1.2f,.34f,house.min.z-2.2f):door+new Vector3(5.6f,0,-2.4f);
+    var yard=Group(root,"Wholesale pallet offer",dock);
+    for(int p=0;p<2;p++){var pallet=Group(yard,"Wholesale pallet",new Vector3(-1.1f+p*2.2f,0,p*.3f));M(pallet,"Pallet",Vector3.zero,0);
+     for(int layer=0;layer<3-p;layer++)for(int k=0;k<4;k++)M(pallet,"GameCardboardBox",new Vector3(-.32f+(k%2)*.64f,.18f+layer*.44f,-.28f+(k/2)*.56f),(k+layer)%2*180+layer*4,1);}
+    M(yard,"PalletJack",new Vector3(-2.6f,0,-1.1f),Face+70);M(yard,"WholesaleBoard",new Vector3(2.9f,0,-.8f));
+    art.Actor(yard,"Worker_Stocker",new Vector3(-.2f,0,-1.5f),ActorFace,"Idle");
+    Icon(root,"PriceTag",dock+Vector3.up*3.9f,1.5f);break;}
    case "rota-livre":{
-    Animated(art.Vehicle(root,P(10.7f,.3f,1),"67B6A5",true),"drive");var route=Group(root,"Clear delivery lane",P(10.7f,.34f,-3));for(int i=0;i<4;i++){art.Bar(route,P(-.4f,.02f,i*1.3f+.4f),P(0,.02f,i*1.3f),.11f,"DAF1C4");art.Bar(route,P(0,.02f,i*1.3f),P(.4f,.02f,i*1.3f+.4f),.11f,"DAF1C4");}Prop(route);break;}
-   case "equipe-inspirada":
-    foreach(var p in new[]{P(-5.5f,2.8f,4),P(1.5f,2.8f,4.3f),P(6.5f,2.8f,4.3f)})Animated(Bolt(root,p,"F6CD67"),"float");for(int i=0;i<3;i++){var tray=Group(root,"Freshly finished production",P(-5.6f+i*1.05f,1.8f,3.8f));art.Part(tray,"Tray",Vector3.zero,P(.7f,.07f,.5f),"9DBBB7");for(int j=0;j<3;j++)art.Part(tray,"Bread",P((j-1)*.2f,.12f,0),P(.16f,.18f,.33f),"EEC276",PrimitiveType.Sphere);Prop(tray);}break;
+    // Free route: the delivery truck cruises the front street over green lane arrows, green light at the corner.
+    var van=M(root,"GameDeliveryTruck",W(2,.15f,-14),90);Lane(van,Vector3.left,30,3.4f);
+    for(int i=0;i<7;i++)M(root,"LaneArrow",W(-10+i*3.6f,.16f,-14),-90,1.1f);
+    M(root,"GameTrafficLight",W(14.2f,.34f,-12.3f),-90,1);var star=M(van,"StarBadge",new Vector3(0,3.4f,0),0,1.1f);Animated(star,"coin");break;}
+   case "equipe-inspirada":{
+    // Inspired team: gold stars above every counter worker, fresh bread racks and a team banner.
+    foreach(var worker in new[]{"Worker_Baker","Worker_Butcher","Worker_Fishmonger","Worker_Cashier"}){var at=WorldPoint(worker,Vector3.zero);if(at!=Vector3.zero)Icon(root,"StarBadge",at+Vector3.up*2.6f,1.15f);}
+    var baker=WorldPoint("Worker_Baker",W(-6,.74f,5));M(root,"BreadRack",baker+new Vector3(1.6f,0,-1.1f),Face+20);M(root,"BreadRack",baker+new Vector3(2.7f,0,-1.5f),Face+20);
+    M(root,"TeamBanner",In(1.5f,.34f,7.9f),0);
+    for(int i=0;i<3;i++)Icon(root,"EnergyBolt",In(-3.5f+i*4.2f,3.3f,1.5f),1.3f,"float");break;}
    case "treinamento-expresso":{
-    var training=Group(root,"Staff training station",P(-6.2f,.74f,6));var board=art.Board(training,Vector3.zero,"598E83");for(int i=0;i<3;i++){art.Bar(board,P(-.6f,1.85f-i*.23f,-.17f),P(-.49f,1.75f-i*.23f,-.17f),.045f,"FFE3A4");art.Bar(board,P(-.49f,1.75f-i*.23f,-.17f),P(-.31f,1.95f-i*.23f,-.17f),.045f,"FFE3A4");art.Part(board,"Lesson",P(.21f,1.83f-i*.23f,-.17f),P(.6f,.045f,.03f),"E3EED8");}art.Person(training,P(1.3f,0,-.1f),"5E8BA6",true);Prop(training);break;}
+    // Express training in the free floor area: whiteboard, trainee chairs and the instructor.
+    var training=Group(root,"Staff training station",In(5.4f,.74f,-1.8f));
+    M(training,"TrainingBoard",new Vector3(0,0,.9f),Face);M(training,"TrainingChairs",new Vector3(-.4f,0,-.8f),Face+180);
+    art.Actor(training,"Worker_Stocker",new Vector3(1.2f,0,.7f),ActorFace-20,"Idle");
+    art.Actor(training,"Worker_Cashier",new Vector3(-1.1f,0,-1.5f),30,"Idle");art.Actor(training,"Worker_Baker",new Vector3(.2f,0,-1.7f),10,"Idle");
+    Icon(root,"GraduationCap",In(5.4f,3.4f,-1.2f),1.4f);break;}
    case "caixa-da-sorte":{
-    var till=Group(root,"Lucky checkout gift",P(-4.7f,1.3f,-5));art.Part(till,"Gift box",Vector3.zero,P(.65f,.5f,.6f),"83BCA5");art.Part(till,"Ribbon",P(0,.02f,-.31f),P(.13f,.54f,.02f),"FFE2A1");Prop(till);for(int i=0;i<3;i++)Animated(art.Coin(root,P(-5+i*.65f,2.6f,-4.8f)),"coin");break;}
+    // Lucky checkout: a giant gift beside the till, a sign, confetti cannons, confetti and coins.
+    M(root,"GiftBox",till+new Vector3(3.1f,0,1.3f),Face,1.2f);M(root,"LuckySign",till+new Vector3(4.4f,0,.7f));
+    M(root,"ConfettiCannon",till+new Vector3(2.1f,0,2.1f),Face+40);M(root,"ConfettiCannon",till+new Vector3(4.2f,0,2.2f),Face-40);Confetti(root,till+new Vector3(.4f,2.2f,-.3f));
+    for(int i=0;i<3;i++)Icon(root,"GoldCoin",till+new Vector3(-.6f+i*.8f,2.4f+(i%2)*.3f,-.2f),1.1f,"coin");break;}
    case "dia-perfeito":{
-    var garden=Group(root,"Celebration entrance",P(-1.7f,.34f,-9.2f));for(int side=-1;side<=1;side+=2){art.Part(garden,"Planter",P(side*2.1f,.4f,0),P(.7f,.8f,.7f),"D69F74");for(int i=0;i<3;i++){art.Bar(garden,P(side*2.1f,.75f,0),P(side*2.1f+(i-1)*.22f,1.3f,0),.04f,"6B9B72");art.Part(garden,"Flower",P(side*2.1f+(i-1)*.22f,1.35f,0),Vector3.one*.24f,"F3CA7D",PrimitiveType.Sphere);}}Prop(garden);for(int i=0;i<5;i++)Animated(art.Balloon(root,P(-4+i*1.1f,3.1f,-9.3f),i%2==0?"F2CD7C":"A2C9AF"),"float");break;}
+    // Perfect day: flower arch over the entrance path, the market's flower planters, balloons and a smiling sun.
+    M(root,"FlowerArch",door+new Vector3(0,0,-1.7f),0,1.25f);
+    foreach(var x in new[]{-3.1f,3.1f})M(root,"GameFlowerPlanter",door+new Vector3(x,0,-2.7f),0,1);
+    Icon(root,"BalloonBunch",door+new Vector3(-4.4f,0,-2.2f),1,"float");Icon(root,"BalloonBunch",door+new Vector3(4.4f,0,-2.2f),1,"float");
+    Icon(root,"SunBadge",door+new Vector3(-4.5f,5.2f,2),1.8f);Confetti(root,door+new Vector3(0,3.2f,-1.7f));break;}
    case "chuva-forte":BuildRain(root);break;
    case "obras-na-rua":{
     // Curbside trench in the westbound lane between the entrance crossing and the car drop-off; the neighborhood cars detour around it.
     var works=Group(root,"Street road works",P(2.55f,.15f,-13.05f));var prefab=Resources.Load<GameObject>("RoadWorks/StreetRoadWorks");
-    if(prefab){var model=Instantiate(prefab,works,false);model.transform.localRotation=Quaternion.Euler(0,180,0);foreach(var part in model.GetComponentsInChildren<Transform>(true))part.gameObject.layer=2;}break;}
+    if(prefab){var model=Instantiate(prefab,works,false);model.transform.localRotation=Quaternion.Euler(0,180,0);foreach(var part in model.GetComponentsInChildren<Transform>(true))part.gameObject.layer=2;PaintNamed(model.transform);}break;}
    case "concorrente-em-promocao":{
-    var rival=Group(root,"Competitor promotional stand",P(9.9f,.34f,-8));var board=art.Board(rival,Vector3.zero,"D37669");art.Percent(board,P(0,1.65f,-.17f));art.Stall(rival,P(0,0,2.1f),"BA809D");Prop(rival);Animated(art.Balloon(root,P(11.1f,3.3f,-8),"C58DA6"),"float");break;}
+    // Rival pop-up on the opposite sidewalk: magenta tent, huge promo board and a dancing tube man.
+    var rival=Group(root,"Competitor promotional stand",W(7.5f,.34f,-20.4f));
+    M(rival,"RivalTent",Vector3.zero,0);M(rival,"RivalBoard",new Vector3(-2.6f,0,.4f),0);
+    var tube=M(rival,"TubeMan",new Vector3(2.5f,0,-.3f),Face);Animated(tube,"sway");
+    for(int i=0;i<2;i++){var w=Group(root,"Tempted shopper",W(1.5f,.34f,-19.2f));art.Actor(w,i==0?"Customer_05":"Customer_08",Vector3.zero,90,"Walking");Lane(w,Vector3.right,5,.9f,i*2.6f);}
+    Icon(root,"PriceTag",W(7.5f,4.4f,-20.4f),1.6f);break;}
    case "clientes-economicos":{
-    for(int i=0;i<2;i++){var shopper=Group(root,"Comparing prices",P(-.6f+i*3,.74f,-2.8f));art.Person(shopper,Vector3.zero,"ABAA81",true);art.Part(shopper,"Calculator",P(-.3f,1.1f,-.34f),P(.32f,.5f,.08f),"485F67");art.Part(shopper,"Display",P(-.3f,1.23f,-.39f),P(.24f,.12f,.02f),"AAD3B9");for(int key=0;key<6;key++)art.Part(shopper,"Key",P(-.38f+(key%3)*.08f,1.06f-(key/3)*.08f,-.4f),P(.045f,.045f,.02f),"F2E5C6");Prop(shopper);}break;}
+    // Thrifty shoppers comparing prices: shopping lists, calculators and bargain tags over their heads.
+    for(int i=0;i<2;i++){var shopper=Group(root,"Comparing prices",In(-.2f+i*3.2f,.74f,-3.2f));art.Actor(shopper,i==0?"Customer_04":"Customer_09",Vector3.zero,ActorFace,"Idle");M(shopper,i==0?"CartEmpty":"CartFull",new Vector3(.7f,0,.1f),Face+60,.9f);
+     Icon(root,i==0?"Calculator":"ShoppingList",In(-.2f+i*3.2f,2.9f,-3.2f),1.4f);}
+    M(root,"CouponStand",door+new Vector3(1.9f,.4f,1.6f));Icon(root,"PriceTag",In(1.4f,3.5f,-2.6f),1.1f);break;}
    case "instabilidade-nos-caixas":{
-    var repair=Group(root,"Checkout terminal fault",P(-4.7f,1.5f,-4.9f));art.Part(repair,"Terminal",P(0,.3f,0),P(.8f,.65f,.18f),"435866");art.Part(repair,"Error screen",P(0,.3f,-.1f),P(.67f,.5f,.03f),"C97162");art.Bar(repair,P(-.16f,.14f,-.13f),P(.16f,.46f,-.13f),.07f,"FFE5C6");art.Bar(repair,P(.16f,.14f,-.13f),P(-.16f,.46f,-.13f),.07f,"FFE5C6");Animated(repair,"pulse");var tool=art.Toolbox(root,P(-5.6f,.74f,-4.4f));Prop(tool);break;}
+    // Unstable tills: error screen on the POS, sparks, a pulsing warning, an out-of-order sign and a technician.
+    M(root,"BrokenTerminal",till+new Vector3(-.2f,.45f,-.7f),Face,1.1f);Icon(root,"WarningBadge",till+new Vector3(0,2.7f,-.4f),1.2f,"pulse");
+    M(root,"OutOfOrderSign",till+new Vector3(1.5f,0,-1.6f));M(root,"Toolbox",till+new Vector3(2.4f,0,-.7f),Face+25);
+    M(root,"GameWorker",till+new Vector3(2.7f,0,.3f),Face-70,1);
+    Sparks(root,till+new Vector3(-.2f,1.3f,-.8f));break;}
    case "alta-do-combustivel":{
-    var pump=Group(root,"Fuel price increase",P(10.4f,.34f,5.5f));art.Part(pump,"Pump base",P(0,.7f,0),P(.95f,1.4f,.65f),"D98661");art.Part(pump,"Pump top",P(0,1.68f,0),P(1.1f,.66f,.75f),"F3E7CF");art.Part(pump,"Display",P(0,1.75f,-.39f),P(.76f,.34f,.03f),"435865");art.Bar(pump,P(0,1.63f,-.42f),P(0,1.89f,-.42f),.05f,"F4C173");art.Bar(pump,P(-.13f,1.77f,-.42f),P(0,1.9f,-.42f),.05f,"F4C173");art.Bar(pump,P(0,1.9f,-.42f),P(.13f,1.77f,-.42f),.05f,"F4C173");art.Bar(pump,P(.57f,1.65f,0),P(.9f,.5f,0),.09f,"3C4B52");art.Bar(pump,P(.9f,.5f,0),P(.65f,1.15f,-.1f),.09f,"3C4B52");Prop(pump);break;}
-   case "transito-pesado":
-    for(int i=0;i<4;i++)Animated(art.Vehicle(root,P(10.6f,.34f,-7+i*3),i%2==0?"CA8766":"85A4B7"),"queue");break;
+    // Fuel price spike at the delivery bays: pump with a climbing price next to the trucks, barrels, red arrow.
+    // Beside the delivery trucks once the loading yard exists; before that, a delivery truck refuelling at the curb.
+    bool yardOpen=Has("Anim_Truck_5");var bay=WorldBounds("Anim_Truck_5",new Bounds(W(9,.34f,13),new Vector3(2,2,4)));
+    if(!yardOpen){M(root,"GameDeliveryTruck",W(9.6f,.15f,-14.1f),90);bay=new Bounds(W(9.6f,1.2f,-14.1f),new Vector3(4.6f,2.6f,2));}
+    var fuel=Group(root,"Fuel price increase",yardOpen?new Vector3(bay.min.x-1.3f,.34f,bay.center.z-.6f):W(9.8f,.34f,-11.9f));M(fuel,"FuelPump",Vector3.zero,Face+36);M(fuel,"OilBarrels",new Vector3(-.3f,0,1.6f),Face);M(fuel,"JerryCan",new Vector3(.6f,0,-.9f),Face+30);
+    art.Actor(fuel,"Worker_Delivery",new Vector3(-.9f,0,-.6f),ActorFace,"Idle");
+    Icon(root,"UpArrow",new Vector3(bay.center.x,bay.max.y+1.6f,bay.center.z),1.5f,"float");break;}
+   case "transito-pesado":{
+    // Heavy traffic: a bumper-to-bumper line of the city's cars on the east street, exhaust, a slow sign and a grumpy cloud.
+    string[] cars={"GameCartoonCar","GameStylizedCar","GameToyVan","GameCartoonCar","GameStylizedCar","GameToyVan"};
+    for(int i=0;i<6;i++){var car=M(root,cars[i],W(22,.15f,-9+i*4.4f),0);Queue(car,Vector3.back,i*.6f);Exhaust(car);}
+    M(root,"SlowSign",W(20,.34f,-11),-90);Icon(root,"AngryCloud",W(22,4.2f,1),1.5f,"float");break;}
    case "manutencao-de-equipamentos":{
-    var maintenance=Group(root,"Production repair station",P(1.5f,.74f,3.1f));art.Barrier(maintenance,Vector3.zero);art.Toolbox(maintenance,P(.4f,.1f,-.5f));art.Person(maintenance,P(1.3f,0,.2f),"D8A056",true);Prop(maintenance);Particles(root,"Steam leak",P(1.5f,2.3f,4.3f),P(.5f,.3f,.5f),new Color(.83f,.87f,.84f,.35f),12,1.8f,.5f,.3f,false);break;}
+    // Equipment maintenance at the bakery: taped-off repair zone in front of the oven counter, technician, ladder, gears, steam.
+    var oven=WorldPoint("Worker_Baker",W(-6,.74f,5));
+    var zone=Group(root,"Production repair station",oven+new Vector3(1.6f,0,-2.2f));M(zone,"RepairStation",Vector3.zero,0);M(zone,"StepLadder",new Vector3(.9f,0,.5f),Face+20);M(zone,"Toolbox",new Vector3(-.8f,0,-.4f),Face+10);M(zone,"MaintenanceSign",new Vector3(1.6f,0,-1.3f));
+    M(zone,"GameWorker",new Vector3(-.3f,0,.3f),Face+150,1);
+    Icon(root,"Gear",oven+new Vector3(.6f,2.8f,.2f),1.2f,"spin");Icon(root,"Gear",oven+new Vector3(1.7f,2.4f,.2f),.8f,"spin");
+    Particles(root,"Steam leak",oven+new Vector3(.4f,1.6f,.4f),P(.4f,.3f,.4f),new Color(.9f,.93f,.9f,.45f),14,1.8f,.6f,.35f,false);break;}
    case "equipe-cansada":{
-    var rest=Group(root,"Staff break corner",P(-6.5f,.74f,5.8f));art.Part(rest,"Bench",P(0,.5f,0),P(1.9f,.15f,.65f),"A47755");for(int side=-1;side<=1;side+=2)art.Part(rest,"Bench leg",P(side*.7f,.25f,0),P(.14f,.5f,.5f),"4D6769");art.Cup(rest,P(-.5f,.8f,0));art.Cup(rest,P(.5f,.8f,0));Prop(rest);var person=art.Person(root,P(-5.2f,.74f,5.8f),"A6A38A");Animated(person,"rock");Particles(root,"Coffee steam",P(-7,1.75f,5.8f),P(.08f,.05f,.08f),new Color(.9f,.88f,.81f,.3f),4,1.5f,.3f,.12f,false);break;}
+    // Tired team: break corner beside the warehouse, coffee, drowsy workers swaying and floating Zzz.
+    // Beside the warehouse once it exists; before that, outside the store's east wall by the service door.
+    var house=WorldBounds("Warehouse",new Bounds(W(3,.34f,19),new Vector3(8,4,6)));var shell=WorldBounds("Building",new Bounds(W(0,.74f,-2),new Vector3(18,3,14)));
+    var spot=Has("Warehouse")?new Vector3(house.min.x-2.2f,.34f,house.center.z-.5f):new Vector3(shell.max.x+2f,.34f,shell.max.z-2.6f);
+    var rest=Group(root,"Staff break corner",spot);M(rest,"BreakCorner",Vector3.zero,Face);
+    var a=art.Actor(rest,"Worker_Cashier",new Vector3(-.9f,0,-1.5f),ActorFace,"Idle",.45f);Animated(a,"rock");
+    var b=art.Actor(rest,"Worker_Baker",new Vector3(.4f,0,-1.7f),ActorFace-20,"Idle",.4f);Animated(b,"rock");
+    Icon(root,"Zzz",spot+new Vector3(-.7f,2.6f,-.6f),1.3f,"float");Icon(root,"Zzz",spot+new Vector3(.3f,2.8f,-.9f),1f,"float");Icon(root,"CoffeeCup",spot+new Vector3(1.2f,2.7f,-.2f),1.3f);
+    Particles(root,"Coffee steam",spot+new Vector3(.8f,1.2f,.3f),P(.1f,.05f,.1f),new Color(.95f,.92f,.86f,.4f),6,1.6f,.35f,.18f,false);break;}
    case "fiscalizacao-surpresa":{
-    var inspection=Group(root,"Inspection visit",P(-3.2f,.74f,-6.5f));art.Person(inspection,Vector3.zero,"5D809B",true);art.Part(inspection,"ID badge",P(-.15f,1.17f,-.18f),P(.13f,.19f,.02f),"E6C885");art.Part(inspection,"Document case",P(.6f,.35f,0),P(.55f,.48f,.18f),"4A5863");Prop(inspection);break;}
+    // Surprise inspection just inside the door: inspector, folding table, forms, badge and a magnifying glass.
+    var visit=Group(root,"Inspection visit",door+new Vector3(4.4f,.4f,1.9f));M(visit,"InspectionKit",new Vector3(.9f,0,.2f),Face+10);
+    art.Actor(visit,"Customer_08",Vector3.zero,ActorFace,"Idle");
+    Icon(root,"ClipboardIcon",door+new Vector3(4.4f,3.1f,1.9f),1.2f);Icon(root,"Magnifier",door+new Vector3(5.5f,3.3f,2.1f),1.2f);M(visit,"IdBadge",new Vector3(-.3f,1.3f,-.25f),Face,.35f);break;}
    default:Debug.LogWarning("CHECKOUT_EVENT_VISUAL_MISSING "+id);break;
   }}
-  Transform Heart(Transform root,Vector3 p){var t=Group(root,"Floating heart",p);art.Part(t,"Heart left",P(-.12f,.1f,0),Vector3.one*.32f,"D98B9E",PrimitiveType.Sphere);art.Part(t,"Heart right",P(.12f,.1f,0),Vector3.one*.32f,"D98B9E",PrimitiveType.Sphere);art.Part(t,"Heart tip",P(0,-.06f,0),P(.29f,.29f,.2f),"D98B9E").localRotation=Quaternion.Euler(0,0,45);return t;}
-  Transform Bolt(Transform root,Vector3 p,string color){var t=Group(root,"Energy bolt",p);art.Bar(t,P(.15f,.4f,0),P(-.15f,0,0),.16f,color);art.Bar(t,P(-.15f,0,0),P(.15f,0,0),.16f,color);art.Bar(t,P(.15f,0,0),P(-.15f,-.4f,0),.16f,color);return t;}
+  void Confetti(Transform root,Vector3 p){var go=Group(root,"Confetti",p).gameObject;go.layer=2;go.transform.localRotation=Quaternion.Euler(-90,0,0);var system=go.AddComponent<ParticleSystem>();system.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);var main=system.main;main.playOnAwake=false;main.startLifetime=2.2f;main.startSpeed=new ParticleSystem.MinMaxCurve(2.5f,4.5f);main.startSize=new ParticleSystem.MinMaxCurve(.08f,.15f);main.gravityModifier=.45f;main.startRotation=new ParticleSystem.MinMaxCurve(0,6.28f);var colors=new Gradient();colors.SetKeys(new[]{new GradientColorKey(new Color(.84f,.29f,.24f),0),new GradientColorKey(new Color(.96f,.73f,.26f),.33f),new GradientColorKey(new Color(.09f,.56f,.53f),.66f),new GradientColorKey(new Color(.9f,.49f,.6f),1)},new[]{new GradientAlphaKey(1,0),new GradientAlphaKey(1,1)});main.startColor=new ParticleSystem.MinMaxGradient(colors){mode=ParticleSystemGradientMode.RandomColor};main.maxParticles=200;main.simulationSpace=ParticleSystemSimulationSpace.World;var shape=system.shape;shape.shapeType=ParticleSystemShapeType.Cone;shape.angle=35;shape.radius=.3f;var emission=system.emission;emission.rateOverTime=0;emission.SetBursts(new[]{new ParticleSystem.Burst(0,40,40,999,1.4f)});var renderer=system.GetComponent<ParticleSystemRenderer>();renderer.sharedMaterial=particleMaterial;}
+  void Sparks(Transform root,Vector3 p){var go=Group(root,"Sparks",p).gameObject;go.layer=2;go.transform.localRotation=Quaternion.Euler(-90,0,0);var system=go.AddComponent<ParticleSystem>();system.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);var main=system.main;main.playOnAwake=false;main.startLifetime=.45f;main.startSpeed=new ParticleSystem.MinMaxCurve(1.5f,3.2f);main.startSize=new ParticleSystem.MinMaxCurve(.05f,.1f);main.gravityModifier=1.2f;main.startColor=new ParticleSystem.MinMaxGradient(new Color(1,.85f,.35f),new Color(1,.55f,.2f));main.maxParticles=80;main.simulationSpace=ParticleSystemSimulationSpace.World;var shape=system.shape;shape.shapeType=ParticleSystemShapeType.Cone;shape.angle=50;shape.radius=.05f;var emission=system.emission;emission.rateOverTime=0;emission.SetBursts(new[]{new ParticleSystem.Burst(0,14,20,999,.9f)});var renderer=system.GetComponent<ParticleSystemRenderer>();renderer.sharedMaterial=particleMaterial;renderer.renderMode=ParticleSystemRenderMode.Stretch;renderer.lengthScale=2.5f;}
+  void Exhaust(Transform car){Particles(car,"Exhaust",new Vector3(.5f,.45f,-2f),new Vector3(.1f,.1f,.1f),new Color(.78f,.8f,.8f,.5f),5,1.4f,.4f,.3f,false);}
   void BuildRain(Transform root){
    var terrain=FindObjectsByType<UnityEngine.Tilemaps.TilemapRenderer>().FirstOrDefault(t=>t.name=="Painted Terrain");
    var area=terrain?terrain.bounds:new Bounds(P(0,0,0),P(90,1,90));

@@ -2,6 +2,9 @@ import { gameEvents } from "@/data/game-events";
 import { getGameEventIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { getInventoryCapacity } from "@/data/inventory-capacity";
+import { getWarehouseZone, warehouseZoneLabels } from "@/services/receiving";
+import { incidentLabels } from "@/services/store-incidents";
+import type { StoreIncidentKind } from "@/@types/store-incident";
 import type { Routes } from ".";
 import {
 	act,
@@ -23,6 +26,7 @@ const categories = [
 	{ id: "nivel", label: "Nível" },
 	{ id: "eventos", label: "Eventos" },
 	{ id: "estoque", label: "Estoque" },
+	{ id: "tarefas", label: "Tarefas" },
 	{ id: "reset", label: "Reset" },
 ] as const;
 type Category = (typeof categories)[number]["id"];
@@ -210,6 +214,60 @@ const builders: Record<Category, Builder> = {
 			);
 		}
 		return devPage("estoque", cards, `dev:estoque:${filter}:${current}`);
+	},
+	// Start the store tasks on demand: a truck at the dock, or a given mishap.
+	tarefas: (state) => {
+		const unlocked = itemCatalog.filter((product) =>
+			state.market.unlockedProductIds.includes(product.id),
+		);
+		const zones = ["refrigerados", "bebidas", "hortifruti", "mercearia"] as const;
+		const trucks = zones.flatMap((zone) => {
+			const product = unlocked.find((item) => getWarehouseZone(item.category) === zone);
+			return product
+				? [
+						act(`${warehouseZoneLabels[zone]}: ${product.name}`, "devArriveDelivery", [product.id, 30], {
+							variant: "primary",
+							ok: "Caminhão no pátio",
+							fail: "Não foi possível criar a entrega",
+						}),
+					]
+				: [];
+		});
+		const kinds: StoreIncidentKind[] = [
+			"freezer_sorvete",
+			"geladeira_bebidas",
+			"derramado",
+			"etiqueta",
+			"lampada",
+		];
+		return devPage("tarefas", [
+			card("Caminhão de entrega", {
+				eyebrow: "RECEBIMENTO",
+				icon: gameIcon("warehouse"),
+				badge: `${state.receiving.dock.length} no pátio`,
+				subtitle: "Estaciona um caminhão com 30 unidades para descarregar.",
+				buttons: [
+					...trucks,
+					act("Remover caminhões de teste", "devClearDock", [], {
+						variant: "secondary",
+						enabled: state.receiving.dock.some((item) => item.orderId.startsWith("dev-")),
+					}),
+				],
+			}),
+			card("Imprevistos", {
+				eyebrow: "LOJA",
+				icon: gameIcon("warning"),
+				badge: `${state.incidents.active.length} ativos`,
+				subtitle: "Cria um imprevisto numa prateleira compatível.",
+				buttons: kinds.map((kind) =>
+					act(incidentLabels[kind].title, "devTriggerIncident", [kind], {
+						variant: "danger",
+						ok: "Imprevisto criado",
+						fail: "Nenhuma prateleira compatível",
+					}),
+				),
+			}),
+		]);
 	},
 	reset: () =>
 		devPage("reset", [
