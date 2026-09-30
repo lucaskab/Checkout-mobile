@@ -18,6 +18,8 @@ import {
 	resolveShelfSlotCounts,
 } from "@/data/shelf-slots";
 import { useGameStore } from "@/stores/game-store";
+import { BuildPanel } from "@/components/build-panel";
+import { getNextShelfBuildStatus } from "@/services/interior-construction";
 import { ShelfManagementScreen } from ".";
 
 export function ShelfListScreen() {
@@ -44,15 +46,17 @@ export function ShelfListScreen() {
 			}
 			ListFooterComponent={
 				nextShelfUpgrade ? (
-					<GameButton
-						fullWidth
-						label={`Nova prateleira · Nv. ${nextShelfUpgrade.playerLevel} · ${nextShelfUpgrade.coinCost} moedas`}
-						variant="coin"
-						disabled={
-							state.market.level < nextShelfUpgrade.playerLevel ||
-							state.coins < nextShelfUpgrade.coinCost
-						}
-						onPress={() => state.unlockNextShelf()}
+					// Paying calls the builders: the shelf opens when the works finish.
+					<BuildPanel
+						coins={state.coins}
+						diamonds={state.logistics.premiumCurrency}
+						onBuild={() => state.unlockNextShelf()}
+						onSpeedUp={() => {
+							const build = getNextShelfBuildStatus(state);
+							if (build.construction) state.finishInteriorConstructionNow(build.construction.id);
+						}}
+						status={getNextShelfBuildStatus(state)}
+						title={`Nova prateleira · Nv. ${nextShelfUpgrade.playerLevel}`}
 					/>
 				) : null
 			}

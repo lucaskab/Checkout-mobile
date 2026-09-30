@@ -62,6 +62,15 @@ export const productionSectors: ProductionSector[] = [
 		slotCount: 3,
 		subtitle: "Sorvetes & sobremesas",
 	},
+	{
+		description:
+			"Uma adega climatizada para vinhos da casa, sangrias e kits de harmonização.",
+		id: "adega",
+		name: "Adega",
+		requiredLevel: 20,
+		slotCount: 3,
+		subtitle: "Vinhos & harmonizações",
+	},
 ];
 
 export const productionRecipes: ProductionRecipe[] = [
@@ -283,6 +292,40 @@ export const productionRecipes: ProductionRecipe[] = [
 		outputQuantity: 3,
 		requiredLevel: 28,
 		sectorId: "sorvetes",
+	},
+	{
+		durationMs: 240_000,
+		id: "vinho-da-casa",
+		ingredients: [{ productId: 13, quantity: 3 }],
+		outputProductId: 119,
+		outputQuantity: 3,
+		requiredLevel: 20,
+		sectorId: "adega",
+	},
+	{
+		durationMs: 420_000,
+		id: "sangria-da-casa",
+		ingredients: [
+			{ productId: 119, quantity: 2 },
+			{ productId: 13, quantity: 1 },
+		],
+		outputProductId: 120,
+		outputQuantity: 3,
+		requiredLevel: 21,
+		sectorId: "adega",
+	},
+	{
+		durationMs: 780_000,
+		id: "kit-harmonizacao",
+		ingredients: [
+			{ productId: 31, quantity: 1 },
+			{ productId: 6, quantity: 2 },
+			{ productId: 32, quantity: 1 },
+		],
+		outputProductId: 121,
+		outputQuantity: 2,
+		requiredLevel: 23,
+		sectorId: "adega",
 	},
 ];
 

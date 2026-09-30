@@ -8,6 +8,8 @@ namespace MarketDay
         public Animation animationPlayer;
         public bool CarryingBasket {get;set;}
         public bool Busy=>actionRemaining>0;
+        // Products this character has taken (shelf or special sector): the shopping props fill up with them.
+        public int Picks {get;private set;}
         public float walkCycleDistance=.733f;
         Vector3 previous; float walkPhase; string current; float actionRemaining;
         MarketSimulation simulation; GameObject handledItem; float actionLength;
@@ -29,6 +31,7 @@ namespace MarketDay
         {
             if(!animationPlayer||!animationPlayer[clip]){Debug.LogError("Missing character clip: "+name+" / "+clip);return 2;}
             if(counted){if(clip=="GetFromShelf")shelfActions++;if(clip=="BuyAtSpecialSector")sectorActions++;if(clip=="PayAtCheckout")paymentActions++;}
+            if(clip=="GetFromShelf"||clip=="BuyAtSpecialSector")Picks++;
             current=clip;animationPlayer[clip].time=0;animationPlayer.CrossFade(clip,.16f);
             actionRemaining=actionLength=animationPlayer[clip].length;
             if(!handledItem)

@@ -2,7 +2,13 @@ import type { EmployeeRole } from "@/@types/employee";
 import type { ShopCategory, ShopItemDefinition, ShopItemQuality } from "@/@types/shop";
 import { employeeDefinitions } from "@/data/employees";
 import { getShopCategoryIcon, getShopItemIcon } from "@/data/game-icon-assets";
-import { marketExpansions } from "@/data/market-expansions";
+import {
+	formatBuildDuration,
+	formatConstructionCountdown,
+	getMarketExpansionSkipCost,
+	getMissingMarketExpansionPrerequisites,
+	marketExpansions,
+} from "@/data/market-expansions";
 import { shopCategories, shopItems } from "@/data/shop-items";
 import {
 	EMPLOYEE_MAX_LEVEL,
@@ -14,6 +20,7 @@ import {
 	getEmployeePayrollCost,
 } from "@/services/employees";
 import type { Routes } from ".";
+import { getShopItemBuildStatus } from "@/services/interior-construction";
 import {
 	act,
 	card,
@@ -214,6 +221,28 @@ export const routes: Routes = {
 					? `Nível ${item.level}`
 					: `${verb} · ${formatPrice(price)}`;
 
+			// Fixtures (second checkout, self-checkout) are installed by the builders over time.
+			const build = getShopItemBuildStatus(state, item.id);
+			if (build && build.status === "building" && build.construction)
+				return card(item.name, {
+					eyebrow: "EM INSTALAÇÃO",
+					icon: gameIcon("construction"),
+					badge: formatConstructionCountdown(build.remainingMs),
+					tone: "warning",
+					progress: build.progress,
+					subtitle: "Os construtores estão instalando no mercado.",
+					lines: [`Pronto em ${formatConstructionCountdown(build.remainingMs)}`],
+					buttons: [
+						act(`Acelerar · 💎 ${build.skipCost}`, "finishInteriorConstructionNow", [build.construction.id], {
+							variant: "gem",
+							icon: gameIcon("diamond"),
+							enabled: diamonds >= build.skipCost,
+							ok: `${item.name} pronto!`,
+							fail: "Diamantes insuficientes",
+						}),
+					],
+				});
+			const busy = !!build && build.status === "busy";
 			return card(item.name, {
 				eyebrow: `${qualityLabels[quality]} ${"★".repeat(qualityStars[quality])}`,
 				icon: gameIcon(getShopItemIcon(item.id)),
@@ -231,6 +260,7 @@ export const routes: Routes = {
 				subtitle: item.description,
 				lines: [
 					`Nível ${item.level} · ${isDiamond ? "💎" : "🪙"} ${formatPrice(price)}`,
+					...(build && !isOwned ? [`Instalação de ${formatBuildDuration(build.durationMs)}${busy ? " · construtores ocupados" : ""}`] : []),
 					...(item.isConsumable && consumableAmount > 0
 						? [`No inventário: ${consumableAmount}`]
 						: []),
@@ -243,11 +273,13 @@ export const routes: Routes = {
 						{
 							variant: isOwned ? "success" : isDiamond ? "gem" : "coin",
 							icon: gameIcon(isDiamond ? "diamond" : "coin"),
-							enabled: !isOwned && !isLocked && canAfford,
+							enabled: !isOwned && !isLocked && canAfford && !busy,
 							ok: item.isConsumable
 								? `${item.name} foi adicionado aos boosters.`
-								: `${item.name} foi instalado no mercado.`,
-							fail: "Você ainda não atende aos requisitos desta compra.",
+								: build
+									? `Os construtores começaram a instalar ${item.name}.`
+									: `${item.name} foi instalado no mercado.`,
+							fail: busy ? "Construtores ocupados com outra obra." : "Você ainda não atende aos requisitos desta compra.",
 						},
 					),
 				],
@@ -273,12 +305,53 @@ export const routes: Routes = {
 		const diamonds = state.logistics.premiumCurrency;
 		const level = state.market.level;
 		const unlockedIds = state.unlockedMarketExpansionIds;
+		const construction = state.marketExpansionConstruction;
+		const remainingMs = construction ? construction.endsAt - Date.now() : 0;
+		const skipCost = getMarketExpansionSkipCost(remainingMs);
 
 		const cards = marketExpansions.map((expansion) => {
 			const unlocked = unlockedIds.includes(expansion.id);
-			const levelLocked = level < expansion.requiredLevel;
+			const underConstruction = construction?.expansionId === expansion.id;
+			const missing = getMissingMarketExpansionPrerequisites(
+				expansion,
+				unlockedIds,
+			);
+			const levelLocked =
+				level < expansion.requiredLevel || missing.length > 0;
 			const hasCoins = coins >= expansion.coinCost;
 			const hasDiamonds = diamonds >= expansion.diamondCost;
+
+			if (underConstruction) {
+				return card(expansion.name, {
+					eyebrow: "🏗️ EM OBRA",
+					icon: expansionIcon(expansion.id),
+					badge: formatConstructionCountdown(remainingMs),
+					tone: "warning",
+					subtitle: expansion.description,
+					lines: [
+						remainingMs > 0
+							? `Fica pronta em ${formatConstructionCountdown(remainingMs)}.`
+							: "Finalizando a obra...",
+					],
+					buttons:
+						remainingMs > 0
+							? [
+									act(
+										`Acelerar · ${fmt(skipCost)}`,
+										"finishMarketExpansionNow",
+										[],
+										{
+											variant: "gem",
+											icon: gameIcon("diamond"),
+											enabled: diamonds >= skipCost,
+											ok: `${expansion.name} concluída`,
+											fail: "Diamantes insuficientes",
+										},
+									),
+								]
+							: [],
+				});
+			}
 
 			return card(expansion.name, {
 				eyebrow: unlocked ? "LIBERADA" : `NÍVEL ${expansion.requiredLevel}`,
@@ -288,12 +361,19 @@ export const routes: Routes = {
 				lines: [
 					unlocked
 						? "Área pronta para o mercado."
-						: levelLocked
+						: level < expansion.requiredLevel
 							? `Alcance o nível ${expansion.requiredLevel} para desbloquear.`
-							: `🪙 ${fmt(expansion.coinCost)} ou 💎 ${fmt(expansion.diamondCost)}`,
+							: missing.length > 0
+								? `Construa antes: ${missing.map((item) => item.name).join(" e ")}.`
+								: construction
+									? "Aguarde a obra atual terminar."
+									: `🪙 ${fmt(expansion.coinCost)} ou 💎 ${fmt(expansion.diamondCost)}`,
+					...(unlocked
+						? []
+						: [`⏱ Obra de ${formatBuildDuration(expansion.buildDurationMs)}`]),
 				],
 				buttons:
-					unlocked || levelLocked
+					unlocked || levelLocked || construction
 						? []
 						: [
 								act(
@@ -304,7 +384,7 @@ export const routes: Routes = {
 										variant: "coin",
 										icon: gameIcon("coin"),
 										enabled: hasCoins,
-										ok: `${expansion.name} liberada`,
+										ok: `Obra de ${expansion.name} iniciada`,
 										fail: "Moedas insuficientes",
 									},
 								),
@@ -316,7 +396,7 @@ export const routes: Routes = {
 										variant: "gem",
 										icon: gameIcon("diamond"),
 										enabled: hasDiamonds,
-										ok: `${expansion.name} liberada`,
+										ok: `Obra de ${expansion.name} iniciada`,
 										fail: "Diamantes insuficientes",
 									},
 								),

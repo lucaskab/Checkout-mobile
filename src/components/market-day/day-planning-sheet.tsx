@@ -5,6 +5,7 @@ import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
+import { getWaitingInteriorPieces } from "@/data/interior-decor";
 import { DAY_DURATION_MS, FREE_DAY_CONTRACT_ID } from "@/services/market-day";
 import { useGameStore } from "@/stores/game-store";
 import { contractIcon } from "./labels";
@@ -16,6 +17,9 @@ export function DayPlanningSheet() {
 	const { closeBottomSheet } = useBottomSheet();
 	const day = useGameStore((state) => state.day);
 	const startDay = useGameStore((state) => state.startDay);
+	const waiting = useGameStore(
+		(state) => getWaitingInteriorPieces(state.interior).length,
+	);
 	const minutes = Math.round(DAY_DURATION_MS / 60_000);
 
 	function start(contractId: string) {
@@ -43,6 +47,16 @@ export function DayPlanningSheet() {
 					especiais bem atendidos melhoram a nota do dia.
 				</Text>
 			</View>
+			{waiting > 0 && (
+				<View style={styles.notice}>
+					<GameIcon icon="hammer" style={styles.noticeIcon} />
+					<Text style={styles.noticeText}>
+						Monte a sua loja primeiro: você tem {waiting}{" "}
+						{waiting === 1 ? "móvel" : "móveis"} para colocar. Toque em
+						Construir e posicione o caixa e as prateleiras onde quiser.
+					</Text>
+				</View>
+			)}
 			{day.offers.map((offer) => (
 				<ContractCard
 					contract={offer}
@@ -126,6 +140,23 @@ function Reward({
 
 const styles = StyleSheet.create((theme) => ({
 	container: { gap: theme.gap(1.25), paddingHorizontal: theme.gap(1.5) },
+	notice: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(1),
+		padding: theme.gap(1.25),
+		borderWidth: 1,
+		borderColor: theme.colors["amber-200"],
+		borderRadius: theme.gap(2),
+		backgroundColor: theme.colors["amber-50"],
+	},
+	noticeIcon: { width: 36, height: 36 },
+	noticeText: {
+		flex: 1,
+		color: theme.colors["neutral-700"],
+		fontSize: 12,
+		fontWeight: "600",
+	},
 	eyebrow: {
 		color: theme.colors["blue-600"],
 		fontFamily: theme.fonts.family.badge,

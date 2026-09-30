@@ -1,4 +1,5 @@
 import type { DayContract, SpecialRequest } from "@/@types/market-day";
+import { getWaitingInteriorPieces } from "@/data/interior-decor";
 import type { GameIconId } from "@/data/game-icon-assets";
 import {
 	DAY_DURATION_MS,
@@ -76,6 +77,7 @@ function contractCard(contract: DayContract) {
 				icon: gameIcon("key"),
 				after: "back",
 				ok: `Dia aberto: ${contract.title}`,
+				fail: "Coloque seus móveis no modo Construir antes de abrir.",
 			}),
 		],
 	});
@@ -143,10 +145,21 @@ function dayStatus(state: State, now: number): Card {
 function planning(state: State) {
 	const { day } = state;
 	const minutes = Math.round(DAY_DURATION_MS / 60_000);
+	const waiting = getWaitingInteriorPieces(state.interior).length;
 	return page(
 		"day",
 		`Dia ${day.dayNumber}`,
 		[
+			...(waiting > 0
+				? [
+						card("Monte a sua loja primeiro", {
+							eyebrow: "MÓVEIS PARA COLOCAR",
+							subtitle: `Você tem ${waiting} ${waiting === 1 ? "móvel" : "móveis"} esperando. Toque em Construir e coloque o caixa e as prateleiras onde quiser para poder abrir.`,
+							icon: gameIcon("hammer"),
+							tone: "warning",
+						}),
+					]
+				: []),
 			card("Escolha o contrato de hoje", {
 				eyebrow: `PLANEJAMENTO · ${minutes} MIN`,
 				subtitle:
@@ -165,6 +178,7 @@ function planning(state: State) {
 						variant: "secondary",
 						after: "back",
 						ok: "Mercado aberto!",
+						fail: "Coloque seus móveis no modo Construir antes de abrir.",
 					}),
 				],
 			}),

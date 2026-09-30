@@ -29,6 +29,16 @@ export function DevCheatSheet() {
 		(state) => state.devActivateGameEvent,
 	);
 	const setMarketLevel = useGameStore((state) => state.setMarketLevel);
+	const construction = useGameStore(
+		(state) => state.marketExpansionConstruction,
+	);
+	const devFinishMarketExpansion = useGameStore(
+		(state) => state.devFinishMarketExpansion,
+	);
+	const interiorBuilds = useGameStore((state) => state.interiorConstructions.length);
+	const devFinishInteriorConstructions = useGameStore(
+		(state) => state.devFinishInteriorConstructions,
+	);
 	const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
 	const products = normalizedSearch
 		? itemCatalog.filter((product) =>
@@ -235,6 +245,30 @@ export function DevCheatSheet() {
 									</Pressable>
 								))}
 							</View>
+						</CheatSection>
+
+						<CheatSection
+							description="Termina na hora a obra da expansão em andamento, sem gastar diamantes."
+							title="Obras"
+						>
+							<CompactButton
+								label={
+									construction
+										? "Terminar obra agora"
+										: "Nenhuma obra em andamento"
+								}
+								onPress={() => devFinishMarketExpansion()}
+								positive={!!construction}
+							/>
+							<CompactButton
+								label={
+									interiorBuilds > 0
+										? "Terminar obras internas"
+										: "Nenhuma obra interna"
+								}
+								onPress={() => devFinishInteriorConstructions()}
+								positive={interiorBuilds > 0}
+							/>
 						</CheatSection>
 
 						<CheatSection

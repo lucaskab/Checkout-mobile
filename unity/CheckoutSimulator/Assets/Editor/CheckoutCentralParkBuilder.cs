@@ -29,10 +29,12 @@ public static class CheckoutCentralParkBuilder
     const string GardensName = "Side Block Details";
     const float Ground = .13f;
     static readonly Vector3 CircleCenter = new Vector3(-23.5f, 0, -18.5f);
-    static readonly Vector3 WarehouseCenter = new Vector3(-10.55f, 0, 34.2f);
+    // Behind the widened west sidewalk (block edge x -15.75).
+    static readonly Vector3 WarehouseCenter = new Vector3(-8.15f, 0, 34.2f);
     static readonly Vector3 WarehouseSize = new Vector3(14.7f, 6.2f, 10.1f); // The market's opening footprint.
     static readonly Vector2 BasinCenter = new Vector2(7.4f, 36.5f); // Former dock basin, now open paving.
-    static readonly float[,] Scales = { { .78f, .68f }, { .86f, .78f }, { .93f, .88f }, { 1f, 1f }, { 1.12f, 1.12f } };
+    // Same stage sizes as the app (src/services/simulator-layout.ts) and the Expansion Preview window.
+    static readonly float[,] Scales = { { .82f, .72f }, { .96f, .82f }, { 1.1f, .92f }, { 1.24f, 1.03f }, { 1.38f, 1.14f } };
 
     static readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
     static readonly HashSet<GameObject> primitives = new HashSet<GameObject>();
@@ -57,7 +59,7 @@ public static class CheckoutCentralParkBuilder
             .Select(n => world.Find("Landscape Models/" + n)).Where(t => t).ToArray();
         if (treeTemplates.Length == 0) throw new InvalidOperationException("Missing landscape tree templates.");
 
-        foreach (var name in new[] { ParkName, CircleName, PlazaName, WarehouseName, GardensName })
+        foreach (var name in new[] { ParkName, CircleName, PlazaName, WarehouseName, GardensName, CheckoutMarketLayout.GrandWarehouse, CheckoutMarketLayout.GrandYard })
         {
             var old = world.Find(name);
             if (old) UnityEngine.Object.DestroyImmediate(old.gameObject);
@@ -72,10 +74,19 @@ public static class CheckoutCentralParkBuilder
         BuildCircle();
         BuildPark();
         var gardens = NewRoot(GardensName);
-        FillSideBlock(-1, establishments, gardens);
-        FillSideBlock(1, establishments, gardens);
+        RespaceStreetFurniture();
+        ShiftSideBuildings();
+        // Side blocks across the local streets (north of the avenue), then the two corners beside the park.
+        FillSideBlock(-1, establishments, gardens, CheckoutStreetLayout.BlockNorthZ + .4f, 47.4f, new[] { null, null, "LIVRARIA", "LAVANDERIA" });
+        FillSideBlock(1, establishments, gardens, CheckoutStreetLayout.BlockNorthZ + .4f, 47.4f, new[] { "FLORICULTURA", "PIZZARIA", "SORVETERIA", "BARBEARIA" });
+        // Corners beside the park: a small apartment block and a house, close to the street, with room between them.
+        FillSideBlock(-1, establishments, gardens, -43.6f, CheckoutStreetLayout.BlockSouthZ - .4f, new string[0], "south west ", 3, 6.4f, 2.2f, .8f, 6.5f, false);
+        FillSideBlock(1, establishments, gardens, -43.6f, CheckoutStreetLayout.BlockSouthZ - .4f, new string[0], "south east ", 7, 6.4f, 2.2f, .8f, 6.5f, false);
+        CornerTrees(-1, establishments, gardens); CornerTrees(1, establishments, gardens);
         BuildWarehouse();
+        BuildGrandWarehouse();
         BuildPlaza();
+        StripTreeBeds();
         ConfigureGround();
 
         EditorSceneManager.MarkSceneDirty(simulation.gameObject.scene);
@@ -117,12 +128,12 @@ public static class CheckoutCentralParkBuilder
     {
         var root = NewRoot(CircleName);
         var circle = root.gameObject.AddComponent<CheckoutRoundabout>();
-        circle.center = CircleCenter; circle.islandRadius = 3.4f; circle.outerRadius = 7.5f; circle.travelRadius = 5.5f; circle.clipRadius = 9f;
+        circle.center = CircleCenter; circle.islandRadius = 3.4f; circle.outerRadius = 7.5f; circle.travelRadius = 6.45f; // outer of the two painted lanes circle.clipRadius = 9f;
         var monument = Group(root, "Monument", CircleCenter);
         Material granite = Mat("Granite", "C9C3B6"), stone = Mat("MonumentStone", "A8A195"), bronze = Mat("Bronze", "6E5A3C", .45f);
-        Material water = Mat("FountainWater", "3F90A6", .9f), spray = Mat("FountainSpray", "D9F1F6", .7f, "5A7A80");
         Cyl(monument, "Fountain basin", Vector3.up * Ground, 2.55f, .42f, stone);
-        Cyl(monument, "Fountain water", Vector3.up * (Ground + .41f), 2.32f, .03f, water);
+        var basinWater = WaterSurface(root, "Fountain water", new Vector2(CircleCenter.x, CircleCenter.z), new Vector2(2.36f, 2.36f), Ground + .425f, 0, .55f);
+        FountainJets(root, basinWater);
         Cyl(monument, "Plinth", Vector3.up * Ground, 1.35f, .62f, granite);
         Box(monument, "Pedestal", Vector3.up * (Ground + .62f + .6f), new Vector3(1.55f, 1.2f, 1.55f), granite);
         Box(monument, "Pedestal cornice", Vector3.up * (Ground + 1.82f + .12f), new Vector3(1.75f, .24f, 1.75f), stone);
@@ -139,16 +150,14 @@ public static class CheckoutCentralParkBuilder
         for (int i = 0; i < 10; i++)
         {
             float a = i * Mathf.PI * 2 / 10;
-            var jet = Cyl(monument, "Water jet", new Vector3(Mathf.Cos(a) * 1.85f, Ground + .42f, Mathf.Sin(a) * 1.85f), .045f, .75f, spray);
-            jet.transform.localRotation = Quaternion.AngleAxis(-22, new Vector3(-Mathf.Sin(a), 0, Mathf.Cos(a)));
             var shrub = Prim(monument, "Island shrub", PrimitiveType.Sphere, new Vector3(Mathf.Cos(a + .3f) * 2.75f, Ground + .12f, Mathf.Sin(a + .3f) * 2.75f), new Vector3(.45f, .32f, .45f), Mat(i % 3 == 0 ? "ShrubFlower" : "Shrub", i % 3 == 0 ? "C77A92" : "4D7A3A"));
         }
         // Give-way signs on the right of every approach arm.
         var signs = Group(root, "Give way signs", Vector3.zero);
-        foreach (var (p, facing) in new[] { (new Vector3(-33.2f, 0, -25.1f), 90f), (new Vector3(-13.9f, 0, -11.9f), 270f), (new Vector3(-26.3f, 0, -9.8f), 180f), (new Vector3(-20.7f, 0, -27.4f), 0f) })
+        foreach (var (p, facing) in new[] { (new Vector3(-33.2f, 0, -26.15f), 90f), (new Vector3(-14.6f, 0, -10.85f), 270f), (new Vector3(-27.4f, 0, -8.6f), 180f), (new Vector3(-19.6f, 0, -28.4f), 0f) })
             GiveWay(signs, p, facing);
-        StreetSign(root, new Vector3(-16.9f, 0, -25.2f), "CENTRAL PARK S", "COLUMBUS CIRCLE");
-        StreetSign(root, new Vector3(-17.9f, 0, -11.4f), "W 59 ST", "COLUMBUS CIRCLE");
+        StreetSign(root, new Vector3(-18.4f, 0, -27.2f), "CENTRAL PARK S", "COLUMBUS CIRCLE");
+        StreetSign(root, new Vector3(-17.2f, 0, -9.6f), "W 59 ST", "COLUMBUS CIRCLE");
         Bake(root);
     }
 
@@ -182,15 +191,21 @@ public static class CheckoutCentralParkBuilder
         Material wall = Mat("ParkWall", "8F8A80"), coping = Mat("ParkWallCoping", "B8B2A6"), pier = Mat("GatePier", "A39D92");
         // Perimeter wall with openings at the gates, the drive and Merchants' Gate plaza.
         var walls = Group(root, "Perimeter wall", Vector3.zero);
-        float driveEast = CheckoutCityPark.DriveZ(18.5f);
-        WallRun(walls, new Vector3(-12.3f, 0, -26.75f), new Vector3(-3.05f, 0, -26.75f), wall, coping);
-        WallRun(walls, new Vector3(-.45f, 0, -26.75f), new Vector3(14.4f, 0, -26.75f), wall, coping);
-        WallRun(walls, new Vector3(16.6f, 0, -26.75f), new Vector3(18.75f, 0, -26.75f), wall, coping);
-        WallRun(walls, new Vector3(18.75f, 0, -26.75f), new Vector3(18.75f, 0, driveEast + 1.9f), wall, coping);
-        WallRun(walls, new Vector3(18.75f, 0, driveEast - 1.9f), new Vector3(18.75f, 0, -43.9f), wall, coping);
-        WallRun(walls, new Vector3(-18.75f, 0, -32.7f), new Vector3(-18.75f, 0, -43.9f), wall, coping);
-        foreach (var p in new[] { new Vector3(-3.05f, 0, -26.75f), new Vector3(-.45f, 0, -26.75f), new Vector3(14.4f, 0, -26.75f), new Vector3(16.6f, 0, -26.75f),
-            new Vector3(18.75f, 0, driveEast + 1.9f), new Vector3(18.75f, 0, driveEast - 1.9f), new Vector3(-12.3f, 0, -26.75f), new Vector3(-18.75f, 0, -32.7f) })
+        float N = CheckoutCityPark.North - .25f, E = CheckoutCityPark.East + .25f, W = CheckoutCityPark.West - .25f;
+        float driveEast = CheckoutCityPark.DriveZ(CheckoutCityPark.East);
+        float gateX = CheckoutCityPark.PathX(CheckoutCityPark.North), eastGate = CheckoutCityPark.EastPath[0].x;
+        float driveWest = CheckoutCityPark.DriveZ(CheckoutCityPark.West);
+        // The wall runs right into the corner by Columbus Circle; the drive opens onto both side streets.
+        var piers = new[] { new Vector3(W, 0, N), new Vector3(gateX - 1.3f, 0, N), new Vector3(gateX + 1.3f, 0, N), new Vector3(eastGate - 1.1f, 0, N),
+            new Vector3(eastGate + 1.1f, 0, N), new Vector3(E, 0, driveEast + 1.9f), new Vector3(E, 0, driveEast - 1.9f), new Vector3(W, 0, driveWest + 1.9f), new Vector3(W, 0, driveWest - 1.9f) };
+        WallRun(walls, piers[0], piers[1], wall, coping);
+        WallRun(walls, piers[2], piers[3], wall, coping);
+        WallRun(walls, piers[4], new Vector3(E, 0, N), wall, coping);
+        WallRun(walls, new Vector3(E, 0, N), piers[5], wall, coping);
+        WallRun(walls, piers[6], new Vector3(E, 0, -43.9f), wall, coping);
+        WallRun(walls, piers[0], piers[7], wall, coping);
+        WallRun(walls, piers[8], new Vector3(W, 0, -43.9f), wall, coping);
+        foreach (var p in piers)
         {
             Box(walls, "Gate pier", p + Vector3.up * (Ground + .65f), new Vector3(.62f, 1.3f, .62f), pier);
             Box(walls, "Gate pier cap", p + Vector3.up * (Ground + 1.36f), new Vector3(.74f, .12f, .74f), coping);
@@ -198,13 +213,13 @@ public static class CheckoutCentralParkBuilder
         }
         // Benches along the wall, facing the street, as on Central Park South.
         var benches = Group(root, "59th Street benches", Vector3.zero);
-        for (float x = -11f; x < 18f; x += 4.3f)
+        for (float x = W + 1.6f; x < E - 1f; x += 4.3f)
         {
-            if (Mathf.Abs(x + 1.75f) < 2.4f || Mathf.Abs(x - 15.5f) < 2.2f || Mathf.Abs(x) < 1.1f || Mathf.Abs(x - 17f) < 1.1f) continue;
-            ParkBench(benches, new Vector3(x, 0, -26.2f), 180);
+            if (Mathf.Abs(x - gateX) < 2.4f || Mathf.Abs(x - eastGate) < 2.2f) continue;
+            ParkBench(benches, new Vector3(x, 0, N + .55f), 180);
         }
-        foreach (var x in new[] { -4.1f, .6f, 13.9f })
-            Bin(benches, new Vector3(x, 0, -26.25f));
+        foreach (var x in new[] { gateX - 2.35f, gateX + 2.35f, eastGate - 1.6f })
+            Bin(benches, new Vector3(x, 0, N + .5f));
 
         var occupied = new List<Vector2>();
         var trees = Group(root, "Park trees", Vector3.zero);
@@ -218,32 +233,41 @@ public static class CheckoutCentralParkBuilder
             if (CheckoutCityPark.PathDistance(c) < 1.2f || CheckoutCityPark.PondDistance(c) < 1.4f) displaced.Add(tree);
             else occupied.Add(c);
         }
-        occupied.Add(new Vector2(-15.6f, -29.4f)); // Merchants' Gate monument
-        // A continuous row inside the wall, then groves in the meadows.
-        for (float x = -11.5f; x < 17.8f; x += 4.1f) TryTree(trees, new Vector2(x, -28.2f), occupied, 3f, 5.4f);
-        for (float z = -34.5f; z > -43.5f; z -= 4.1f) { TryTree(trees, new Vector2(17.3f, z), occupied, 3f, 5.2f); TryTree(trees, new Vector2(-17.3f, z), occupied, 3f, 5.2f); }
+        // An irregular avenue of elms inside the wall and along the side walls, then a few groves with open
+        // lawn between them, and single specimen trees by the water. Nothing stands on a path or the pond.
         var random = new Random(59);
-        int planted = 0;
-        for (int attempt = 0; attempt < 600 && planted < 18; attempt++)
+        float J() => (float)random.NextDouble() - .5f;
+        bool Plant(Vector2 p, float spacing, float height)
         {
-            var p = new Vector2(Mathf.Lerp(-17f, 17f, (float)random.NextDouble()), Mathf.Lerp(-43.3f, -29.2f, (float)random.NextDouble()));
-            if (!TryTree(trees, p, occupied, 3.5f, 4.2f + (float)random.NextDouble() * 1.9f, displaced.Count > 0 ? displaced[0] : null)) continue;
+            if (!TryTree(trees, p, occupied, spacing, height, displaced.Count > 0 ? displaced[0] : null)) return false;
             if (displaced.Count > 0) displaced.RemoveAt(0);
-            planted++;
+            return true;
         }
+        for (float x = -9.2f; x < 15f; x += 4.4f) Plant(new Vector2(x + J() * .9f, -29.9f + J() * .4f), 3.2f, 5.6f + J());
+        for (float z = -34f; z > -43.5f; z -= 3.9f) { Plant(new Vector2(16.1f + J() * .4f, z + J()), 3.2f, 5.3f + J()); Plant(new Vector2(-16.1f + J() * .4f, z + J()), 3.2f, 5.3f + J()); }
+        foreach (var grove in new[] { new Vector2(-12.6f, -38.4f), new Vector2(-11.8f, -43f), new Vector2(-5.4f, -40.6f), new Vector2(-5.6f, -35.4f), new Vector2(14.2f, -42.8f) })
+        {
+            int inGrove = 0;
+            for (int attempt = 0; attempt < 60 && inGrove < 4; attempt++)
+            {
+                float a = (float)random.NextDouble() * Mathf.PI * 2, r = inGrove == 0 && attempt < 6 ? (float)random.NextDouble() * 1.2f : 1.9f + (float)random.NextDouble() * 2.2f;
+                if (Plant(grove + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r, 2.7f, 4.4f + (float)random.NextDouble() * 1.8f)) inGrove++;
+            }
+        }
+        foreach (var p in new[] { new Vector2(-8.5f, -30.1f), new Vector2(9.5f, -29.6f), new Vector2(14.6f, -30.4f), new Vector2(1.2f, -43.2f) }) Plant(p, 3f, 6.2f);
         foreach (var tree in displaced) tree.gameObject.SetActive(false);
 
         // Lamps along the drive and the paths; benches facing the drive and the pond.
         var furniture = Group(root, "Park furniture", Vector3.zero);
-        for (float x = -14f; x < 17f; x += 7f)
+        for (float x = -14f; x < 15f; x += 7f)
         {
             float side = Mathf.Repeat(x, 14f) < 7f ? 1 : -1;
             ParkLamp(furniture, new Vector3(x, 0, CheckoutCityPark.DriveZ(x) + side * 1.75f));
         }
-        for (float x = -12.5f; x < 16f; x += 9f)
+        for (float x = -12.5f; x < 15f; x += 9f)
             if (CheckoutCityPark.PondDistance(new Vector2(x, CheckoutCityPark.DriveZ(x) + 2f)) > 2.5f)
                 ParkBench(furniture, new Vector3(x, 0, CheckoutCityPark.DriveZ(x) + 1.95f), 0);
-        for (float z = -32.5f; z > -44f; z -= 5.5f) ParkLamp(furniture, new Vector3(CheckoutCityPark.PathX(z) + 1.05f, 0, z));
+        for (float z = -34.5f; z > -44f; z -= 5f) ParkLamp(furniture, new Vector3(CheckoutCityPark.PathX(z) + 1.05f, 0, z));
         for (int i = 0; i < 6; i++)
         {
             float a = i * Mathf.PI * 2 / 6 + .35f;
@@ -256,7 +280,7 @@ public static class CheckoutCentralParkBuilder
         // Manhattan schist outcrops.
         var rocks = Group(root, "Schist outcrops", Vector3.zero);
         Material schist = Mat("Schist", "7E7B74"), schistDark = Mat("SchistDark", "66635D");
-        foreach (var p in new[] { new Vector2(-6.2f, -41.8f), new Vector2(3.8f, -41.5f), new Vector2(-12.6f, -40.3f), new Vector2(15.8f, -41.9f), new Vector2(4.4f, -33.2f) })
+        foreach (var p in new[] { new Vector2(-4.4f, -43f), new Vector2(-9.6f, -41.2f), new Vector2(-13.4f, -35.4f), new Vector2(14.2f, -38.2f), new Vector2(3.4f, -30.3f) })
         {
             if (CheckoutCityPark.PathDistance(p) < 1.3f || CheckoutCityPark.PondDistance(p) < .8f) continue;
             for (int i = 0; i < 3; i++)
@@ -266,7 +290,6 @@ public static class CheckoutCentralParkBuilder
             }
         }
         BuildPond(root);
-        BuildMerchantsGate(root);
         Bake(root);
     }
 
@@ -281,7 +304,7 @@ public static class CheckoutCentralParkBuilder
         if (!CheckoutCityPark.InPark(p, .9f)) return false;
         if (CheckoutCityPark.PathDistance(p) < 1.4f || CheckoutCityPark.PondDistance(p) < 1.7f) return false;
         if (occupied.Any(o => (o - p).magnitude < spacing)) return false;
-        if (Mathf.Abs(p.x - 6.3f) < 1.8f && p.y < -32.5f && p.y > -42.5f) return false; // bridge
+        if (Mathf.Abs(p.x - CheckoutCityPark.BridgeX) < 1.8f && Mathf.Abs(p.y - CheckoutCityPark.Pond.y) < 5.2f) return false; // bridge
         occupied.Add(p);
         if (reuse) PlaceOnGround(reuse, new Vector3(p.x, 0, p.y)); // stays in Landscape Models
         else Tree(parent, new Vector3(p.x, 0, p.y), height, occupied.Count);
@@ -296,91 +319,281 @@ public static class CheckoutCentralParkBuilder
         var c = Box(parent, "Park wall coping", mid + Vector3.up * (Ground + .77f), new Vector3(.54f, .1f, length + .04f), top); c.transform.localRotation = rot;
     }
 
+    const string BridgeModel = "Assets/Art/Models/MapModels/ParkBridge/ParkBridge.fbx", DuckModel = "Assets/Art/Models/MapModels/ParkDuck/ParkDuck.fbx";
+
     static void BuildPond(Transform root)
     {
         var pond = Group(root, "The Pond", Vector3.zero);
-        Material stone = Mat("BridgeStone", "9C968B"), stoneDark = Mat("BridgeStoneDark", "7F7A70"), pad = Mat("LilyPad", "4F8A3E");
-        // Gapstow style arched stone footbridge across the west lobe.
-        var bridge = Group(pond, "Stone footbridge", new Vector3(6.3f, 0, -37.5f));
-        int segments = 12; float span = 8f;
-        for (int i = 0; i < segments; i++)
+        pond.gameObject.AddComponent<CheckoutWaterRipples>();
+        WaterSurface(pond, "Pond water", CheckoutCityPark.Pond, CheckoutCityPark.PondRadii + new Vector2(.08f, .08f), Ground + .02f, 1, 1);
+        // Gapstow style arched stone footbridge across the west lobe (modelled in Blender).
+        var model = AssetDatabase.LoadAssetAtPath<GameObject>(BridgeModel);
+        if (!model) throw new InvalidOperationException("Missing " + BridgeModel);
+        var bridge = (GameObject)PrefabUtility.InstantiatePrefab(model, pond);
+        bridge.name = "Stone footbridge";
+        var byName = new Dictionary<string, Material>
         {
-            float t0 = i / (float)segments, t1 = (i + 1) / (float)segments;
-            float z0 = -span / 2 + span * t0, z1 = -span / 2 + span * t1;
-            float y0 = Ground + .25f + 1.0f * Mathf.Sin(Mathf.PI * t0), y1 = Ground + .25f + 1.0f * Mathf.Sin(Mathf.PI * t1);
-            var mid = new Vector3(0, (y0 + y1) * .5f, (z0 + z1) * .5f); float len = new Vector2(z1 - z0, y1 - y0).magnitude + .04f;
-            var rot = Quaternion.Euler(-Mathf.Atan2(y1 - y0, z1 - z0) * Mathf.Rad2Deg, 0, 0);
-            var deck = Box(bridge, "Bridge deck", mid, new Vector3(1.9f, .22f, len), stone); deck.transform.localRotation = rot;
-            var arch = Box(bridge, "Bridge arch", mid - Vector3.up * .35f, new Vector3(1.6f, .5f, len), stoneDark); arch.transform.localRotation = rot;
-            foreach (float x in new[] { -.88f, .88f })
-            {
-                var wall = Box(bridge, "Bridge parapet", mid + new Vector3(x, .3f, 0), new Vector3(.18f, .42f, len), stoneDark); wall.transform.localRotation = rot;
-            }
-        }
-        foreach (float z in new[] { -span / 2, span / 2 }) foreach (float x in new[] { -.88f, .88f })
-            Box(bridge, "Bridge newel", new Vector3(x, Ground + .45f, z), new Vector3(.3f, .7f, .3f), stone);
+            {"BridgeStone", Mat("BridgeStone", "9C968B")}, {"BridgeArchStone", Mat("BridgeStoneDark", "7F7A70")},
+            {"BridgeCoping", Mat("ParkWallCoping", "B8B2A6")}, {"BridgePath", Mat("BridgePath", "A89C88")},
+        };
+        foreach (var renderer in bridge.GetComponentsInChildren<Renderer>())
+            renderer.sharedMaterials = renderer.sharedMaterials.Select(m => m && byName.TryGetValue(m.name, out var r) ? r : Mat("BridgeStone", "9C968B")).ToArray();
+        var span = BoundsOf(bridge.transform);
+        if (span.size.x > span.size.z) bridge.transform.rotation = Quaternion.Euler(0, 90, 0) * bridge.transform.rotation; // span runs north-south
+        // Stretch the span a little so the arch clears the whole width of the water.
+        var along = bridge.transform.InverseTransformDirection(Vector3.forward);
+        bridge.transform.localScale = Vector3.Scale(bridge.transform.localScale, new Vector3(1 + Mathf.Abs(along.x) * .1f, 1 + Mathf.Abs(along.y) * .1f, 1 + Mathf.Abs(along.z) * .1f));
+        span = BoundsOf(bridge.transform);
+        Debug.Log("PARK_BRIDGE size=" + span.size);
+        bridge.transform.position += new Vector3(CheckoutCityPark.BridgeX - span.center.x, Ground - .02f - (span.min.y + .3f), CheckoutCityPark.Pond.y - span.center.z);
+        GameObjectUtility.SetStaticEditorFlags(bridge, (StaticEditorFlags)0); // not batched: the map editor moves these props
+
+        Material pad = Mat("LilyPad", "4F8A3E");
         var random = new Random(7);
-        for (int i = 0; i < 9; i++)
+        for (int i = 0; i < 14; i++)
         {
             float a = (float)random.NextDouble() * Mathf.PI * 2;
-            var p = PondPoint(a, -.8f - (float)random.NextDouble() * .9f);
-            if (Mathf.Abs(p.x - 6.3f) < 1.3f) continue;
-            Cyl(pond, "Lily pad", new Vector3(p.x, Ground + .005f, p.y), .28f + (float)random.NextDouble() * .15f, .02f, pad);
+            var p = PondPoint(a, -.5f - (float)random.NextDouble() * 1.1f);
+            if (Mathf.Abs(p.x - CheckoutCityPark.BridgeX) < 1.5f) continue;
+            var lily = Cyl(pond, "Lily pad", new Vector3(p.x, Ground + .045f, p.y), .22f + (float)random.NextDouble() * .14f, .012f, pad);
+            if (i % 4 == 0) Prim(pond, "Lily flower", PrimitiveType.Sphere, new Vector3(p.x + .06f, Ground + .07f, p.y), new Vector3(.1f, .06f, .1f), Mat("LilyFlower", "F2D6E0"));
         }
-        Material duck = Mat("DuckWhite", "EEEAE0"), beak = Mat("DuckBeak", "E0A035");
-        foreach (var p in new[] { new Vector2(11.2f, -36.4f), new Vector2(12.1f, -37f), new Vector2(9.2f, -39.2f) })
+
+        // Mallards (drakes and hens) and a white farmyard duck, paddling about.
+        var duckModel = AssetDatabase.LoadAssetAtPath<GameObject>(DuckModel);
+        if (!duckModel) throw new InvalidOperationException("Missing " + DuckModel);
+        var flock = Group(pond, "Ducks", Vector3.zero);
+        var paint = new Dictionary<string, string[]>
+        {   // DuckBody, DuckChest, DuckHead, DuckNeckRing, DuckWing, DuckTail, DuckBeak, DuckEye
+            {"Drake", new[] { "9C9A92", "5E3A26", "1F5E36", "EDEDE6", "7E7466", "22252A", "D8B43A", "111111" }},
+            {"Hen", new[] { "8A6A48", "7E5E40", "7A5C3E", "7A5C3E", "6A5038", "5A4430", "D88A3A", "111111" }},
+            {"White", new[] { "EDEAE2", "F2EFE8", "F2EFE8", "F2EFE8", "E4E0D6", "E8E4DC", "E89A2E", "111111" }},
+        };
+        string[] slots = { "DuckBody", "DuckChest", "DuckHead", "DuckNeckRing", "DuckWing", "DuckTail", "DuckBeak", "DuckEye" };
+        var kinds = new[] { "Drake", "Hen", "Drake", "Hen", "White", "Hen" };
+        var ducks = new List<Transform>();
+        for (int i = 0; i < kinds.Length; i++)
         {
-            var d = Group(pond, "Duck", new Vector3(p.x, Ground, p.y));
-            d.localRotation = Quaternion.Euler(0, p.x * 40, 0);
-            Prim(d, "Duck body", PrimitiveType.Sphere, new Vector3(0, .08f, 0), new Vector3(.34f, .2f, .5f), duck);
-            Prim(d, "Duck head", PrimitiveType.Sphere, new Vector3(0, .25f, .2f), Vector3.one * .16f, duck);
-            Box(d, "Duck beak", new Vector3(0, .24f, .3f), new Vector3(.06f, .04f, .1f), beak);
+            float a = i * 1.1f + .4f;
+            var p = CheckoutCityPark.Pond + new Vector2(Mathf.Cos(a) * CheckoutCityPark.PondRadii.x * .5f, Mathf.Sin(a) * CheckoutCityPark.PondRadii.y * .5f);
+            var duck = Group(flock, kinds[i] + " duck", new Vector3(p.x, Ground + .03f, p.y));
+            duck.localRotation = Quaternion.Euler(0, i * 83, 0);
+            var body = (GameObject)PrefabUtility.InstantiatePrefab(duckModel, duck);
+            body.transform.localPosition = Vector3.zero;
+            var colours = paint[kinds[i]];
+            foreach (var renderer in body.GetComponentsInChildren<Renderer>())
+                renderer.sharedMaterials = renderer.sharedMaterials.Select(m =>
+                {
+                    int slot = m ? Array.IndexOf(slots, m.name) : -1; if (slot < 0) slot = 0;
+                    return Mat(kinds[i] + slots[slot], colours[slot], slot == 7 ? .8f : slot == 2 && kinds[i] == "Drake" ? .45f : .15f);
+                }).ToArray();
+            FaceBeakForward(duck, body.transform);
+            ducks.Add(duck);
+        }
+        var swim = flock.gameObject.AddComponent<CheckoutPondDucks>();
+        swim.centre = CheckoutCityPark.Pond; swim.radii = CheckoutCityPark.PondRadii; swim.waterY = Ground + .03f; swim.ducks = ducks.ToArray();
+    }
+
+    // The model's beak must point along the duck's local +Z (whatever axes the FBX came in with).
+    static void FaceBeakForward(Transform duck, Transform model)
+    {
+        var renderer = model.GetComponentInChildren<MeshRenderer>(); var filter = renderer ? renderer.GetComponent<MeshFilter>() : null;
+        if (!filter || !filter.sharedMesh) return;
+        var mesh = filter.sharedMesh; int beak = Array.FindIndex(renderer.sharedMaterials, m => m && m.name.EndsWith("DuckBeak"));
+        if (beak < 0 || beak >= mesh.subMeshCount) return;
+        var tip = duck.InverseTransformPoint(filter.transform.TransformPoint(mesh.GetSubMesh(beak).bounds.center));
+        var middle = duck.InverseTransformPoint(filter.transform.TransformPoint(mesh.bounds.center));
+        var dir = tip - middle; dir.y = 0;
+        if (dir.sqrMagnitude > 1e-6f) model.localRotation = Quaternion.FromToRotation(dir.normalized, Vector3.forward) * model.localRotation;
+        // Waterline: the keel sits a few centimetres under the surface.
+        var b = BoundsOf(model);
+        model.position += Vector3.up * (duck.position.y - .05f - b.min.y);
+    }
+
+    // Flat water surface (a fan of rings) whose vertex alpha carries the normalised depth: 0 at the
+    // edge, 1 in the middle. uv = world xz, tangents along +x so the scrolling normals line up.
+    static Transform WaterSurface(Transform parent, string name, Vector2 centre, Vector2 radii, float y, int kind, float depthScale)
+    {
+        string path = Root + "Meshes/" + Safe(name) + ".asset";
+        const int segments = 64, rings = 8;
+        var vertices = new List<Vector3>(); var colours = new List<Color>(); var uvs = new List<Vector2>(); var triangles = new List<int>();
+        vertices.Add(new Vector3(centre.x, 0, centre.y)); colours.Add(new Color(1, 1, 1, depthScale)); uvs.Add(centre);
+        for (int r = 1; r <= rings; r++)
+        {
+            float k = r / (float)rings;
+            float radial = Mathf.Sqrt(k); // more rings near the edge where the foam is
+            for (int s = 0; s < segments; s++)
+            {
+                float a = s * Mathf.PI * 2 / segments;
+                var p = centre + new Vector2(Mathf.Cos(a) * radii.x, Mathf.Sin(a) * radii.y) * radial;
+                vertices.Add(new Vector3(p.x, 0, p.y)); uvs.Add(p);
+                colours.Add(new Color(1, 1, 1, Mathf.Clamp01((1 - radial) * 2.2f) * depthScale));
+            }
+        }
+        for (int s = 0; s < segments; s++) { triangles.Add(0); triangles.Add(1 + (s + 1) % segments); triangles.Add(1 + s); }
+        for (int r = 1; r < rings; r++)
+            for (int s = 0; s < segments; s++)
+            {
+                int a = 1 + (r - 1) * segments + s, b = 1 + (r - 1) * segments + (s + 1) % segments, c = a + segments, d = b + segments;
+                triangles.AddRange(new[] { a, b, d, a, d, c });
+            }
+        var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (!mesh) { mesh = new Mesh(); AssetDatabase.CreateAsset(mesh, path); }
+        mesh.Clear(); mesh.name = name;
+        mesh.SetVertices(vertices); mesh.SetColors(colours); mesh.SetUVs(0, uvs); mesh.SetTriangles(triangles, 0);
+        mesh.SetNormals(Enumerable.Repeat(Vector3.up, vertices.Count).ToList());
+        mesh.SetTangents(Enumerable.Repeat(new Vector4(1, 0, 0, 1), vertices.Count).ToList());
+        mesh.RecalculateBounds();
+        EditorUtility.SetDirty(mesh);
+        var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+        go.transform.SetParent(parent, false);
+        // The surface transform doubles as the collision plane that ends the jets' particles.
+        go.transform.SetPositionAndRotation(new Vector3(0, y, 0), Quaternion.identity);
+        go.GetComponent<MeshFilter>().sharedMesh = mesh;
+        var renderer = go.GetComponent<MeshRenderer>();
+        renderer.sharedMaterial = Water(kind);
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        return go.transform;
+    }
+
+    static Material Water(int kind)
+    {
+        string name = kind == 1 ? "PondWater" : kind == 2 ? "SplashPadWater" : "FountainWaterMoving";
+        if (materials.TryGetValue(name, out var cached)) return cached;
+        string path = Root + name + ".mat";
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (!material) { material = new Material(Shader.Find("MarketDay/City Water")); AssetDatabase.CreateAsset(material, path); }
+        material.shader = Shader.Find("MarketDay/City Water");
+        material.SetTexture("_BumpMap", CheckoutCityParkTextures.Get("water").normal);
+        if (kind == 1)
+        {   // Pond: green-brown shallows, deep teal middle.
+            material.SetColor("_ShallowColor", MarketSimulation.C("5E7F66")); material.SetColor("_DeepColor", MarketSimulation.C("1C4B55"));
+            material.SetFloat("_Tiling", 3.2f); material.SetFloat("_BumpScale", .5f); material.SetFloat("_Speed", .045f); material.SetFloat("_FoamWidth", .1f);
+        }
+        else if (kind == 2)
+        {   // A film of water on dark granite.
+            material.SetColor("_ShallowColor", MarketSimulation.C("86A0A4")); material.SetColor("_DeepColor", MarketSimulation.C("6A8C92"));
+            material.SetFloat("_Tiling", 1.2f); material.SetFloat("_BumpScale", .35f); material.SetFloat("_Speed", .09f); material.SetFloat("_FoamWidth", .05f);
+        }
+        else
+        {   // Fountain basin: clear, bright turquoise, choppy under the jets.
+            material.SetColor("_ShallowColor", MarketSimulation.C("5FA8B0")); material.SetColor("_DeepColor", MarketSimulation.C("2A7A8C"));
+            material.SetFloat("_Tiling", 1.4f); material.SetFloat("_BumpScale", .8f); material.SetFloat("_Speed", .14f); material.SetFloat("_FoamWidth", .12f);
+        }
+        material.SetFloat("_Glossiness", .93f);
+        EditorUtility.SetDirty(material);
+        materials[name] = material;
+        return material;
+    }
+
+    // ------------------------------------------------------------------ water jets (particles)
+    static Material spray;
+    static Material Spray()
+    {
+        if (spray) return spray;
+        string path = Root + "WaterSpray.mat";
+        spray = AssetDatabase.LoadAssetAtPath<Material>(path);
+        var source = AssetDatabase.GetBuiltinExtraResource<Material>("Default-ParticleSystem.mat");
+        if (!spray) { spray = new Material(source); AssetDatabase.CreateAsset(spray, path); }
+        else spray.CopyPropertiesFromMaterial(source);
+        spray.shader = source.shader;
+        spray.SetColor("_Color", new Color(.86f, .95f, 1f, .85f));
+        EditorUtility.SetDirty(spray);
+        return spray;
+    }
+
+    // One nozzle; the particles die where they hit the water plane (surfaceY).
+    static ParticleSystem Jet(Transform parent, string name, Vector3 position, Vector3 direction, float speed, Transform surface, float size = .11f, float rate = 70)
+    {
+        var go = new GameObject(name, typeof(ParticleSystem));
+        go.transform.SetParent(parent, false);
+        go.transform.SetPositionAndRotation(position, Quaternion.LookRotation(direction.normalized, Mathf.Abs(direction.normalized.y) > .99f ? Vector3.forward : Vector3.up));
+        var ps = go.GetComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var main = ps.main;
+        main.duration = 2; main.loop = true; main.prewarm = true; main.playOnAwake = true;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 2f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(speed * .97f, speed * 1.03f);
+        main.startSize = new ParticleSystem.MinMaxCurve(size * .7f, size * 1.2f);
+        main.startColor = new Color(.9f, .97f, 1f, .8f);
+        main.gravityModifier = 1; main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.maxParticles = 400; main.scalingMode = ParticleSystemScalingMode.Shape;
+        var emission = ps.emission; emission.rateOverTime = rate;
+        var shape = ps.shape; shape.shapeType = ParticleSystemShapeType.Cone; shape.angle = 1.5f; shape.radius = .015f;
+        var colour = ps.colorOverLifetime; colour.enabled = true;
+        var fade = new Gradient();
+        fade.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(new Color(.85f, .93f, 1f), 1) },
+            new[] { new GradientAlphaKey(.9f, 0), new GradientAlphaKey(.7f, .7f), new GradientAlphaKey(.2f, 1) });
+        colour.color = fade;
+        var grow = ps.sizeOverLifetime; grow.enabled = true; grow.size = new ParticleSystem.MinMaxCurve(1, AnimationCurve.Linear(0, .8f, 1, 1.6f));
+        // Die on the water surface.
+        var collision = ps.collision; collision.enabled = true; collision.type = ParticleSystemCollisionType.Planes;
+        collision.SetPlane(0, surface); collision.lifetimeLoss = 1; collision.dampen = 1; collision.bounce = 0;
+        var renderer = go.GetComponent<ParticleSystemRenderer>();
+        renderer.sharedMaterial = Spray(); renderer.renderMode = ParticleSystemRenderMode.Stretch;
+        renderer.velocityScale = .05f; renderer.lengthScale = 1.6f; renderer.shadowCastingMode = ShadowCastingMode.Off; renderer.receiveShadows = false;
+        ps.Play();
+        return ps;
+    }
+
+    // Columbus Circle: arching jets from the rim towards the plinth, and a ring of bubbling spouts.
+    static void FountainJets(Transform root, Transform water)
+    {
+        var jets = Group(root, "Fountain jets", Vector3.zero);
+        float surface = water.position.y;
+        for (int i = 0; i < 12; i++)
+        {
+            float a = i * Mathf.PI * 2 / 12;
+            var radial = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
+            Jet(jets, "Arching jet", CircleCenter + radial * 2.15f + Vector3.up * (surface + .02f), -radial * .36f + Vector3.up, 3.5f, water, .12f);
+            if (i % 2 == 0) Jet(jets, "Bubbler", CircleCenter + radial * 1.6f + Vector3.up * (surface + .01f), Vector3.up, 2.6f, water, .16f, 45);
         }
     }
 
-    static void BuildMerchantsGate(Transform root)
+    // Dancing water: a square of ground jets set in dark granite, choreographed by CheckoutDancingFountain.
+    static void DancingFountain(Transform parent)
     {
-        var gate = Group(root, "Merchants Gate monument", new Vector3(-15.6f, 0, -29.4f));
-        // Faces the roundabout, like the monument at the park corner of Columbus Circle.
-        gate.localRotation = Quaternion.LookRotation(Flat(CircleCenter - gate.position).normalized);
-        Material granite = Mat("Granite", "C9C3B6"), stone = Mat("MonumentStone", "A8A195"), gold = Mat("Gilded", "D6A93C", .6f, "3A2A08");
-        Material water = Mat("FountainWater", "3F90A6", .9f);
-        Box(gate, "Fountain pool", new Vector3(0, Ground + .2f, 1.7f), new Vector3(2.6f, .4f, 1.3f), stone);
-        Box(gate, "Fountain pool water", new Vector3(0, Ground + .405f, 1.7f), new Vector3(2.3f, .02f, 1.0f), water);
-        Box(gate, "Monument step", new Vector3(0, Ground + .15f, 0), new Vector3(2.4f, .3f, 2.2f), stone);
-        Box(gate, "Monument base", new Vector3(0, Ground + .45f, 0), new Vector3(2f, .3f, 1.8f), granite);
-        Box(gate, "Monument pylon", new Vector3(0, Ground + .6f + 2.1f, 0), new Vector3(1.1f, 4.2f, 1f), granite);
-        Box(gate, "Pylon cornice", new Vector3(0, Ground + 4.9f, 0), new Vector3(1.3f, .25f, 1.2f), stone);
-        Box(gate, "Gilded group", new Vector3(0, Ground + 5.3f, 0), new Vector3(.8f, .55f, .45f), gold);
-        Prim(gate, "Gilded figure", PrimitiveType.Capsule, new Vector3(0, Ground + 5.95f, 0), new Vector3(.32f, .42f, .32f), gold);
-        foreach (float x in new[] { -.3f, .3f })
-        {
-            var wing = Box(gate, "Gilded wing", new Vector3(x, Ground + 6.1f, -.05f), new Vector3(.08f, .5f, .35f), gold);
-            wing.transform.localRotation = Quaternion.Euler(0, 0, x > 0 ? -25 : 25);
-        }
-        Box(gate, "Bronze figure left", new Vector3(-.75f, Ground + 1.25f, .55f), new Vector3(.3f, .9f, .3f), Mat("Bronze", "6E5A3C", .45f));
-        Box(gate, "Bronze figure right", new Vector3(.75f, Ground + 1.25f, .55f), new Vector3(.3f, .9f, .3f), Mat("Bronze", "6E5A3C", .45f));
-        // Street vendors on the plaza.
-        Cart(root, new Vector3(-13.2f, 0, -27.3f), 20, "HOT DOGS");
-        Cart(root, new Vector3(-18f, 0, -31.9f), 75, "PRETZELS");
+        Cyl(parent, "Fountain pad", Vector3.up * Ground, 1.95f, .025f, Mat("FountainPad", "4B5256", .7f));
+        Cyl(parent, "Fountain pad rim", Vector3.up * Ground, 2.05f, .018f, Mat("QuayCoping", "B9B4AA"));
+        var film = WaterSurface(parent, "Splash pad water", Flat2(parent.position), new Vector2(1.9f, 1.9f), Ground + .03f, 2, .3f);
+        var group = Group(parent, "Dancing jets", Vector3.zero);
+        var jets = new List<ParticleSystem>(); var grid = new List<Vector2>();
+        Material nozzle = Mat("RackSteel", "9DA3A6", .5f);
+        for (int x = 0; x < 4; x++)
+            for (int z = 0; z < 4; z++)
+            {
+                var g = new Vector2((x - 1.5f) / 1.5f, (z - 1.5f) / 1.5f);
+                var local = new Vector3(g.x * 1.1f, 0, g.y * 1.1f);
+                Cyl(parent, "Nozzle", local + Vector3.up * Ground, .06f, .035f, nozzle);
+                jets.Add(Jet(group, "Dancing jet", parent.position + local + Vector3.up * (Ground + .04f), Vector3.up, 4f, film, .16f, 85));
+                grid.Add(g);
+            }
+        var dance = group.gameObject.AddComponent<CheckoutDancingFountain>();
+        dance.jets = jets.ToArray(); dance.grid = grid.ToArray();
     }
 
-    static void Cart(Transform root, Vector3 p, float yaw, string name)
+    // Trees keep their stone-and-mulch beds only on the supermarket block (the square and its planters);
+    // everywhere else the trunk stands straight in the grass.
+    static void StripTreeBeds()
     {
-        var cart = Group(root, "Food cart " + name, p);
-        cart.localRotation = Quaternion.Euler(0, yaw, 0);
-        Material steel = Mat("CartSteel", "C9CCCC", .6f), dark = Mat("CartDark", "2F3336"), stripe = Mat(name == "HOT DOGS" ? "CartYellow" : "CartBlue", name == "HOT DOGS" ? "E3B53C" : "3C6FB5");
-        Box(cart, "Cart body", new Vector3(0, Ground + .75f, 0), new Vector3(1.35f, .75f, .72f), steel);
-        Box(cart, "Cart band", new Vector3(0, Ground + .9f, -.37f), new Vector3(1.36f, .22f, .02f), stripe);
-        Label(cart, name, new Vector3(0, Ground + .9f, -.39f), 0, new Color(.15f, .15f, .15f), .028f);
-        foreach (float x in new[] { -.45f, .45f })
+        var lowered = new HashSet<Transform>(); int removed = 0;
+        foreach (var t in world.GetComponentsInChildren<Transform>(true).ToArray())
         {
-            var wheel = Cyl(cart, "Cart wheel", new Vector3(x, Ground + .2f, -.38f), .2f, .08f, dark);
-            wheel.transform.localRotation = Quaternion.Euler(90, 0, 0);
+            if (t.name != "Planter Base" && t.name != "Soil") continue;
+            var instance = PrefabUtility.GetNearestPrefabInstanceRoot(t.gameObject);
+            var tree = instance ? instance.transform : t.parent;
+            var c = BoundsOf(tree, true).center;
+            if (Mathf.Abs(c.x) < CheckoutStreetLayout.BlockInnerX && c.z > CheckoutStreetLayout.BlockNorthZ - .5f) continue;
+            if (t.gameObject.activeSelf) { t.gameObject.SetActive(false); removed++; }
+            lowered.Add(tree);
         }
-        Cyl(cart, "Umbrella pole", new Vector3(0, Ground + 1.1f, 0), .03f, 1.2f, dark);
-        var shade = Cyl(cart, "Umbrella", new Vector3(0, Ground + 2.25f, 0), .95f, .12f, stripe);
-        Cyl(cart, "Umbrella top", new Vector3(0, Ground + 2.37f, 0), .5f, .08f, stripe);
+        foreach (var tree in lowered)
+        {
+            var b = BoundsOf(tree);
+            if (b.size.y > .01f && b.min.y > Ground + .005f) tree.position += Vector3.up * (Ground - b.min.y);
+            if (PrefabUtility.IsPartOfPrefabInstance(tree)) PrefabUtility.RecordPrefabInstancePropertyModifications(tree);
+        }
+        Debug.Log("TREE_BEDS_REMOVED " + removed + " trees=" + lowered.Count);
     }
 
     static void ParkBench(Transform parent, Vector3 p, float yaw)
@@ -421,11 +634,52 @@ public static class CheckoutCentralParkBuilder
     }
 
     // ------------------------------------------------------------------ side blocks
-    static void FillSideBlock(int side, Transform establishments, Transform gardens)
+    // Lamps, signals and street lights stand behind the cycle lane, never on it.
+    static void RespaceStreetFurniture()
     {
-        // Buildings face the local street; their fronts line up behind the sidewalk.
-        float front = side * 28.95f, edge = side * 39.4f;
-        float zStart = side < 0 ? -8.4f : -9.4f, zEnd = 47.4f;
+        int moved = 0;
+        foreach (var (group, prefixes) in new[] { ("City Circulation Repairs", new[] { "Streetlight" }), ("Individual Street Furniture", new[] { "Street Lamp", "Parking Lamp" }), ("City Park and Crossings", new[] { "Traffic signal" }) })
+        {
+            var g = world.Find(group); if (!g) continue;
+            foreach (Transform t in g)
+            {
+                if (!prefixes.Any(p => t.name.StartsWith(p))) continue;
+                var p = CheckoutStreetLayout.OffLane(t.position);
+                if ((p - t.position).sqrMagnitude < 1e-6f) continue;
+                t.position = p; moved++;
+                if (PrefabUtility.IsPartOfPrefabInstance(t)) PrefabUtility.RecordPrefabInstancePropertyModifications(t);
+            }
+        }
+        Debug.Log("STREET_FURNITURE_OFF_LANES " + moved);
+    }
+
+    // The wide sidewalks push the side-block buildings back: their street fronts line up behind them.
+    static void ShiftSideBuildings()
+    {
+        float front = CheckoutStreetLayout.BlockOuterX + .3f;
+        foreach (string group in new[] { "Supplied City Models", "City Establishments" })
+        {
+            var g = world.Find(group); if (!g) continue;
+            foreach (Transform building in g)
+            {
+                if (building.name.StartsWith(SidePrefix) || building.name.Contains("vehicle") || building.name.StartsWith("City ") || building.name.StartsWith("Neighborhood car")) continue;
+                var b = BoundsOf(building, true); if (b.size == Vector3.zero || b.size.y > 30) continue;
+                if (Mathf.Abs(b.center.x) < 26f || Mathf.Abs(b.center.x) > 41f) continue;
+                float side = Mathf.Sign(b.center.x), street = side < 0 ? -b.max.x : b.min.x;
+                if (Mathf.Abs(street - front) < .01f) continue;
+                building.position += Vector3.right * side * (front - street);
+                if (PrefabUtility.IsPartOfPrefabInstance(building)) PrefabUtility.RecordPrefabInstancePropertyModifications(building);
+                Debug.Log("SIDE_BUILDING_SHIFTED " + building.name + " by " + (front - street).ToString("F2"));
+            }
+        }
+    }
+
+    static void FillSideBlock(int side, Transform establishments, Transform gardens, float zStart, float zEnd, string[] shopSigns, string label = null, int firstModel = -1,
+        float maxWidth = 99, float gap = .55f, float heightScale = 1, float depthCap = 99, bool streetTrees = true)
+    {
+        // Buildings face the local street; their fronts line up behind the (wide) sidewalk.
+        float front = side * (CheckoutStreetLayout.BlockOuterX + .3f), edge = side * 39.4f;
+        float maxDepth = Mathf.Min(depthCap, Mathf.Abs(edge - front) - .2f);
         var occupied = new List<Vector2>(); // z ranges along the frontage
         var fronts = new List<Bounds>();
         foreach (string group in new[] { "Supplied City Models", "City Establishments" })
@@ -436,7 +690,7 @@ public static class CheckoutCentralParkBuilder
                 if (building.name.Contains("vehicle") || building.name.StartsWith("City ") || building.name.StartsWith("Neighborhood car")) continue;
                 if (!building.gameObject.activeInHierarchy) continue;
                 var b = BoundsOf(building); if (b.size == Vector3.zero) continue;
-                if (b.center.x * side < 27f || Mathf.Abs(b.center.x) > 41f) continue;
+                if (b.center.x * side < 27f || Mathf.Abs(b.center.x) > 41f || b.max.z < zStart || b.min.z > zEnd) continue;
                 occupied.Add(new Vector2(b.min.z - .4f, b.max.z + .4f)); fronts.Add(b);
             }
         }
@@ -444,7 +698,7 @@ public static class CheckoutCentralParkBuilder
         {
             if (!tree.gameObject.activeInHierarchy) continue;
             var b = BoundsOf(tree);
-            if (b.center.x * side > 28f && Mathf.Abs(b.center.x) < 35.5f) occupied.Add(new Vector2(b.center.z - 1.3f, b.center.z + 1.3f));
+            if (b.center.x * side > 28f && Mathf.Abs(b.center.x) < 38f) occupied.Add(new Vector2(b.center.z - 1.3f, b.center.z + 1.3f));
         }
         occupied.Add(new Vector2(-99, zStart)); occupied.Add(new Vector2(zEnd, 99));
         occupied = Merge(occupied);
@@ -454,34 +708,53 @@ public static class CheckoutCentralParkBuilder
             ("clone:West apartment building", 8.8f, 8.5f, "LIVRARIA"), ("CuteHouse", 5.6f, 7.5f, ""), ("clone:East townhouse", 6.2f, 8.5f, "FLORICULTURA"),
             ("Gym", 7.2f, 9f, ""), ("StylizedBuilding", 9.5f, 9f, "PIZZARIA"), ("StylizedHouse", 5.8f, 8f, "SORVETERIA"), ("CuteHouse", 5.4f, 7.5f, "BARBEARIA"),
         };
-        int pick = side < 0 ? 0 : 5, count = 0, failures = 0;
-        var signs = new Queue<string>(side < 0 ? new[] { "CAFÉ", "PADARIA", "LIVRARIA", "LAVANDERIA" } : new[] { "FLORICULTURA", "PIZZARIA", "SORVETERIA", "BARBEARIA" });
+        int pick = firstModel >= 0 ? firstModel : side < 0 ? 0 : 5, count = 0, failures = 0;
+        var signs = new Queue<string>(shopSigns);
+        label ??= side < 0 ? "west " : "east ";
         for (int i = 0; i < occupied.Count - 1; i++)
         {
             float cursor = occupied[i].y, limit = occupied[i + 1].x;
             while (limit - cursor >= 4.2f)
             {
                 var (model, height, depth, _) = palette[pick % palette.Length]; pick++;
-                float width = Mathf.Min(limit - cursor, 7.6f + (count % 3) * .6f);
-                var building = Building(establishments, model, SidePrefix + (side < 0 ? "west " : "east ") + (++count) + " " + model.Replace("clone:", ""), side);
+                float width = Mathf.Min(limit - cursor, Mathf.Min(maxWidth, 7.6f + (count % 3) * .6f));
+                var building = Building(establishments, model, SidePrefix + label + (++count) + " " + model.Replace("clone:", ""), side);
                 if (!building) { if (++failures > 20) break; continue; }
-                Fit(building, new Vector3(width - .2f, height, depth));
+                Fit(building, new Vector3(width - .2f, height * heightScale, Mathf.Min(depth, maxDepth)));
                 var b = BoundsOf(building);
                 building.position += new Vector3(front - (side < 0 ? b.max.x : b.min.x), Ground - b.min.y, cursor - b.min.z);
                 b = BoundsOf(building);
                 fronts.Add(b);
-                if (signs.Count > 0 && b.size.z > 4.5f && count % 2 == 1) Storefront(gardens, b, side, signs.Dequeue());
-                cursor = b.max.z + .55f;
+                if (signs.Count > 0 && b.size.z > 4.5f && count % 2 == 1) { var sign = signs.Dequeue(); if (sign != null) Storefront(gardens, b, side, sign); }
+                cursor = b.max.z + gap;
             }
-            if (limit - cursor > 2.2f) Tree(gardens, new Vector3(side * 31f, 0, (cursor + limit) * .5f), 4.8f, count + 90, "Street tree");
+            if (streetTrees && limit - cursor > 2.2f) Tree(gardens, new Vector3(side * (CheckoutStreetLayout.BlockOuterX + 1.4f), 0, (cursor + limit) * .5f), 4.8f, count + 90, "Street tree");
         }
         // Back gardens: trees fill the strip between shallow buildings and the edge of the map.
+        if (!streetTrees) return; // the corner blocks get just a couple (CornerTrees)
         foreach (var b in fronts)
         {
             float back = side < 0 ? b.min.x : b.max.x;
             if (Mathf.Abs(back) > Mathf.Abs(edge) - 3f) continue;
             for (float z = b.min.z + 1.6f; z < b.max.z - .8f; z += 3.6f)
                 Tree(gardens, new Vector3((back + edge) * .5f, 0, z), 4.2f + Mathf.Abs(Mathf.Sin(z)) * 1.6f, (int)(z * 13), "Garden tree");
+        }
+    }
+
+    // Trees round the buildings on the corner blocks beside the park, so no paving is left bare.
+    static void CornerTrees(int side, Transform establishments, Transform gardens)
+    {
+        var buildings = establishments.Cast<Transform>().Where(t => t.name.Contains(side < 0 ? "south west" : "south east")).Select(t => BoundsOf(t)).ToList();
+        var planted = new List<Vector2>();
+        bool Free(Vector2 p) => !buildings.Any(b => p.x > b.min.x - .5f && p.x < b.max.x + .5f && p.y > b.min.z - .5f && p.y < b.max.z + .5f) && planted.All(q => (q - p).magnitude > 3f);
+        int seed = side < 0 ? 300 : 400;
+        // Just a couple of garden trees behind the buildings.
+        foreach (var p in new[] { new Vector2(38.2f, -30.4f), new Vector2(38.4f, -41.4f) })
+        {
+            var q = new Vector2(p.x * side, p.y);
+            if (!Free(q)) continue;
+            planted.Add(q);
+            Tree(gardens, new Vector3(q.x, 0, q.y), 4.4f + (seed % 3) * .5f, seed++, "Corner tree");
         }
     }
 
@@ -630,6 +903,8 @@ public static class CheckoutCentralParkBuilder
         }
         var gutter = Box(w, "Hanging gutter", new Vector3(hx - 1.4f, top - .6f, face - .2f), new Vector3(2.8f, .12f, .14f), pipe);
         gutter.transform.localRotation = Quaternion.Euler(0, 0, -24);
+        // The derelict shell is gone: the lot waits, fenced off, for the central warehouse (an expansion).
+        UnityEngine.Object.DestroyImmediate(w.gameObject);
         // Yard: a crumbling loading dock, pallets, drums, a skip, weeds and a sagging chain-link fence.
         var yard = Group(root, "Derelict yard", WarehouseCenter);
         Box(yard, "Loading dock", new Vector3(4.9f, Ground + .5f, -hz - 1.2f), new Vector3(3.6f, 1f, 2.3f), concrete);
@@ -652,7 +927,7 @@ public static class CheckoutCentralParkBuilder
         for (int i = 0; i < 26; i++)
         {
             float a = (float)random.NextDouble();
-            Vector3 p = i % 3 == 0 ? new Vector3(Mathf.Lerp(-hx, hx, a), 0, -hz - .25f) : i % 3 == 1 ? new Vector3(-hx - .25f, 0, Mathf.Lerp(-hz, hz, a)) : new Vector3(Mathf.Lerp(-hx - 1.5f, hx + 1.5f, a), 0, -hz - .6f - (float)random.NextDouble() * 1.4f);
+            Vector3 p = i % 3 == 0 ? new Vector3(Mathf.Lerp(-hx, hx, a), 0, -hz - .25f) : i % 3 == 1 ? new Vector3(-hx - .25f, 0, Mathf.Lerp(-hz, hz, a)) : new Vector3(Mathf.Lerp(-hx, hx + 1.5f, a), 0, -hz - .6f - (float)random.NextDouble() * 1.4f);
             if (p.z < -hz - .3f && Mathf.Abs(p.x - 4.9f) < 2.2f) continue;
             Prim(yard, "Weed tuft", PrimitiveType.Sphere, p + Vector3.up * (Ground + .1f), new Vector3(.35f, .28f, .35f) * (.7f + (float)random.NextDouble() * .8f), i % 4 == 0 ? weedDry : weed);
         }
@@ -686,7 +961,7 @@ public static class CheckoutCentralParkBuilder
     {
         var fence = Group(root, "Chain-link fence", Vector3.zero);
         Material post = Mat("GalvanizedPost", "9A9E9F", .4f), mesh = ChainLink();
-        float x0 = -18.2f, x1 = -2.9f, z0 = 25.8f, z1 = 40f;
+        float x0 = WarehouseCenter.x - 7.5f, x1 = WarehouseCenter.x + 7.55f, z0 = 25.8f, z1 = 40f;
         var corners = new[] { new Vector3(x0, 0, z0), new Vector3(x1, 0, z0), new Vector3(x1, 0, z1), new Vector3(x0, 0, z1), new Vector3(x0, 0, z0) };
         int panel = 0;
         for (int c = 0; c < 4; c++)
@@ -712,7 +987,7 @@ public static class CheckoutCentralParkBuilder
         Box(board, "Board", new Vector3(0, Ground + 1.25f, 0), new Vector3(1.9f, 1f, .05f), Mat("SaleBoard", "F1ECE0"));
         Box(board, "Board stripe", new Vector3(0, Ground + 1.62f, -.03f), new Vector3(1.9f, .26f, .02f), Mat("SaleRed", "B93A32"));
         Label(board, "VENDE-SE", new Vector3(0, Ground + 1.62f, -.05f), 0, Color.white, .05f);
-        Label(board, "ARMAZÉM PARA REFORMA", new Vector3(0, Ground + 1.18f, -.04f), 0, new Color(.2f, .2f, .2f), .028f);
+        Label(board, "ÁREA DO ARMAZÉM CENTRAL", new Vector3(0, Ground + 1.18f, -.04f), 0, new Color(.2f, .2f, .2f), .026f);
     }
 
     // ------------------------------------------------------------------ Harbour Quay square
@@ -726,49 +1001,40 @@ public static class CheckoutCentralParkBuilder
         storageBounds.Expand(new Vector3(1.6f, 0, 1.6f));
 
         Transform Piece(string name, Vector3 p) => Group(root, name, p);
-        // Parking corner (given up when the car park is bought): planted islands, benches and play fountains.
-        foreach (float z in new[] { -4.5f, 3f, 10.5f })
-        {
-            var island = Piece("Tree island", new Vector3(-16.4f, 0, z));
-            Planter(island, Vector3.zero, new Vector3(2.4f, .5f, 2.4f), z == 3f, (int)z); // Half as many trees around the market.
-            QuayBench(island, new Vector3(2.1f, 0, 0), 270);
-        }
-        var jets = Piece("Play fountain", new Vector3(-12.6f, 0, -1f));
-        PlayFountain(jets);
-        var racks = Piece("Cycle racks", new Vector3(-12.2f, 0, -8.6f));
-        for (int i = 0; i < 4; i++) BikeHoop(racks, new Vector3(i * .8f - 1.2f, 0, 0));
-        foreach (float z in new[] { -6.5f, 1.5f, 8.5f }) ModernLamp(Piece("Square lamp", new Vector3(-18f, 0, z)), Vector3.zero);
+        // The car park corner (west of the market, x -18.7..-9.5) stays clear: nothing stands where the cars go.
         // East promenade between the market and the cycle track.
-        // Benches and planters keep a fixed gap to the meandering track.
-        foreach (float z in new[] { -4.5f, 6f }) QuayBench(Piece("Promenade bench", new Vector3(CheckoutCycleTrack.EastX(z) - 1.9f, 0, z)), Vector3.zero, 270);
-        foreach (float z in new[] { -8f, 1f }) Planter(Piece("Flower planter", new Vector3(CheckoutCycleTrack.EastX(z) - 1.9f, 0, z)), Vector3.zero, new Vector3(1.4f, .45f, 1.4f), false, (int)z);
-        foreach (float z in new[] { -6f, 3f, 12f, 21f, 30f }) ModernLamp(Piece("Square lamp", new Vector3(17.9f, 0, z)), Vector3.zero);
-        var eastRacks = Piece("Cycle racks", new Vector3(17.6f, 0, -8.8f));
-        for (int i = 0; i < 3; i++) BikeHoop(eastRacks, new Vector3(0, 0, i * .8f), 90);
+        foreach (float z in new[] { -4.5f, 6f }) QuayBench(Piece("Promenade bench", new Vector3(13.6f, 0, z)), Vector3.zero, 270);
+        // Planters sit between the promenade trees (City Tree 04/05/06 at z 1.5, -8.7, 10.5), not under them.
+        foreach (float z in new[] { -1.8f, 8f }) Planter(Piece("Flower planter", new Vector3(13.6f, 0, z)), Vector3.zero, new Vector3(1.4f, .45f, 1.4f), false, (int)z);
+        foreach (float z in new[] { -6f, 3f, 12f, 21f, 30f }) ModernLamp(Piece("Square lamp", new Vector3(15.3f, 0, z)), Vector3.zero);
+        // All the cycle racks together on the east promenade, clear of the car park and the loading yard.
+        var eastRacks = Piece("Cycle racks", new Vector3(14.9f, 0, -7.2f));
+        for (int i = 0; i < 6; i++) BikeHoop(eastRacks, new Vector3(0, 0, i * .8f), 90);
         // Ground the market will grow over: benches and trees in grates around the building.
-        foreach (var p in new[] { new Vector3(9.4f, 0, -3.2f), new Vector3(9.4f, 0, 4.6f), new Vector3(-9.6f, 0, 5.8f), new Vector3(-4.2f, 0, 6.8f), new Vector3(2.2f, 0, 6.2f) })
+        foreach (var p in new[] { new Vector3(9.4f, 0, -3.2f), new Vector3(9.4f, 0, 4.6f), new Vector3(-8.2f, 0, 5.8f), new Vector3(-4.2f, 0, 6.8f), new Vector3(2.2f, 0, 6.2f) })
         {
             bool tree = p.z != 4.6f && p.z != 6.8f;
             var piece = Piece(tree ? "Tree and bench" : "Bench", p);
             if (tree) GratedTree(piece, Vector3.zero, (int)(p.x * 7 + p.z));
-            QuayBench(piece, new Vector3(0, 0, -1.3f), 0);
+            // Bench clear of the canopy so the tree never looks planted on it.
+            QuayBench(piece, new Vector3(0, 0, tree ? -2.3f : 0), 0);
         }
         // Behind the market, beside the delivery path.
         var linear = Piece("Linear planter", new Vector3(-3.4f, 0, 12.2f));
         Planter(linear, Vector3.zero, new Vector3(5.2f, .5f, 1.1f), false, 3);
         QuayBench(linear, new Vector3(-1.2f, 0, -.95f), 0); QuayBench(linear, new Vector3(1.2f, 0, -.95f), 0);
         GratedTree(Piece("Grated tree", new Vector3(-7.6f, 0, 12.4f)), Vector3.zero, 17);
-        var westStrip = Piece("Planter and bench", new Vector3(-15f, 0, 15.2f));
+        var westStrip = Piece("Planter and bench", new Vector3(-13.3f, 0, 15.2f));
         Planter(westStrip, Vector3.zero, new Vector3(2.6f, .5f, 1.1f), false, 5); QuayBench(westStrip, new Vector3(0, 0, -.95f), 0);
         // Premium corner (becomes the purchased park).
-        var premium = Piece("Garden square", new Vector3(-13.3f, 0, 21f));
+        var premium = Piece("Garden square", new Vector3(-12.2f, 0, 21f));
         Planter(premium, new Vector3(0, 0, 1.7f), new Vector3(2.6f, .5f, 2.6f), true, 23);
         QuayBench(premium, new Vector3(-2.4f, 0, 0), 0); QuayBench(premium, new Vector3(2.4f, 0, 0), 0);
-        ModernLamp(Piece("Square lamp", new Vector3(-18f, 0, 20.5f)), Vector3.zero);
+        ModernLamp(Piece("Square lamp", new Vector3(-15.3f, 0, 20.5f)), Vector3.zero);
         // Storage ground: a pair of trees and benches until the stock room is bought.
         var storagePiece = Piece("Storage garden", new Vector3(storageBounds.center.x, 0, storageBounds.center.z));
         GratedTree(storagePiece, new Vector3(-2.2f, 0, 0), 29);
-        QuayBench(storagePiece, new Vector3(0, 0, -1.2f), 0);
+        QuayBench(storagePiece, new Vector3(.6f, 0, -1.6f), 0);
         // Loading access ground (trucks use it once the yard is bought).
         foreach (float x in new[] { 12.5f }) GratedTree(Piece("Access tree", new Vector3(x, 0, 28.2f)), Vector3.zero, (int)x);
         BuildHarbour(root, Piece);
@@ -787,28 +1053,142 @@ public static class CheckoutCentralParkBuilder
 
     static CheckoutExpansionNeighborhood.Lot Classify(Bounds b, Bounds storage)
     {
-        var anchor = CheckoutMarketLayout.Anchor;
-        for (int stage = 1; stage < Scales.GetLength(0); stage++)
+        // From stage 0: ground already under the opening-size shop never shows (it used to poke through the walls).
+        for (int stage = 0; stage < Scales.GetLength(0); stage++)
         {
             float w = Scales[stage, 0], d = Scales[stage, 1];
-            var min = new Vector2(anchor.x + (-9.4f - anchor.x) * w - 1f, anchor.z + (-7.4f - anchor.z) * d - 1f);
-            var max = new Vector2(anchor.x + (9.4f - anchor.x) * w + 1f, anchor.z + (7.4f - anchor.z) * d + 1f);
+            var probe = new MarketLayout { widthScale = w, depthScale = d };
+            var lo = CheckoutMarketLayout.Project(new Vector3(-9.4f, 0, -7.4f), probe); var hi = CheckoutMarketLayout.Project(new Vector3(9.4f, 0, 7.4f), probe);
+            var min = new Vector2(lo.x - 1f, lo.z - 1f);
+            var max = new Vector2(hi.x + 1f, hi.z + 1f);
             if (Overlaps(b, min, max)) return new CheckoutExpansionNeighborhood.Lot { area = Area.Market, replacedAtStage = stage };
         }
         if (Overlaps(b, new Vector2(-19f, -12.5f), new Vector2(-8.9f, 13.5f))) return new CheckoutExpansionNeighborhood.Lot { area = Area.Parking };
         if (Overlaps(b, Flat2(storage.min), Flat2(storage.max))) return new CheckoutExpansionNeighborhood.Lot { area = Area.Storage };
-        if (Overlaps(b, new Vector2(2.1f, 15f), new Vector2(16.4f, 25.7f)) || Overlaps(b, new Vector2(4.4f, 25.2f), new Vector2(21.4f, 30.6f)))
-            return new CheckoutExpansionNeighborhood.Lot { area = Area.LoadingYard };
+        bool oldYard = Overlaps(b, new Vector2(2.1f, 15f), new Vector2(16.4f, 25.7f)) || Overlaps(b, new Vector2(4.4f, 25.2f), new Vector2(21.4f, 30.6f));
+        bool grandYard = Overlaps(b, GrandYardMin, GrandYardMax);
+        if (oldYard && grandYard) return new CheckoutExpansionNeighborhood.Lot { area = Area.BothYards };
+        if (grandYard) return new CheckoutExpansionNeighborhood.Lot { area = Area.GrandWarehouse };
+        if (oldYard) return new CheckoutExpansionNeighborhood.Lot { area = Area.LoadingYard };
         if (Overlaps(b, new Vector2(-18.7f, 16.9f), new Vector2(-9.5f, 25.1f))) return new CheckoutExpansionNeighborhood.Lot { area = Area.Premium };
         return null;
+    }
+
+    // ------------------------------------------------------------------ central warehouse (expansion)
+    // The large Tripo warehouse stands on the fenced lot at the back of the block; its loading dock faces
+    // east onto a new truck yard with three bays, reached from the east street.
+    const string GrandModel = "Assets/Art/Models/MapModels/WarehouseLarge/";
+    static readonly Vector2 GrandYardMin = new Vector2(-.4f, 28.4f), GrandYardMax = new Vector2(17.25f, 38.8f);
+    const float GrandLength = 15.6f, DockX = -.35f;
+    static readonly float[] BayZ = { 30.4f, 33.4f, 36.4f };
+    public static float GrandDockYaw = 0; // extra turn if the model's dock end comes in facing the other way
+
+    static void BuildGrandWarehouse()
+    {
+        var root = NewRoot(CheckoutMarketLayout.GrandWarehouse);
+        var model = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(GrandModel + "WarehouseLarge.fbx"), root);
+        model.name = "Warehouse model";
+        var material = GrandMaterial();
+        foreach (var r in model.GetComponentsInChildren<Renderer>()) r.sharedMaterial = material;
+        var t = model.transform;
+        var b = BoundsOf(t);
+        // Long side along the street (x); the gable end with the dock looks east.
+        if (b.size.z > b.size.x) t.rotation = Quaternion.Euler(0, 90, 0) * t.rotation;
+        t.rotation = Quaternion.Euler(0, GrandDockYaw, 0) * t.rotation;
+        b = BoundsOf(t);
+        t.localScale *= GrandLength / b.size.x;
+        b = BoundsOf(t);
+        t.position += new Vector3(DockX - b.max.x, Ground - b.min.y, WarehouseCenter.z - b.center.z);
+        b = BoundsOf(t);
+        Debug.Log("GRAND_WAREHOUSE bounds=" + b.min.ToString("F2") + " " + b.max.ToString("F2"));
+        foreach (var r in model.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = ShadowCastingMode.On;
+        GameObjectUtility.SetStaticEditorFlags(model, (StaticEditorFlags)0); // not batched: the map editor moves these props
+        root.gameObject.SetActive(false); // shown by CheckoutMarketLayout once the expansion is bought
+        BuildGrandYard(b);
+    }
+
+    static Material GrandMaterial()
+    {
+        string path = GrandModel + "WarehouseLarge.mat";
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (!material) { material = new Material(Shader.Find("Standard")); AssetDatabase.CreateAsset(material, path); }
+        material.shader = Shader.Find("Standard");
+        material.SetTexture("_MainTex", AssetDatabase.LoadAssetAtPath<Texture2D>(GrandModel + "WarehouseLarge_Albedo.jpg"));
+        string normal = GrandModel + "WarehouseLarge_Normal.png";
+        var importer = AssetImporter.GetAtPath(normal) as TextureImporter;
+        if (importer && importer.textureType != TextureImporterType.NormalMap) { importer.textureType = TextureImporterType.NormalMap; importer.SaveAndReimport(); }
+        material.SetTexture("_BumpMap", AssetDatabase.LoadAssetAtPath<Texture2D>(normal));
+        material.EnableKeyword("_NORMALMAP");
+        material.SetFloat("_Glossiness", .15f);
+        material.color = Color.white;
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    static void BuildGrandYard(Bounds warehouse)
+    {
+        var root = NewRoot(CheckoutMarketLayout.GrandYard);
+        Material paint = Mat("YardLinePaint", "F5E6B9"), yellow = Mat("SafetyYellow", "E9B93F"), charcoal = Mat("YardStopCharcoal", "354949");
+        float rear = warehouse.max.x + .45f;
+        // Bays: trucks reverse in with their rear to the dock, cab pointing east (they arrive from the street).
+        var bays = Group(root, "Bays", Vector3.zero);
+        var trucks = world.Cast<Transform>().Where(x => x.name.StartsWith("Anim_Truck")).OrderBy(x => x.name).ToArray();
+        for (int i = 0; i < trucks.Length && i < BayZ.Length; i++)
+        {
+            var truck = trucks[i];
+            var tb = BoundsOf(truck.Find("ReplacementVisual") ?? truck);
+            var turn = Quaternion.Euler(0, 90, 0);
+            var length = Mathf.Max(tb.size.x, tb.size.z);
+            var center = new Vector3(rear + length / 2, 0, BayZ[i]);
+            var offset = truck.position - new Vector3(tb.center.x, 0, tb.center.z);
+            var bay = new GameObject(truck.name).transform;
+            bay.SetParent(bays, false);
+            bay.SetPositionAndRotation(new Vector3(center.x, truck.position.y, center.z) + turn * offset, turn * truck.rotation);
+        }
+        var marks = Group(root, "Markings", Vector3.zero);
+        float end = rear + 6.4f;
+        for (int i = 0; i <= BayZ.Length; i++)
+        {
+            float z = BayZ[0] - 1.5f + i * 3f;
+            Box(marks, "Bay line", new Vector3((rear + end) / 2, Ground + .02f, z), new Vector3(end - rear, .015f, .1f), paint);
+        }
+        for (int i = 0; i < BayZ.Length; i++)
+        {
+            Box(marks, "Wheel stop", new Vector3(rear + .5f, Ground + .09f, BayZ[i]), new Vector3(.22f, .17f, 1.65f), charcoal);
+            for (int k = 0; k < 3; k++) Box(marks, "Reflector", new Vector3(rear + .5f, Ground + .18f, BayZ[i] - .6f + k * .6f), new Vector3(.22f, .015f, .28f), yellow);
+            Label(marks, (i + 1).ToString(), new Vector3(end + .6f, Ground + .03f, BayZ[i]), 0, paint.color, .12f);
+            marks.GetChild(marks.childCount - 1).localRotation = Quaternion.Euler(90, 270, 0);
+        }
+        // Yellow hatching keeps the dock apron clear, bollards at its ends.
+        for (float z = BayZ[0] - 1.4f; z < BayZ[BayZ.Length - 1] + 1.5f; z += .72f)
+        {
+            var hatch = Box(marks, "Dock hatch", new Vector3(warehouse.max.x + .22f, Ground + .02f, z), new Vector3(.36f, .015f, .1f), yellow);
+            hatch.transform.localRotation = Quaternion.Euler(0, 30, 0);
+        }
+        foreach (float z in new[] { BayZ[0] - 1.8f, BayZ[BayZ.Length - 1] + 1.8f })
+        {
+            Box(marks, "Dock bollard", new Vector3(rear + .2f, Ground + .45f, z), new Vector3(.16f, .9f, .16f), charcoal);
+            Box(marks, "Bollard reflector", new Vector3(rear + .2f, Ground + .7f, z), new Vector3(.18f, .16f, .18f), yellow);
+        }
+        foreach (var p in new[] { new Vector3(15.8f, 0, 29.2f), new Vector3(15.8f, 0, 37.9f) }) ModernLamp(marks, p);
+        // The unloader walks from the dock door to the bays.
+        var path = Group(root, "Worker path", Vector3.zero);
+        foreach (var (name, p) in new[] { ("Dock door", new Vector3(warehouse.max.x + .15f, .15f, WarehouseCenter.z)), ("Bay apron", new Vector3(rear + .15f, .15f, BayZ[1] - 1.5f)) })
+        {
+            var point = new GameObject(name).transform; point.SetParent(path, false); point.position = p;
+        }
+        Bake(marks);
+        root.gameObject.SetActive(false);
     }
 
     static bool Overlaps(Bounds b, Vector2 min, Vector2 max) => b.max.x > min.x && b.min.x < max.x && b.max.z > min.y && b.min.z < max.y;
 
     static void BuildHarbour(Transform root, Func<string, Vector3, Transform> Piece)
     {
-        // The old dock basin and footbridge are gone: open paving with a pair of round flower beds.
-        foreach (float x in new[] { -3.2f, 3.2f })
+        // Where the old dock basin was: dancing water jets in the paving, between a pair of round flower beds,
+        // in front of the café terrace.
+        DancingFountain(Piece("Dancing fountain", new Vector3(BasinCenter.x, 0, BasinCenter.y)));
+        foreach (float x in new[] { -4.4f, 4.4f })
             Planter(Piece("Quay flower bed", new Vector3(BasinCenter.x + x, 0, BasinCenter.y)), Vector3.zero, new Vector3(2f, .45f, 2f), false, (int)(x * 10));
         // Promenades on both quays and the café terrace beyond the cycle track.
         foreach (float x in new[] { 1.5f, 4.6f, 10.2f, 13.2f })
@@ -817,19 +1197,15 @@ public static class CheckoutCentralParkBuilder
             QuayBench(Piece("Quay bench", new Vector3(x, 0, 39.6f)), Vector3.zero, 0);
         }
         foreach (float x in new[] { 3f, 11.8f }) { ModernLamp(Piece("Quay lamp", new Vector3(x, 0, 31.2f)), Vector3.zero); ModernLamp(Piece("Quay lamp", new Vector3(x, 0, 40.1f)), Vector3.zero); }
-        var west = Piece("Quay trees", new Vector3(-1.4f, 0, 36.5f));
-        GratedTree(west, new Vector3(0, 0, 3.2f), 43);
-        QuayBench(west, Vector3.zero, 270);
         var cafe = Piece("Harbour café", new Vector3(6.2f, 0, 45.8f));
         Kiosk(cafe);
         foreach (float x in new[] { -3.8f, 4.2f, 7.4f }) Terrace(Piece("Café terrace", new Vector3(6.2f + x, 0, 45.4f)));
-        for (float x = -17f; x < -3f; x += 4.4f)
+        for (float x = -14.4f; x < -1f; x += 4.4f)
         {
-            if (x < -16f || (x > -9f && x < -8f)) QuayBench(Piece("North row bench", new Vector3(x, 0, 45.9f)), Vector3.zero, 0);
-            else GratedTree(Piece("North row tree", new Vector3(x, 0, 45.9f)), Vector3.zero, (int)(x * 3));
-            if (x + 2.2f < -3f) QuayBench(Piece("North row bench", new Vector3(x + 2.2f, 0, 45.9f)), Vector3.zero, 0);
+            GratedTree(Piece("North row tree", new Vector3(x, 0, 45.9f)), Vector3.zero, (int)(x * 3));
+            if (x + 2.2f < -1f) QuayBench(Piece("North row bench", new Vector3(x + 2.2f, 0, 45.9f)), Vector3.zero, 0);
         }
-        foreach (float x in new[] { 16.2f }) GratedTree(Piece("North row tree", new Vector3(x, 0, 46.4f)), Vector3.zero, (int)(x * 5));
+        foreach (float x in new[] { 14.4f }) GratedTree(Piece("North row tree", new Vector3(x, 0, 46.4f)), Vector3.zero, (int)(x * 5));
     }
 
     static void Kiosk(Transform parent)
@@ -929,15 +1305,6 @@ public static class CheckoutCentralParkBuilder
         Box(hoop, "Hoop top", new Vector3(0, Ground + .84f, 0), new Vector3(.65f, .05f, .05f), steel);
     }
 
-    static void PlayFountain(Transform parent)
-    {
-        Box(parent, "Fountain pad", new Vector3(0, Ground + .01f, 0), new Vector3(3.4f, .02f, 3.4f), Mat("FountainPad", "4B5256", .7f));
-        Material spray = Mat("FountainSpray", "D9F1F6", .7f, "5A7A80");
-        for (int x = -1; x <= 1; x++)
-            for (int z = -1; z <= 1; z++)
-                Cyl(parent, "Ground jet", new Vector3(x * 1.05f, Ground, z * 1.05f), .05f, .5f + ((x + z + 2) % 3) * .35f, spray);
-    }
-
     // ------------------------------------------------------------------ ground shader
     static void ConfigureGround()
     {
@@ -948,7 +1315,10 @@ public static class CheckoutCentralParkBuilder
         material.SetFloat("_CityPark", 1);
         material.SetFloat("_HarbourPlaza", 1);
         material.SetVector("_Basin", new Vector4(999, 999, 0, 0)); // No dock basin any more.
-        material.SetVector("_DerelictLot", new Vector4(-10.55f, 32.9f, 7.85f, 7.3f));
+        material.SetVector("_DerelictLot", new Vector4(WarehouseCenter.x, 32.9f, 7.45f, 7.3f));
+        material.SetVector("_GrandYard", new Vector4((GrandYardMin.x + GrandYardMax.x) / 2, (GrandYardMin.y + GrandYardMax.y) / 2, (GrandYardMax.x - GrandYardMin.x) / 2, (GrandYardMax.y - GrandYardMin.y) / 2));
+        material.SetVector("_GrandAccess", new Vector4(19.25f, BayZ[1], 2.05f, 2.2f));
+        material.SetFloat("_GrandYardEnabled", 0);
         EditorUtility.SetDirty(material);
     }
 
@@ -959,15 +1329,23 @@ public static class CheckoutCentralParkBuilder
         var simulation = UnityEngine.Object.FindAnyObjectByType<MarketSimulation>();
         world = simulation.world;
         var main = Camera.main;
+        foreach (var ps in world.GetComponentsInChildren<ParticleSystem>()) ps.Simulate(2.5f, true, true); // jets in mid-flow
+
         // A new player's view (nothing bought) at the authored market size, then everything bought.
         using (new PurchasePreview(world, new MarketLayout { stage = 3 }))
         {
             foreach (var shot in new (string, Vector3, float)[] {
                 ("Overview", new Vector3(0, 0, 2), 36), ("Park", new Vector3(-1, 0, -33), 13.5f), ("Circle", new Vector3(-23.5f, 0, -18.5f), 9.5f),
                 ("Warehouse", new Vector3(-9, 0, 31), 11), ("Harbour", new Vector3(7, 0, 38), 10.5f), ("MarketBlock", new Vector3(0, 0, 14), 20),
-                ("WestBlock", new Vector3(-33, 0, 19), 17), ("EastBlock", new Vector3(33, 0, 19), 17) })
+                ("WestBlock", new Vector3(-33, 0, 19), 17), ("EastBlock", new Vector3(33, 0, 19), 17),
+                ("SouthWestCorner", new Vector3(-33, 0, -34), 12), ("SouthEastCorner", new Vector3(33, 0, -34), 12) })
                 Shot("ArtSource/TerrainTiles/CentralPark_" + shot.Item1 + ".png", shot.Item2, shot.Item3, main);
             MarketBuilder.Capture("ArtSource/TerrainTiles/CentralPark_GameView.png");
+        }
+        using (new PurchasePreview(world, new MarketLayout { stage = 4, storage = true, parking = true, loadingYard = true, premium = true, storageLarge = true }))
+        {
+            Shot("ArtSource/TerrainTiles/CentralPark_GrandWarehouse.png", new Vector3(2, 0, 33), 14, main);
+            Shot("ArtSource/TerrainTiles/CentralPark_MarketBlock_Grand.png", new Vector3(0, 0, 14), 20, main);
         }
         using (new PurchasePreview(world, new MarketLayout { stage = 4, storage = true, parking = true, loadingYard = true, premium = true }))
         {
@@ -983,14 +1361,28 @@ public static class CheckoutCentralParkBuilder
     {
         readonly List<(GameObject, bool)> states = new List<(GameObject, bool)>();
         readonly List<Renderer> blocks = new List<Renderer>();
+        readonly List<(Transform, Vector3, Quaternion)> moved = new List<(Transform, Vector3, Quaternion)>();
         public PurchasePreview(Transform world, MarketLayout layout)
         {
             void Set(GameObject go, bool active) { if (!go) return; states.Add((go, go.activeSelf)); go.SetActive(active); }
             var neighborhood = world.GetComponentInChildren<CheckoutExpansionNeighborhood>(true);
             if (neighborhood) foreach (var lot in neighborhood.lots) if (lot.building) states.Add((lot.building, lot.building.activeSelf));
             neighborhood?.Apply(layout);
-            Set(world.Find("Warehouse")?.gameObject, layout.storage);
-            Set(world.Find("Loading Yard Details")?.gameObject, layout.loadingYard);
+            bool grand = layout.storageLarge, oldYard = layout.loadingYard && !grand;
+            Set(world.Find("Warehouse")?.gameObject, layout.storage && !grand);
+            Set(world.Find("Loading Yard Details")?.gameObject, oldYard);
+            Set(world.Find(CheckoutMarketLayout.GrandWarehouse)?.gameObject, grand);
+            Set(world.Find(CheckoutMarketLayout.GrandWarehouseSite)?.gameObject, !grand);
+            Set(world.Find(CheckoutMarketLayout.GrandYard)?.gameObject, grand);
+            // Trucks sit in their bays for the review shots.
+            foreach (Transform truck in world)
+            {
+                if (!truck.name.StartsWith("Anim_Truck")) continue;
+                states.Add((truck.gameObject, truck.gameObject.activeSelf)); moved.Add((truck, truck.position, truck.rotation));
+                var bay = grand ? world.Find(CheckoutMarketLayout.GrandYard + "/Bays/" + truck.name) : null;
+                if (bay) truck.SetPositionAndRotation(bay.position, bay.rotation);
+                truck.gameObject.SetActive(grand || layout.loadingYard);
+            }
             Set(world.Find("Expansion Park")?.gameObject, layout.premium);
             int spaces = layout.parking ? (layout.stage >= 3 ? 5 : 3) : 0;
             var parking = world.GetComponentInChildren<CheckoutParkingSpaces>(true);
@@ -999,7 +1391,7 @@ public static class CheckoutCentralParkBuilder
             {
                 if (t.name.StartsWith("Parking bay") || t.name == "Parking wheel stop") Set(t.gameObject, layout.parking);
                 if (t.name.StartsWith("Banco ") || t.name.StartsWith("City Tree 03") || t.name.StartsWith("Loading garden flowers")) Set(t.gameObject, layout.premium);
-                if (t.parent && t.parent.name == "Supplied Delivery Cargo" && t.name != "Carried cardboard box" && t.name != "Warehouse delivery doorstep") Set(t.gameObject, layout.storage);
+                if (t.parent && t.parent.name == "Supplied Delivery Cargo" && t.name != "Carried cardboard box" && t.name != "Warehouse delivery doorstep") Set(t.gameObject, layout.storage && !grand);
                 if (t.name.EndsWith("customer vehicle") || t.name.StartsWith("Parking customer vehicle")) Set(t.gameObject, false);
             }
             foreach (var renderer in UnityEngine.Object.FindObjectsByType<UnityEngine.Tilemaps.TilemapRenderer>())
@@ -1007,15 +1399,17 @@ public static class CheckoutCentralParkBuilder
                 if (!renderer.sharedMaterial || renderer.sharedMaterial.shader.name != "MarketDay/City Tiles") continue;
                 var properties = new MaterialPropertyBlock();
                 properties.SetFloat("_ExpansionProjection", 1);
-                properties.SetFloat("_LoadingAccessEnabled", layout.loadingYard ? 1 : 0);
+                properties.SetFloat("_LoadingAccessEnabled", oldYard ? 1 : 0);
+                properties.SetFloat("_GrandYardEnabled", grand ? 1 : 0);
                 properties.SetFloat("_ParkingSpaces", spaces);
-                properties.SetVector("_ExpansionFeatures", new Vector4(layout.storage ? 1 : 0, layout.parking ? 1 : 0, layout.loadingYard ? 1 : 0, layout.premium ? 1 : 0));
+                properties.SetVector("_ExpansionFeatures", new Vector4(layout.storage ? 1 : 0, layout.parking ? 1 : 0, oldYard ? 1 : 0, layout.premium ? 1 : 0));
                 renderer.SetPropertyBlock(properties); blocks.Add(renderer);
             }
         }
         public void Dispose()
         {
             for (int i = states.Count - 1; i >= 0; i--) if (states[i].Item1) states[i].Item1.SetActive(states[i].Item2);
+            foreach (var (t, p, r) in moved) if (t) t.SetPositionAndRotation(p, r);
             foreach (var renderer in blocks) if (renderer) renderer.SetPropertyBlock(null);
         }
     }
@@ -1081,7 +1475,7 @@ public static class CheckoutCentralParkBuilder
         {"KioskCounter",("wood",false,null,0)}, {"KioskSign",("paint",true,null,.1f)}, {"TerraceMetal",("castiron",false,"C8CCCC",.4f)}, {"TableTop",("granite",false,"F4F0E8",0)},
         {"ParasolCanvas",("canvas",true,null,0)}, {"BenchTimber",("wood",false,"F0E0D0",0)}, {"PlanterSoil",("mulch",false,null,0)}, {"PlanterStone",("stone_blocks",false,"F4E6CC",0)}, {"TreeGrate",("grate",false,null,.4f)},
         {"ModernLampPole",("castiron",false,"B0B8BC",.45f)}, {"RackSteel",("brushed",false,null,.7f)}, {"FountainPad",("granite",false,"8A8A86",0)},
-        {"DuckWhite",("canvas",true,null,0)}, {"DuckBeak",("paint",true,null,0)},
+        {"BridgePath",("granite",false,"D8CCB8",0)}, {"BasinFloor",("stone_blocks",false,"8FA8A8",0)}, {"LilyFlower",("flowers",false,"FFF0F4",0)},
     };
 
     static Material Mat(string name, string hex, float gloss = .08f, string emission = null)
@@ -1281,7 +1675,7 @@ public static class CheckoutCentralParkBuilder
             baked.GetComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = baked.GetComponent<MeshRenderer>(); renderer.sharedMaterial = byMaterial.Key;
             if (byMaterial.Key.renderQueue >= (int)RenderQueue.Transparent) renderer.shadowCastingMode = ShadowCastingMode.Off;
-            GameObjectUtility.SetStaticEditorFlags(baked, StaticEditorFlags.BatchingStatic);
+            GameObjectUtility.SetStaticEditorFlags(baked, (StaticEditorFlags)0); // not batched: the map editor moves these props
         }
         foreach (var part in parts) { primitives.Remove(part.gameObject); UnityEngine.Object.DestroyImmediate(part.gameObject); }
         // Drop now-empty helper groups.

@@ -2,8 +2,11 @@
 // fixes it: the player (System: one tap; Simulator: a small task in Unity) or the right employee.
 // The two coolers (ice cream chest freezer, upright drinks fridge) short-circuit: in the simulator the
 // player rewires them (a small puzzle); in System mode it is one tap. Old saves used "freezer".
+// "sujeira": dirt customers tracked in (mud, wrappers, crumbs); it piles up on its own, apart from the
+// mishaps, and the cleaners sweep it.
 export type StoreIncidentKind =
 	| "derramado"
+	| "sujeira"
 	| "freezer_sorvete"
 	| "geladeira_bebidas"
 	| "etiqueta"
@@ -36,6 +39,8 @@ export type StoreIncidentsState = {
 	active: StoreIncident[];
 	fixed: number;
 	nextAt: number | null;
+	// Floor dirt clock (independent from the mishaps).
+	nextDirtAt: number | null;
 	nextStaffFixAt: number | null;
 	recent: StoreIncidentOutcome[];
 	seed: number;

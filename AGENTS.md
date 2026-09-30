@@ -59,3 +59,10 @@ Always use good archtecture and good coding practices
 Always create the content of the screens inside a folder inside the `screens` folder, and then call the component inside the file inside the app folder because we are using Expo Router
 
 Create reusable types inside the `@types` folder
+
+## Blender (3D assets for the Unity game)
+
+- Blender 5.2 with the Blender Lab MCP add-on (port 9876, auto-start). Blender home of the project: `unity/CheckoutSimulator/ArtSource/Checkout_Workspace.blend` (collection "REF Project models" holds the game's own textured models for style reference).
+- Helpers: `scripts/blender/checkout_project.py` (`reference()`, `studio()`, `preview()`, `export_unity()`); asset builders live next to it (`build_interior_kit.py`, `build_staff_*.py`).
+- Match the style of `Assets/Art/Models/MapModels`: soft rounded edges (bevel + subdivision, no raw boxes), real-world silhouettes, teal / cream / orange / wood palette (`ArtSource/palette.json`), printed labels and painted textures.
+- Render previews to `unity/CheckoutSimulator/Temp/qa/` and get the user's approval on the pictures before importing an asset into the game.

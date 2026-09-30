@@ -1,6 +1,7 @@
 import { page, type Page, type State } from "../view-kit";
 import { routes as day } from "./day";
 import { routes as dev } from "./dev";
+import { routes as loja, shopPage } from "./loja";
 import { routes as progress } from "./progress";
 import { routes as production } from "./production";
 import { routes as shelves } from "./shelves";
@@ -20,6 +21,12 @@ const all: Routes = {
 	...progress,
 	...dev,
 	...day,
+	...loja,
+	// Everything that is bought lives in the shop now: the old pages open their shop category.
+	team: (state) => shopPage(state, ["equipe"]),
+	shop: (state, [category]) => shopPage(state, ["melhorias", category ?? ""]),
+	expansions: (state) => shopPage(state, ["expansoes"]),
+	currency: (state, [filter]) => shopPage(state, ["moedas", filter ?? ""]),
 };
 
 export function pages(state: State, route: string): Page {

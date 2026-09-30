@@ -19,6 +19,8 @@ export type Button = {
 	after: string;
 	ok: string;
 	fail: string;
+	// Small red counter on the button (shop tabs: things waiting in the inventory).
+	badge: string;
 };
 export type Card = {
 	title: string;
@@ -36,6 +38,10 @@ export type Page = {
 	title: string;
 	subtitle: string;
 	icon: string;
+	// "" = side drawer with a list of cards; "shop" = the full-screen shop (category rail + tile grid).
+	layout: string;
+	// Shop categories (left rail). Chips are the sub-filters of the open category.
+	tabs: Button[];
 	chips: Button[];
 	cards: Card[];
 };
@@ -61,6 +67,7 @@ export function button(label: string, options: Partial<Button> = {}): Button {
 		after: "",
 		ok: "",
 		fail: "",
+		badge: "",
 		...options,
 	};
 }
@@ -98,7 +105,8 @@ export function page(
 	cards: Card[],
 	options: Partial<Page> = {},
 ): Page {
-	return { route, title, subtitle: "", icon: "", chips: [], cards, ...options };
+	return { route, title, subtitle: "", icon: "", layout: "", tabs: [], chips: [], cards, ...options };
 }
 export const ratio = (value: number, total: number) =>
 	Math.max(0, Math.min(1, value / Math.max(total, 1)));
+export const decorIcon = (file: string) => `Decor/${file}`;

@@ -20,7 +20,8 @@ namespace Checkout {
    // QA runs feed a fixed snapshot file and must stay offline.
    if(Array.IndexOf(Environment.GetCommandLineArgs(),"--checkout-snapshot")>=0||Environment.GetEnvironmentVariable("CHECKOUT_DESKTOP")=="0")return;
    var bridge=FindAnyObjectByType<CheckoutBridge>();if(!bridge)return;
-   bridge.gameObject.AddComponent<CheckoutDesktopHost>();
+   // The start screen asks "Jogar" or "Modo edição" before the game (and its save) starts.
+   CheckoutStartMenu.Show(bridge.gameObject);
   }
 #endif
 
@@ -51,13 +52,15 @@ namespace Checkout {
    bridge=GetComponent<CheckoutBridge>();var repo=Repo();
    if(!File.Exists(Path.Combine(repo,"desktop","host.ts"))){Debug.LogWarning("CHECKOUT_DESKTOP host.ts not found under "+repo);Destroy(this);return;}
    var start=new ProcessStartInfo(Node(),"--no-warnings --import ./desktop/register.mjs desktop/host.ts"){WorkingDirectory=repo,UseShellExecute=false,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true,StandardOutputEncoding=System.Text.Encoding.UTF8};
-   start.EnvironmentVariables["CHECKOUT_DESKTOP_SAVE"]=Path.Combine(Application.persistentDataPath,"checkout-desktop-save.json");
+   // "Modo edição" plays on its own sandbox save (infinite money, everything unlocked): the real game is untouched.
+   start.EnvironmentVariables["CHECKOUT_DESKTOP_SAVE"]=Path.Combine(Application.persistentDataPath,CheckoutStartMenu.EditMode?"checkout-editor-save.json":"checkout-desktop-save.json");
    try {process=Process.Start(start);}catch(Exception ex){Debug.LogError("CHECKOUT_DESKTOP could not start node: "+ex.Message);Destroy(this);return;}
    input=new StreamWriter(process.StandardInput.BaseStream,new System.Text.UTF8Encoding(false)){AutoFlush=true,NewLine="\n"};
    process.OutputDataReceived+=(_,e)=>{if(e.Data!=null)lines.Enqueue(e.Data);};
    process.ErrorDataReceived+=(_,e)=>{if(!string.IsNullOrEmpty(e.Data))Debug.Log("CHECKOUT_HOST "+e.Data);};
    process.BeginOutputReadLine();process.BeginErrorReadLine();
    Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
+   if(CheckoutStartMenu.EditMode)gameObject.AddComponent<CheckoutMapEditor>().Initialize(this);
   }
 
   public bool Send(string json){
@@ -73,6 +76,8 @@ namespace Checkout {
   }
   static string Quote(string value)=>"\""+(value??"").Replace("\\","\\\\").Replace("\"","\\\"")+"\"";
 
+  // The game page stack is shown again (the map editor hides it while editing).
+  public CheckoutDesktopHUD Hud=>hud;
   void Update(){
    // Only the newest view matters; snapshots and results are applied in order.
    string latestView=null;

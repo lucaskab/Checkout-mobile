@@ -31,6 +31,7 @@ Material:
     m_Floats:
     - _CityPark: 1
     - _ExpansionProjection: 0
+    - _GrandYardEnabled: 0
     - _HarbourPlaza: 1
     - _LoadingAccessEnabled: 1
     - _ParkingSpaces: 5
@@ -39,8 +40,10 @@ Material:
     m_Colors:
     - _Basin: {r: 999, g: 999, b: 0, a: 0}
     - _Color: {r: 0.72, g: 0.75, b: 0.78, a: 1}
-    - _DerelictLot: {r: -10.55, g: 32.9, b: 7.85, a: 7.3}
+    - _DerelictLot: {r: -8.15, g: 32.9, b: 7.45, a: 7.3}
     - _ExpansionFeatures: {r: 1, g: 1, b: 1, a: 1}
+    - _GrandAccess: {r: 19.25, g: 33.4, b: 2.05, a: 2.2}
+    - _GrandYard: {r: 8.425, g: 33.6, b: 8.825, a: 5.2}
     - _LoadingAccess: {r: 12.97, g: 27.9, b: 8.38, a: 2.5}
     - _MarketFootprint: {r: 0, g: 0, b: 9.4, a: 7.4}
     - _Roundabout: {r: -23.5, g: -18.5, b: 3.4, a: 7.5}

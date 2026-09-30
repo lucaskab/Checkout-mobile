@@ -24,6 +24,23 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	claimMission: [text],
 	deliverOrderInstantly: [text],
 	finishProductionNow: [text],
+	finishMarketExpansionNow: [],
+	finishInteriorConstructionNow: [text],
+	buildSector: [
+		(v) =>
+			[
+				"padaria",
+				"queijaria",
+				"acougue",
+				"peixaria",
+				"bebidas",
+				"sorvetes",
+				"adega",
+			].includes(String(v)),
+		currency,
+	],
+	saveInteriorLayout: [(v) => Array.isArray(v) && v.length <= 300],
+	purchaseDecor: [text, currency],
 	fixIncident: [text],
 	unloadDelivery: [text, integer],
 	unloadAllDeliveries: [],
@@ -64,6 +81,7 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 				"peixaria",
 				"bebidas",
 				"sorvetes",
+				"adega",
 			].includes(String(v.sectorId)),
 	],
 	upgradeSupplierOrderSlots: [currency],
@@ -73,9 +91,13 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	unlockNextShelfSlot: [],
 	unlockMarketExpansion: [
 		(v) =>
-			["fresh-wing", "service-wing", "stock-annex", "premium-hall"].includes(
-				String(v),
-			),
+			[
+				"fresh-wing",
+				"service-wing",
+				"stock-annex",
+				"premium-hall",
+				"grand-warehouse",
+			].includes(String(v)),
 	],
 	upgradeShelfCapacity: [text, currency],
 };

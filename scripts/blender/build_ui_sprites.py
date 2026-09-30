@@ -17,7 +17,8 @@ from mathutils import Vector
 from bpy_extras.object_utils import world_to_camera_view
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / 'unity/CheckoutSimulator/Assets/Resources/CheckoutDesktop/Game'
+import os
+OUT = Path(os.environ['UI_SPRITES_OUT']) if os.environ.get('UI_SPRITES_OUT') else ROOT / 'unity/CheckoutSimulator/Assets/Resources/CheckoutDesktop/Game'
 FONT_PATH = ROOT / 'unity/CheckoutSimulator/Assets/Resources/CheckoutDesktop/Fonts/Fredoka_700Bold.ttf'
 R = math.radians
 
@@ -1066,6 +1067,352 @@ def panel_board():
     studio(elev=0, yaw=0, width=512, height=256, size=4.1)
 
 
+
+# ================================================================ v2 (market colours, cleaning variants, lamp fix)
+# The mini-games now use the market's own palette (navy walls, brushed-gold trims, cream floor) so they read as
+# the same shop the player sees in 3D.
+NAVY, NAVY_D, GOLD, GOLD_D, PLASTER = '22345E', '16233F', 'E8B04A', 'B8842E', 'F6EBD6'
+
+
+def gold_metal():
+    return tex('brushed', 'F2CC72', 'C99533', metal=1, rough=.28, scale=.4)
+
+
+def product_wall(y, z0, rows=3, width=26, seed=3):
+    """Shelves full of colourful goods, used behind counters and along floors."""
+    import random
+    rnd = random.Random(seed)
+    colors = ['E15533', 'F2B03D', '2E8CAE', '5DA637', '8B5C9E', 'D9716A', '45B7D0', 'F07F3C', 'F4E3B5']
+    wood = tex('wood', WOOD, WOOD_D, scale=1.2, bump=.2, stretch=(.1, 1, 1))
+    for r in range(rows):
+        z = z0 + r * 1.35
+        box((width, 1.2, .12), (0, y, z), wood, .03)
+        box((width, .06, .16), (0, y - .6, z + .02), gold_metal(), .02)
+        x = -width / 2 + .3
+        while x < width / 2 - .3:
+            w = rnd.uniform(.35, .7); h = rnd.uniform(.55, 1.05); c = rnd.choice(colors)
+            if rnd.random() < .35:
+                cyl(w * .38, h, (x + w / 2, y, z + .06 + h / 2), tex('plastic', c, c, rough=.3, scale=1, bump=.02, coat=.6), v=24, bev=.02)
+                cyl(w * .2, .12, (x + w / 2, y, z + .12 + h), mat('F4F1EA', .3), v=16)
+            else:
+                box((w * .9, .7, h), (x + w / 2, y, z + .06 + h / 2), tex('plastic', c, c, rough=.35, scale=1, bump=.02), .04)
+                box((w * .7, .01, h * .35), (x + w / 2, y - .36, z + .06 + h * .55), mat('FFFFFF', .4), .01)
+            x += w + rnd.uniform(.03, .12)
+    box((width, .5, rows * 1.35 + .4), (0, y + .6, z0 + rows * 1.35 / 2), tex('plastic', PLASTER, 'E8D9BC', rough=.6, scale=1, bump=.03), .02)
+
+
+def reg_backdrop_v2():
+    # The till from the cashier's side: cream stone counter with a navy front and gold trims, the store behind.
+    stone = tex('granite', 'F1E6D2', 'D9C8AA', c3='B8A585', rough=.22, scale=1.4, bump=.12, coat=.9)
+    box((26, 8.6, .3), (0, -1.9, 0), stone, .05)
+    box((26, .25, .36), (0, -6.25, .02), gold_metal(), .06)
+    box((26, .7, 2.2), (0, -6.6, -1.1), tex('plastic', NAVY, NAVY_D, rough=.4, scale=1.5, bump=.04), .06)
+    box((26, .3, .4), (0, 2.45, .2), gold_metal(), .06)
+    box((26, .4, 2.2), (0, 2.75, 1.1), tex('plastic', NAVY, NAVY_D, rough=.4, scale=1.5, bump=.04), .05)
+    box((26, .1, .1), (0, 2.52, 2.15), gold_metal(), .02)
+    product_wall(3.6, 2.25, rows=3)
+    backdrop_studio(1600, 900, 16, (0, 1.2, 1.2), elev=38, light=1.25)
+
+
+def pos_display():
+    # Modern POS monitor: navy frame, gold edge, big dark screen the UI writes the receipt on.
+    body = tex('plastic', NAVY, NAVY_D, rough=.35, scale=1, bump=.03)
+    box((1.0, .7, .12), (0, .1, .06), body, .05)
+    bar((0, .12, .12), (0, .2, 1.0), .09, gold_metal())
+    box((3.2, .26, 2.2), (0, .1, 1.95), body, .14)
+    box((3.24, .2, .06), (0, .08, 3.04), gold_metal(), .02)
+    box((3.0, .05, 1.98), (0, -.05, 1.95), mat('0B1322', .2), .05)
+    mark('screen', box((2.86, .04, 1.84), (0, -.08, 1.95), mat('14233D', .3, emit=.25, coat=.9), .04))
+    studio(elev=6, yaw=0, width=720, height=560, size=3.7)
+
+
+def cash_tray_v2():
+    # Open drawer from above: navy body, brushed tray, one coloured bin per note with its value on the front,
+    # and a big coin cup.
+    steel = tex('brushed', 'D5DCDE', 'A6B0B3', metal=.8, rough=.3, scale=.4)
+    box((4.4, 2.8, .5), (0, 0, .25), tex('plastic', NAVY, NAVY_D, rough=.4, scale=1, bump=.04), .12)
+    box((4.2, 2.6, .1), (0, 0, .46), steel, .03)
+    values = [50, 20, 10, 5, 2]
+    for i, v in enumerate(values):
+        x = -1.64 + i * .82
+        c1, c2 = NOTE_COLORS[v]
+        mark(f'bin{i}', box((.74, 1.45, .12), (x, .4, .5), tex('paper', c2, c1, rough=.7, scale=1, bump=.05, coat=0), .04))
+        box((.05, 1.45, .3), (x + .41, .4, .62), steel, .01)
+        bar((x, -.2, .74), (x, 1.05, .74), .035, gold_metal())
+        box((.68, .36, .06), (x, -.52, .56), mat('FFF7EA', .4), .04)
+        text(str(v), (x, -.54, .6), .3, mat(NAVY, .4), rot=(0, 0, 0), extrude=.012, bevel=0)
+    mark('cup0', cyl(.42, .12, (-1.2, -.95, .5), tex('noise', 'F3C95C', 'C8962E', rough=.4, scale=1, bump=.05), bev=.03))
+    for k in range(5):
+        cyl(.16, .05, (-1.35 + (k % 3) * .14, -.9 - (k // 3) * .12, .58 + k * .02), tex('noise', 'F3C95C', 'C8962E', metal=1, rough=.25, scale=1, bump=.05), v=32, bev=.01)
+    box((.8, .36, .06), (-.3, -.95, .56), mat('FFF7EA', .4), .04)
+    text('R$ 1', (-.3, -.97, .6), .24, mat(NAVY, .4), rot=(0, 0, 0), extrude=.012, bevel=0)
+    for i in range(1, 5):
+        o = mark(f'cup{i}', box((.01, .01, .01), (-1.2, -.95, .45), mat('000000', 1, alpha=0), 0))
+        o.hide_render = True
+    box((4.4, .35, .6), (0, -1.55, .3), mat(NAVY_D, .35), .08)
+    box((1.4, .16, .16), (0, -1.75, .42), gold_metal(), .05)
+    studio(elev=90, yaw=0, width=800, height=520, size=4.6)
+
+
+def change_dish_v2():
+    cyl(1.2, .16, (0, 0, .08), gold_metal(), bev=.06, v=64)
+    cyl(1.08, .06, (0, 0, .15), tex('fabric', NAVY, '2B4378', rough=.9, scale=1, bump=.3, coat=0), bev=.02, v=64)
+    text('TROCO', (0, -.68, .19), .22, mat(GOLD, .35, .6), rot=(0, 0, 0), extrude=.01, bevel=.003)
+    studio(elev=62, yaw=0, width=420, height=300)
+
+
+def floor_backdrop_v2():
+    # The shop floor as it looks in the market: big cream tiles, the navy kick plate and a bottom shelf of goods.
+    for i in range(-13, 14):
+        for j in range(-8, 5):
+            c = ('F7E6C4', 'EFD8AE') if (i + j) % 2 == 0 else ('F2DDB6', 'E8CFA2')
+            box((1.36, 1.36, .1), (i * 1.4, j * 1.4 + .5, 0), tex('noise', c[0], c[1], rough=.22, scale=1.3, bump=.04, coat=.8), .025)
+    plane((40, 24), (0, -2, -.06), mat('CDB28A', .7))
+    box((40, .5, .9), (0, 5.4, .45), tex('plastic', NAVY, NAVY_D, rough=.4, scale=1.5, bump=.04), .06)
+    box((40, .14, .12), (0, 5.12, .92), gold_metal(), .03)
+    product_wall(6.3, 1.0, rows=2, width=40, seed=11)
+    backdrop_studio(1600, 900, 17, (0, 1.2, 0), elev=58, light=1.25)
+
+
+def ceiling_backdrop_v2():
+    panels = tex('tiles', 'F8ECD4', 'CFAF7C', c3='F3E4C6', scale=.5, bump=.3, rough=.6, coat=.1)
+    plane((24, 14), (0, 0, 0), panels)
+    for x in (-6.5, 6.5):
+        box((3.8, 1.2, .1), (x, 2.8, .05), tex('plastic', NAVY, NAVY_D, rough=.4, scale=1, bump=.04), .04)
+        for i in range(8):
+            box((3.4, .05, .04), (x, 2.35 + i * .13, .12), mat(NAVY_D, .5), 0)
+        box((3.9, 1.3, .04), (x, 2.8, .02), gold_metal(), .01)
+    backdrop_studio(1600, 900, 18, (0, 0, 0), elev=90, light=1.2)
+
+
+def pendant_lamp_v2():
+    # Ceiling canopy, a straight cord, a navy dome with a gold rim and the socket right in the middle below.
+    cyl(.34, .12, (0, 0, 5.0), gold_metal(), bev=.03)
+    bar((0, 0, 2.55), (0, 0, 4.95), .045, mat('20242B', .45))
+    cyl(.16, .3, (0, 0, 2.55), gold_metal(), bev=.02)
+    cyl(1.45, 1.05, (0, 0, 1.95), tex('plastic', NAVY, NAVY_D, rough=.3, scale=1, bump=.03, coat=.7), r2=.28, bev=.03, v=64)
+    torus(1.43, .06, (0, 0, 1.43), gold_metal())
+    cyl(1.36, .03, (0, 0, 1.46), mat('F4EEDD', .5), bev=0, v=64)
+    mark('socket', cyl(.3, .42, (0, 0, 1.2), tex('brushed', 'E8D29C', 'B89A58', metal=.95, rough=.3, scale=.3), bev=.02))
+    torus(.3, .03, (0, 0, 1.0), gold_metal())
+    studio(elev=6, yaw=0, width=420, height=760, size=5.6)
+
+
+def bulb_frame(state, i, n=8):
+    def build():
+        glass = mat('8E8A80', .1, coat=1, trans=.2) if state == 'dead' else mat('E6EAE6', .04, coat=1, trans=.45)
+        spin = R(i * 360 / n)
+        root = bpy.data.objects.new('Bulb', None); bpy.context.scene.collection.objects.link(root)
+        parts = []
+        parts.append(sphere(.8, (0, 0, 1.45), glass, (1, 1, 1.12)))
+        parts.append(bar((-.2, 0, 1.0), (-.12, 0, 1.55), .02, mat('6F6A60', .5)))
+        parts.append(bar((.2, 0, 1.0), (.12, 0, 1.55), .02, mat('6F6A60', .5)))
+        parts.append(bar((-.12, 0, 1.55), (.12, 0, 1.55), .015, mat('3A342E' if state == 'dead' else 'B08850', .5)))
+        # A printed mark on the glass shows the bulb turning round its own axis.
+        parts.append(text('LED', (0, -.86, 1.35), .2, mat('2E8CAE' if state != 'dead' else '4A463E', .4), rot=(90, 0, 0), extrude=.005, bevel=0))
+        brass = tex('brushed', 'E8D29C', 'B89A58', metal=.95, rough=.3, scale=.3)
+        parts.append(cyl(.4, .62, (0, 0, .6), brass, bev=.02))
+        # Screw thread: a helix, so the ridges run up (or down) as it turns.
+        pts = []
+        for k in range(0, 3 * 48 + 1):
+            a = k / 48 * 2 * math.pi
+            pts.append((math.cos(a) * .41, math.sin(a) * .41, .34 + k / 48 * .17))
+        cu = bpy.data.curves.new('Thread', 'CURVE'); cu.dimensions = '3D'; cu.bevel_depth = .04; cu.bevel_resolution = 3
+        sp = cu.splines.new('POLY'); sp.points.add(len(pts) - 1)
+        for p_, (x, y, z) in zip(sp.points, pts):
+            p_.co = (x, y, z, 1)
+        th = bpy.data.objects.new('Thread', cu); bpy.context.scene.collection.objects.link(th); th.data.materials.append(brass)
+        parts.append(th)
+        parts.append(cyl(.15, .12, (0, 0, .25), mat('3A342E', .5)))
+        for o in parts:
+            o.parent = root
+        root.rotation_euler = (0, 0, spin)
+        studio(elev=6, yaw=0, width=256, height=320, size=2.75, target=(0, 0, 1.22))
+    build.__name__ = f'bulb_{state}_{i}'
+    return build
+
+
+def _poly_mesh(name, verts2d, depth, m, loc=(0, 0, 0), bev=.01):
+    import bmesh
+    me = bpy.data.meshes.new(name); o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    bm = bmesh.new()
+    vs = [bm.verts.new((x, y, 0)) for x, y in verts2d]
+    f = bm.faces.new(vs)
+    r = bmesh.ops.extrude_face_region(bm, geom=[f])
+    for v in [e for e in r['geom'] if isinstance(e, bmesh.types.BMVert)]:
+        v.co.z += depth
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me); bm.free()
+    o.location = loc
+    bpy.context.view_layer.objects.active = o
+    return finish(o, m, bev, 2, smooth=False)
+
+
+def glass_shard(seed):
+    def build():
+        import random
+        rnd = random.Random(seed * 7 + 3)
+        glass = mat('5DC285', .02, coat=1, alpha=.62)
+        # A long sharp sliver: a few points on a stretched triangle with jagged sides.
+        n = rnd.randint(5, 7); pts = []
+        for k in range(n):
+            a = k / n * 2 * math.pi + rnd.uniform(-.25, .25)
+            rr = (1.25 if k == 0 else rnd.uniform(.3, .75))
+            pts.append((math.cos(a) * rr, math.sin(a) * rr * .55))
+        _poly_mesh('Shard', pts, .05, glass, bev=.012)
+        edge = mat('E9FFF0', .02, coat=1, emit=.6)
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]):
+            bar((x0, y0, .055), (x1, y1, .055), .014, edge)
+        # Light catching the glass: two bright streaks.
+        shine = mat('FFFFFF', .02, emit=2.5)
+        (xa, ya), (xb, yb) = pts[0], pts[len(pts) // 2]
+        bar((xa * .6, ya * .6, .06), (xa * .15 + xb * .1, ya * .15 + yb * .1, .06), .018, shine)
+        bar((xa * .35, ya * .35 - .08, .06), (xa * .05, ya * .05 - .05, .06), .01, shine)
+        studio(elev=72, yaw=rnd.uniform(-60, 60), width=256, height=256)
+    build.__name__ = f'glass_shard_{seed}'
+    return build
+
+
+def bottle_neck():
+    # The top of a broken soda bottle lying on the floor: cap, neck, shoulder ending in a jagged rim.
+    import bmesh, random
+    rnd = random.Random(4)
+    glass = mat('3FAE68', .03, coat=1, trans=.65)
+    me = bpy.data.meshes.new('Neck'); o = bpy.data.objects.new('Neck', me); bpy.context.scene.collection.objects.link(o)
+    bm = bmesh.new(); seg = 36
+    rings = []
+    for zi, (z, r) in enumerate(((0, .62), (.35, .58), (.75, .36), (1.0, .24), (1.7, .22), (1.78, .26))):
+        ring = []
+        for k in range(seg):
+            a = k / seg * 2 * math.pi
+            zz = z + (rnd.uniform(-.28, .1) if zi == 0 else 0)
+            ring.append(bm.verts.new((math.cos(a) * r, math.sin(a) * r, zz)))
+        rings.append(ring)
+    for r0, r1 in zip(rings, rings[1:]):
+        for k in range(seg):
+            bm.faces.new((r0[k], r0[(k + 1) % seg], r1[(k + 1) % seg], r1[k]))
+    bm.to_mesh(me); bm.free()
+    finish(o, glass, 0)
+    sol = o.modifiers.new('Wall', 'SOLIDIFY'); sol.thickness = .04
+    cap = cyl(.3, .16, (0, 0, 1.86), tex('brushed', 'E15533', 'B53A22', metal=.6, rough=.35, scale=.4), v=24, bev=.03)
+    label = cyl(.6, .22, (0, 0, .42), mat('F2B03D', .5), r2=.52, v=36, bev=.01)
+    root = bpy.data.objects.new('Root', None); bpy.context.scene.collection.objects.link(root)
+    for x in (o, cap, label):
+        x.parent = root
+    root.rotation_euler = (0, R(-78), R(20))
+    studio(elev=48, yaw=-10, width=320, height=320)
+
+
+def dustpan():
+    body = tex('plastic', NAVY, NAVY_D, rough=.35, scale=1, bump=.03, coat=.5)
+    _poly_mesh('Pan', [(-1.1, -.9), (1.1, -.9), (.95, .7), (-.95, .7)], .06, body, bev=.02)
+    box((1.95, .12, .55), (0, .72, .3), body, .05)
+    for sx in (-1, 1):
+        box((.1, 1.6, .4), (sx * 1.03, -.1, .2), body, .04, rot=(0, 0, sx * 5))
+    box((2.2, .06, .05), (0, -.9, .04), gold_metal(), .02)
+    bar((0, .75, .5), (0, 1.9, 1.2), .08, gold_metal())
+    o = mark('mouth', box((1.9, 1.3, .02), (0, -.1, .08), mat('000000', 1, alpha=0), 0))
+    o.hide_render = True
+    studio(elev=48, yaw=0, width=420, height=380)
+
+
+def trash_bin():
+    body = tex('plastic', NAVY, NAVY_D, rough=.35, scale=1, bump=.03, coat=.5)
+    cyl(.8, 1.8, (0, 0, .9), body, r2=.95, bev=.04, v=48)
+    torus(.95, .06, (0, 0, 1.8), gold_metal())
+    cyl(.9, .04, (0, 0, 1.78), mat('0C1220', .8), bev=0, v=48)
+    for k in range(10):
+        a = k / 10 * 2 * math.pi
+        box((.08, .04, 1.3), (math.cos(a) * .86, math.sin(a) * .86, .95), mat(NAVY_D, .4), .02, rot=(0, 0, math.degrees(a) + 90))
+    box((.9, .03, .3), (0, -.9, 1.0), mat(GOLD, .35, .5), .04)
+    text('LIXO', (0, -.93, 1.0), .16, mat(NAVY_D, .4), extrude=.008, bevel=0)
+    o = mark('mouth', cyl(.85, .02, (0, 0, 1.82), mat('000000', 1, alpha=0), bev=0))
+    o.hide_render = True
+    studio(elev=24, yaw=0, width=380, height=440)
+
+
+def litter_paper():
+    paper = tex('paper', 'FBF7EE', 'D9D2C2', rough=.8, scale=2, bump=.6, coat=0)
+    o = sphere(.6, (0, 0, .5), paper, (1, .9, .85))
+    d = o.modifiers.new('Crumple', 'DISPLACE'); t = bpy.data.textures.new('Crumple', 'VORONOI'); t.noise_scale = .25; d.texture = t; d.strength = .22
+    studio(elev=40, yaw=-20, width=256, height=256)
+
+
+def litter_wrapper():
+    foil = tex('noise', 'E15533', 'F2B03D', metal=.7, rough=.25, scale=3, bump=.5)
+    box((1.1, .5, .12), (0, 0, .06), foil, .05)
+    for sx in (-1, 1):
+        cyl(.26, .45, (sx * .75, 0, .06), foil, rot=(0, sx * 90, 0), r2=.05, v=12, bev=.01)
+    text('DOCE', (0, 0, .14), .18, mat('FFFFFF', .4), rot=(0, 0, 0), extrude=.004, bevel=0)
+    studio(elev=62, yaw=10, width=300, height=200)
+
+
+def litter_cup():
+    paper = tex('paper', 'FFFFFF', 'EDE8DE', rough=.6, scale=1, bump=.1, coat=.2)
+    parts = [cyl(.42, 1.1, (0, 0, .55), paper, r2=.55, v=40, bev=.02)]
+    for k in range(3):
+        parts.append(torus(.46 + k * .035, .025, (0, 0, .3 + k * .3), mat(RED, .4)))
+    parts.append(cyl(.58, .08, (0, 0, 1.12), mat('F0F0EE', .3), v=40, bev=.02))
+    parts.append(bar((.1, 0, 1.1), (.35, 0, 1.75), .04, mat(GOLD, .4)))
+    root = bpy.data.objects.new('Cup', None); bpy.context.scene.collection.objects.link(root)
+    for o in parts:
+        o.parent = root
+    root.rotation_euler = (R(90), 0, R(25))
+    studio(elev=55, yaw=20, width=300, height=260)
+
+
+def footprint():
+    mud = tex('noise', '7A5533', '4E3520', rough=.9, scale=6, bump=.6, coat=0)
+    o = cyl(.42, .03, (0, .4, .015), mud, v=40, bev=0); o.scale = (1, 1.35, 1)
+    o = cyl(.32, .03, (0, -.62, .015), mud, v=40, bev=0); o.scale = (1, 1.1, 1)
+    for k in range(5):
+        box((.6, .05, .02), (0, .05 + k * .16, .035), mat('3A2616', .9), 0)
+    for k in range(3):
+        box((.4, .05, .02), (0, -.8 + k * .16, .035), mat('3A2616', .9), 0)
+    studio(elev=90, yaw=0, width=200, height=320, size=2.0)
+
+
+def broom():
+    bar((0, 0, .9), (0, 0, 4.2), .07, tex('wood', WOOD, WOOD_D, scale=6, bump=.1, stretch=(1, 1, .1)))
+    cyl(.09, .1, (0, 0, 4.22), mat(RED, .4))
+    box((1.3, .32, .3), (0, 0, .95), tex('plastic', NAVY, NAVY_D, rough=.35, scale=1, bump=.03), .08)
+    box((1.34, .34, .06), (0, 0, 1.12), gold_metal(), .02)
+    straw = tex('fabric', 'E8C57A', 'B98E42', rough=.9, scale=1, bump=.4, coat=0)
+    for i in range(24):
+        x = -.6 + i * .052
+        for yy in (-.08, .08):
+            bar((x, yy, .82), (x * 1.35 + math.sin(i * 1.3) * .05, yy * 2, -.35 - (i * 5) % 4 * .03), .035, straw)
+    studio(elev=12, yaw=-10)
+
+
+def dust_pile():
+    import random
+    dust = tex('noise', 'A7A29A', '7D776E', rough=1, scale=4, bump=.6, coat=0)
+    o = sphere(1.0, (0, 0, 0), dust, (1.3, 1, .42))
+    d = o.modifiers.new('Lumps', 'DISPLACE'); t = bpy.data.textures.new('Lumps', 'CLOUDS'); t.noise_scale = .25; d.texture = t; d.strength = .35
+    for k in range(3):
+        sphere(.45 - k * .1, (-.5 + k * .55, .2 - k * .25, .15), dust, (1.1, 1, .6))
+    rnd = random.Random(5)
+    for k in range(14):
+        sphere(rnd.uniform(.05, .12), (rnd.uniform(-1.3, 1.3), rnd.uniform(-1, 1), .1), mat(rnd.choice(['C98C4A', 'E6D3A8', '6F5A44']), .8), (1, 1, .6))
+    for k in range(4):
+        bar((rnd.uniform(-1, 1), rnd.uniform(-.8, .8), .2), (rnd.uniform(-1, 1), rnd.uniform(-.8, .8), .25), .012, mat('3E3A36', .9))
+    studio(elev=62, yaw=0, width=420, height=300)
+
+
+V2_SPRITES = {
+    'reg_backdrop': reg_backdrop_v2, 'pos_display': pos_display, 'cash_tray': cash_tray_v2, 'change_dish': change_dish_v2,
+    'floor_backdrop': floor_backdrop_v2, 'ceiling_backdrop': ceiling_backdrop_v2, 'pendant_lamp': pendant_lamp_v2,
+    'glass_shard_0': glass_shard(0), 'glass_shard_1': glass_shard(1), 'glass_shard_2': glass_shard(2),
+    'bottle_neck': bottle_neck, 'dustpan': dustpan, 'trash_bin': trash_bin,
+    'litter_paper': litter_paper, 'litter_wrapper': litter_wrapper, 'litter_cup': litter_cup,
+    'footprint': footprint, 'broom': broom, 'dust_pile': dust_pile,
+}
+for _state in ('dead', 'off'):
+    for _i in range(8):
+        V2_SPRITES[f'bulb_{_state}_{_i}'] = bulb_frame(_state, _i)
+
+
 SPRITES = {
     'reg_backdrop': reg_backdrop, 'belt': belt, 'belt_tile': belt_tile, 'scanner_bed': scanner_bed,
     'pos_terminal': pos_terminal, 'card_machine': card_machine,
@@ -1090,6 +1437,7 @@ SPRITES = {
 
 SPRITES.update(COOLER_SPRITES)
 SPRITES.update(RECEIVING_SPRITES)
+SPRITES.update(V2_SPRITES)
 
 
 def main(args):

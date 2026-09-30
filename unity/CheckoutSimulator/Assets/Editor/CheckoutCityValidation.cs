@@ -20,17 +20,19 @@ public static class CheckoutCityValidation
             Require(NavMesh.CalculatePath(origin,point,NavMesh.AllAreas,path)&&path.status==NavMeshPathStatus.PathComplete,"Unreachable city destination "+point);
         }
         bool Walkable(float x,float z)=>NavMesh.SamplePosition(new Vector3(x,.15f,z),out _, .15f,NavMesh.AllAreas);
-        // Local streets at x ±23.5 are crossed at z -27 and -10; the avenue (z -24.5..-12.5) at the corners.
+        // Local streets at x ±23.5 are crossed in line with the avenue footways; the avenue in line with the local footways.
         // With the Columbus Circle roundabout the west crossings move out onto the approach arms.
         bool circle=CheckoutRoundabout.Current;
         foreach(float x in new[]{-23.5f,23.5f})
         {
             bool round=circle&&x<0;
-            foreach(float z in round?new[]{-28.5f,-8.5f}:new[]{-27f,-10f})Require(Walkable(x,z),"Missing painted crossing");
+            float arm=CheckoutStreetLayout.CircleCrossing;
+            foreach(float z in round?new[]{-18.5f-arm,-18.5f+arm}:new[]{CheckoutStreetLayout.SouthWalkZ,CheckoutStreetLayout.NorthWalkZ})Require(Walkable(x,z),"Missing painted crossing");
             foreach(float z in new[]{-25.5f,-18.5f,-11.5f,30f})Require(!Walkable(x,z),"Unmarked corner shortcut");
         }
-        foreach(float x in circle?new[]{-32.25f,-14.75f,-1.75f,18.75f,28.25f}:new[]{-28.25f,-18.75f,-1.75f,18.75f,28.25f})Require(Walkable(x,-18.5f),"Missing painted crossing");
-        foreach(float x in new[]{-26f,-21f,-10f,10f,21f,26f})Require(!Walkable(x,-18.5f),"Unmarked corner shortcut");
+        float ix=CheckoutStreetLayout.InnerWalkX,ox=CheckoutStreetLayout.OuterWalkX;
+        foreach(float x in circle?new[]{-23.5f-CheckoutStreetLayout.CircleCrossing,-1.75f,ix,ox}:new[]{-ox,-ix,-1.75f,ix,ox})Require(Walkable(x,-18.5f),"Missing painted crossing");
+        foreach(float x in new[]{-26f,-21f,-14.75f,-10f,10f,21f,26f})Require(!Walkable(x,-18.5f),"Unmarked corner shortcut");
         var parking=UnityEngine.Object.FindAnyObjectByType<CheckoutParkingSpaces>();
         int spaces=layout.State.parking?(layout.State.stage>=3?5:3):0;
         Require(parking.spaces.Count(s=>s.activeSelf)==spaces,"Incorrect visible parking capacity");

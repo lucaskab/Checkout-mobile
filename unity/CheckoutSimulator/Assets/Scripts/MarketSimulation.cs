@@ -62,6 +62,9 @@ namespace MarketDay
                 Block(-3.9f,-4.7f,2.6f,1.6f);
                 foreach(Transform sector in world)if(sector.name.StartsWith("Sector_"))
                     foreach(var renderer in sector.GetComponentsInChildren<Renderer>(true))if(renderer.enabled){var b=renderer.bounds;Block(b.center.x,b.center.z,b.size.x,b.size.z);}
+            // Stage decor (produce islands, promo pallets...) that shoppers walk around.
+            foreach(var item in world.GetComponentsInChildren<Checkout.CheckoutStageItem>())if(item.blocksNavigation)
+                foreach(var renderer in item.GetComponentsInChildren<Renderer>())if(renderer.enabled){var b=renderer.bounds;Block(b.center.x,b.center.z,b.size.x,b.size.z);}
             }
             else
             {
@@ -99,37 +102,49 @@ namespace MarketDay
         }
         NavMeshDataInstance navigation;
         Checkout.MarketLayout marketLayout=new Checkout.MarketLayout();
+        // Furniture placed in build mode (CheckoutInterior): rotated solid boxes (centre, size, yaw).
+        public Func<IEnumerable<(Vector3 center,Vector3 size,float yaw)>> Furniture;
+        readonly List<(Vector3 center,Vector3 size,float yaw)> furniture=new List<(Vector3 center,Vector3 size,float yaw)>();
         public void RebuildLayoutNavigation(Checkout.MarketLayout layout)
         {
             marketLayout=layout;
-            obstacles.Clear();
+            obstacles.Clear();furniture.Clear();
+            if(Furniture!=null&&!Checkout.CheckoutStall.Small)furniture.AddRange(Furniture());
             var slots=world.GetComponentInChildren<Checkout.CheckoutShelfSlots>();
-            if(slots)foreach(Transform slot in slots.transform)if(slot.gameObject.activeSelf)
+            if(slots&&Furniture==null)foreach(Transform slot in slots.transform)if(slot.gameObject.activeSelf)
             {
                 var p=Checkout.CheckoutMarketLayout.Project(Checkout.CheckoutShelfSlots.Position(slot.name),layout);
                 Block(p.x,p.z,2.05f*layout.widthScale,1.4f*layout.depthScale);
             }
             var register=Checkout.CheckoutMarketLayout.CheckoutPoint(new Vector3(-3.9f,.74f,-4.7f),layout);
-            Block(register.x,register.z,2.6f*layout.widthScale,1.6f*layout.depthScale);
-            foreach(Transform sector in world)if(sector.name.StartsWith("Sector_")&&(layout.sectorIds==null||Array.IndexOf(layout.sectorIds,sector.name.Substring(7))>=0))
+            if(Furniture==null)Block(register.x,register.z,2.6f*layout.widthScale,1.6f*layout.depthScale);
+            if(Furniture==null)foreach(Transform sector in world)if(sector.name.StartsWith("Sector_")&&(layout.sectorIds==null||Array.IndexOf(layout.sectorIds,sector.name.Substring(7))>=0))
                 foreach(var renderer in sector.GetComponentsInChildren<Renderer>(true))if(renderer.enabled){var b=renderer.bounds;Block(b.center.x,b.center.z,b.size.x,b.size.z);}
             var pedestrians=FindObjectsByType<NavMeshAgent>().Where(a=>a.isOnNavMesh&&!a.GetComponent<Checkout.CheckoutWalker>()).Select(a=>(agent:a,position:a.nextPosition,destination:a.destination,moving:a.hasPath)).ToArray();
             BuildNavigation();
-            foreach(var pedestrian in pedestrians)if(NavMesh.SamplePosition(pedestrian.position,out var hit,2,NavMesh.AllAreas))
+            foreach(var pedestrian in pedestrians)if(NavMesh.SamplePosition(pedestrian.position,out var hit,2,pedestrian.agent.areaMask))
             {pedestrian.agent.Warp(hit.position);if(pedestrian.moving)pedestrian.agent.SetDestination(pedestrian.destination);}
         }
+        // Navigation area of the shop floor, entrance ramp and rear service path. Shoppers and staff walk
+        // everywhere; city pedestrians exclude it so they never cut through the building.
+        public const int ShopArea=3;
         void BuildNavigation()
         {
             var sources=new List<NavMeshBuildSource>();
             void Box(Vector3 center,Vector3 size,int area,Quaternion rotation){sources.Add(new NavMeshBuildSource{shape=NavMeshBuildSourceShape.Box,transform=Matrix4x4.TRS(center,rotation,Vector3.one),size=size,area=area});}
             var anchor=Checkout.CheckoutMarketLayout.Anchor;
-            var layoutMatrix=Matrix4x4.Translate(anchor)*Matrix4x4.Scale(new Vector3(marketLayout.widthScale,1,marketLayout.depthScale))*Matrix4x4.Translate(-anchor);
-            void Interior(Vector3 center,Vector3 size,Quaternion rotation){sources.Add(new NavMeshBuildSource{shape=NavMeshBuildSourceShape.Box,transform=layoutMatrix*Matrix4x4.TRS(center,rotation,Vector3.one),size=size,area=0});}
+            var layoutMatrix=Matrix4x4.Translate(anchor+Checkout.CheckoutMarketLayout.Offset)*Matrix4x4.Scale(new Vector3(marketLayout.widthScale,1,marketLayout.depthScale))*Matrix4x4.Translate(-anchor);
+            void Interior(Vector3 center,Vector3 size,Quaternion rotation){sources.Add(new NavMeshBuildSource{shape=NavMeshBuildSourceShape.Box,transform=layoutMatrix*Matrix4x4.TRS(center,rotation,Vector3.one),size=size,area=ShopArea});}
+            // Eras 0-4 sell from a stall on the paving (CheckoutStall): no shop floor, ramp or rear path yet.
+            bool stall=Checkout.CheckoutStall.Small;
+            if(stall){var court=Checkout.CheckoutStall.Court;Box(court.center,court.size,ShopArea,Quaternion.identity);}
+            else{
             Interior(new Vector3(0,.64f,0),new Vector3(18,.2f,14),Quaternion.identity);
             Interior(new Vector3(-1.75f,.345f,-8.825f),new Vector3(2.8f,.2f,3.6f),Quaternion.Euler(-9.44f,0,0));
             Interior(new Vector3(4,.37f,7.8f),new Vector3(1.1f,.2f,2.2f),Quaternion.Euler(20,0,0));
             var rear=Checkout.CheckoutMarketLayout.Project(new Vector3(4,.05f,8.8f),marketLayout);
-            Box(new Vector3(rear.x,.05f,(rear.z+17.9f)*.5f),new Vector3(1.3f,.2f,17.9f-rear.z),0,Quaternion.identity);
+            Box(new Vector3(rear.x,.05f,(rear.z+17.9f)*.5f),new Vector3(1.3f,.2f,17.9f-rear.z),ShopArea,Quaternion.identity);
+            }
             // Outdoor customers use the same sidewalk surfaces as city pedestrians.
             // Do not bake the vehicle aisle: it creates shortcuts through parking bays.
             if(FindAnyObjectByType<Checkout.CheckoutCityTraffic>())
@@ -137,6 +152,13 @@ namespace MarketDay
             var streets=FindAnyObjectByType<Checkout.CheckoutCityStreets>();
             if(streets)streets.AddNavigation(sources);
             foreach(var r in obstacles)Box(new Vector3(r.center.x,1.5f,r.center.y),new Vector3(r.width,3,r.height),1,Quaternion.identity);
+            foreach(var f in furniture)Box(f.center,f.size,1,Quaternion.Euler(0,f.yaw,0));
+            // The shop's plinth: park and street surfaces under the building are not walkable, so city
+            // pedestrians cannot cut through the walls. It stays well below the shop floor (.74) so the
+            // floor itself is not merged with it.
+            var low=Checkout.CheckoutMarketLayout.Project(new Vector3(-9.4f,0,-7.4f),marketLayout);var high=Checkout.CheckoutMarketLayout.Project(new Vector3(9.4f,0,7.4f),marketLayout);
+            if(stall){var s=Checkout.CheckoutStall.Centre;Box(new Vector3(s.x,1f,s.z),new Vector3(4.2f,2f,2.7f),1,Quaternion.identity);}
+            else Box(new Vector3((low.x+high.x)*.5f,-.4f,(low.z+high.z)*.5f),new Vector3(high.x-low.x+.3f,1.3f,high.z-low.z+.3f),1,Quaternion.identity);
             var settings=NavMesh.GetSettingsByID(0);settings.agentRadius=.28f;settings.agentHeight=2.3f;settings.agentClimb=.3f;settings.agentSlope=45;settings.overrideVoxelSize=true;settings.voxelSize=.075f;
             var navigationBounds=streets?streets.cityBounds:new Bounds(new Vector3(0,0,8),new Vector3(80,12,80));
             navigationBounds.Expand(new Vector3(4,12,4));
@@ -357,6 +379,10 @@ namespace MarketDay
         void OnApplicationPause(bool paused){if(paused)Save();}
         void OnApplicationQuit(){Save();}
         public void HomeCamera(){focus=new Vector3(0f,.1f,6f);zoom=20.5f;UpdateCamera();}
+        // Build mode frames the shop floor and holds the camera still while a piece is dragged.
+        public bool cameraLocked,pinchLocked;
+        public void Focus(Vector3 point,float size){focus=new Vector3(point.x,.1f,point.z);zoom=Mathf.Clamp(size,6,38);UpdateCamera();}
+        public (Vector3 focus,float zoom) CameraState=>(focus,zoom);
         public void Zoom(float amount){zoom=Mathf.Clamp(zoom+amount,6,38);UpdateCamera();}
         void UpdateCamera(){if(!view)return;view.orthographicSize=zoom;view.transform.position=focus+new Vector3(28,33,-38);view.transform.LookAt(focus);}
         public void ExternalCamera(){HandleCamera();}
@@ -364,13 +390,14 @@ namespace MarketDay
         {
             if(Input.touchCount==2)
             {
+                if(pinchLocked)return; // Build mode: two fingers turn the selected piece instead.
                 var a=Input.GetTouch(0);var b=Input.GetTouch(1);float before=((a.position-a.deltaPosition)-(b.position-b.deltaPosition)).magnitude;
                 Zoom((before-(a.position-b.position).magnitude)*.018f);dragged=true;return;
             }
             bool over=EventSystem.current&&(Input.touchCount>0?EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId):EventSystem.current.IsPointerOverGameObject());
             if(!over&&Mathf.Abs(Input.mouseScrollDelta.y)>.01f)Zoom(-Input.mouseScrollDelta.y*.8f);
             if(Input.GetMouseButtonDown(0)){pointerDown=lastPointer=Input.mousePosition;dragged=over;}
-            if(Input.GetMouseButton(0)&&!over)
+            if(Input.GetMouseButton(0)&&!over&&!cameraLocked)
             {
                 Vector2 now=Input.mousePosition;var delta=now-lastPointer;
                 if((now-pointerDown).magnitude>10)dragged=true;

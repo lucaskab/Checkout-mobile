@@ -126,11 +126,22 @@ public static class MarketBuilder
     {
         var cam=Camera.main;if(!cam)throw new Exception("No camera");
         var old=cam.targetTexture;var active=RenderTexture.active;var rt=new RenderTexture(1600,1000,24);rt.antiAliasing=4;
-        cam.targetTexture=rt;Canvas.ForceUpdateCanvases();
-        var hud=UnityEngine.Object.FindAnyObjectByType<MarketHUD>();if(hud)hud.Relayout();
-        Canvas.ForceUpdateCanvases();cam.Render();RenderTexture.active=rt;
-        var img=new Texture2D(1600,1000,TextureFormat.RGB24,false);img.ReadPixels(new Rect(0,0,1600,1000),0,0);img.Apply();File.WriteAllBytes(path,img.EncodeToPNG());
-        cam.targetTexture=old;RenderTexture.active=active;UnityEngine.Object.DestroyImmediate(img);UnityEngine.Object.DestroyImmediate(rt);Debug.Log("MARKET_CAPTURE_OK "+path);
+        // Always hand the camera back: a camera left rendering into a texture shows "No cameras rendering".
+        Texture2D img=null;
+        try
+        {
+            cam.targetTexture=rt;Canvas.ForceUpdateCanvases();
+            var hud=UnityEngine.Object.FindAnyObjectByType<MarketHUD>();if(hud)hud.Relayout();
+            Canvas.ForceUpdateCanvases();cam.Render();RenderTexture.active=rt;
+            img=new Texture2D(1600,1000,TextureFormat.RGB24,false);img.ReadPixels(new Rect(0,0,1600,1000),0,0);img.Apply();
+            var folder=Path.GetDirectoryName(path);if(!string.IsNullOrEmpty(folder))Directory.CreateDirectory(folder);
+            File.WriteAllBytes(path,img.EncodeToPNG());
+        }
+        finally
+        {
+            cam.targetTexture=old;RenderTexture.active=active;if(img)UnityEngine.Object.DestroyImmediate(img);UnityEngine.Object.DestroyImmediate(rt);
+        }
+        Debug.Log("MARKET_CAPTURE_OK "+path);
     }
     [MenuItem("Supermarket/Build Windows preview")]
     public static void BuildWindows()

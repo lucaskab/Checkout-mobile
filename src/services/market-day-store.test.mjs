@@ -17,6 +17,8 @@ const { createSimulatorCommandHandler } = await import(
 const { createSpecialRequest, addSpecialRequest, FREE_DAY_CONTRACT_ID } =
 	await import("./market-day.ts");
 const { getDayStoreContext } = await import("./market-day-context.ts");
+// These tests run a shop that is already furnished (the starter pieces are placed).
+useGameStore.setState({ interior: { items: [], owned: {} } });
 const initial = JSON.stringify(useGameStore.getState());
 beforeEach(() => useGameStore.setState(JSON.parse(initial)));
 // Test files share the store module: leave it as we found it.

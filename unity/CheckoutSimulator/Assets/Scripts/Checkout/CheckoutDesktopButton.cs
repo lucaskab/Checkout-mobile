@@ -36,7 +36,7 @@ namespace Checkout {
   public void Apply(DesktopButton data){
    Data=data;var style=K.Variant(data.variant,data.enabled,data.active);
    edge.color=style.edge;face.color=style.face;label.color=style.text;
-   if(label.text!=data.label)label.text=data.label;label.gameObject.SetActive(!string.IsNullOrEmpty(data.label));
+   var text=K.Clean(data.label);if(label.text!=text)label.text=text;label.gameObject.SetActive(!string.IsNullOrEmpty(text));
    var sprite=K.Icon(data.icon);icon.sprite=sprite;icon.gameObject.SetActive(sprite);
    icon.color=data.enabled?Color.white:new Color(1,1,1,.55f);
   }

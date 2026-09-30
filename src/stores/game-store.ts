@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { GameStatistics } from "@/@types/achievement";
+import {
+	getInteriorDecor,
+	createStarterInteriorState,
+	getWaitingInteriorPieces,
+	normalizeInteriorState,
+	sanitizeInteriorItems,
+} from "@/data/interior-decor";
 import type { CurrencyPurchaseState } from "@/@types/currency-purchase";
 import type { CustomerArchetype } from "@/@types/customer-simulation";
 import type { EmployeeRole, GameEmployeesState } from "@/@types/employee";
@@ -33,6 +40,9 @@ import {
 } from "@/data/inventory-capacity";
 import {
 	getMarketExpansion,
+	getMarketExpansionSkipCost,
+	getMissingMarketExpansionPrerequisites,
+	normalizeMarketExpansionConstruction,
 	normalizeMarketExpansionIds,
 } from "@/data/market-expansions";
 import {
@@ -41,6 +51,7 @@ import {
 	itemCatalog,
 	marketProducts,
 	shelves,
+	starterShelfIds,
 } from "@/data/market-products";
 import { getMission } from "@/data/missions";
 import {
@@ -96,8 +107,8 @@ import {
 	fixStoreIncident,
 	freezerSpoilage,
 	getIncidentEffects,
-	nextStaffFix,
 	normalizeStoreIncidentsState,
+	spawnFloorDirt,
 	spawnStoreIncident,
 } from "@/services/store-incidents";
 import { getIncidentShelves } from "@/services/store-incidents-context";
@@ -169,7 +180,44 @@ import {
 	unloadDock,
 } from "@/services/receiving";
 import { getShopEffects } from "@/services/shop-effects";
+import { getSimulatorLayout } from "@/services/simulator-layout";
+import {
+	getShiftPayroll,
+	getStaffStorageKind,
+	planStaffTasks,
+	type RestockCandidate,
+	takeFinishedStaffTasks,
+} from "@/services/staff-work";
 import { mmkvStorage } from "@/storage/mmkv";
+import type { MarketEraId } from "@/@types/economy";
+import { getMarketEra } from "@/data/economy";
+import {
+	checkEraEvolution,
+	createInitialEraState,
+	finishEraConstruction,
+	getEraEffects,
+	getEraForExpansions,
+	getOfflineEraIncome,
+	normalizeEraState,
+	recordFinishedTurn,
+	startEraEvolution,
+} from "@/services/market-era";
+import type { ProductionSectorId } from "@/@types/production";
+import {
+	constructionDuration,
+	createPendingConstruction,
+	findInteriorConstruction,
+	getInteriorSkipCost,
+	getShelfBuildDurationMs,
+	interiorPieceIds,
+	placeInteriorConstruction,
+	scheduleInteriorConstructions,
+	isBuiltShopItem,
+	normalizeBuiltSectorIds,
+	normalizeInteriorConstructions,
+	sectorBuildPlans,
+	shopItemBuildDurations,
+} from "@/data/interior-construction";
 
 const initialInventory: GameInventory = {
 	1: 5,
@@ -188,6 +236,7 @@ const initialInventoryLots: GameInventoryLots = {};
 const initialShelfStock: GameShelfStock = {
 	bakery: 3,
 	dairy: 3,
+	drinks: 3,
 	produce: 3,
 	snacks: 3,
 };
@@ -202,9 +251,10 @@ const initialShelfPrices: GameShelfPrices = Object.fromEntries(
 	),
 );
 
+// Two shelves and the drinks cooler come with the shop (see starterShelfIds).
 const initialShelfSlotCounts = normalizeShelfSlotCounts(
 	undefined,
-	initialUnlockedShelfSlots,
+	initialUnlockedShelfSlots * starterShelfIds.length,
 );
 
 const initialShelfUpgradeLevels: GameShelfUpgradeLevels = {};
@@ -224,8 +274,11 @@ const initialProductionState: GameProductionState = {
 
 const initialEmployeesState: GameEmployeesState = {
 	employees: [],
+	lastPayroll: null,
 	nextHireNumber: 1,
 	nextPayrollAt: Date.now() + EMPLOYEE_PAYROLL_INTERVAL_MS,
+	nextTaskNumber: 1,
+	tasks: [],
 	totalSalariesPaid: 0,
 };
 
@@ -281,6 +334,7 @@ const initialMarketState: GameMarketState = {
 };
 
 const initialGameState: GameState = {
+	era: createInitialEraState(),
 	checkout: createCheckoutCounterState(),
 	coins: 1248,
 	currencyPurchases: initialCurrencyPurchaseState,
@@ -298,6 +352,10 @@ const initialGameState: GameState = {
 	offlineSummary: null,
 	lastSessionAt: Date.now(),
 	unlockedMarketExpansionIds: initialUnlockedMarketExpansionIds,
+	marketExpansionConstruction: null,
+	interior: createStarterInteriorState(),
+	interiorConstructions: [],
+	builtSectorIds: [],
 	missions: initialMissionsState,
 	production: initialProductionState,
 	shop: initialShopState,
@@ -306,13 +364,14 @@ const initialGameState: GameState = {
 	shelfStock: initialShelfStock,
 	shelfPrices: initialShelfPrices,
 	shelfSlotCounts: initialShelfSlotCounts,
-	unlockedShelfSlots: initialUnlockedShelfSlots,
+	unlockedShelfSlots: initialUnlockedShelfSlots * starterShelfIds.length,
 	shelfUpgradeLevels: initialShelfUpgradeLevels,
 	statistics: initialStatistics,
 };
 
 function getInitialGameState(): GameState {
 	return {
+		era: createInitialEraState(),
 		checkout: createCheckoutCounterState(),
 		coins: initialGameState.coins,
 		currencyPurchases: {
@@ -327,8 +386,11 @@ function getInitialGameState(): GameState {
 			employees: initialGameState.employees.employees.map((employee) => ({
 				...employee,
 			})),
+			lastPayroll: null,
 			nextHireNumber: initialGameState.employees.nextHireNumber,
 			nextPayrollAt: Date.now() + EMPLOYEE_PAYROLL_INTERVAL_MS,
+			nextTaskNumber: 1,
+			tasks: [],
 			totalSalariesPaid: 0,
 		},
 		incidents: createStoreIncidentsState(),
@@ -359,6 +421,10 @@ function getInitialGameState(): GameState {
 		unlockedMarketExpansionIds: [
 			...initialGameState.unlockedMarketExpansionIds,
 		],
+		marketExpansionConstruction: null,
+		interior: createStarterInteriorState(),
+		interiorConstructions: [],
+		builtSectorIds: [],
 		missions: {
 			claimedMissionIds: [...initialGameState.missions.claimedMissionIds],
 		},
@@ -456,6 +522,29 @@ function migrateGameState(persistedState: unknown): GameState {
 	const unlockedMarketExpansionIds = normalizeMarketExpansionIds(
 		state.unlockedMarketExpansionIds,
 	);
+	const pendingConstruction = normalizeMarketExpansionConstruction(
+		state.marketExpansionConstruction,
+	);
+	const marketExpansionConstruction =
+		pendingConstruction &&
+		!unlockedMarketExpansionIds.includes(pendingConstruction.expansionId)
+			? pendingConstruction
+			: null;
+	const builtSectorIds = normalizeBuiltSectorIds(
+		state.builtSectorIds,
+		normalizedLevel,
+	);
+	const persistedShop = state.shop?.ownedItemIds ?? [];
+	// Works that already finished (or whose target exists) are dropped.
+	const interiorConstructions = normalizeInteriorConstructions(
+		state.interiorConstructions,
+	).filter((item) =>
+		item.kind === "sector"
+			? !builtSectorIds.includes(item.targetId as ProductionSectorId)
+			: item.kind === "shop"
+				? !persistedShop.includes(item.targetId)
+				: getShelfSlotCount(item.targetId, shelfSlotCounts) <= 0,
+	);
 	const supplierOrderSlots = normalizeSupplierOrderSlots(
 		state.logistics?.supplierOrderSlots,
 	);
@@ -474,6 +563,11 @@ function migrateGameState(persistedState: unknown): GameState {
 			: Date.now();
 
 	return {
+		// Saves from before the eras (no "era" field) already have the market building.
+		era: normalizeEraState(
+			state.era,
+			state.era ? "mesinha" : getEraForExpansions(unlockedMarketExpansionIds),
+		),
 		checkout: normalizeCheckoutCounterState(state.checkout),
 		coins: state.coins ?? initialGameState.coins,
 		currencyPurchases: {
@@ -541,6 +635,10 @@ function migrateGameState(persistedState: unknown): GameState {
 		offlineSummary: state.offlineSummary ?? null,
 		lastSessionAt,
 		unlockedMarketExpansionIds,
+		marketExpansionConstruction,
+		interior: normalizeInteriorState(state.interior),
+		interiorConstructions,
+		builtSectorIds,
 		missions,
 		production,
 		shop,
@@ -593,31 +691,20 @@ export const useGameStore = create<GameStore>()(
 
 				const daily = normalizeDailyState(state.daily, state.market.level, now);
 				const shopEffects = getShopEffects(state.shop.ownedItemIds);
-				const activeEmployees = state.employees.employees.filter(
-					(employee) => employee.isWorking,
-				).length;
-				// Offline customers only arrive while the current day is still running.
-				const openMs =
-					state.day.phase === "open" && state.day.endsAt
-						? Math.max(
-								0,
-								Math.min(now, state.day.endsAt) - state.lastSessionAt,
-							)
-						: elapsedMs;
-				const customers =
-					state.market.isOpen && openMs > 0
-						? Math.min(
-								120,
-								Math.floor(Math.min(elapsedMs, openMs) / 90_000) +
-									activeEmployees,
-							)
-						: 0;
-				const averageRevenue =
+				// Obras keep going while the player is away.
+				get().processMarketEraConstruction(now);
+				// The market keeps selling while the player is away (if it was left open): every hour
+				// is worth part of a played turn, more in bigger eras (see data/economy.ts).
+				const averageTicket =
 					state.market.customersWhoBought > 0
 						? state.market.totalRevenue / state.market.customersWhoBought
 						: 18;
+				const away = state.market.isOpen
+					? getOfflineEraIncome(get().era, elapsedMs, averageTicket)
+					: null;
+				const customers = away?.customers ?? 0;
 				const offlineCoins = Math.floor(
-					customers * averageRevenue * shopEffects.offlineRevenueMultiplier,
+					(away?.coins ?? 0) * shopEffects.offlineRevenueMultiplier,
 				);
 				const progression = applyExperience(
 					state.market.level,
@@ -634,20 +721,7 @@ export const useGameStore = create<GameStore>()(
 				set({
 					coins: state.coins + offlineCoins,
 					daily: nextDaily,
-					day:
-						state.day.phase === "open" && customers > 0
-							? {
-									...state.day,
-									stats: {
-										...state.day.stats,
-										customers: state.day.stats.customers + customers,
-										profit:
-											state.day.stats.profit + Math.round(offlineCoins * 0.35),
-										revenue: state.day.stats.revenue + offlineCoins,
-										unitsSold: state.day.stats.unitsSold + customers,
-									},
-								}
-							: state.day,
+					// Offline sales stay out of the turn's stats: the contract counts what the player played.
 					lastSessionAt: now,
 					market: {
 						...state.market,
@@ -990,7 +1064,8 @@ export const useGameStore = create<GameStore>()(
 										market.randomSeed,
 										shopEffects.customerArrivalMultiplier *
 											eventEffects.customerArrivalMultiplier *
-											employeeEffects.customerArrivalMultiplier,
+											employeeEffects.customerArrivalMultiplier *
+								getEraEffects(get().era.id).customerArrivalMultiplier,
 									),
 							}
 						: market,
@@ -1020,6 +1095,63 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			// Sends away the test trucks (devArriveDelivery); real orders stay at the dock.
+			evolveMarketEra: () => {
+				const { coins, era } = get();
+				const check = checkEraEvolution(era, coins);
+				if (!check.ok) return false;
+				const now = Date.now();
+				set({ coins: coins - check.next.coinCost, era: startEraEvolution(era, now) });
+				get().processMarketEraConstruction(now);
+				return true;
+			},
+			processMarketEraConstruction: (now = Date.now()) => {
+				const { era } = get();
+				const next = finishEraConstruction(era, now);
+				if (next === era) return false;
+				set({ era: next });
+				return true;
+			},
+			finishMarketEraNow: () => {
+				const { era, logistics } = get();
+				if (!era.construction) return false;
+				const cost = getMarketExpansionSkipCost(era.construction.endsAt - Date.now());
+				if (logistics.premiumCurrency < cost) return false;
+				set({
+					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - cost },
+				});
+				return get().processMarketEraConstruction(Number.MAX_SAFE_INTEGER);
+			},
+			devSetMarketEra: (eraId: MarketEraId) => {
+				if (getMarketEra(eraId).id !== eraId) return false;
+				set({ era: { ...get().era, id: eraId, construction: null } });
+				return true;
+			},
+			devPassTime: (hours: number) => {
+				if (!Number.isFinite(hours) || hours <= 0) return false;
+				const shift = hours * 60 * 60_000;
+				const { era, lastSessionAt } = get();
+				// Everything that counts time from a timestamp moves back by the same amount.
+				set({
+					lastSessionAt: lastSessionAt - shift,
+					era: era.construction
+						? {
+								...era,
+								construction: {
+									...era.construction,
+									startedAt: era.construction.startedAt - shift,
+									endsAt: era.construction.endsAt - shift,
+								},
+							}
+						: era,
+				});
+				get().processSessionResume();
+				get().processMarketEraConstruction();
+				return true;
+			},
+			devFinishMarketExpansion: () => {
+				if (!__DEV__) return false;
+				return get().processMarketExpansionConstruction(Number.MAX_SAFE_INTEGER);
+			},
 			devClearDock: () => {
 				if (!__DEV__) return false;
 				const { receiving } = get();
@@ -1134,8 +1266,11 @@ export const useGameStore = create<GameStore>()(
 								salary: definition.salary,
 							},
 						],
+						lastPayroll: employees.lastPayroll,
 						nextHireNumber: employees.nextHireNumber + 1,
 						nextPayrollAt: employees.nextPayrollAt,
+						nextTaskNumber: employees.nextTaskNumber,
+						tasks: employees.tasks,
 						totalSalariesPaid: employees.totalSalariesPaid,
 					},
 				});
@@ -1269,6 +1404,13 @@ export const useGameStore = create<GameStore>()(
 					return false;
 				}
 
+				// Fixtures (second checkout, self-checkout) are installed by the builders.
+				const installed = isBuiltShopItem(item.id);
+				const interiorConstructions = get().interiorConstructions;
+				if (installed && findInteriorConstruction(interiorConstructions, "shop", item.id)) {
+					return false;
+				}
+
 				if (
 					(currency === "coins" &&
 						(!item.coinPrice || coins < item.coinPrice)) ||
@@ -1296,10 +1438,18 @@ export const useGameStore = create<GameStore>()(
 									[item.id]: (shop.consumableAmounts[item.id] ?? 0) + 1,
 								}
 							: shop.consumableAmounts,
-						ownedItemIds: item.isConsumable
-							? shop.ownedItemIds
-							: [...shop.ownedItemIds, item.id],
+						ownedItemIds:
+							item.isConsumable || installed
+								? shop.ownedItemIds
+								: [...shop.ownedItemIds, item.id],
 					},
+					// Bought fixtures wait in the inventory until the player places them.
+					interiorConstructions: installed
+						? [
+								...interiorConstructions,
+								createPendingConstruction("shop", item.id, shopItemBuildDurations[item.id]),
+							]
+						: interiorConstructions,
 					statistics: {
 						...statistics,
 						shopPurchases: statistics.shopPurchases + 1,
@@ -1334,7 +1484,8 @@ export const useGameStore = create<GameStore>()(
 										market.randomSeed,
 										shopEffects.customerArrivalMultiplier *
 											eventEffects.customerArrivalMultiplier *
-											employeeEffects.customerArrivalMultiplier,
+											employeeEffects.customerArrivalMultiplier *
+								getEraEffects(get().era.id).customerArrivalMultiplier,
 									),
 							}
 						: market,
@@ -1342,125 +1493,90 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
+			// Stock clerks and cleaners work job by job (src/services/staff-work.ts): a finished trip puts its
+			// box on the shelf, a finished fix clears the mishap; then everyone free gets the next job.
 			processEmployeeWork: () => {
-				const {
-					employees,
-					inventory,
-					inventoryLots,
-					shelfAssignments,
-					shelfLots,
-					shelfStock,
-					shelfUpgradeLevels,
-					statistics,
-				} = get();
-				const shopEffects = getShopEffects(get().shop.ownedItemIds);
-				const restockAmount = Math.ceil(
-					getEmployeeEffects(employees).restockAmount *
-						shopEffects.restockMultiplier,
-				);
-
-				if (restockAmount <= 0) {
-					return false;
-				}
-
-				const targetShelf = shelfProductSlots
-					.filter((shelf) =>
-						isShelfUnlocked(shelf.id, getCurrentShelfSlotCounts(get())),
-					)
-					.filter((shelf) => shelfAssignments[shelf.id])
-					.sort((left, right) => {
-						const leftCapacity = getShelfCapacity(
-							shelfUpgradeLevels[getPhysicalShelfId(left.id)],
-						);
-						const rightCapacity = getShelfCapacity(
-							shelfUpgradeLevels[getPhysicalShelfId(right.id)],
-						);
-						return (
-							(shelfStock[left.id] ?? 0) / leftCapacity -
-							(shelfStock[right.id] ?? 0) / rightCapacity
-						);
-					})[0];
-
-				if (!targetShelf) {
-					return false;
-				}
-
-				const productId = shelfAssignments[targetShelf.id];
-				const capacity = getShelfCapacity(
-					shelfUpgradeLevels[getPhysicalShelfId(targetShelf.id)],
-				);
-				const available = productId ? (inventory[productId] ?? 0) : 0;
-				const quantity = Math.min(
-					restockAmount,
-					available,
-					capacity - (shelfStock[targetShelf.id] ?? 0),
-				);
-
-				if (!productId || quantity <= 0) {
-					return false;
-				}
-
-				const inventoryLotsForProduct = reconcileInventoryLots(
-					productId,
-					available,
-					inventoryLots[productId],
-				);
-				const movedLots = takeInventoryLots(inventoryLotsForProduct, quantity);
-
-				set({
-					inventory: { ...inventory, [productId]: available - quantity },
-					inventoryLots: {
-						...inventoryLots,
-						[productId]: movedLots.remainingLots,
-					},
-					shelfLots: {
-						...shelfLots,
-						[targetShelf.id]: appendInventoryLots(
-							shelfLots[targetShelf.id],
-							movedLots.takenLots,
-						),
-					},
-					shelfStock: {
-						...shelfStock,
-						[targetShelf.id]: (shelfStock[targetShelf.id] ?? 0) + quantity,
-					},
-					statistics: {
-						...statistics,
-						restockedUnits: statistics.restockedUnits + quantity,
-					},
-				});
-
-				return true;
-			},
-			processEmployeePayroll: () => {
-				const { coins, employees } = get();
 				const now = Date.now();
-
-				if (now < employees.nextPayrollAt) {
-					return false;
+				let changed = false;
+				const finished = takeFinishedStaffTasks(get().employees.tasks ?? [], now);
+				if (finished.done.length > 0) {
+					set({ employees: { ...get().employees, tasks: finished.tasks } });
+					changed = true;
+					for (const task of finished.done) {
+						let worked = false;
+						if (task.kind === "restock") {
+							const state = get();
+							const capacity = getShelfCapacity(
+								state.shelfUpgradeLevels[getPhysicalShelfId(task.slotId)],
+							);
+							const amount = Math.min(
+								task.units,
+								state.inventory[task.productId] ?? 0,
+								capacity - (state.shelfStock[task.slotId] ?? 0),
+							);
+							worked =
+								amount > 0 &&
+								get().restockShelf({
+									amount,
+									productId: task.productId,
+									shelfId: task.slotId,
+								});
+						} else {
+							const fixed = fixStoreIncident(
+								get().incidents,
+								task.incidentId,
+								now,
+								"staff",
+							);
+							if (fixed) {
+								set({ incidents: fixed.state });
+								worked = true;
+							}
+						}
+						if (worked)
+							set({
+								employees: {
+									...get().employees,
+									employees: get().employees.employees.map((employee) =>
+										employee.id === task.employeeId
+											? grantEmployeeExperience(employee, 1)
+											: employee,
+									),
+								},
+							});
+					}
 				}
-
-				const payrollCost = getEmployeePayrollCost(employees);
-				const canPay = coins >= payrollCost;
-
-				set({
-					coins: canPay ? coins - payrollCost : coins,
-					employees: {
-						...employees,
-						employees: canPay
-							? employees.employees
-							: employees.employees.map((employee) => ({
-									...employee,
-									isWorking: false,
-								})),
-						nextPayrollAt: now + EMPLOYEE_PAYROLL_INTERVAL_MS,
-						totalSalariesPaid:
-							employees.totalSalariesPaid + (canPay ? payrollCost : 0),
-					},
+				const state = get();
+				const plan = planStaffTasks({
+					employees: state.employees.employees,
+					incidents: state.incidents.active,
+					isOpen: state.market.isOpen && state.day.phase === "open",
+					nextTaskNumber: state.employees.nextTaskNumber ?? 1,
+					now,
+					restockMultiplier: getShopEffects(state.shop.ownedItemIds).restockMultiplier,
+					slots: getRestockCandidates(state),
+					storage: getStaffStorageKind(
+						getSimulatorLayout(state.unlockedMarketExpansionIds),
+					),
+					tasks: state.employees.tasks ?? [],
 				});
-
-				return true;
+				if (
+					plan.started.length > 0 ||
+					plan.tasks.length !== (state.employees.tasks ?? []).length
+				) {
+					set({
+						employees: {
+							...state.employees,
+							nextTaskNumber: plan.nextTaskNumber,
+							tasks: plan.tasks,
+						},
+					});
+					changed = true;
+				}
+				return changed;
 			},
+			// Salaries are paid per shift when the market closes (setMarketOpen). Kept for old callers.
+			processEmployeePayroll: () => false,
 			processInventorySpoilage: () => {
 				const {
 					inventory,
@@ -1713,6 +1829,7 @@ export const useGameStore = create<GameStore>()(
 				if (
 					!sector ||
 					!recipe ||
+					!get().builtSectorIds.includes(sector.id) ||
 					market.level < sector.requiredLevel ||
 					market.level < recipe.requiredLevel
 				) {
@@ -1870,11 +1987,15 @@ export const useGameStore = create<GameStore>()(
 					budgetMultiplier:
 						(1 + Math.max(market.level - 1, 0) * 0.08) *
 						shopEffects.customerBudgetMultiplier *
-						eventEffects.customerBudgetMultiplier,
+						eventEffects.customerBudgetMultiplier *
+						getEraEffects(get().era.id).ticketMultiplier,
 					maxProductsBonus: shopEffects.maxProductsBonus,
 					products: availableProducts,
+					// Bigger eras sell bigger baskets of pricier goods.
 					revenueMultiplier:
-						shopEffects.revenueMultiplier * eventEffects.revenueMultiplier,
+						shopEffects.revenueMultiplier *
+						eventEffects.revenueMultiplier *
+						getEraEffects(get().era.id).ticketMultiplier,
 					seed: market.randomSeed,
 					storeReputation:
 						market.customerSatisfaction +
@@ -2009,6 +2130,7 @@ export const useGameStore = create<GameStore>()(
 								shopEffects.customerArrivalMultiplier *
 									eventEffects.customerArrivalMultiplier *
 									employeeEffects.customerArrivalMultiplier *
+								getEraEffects(get().era.id).customerArrivalMultiplier *
 									getLoyaltyArrivalMultiplier(day.loyalty),
 							),
 						recentCustomers: [customer, ...market.recentCustomers].slice(0, 3),
@@ -2092,7 +2214,12 @@ export const useGameStore = create<GameStore>()(
 			processStoreIncidents: () => {
 				const now = Date.now();
 				let changed = false;
-				const open = get().market.isOpen && get().day.phase === "open";
+				// Mishaps (broken freezer, lamps, dirt) belong to the market building: the stalls of the
+				// first eras (mesinha → Späti) have none.
+				const open =
+					get().market.isOpen &&
+					get().day.phase === "open" &&
+					getMarketEra(get().era.id).index >= 5;
 				const spawned = spawnStoreIncident(
 					get().incidents,
 					getIncidentShelves(get()),
@@ -2127,31 +2254,11 @@ export const useGameStore = create<GameStore>()(
 					set({ shelfLots: nextLots, shelfStock: nextStock });
 					changed = true;
 				}
-				// Cleaners and stock clerks deal with the mishaps they know how to fix.
-				const working = get().employees.employees.filter(
-					(employee) => employee.isWorking,
-				);
-				const efficiency = {
-					cleaner: working
-						.filter((employee) => employee.role === "cleaner")
-						.reduce((total, employee) => total + employee.efficiency, 0),
-					stock_clerk: working
-						.filter((employee) => employee.role === "stock_clerk")
-						.reduce((total, employee) => total + employee.efficiency, 0),
-				};
-				const staff = nextStaffFix(get().incidents, now, efficiency);
-				if (staff.state !== get().incidents) set({ incidents: staff.state });
-				if (staff.incidentId) {
-					const fixed = fixStoreIncident(
-						get().incidents,
-						staff.incidentId,
-						now,
-						"staff",
-					);
-					if (fixed) {
-						set({ incidents: fixed.state });
-						changed = true;
-					}
+				// Dirt customers track in, at its own pace; the cleaners sweep it (processEmployeeWork).
+				const dirt = spawnFloorDirt(get().incidents, getIncidentShelves(get()), now, open);
+				if (dirt.state !== get().incidents) {
+					set({ incidents: dirt.state });
+					changed = changed || Boolean(dirt.incident);
 				}
 				return changed;
 			},
@@ -2360,6 +2467,9 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			setMarketOpen: (isOpen) => {
+				// The shop needs its furniture: nothing opens while owned pieces still wait to be placed.
+				if (isOpen && !get().market.isOpen && getWaitingInteriorPieces(get().interior).length > 0)
+					return;
 				// Closing time: the customers already in line are rung up before the doors lock.
 				if (!isOpen && get().market.isOpen)
 					for (const pending of [...get().checkout.queue]) {
@@ -2410,6 +2520,7 @@ export const useGameStore = create<GameStore>()(
 							shopEffects.customerArrivalMultiplier *
 								eventEffects.customerArrivalMultiplier *
 								employeeEffects.customerArrivalMultiplier *
+								getEraEffects(get().era.id).customerArrivalMultiplier *
 								getLoyaltyArrivalMultiplier(day.loyalty),
 						);
 				const lastShiftSummary =
@@ -2438,9 +2549,34 @@ export const useGameStore = create<GameStore>()(
 							}
 						: market.lastShiftSummary;
 
+				// End of the shift (turno): everyone who worked it is paid; without the coins they stop working.
+				let coins = get().coins;
+				let nextEmployees = get().employees;
+				if (isClosing) {
+					const payroll = getShiftPayroll(nextEmployees.employees);
+					const paid = coins >= payroll;
+					if (paid) coins -= payroll;
+					nextEmployees = {
+						...nextEmployees,
+						employees: paid
+							? nextEmployees.employees
+							: nextEmployees.employees.map((employee) => ({
+									...employee,
+									isWorking: false,
+								})),
+						lastPayroll:
+							payroll > 0
+								? { amount: payroll, dayNumber: day.dayNumber, paid, paidAt: now }
+								: nextEmployees.lastPayroll,
+						tasks: [],
+						totalSalariesPaid: nextEmployees.totalSalariesPaid + (paid ? payroll : 0),
+					};
+				}
 				set({
+					coins,
 					daily,
 					day,
+					employees: nextEmployees,
 					lastSessionAt: now,
 					market: {
 						...market,
@@ -2471,8 +2607,9 @@ export const useGameStore = create<GameStore>()(
 				});
 			},
 			startDay: (contractId) => {
-				const { day, market } = get();
+				const { day, interior, market } = get();
 				if (day.phase !== "planning" || market.isOpen) return false;
+				if (getWaitingInteriorPieces(interior).length > 0) return false;
 				const started = startMarketDay(
 					day,
 					contractId === FREE_DAY_CONTRACT_ID ? null : contractId,
@@ -2535,6 +2672,11 @@ export const useGameStore = create<GameStore>()(
 				set({
 					coins: state.coins + reward.coins,
 					day: nextDay,
+					// A finished turn is what an hour away is worth (offline sales).
+					era: recordFinishedTurn(state.era, {
+						profit: day.stats.profit,
+						customers: day.stats.customers,
+					}),
 					logistics: {
 						...state.logistics,
 						premiumCurrency: state.logistics.premiumCurrency + reward.diamonds,
@@ -2751,24 +2893,113 @@ export const useGameStore = create<GameStore>()(
 				if (
 					!nextUpgrade ||
 					!nextShelf ||
+					findInteriorConstruction(state.interiorConstructions, "shelf", nextShelf.id) ||
 					state.market.level < nextUpgrade.playerLevel ||
 					state.coins < nextUpgrade.coinCost
 				) {
 					return false;
 				}
 
-				const nextShelfSlotCounts = {
-					...shelfSlotCounts,
-					[nextShelf.id]: initialUnlockedShelfSlots,
-				};
-
+				// The shelf goes to the inventory: the builders start once the player places it.
 				set({
 					coins: state.coins - nextUpgrade.coinCost,
-					shelfSlotCounts: nextShelfSlotCounts,
-					unlockedShelfSlots: getTotalUnlockedShelfSlots(nextShelfSlotCounts),
+					interiorConstructions: [
+						...state.interiorConstructions,
+						createPendingConstruction("shelf", nextShelf.id, getShelfBuildDurationMs(unlockedShelves)),
+					],
 				});
 
 				return true;
+			},
+			buildSector: (sectorId, currency = "coins") => {
+				const state = get();
+				const sector = getProductionSector(sectorId);
+				if (!sector) return false;
+				const plan = sectorBuildPlans[sector.id];
+				const layout = getSimulatorLayout(state.unlockedMarketExpansionIds);
+				const diamondCost = Math.max(1, Math.ceil(plan.coinCost / 1_500));
+				if (
+					state.builtSectorIds.includes(sector.id) ||
+					findInteriorConstruction(state.interiorConstructions, "sector", sector.id) ||
+					state.market.level < sector.requiredLevel ||
+					// The sector needs the market wing that has room for it.
+					!layout.sectorIds.includes(sector.id) ||
+					(currency === "coins" && state.coins < plan.coinCost) ||
+					(currency === "diamonds" &&
+						state.logistics.premiumCurrency < diamondCost)
+				) {
+					return false;
+				}
+				const now = Date.now();
+				set({
+					coins: currency === "coins" ? state.coins - plan.coinCost : state.coins,
+					logistics:
+						currency === "diamonds"
+							? {
+									...state.logistics,
+									premiumCurrency: state.logistics.premiumCurrency - diamondCost,
+								}
+							: state.logistics,
+					// The sector goes to the inventory: the builders start once the player places it.
+					interiorConstructions: [
+						...state.interiorConstructions,
+						createPendingConstruction("sector", sector.id, plan.durationMs, now),
+					],
+				});
+				return true;
+			},
+			processInteriorConstructions: (now = Date.now()) => {
+				const state = get();
+				const done = state.interiorConstructions.filter((item) => !item.pending && item.endsAt <= now);
+				if (done.length === 0) return false;
+				let shelfSlotCounts = getCurrentShelfSlotCounts(state);
+				let builtSectorIds = state.builtSectorIds;
+				let ownedItemIds = state.shop.ownedItemIds;
+				for (const item of done) {
+					if (item.kind === "shelf" && getShelfSlotCount(item.targetId, shelfSlotCounts) <= 0)
+						shelfSlotCounts = { ...shelfSlotCounts, [item.targetId]: initialUnlockedShelfSlots };
+					else if (item.kind === "sector" && !builtSectorIds.includes(item.targetId as ProductionSectorId))
+						builtSectorIds = [...builtSectorIds, item.targetId as ProductionSectorId];
+					else if (item.kind === "shop" && !ownedItemIds.includes(item.targetId))
+						ownedItemIds = [...ownedItemIds, item.targetId];
+				}
+				set({
+					// The next works in the queue start right away.
+					interiorConstructions: scheduleInteriorConstructions(
+						state.interiorConstructions.filter((item) => item.pending || item.endsAt > now),
+						Math.min(now, Date.now()),
+					),
+					shelfSlotCounts,
+					unlockedShelfSlots: getTotalUnlockedShelfSlots(shelfSlotCounts),
+					builtSectorIds,
+					shop: { ...state.shop, ownedItemIds },
+				});
+				return true;
+			},
+			finishInteriorConstructionNow: (constructionId) => {
+				const { interiorConstructions, logistics } = get();
+				const item = interiorConstructions.find((entry) => entry.id === constructionId);
+				// Bought but not placed: there is nothing to build yet.
+				if (!item || item.pending) return false;
+				const now = Date.now();
+				// Queued works cost their own building time, not the wait for the ones before.
+				const diamondCost = getInteriorSkipCost(
+					item.startedAt > now ? constructionDuration(item) : item.endsAt - now,
+				);
+				if (logistics.premiumCurrency < diamondCost) return false;
+				set({
+					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - diamondCost },
+					interiorConstructions: interiorConstructions.map((entry) =>
+						entry.id === constructionId
+							? { ...entry, startedAt: Math.min(entry.startedAt, now), endsAt: Math.min(entry.endsAt, now) }
+							: entry,
+					),
+				});
+				return get().processInteriorConstructions(now);
+			},
+			devFinishInteriorConstructions: () => {
+				if (!__DEV__) return false;
+				return get().processInteriorConstructions(Number.MAX_SAFE_INTEGER);
 			},
 			unlockNextShelfSlot: () => get().unlockNextShelf(),
 			expandShelfSlots: (shelfId) => {
@@ -2804,12 +3035,23 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			unlockMarketExpansion: (expansionId, currency = "coins") => {
-				const { coins, logistics, market, unlockedMarketExpansionIds } = get();
+				const {
+					coins,
+					logistics,
+					market,
+					marketExpansionConstruction,
+					unlockedMarketExpansionIds,
+				} = get();
 				const expansion = getMarketExpansion(expansionId);
 
 				if (
 					!expansion ||
+					marketExpansionConstruction ||
 					unlockedMarketExpansionIds.includes(expansionId) ||
+					getMissingMarketExpansionPrerequisites(
+						expansion,
+						unlockedMarketExpansionIds,
+					).length > 0 ||
 					market.level < expansion.requiredLevel ||
 					(currency === "coins" && coins < expansion.coinCost) ||
 					(currency === "diamonds" &&
@@ -2827,12 +3069,96 @@ export const useGameStore = create<GameStore>()(
 								? logistics.premiumCurrency - expansion.diamondCost
 								: logistics.premiumCurrency,
 					},
-					unlockedMarketExpansionIds: [
-						...unlockedMarketExpansionIds,
+					// Paying starts the works; the area opens when the construction finishes.
+					marketExpansionConstruction: {
 						expansionId,
-					],
+						startedAt: Date.now(),
+						endsAt: Date.now() + expansion.buildDurationMs,
+					},
 				});
 				return true;
+			},
+			processMarketExpansionConstruction: (now = Date.now()) => {
+				const { marketExpansionConstruction, unlockedMarketExpansionIds } =
+					get();
+				if (
+					!marketExpansionConstruction ||
+					marketExpansionConstruction.endsAt > now
+				) {
+					return false;
+				}
+				set({
+					marketExpansionConstruction: null,
+					unlockedMarketExpansionIds: unlockedMarketExpansionIds.includes(
+						marketExpansionConstruction.expansionId,
+					)
+						? unlockedMarketExpansionIds
+						: [
+								...unlockedMarketExpansionIds,
+								marketExpansionConstruction.expansionId,
+							],
+				});
+				return true;
+			},
+			saveInteriorLayout: (value) => {
+				const { interior, interiorConstructions } = get();
+				const sanitized = sanitizeInteriorItems(value, interior.owned);
+				if (!sanitized) return false;
+				// Bought pieces the player just placed start their works (in the builders' queue);
+				// the ones still stored stay in the inventory, owned by their pending construction.
+				const now = Date.now();
+				let constructions = interiorConstructions;
+				const pendingPieces = new Set<string>();
+				for (const build of interiorConstructions) {
+					if (!build.pending) continue;
+					const pieces = interiorPieceIds(build.kind, build.targetId);
+					if (pieces.some((id) => sanitized.some((item) => item.id === id && !item.stored)))
+						constructions = placeInteriorConstruction(constructions, build.id, now);
+					else for (const id of pieces) pendingPieces.add(id);
+				}
+				const items = sanitized.filter((item) => !(item.stored && pendingPieces.has(item.id)));
+				set({ interior: { ...interior, items }, interiorConstructions: constructions });
+				return true;
+			},
+			purchaseDecor: (decorId, currency = "coins") => {
+				const { coins, interior, logistics, market } = get();
+				const decor = getInteriorDecor(decorId);
+				if (!decor || market.level < decor.requiredLevel) return false;
+				const useDiamonds = currency === "diamonds" || !decor.coinPrice;
+				const price = useDiamonds ? decor.diamondPrice : decor.coinPrice;
+				if (!price) return false;
+				if (useDiamonds ? logistics.premiumCurrency < price : coins < price) return false;
+				if ((interior.owned[decorId] ?? 0) >= 99) return false;
+				set({
+					coins: useDiamonds ? coins : coins - price,
+					logistics: useDiamonds
+						? { ...logistics, premiumCurrency: logistics.premiumCurrency - price }
+						: logistics,
+					interior: {
+						...interior,
+						owned: { ...interior.owned, [decorId]: (interior.owned[decorId] ?? 0) + 1 },
+					},
+				});
+				return true;
+			},
+			finishMarketExpansionNow: () => {
+				const { logistics, marketExpansionConstruction } = get();
+				if (!marketExpansionConstruction) {
+					return false;
+				}
+				const diamondCost = getMarketExpansionSkipCost(
+					marketExpansionConstruction.endsAt - Date.now(),
+				);
+				if (logistics.premiumCurrency < diamondCost) {
+					return false;
+				}
+				set({
+					logistics: {
+						...logistics,
+						premiumCurrency: logistics.premiumCurrency - diamondCost,
+					},
+				});
+				return get().processMarketExpansionConstruction(Number.MAX_SAFE_INTEGER);
 			},
 			upgradeInventoryCapacity: (productId) => {
 				const { coins, inventoryCapacityLevels, market } = get();
@@ -2936,6 +3262,7 @@ export const useGameStore = create<GameStore>()(
 			},
 			name: "checkout.game",
 			partialize: ({
+				era,
 				checkout,
 				coins,
 				currencyPurchases,
@@ -2952,6 +3279,10 @@ export const useGameStore = create<GameStore>()(
 				offlineSummary,
 				lastSessionAt,
 				unlockedMarketExpansionIds,
+				marketExpansionConstruction,
+				interior,
+				interiorConstructions,
+				builtSectorIds,
 				missions,
 				production,
 				shop,
@@ -2964,6 +3295,7 @@ export const useGameStore = create<GameStore>()(
 				shelfUpgradeLevels,
 				statistics,
 			}) => ({
+				era,
 				checkout,
 				coins,
 				currencyPurchases,
@@ -2980,6 +3312,10 @@ export const useGameStore = create<GameStore>()(
 				offlineSummary,
 				lastSessionAt,
 				unlockedMarketExpansionIds,
+				marketExpansionConstruction,
+				interior,
+				interiorConstructions,
+				builtSectorIds,
 				missions,
 				production,
 				shop,
@@ -2993,7 +3329,10 @@ export const useGameStore = create<GameStore>()(
 				statistics,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
-			version: 34,
+			// 35: employees gained tasks/nextTaskNumber/lastPayroll (staff jobs and per-shift pay).
+			// 36: shelves, sectors and fixtures are built over time (interiorConstructions, builtSectorIds).
+			// 37: market eras (era: mesinha → rede); old saves start at the mercadinho or later.
+			version: 37,
 		},
 	),
 );
@@ -3087,6 +3426,30 @@ function normalizeShelfLots(
 	return normalizedLots;
 }
 
+// Shelf slots the stock clerks can refill: unlocked, with a product assigned.
+function getRestockCandidates(state: GameState): RestockCandidate[] {
+	const slotCounts = getCurrentShelfSlotCounts(state);
+	return shelfProductSlots.flatMap((slot) => {
+		const productId = state.shelfAssignments[slot.id];
+		if (!productId || !isShelfUnlocked(slot.id, slotCounts)) return [];
+		const product = itemCatalog.find((item) => item.id === productId);
+		if (!product) return [];
+		const shelfId = getPhysicalShelfId(slot.id);
+		return [
+			{
+				available: state.inventory[productId] ?? 0,
+				capacity: getShelfCapacity(state.shelfUpgradeLevels[shelfId]),
+				category: product.category,
+				productId,
+				productName: product.name,
+				shelfId,
+				slotId: slot.id,
+				stock: state.shelfStock[slot.id] ?? 0,
+			},
+		];
+	});
+}
+
 function normalizeEmployeesState(value: unknown): GameEmployeesState {
 	const state = value as Partial<GameEmployeesState> | undefined;
 	const employees = Array.isArray(state?.employees) ? state.employees : [];
@@ -3124,10 +3487,30 @@ function normalizeEmployeesState(value: unknown): GameEmployeesState {
 				},
 			];
 		}),
+		lastPayroll:
+			state?.lastPayroll &&
+			typeof state.lastPayroll.amount === "number" &&
+			typeof state.lastPayroll.paidAt === "number"
+				? state.lastPayroll
+				: null,
 		nextHireNumber:
 			typeof state?.nextHireNumber === "number" && state.nextHireNumber > 0
 				? Math.floor(state.nextHireNumber)
 				: initialEmployeesState.nextHireNumber,
+		nextTaskNumber:
+			typeof state?.nextTaskNumber === "number" && state.nextTaskNumber > 0
+				? Math.floor(state.nextTaskNumber)
+				: 1,
+		tasks: Array.isArray(state?.tasks)
+			? state.tasks.filter(
+					(task) =>
+						task &&
+						typeof task.id === "string" &&
+						typeof task.employeeId === "string" &&
+						typeof task.endsAt === "number" &&
+						(task.kind === "restock" || task.kind === "incident"),
+				)
+			: [],
 		nextPayrollAt:
 			typeof state?.nextPayrollAt === "number" &&
 			Number.isFinite(state.nextPayrollAt) &&

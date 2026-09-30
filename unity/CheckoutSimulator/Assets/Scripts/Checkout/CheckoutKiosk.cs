@@ -7,7 +7,7 @@ namespace Checkout {
   public const float ItemSeconds=.9f;
   Vector3[] local;Transform item;float elapsed,duration;
   void Awake(){
-   local=new Vector3[path.Length];for(int i=0;i<path.Length;i++)local[i]=transform.InverseTransformPoint(transform.position+path[i]);
+   local=new Vector3[path.Length];bool placed=GetComponent<CheckoutInteriorPiece>();for(int i=0;i<path.Length;i++)local[i]=placed?path[i]:transform.InverseTransformPoint(transform.position+path[i]); // Interior Kit kiosks are authored at unit scale facing -Z.
    var source=FindAnyObjectByType<CheckoutCashier>(FindObjectsInactive.Include);
    if(source&&source.item){item=Instantiate(source.item,transform.parent);item.name="Self checkout scanned item";item.gameObject.SetActive(false);}
   }

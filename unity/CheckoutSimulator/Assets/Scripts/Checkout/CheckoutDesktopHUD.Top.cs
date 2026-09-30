@@ -4,6 +4,7 @@ using K = Checkout.CheckoutDesktopKit;
 using N = Checkout.CheckoutDesktopCard;
 namespace Checkout {
  public partial class CheckoutDesktopHUD {
+  TextMeshProUGUI goalText;UnityEngine.UI.Image goalIcon;
   TextMeshProUGUI levelText,progressText,xpText,dailyText,eventName,eventTimer,eventEffect,coinsText,gemsText;
   RectTransform xpFill,dailyFill;GameObject eventPanel;UnityEngine.UI.Image eventEdge,eventFace,eventIcon,dailyEdge;
   CheckoutDesktopButton marketButton,claimButton;
@@ -33,15 +34,16 @@ namespace Checkout {
 
    BuildDayPanel(bar);
 
-   // Daily goal, with the claim button once it is reached.
-   var daily=Panel(bar,"Daily",250,96,out dailyEdge,out _);Clickable(dailyEdge.gameObject,()=>host.Route("!store"));
+   // The day's goal: the contract accepted for the day (its target and progress). Opens the day page.
+   var daily=Panel(bar,"Daily",270,96,out dailyEdge,out _);Clickable(dailyEdge.gameObject,()=>host.Route("!day"));
    N.Column(daily.gameObject,4,new RectOffset(14,14,8,8));
    var dhead=N.Node("Head",daily);N.Row(dhead.gameObject,8);
-   var coin=N.Image(dhead,"Coin",Color.white,0);coin.sprite=K.Icon("Icons/coin");coin.preserveAspect=true;var dl=coin.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();dl.preferredWidth=dl.preferredHeight=24;
+   goalIcon=N.Image(dhead,"Icon",Color.white,0);goalIcon.sprite=K.Icon("Icons/clipboard");goalIcon.preserveAspect=true;var dl=goalIcon.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();dl.preferredWidth=dl.preferredHeight=24;
    var dtitle=N.Text(dhead,"Title",K.Label,15,K.Ink);dtitle.text="META DO DIA";dtitle.textWrappingMode=TextWrappingModes.NoWrap;
    dailyText=N.Text(dhead,"Value",K.Number,14,K.Muted);dailyText.alignment=TextAlignmentOptions.Right;dailyText.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
+   goalText=N.Text(daily,"Goal",K.Body,13,K.Muted);goalText.textWrappingMode=TextWrappingModes.NoWrap;goalText.overflowMode=TextOverflowModes.Ellipsis;
    Bar(daily,12,K.C("F2B03D"),out dailyFill);
-   claimButton=CheckoutDesktopButton.Create(daily,30,13,10);claimButton.Clicked=Press;
+   claimButton=CheckoutDesktopButton.Create(daily,30,13,10);claimButton.Clicked=Press;claimButton.gameObject.SetActive(false);
 
    // Active event chip, only while an event runs.
    var ev=Panel(bar,"Event",270,96,out eventEdge,out eventFace);eventPanel=eventEdge.gameObject;
@@ -63,10 +65,11 @@ namespace Checkout {
   void ApplyTop(DesktopView v){
    levelText.text="NÍVEL "+v.level;xpText.text=v.xp+" / "+v.xpGoal+" XP";progressText.text=v.progressLabel;
    xpFill.anchorMax=new Vector2(Mathf.Clamp01(v.xp/(float)Mathf.Max(1,v.xpGoal)),1);
-   dailyText.text=v.daily;dailyFill.anchorMax=new Vector2(Mathf.Clamp01(v.dailyProgress),1);
-   dailyEdge.color=v.dailyClaimable?K.C("5DA637"):K.Border;
-   claimButton.gameObject.SetActive(v.dailyClaimable);
-   if(v.dailyClaimable)claimButton.Apply(new DesktopButton{label="Coletar meta",variant="success",enabled=true,action="claimDailyGoal",args="[]",ok="Meta do dia coletada!",route="",after="",fail=""});
+   dailyText.text=v.goalDone?"CUMPRIDA":v.daily;dailyText.color=v.goalDone?K.C("427A24"):K.Muted;
+   goalText.text=K.Clean(v.goalText);var gi=K.Icon(v.goalIcon);if(gi)goalIcon.sprite=gi;
+   dailyFill.anchorMax=new Vector2(Mathf.Clamp01(v.dailyProgress),1);dailyFill.GetComponent<UnityEngine.UI.Image>().color=v.goalDone?K.C("5DA637"):K.C("F2B03D");
+   dailyEdge.color=v.goalDone?K.C("5DA637"):K.Border;
+   claimButton.gameObject.SetActive(false);
    eventPanel.SetActive(v.hasEvent);
    if(v.hasEvent){var tone=K.Tone(v.eventNegative?"danger":"success");eventEdge.color=tone.edge;eventFace.color=tone.face;eventName.text=v.eventName;eventTimer.text=v.eventTimer;eventEffect.text=v.eventEffect;eventIcon.sprite=K.Icon(v.eventIcon);}
    coinsText.text=v.coins;gemsText.text=v.diamonds;

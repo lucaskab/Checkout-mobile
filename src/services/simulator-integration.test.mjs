@@ -18,10 +18,18 @@ const { gameEvents } = await import("../data/game-events.ts");
 const { itemCatalog } = await import("../data/market-products.ts");
 const { getInventoryCapacity } = await import("../data/inventory-capacity.ts");
 const { isShelfSlotUnlocked } = await import("../data/shelf-slots.ts");
+// These tests run a shop that is already furnished (the starter pieces are placed).
+useGameStore.setState({ interior: { items: [], owned: {} } });
 const initial = JSON.stringify(useGameStore.getState());
 beforeEach(() => useGameStore.setState(JSON.parse(initial)));
 const snapshot = () =>
 	createSimulatorSnapshot(useGameStore.getState(), "integration", 1);
+/** Pays for an expansion and fast-forwards its construction to completion. */
+const build = (id, currency) => {
+	const started = useGameStore.getState().unlockMarketExpansion(id, currency);
+	useGameStore.getState().processMarketExpansionConstruction(Number.MAX_SAFE_INTEGER);
+	return started;
+};
 test("System stock and prices reach the Unity projection", () => {
 	const s = useGameStore.getState();
 	const id = s.shelfAssignments.bakery;
@@ -74,12 +82,14 @@ test("closed market cannot sell just because the renderer requests a snapshot", 
 });
 test("new players do not see unlocked high-level production sectors", () => {
 	expect(snapshot().sectors.every((s) => !s.unlocked)).toBe(true);
-	expect(snapshot().shelves.filter((s) => s.unlocked)).toHaveLength(1);
+	// Two shelves and the drinks cooler come with the shop.
+	expect(snapshot().shelves.filter((s) => s.unlocked).map((s) => s.id)).toEqual(["produce", "dairy", "drinks"]);
 });
 test("simulator maps every four system slots to one physical shelf", () => {
 	const countUnlockedShelves = () =>
 		snapshot().shelves.filter((shelf) => shelf.unlocked).length;
 
+	useGameStore.setState({ shelfSlotCounts: undefined, unlockedShelfSlots: 4 });
 	expect(countUnlockedShelves()).toBe(1);
 	useGameStore.setState({ unlockedShelfSlots: 5 });
 	expect(countUnlockedShelves()).toBe(2);
@@ -107,14 +117,16 @@ test("simulator receives the same level roadmap and reward status as System", ()
 	expect(view.experience).toBe(useGameStore.getState().market.experience);
 	expect(view.experienceToNextLevel).toBeGreaterThan(0);
 	expect(view.dailyGoal).toBe(useGameStore.getState().daily.goal);
-	expect(view.shelves.find((s) => s.id === "coffee").requiredLevel).toBe(66);
+	// The starter shelves are free: the bakery shelf (the first one bought) needs level 3.
+	expect(view.shelves.find((s) => s.id === "bakery").requiredLevel).toBe(3);
+	expect(view.shelves.find((s) => s.id === "coffee").requiredLevel).toBe(34);
 	expect(view.sectors.find((s) => s.id === "padaria").requiredLevel).toBe(2);
 	expect(view.expansionStates.find((e) => e.id === "fresh-wing")).toEqual(
 		expect.objectContaining({ requiredLevel: 4, unlocked: false }),
 	);
 });
 test("an unaffordable expansion remains locked from either mode", () => {
-	expect(useGameStore.getState().unlockMarketExpansion("premium-hall")).toBe(
+	expect(build("premium-hall")).toBe(
 		false,
 	);
 	expect(snapshot().expansions).not.toContain("premium-hall");
@@ -129,7 +141,7 @@ test("an eligible expansion can be unlocked with diamonds", () => {
 	});
 
 	expect(
-		useGameStore.getState().unlockMarketExpansion("fresh-wing", "diamonds"),
+		build("fresh-wing", "diamonds"),
 	).toBe(true);
 	expect(useGameStore.getState().coins).toBe(0);
 	expect(useGameStore.getState().logistics.premiumCurrency).toBe(2);
@@ -153,13 +165,14 @@ test("production purchases visit their unlocked counter without changing persist
 			],
 		},
 	});
+	// The level only lets the player build the bakery: until it is built, customers use the shelf.
+	expect(snapshot().customers[0].purchases[0].shelfId).toBe("produce");
+	useGameStore.setState({ builtSectorIds: ["padaria"] });
 	expect(snapshot().customers[0].purchases[0].shelfId).toBe("sector-padaria");
 	expect(
 		useGameStore.getState().market.recentCustomers[0].purchases[0].shelfId,
 	).toBe("produce");
-	useGameStore.setState({
-		market: { ...useGameStore.getState().market, level: 1 },
-	});
+	useGameStore.setState({ builtSectorIds: [] });
 	expect(snapshot().customers[0].purchases[0].shelfId).toBe("produce");
 });
 
@@ -182,14 +195,14 @@ test("paid expansions progressively enlarge the simulator and survive snapshot r
 	const ids = ["fresh-wing", "service-wing", "stock-annex", "premium-hall"];
 	let previous = snapshot().layout;
 	for (const [index, id] of ids.entries()) {
-		expect(useGameStore.getState().unlockMarketExpansion(id)).toBe(true);
+		expect(build(id)).toBe(true);
 		const current = snapshot().layout;
 		expect(current.stage).toBe(index + 1);
 		expect(current.widthScale * current.depthScale).toBeGreaterThan(
 			previous.widthScale * previous.depthScale,
 		);
 		const coins = useGameStore.getState().coins;
-		expect(useGameStore.getState().unlockMarketExpansion(id)).toBe(false);
+		expect(build(id)).toBe(false);
 		expect(useGameStore.getState().coins).toBe(coins);
 		expect(
 			createSimulatorSnapshot(
@@ -224,7 +237,7 @@ test("independent expansion purchases do not grant other paid areas", () => {
 		coins: 500_000,
 		market: { ...state.market, level: 30 },
 	});
-	expect(useGameStore.getState().unlockMarketExpansion("service-wing")).toBe(
+	expect(build("service-wing")).toBe(
 		true,
 	);
 	expect(snapshot().layout).toEqual(
@@ -245,6 +258,8 @@ test("cold sector production and customer destinations stay shared between Syste
 		coins: 500_000,
 		market: { ...state.market, level: 30 },
 		inventory: { ...state.inventory, 5: 5, 8: 5, 13: 5, 21: 5, 24: 5 },
+		// Sectors produce only once they have been built.
+		builtSectorIds: ["bebidas", "sorvetes"],
 	});
 	const game = useGameStore.getState();
 	let revision = 1;
@@ -293,12 +308,12 @@ test("cold sector production and customer destinations stay shared between Syste
 		}),
 	).toBe(true);
 	expect(snapshot().layout.sectorIds).not.toContain("bebidas");
-	expect(useGameStore.getState().unlockMarketExpansion("service-wing")).toBe(
+	expect(build("service-wing")).toBe(
 		true,
 	);
 	expect(snapshot().layout.sectorIds).toContain("bebidas");
 	expect(snapshot().layout.sectorIds).not.toContain("sorvetes");
-	expect(useGameStore.getState().unlockMarketExpansion("premium-hall")).toBe(
+	expect(build("premium-hall")).toBe(
 		true,
 	);
 	expect(snapshot().layout.sectorIds).toContain("sorvetes");
@@ -339,8 +354,130 @@ test("unbuilt production counters keep customers at their authoritative shelf", 
 		},
 	});
 	expect(snapshot().customers[0].purchases[0].shelfId).toBe("produce");
-	expect(useGameStore.getState().unlockMarketExpansion("fresh-wing")).toBe(
+	expect(build("fresh-wing")).toBe(
 		true,
 	);
+	// The wing makes room for the cheese counter; it still has to be built.
+	expect(snapshot().customers[0].purchases[0].shelfId).toBe("produce");
+	expect(useGameStore.getState().buildSector("queijaria", "coins")).toBe(true);
+	useGameStore.getState().saveInteriorLayout([
+		...useGameStore.getState().interior.items,
+		{ id: "sector:queijaria", type: "sector", x: 2, z: 3, rot: 0 },
+	]);
+	useGameStore.getState().processInteriorConstructions(Number.MAX_SAFE_INTEGER);
 	expect(snapshot().customers[0].purchases[0].shelfId).toBe("sector-queijaria");
+});
+
+test("central warehouse needs the depot and loading yard, keeps the shop size and opens the wine cellar", () => {
+	const state = useGameStore.getState();
+	useGameStore.setState({
+		coins: 1_000_000,
+		market: { ...state.market, level: 30 },
+	});
+	const store = () => useGameStore.getState();
+	expect(build("grand-warehouse")).toBe(false);
+	expect(build("fresh-wing")).toBe(true);
+	expect(build("grand-warehouse")).toBe(false);
+	expect(build("stock-annex")).toBe(true);
+	const before = snapshot().layout;
+	expect(before.storageLarge).toBe(false);
+	expect(before.sectorIds).not.toContain("adega");
+	expect(build("grand-warehouse")).toBe(true);
+	const after = snapshot().layout;
+	expect(after.stage).toBe(before.stage);
+	expect(after.widthScale).toBe(before.widthScale);
+	expect(after).toEqual(
+		expect.objectContaining({ storage: true, storageLarge: true }),
+	);
+	expect(after.sectorIds).toContain("adega");
+	for (const id of ["service-wing", "premium-hall"]) {
+		expect(build(id)).toBe(true);
+	}
+	expect(snapshot().layout.stage).toBe(4);
+	expect(snapshot().layout.widthScale).toBe(1.38);
+});
+
+test("expansions take real time to build and diamonds can finish them early", () => {
+	const state = useGameStore.getState();
+	useGameStore.setState({
+		coins: 500_000,
+		logistics: { ...state.logistics, premiumCurrency: 0 },
+		market: { ...state.market, level: 30 },
+	});
+	const store = () => useGameStore.getState();
+	expect(store().unlockMarketExpansion("service-wing")).toBe(true);
+	const works = store().marketExpansionConstruction;
+	expect(works.expansionId).toBe("service-wing");
+	expect(works.endsAt - works.startedAt).toBe(2 * 60 * 60 * 1000);
+	expect(store().unlockedMarketExpansionIds).not.toContain("service-wing");
+	expect(snapshot().layout.stage).toBe(0);
+	expect(snapshot().construction).toEqual(
+		expect.objectContaining({ expansionId: "service-wing" }),
+	);
+	expect(snapshot().construction.targetLayout.stage).toBe(1);
+	expect(snapshot().construction.skipCost).toBe(12);
+	expect(
+		snapshot().expansionStates.find((e) => e.id === "service-wing").building,
+	).toBe(true);
+	// Only one construction site at a time.
+	expect(store().unlockMarketExpansion("fresh-wing")).toBe(false);
+	expect(store().processMarketExpansionConstruction(works.endsAt - 1)).toBe(false);
+	expect(store().finishMarketExpansionNow()).toBe(false);
+	useGameStore.setState({
+		logistics: { ...store().logistics, premiumCurrency: 20 },
+	});
+	expect(store().finishMarketExpansionNow()).toBe(true);
+	expect(store().logistics.premiumCurrency).toBe(8);
+	expect(store().marketExpansionConstruction).toBe(null);
+	expect(snapshot().layout.stage).toBe(1);
+	expect(snapshot().construction).toBe(null);
+	expect(store().unlockMarketExpansion("fresh-wing")).toBe(true);
+	expect(
+		store().processMarketExpansionConstruction(
+			store().marketExpansionConstruction.endsAt,
+		),
+	).toBe(true);
+	expect(store().unlockedMarketExpansionIds).toContain("fresh-wing");
+});
+
+test("build mode saves the furniture layout and sells decorations", () => {
+	const store = () => useGameStore.getState();
+	const state = store();
+	useGameStore.setState({
+		coins: 5_000,
+		logistics: { ...state.logistics, premiumCurrency: 20 },
+		market: { ...state.market, level: 3 },
+	});
+	const layout = [
+		{ id: "shelf:produce", type: "shelf", x: 3.2, z: 4.5, rot: 45 },
+		{ id: "checkout:main", type: "checkout", x: 2, z: 1.5, rot: 0 },
+	];
+	expect(store().saveInteriorLayout(layout)).toBe(true);
+	expect(snapshot().interior.items).toEqual([
+		{ id: "shelf:produce", type: "shelf", x: 3.2, z: 4.5, rot: 45, stored: false, outside: false },
+		{ id: "checkout:main", type: "checkout", x: 2, z: 1.5, rot: 0, stored: false, outside: false },
+	]);
+	// Decorations must be bought before they can be placed.
+	const withPlant = [...layout, { id: "decor-1", type: "plant-small", x: 1, z: 1, rot: 0 }];
+	expect(store().saveInteriorLayout(withPlant)).toBe(false);
+	expect(store().purchaseDecor("plant-small")).toBe(true);
+	expect(store().coins).toBe(4_200);
+	expect(store().saveInteriorLayout(withPlant)).toBe(true);
+	expect(snapshot().interior.owned).toEqual([{ type: "plant-small", count: 1 }]);
+	// Diamond-only decorations and level locks.
+	expect(store().purchaseDecor("balloons")).toBe(true);
+	expect(store().logistics.premiumCurrency).toBe(5);
+	expect(store().purchaseDecor("atm")).toBe(false);
+	expect(snapshot().decorCatalog.find((d) => d.id === "claw-machine").diamondPrice).toBe(25);
+	// Malformed layouts are rejected whole.
+	expect(store().saveInteriorLayout([{ id: "x", type: "shelf", x: Number.NaN, z: 0, rot: 0 }])).toBe(false);
+	expect(store().interior.items).toHaveLength(3);
+	// City decorations are placed outside, and only there.
+	expect(store().purchaseDecor("park-bench")).toBe(true);
+	expect(snapshot().decorCatalog.find((d) => d.id === "park-bench").zone).toBe("outside");
+	const bench = { id: "decor-2", type: "park-bench", x: 6, z: 12, rot: 90 };
+	expect(store().saveInteriorLayout([...withPlant, bench])).toBe(false);
+	expect(store().saveInteriorLayout([...withPlant, { ...bench, outside: true }])).toBe(true);
+	expect(snapshot().interior.items.at(-1).outside).toBe(true);
+	expect(store().saveInteriorLayout([{ ...layout[0], outside: true }])).toBe(false);
 });

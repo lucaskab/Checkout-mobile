@@ -15,7 +15,8 @@ namespace Checkout {
   Transform world,root,portal,steps;Bounds last;bool doorwayCleared;
 
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-  static void Boot(){if(!FindAnyObjectByType<MarketSimulation>()||FindAnyObjectByType<CheckoutEntranceDressing>())return;new GameObject("Checkout Entrance Dressing").AddComponent<CheckoutEntranceDressing>();}
+  static void Boot(){if(!FindAnyObjectByType<MarketSimulation>()||FindAnyObjectByType<CheckoutEntranceDressing>()||FindAnyObjectByType<CheckoutMarketShell>(FindObjectsInactive.Include))return; // the market shell builds its own entrance
+  new GameObject("Checkout Entrance Dressing").AddComponent<CheckoutEntranceDressing>();}
 
   bool Setup(){
    var simulation=FindAnyObjectByType<MarketSimulation>();world=simulation?simulation.world:null;if(!world)return false;

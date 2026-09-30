@@ -168,6 +168,13 @@ namespace Checkout {
    if(s)UnityEngine.Object.Destroy(s.gameObject);
   }
 
+  // Recorded-style effects from scripts/make_sounds.py (Resources/CheckoutDesktop/Sounds/<name>.wav).
+  static readonly Dictionary<string,AudioClip> sfx=new Dictionary<string,AudioClip>();
+  public static AudioClip Sfx(string name){
+   if(string.IsNullOrEmpty(name))return null;
+   if(sfx.TryGetValue(name,out var clip))return clip;
+   clip=Resources.Load<AudioClip>("CheckoutDesktop/Sounds/"+name);sfx[name]=clip;return clip;
+  }
   public static AudioClip Tone(float hz,float seconds,float hz2=0,float volume=.5f){
    int rate=22050,count=Mathf.Max(1,(int)(rate*seconds));var data=new float[count];
    for(int i=0;i<count;i++){float t=i/(float)rate,f=hz2>0&&i>count/2?hz2:hz,env=Mathf.Clamp01(1-t/seconds)*Mathf.Clamp01(t*80);data[i]=Mathf.Sin(2*Mathf.PI*f*t)*volume*env;}

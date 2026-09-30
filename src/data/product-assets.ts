@@ -64,6 +64,9 @@ export const productAssets: Record<number, ImageSourcePropType> = {
 	116: require("../../assets/game-art/products/product-116.png"),
 	117: require("../../assets/game-art/products/product-117.png"),
 	118: require("../../assets/game-art/products/product-118.png"),
+	119: require("../../assets/game-art/products/product-119.png"),
+	120: require("../../assets/game-art/products/product-120.png"),
+	121: require("../../assets/game-art/products/product-121.png"),
 };
 
 export function getProductAsset(productId: number): ImageSourcePropType {

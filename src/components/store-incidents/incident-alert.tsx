@@ -10,6 +10,7 @@ import { useGameStore } from "@/stores/game-store";
 
 const icons: Record<StoreIncidentKind, GameIconId> = {
 	derramado: "broom",
+	sujeira: "broom",
 	freezer_sorvete: "freezer",
 	geladeira_bebidas: "refrigerator",
 	etiqueta: "priceTag",
@@ -18,6 +19,7 @@ const icons: Record<StoreIncidentKind, GameIconId> = {
 
 const effects: Record<StoreIncidentKind, string> = {
 	derramado: "Clientes reclamam e a reputação cai",
+	sujeira: "Loja com cara de descuidada",
 	freezer_sorvete: "Sorvetes derretendo e prateleira parada",
 	geladeira_bebidas: "Bebidas esquentando e prateleira parada",
 	etiqueta: "Vendendo pela metade do preço",

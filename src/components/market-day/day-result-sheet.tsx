@@ -41,6 +41,8 @@ function ResultContent({
 }) {
 	styles.useVariants({ grade: result.grade });
 	const { stats } = result;
+	const payroll = useGameStore((state) => state.employees.lastPayroll);
+	const shiftPayroll = payroll?.dayNumber === result.dayNumber ? payroll : null;
 	const requests =
 		stats.requestsServed +
 		stats.requestsPartial +
@@ -96,6 +98,13 @@ function ResultContent({
 					label="Lucro nas vendas"
 					value={stats.profit.toLocaleString("pt-BR")}
 				/>
+				{shiftPayroll ? (
+					<Stat
+						icon="manager"
+						label={shiftPayroll.paid ? "Salários do turno" : "Salários não pagos"}
+						value={`-${shiftPayroll.amount.toLocaleString("pt-BR")}`}
+					/>
+				) : null}
 				<Stat
 					icon="customers"
 					label="Clientes"

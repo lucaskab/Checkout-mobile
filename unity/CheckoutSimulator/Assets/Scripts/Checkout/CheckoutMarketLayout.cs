@@ -12,6 +12,8 @@ namespace Checkout
         public int stage;
         public float widthScale = 1, depthScale = 1;
         public bool storage, parking, loadingYard, premium;
+        // The large central warehouse replaces the small storage building; its truck yard replaces the old one.
+        public bool storageLarge;
         public string[] sectorIds;
     }
 
@@ -32,12 +34,22 @@ namespace Checkout
         CheckoutExpansionNeighborhood neighborhood;
         string signature;
         public MarketLayout State { get; private set; } = new MarketLayout();
-        public static readonly Vector3 Anchor = new Vector3(-1.75f, 0, -10.6f);
+        // Set by the map just before a paid growth so the new facade waits for the timelapse reveal.
+        public bool holdNewDressing;
+        CheckoutStageDressing dressing;
+        CheckoutMarketShell shell;
+        // The west wall (next to the parking aisle) stays put: the shop grows east towards the street and
+        // north towards the yard. z -10.6 is where the entrance steps meet the sidewalk.
+        public static readonly Vector3 Anchor = new Vector3(-9.4f, 0, -10.6f);
+        // The whole shop sits 2.1 m further into the block than the supplied map, so the entrance steps
+        // start at the back edge of the sidewalk instead of on the footway and the cycle lane.
+        public static readonly Vector3 Offset = new Vector3(0, 0, 2.1f);
+        public static Vector3 WorldAnchor => Anchor + Offset;
         public Vector3 Point(Vector3 point) => Project(point, State);
-        public static Vector3 CheckoutPoint(Vector3 point, MarketLayout layout) => Project(point, layout) + new Vector3(-1.5f, 0, .2f) * Mathf.Clamp01((1 - layout.widthScale) / .22f);
+        public static Vector3 CheckoutPoint(Vector3 point, MarketLayout layout) => Project(point, layout);
         public static Vector3 Project(Vector3 point, MarketLayout layout)
         {
-            return Anchor + Vector3.Scale(point - Anchor, new Vector3(layout.widthScale, 1, layout.depthScale));
+            return Anchor + Offset + Vector3.Scale(point - Anchor, new Vector3(layout.widthScale, 1, layout.depthScale));
         }
         public bool HasSector(string id) => State.sectorIds == null || Array.IndexOf(State.sectorIds, id) >= 0;
 
@@ -45,6 +57,20 @@ namespace Checkout
         {
             world = root;
             neighborhood = world.GetComponentInChildren<CheckoutExpansionNeighborhood>(true);
+            dressing = world.GetComponentInChildren<CheckoutStageDressing>(true);
+            shell = world.GetComponentInChildren<CheckoutMarketShell>(true);
+            if (shell)
+            {
+                // The textured shell replaces the supplied building mesh and the old entrance slab/steps.
+                foreach (var name in new[] { "Building", "City Detail Repairs" })
+                {
+                    var old = world.Find(name);
+                    if (old) foreach (var r in old.GetComponentsInChildren<Renderer>(true)) r.forceRenderingOff = true;
+                }
+                // The shell's entrance has its own planters where these flower boxes stood.
+                foreach (var t in world.GetComponentsInChildren<Transform>(true))
+                    if (t.name.StartsWith("Entrance flowers")) foreach (var r in t.GetComponentsInChildren<Renderer>(true)) r.forceRenderingOff = true;
+            }
             simulation = FindAnyObjectByType<MarketSimulation>();
             traffic = FindAnyObjectByType<CheckoutCityTraffic>();
             delivery = world.GetComponentInChildren<MarketDeliveryWorker>(true);
@@ -85,17 +111,11 @@ namespace Checkout
                     Quaternion.Angle(root.rotation, placement.expectedRotation) < .05f) continue;
 
                 var position = root.position;
-                bool checkout = root.name == "Checkout" || root.name == "Worker_Cashier";
                 bool door = root.name.StartsWith("Anim_Door") || (root.parent && root.parent.name == "Clean entrance frame");
                 if (door)
                 {
                     float height = Mathf.Lerp(.9f, 1, Mathf.InverseLerp(.78f, 1, State.widthScale));
                     position.y = .63f + (position.y - .63f) / height;
-                }
-                if (checkout)
-                {
-                    position.x += 1.5f * Mathf.Clamp01((1 - State.widthScale) / .22f);
-                    position.z -= .2f;
                 }
                 placement.position = Unproject(position, State);
 
@@ -124,6 +144,19 @@ namespace Checkout
                 Apply(State);
             }
             return changed;
+        }
+
+        // Puts every projected object back on its unprojected (saved-scene) position. Editor tools call
+        // this instead of applying a scale-1 layout, which is not the identity because of Offset.
+        public void ResetToBase()
+        {
+            foreach (var placement in placements)
+            {
+                if (!placement.root) continue;
+                placement.root.position = placement.position;
+                placement.root.localScale = placement.scale;
+            }
+            signature = null;
         }
 
         public bool Apply(MarketLayout next)
@@ -158,9 +191,17 @@ namespace Checkout
                 placement.expectedRotation = placement.root.rotation;
             }
             foreach (var progress in world.GetComponentsInChildren<CheckoutSectorProgress>(true)) progress.RebaseHomes();
-            SetActive("Warehouse", next.storage);
-            SetActive("Loading Yard Details", next.loadingYard);
+            bool grand = next.storageLarge;
+            bool oldYard = next.loadingYard && !grand;
+            SetActive("Warehouse", next.storage && !grand);
+            SetActive(GrandWarehouse, grand);
+            SetActive(GrandWarehouseSite, !grand);
+            SetActive(GrandYard, grand);
+            SetActive("Loading Yard Details", oldYard);
             SetActive("Expansion Park", next.premium);
+            if (shell) shell.Apply(next);
+            if (dressing) dressing.Apply(this, next.stage, holdNewDressing);
+            holdNewDressing = false;
             if (neighborhood) neighborhood.Apply(next);
             foreach(var renderer in FindObjectsByType<UnityEngine.Tilemaps.TilemapRenderer>())
             {
@@ -169,9 +210,10 @@ namespace Checkout
                 var center=Point(Vector3.zero);
                 properties.SetFloat("_ExpansionProjection",1);
                 // The service driveway across the north sidewalk only exists once the loading yard is bought.
-                properties.SetFloat("_LoadingAccessEnabled",next.loadingYard?1:0);
+                properties.SetFloat("_LoadingAccessEnabled",oldYard?1:0);
+                properties.SetFloat("_GrandYardEnabled",grand?1:0);
                 properties.SetFloat("_ParkingSpaces",next.parking?(next.stage>=3?5:3):0);
-                properties.SetVector("_ExpansionFeatures",new Vector4(next.storage?1:0,next.parking?1:0,next.loadingYard?1:0,next.premium?1:0));
+                properties.SetVector("_ExpansionFeatures",new Vector4(next.storage?1:0,next.parking?1:0,oldYard?1:0,next.premium?1:0));
                 properties.SetVector("_MarketFootprint",new Vector4(center.x,center.z,9.4f*next.widthScale,7.4f*next.depthScale));
                 renderer.SetPropertyBlock(properties);
             }
@@ -179,12 +221,20 @@ namespace Checkout
             var parking=world.GetComponentInChildren<CheckoutParkingSpaces>(true);
             if(parking)parking.Apply(next.parking?(next.stage>=3?5:3):0);
             foreach (var detail in premiumDetails) detail.SetActive(next.premium);
-            foreach (var detail in storageDetails) detail.SetActive(next.storage);
-            if(delivery)
+            foreach (var detail in storageDetails) detail.SetActive(next.storage && !grand);
+            var grandPath = grand ? world.Find(GrandYard + "/Worker path") : null;
+            if(delivery && grandPath && grandPath.childCount >= 2)
+            {
+                // Trucks unload at the dock of the central warehouse.
+                var path = new Vector3[grandPath.childCount];
+                for (int i = 0; i < path.Length; i++) path[i] = grandPath.GetChild(i).position;
+                delivery.SetDestination(path[0], path);
+            }
+            else if(delivery)
             {
                 // Before the warehouse is bought, parcels are delivered to the shop's rear door.
-                var doorstep=next.storage?storageDoor:Point(new Vector3(4,.74f,6.65f));
-                var rear=Point(new Vector3(4,.15f,8.9f));
+                var doorstep=next.storage?storageDoor:Point(new Vector3(CheckoutInterior.RearDoorX,.74f,6.65f));
+                var rear=Point(new Vector3(CheckoutInterior.RearDoorX,.15f,8.9f));
                 var route=next.storage?deliveryRoute:new[]{doorstep,rear,new Vector3(rear.x,.15f,16.19f),deliveryRoute[2],deliveryRoute[3]};
                 delivery.SetDestination(doorstep,route);
             }
@@ -200,12 +250,14 @@ namespace Checkout
             return true;
         }
 
+        public const string GrandWarehouse = "Warehouse Large", GrandWarehouseSite = "Abandoned Warehouse (future expansion)", GrandYard = "Grand Loading Yard";
+
         void SetActive(string path, bool active) { var root = world.Find(path); if (root) root.gameObject.SetActive(active); }
 
-        static Vector3 Unproject(Vector3 point, MarketLayout layout)
+        public static Vector3 Unproject(Vector3 point, MarketLayout layout)
         {
             var size = new Vector3(Mathf.Max(.0001f, layout.widthScale), 1, Mathf.Max(.0001f, layout.depthScale));
-            return Anchor + Vector3.Scale(point - Anchor, new Vector3(1 / size.x, 1, 1 / size.z));
+            return Anchor + Vector3.Scale(point - Anchor - Offset, new Vector3(1 / size.x, 1, 1 / size.z));
         }
 
         static Vector3 Divide(Vector3 value, Vector3 divisor) => new Vector3(

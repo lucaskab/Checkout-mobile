@@ -111,16 +111,21 @@ test("unlocks complete shelves and expands only the selected shelf", () => {
 	useGameStore.setState({ coins: 5_000 });
 
 	expect(useGameStore.getState().unlockNextShelf()).toBe(true);
+	// The shop comes with produce, dairy and the drinks cooler; the first shelf bought is the bakery one.
+	// It waits in the inventory; placed in the shop, the builders need a moment.
+	expect(useGameStore.getState().shelfSlotCounts.bakery).toBe(0);
+	expect(useGameStore.getState().saveInteriorLayout([{ id: "shelf:bakery", type: "shelf", x: 0, z: 1, rot: 0 }])).toBe(true);
+	expect(useGameStore.getState().processInteriorConstructions(Number.MAX_SAFE_INTEGER)).toBe(true);
 	let state = useGameStore.getState();
 	expect(state.shelfSlotCounts.produce).toBe(4);
-	expect(state.shelfSlotCounts.dairy).toBe(4);
-	expect(state.unlockedShelfSlots).toBe(8);
+	expect(state.shelfSlotCounts.bakery).toBe(4);
+	expect(state.unlockedShelfSlots).toBe(16);
 
 	expect(state.expandShelfSlots("produce")).toBe(true);
 	state = useGameStore.getState();
 	expect(state.shelfSlotCounts.produce).toBe(5);
 	expect(state.shelfSlotCounts.dairy).toBe(4);
-	expect(state.unlockedShelfSlots).toBe(9);
+	expect(state.unlockedShelfSlots).toBe(17);
 });
 test("capacity upgrades apply to all four spaces and persist new assignments", async () => {
 	const [a] = available();

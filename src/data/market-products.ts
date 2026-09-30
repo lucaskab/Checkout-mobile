@@ -1037,6 +1037,45 @@ const catalogSeeds: CatalogSeed[] = [
 		preferredCustomers: ["familia", "premium"],
 		acquisition: "production",
 	},
+	{
+		id: 119,
+		name: "Vinho tinto da casa",
+		category: "bebidas",
+		purchasePrice: 30,
+		sellingPrice: 58,
+		rarity: "raro",
+		unlockLevel: 20,
+		demand: 52,
+		popularity: 80,
+		preferredCustomers: ["normal", "premium"],
+		acquisition: "production",
+	},
+	{
+		id: 120,
+		name: "Sangria da casa",
+		category: "bebidas",
+		purchasePrice: 48,
+		sellingPrice: 86,
+		rarity: "epico",
+		unlockLevel: 21,
+		demand: 44,
+		popularity: 86,
+		preferredCustomers: ["familia", "premium"],
+		acquisition: "production",
+	},
+	{
+		id: 121,
+		name: "Kit harmonização",
+		category: "gourmet",
+		purchasePrice: 190,
+		sellingPrice: 320,
+		rarity: "lendario",
+		unlockLevel: 23,
+		demand: 30,
+		popularity: 94,
+		preferredCustomers: ["premium"],
+		acquisition: "production",
+	},
 ];
 
 const baseItemCatalog = catalogSeeds.map(createItem);
@@ -1126,15 +1165,33 @@ export const productionProducts = itemCatalog.filter(
 	(product) => product.acquisition === "production",
 );
 
-export const shelves: StoreShelf[] = marketProducts.map((product, index) => ({
+// The shop opens with two shelves and the drinks cooler: they come first, the rest unlock in this order.
+const shelfOrder = ["produce", "dairy", "drinks"];
+const shelfRank = (shelfId: string) => {
+	const rank = shelfOrder.indexOf(shelfId);
+	return rank < 0 ? shelfOrder.length : rank;
+};
+const orderedShelfProducts = marketProducts
+	.map((product, index) => ({ product, index }))
+	.sort(
+		(a, b) =>
+			shelfRank(a.product.shelfId) - shelfRank(b.product.shelfId) ||
+			a.index - b.index,
+	)
+	.map(({ product }) => product);
+
+export const shelves: StoreShelf[] = orderedShelfProducts.map((product, index) => ({
 	id: product.shelfId,
-	name: `Prateleira ${index + 1}`,
+	name: product.shelfId === "drinks" ? "Geladeira de bebidas" : `Prateleira ${index + 1}`,
 }));
+
+/** Shelves the player owns on a new game (placed by the player in build mode). */
+export const starterShelfIds = shelfOrder;
 
 export const initialShelfAssignments = Object.fromEntries(
 	marketProducts.map((product, index) => [
 		product.shelfId,
-		index < 4 ? product.id : null,
+		index < 4 || starterShelfIds.includes(product.shelfId) ? product.id : null,
 	]),
 );
 

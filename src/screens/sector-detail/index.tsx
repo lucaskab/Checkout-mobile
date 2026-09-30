@@ -37,6 +37,8 @@ import {
 	getRecipeProfitMargin,
 } from "@/services/production";
 import { useGameStore } from "@/stores/game-store";
+import { BuildPanel } from "@/components/build-panel";
+import { getSectorBuildStatus } from "@/services/interior-construction";
 
 type SectorDetailScreenProps = EmbeddedNavigationProps & {
 	sectorId: string;
@@ -72,6 +74,7 @@ function UnlockedSectorScreen({
 	const { theme } = useUnistyles();
 	const heroColors = {
 		acougue: theme.colors["red-100"],
+		adega: theme.colors["red-100"],
 		bebidas: theme.colors["green-100"],
 		padaria: theme.colors["amber-100"],
 		peixaria: theme.colors["blue-100"],
@@ -88,20 +91,36 @@ function UnlockedSectorScreen({
 		(state) => state.finishProductionNow,
 	);
 	const startProduction = useGameStore((state) => state.startProduction);
+	const coins = useGameStore((state) => state.coins);
+	const builtSectorIds = useGameStore((state) => state.builtSectorIds);
+	const interiorConstructions = useGameStore((state) => state.interiorConstructions);
+	const market = useGameStore((state) => state.market);
+	const unlockedMarketExpansionIds = useGameStore((state) => state.unlockedMarketExpansionIds);
+	const buildSector = useGameStore((state) => state.buildSector);
+	const finishInteriorConstructionNow = useGameStore((state) => state.finishInteriorConstructionNow);
+	// The sector must be built (paid works that take a while) before it can produce.
+	const build = getSectorBuildStatus(
+		{ builtSectorIds, interiorConstructions, market, unlockedMarketExpansionIds } as Parameters<
+			typeof getSectorBuildStatus
+		>[0],
+		sector.id,
+		currentTime,
+	);
+	const built = build.status === "built";
 	const eventEffects = getActiveGameEventEffects(events);
 	const recipes = getSectorRecipes(sector.id);
 	const sectorJobs = jobs.filter((job) => job.sectorId === sector.id);
 	const hasFreeSlot = sectorJobs.length < sector.slotCount;
 
 	useEffect(() => {
-		if (sectorJobs.length === 0) {
+		if (sectorJobs.length === 0 && build.status !== "building") {
 			return;
 		}
 
 		const interval = setInterval(() => setCurrentTime(Date.now()), 1_000);
 
 		return () => clearInterval(interval);
-	}, [sectorJobs.length]);
+	}, [sectorJobs.length, build.status]);
 
 	function produce(recipe: ProductionRecipe) {
 		const product = itemCatalog.find(
@@ -264,12 +283,12 @@ function UnlockedSectorScreen({
 					</View>
 
 					<Pressable
-						disabled={isLocked || !hasIngredients || !hasFreeSlot}
+						disabled={isLocked || !built || !hasIngredients || !hasFreeSlot}
 						onPress={() => produce(recipe)}
 						style={({ pressed }) => [
 							styles.produceButton,
 							getButtonStyle(sector.id),
-							(isLocked || !hasIngredients || !hasFreeSlot) &&
+							(isLocked || !built || !hasIngredients || !hasFreeSlot) &&
 								styles.disabledButton,
 							pressed && styles.pressedButton,
 						]}
@@ -277,7 +296,9 @@ function UnlockedSectorScreen({
 						<Text style={styles.produceButtonText}>
 							{isLocked
 								? `Libera no nível ${recipe.requiredLevel}`
-								: !hasFreeSlot
+								: !built
+									? "Construa o setor primeiro"
+									: !hasFreeSlot
 									? "Slots ocupados"
 									: !hasIngredients
 										? "Ingredientes insuficientes"
@@ -325,7 +346,40 @@ function UnlockedSectorScreen({
 						</View>
 					</View>
 
-					<View style={styles.productionSection}>
+					{!built && (
+						<View style={styles.productionSection}>
+							<BuildPanel
+								coins={coins}
+								diamonds={diamonds}
+								onBuild={() =>
+									setFeedback(
+										buildSector(sector.id, "coins")
+											? "Setor comprado! Ele está no inventário: coloque-o no modo construir."
+											: build.reason || "Moedas insuficientes.",
+									)
+								}
+								onBuildWithDiamonds={() =>
+									setFeedback(
+										buildSector(sector.id, "diamonds")
+											? "Setor comprado! Ele está no inventário: coloque-o no modo construir."
+											: build.reason || "Diamantes insuficientes.",
+									)
+								}
+								onSpeedUp={() =>
+									build.construction &&
+									setFeedback(
+										finishInteriorConstructionNow(build.construction.id)
+											? `${sector.name} pronto!`
+											: "Diamantes insuficientes.",
+									)
+								}
+								status={build}
+								title={build.status === "building" ? `Construindo ${sector.name}` : `Construir ${sector.name}`}
+							/>
+						</View>
+					)}
+
+					{built && (<View style={styles.productionSection}>
 						<View style={styles.sectionTitleRow}>
 							<View>
 								<Text style={styles.sectionTitle}>Linha de produção</Text>
@@ -357,7 +411,7 @@ function UnlockedSectorScreen({
 								);
 							})}
 						</View>
-					</View>
+					</View>)}
 
 					{feedback && (
 						<Pressable
@@ -487,6 +541,8 @@ function getAmbientCopy(sectorId: ProductionSector["id"]) {
 			return "Refrigerador ligado · bebidas fresquinhas";
 		case "sorvetes":
 			return "Freezer a -18°C · sobremesas geladas";
+		case "adega":
+			return "Adega a 14°C · rótulos selecionados";
 	}
 }
 
@@ -504,6 +560,8 @@ function getHeroStyle(sectorId: ProductionSector["id"]) {
 			return styles.drinksHero;
 		case "sorvetes":
 			return styles.iceCreamHero;
+		case "adega":
+			return styles.wineHero;
 	}
 }
 
@@ -521,6 +579,8 @@ function getRecipeAccentStyle(sectorId: ProductionSector["id"]) {
 			return styles.drinksRecipe;
 		case "sorvetes":
 			return styles.iceCreamRecipe;
+		case "adega":
+			return styles.wineRecipe;
 	}
 }
 
@@ -538,6 +598,8 @@ function getButtonStyle(sectorId: ProductionSector["id"]) {
 			return styles.drinksButton;
 		case "sorvetes":
 			return styles.iceCreamButton;
+		case "adega":
+			return styles.wineButton;
 	}
 }
 
@@ -585,6 +647,7 @@ const styles = StyleSheet.create((theme) => ({
 	fishHero: { backgroundColor: theme.colors["blue-100"] },
 	drinksHero: { backgroundColor: theme.colors["green-100"] },
 	iceCreamHero: { backgroundColor: theme.colors["violet-100"] },
+	wineHero: { backgroundColor: theme.colors["red-100"] },
 	detailTopBar: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -834,6 +897,7 @@ const styles = StyleSheet.create((theme) => ({
 	fishRecipe: { borderColor: theme.colors["blue-200"] },
 	drinksRecipe: { borderColor: theme.colors["green-100"] },
 	iceCreamRecipe: { borderColor: theme.colors["violet-100"] },
+	wineRecipe: { borderColor: theme.colors["red-100"] },
 	recipeHeader: { flexDirection: "row", alignItems: "center" },
 	productEmojiFrame: {
 		width: theme.gap(5.5),
@@ -1014,6 +1078,7 @@ const styles = StyleSheet.create((theme) => ({
 	fishButton: { backgroundColor: theme.colors["blue-500"] },
 	drinksButton: { backgroundColor: theme.colors["green-500"] },
 	iceCreamButton: { backgroundColor: theme.colors["violet-500"] },
+	wineButton: { backgroundColor: theme.colors["red-500"] },
 	disabledButton: { backgroundColor: theme.colors["neutral-300"] },
 	pressedButton: { opacity: 0.75 },
 	produceButtonText: {

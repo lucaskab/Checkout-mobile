@@ -80,20 +80,22 @@ namespace MarketDay
                 return;
             }
 
-            // The rigs look along -forward. The grip sits at chin height, in front of the shoulder and a bit inwards,
-            // with the elbow down and out, like someone walking with an umbrella.
+            // The rigs look along -forward. The hand holds the shaft in front of the chest on its own side,
+            // at shoulder height, forearm raised and elbow down and out: the arm stays outside the
+            // body and the shaft clear of the face (the chunky rigs have big heads and short arms).
             Vector3 headPosition = head ? head.position : BoundsHeadPosition();
-            Vector3 face = -transform.forward;
-            Vector3 grip = headPosition - Vector3.up * .2f + face * .3f;
+            Vector3 face = -transform.forward; face.y = 0; face = face.sqrMagnitude > .001f ? face.normalized : Vector3.forward;
+            Vector3 grip = headPosition - Vector3.up * .45f + face * .3f;
             if (upperArm && forearm && hand)
             {
                 Vector3 side = transform.right * Mathf.Sign(transform.InverseTransformPoint(upperArm.position).x);
                 Vector3 shoulder = upperArm.position;
-                grip = shoulder + Vector3.up * .08f + face * .3f - side * .08f;
+                float arm = upperArmLength + forearmLength;
+                grip = shoulder + Vector3.up * arm * .1f + face * arm * .58f + side * arm * .16f;
                 Vector3 toGrip = grip - shoulder;
                 float reach = Mathf.Clamp(toGrip.magnitude, Mathf.Abs(upperArmLength - forearmLength) + .01f, upperArmLength + forearmLength - .01f);
                 Vector3 direction = toGrip.normalized;
-                Vector3 pole = Vector3.ProjectOnPlane(side * .5f - Vector3.up, direction).normalized;
+                Vector3 pole = Vector3.ProjectOnPlane(side * .8f - Vector3.up - face * .2f, direction).normalized;
                 float cos = Mathf.Clamp((upperArmLength * upperArmLength + reach * reach - forearmLength * forearmLength) / (2 * upperArmLength * reach), -1, 1);
                 Vector3 elbow = shoulder + direction * upperArmLength * cos + pole * upperArmLength * Mathf.Sqrt(1 - cos * cos);
                 Aim(upperArm, forearm, elbow - shoulder);
@@ -102,7 +104,7 @@ namespace MarketDay
             }
 
             // The shaft leans a little towards the head so the canopy stays centred over it.
-            Vector3 lean = Vector3.ProjectOnPlane(headPosition - grip, Vector3.up) * .35f;
+            Vector3 lean = Vector3.ProjectOnPlane(headPosition - grip, Vector3.up) * .4f;
             Quaternion rotation = Quaternion.FromToRotation(Vector3.up, (Vector3.up + lean).normalized) * Quaternion.LookRotation(face, Vector3.up);
             // The hand slides up the long shaft when the canopy rim would touch the hair (the big heads vary a lot).
             Vector3 axis = rotation * Vector3.up;

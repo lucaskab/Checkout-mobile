@@ -30,6 +30,8 @@ import {
 import { ShelfManagementScreen } from "@/screens/shelf-management";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { useGameStore } from "@/stores/game-store";
+import { BuildPanel } from "@/components/build-panel";
+import { getNextShelfBuildStatus } from "@/services/interior-construction";
 import { AttentionCard } from "./components/attention-card";
 import { MarketExpansionsSheet } from "./components/market-expansions-sheet";
 import { ShelfGrid } from "./components/shelf-grid";
@@ -52,6 +54,12 @@ export function StoreScreen() {
 		unlockedShelfSlots,
 	);
 	const dayPhase = useGameStore((state) => state.day.phase);
+	// With a stock clerk at work the low-stock alert only points at the shelf; he refills it himself.
+	const hasStockClerk = useGameStore((state) =>
+		(state.employees?.employees ?? []).some(
+			(employee) => employee.isWorking && employee.role === "stock_clerk",
+		),
+	);
 	const closeDay = useGameStore((state) => state.closeDay);
 	const experienceToNextLevel = getExperienceToNextLevel(market.level);
 	const recentUnlocks = itemCatalog
@@ -94,12 +102,13 @@ export function StoreScreen() {
 
 			return [
 				{
-					actionLabel: "Reabastecer",
+					actionLabel: hasStockClerk ? "Ver" : "Reabastecer",
 					id: shelf.id,
-					issue:
+					issue: `${
 						quantity === 0
 							? "A prateleira está vazia."
-							: `Restam ${quantity} unidades na prateleira.`,
+							: `Restam ${quantity} unidades na prateleira.`
+					}${hasStockClerk ? " O repositor já vai repor." : ""}`,
 					name: product.name,
 					productId: product.id,
 					type: "low" as const,
@@ -207,6 +216,10 @@ function ShelfSlotUnlockSheet({ shelf }: { shelf: StoreShelf }) {
 	const coins = useGameStore((state) => state.coins);
 	const marketLevel = useGameStore((state) => state.market.level);
 	const unlockNextShelf = useGameStore((state) => state.unlockNextShelf);
+	const finishInteriorConstructionNow = useGameStore((state) => state.finishInteriorConstructionNow);
+	const diamonds = useGameStore((state) => state.logistics.premiumCurrency);
+	const buildState = useGameStore((state) => state);
+	const build = getNextShelfBuildStatus(buildState);
 	const [feedback, setFeedback] = useState<string | null>(null);
 	if (!shelf.nextShelfUpgrade) {
 		return null;
@@ -219,14 +232,18 @@ function ShelfSlotUnlockSheet({ shelf }: { shelf: StoreShelf }) {
 
 	function unlockShelfSlot() {
 		if (unlockNextShelf()) {
-			setFeedback("Nova prateleira liberada com quatro espaços disponíveis.");
+			setFeedback("Prateleira comprada! Ela está no inventário: coloque-a no modo construir.");
 			return;
 		}
 
 		setFeedback(
-			hasRequiredLevel
-				? "Você não tem moedas suficientes para liberar esta vaga."
-				: `Alcance o nível ${nextShelfUpgrade.playerLevel} para liberar esta prateleira.`,
+			!hasRequiredLevel
+				? `Alcance o nível ${nextShelfUpgrade.playerLevel} para liberar esta prateleira.`
+				: build.status === "busy"
+					? "Os construtores estão ocupados com outra obra."
+					: hasEnoughCoins
+						? "Não foi possível começar a obra agora."
+						: "Você não tem moedas suficientes para esta prateleira.",
 		);
 	}
 
@@ -245,14 +262,20 @@ function ShelfSlotUnlockSheet({ shelf }: { shelf: StoreShelf }) {
 					</Text>
 				</View>
 			</View>
-			<GameButton
-				disabled={!hasRequiredLevel || !hasEnoughCoins}
-				fullWidth
-				icon="coin"
-				label={`Liberar por ${nextShelfUpgrade.coinCost.toLocaleString("pt-BR")}`}
-				onPress={unlockShelfSlot}
-				style={styles.sheetActionButton}
-				variant="gem"
+			<BuildPanel
+				coins={coins}
+				diamonds={diamonds}
+				onBuild={unlockShelfSlot}
+				onSpeedUp={() =>
+					build.construction &&
+					setFeedback(
+						finishInteriorConstructionNow(build.construction.id)
+							? "Prateleira pronta!"
+							: "Diamantes insuficientes.",
+					)
+				}
+				status={build}
+				title="Próxima prateleira"
 			/>
 			{!hasRequiredLevel && (
 				<Text style={styles.lockedUpgradeText}>

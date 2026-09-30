@@ -11,6 +11,11 @@ import {
 	productionSectors,
 } from "@/data/production-sectors";
 import { getActiveGameEventEffects } from "@/services/game-events";
+import { getSectorBuildStatus } from "@/services/interior-construction";
+import {
+	formatBuildDuration,
+	formatConstructionCountdown,
+} from "@/data/market-expansions";
 import {
 	getProductionDiamondCost,
 	getProductionEconomy,
@@ -22,6 +27,7 @@ import {
 	act,
 	type Card,
 	card,
+	decorIcon,
 	fmt,
 	gameIcon,
 	go,
@@ -31,6 +37,7 @@ import {
 	swap,
 } from "../view-kit";
 import type { Routes } from ".";
+import { buildCard } from "./build-cards";
 
 // Mirrors src/screens/sectors (list) and src/screens/sector-detail (recipes + slots).
 
@@ -52,15 +59,38 @@ function getAmbientCopy(sectorId: ProductionSector["id"]) {
 			return "Refrigerador ligado · bebidas fresquinhas";
 		case "sorvetes":
 			return "Freezer a -18°C · sobremesas geladas";
+		case "adega":
+			return "Adega a 14°C · rótulos selecionados";
 	}
+}
+
+// Buy / inventory / queue / speed-up buttons of a sector that is not open yet.
+function buildButtons(state: State, sectorId: string) {
+	const build = getSectorBuildStatus(state, sectorId);
+	if (build.status === "built") return [];
+	return buildCard(state, {
+		title: productionSectors.find((sector) => sector.id === sectorId)?.name ?? "Setor",
+		icon: decorIcon(`sector-${sectorId}`),
+		subtitle: "",
+		status: build,
+		coins: { action: "buildSector", args: [sectorId, "coins"], price: build.coinCost },
+		diamonds: { action: "buildSector", args: [sectorId, "diamonds"], price: build.diamondCost },
+	}).buttons;
+}
+
+function buildLine(state: State, sectorId: string) {
+	const build = getSectorBuildStatus(state, sectorId);
+	if (build.status === "building") return `Em obra · pronto em ${formatConstructionCountdown(build.remainingMs)}`;
+	if (build.status === "stored") return "No inventário · coloque no modo construir";
+	if (build.status === "queued") return "Na fila da obra";
+	if (build.status === "built") return "";
+	return `Obra de ${formatBuildDuration(build.durationMs)}${build.reason ? ` · ${build.reason}` : ""}`;
 }
 
 function sectorsPage(state: State) {
 	const level = state.market.level;
 	const jobs = state.production.jobs;
-	const unlocked = productionSectors.filter(
-		(sector) => level >= sector.requiredLevel,
-	).length;
+	const unlocked = state.builtSectorIds.length;
 
 	const hero = card("Setores especiais", {
 		eyebrow: "CENTRAL DE PRODUÇÃO",
@@ -68,7 +98,7 @@ function sectorsPage(state: State) {
 		subtitle:
 			"Transforme produtos básicos em itens exclusivos, mais lucrativos e valiosos.",
 		lines: [
-			`${unlocked}/${productionSectors.length} setores liberados`,
+			`${unlocked}/${productionSectors.length} setores construídos`,
 			`${jobs.length} em produção`,
 			`${fmt(state.production.totalCrafted)} itens fabricados`,
 		],
@@ -76,30 +106,31 @@ function sectorsPage(state: State) {
 	});
 
 	const sectorCards = productionSectors.map((sector) => {
-		const isLocked = level < sector.requiredLevel;
+		const build = getSectorBuildStatus(state, sector.id);
+		const isLocked = build.status === "locked";
+		const isBuilt = build.status === "built";
 		const activeJobs = jobs.filter((job) => job.sectorId === sector.id).length;
 		return card(sector.name, {
 			eyebrow: sector.subtitle,
 			subtitle: sector.description,
 			icon: productIcon(getProductionSectorProductId(sector.id)),
-			badge: isLocked ? `Nível ${sector.requiredLevel}` : `${sector.slotCount} slots`,
-			tone: isLocked ? "locked" : activeJobs > 0 ? "success" : "",
+			badge: isLocked
+				? build.reason
+				: build.status === "building"
+					? formatConstructionCountdown(build.remainingMs)
+					: isBuilt
+						? `${sector.slotCount} slots`
+						: "Construir",
+			tone: isLocked ? "locked" : build.status === "building" ? "warning" : activeJobs > 0 ? "success" : isBuilt ? "" : "info",
+			progress: build.status === "building" ? build.progress : -1,
 			lines: [
-				`${
-					isLocked
-						? "Setor bloqueado"
-						: activeJobs > 0
-							? `${activeJobs} produção(ões) ativa(s)`
-							: "Pronto para produzir"
-				} · ${sector.slotCount} slots`,
+				isBuilt
+					? `${activeJobs > 0 ? `${activeJobs} produção(ões) ativa(s)` : "Pronto para produzir"} · ${sector.slotCount} slots`
+					: buildLine(state, sector.id),
 			],
-			buttons: [
-				go("Abrir", `sector:${sector.id}`, {
-					enabled: !isLocked,
-					variant: "primary",
-					fail: isLocked ? `Nível ${sector.requiredLevel}` : "",
-				}),
-			],
+			buttons: isBuilt
+				? [go("Abrir", `sector:${sector.id}`, { variant: "primary" })]
+				: [...buildButtons(state, sector.id), go("Ver", `sector:${sector.id}`, { enabled: level >= sector.requiredLevel })],
 		});
 	});
 
@@ -226,6 +257,26 @@ function sectorPage(state: State, sectorId: string) {
 	const sectorJobs = state.production.jobs.filter((job) => job.sectorId === sector.id);
 	const hasFreeSlot = sectorJobs.length < sector.slotCount;
 
+	const build = getSectorBuildStatus(state, sector.id);
+	// Not built yet: the page offers the works (and the speed-up while they run).
+	const works =
+		build.status === "built"
+			? []
+			: [
+					card(build.status === "building" ? "Em obra" : "Construir setor", {
+						eyebrow: "CONSTRUÇÃO",
+						icon: gameIcon("construction"),
+						badge: build.status === "building" ? formatConstructionCountdown(build.remainingMs) : fmt(build.coinCost),
+						tone: build.status === "building" ? "warning" : build.status === "locked" ? "locked" : "info",
+						progress: build.status === "building" ? build.progress : -1,
+						subtitle:
+							build.status === "building"
+								? "Os construtores estão montando o setor no mercado."
+								: "Pague a obra: os construtores montam o setor no mercado e ele abre quando terminar.",
+						lines: [buildLine(state, sector.id)],
+						buttons: buildButtons(state, sector.id),
+					}),
+				];
 	const hero = card(sector.name, {
 		eyebrow: "SETOR ESPECIAL",
 		subtitle: sector.description,
@@ -254,7 +305,7 @@ function sectorPage(state: State, sectorId: string) {
 			state,
 			sector,
 			recipe,
-			hasFreeSlot,
+			hasFreeSlot && build.status === "built",
 			eventEffects.productionDurationMultiplier,
 		),
 	);
@@ -269,7 +320,7 @@ function sectorPage(state: State, sectorId: string) {
 		};
 	});
 
-	return page(route, sector.name, [hero, ...slots, ...recipeCards], {
+	return page(route, sector.name, [...works, hero, ...(build.status === "built" ? slots : []), ...recipeCards], {
 		subtitle: `Receitas do setor · ${recipes.length}`,
 		icon: productIcon(getProductionSectorProductId(sector.id)),
 		chips,

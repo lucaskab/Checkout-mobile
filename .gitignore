@@ -60,3 +60,19 @@ modules/checkout-unity/
 plugins/with-checkout-unity.js
 unity/checkout-android-build.log
 unity/**/ArtSource/*.blend1
+
+# Local scratch, logs and machine-specific files
+.mcp.json
+checkout-desktop-save.json
+tmp/
+.shots/
+Claude outputs/
+.bt.txt
+.skills*.txt
+.skills*.done
+.tsc.txt
+.tsc.done
+__pycache__/
+unity/**/ArtSource/*.log
+unity/**/Assets/_Recovery/
+unity/**/Assets/_Recovery.meta

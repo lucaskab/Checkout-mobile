@@ -254,6 +254,9 @@ namespace Checkout {
    int trucks=s?.dock?.Length??0,low=(s?.restockSlots??Array.Empty<RestockSlot>()).Count(x=>x.reserve>0&&x.stock<x.capacity*.35f);
    bool free=!IsOpen&&!OtherGameOpen;
    dockFab.gameObject.SetActive(free&&trucks>0);if(trucks>0)dockCount.text=trucks.ToString();
+   // A working stock clerk refills the shelves on his own, so the manual REPOR mini-game goes away.
+   bool clerk=(s?.employees??Array.Empty<Employee>()).Any(e=>e!=null&&e.isWorking&&e.role=="stock_clerk");
+   if(clerk)low=0;
    restockFab.gameObject.SetActive(free&&low>0);if(low>0)restockCount.text=low.ToString();
    if(dockFab.gameObject.activeSelf)dockFab.localScale=Vector3.one*(1+Mathf.Sin(Time.unscaledTime*4)*.03f);
    if(!IsOpen)return;

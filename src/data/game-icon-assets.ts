@@ -253,6 +253,7 @@ export const marketCategoryProductIds: Record<string, number> = {
 
 export const productionSectorProductIds: Record<string, number> = {
 	acougue: 27,
+	adega: 119,
 	bebidas: 113,
 	padaria: 101,
 	peixaria: 44,

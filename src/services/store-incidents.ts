@@ -7,11 +7,15 @@ import type {
 } from "@/@types/store-incident";
 
 // Shared rules for store mishaps (System, mobile simulator and desktop).
-// Mishaps are occasional: the first comes a while after opening and then one every 2.5–4 min
-// (about one or two in a 5-minute day).
-export const FIRST_INCIDENT_DELAY_MS = 90_000;
-export const INCIDENT_INTERVAL_MS = { min: 150_000, max: 240_000 };
+// Mishaps are occasional: the first comes a couple of minutes after opening and then one every 3.5–5.5 min
+// (about one in a 5-minute day), so they stay a surprise instead of a chore.
+export const FIRST_INCIDENT_DELAY_MS = 120_000;
+export const INCIDENT_INTERVAL_MS = { min: 210_000, max: 330_000 };
 export const MAX_ACTIVE_INCIDENTS = 2;
+// Floor dirt: a new spot every 2.5–4.5 min while open, never more than two at once.
+export const FIRST_DIRT_DELAY_MS = 100_000;
+export const DIRT_INTERVAL_MS = { min: 150_000, max: 270_000 };
+export const MAX_DIRT = 2;
 export const FREEZER_SPOIL_INTERVAL_MS = 20_000;
 // An employee fixes one incident every 25 s per unit of efficiency.
 export const STAFF_FIX_INTERVAL_MS = 25_000;
@@ -43,6 +47,7 @@ function fitsShelf(kind: StoreIncidentKind, shelf: StoreIncidentShelf) {
 
 export const incidentReputationPenalty: Record<StoreIncidentKind, number> = {
 	derramado: 8,
+	sujeira: 3,
 	lampada: 5,
 	freezer_sorvete: 4,
 	geladeira_bebidas: 4,
@@ -52,6 +57,7 @@ export const incidentReputationPenalty: Record<StoreIncidentKind, number> = {
 // Which employee role fixes which mishap on their own. The coolers need the player (and coins).
 export const incidentStaff: Record<StoreIncidentKind, "cleaner" | "stock_clerk" | null> = {
 	derramado: "cleaner",
+	sujeira: "cleaner",
 	lampada: "cleaner",
 	etiqueta: "stock_clerk",
 	freezer_sorvete: null,
@@ -60,6 +66,7 @@ export const incidentStaff: Record<StoreIncidentKind, "cleaner" | "stock_clerk" 
 
 export const incidentLabels: Record<StoreIncidentKind, { title: string; action: string }> = {
 	derramado: { title: "Algo derramado no chão", action: "Limpar" },
+	sujeira: { title: "Chão sujo", action: "Varrer" },
 	freezer_sorvete: { title: "Freezer de sorvete em curto", action: "Consertar" },
 	geladeira_bebidas: { title: "Geladeira de bebidas em curto", action: "Consertar" },
 	etiqueta: { title: "Etiqueta com preço errado", action: "Trocar etiqueta" },
@@ -83,6 +90,7 @@ export function createStoreIncidentsState(): StoreIncidentsState {
 		active: [],
 		fixed: 0,
 		nextAt: null,
+		nextDirtAt: null,
 		nextStaffFixAt: null,
 		recent: [],
 		seed: 1,
@@ -115,6 +123,11 @@ export function getFreezerRepairCost(level: number) {
 }
 
 // Picks a mishap for a shelf that does not have the same one already.
+// A spill and dirt both lie on the floor in front of the shelf: never two of them in the same spot.
+function isFloorMess(kind: StoreIncidentKind) {
+	return kind === "derramado" || kind === "sujeira";
+}
+
 export function createStoreIncident(
 	state: StoreIncidentsState,
 	shelves: StoreIncidentShelf[],
@@ -137,7 +150,8 @@ export function createStoreIncident(
 					"freezer_sorvete",
 					"geladeira_bebidas",
 				];
-				const weights = [0.24, 0.2, 0.16, 0.2, 0.2];
+				// Spills are the least frequent: the floor already gets dirt of its own.
+				const weights = [0.16, 0.22, 0.2, 0.21, 0.21];
 				let roll = random();
 				let first = 0;
 				while (first < weights.length - 1 && roll >= weights[first]) roll -= weights[first++];
@@ -147,7 +161,9 @@ export function createStoreIncident(
 		const pool = candidates.filter(
 			(shelf) =>
 				!state.active.some(
-					(incident) => incident.shelfId === shelf.shelfId && incident.kind === kind,
+					(incident) =>
+						incident.shelfId === shelf.shelfId &&
+						(incident.kind === kind || (isFloorMess(incident.kind) && isFloorMess(kind))),
 				) &&
 				(anyShelf || fitsShelf(kind, shelf)),
 		);
@@ -187,7 +203,7 @@ export function spawnStoreIncident(
 		INCIDENT_INTERVAL_MS.min +
 		random() * (INCIDENT_INTERVAL_MS.max - INCIDENT_INTERVAL_MS.min);
 	const incident =
-		state.active.length < MAX_ACTIVE_INCIDENTS
+		state.active.filter((item) => item.kind !== "sujeira").length < MAX_ACTIVE_INCIDENTS
 			? createStoreIncident(state, shelves, now, level)
 			: null;
 	return {
@@ -196,6 +212,38 @@ export function spawnStoreIncident(
 			...state,
 			active: incident ? [...state.active, incident] : state.active,
 			nextAt,
+			seed: state.seed + 1,
+		},
+	};
+}
+
+// Dirt customers track in: independent from the mishaps, at its own pace, up to MAX_DIRT spots.
+export function spawnFloorDirt(
+	state: StoreIncidentsState,
+	shelves: StoreIncidentShelf[],
+	now: number,
+	isOpen: boolean,
+): { incident: StoreIncident | null; state: StoreIncidentsState } {
+	if (!isOpen)
+		return {
+			incident: null,
+			state: state.nextDirtAt === null ? state : { ...state, nextDirtAt: null },
+		};
+	if (state.nextDirtAt === null)
+		return { incident: null, state: { ...state, nextDirtAt: now + FIRST_DIRT_DELAY_MS } };
+	if (now < state.nextDirtAt) return { incident: null, state };
+	const random = seeded(state.seed + 577);
+	const nextDirtAt =
+		now + DIRT_INTERVAL_MS.min + random() * (DIRT_INTERVAL_MS.max - DIRT_INTERVAL_MS.min);
+	const dirty = state.active.filter((item) => item.kind === "sujeira").length;
+	const incident =
+		dirty < MAX_DIRT ? createStoreIncident(state, shelves, now, 1, "sujeira") : null;
+	return {
+		incident,
+		state: {
+			...state,
+			active: incident ? [...state.active, incident] : state.active,
+			nextDirtAt,
 			seed: state.seed + 1,
 		},
 	};

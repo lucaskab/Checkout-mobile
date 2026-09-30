@@ -1,12 +1,19 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
-import { marketExpansions } from "@/data/market-expansions";
+import {
+	formatBuildDuration,
+	formatConstructionCountdown,
+	getMarketExpansion,
+	getMarketExpansionSkipCost,
+	getMissingMarketExpansionPrerequisites,
+	marketExpansions,
+} from "@/data/market-expansions";
 import { useGameStore } from "@/stores/game-store";
 
 export function ExpansionsScreen({ onBack }: EmbeddedNavigationProps = {}) {
@@ -16,14 +23,53 @@ export function ExpansionsScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	const unlockMarketExpansion = useGameStore(
 		(state) => state.unlockMarketExpansion,
 	);
+	const construction = useGameStore(
+		(state) => state.marketExpansionConstruction,
+	);
+	const diamonds = useGameStore((state) => state.logistics.premiumCurrency);
+	const finishMarketExpansionNow = useGameStore(
+		(state) => state.finishMarketExpansionNow,
+	);
 	const [feedback, setFeedback] = useState<string | null>(null);
+	const [now, setNow] = useState(() => Date.now());
+
+	useEffect(() => {
+		if (!construction) return;
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, [construction]);
+
+	const building = construction
+		? getMarketExpansion(construction.expansionId)
+		: null;
+	const remainingMs = construction ? construction.endsAt - now : 0;
+	const skipCost = getMarketExpansionSkipCost(remainingMs);
+	const progress = construction
+		? Math.min(
+				1,
+				Math.max(
+					0,
+					(now - construction.startedAt) /
+						Math.max(1, construction.endsAt - construction.startedAt),
+				),
+			)
+		: 0;
 
 	function unlock(expansionId: (typeof marketExpansions)[number]["id"]) {
-		const didUnlock = unlockMarketExpansion(expansionId);
+		const didStart = unlockMarketExpansion(expansionId);
 		setFeedback(
-			didUnlock
-				? "Nova área liberada! O mapa do seu mercado cresceu."
+			didStart
+				? "Obra iniciada! Acompanhe os guindastes no mapa do mercado."
 				: "Suba de nível e junte moedas para liberar esta área.",
+		);
+	}
+
+	function finishNow() {
+		const didFinish = finishMarketExpansionNow();
+		setFeedback(
+			didFinish
+				? "Obra concluída! O mapa do seu mercado cresceu."
+				: `Você precisa de 💎 ${skipCost} para acelerar a obra.`,
 		);
 	}
 
@@ -64,8 +110,12 @@ export function ExpansionsScreen({ onBack }: EmbeddedNavigationProps = {}) {
 							key={expansion.id}
 							style={[
 								styles.mapExpansion,
-								index < 2 ? styles.mapTop : styles.mapBottom,
-								index % 2 === 0 ? styles.mapLeft : styles.mapRight,
+								...(index < 4
+									? [
+											index < 2 ? styles.mapTop : styles.mapBottom,
+											index % 2 === 0 ? styles.mapLeft : styles.mapRight,
+										]
+									: [styles.mapTop, styles.mapBack]),
 								unlocked ? styles.mapUnlocked : styles.mapLocked,
 							]}
 						>
@@ -77,12 +127,43 @@ export function ExpansionsScreen({ onBack }: EmbeddedNavigationProps = {}) {
 				})}
 			</View>
 
+			{construction && building && (
+				<View style={styles.works}>
+					<Text style={styles.worksEyebrow}>🏗️ OBRA EM ANDAMENTO</Text>
+					<Text style={styles.worksTitle}>{building.name}</Text>
+					<View style={styles.worksTrack}>
+						<View
+							style={[styles.worksFill, { width: `${progress * 100}%` }]}
+						/>
+					</View>
+					<Text style={styles.worksTime}>
+						{remainingMs > 0
+							? `Fica pronta em ${formatConstructionCountdown(remainingMs)}`
+							: "Finalizando a obra..."}
+					</Text>
+					{remainingMs > 0 && (
+						<GameButton
+							disabled={diamonds < skipCost}
+							label={`Acelerar agora por 💎 ${skipCost}`}
+							onPress={finishNow}
+							size="small"
+							variant="success"
+						/>
+					)}
+				</View>
+			)}
+
 			{feedback && <Text style={styles.feedback}>{feedback}</Text>}
 
 			{marketExpansions.map((expansion) => {
 				const unlocked = unlockedIds.includes(expansion.id);
+				const underConstruction = construction?.expansionId === expansion.id;
 				const levelLocked = level < expansion.requiredLevel;
 				const coinLocked = coins < expansion.coinCost;
+				const missing = getMissingMarketExpansionPrerequisites(
+					expansion,
+					unlockedIds,
+				);
 
 				return (
 					<Pressable key={expansion.id} style={styles.card}>
@@ -100,23 +181,45 @@ export function ExpansionsScreen({ onBack }: EmbeddedNavigationProps = {}) {
 								<Text
 									style={[styles.status, unlocked && styles.statusUnlocked]}
 								>
-									{unlocked ? "LIBERADA" : `NÍVEL ${expansion.requiredLevel}`}
+									{unlocked
+										? "LIBERADA"
+										: underConstruction
+											? "EM OBRA"
+											: `NÍVEL ${expansion.requiredLevel}`}
 								</Text>
 							</View>
 							<Text style={styles.cardDescription}>
 								{expansion.description}
 							</Text>
+							{!unlocked && !underConstruction && (
+								<Text style={styles.buildTime}>
+									⏱ Obra de {formatBuildDuration(expansion.buildDurationMs)}
+								</Text>
+							)}
 							{unlocked ? (
 								<Text style={styles.unlockedText}>
 									Área ativa no mapa do mercado
 								</Text>
+							) : underConstruction ? (
+								<Text style={styles.buildingText}>
+									Em construção · {formatConstructionCountdown(remainingMs)}
+								</Text>
 							) : (
 								<GameButton
-									disabled={levelLocked || coinLocked}
+									disabled={
+										levelLocked ||
+										coinLocked ||
+										missing.length > 0 ||
+										construction !== null
+									}
 									label={
 										levelLocked
 											? `Chegue ao nível ${expansion.requiredLevel}`
-											: `Liberar por ${expansion.coinCost.toLocaleString("pt-BR")}`
+											: missing.length > 0
+												? `Construa antes: ${missing.map((item) => item.name).join(" e ")}`
+												: construction
+													? "Aguarde a obra atual terminar"
+													: `Construir por ${expansion.coinCost.toLocaleString("pt-BR")}`
 									}
 									onPress={() => unlock(expansion.id)}
 									size="small"
@@ -247,6 +350,8 @@ const styles = StyleSheet.create((theme) => ({
 	mapBottom: { bottom: 14 },
 	mapLeft: { left: 22 },
 	mapRight: { right: 22 },
+	// The central warehouse sits behind the shop, at the back of the block.
+	mapBack: { left: "50%", marginLeft: -17.5 },
 	mapUnlocked: { backgroundColor: theme.colors["green-500"] },
 	mapLocked: { backgroundColor: theme.colors["neutral-400"] },
 	mapExpansionText: {
@@ -300,6 +405,43 @@ const styles = StyleSheet.create((theme) => ({
 		color: theme.colors["neutral-600"],
 		fontSize: 12,
 		lineHeight: 17,
+	},
+	works: {
+		gap: theme.gap(0.6),
+		padding: theme.gap(1.25),
+		borderWidth: 2,
+		borderColor: theme.colors["amber-600"],
+		borderRadius: theme.gap(1.75),
+		backgroundColor: theme.colors["blue-50"],
+	},
+	worksEyebrow: {
+		color: theme.colors["amber-600"],
+		fontSize: 9,
+		fontWeight: "800",
+		letterSpacing: 1.2,
+	},
+	worksTitle: {
+		color: theme.colors["neutral-800"],
+		fontFamily: theme.fonts.family.headline,
+		fontSize: 17,
+	},
+	worksTrack: {
+		height: 10,
+		overflow: "hidden",
+		borderRadius: 5,
+		backgroundColor: theme.colors["neutral-200"],
+	},
+	worksFill: { height: "100%", backgroundColor: theme.colors["amber-600"] },
+	worksTime: {
+		color: theme.colors["neutral-700"],
+		fontFamily: theme.fonts.family.numberBold,
+		fontSize: 12,
+	},
+	buildTime: { color: theme.colors["neutral-600"], fontSize: 11 },
+	buildingText: {
+		color: theme.colors["amber-600"],
+		fontSize: 11,
+		fontWeight: "700",
 	},
 	unlockedText: {
 		color: theme.colors["green-600"],

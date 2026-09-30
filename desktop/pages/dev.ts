@@ -1,4 +1,9 @@
 import { gameEvents } from "@/data/game-events";
+import {
+	formatConstructionCountdown,
+	getMarketExpansion,
+	getMarketExpansionSkipCost,
+} from "@/data/market-expansions";
 import { getGameEventIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { getInventoryCapacity } from "@/data/inventory-capacity";
@@ -6,6 +11,7 @@ import { getWarehouseZone, warehouseZoneLabels } from "@/services/receiving";
 import { incidentLabels } from "@/services/store-incidents";
 import type { StoreIncidentKind } from "@/@types/store-incident";
 import type { Routes } from ".";
+import { devEraCards } from "./eras";
 import {
 	act,
 	type Button,
@@ -23,10 +29,12 @@ import {
 // Mirrors src/components/dev-cheat-sheet (DEV Cheats) plus a reset section.
 const categories = [
 	{ id: "moedas", label: "Moedas" },
+	{ id: "eras", label: "Eras" },
 	{ id: "nivel", label: "Nível" },
 	{ id: "eventos", label: "Eventos" },
 	{ id: "estoque", label: "Estoque" },
 	{ id: "tarefas", label: "Tarefas" },
+	{ id: "obras", label: "Obras" },
 	{ id: "reset", label: "Reset" },
 ] as const;
 type Category = (typeof categories)[number]["id"];
@@ -66,6 +74,7 @@ function devPage(category: Category, cards: Card[], route = `dev:${category}`): 
 
 type Builder = (state: State, args: string[]) => Page;
 const builders: Record<Category, Builder> = {
+	eras: (state) => devPage("eras", devEraCards(state)),
 	moedas: (state) =>
 		devPage("moedas", [
 			card("Moedas", {
@@ -266,6 +275,53 @@ const builders: Record<Category, Builder> = {
 						fail: "Nenhuma prateleira compatível",
 					}),
 				),
+			}),
+		]);
+	},
+	// Expansion works: finish the running one at once to check the reveal and the new building.
+	obras: (state) => {
+		const works = state.marketExpansionConstruction;
+		const expansion = works ? getMarketExpansion(works.expansionId) : null;
+		const remaining = works ? works.endsAt - Date.now() : 0;
+		const builds = state.interiorConstructions;
+		return devPage("obras", [
+			card(builds.length > 0 ? `${builds.length} obra(s) dentro do mercado` : "Nenhuma obra dentro do mercado", {
+				eyebrow: "PRATELEIRAS · SETORES · CAIXAS",
+				icon: gameIcon("construction"),
+				tone: builds.length > 0 ? "warning" : "locked",
+				subtitle: "Termina na hora as obras de prateleiras, setores e caixas (só em DEV).",
+				buttons: [
+					act("Terminar obras internas", "devFinishInteriorConstructions", [], {
+						variant: "success",
+						enabled: builds.length > 0,
+						ok: "Obras concluídas",
+						fail: "Nenhuma obra em andamento",
+					}),
+				],
+			}),
+			card(expansion ? expansion.name : "Nenhuma obra em andamento", {
+				eyebrow: "EXPANSÕES",
+				icon: gameIcon("construction"),
+				badge: works ? formatConstructionCountdown(remaining) : "",
+				tone: works ? "warning" : "locked",
+				subtitle: works
+					? "Termina a obra agora, sem gastar diamantes (só em DEV)."
+					: "Compre uma expansão para começar uma obra.",
+				buttons: [
+					act("Terminar obra agora", "devFinishMarketExpansion", [], {
+						variant: "success",
+						enabled: !!works,
+						ok: "Obra concluída",
+						fail: "Nenhuma obra em andamento",
+					}),
+					act(`Acelerar · 💎 ${getMarketExpansionSkipCost(remaining)}`, "finishMarketExpansionNow", [], {
+						variant: "gem",
+						icon: gameIcon("diamond"),
+						enabled: !!works,
+						ok: "Obra concluída",
+						fail: "Diamantes insuficientes",
+					}),
+				],
 			}),
 		]);
 	},

@@ -35,6 +35,20 @@ import {
 	swap,
 } from "../view-kit";
 import type { Routes } from ".";
+import { getNextShelfBuildStatus } from "@/services/interior-construction";
+import { buildCard, shelfThumb } from "./build-cards";
+
+// The next shelf: bought, it goes to the inventory and is built where the player places it.
+function shelfBuild(state: State, title: string): Card {
+	const build = getNextShelfBuildStatus(state);
+	return buildCard(state, {
+		title: build.shelf ? `${title}: ${build.shelf.name}` : title,
+		icon: build.shelf ? shelfThumb(build.shelf.id) : gameIcon("shelf"),
+		subtitle: "Cada prateleira começa com quatro espaços.",
+		status: build,
+		coins: { action: "unlockNextShelf", args: [], price: build.coinCost },
+	});
+}
 
 // Slot ids contain ":" ("dairy:1"), so routes address a slot as <shelfId>:<slotIndex>.
 function slotCounts(state: State) {
@@ -86,31 +100,7 @@ function storePage(state: State) {
 			buttons,
 		});
 	});
-	if (nextShelfUpgrade)
-		cards.push(
-			card("Nova prateleira", {
-				icon: gameIcon("shelf"),
-				tone: "locked",
-				subtitle: "Cada prateleira começa com quatro espaços.",
-				lines: [`Nível ${nextShelfUpgrade.playerLevel}`],
-				buttons: [
-					act(
-						`Nova prateleira · Nv. ${nextShelfUpgrade.playerLevel} · ${fmt(nextShelfUpgrade.coinCost)} moedas`,
-						"unlockNextShelf",
-						[],
-						{
-							variant: "coin",
-							icon: gameIcon("coin"),
-							enabled:
-								state.market.level >= nextShelfUpgrade.playerLevel &&
-								state.coins >= nextShelfUpgrade.coinCost,
-							ok: "Prateleira liberada com quatro espaços disponíveis.",
-							fail: "Confira seu nível e saldo.",
-						},
-					),
-				],
-			}),
-		);
+	if (nextShelfUpgrade) cards.push(shelfBuild(state, "Nova prateleira"));
 	return page("store", "Prateleiras", cards, {
 		icon: gameIcon("shelf"),
 		subtitle:
@@ -145,8 +135,16 @@ function slotCard(state: State, shelfId: string, slotId: string, index: number) 
 		`No depósito: ${reserve}`,
 		`Preço de venda: ${price} (${product.minPrice}–${product.maxPrice})`,
 	];
+	// A working stock clerk refills from the depot on his own: no manual "Reabastecer" then.
+	const clerk = (state.employees?.employees ?? []).some(
+		(employee) => employee.isWorking && employee.role === "stock_clerk",
+	);
+	if (clerk && reserve > 0)
+		lines.push(stock >= capacity ? "Repositor: prateleira cheia" : "Repositor: reposição automática");
 	const restock =
-		incomingOrder && reserve === 0
+		clerk && reserve > 0
+			? null
+			: incomingOrder && reserve === 0
 			? button(`A caminho · ${getOrderRemainingTime(incomingOrder, now)}`, {
 					icon: gameIcon("deliveryTruck"),
 					variant: "secondary",
@@ -184,7 +182,7 @@ function slotCard(state: State, shelfId: string, slotId: string, index: number) 
 				variant: "secondary",
 				enabled: price < product.maxPrice,
 			}),
-			restock,
+			...(restock ? [restock] : []),
 			act("Remover", "clearShelf", [slotId], {
 				variant: "danger",
 				ok: "Produto devolvido ao depósito.",
@@ -212,20 +210,8 @@ function shelfPage(state: State, [shelfId = ""]: string[]) {
 				? "Desbloqueie esta prateleira para começar com quatro espaços disponíveis."
 				: "Desbloqueie as prateleiras anteriores para acessar esta área.",
 		});
-		if (canUnlockHere && nextShelfUpgrade) {
-			lockedCard.lines = [`Nível ${nextShelfUpgrade.playerLevel}`];
-			lockedCard.buttons = [
-				act(`Desbloquear · ${fmt(nextShelfUpgrade.coinCost)}`, "unlockNextShelf", [], {
-					variant: "coin",
-					icon: gameIcon("coin"),
-					enabled:
-						state.market.level >= nextShelfUpgrade.playerLevel &&
-						state.coins >= nextShelfUpgrade.coinCost,
-					ok: "Prateleira liberada com quatro espaços disponíveis.",
-					fail: "Confira seu nível e saldo.",
-				}),
-			];
-		}
+		if (canUnlockHere && nextShelfUpgrade)
+			return page(route, shelfName(shelfId), [shelfBuild(state, shelfName(shelfId))], options);
 		return page(route, shelfName(shelfId), [lockedCard], options);
 	}
 	const cards = slotIds.map((slotId, index) => slotCard(state, shelfId, slotId, index));

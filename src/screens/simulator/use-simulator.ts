@@ -44,6 +44,8 @@ export function useSimulator(
 	const [status, setStatus] = useState<"loading" | "ready" | "error">(
 		"loading",
 	);
+	// Unity's build mode draws its own full-screen tools: the app HUD steps aside meanwhile.
+	const [building, setBuilding] = useState(false);
 	// Latest handler without reconnecting the Unity session when it changes.
 	const dayPanel = useRef(onDayPanel);
 	dayPanel.current = onDayPanel;
@@ -123,6 +125,8 @@ export function useSimulator(
 				} else if (message.kind === "command") {
 					void send(command(message));
 					snapshot();
+				} else if (message.kind === "buildMode") {
+					setBuilding(message.open === true);
 				} else if (message.kind === "error") {
 					setStatus("error");
 				}
@@ -155,5 +159,5 @@ export function useSimulator(
 	function onUnityMessage(event: { nativeEvent: { message: string } }) {
 		checkoutGlobal.__checkoutUnityMessage?.(event.nativeEvent.message);
 	}
-	return { status, onUnityMessage };
+	return { status, onUnityMessage, building };
 }

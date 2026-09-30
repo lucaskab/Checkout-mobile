@@ -1,3 +1,4 @@
+import type { GameEraState, MarketEraId } from "@/@types/economy";
 export type GameInventory = Record<number, number>;
 
 export type GameInventoryCapacityLevels = Record<number, number>;
@@ -101,15 +102,22 @@ import type {
 } from "./currency-purchase";
 import type { EmployeeRole, GameEmployeesState } from "./employee";
 import type { GameEventsState } from "./game-event";
+import type { InteriorState } from "./interior";
+import type { InteriorConstruction } from "./interior-construction";
 import type { GameInventoryLots, GameShelfLots } from "./inventory-lot";
 import type { LogisticsState, PlaceSupplierOrderInput } from "./logistics";
 import type {
+	MarketExpansionConstruction,
 	MarketExpansionCurrency,
 	MarketExpansionId,
 } from "./market-expansion";
 import type { GameDayState } from "./market-day";
 import type { GameMissionsState } from "./mission";
-import type { GameProductionState, StartProductionInput } from "./production";
+import type {
+	GameProductionState,
+	ProductionSectorId,
+	StartProductionInput,
+} from "./production";
 import type { ShelfUpgradeCurrency } from "./shelf-capacity";
 import type { GameShopState, ShopCurrency } from "./shop";
 import type { ReceivingState } from "./receiving";
@@ -123,6 +131,8 @@ export type RestockShelfInput = {
 };
 
 export type GameState = {
+	/** Stage of the market (mesinha → rede) and the evolution being built. */
+	era: GameEraState;
 	checkout: CheckoutCounterState;
 	coins: number;
 	currencyPurchases: CurrencyPurchaseState;
@@ -140,6 +150,14 @@ export type GameState = {
 	offlineSummary: OfflineRewardSummary | null;
 	lastSessionAt: number;
 	unlockedMarketExpansionIds: MarketExpansionId[];
+	/** The paid expansion still being built (it joins the market when it finishes). */
+	marketExpansionConstruction: MarketExpansionConstruction | null;
+	/** Furniture layout inside the market (build mode) and the decorations bought. */
+	interior: InteriorState;
+	/** Shelves, sectors and fixtures paid for and still being built inside the market. */
+	interiorConstructions: InteriorConstruction[];
+	/** Production sectors already built (the level only lets the player build them). */
+	builtSectorIds: ProductionSectorId[];
 	missions: GameMissionsState;
 	production: GameProductionState;
 	shop: GameShopState;
@@ -163,13 +181,38 @@ export type GameActions = {
 	claimMission: (missionId: string) => boolean;
 	deliverOrderInstantly: (orderId: string) => boolean;
 	devAdjustCoins: (amount: number) => void;
+	/** DEV: jump straight to an era (no cost, no obra). */
+	devSetMarketEra: (eraId: MarketEraId) => boolean;
+	/** DEV: pretend the player was away this many hours (obras advance, offline sales are paid). */
+	devPassTime: (hours: number) => boolean;
+	/** Pays the next era and starts its obra. */
+	evolveMarketEra: () => boolean;
+	/** Finishes the era obra with diamonds. */
+	finishMarketEraNow: () => boolean;
+	processMarketEraConstruction: (now?: number) => boolean;
 	devAdjustDiamonds: (amount: number) => void;
 	devAdjustInventory: (productId: number, amount: number) => void;
 	devActivateGameEvent: (eventId: string) => boolean;
 	devArriveDelivery: (productId: number, quantity?: number) => boolean;
 	devTriggerIncident: (kind: StoreIncidentKind) => boolean;
 	devClearDock: () => boolean;
+	/** DEV: finishes the running expansion works for free. */
+	devFinishMarketExpansion: () => boolean;
 	finishProductionNow: (jobId: string) => boolean;
+	/** Pays diamonds to complete the expansion under construction right away. */
+	finishMarketExpansionNow: () => boolean;
+	/** Pays for a production sector: the builders need some time before it opens. */
+	buildSector: (sectorId: string, currency?: "coins" | "diamonds") => boolean;
+	/** Pays diamonds to finish a shelf, sector or fixture under construction right away. */
+	finishInteriorConstructionNow: (constructionId: string) => boolean;
+	/** Opens every shelf, sector and fixture whose building time has passed. */
+	processInteriorConstructions: (now?: number) => boolean;
+	/** DEV: finishes every build inside the market for free. */
+	devFinishInteriorConstructions: () => boolean;
+	/** Build mode: stores where every piece of furniture stands. */
+	saveInteriorLayout: (items: unknown) => boolean;
+	/** Build mode shop: buys one decoration (it waits in the inventory until placed). */
+	purchaseDecor: (decorId: string, currency?: "coins" | "diamonds") => boolean;
 	fixIncident: (incidentId: string) => boolean;
 	hireEmployee: (role: EmployeeRole) => boolean;
 	grantCurrencyPurchase: (input: GrantCurrencyPurchaseInput) => boolean;
@@ -184,6 +227,8 @@ export type GameActions = {
 	processEmployeeWork: () => boolean;
 	processEmployeePayroll: () => boolean;
 	processProductionJobs: () => boolean;
+	/** Opens the finished expansion once its building time has passed. */
+	processMarketExpansionConstruction: (now?: number) => boolean;
 	processInventorySpoilage: () => boolean;
 	processSupplierOrders: () => boolean;
 	purchaseShopItem: (itemId: string, currency: ShopCurrency) => boolean;

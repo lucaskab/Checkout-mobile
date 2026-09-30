@@ -5,7 +5,9 @@ namespace Checkout {
  // full basket waiting at the register. Icon, patience bar and, once handled, how it went.
  // Clicking it opens the request (app/HUD) or the register mini-game.
  public sealed class CheckoutRequestBubble:MonoBehaviour {
-  const float Height=2.45f;
+  // The bubble tail ends this far above the top of the head (the tail reaches ~.38 below the bubble centre).
+  const float Clearance=.55f,Fallback=2.85f;
+  Transform headBone;SkinnedMeshRenderer body;bool looked;
   static CheckoutEventAssets art;
   Transform owner,fill,track,pulse;SpriteRenderer icon;Renderer fillRenderer;CheckoutTarget target;Collider hit;
   string shownKey;float hideAt;double start,end;bool pending;
@@ -62,9 +64,24 @@ namespace Checkout {
    fillRenderer.material.color=Color.Lerp(CheckoutDesktopKit.C("E15533"),CheckoutDesktopKit.C("5DA637"),Mathf.InverseLerp(.15f,.5f,ratio));
   }
 
+  // Top of the character's head. The rigs' Head joint sits at the neck and the heads (hair, caps) are big,
+  // so the height from the joint to the top is measured once on the baked skinned mesh.
+  float headAbove=-1;
+  float HeadTop(){
+   if(!looked){looked=true;
+    foreach(var t in owner.GetComponentsInChildren<Transform>(true))if(t.name=="Head"){headBone=t;break;}
+    foreach(var r in owner.GetComponentsInChildren<SkinnedMeshRenderer>(true))if(r.enabled&&!r.name.EndsWith("_Prop")&&r.sharedMesh&&(!body||r.sharedMesh.vertexCount>body.sharedMesh.vertexCount))body=r;}
+   if(headBone&&headAbove<0&&body){
+    var baked=new Mesh();body.BakeMesh(baked,true);float top=float.MinValue;
+    foreach(var v in baked.vertices)top=Mathf.Max(top,body.transform.TransformPoint(v).y);
+    Destroy(baked);headAbove=top>float.MinValue?Mathf.Clamp(top-headBone.position.y,.2f,.9f):.5f;}
+   if(headBone)return headBone.position.y+(headAbove>0?headAbove:.5f);
+   return owner.position.y+Fallback-Clearance;
+  }
+
   void LateUpdate(){
    if(!owner||!owner.gameObject.activeInHierarchy){gameObject.SetActive(false);pending=false;return;}
-   transform.position=owner.position+Vector3.up*Height;
+   transform.position=new Vector3(owner.position.x,HeadTop()+Clearance,owner.position.z);
    if(Camera.main)transform.rotation=Camera.main.transform.rotation;
    // A gentle bob; nearly-out-of-patience customers pulse faster.
    bool urgent=pending&&fill.localScale.x<.5f*.3f;

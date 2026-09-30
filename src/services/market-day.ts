@@ -18,10 +18,15 @@ import {
 	dayContractDefinitions,
 	dayContractRewardMultiplier,
 } from "@/data/day-contracts";
+import {
+	getContractCoins,
+	getContractExperience,
+	TURN_DURATION_MS,
+} from "@/data/economy";
 
 // One turn of the market. The same rules run in System (React Native) and Simulator (Unity);
 // only the interface differs.
-export const DAY_DURATION_MS = 5 * 60_000;
+export const DAY_DURATION_MS = TURN_DURATION_MS;
 export const SPECIAL_REQUEST_CHANCE = 0.34;
 export const MAX_PENDING_REQUESTS = 3;
 // Give the player a moment to settle in before the first request of the day.
@@ -128,8 +133,8 @@ function buildContract(
 		category: category?.id,
 		categoryLabel: category?.label,
 		reward: {
-			coins: Math.round(((90 + level * 35) * multiplier) / 5) * 5,
-			experience: Math.round((15 + level * 6) * multiplier),
+			coins: Math.round((getContractCoins(level) * multiplier) / 5) * 5,
+			experience: Math.round(getContractExperience(level) * multiplier),
 			diamonds: definition.difficulty === 3 ? 1 : 0,
 		},
 	};

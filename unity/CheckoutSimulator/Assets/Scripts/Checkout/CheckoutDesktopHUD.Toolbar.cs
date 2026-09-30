@@ -26,7 +26,7 @@ namespace Checkout {
    }
    for(int i=0;i<tools.Count;i++){
     bool on=i<items.Length;tools[i].gameObject.SetActive(on);if(!on)continue;tools[i].Apply(items[i]);
-    string pill=!items[i].enabled?LockLevel(items[i].fail):items[i].route=="!missions"&&v.claimableMissions>0?v.claimableMissions.ToString():"";
+    string pill=!items[i].enabled?LockLevel(items[i].fail):!string.IsNullOrEmpty(items[i].badge)?items[i].badge:items[i].route=="!missions"&&v.claimableMissions>0?v.claimableMissions.ToString():"";
     toolBadges[i].SetActive(pill.Length>0);toolBadgeTexts[i].text=pill;
     toolBadges[i].GetComponent<UnityEngine.UI.Image>().color=items[i].enabled?K.C("E15533"):K.C("F2B03D");toolBadgeTexts[i].color=items[i].enabled?Color.white:K.Ink;
    }

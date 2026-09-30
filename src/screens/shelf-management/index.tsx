@@ -33,6 +33,8 @@ import {
 } from "@/data/shelf-slots";
 import { getOrderProgress, getOrderRemainingTime } from "@/services/logistics";
 import { useGameStore } from "@/stores/game-store";
+import { BuildPanel } from "@/components/build-panel";
+import { getNextShelfBuildStatus } from "@/services/interior-construction";
 import { SupplierOrderSheet } from "../suppliers/components/supplier-order-sheet";
 
 export function ShelfManagementScreen({
@@ -63,6 +65,10 @@ export function ShelfManagementScreen({
 		state.shelfUpgradeLevels[shelfId],
 	);
 	const unlocked = slotCount > 0;
+	// A working stock clerk refills from the depot on his own: no manual "Reabastecer" then.
+	const hasStockClerk = (state.employees?.employees ?? []).some(
+		(employee) => employee.isWorking && employee.role === "stock_clerk",
+	);
 	const slotUpgrade = getNextShelfSlotUpgrade(slotCount);
 	const products = itemCatalog.filter(
 		(product) =>
@@ -145,22 +151,28 @@ export function ShelfManagementScreen({
 							: "Desbloqueie as prateleiras anteriores para acessar esta área."}
 					</Text>
 					{canUnlockHere && nextShelfUpgrade && (
-						<GameButton
-							fullWidth
-							icon="coin"
-							label={`Desbloquear · ${nextShelfUpgrade.coinCost.toLocaleString("pt-BR")}`}
-							variant="coin"
-							disabled={
-								state.market.level < nextShelfUpgrade.playerLevel ||
-								state.coins < nextShelfUpgrade.coinCost
-							}
-							onPress={() =>
+						// Paying calls the builders: the shelf opens when the works finish.
+						<BuildPanel
+							coins={state.coins}
+							diamonds={state.logistics.premiumCurrency}
+							onBuild={() =>
 								setNotice(
 									state.unlockNextShelf()
-										? "Prateleira liberada com quatro espaços disponíveis."
-										: "Confira seu nível e saldo.",
+										? "Prateleira comprada! Ela está no inventário: coloque-a no modo construir."
+										: "Confira seu nível, saldo e se os construtores estão livres.",
 								)
 							}
+							onSpeedUp={() => {
+								const build = getNextShelfBuildStatus(state);
+								if (build.construction)
+									setNotice(
+										state.finishInteriorConstructionNow(build.construction.id)
+											? "Prateleira pronta!"
+											: "Diamantes insuficientes.",
+									);
+							}}
+							status={getNextShelfBuildStatus(state)}
+							title="Nova prateleira"
 						/>
 					)}
 				</View>
@@ -426,6 +438,15 @@ export function ShelfManagementScreen({
 											<View style={styles.flex}>
 												{incomingOrder && reserve === 0 ? (
 													<DeliveryProgressButton order={incomingOrder} />
+												) : hasStockClerk && reserve > 0 ? (
+													<View style={styles.clerkNote}>
+														<GameIcon icon="basket" style={styles.clerkNoteIcon} />
+														<Text style={styles.clerkNoteText}>
+															{stock >= capacity
+																? "Prateleira cheia"
+																: "Repositor cuida"}
+														</Text>
+													</View>
 												) : (
 													<GameButton
 														label={
@@ -578,6 +599,22 @@ const styles = StyleSheet.create((theme) => ({
 		color: theme.colors.gameText,
 	},
 	metrics: { flexDirection: "row", gap: 10 },
+	clerkNote: {
+		minHeight: 40,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 6,
+		paddingHorizontal: 10,
+		borderRadius: 14,
+		backgroundColor: theme.colors["blue-50"],
+	},
+	clerkNoteIcon: { width: 20, height: 20 },
+	clerkNoteText: {
+		fontFamily: theme.fonts.family.bodyExtraBold,
+		fontSize: 13,
+		color: theme.colors["blue-600"],
+	},
 	metric: {
 		flex: 1,
 		backgroundColor: theme.colors["neutral-100"],

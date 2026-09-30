@@ -21,7 +21,7 @@ namespace Checkout {
   [DllImport("__Internal")] static extern void sendMessageToMobileApp(string message);
 #endif
   void Awake(){name="CheckoutBridge";simulation=FindAnyObjectByType<MarketSimulation>();simulation.quietCapture=true;simulation.enabled=false;var qa=simulation.GetComponent<MarketPlaytest>();if(qa)qa.enabled=false;}
-  void Start(){simulation.Initialize(false);simulation.hud.gameObject.SetActive(false);map=gameObject.AddComponent<CheckoutMap>();gameObject.AddComponent<CheckoutCounterGame>().Initialize(this);gameObject.AddComponent<CheckoutIncidents>().Initialize(this,map);gameObject.AddComponent<CheckoutStockroom>().Initialize(this);map.Initialize(simulation.world,this);traffic=FindAnyObjectByType<CheckoutCityTraffic>();
+  void Start(){simulation.Initialize(false);simulation.hud.gameObject.SetActive(false);map=gameObject.AddComponent<CheckoutMap>();gameObject.AddComponent<CheckoutCounterGame>().Initialize(this);gameObject.AddComponent<CheckoutIncidents>().Initialize(this,map);gameObject.AddComponent<CheckoutStockroom>().Initialize(this);map.Initialize(simulation.world,this);gameObject.AddComponent<CheckoutBuildMode>().Initialize(this,map);gameObject.AddComponent<CheckoutLotView>().Initialize(this);traffic=FindAnyObjectByType<CheckoutCityTraffic>();
    foreach(Transform t in simulation.world)if(t.name.StartsWith("Customer_")){var w=t.gameObject.AddComponent<CheckoutWalker>();w.Initialize(this,t.GetComponent<NavMeshAgent>(),map);walkers.Add(w);t.gameObject.SetActive(false);}
    // Integration is read-only until the React Native authority supplies a snapshot.
    foreach(Transform t in simulation.world)if(t.name.StartsWith("StockWorker_"))t.gameObject.SetActive(false);
@@ -39,15 +39,21 @@ namespace Checkout {
     foreach(var customer in next.customers.Take(3).Reverse())visits.Enqueue(customer);
    // A closed market takes no one new; pending arrivals stay seen so reopening never replays them.
    if(!next.isOpen)visits.Clear();
-   TestPatch?.Invoke(next);State=next;map.Apply(next);if(seen.Count>2000){seen.Clear();foreach(var c in next.customers??Array.Empty<Customer>())seen.Add(c.id);}
+   bool closing=State!=null&&State.isOpen&&!next.isOpen;
+   TestPatch?.Invoke(next);State=next;map.Apply(next);
+   if(closing)foreach(var w in walkers)w.MarketClosed();if(seen.Count>2000){seen.Clear();foreach(var c in next.customers??Array.Empty<Customer>())seen.Add(c.id);}
   }catch(Exception ex){Debug.LogError("CHECKOUT_SNAPSHOT_ERROR "+ex.Message);}}
   void Update(){simulation.ExternalCamera();if(State==null){hello+=Time.unscaledDeltaTime;if(hello>1){hello=0;Emit("{\"kind\":\"ready\",\"protocol\":1}");}return;}
    simulation.speed=1;
-   if(visits.Count>0&&State.isOpen){var walker=NextAvailableWalker();if(walker){if(traffic&&map.HasParking){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(walkers.All(w=>!w.gameObject.activeSelf||Vector3.Distance(w.transform.position,map.Entrance)>1.5f)){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
+   // New customers wait outside while the player rearranges the shop in build mode.
+   if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open){var walker=NextAvailableWalker();if(walker){if(traffic&&map.HasParking){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(walkers.All(w=>!w.gameObject.activeSelf||Vector3.Distance(w.transform.position,map.Entrance)>1.5f)){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
    if(Input.GetMouseButtonDown(0)){pointerStart=Input.mousePosition;pointerDragged=false;}
    if(Input.touchCount>1||(Input.GetMouseButton(0)&&Vector2.Distance(pointerStart,Input.mousePosition)>10))pointerDragged=true;
-   if(Input.GetMouseButtonUp(0)&&!pointerDragged&&UnityEngine.EventSystems.EventSystem.current&&!UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()){
-    if(Physics.Raycast(simulation.view.ScreenPointToRay(Input.mousePosition),out var hit,150)){var action=hit.collider.GetComponent<CheckoutTarget>();if(action){if(action.panel=="checkout")CheckoutCounterGame.Show(this,action.requestId);else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);}}
+   if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&UnityEngine.EventSystems.EventSystem.current&&!UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()){
+    if(Physics.Raycast(simulation.view.ScreenPointToRay(Input.mousePosition),out var hit,150)){var action=hit.collider.GetComponent<CheckoutTarget>();if(action){if(action.panel=="checkout")CheckoutCounterGame.Show(this,action.requestId);
+     // Works boards: finish a build inside the market (or the expansion) right now for diamonds.
+     else if(action.panel=="finishBuild"&&!string.IsNullOrEmpty(action.requestId))Command("finishInteriorConstructionNow","[\""+action.requestId+"\"]");
+     else if(action.panel=="finishWorks")Command("finishMarketExpansionNow","[]");else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);}}
    }
   }
   string AppearanceKey(CheckoutWalker walker){var motion=walker.GetComponent<MarketCharacterAnimator>();var body=motion.animationPlayer.GetComponentsInChildren<SkinnedMeshRenderer>(true).FirstOrDefault(r=>!r.name.EndsWith("_Prop"));return body&&body.sharedMaterial&&body.sharedMaterial.mainTexture?body.sharedMaterial.mainTexture.name:walker.name;}

@@ -13,6 +13,8 @@ import { ProductImage } from "@/components/product-image";
 import { getProductionSectorProductId } from "@/data/game-icon-assets";
 import { productionSectors } from "@/data/production-sectors";
 import { SectorDetailScreen } from "@/screens/sector-detail";
+import { getSectorBuildStatus } from "@/services/interior-construction";
+import { formatConstructionCountdown } from "@/data/market-expansions";
 import { useGameStore } from "@/stores/game-store";
 
 export function SectorsScreen() {
@@ -20,9 +22,18 @@ export function SectorsScreen() {
 	const level = useGameStore((state) => state.market.level);
 	const jobs = useGameStore((state) => state.production.jobs);
 	const totalCrafted = useGameStore((state) => state.production.totalCrafted);
-	const unlockedSectors = productionSectors.filter(
-		(sector) => level >= sector.requiredLevel,
-	).length;
+	// Sectors are paid for and built; the level only lets the player build them.
+	const builtSectorIds = useGameStore((state) => state.builtSectorIds);
+	const interiorConstructions = useGameStore((state) => state.interiorConstructions);
+	const market = useGameStore((state) => state.market);
+	const unlockedMarketExpansionIds = useGameStore((state) => state.unlockedMarketExpansionIds);
+	const buildState = {
+		builtSectorIds,
+		interiorConstructions,
+		market,
+		unlockedMarketExpansionIds,
+	} as Parameters<typeof getSectorBuildStatus>[0];
+	const unlockedSectors = builtSectorIds.length;
 
 	function openSector(sector: ProductionSector) {
 		if (level < sector.requiredLevel) {
@@ -38,6 +49,7 @@ export function SectorsScreen() {
 		index,
 		item: sector,
 	}: LegendListRenderItemProps<ProductionSector>) {
+		const build = getSectorBuildStatus(buildState, sector.id);
 		const isLocked = level < sector.requiredLevel;
 		const activeJobs = jobs.filter((job) => job.sectorId === sector.id).length;
 
@@ -83,9 +95,17 @@ export function SectorsScreen() {
 							<Text style={styles.slotStatusText}>
 								{isLocked
 									? "Setor bloqueado"
-									: activeJobs > 0
-										? `${activeJobs} produção(ões) ativa(s)`
-										: "Pronto para produzir"}
+									: build.status === "building"
+										? `Em obra · ${formatConstructionCountdown(build.remainingMs)}`
+										: build.status === "stored"
+											? "No inventário · coloque no modo construir"
+											: build.status === "queued"
+												? "Na fila da obra"
+										: build.status !== "built"
+											? `Construir · ${build.coinCost.toLocaleString("pt-BR")} moedas`
+											: activeJobs > 0
+												? `${activeJobs} produção(ões) ativa(s)`
+												: "Pronto para produzir"}
 							</Text>
 						</View>
 						<Text style={styles.slotCount}>{sector.slotCount} slots</Text>
@@ -116,7 +136,7 @@ export function SectorsScreen() {
 								<Text style={styles.statValue}>
 									{unlockedSectors}/{productionSectors.length}
 								</Text>
-								<Text style={styles.statLabel}>setores liberados</Text>
+								<Text style={styles.statLabel}>setores construídos</Text>
 							</View>
 							<View style={styles.statDivider} />
 							<View style={styles.stat}>
@@ -163,6 +183,8 @@ function getSectorCardStyle(sectorId: ProductionSector["id"]) {
 			return styles.drinksCard;
 		case "sorvetes":
 			return styles.iceCreamCard;
+		case "adega":
+			return styles.wineCard;
 	}
 }
 
@@ -180,6 +202,8 @@ function getSectorIconStyle(sectorId: ProductionSector["id"]) {
 			return styles.drinksIcon;
 		case "sorvetes":
 			return styles.iceCreamIcon;
+		case "adega":
+			return styles.wineIcon;
 	}
 }
 
@@ -312,6 +336,10 @@ const styles = StyleSheet.create((theme) => ({
 		borderColor: theme.colors["violet-100"],
 		backgroundColor: theme.colors["violet-50"],
 	},
+	wineCard: {
+		borderColor: theme.colors["red-100"],
+		backgroundColor: theme.colors["red-50"],
+	},
 	pressedCard: { opacity: 0.75, transform: [{ scale: 0.99 }] },
 	lockedCard: { opacity: 0.58 },
 	cardHeader: { flexDirection: "row", alignItems: "center" },
@@ -328,6 +356,7 @@ const styles = StyleSheet.create((theme) => ({
 	fishIcon: { backgroundColor: theme.colors["blue-100"] },
 	drinksIcon: { backgroundColor: theme.colors["green-100"] },
 	iceCreamIcon: { backgroundColor: theme.colors["violet-100"] },
+	wineIcon: { backgroundColor: theme.colors["red-100"] },
 	sectorImage: { width: 44, height: 44 },
 	cardTitleCopy: { flex: 1, marginLeft: theme.gap(1.25) },
 	sectorName: {

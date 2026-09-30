@@ -31,6 +31,7 @@ const panels: SimulatorPanel[] = [
 const hudActions: (keyof GameActions)[] = [
 	"activateLogisticsBoost",
 	"assignProductToShelf",
+	"buildSector",
 	"claimDailyGoal",
 	"claimDayResult",
 	"claimMission",
@@ -44,15 +45,24 @@ const hudActions: (keyof GameActions)[] = [
 	"devAdjustDiamonds",
 	"devAdjustInventory",
 	"devArriveDelivery",
+	"devPassTime",
+	"devSetMarketEra",
 	"devClearDock",
+	"devFinishMarketExpansion",
+	"devFinishInteriorConstructions",
 	"devTriggerIncident",
 	"dismissOfflineSummary",
+	"evolveMarketEra",
 	"expandShelfSlots",
+	"finishMarketEraNow",
+	"finishMarketExpansionNow",
+	"finishInteriorConstructionNow",
 	"finishProductionNow",
 	"fixIncident",
 	"grantCurrencyPurchase",
 	"hireEmployee",
 	"placeSupplierOrder",
+	"purchaseDecor",
 	"purchaseShopItem",
 	"resetGame",
 	"resolveSpecialRequest",
@@ -205,7 +215,13 @@ setInterval(() => {
 	store().processCheckoutCounter();
 	store().processStoreIncidents();
 	store().processReceiving();
+	store().processEmployeeWork();
 	store().processMarketDay();
+	// Paid expansions open when their works end (the app runs this in ProductionSimulation).
+	store().processMarketExpansionConstruction();
+	store().processMarketEraConstruction();
+	// Shelves, sectors and fixtures being built inside the market open on the same clock.
+	store().processInteriorConstructions();
 }, 1_000);
 // When a day ends (timer or button) its results open on their own, like the app's sheet.
 let dayPhase = store().day.phase;

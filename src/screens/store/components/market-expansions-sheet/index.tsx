@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type {
@@ -10,7 +11,13 @@ import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { marketExpansionAssets } from "@/data/market-expansion-assets";
-import { marketExpansions } from "@/data/market-expansions";
+import {
+	formatBuildDuration,
+	formatConstructionCountdown,
+	getMarketExpansionSkipCost,
+	getMissingMarketExpansionPrerequisites,
+	marketExpansions,
+} from "@/data/market-expansions";
 import { useGameStore } from "@/stores/game-store";
 
 export function MarketExpansionsSheet() {
@@ -22,6 +29,23 @@ export function MarketExpansionsSheet() {
 	const unlockMarketExpansion = useGameStore(
 		(state) => state.unlockMarketExpansion,
 	);
+
+	const construction = useGameStore(
+		(state) => state.marketExpansionConstruction,
+	);
+	const finishMarketExpansionNow = useGameStore(
+		(state) => state.finishMarketExpansionNow,
+	);
+	const [now, setNow] = useState(() => Date.now());
+
+	useEffect(() => {
+		if (!construction) return;
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, [construction]);
+
+	const remainingMs = construction ? construction.endsAt - now : 0;
+	const skipCost = getMarketExpansionSkipCost(remainingMs);
 
 	function unlock(
 		expansionId: MarketExpansionId,
@@ -55,7 +79,12 @@ export function MarketExpansionsSheet() {
 
 			{marketExpansions.map((expansion) => {
 				const unlocked = unlockedIds.includes(expansion.id);
+				const underConstruction = construction?.expansionId === expansion.id;
 				const levelLocked = level < expansion.requiredLevel;
+				const missing = getMissingMarketExpansionPrerequisites(
+					expansion,
+					unlockedIds,
+				);
 				const hasCoins = coins >= expansion.coinCost;
 				const hasDiamonds = diamonds >= expansion.diamondCost;
 
@@ -74,19 +103,55 @@ export function MarketExpansionsSheet() {
 								<Text
 									style={[styles.status, unlocked && styles.statusUnlocked]}
 								>
-									{unlocked ? "LIBERADA" : `NÍVEL ${expansion.requiredLevel}`}
+									{unlocked
+										? "LIBERADA"
+										: underConstruction
+											? "EM OBRA"
+											: `NÍVEL ${expansion.requiredLevel}`}
 								</Text>
 							</View>
 							<Text style={styles.cardDescription}>
 								{expansion.description}
 							</Text>
+							{!unlocked && !underConstruction && (
+								<Text style={styles.buildTime}>
+									⏱ Obra de {formatBuildDuration(expansion.buildDurationMs)}
+								</Text>
+							)}
 							{unlocked ? (
 								<Text style={styles.unlockedText}>
 									Área pronta para o mercado.
 								</Text>
+							) : underConstruction ? (
+								<View style={styles.works}>
+									<Text style={styles.worksText}>
+										🏗️{" "}
+										{remainingMs > 0
+											? `Pronta em ${formatConstructionCountdown(remainingMs)}`
+											: "Finalizando a obra..."}
+									</Text>
+									{remainingMs > 0 && (
+										<GameButton
+											disabled={diamonds < skipCost}
+											icon="diamond"
+											label={`Acelerar ${skipCost}`}
+											onPress={finishMarketExpansionNow}
+											size="small"
+											variant="gem"
+										/>
+									)}
+								</View>
 							) : levelLocked ? (
 								<Text style={styles.lockedText}>
 									Alcance o nível {expansion.requiredLevel} para desbloquear.
+								</Text>
+							) : missing.length > 0 ? (
+								<Text style={styles.lockedText}>
+									Construa antes: {missing.map((item) => item.name).join(" e ")}.
+								</Text>
+							) : construction ? (
+								<Text style={styles.lockedText}>
+									Aguarde a obra atual terminar.
 								</Text>
 							) : (
 								<View style={styles.actions}>
@@ -214,6 +279,14 @@ const styles = StyleSheet.create((theme) => ({
 		marginTop: theme.gap(0.25),
 	},
 	actionButton: { flex: 1 },
+	buildTime: { color: theme.colors["neutral-600"], fontSize: 10 },
+	works: { gap: theme.gap(0.375), marginTop: theme.gap(0.25) },
+	worksText: {
+		color: theme.colors["amber-600"],
+		fontFamily: theme.fonts.family.numberBold,
+		fontSize: 11,
+		fontWeight: "800",
+	},
 	lockedText: {
 		color: theme.colors["amber-600"],
 		fontSize: 10,

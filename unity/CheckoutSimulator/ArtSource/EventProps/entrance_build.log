@@ -1,0 +1,23 @@
+00:00.016  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+C:\Checkout-mobile\scripts\blender\build_event_props.py:1175: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  m.use_nodes = True
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\MarketPortal.fbx'
+export finished in 0.0139 sec.
+EVENT_PROP_BUILT MarketPortal
+C:\Checkout-mobile\scripts\blender\build_event_props.py:1257: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  scene.world.use_nodes = True
+00:21.172  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\MarketPortal.png'
+C:\Checkout-mobile\scripts\blender\build_event_props.py:1175: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  m.use_nodes = True
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\MarketSteps.fbx'
+export finished in 0.0071 sec.
+EVENT_PROP_BUILT MarketSteps
+00:26.641  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\MarketSteps.png'
+EVENT_PROPS_DONE 2
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 02:38:20)
+
+Blender quit

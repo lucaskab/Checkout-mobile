@@ -2,7 +2,7 @@ import type { EmployeeDefinition, EmployeeRole } from "@/@types/employee";
 
 export const employeeDefinitions: EmployeeDefinition[] = [
 	{
-		description: "Acelera o atendimento e reduz a espera na fila.",
+		description: "Assume o caixa: passa as compras e recebe o pagamento sozinho. Sem ele, quem atende é você.",
 		efficiency: 1,
 		hireCost: 1_500,
 		id: "cashier",
@@ -11,7 +11,7 @@ export const employeeDefinitions: EmployeeDefinition[] = [
 		salary: 180,
 	},
 	{
-		description: "Reabastece automaticamente a gôndola mais vazia após cada venda.",
+		description: "Sai pela porta dos fundos, busca uma caixa no depósito e repõe gôndolas e setores, uma viagem por vez.",
 		efficiency: 2,
 		hireCost: 3_500,
 		id: "stock_clerk",
@@ -20,7 +20,7 @@ export const employeeDefinitions: EmployeeDefinition[] = [
 		salary: 240,
 	},
 	{
-		description: "Melhora a reputação e a conversão dos clientes do mercado.",
+		description: "Varre a sujeira, seca o que derramou e troca lâmpadas queimadas assim que aparecem.",
 		efficiency: 1,
 		hireCost: 5_000,
 		id: "cleaner",

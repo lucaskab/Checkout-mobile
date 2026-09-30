@@ -3,14 +3,15 @@ using UnityEngine;
 
 namespace Checkout
 {
-    // A few city characters ride the market block cycle track, at random intervals and in both directions.
+    // City characters cycle along the street bike lanes and through the park, at random intervals.
     public class CheckoutPlazaCyclists : MonoBehaviour
     {
-        public int maxRiders = 2;
-        public Vector2 interval = new Vector2(9, 30);
+        public int maxRiders = 5;
+        public Vector2 interval = new Vector2(4, 14);
         public const float Ground = .13f;
-        class Rider { public CheckoutRigPose pose; public CheckoutBicycle bike; public Vector3[] lane; public int next = 1; public float speed, wheel, crank; public bool northbound; }
+        class Rider { public CheckoutRigPose pose; public CheckoutBicycle bike; public Vector3[] lane; public int next = 1, route; public float speed, wheel, crank; }
         readonly List<Rider> riders = new List<Rider>();
+        List<Vector3[]> routes;
         float nextRide;
 
         void Start() { nextRide = Time.time + Random.Range(2f, 8f); }
@@ -20,22 +21,22 @@ namespace Checkout
             if (Time.time >= nextRide)
             {
                 nextRide = Time.time + Random.Range(interval.x, interval.y);
-                if (riders.Count < maxRiders) Launch(Random.value < .5f);
+                if (riders.Count < maxRiders) Launch(Random.Range(0, (routes ??= CheckoutCycleTrack.Routes(Ground)).Count));
             }
             for (int i = riders.Count - 1; i >= 0; i--) if (!Ride(riders[i], Time.deltaTime)) { Destroy(riders[i].bike.root.gameObject); riders.RemoveAt(i); }
         }
 
-        void Launch(bool northbound)
+        void Launch(int route)
         {
-            var lane = CheckoutCycleTrack.Lane(northbound, .45f, Ground);
-            foreach (var other in riders) if (other.northbound == northbound && Vector3.Distance(other.bike.root.position, lane[0]) < 8) return;
+            var lane = routes[route];
+            foreach (var other in riders) if (other.route == route && Vector3.Distance(other.bike.root.position, lane[0]) < 8) return;
             var bike = CheckoutBicycle.Build(transform);
             var pose = CheckoutRigPose.Spawn(bike.root, "Cyclist");
             if (pose == null) { Destroy(bike.root.gameObject); return; }
             // Hips on the saddle; the rig faces its root -Z, the bike +Z.
             pose.root.localPosition = new Vector3(0, CheckoutBicycle.Saddle.y + .06f - .92f, CheckoutBicycle.Saddle.z);
             pose.root.localRotation = Quaternion.Euler(0, 180, 0);
-            var rider = new Rider { pose = pose, bike = bike, lane = lane, speed = Random.Range(3.2f, 4.6f), northbound = northbound };
+            var rider = new Rider { pose = pose, bike = bike, lane = lane, route = route, speed = Random.Range(3.2f, 4.6f) };
             bike.root.SetPositionAndRotation(lane[0], Quaternion.LookRotation(lane[1] - lane[0]));
             riders.Add(rider);
         }

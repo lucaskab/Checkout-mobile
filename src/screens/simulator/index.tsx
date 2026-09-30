@@ -118,7 +118,7 @@ export function SimulatorScreen() {
 		},
 		[openBottomSheet],
 	);
-	const { status, onUnityMessage } = useSimulator(
+	const { status, onUnityMessage, building } = useSimulator(
 		unityRef,
 		setPanel,
 		setShelfId,
@@ -187,7 +187,7 @@ export function SimulatorScreen() {
 						panelContent ? "no-hide-descendants" : "auto"
 					}
 					pointerEvents={panelContent ? "none" : "box-none"}
-					style={styles.controls}
+					style={[styles.controls, building && styles.hidden]}
 				>
 					<View
 						pointerEvents="box-none"
@@ -420,6 +420,7 @@ const styles = StyleSheet.create((theme) => ({
 		fontSize: 11,
 		color: theme.colors["neutral-0"],
 	},
+	hidden: { display: "none" },
 	panelButton: {
 		paddingHorizontal: theme.gap(1),
 		paddingVertical: theme.gap(0.625),

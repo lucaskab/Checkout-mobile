@@ -9,6 +9,9 @@ import {
 	maximumSlotsPerShelf,
 	productsPerShelf,
 } from "@/data/shelf-slots";
+import { starterShelfIds } from "@/data/market-products";
+
+const starterShelfCount = starterShelfIds.length;
 
 export const initialUnlockedShelfSlots = productsPerShelf;
 
@@ -104,8 +107,10 @@ export function getNextShelfUnlockUpgrade(unlockedShelves: number) {
 		return null;
 	}
 
+	// The starter shelves are free: the first shelf the player buys costs what the second one always did.
+	const paidShelves = Math.max(1, unlockedShelves - (starterShelfCount - 1));
 	const legacyUpgrade = getNextLegacyShelfSlotUpgrade(
-		unlockedShelves * productsPerShelf,
+		paidShelves * productsPerShelf,
 	);
 
 	return legacyUpgrade

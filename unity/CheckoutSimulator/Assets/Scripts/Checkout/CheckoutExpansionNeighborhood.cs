@@ -6,7 +6,7 @@ namespace Checkout
     // Scenery is baked into the scene; snapshots only swap the purchased lots.
     public class CheckoutExpansionNeighborhood : MonoBehaviour
     {
-        public enum Area { Storage, Parking, LoadingYard, Premium, Market }
+        public enum Area { Storage, Parking, LoadingYard, Premium, Market, GrandWarehouse, BothYards }
 
         [Serializable]
         public class Lot
@@ -27,7 +27,10 @@ namespace Checkout
                 {
                     Area.Storage => layout.storage,
                     Area.Parking => layout.parking,
-                    Area.LoadingYard => layout.loadingYard,
+                    // The old truck yard gives its ground back to the square once the central warehouse moves the trucks.
+                    Area.LoadingYard => layout.loadingYard && !layout.storageLarge,
+                    Area.GrandWarehouse => layout.storageLarge,
+                    Area.BothYards => layout.loadingYard || layout.storageLarge,
                     Area.Premium => layout.premium,
                     _ => layout.stage >= lot.replacedAtStage,
                 };

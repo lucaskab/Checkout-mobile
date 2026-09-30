@@ -1,0 +1,484 @@
+00:00.031  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+C:\Checkout-mobile\scripts\blender\build_event_props.py:1085: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  m.use_nodes = True
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\CartEmpty.fbx'
+export finished in 0.0058 sec.
+EVENT_PROP_BUILT CartEmpty
+C:\Checkout-mobile\scripts\blender\build_event_props.py:1167: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  scene.world.use_nodes = True
+00:13.094  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\CartEmpty.png'
+C:\Checkout-mobile\scripts\blender\build_event_props.py:1085: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  m.use_nodes = True
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\CartFull.fbx'
+export finished in 0.0060 sec.
+EVENT_PROP_BUILT CartFull
+00:15.578  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\CartFull.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\QueueStanchions.fbx'
+export finished in 0.0048 sec.
+EVENT_PROP_BUILT QueueStanchions
+00:17.547  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\QueueStanchions.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\CoinStack.fbx'
+export finished in 0.0059 sec.
+EVENT_PROP_BUILT CoinStack
+00:20.781  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\CoinStack.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GoldCoin.fbx'
+export finished in 0.0041 sec.
+EVENT_PROP_BUILT GoldCoin
+00:23.359  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GoldCoin.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\MoneyBag.fbx'
+export finished in 0.0040 sec.
+EVENT_PROP_BUILT MoneyBag
+00:25.922  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\MoneyBag.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\RingLight.fbx'
+export finished in 0.0049 sec.
+EVENT_PROP_BUILT RingLight
+00:27.547  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\RingLight.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\CreatorBackdrop.fbx'
+export finished in 0.0098 sec.
+EVENT_PROP_BUILT CreatorBackdrop
+00:37.484  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\CreatorBackdrop.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\Heart.fbx'
+export finished in 0.0037 sec.
+EVENT_PROP_BUILT Heart
+00:39.953  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\Heart.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\FairStallRed.fbx'
+export finished in 0.0113 sec.
+EVENT_PROP_BUILT FairStallRed
+00:47.031  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\FairStallRed.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\FairStallTeal.fbx'
+export finished in 0.0106 sec.
+EVENT_PROP_BUILT FairStallTeal
+00:54.016  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\FairStallTeal.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\FairBunting.fbx'
+export finished in 0.0051 sec.
+EVENT_PROP_BUILT FairBunting
+00:55.375  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\FairBunting.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\WholesalePallet.fbx'
+export finished in 0.0051 sec.
+EVENT_PROP_BUILT WholesalePallet
+01:05.266  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\WholesalePallet.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\Pallet.fbx'
+export finished in 0.0042 sec.
+EVENT_PROP_BUILT Pallet
+01:07.828  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\Pallet.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\WholesaleBoard.fbx'
+export finished in 0.0037 sec.
+EVENT_PROP_BUILT WholesaleBoard
+01:15.969  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\WholesaleBoard.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\PalletJack.fbx'
+export finished in 0.0052 sec.
+EVENT_PROP_BUILT PalletJack
+01:18.359  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\PalletJack.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\DeliveryVan.fbx'
+export finished in 0.0055 sec.
+EVENT_PROP_BUILT DeliveryVan
+01:29.766  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\DeliveryVan.png'
+Warning: No mesh data to join
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\LaneArrow.fbx'
+export finished in 0.0034 sec.
+EVENT_PROP_BUILT LaneArrow
+01:31.203  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\LaneArrow.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GreenLight.fbx'
+export finished in 0.0040 sec.
+EVENT_PROP_BUILT GreenLight
+01:33.047  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GreenLight.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\StarBadge.fbx'
+export finished in 0.0047 sec.
+EVENT_PROP_BUILT StarBadge
+01:34.875  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\StarBadge.png'
+Warning: No mesh data to join
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\EnergyBolt.fbx'
+export finished in 0.0032 sec.
+EVENT_PROP_BUILT EnergyBolt
+01:36.641  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\EnergyBolt.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\BreadRack.fbx'
+export finished in 0.0051 sec.
+EVENT_PROP_BUILT BreadRack
+01:39.219  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\BreadRack.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\TeamBanner.fbx'
+export finished in 0.0040 sec.
+EVENT_PROP_BUILT TeamBanner
+01:49.203  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\TeamBanner.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\TrainingBoard.fbx'
+export finished in 0.0038 sec.
+EVENT_PROP_BUILT TrainingBoard
+01:58.328  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\TrainingBoard.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\TrainingChairs.fbx'
+export finished in 0.0051 sec.
+EVENT_PROP_BUILT TrainingChairs
+02:00.969  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\TrainingChairs.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GraduationCap.fbx'
+export finished in 0.0034 sec.
+EVENT_PROP_BUILT GraduationCap
+02:04.188  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GraduationCap.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GiftBox.fbx'
+export finished in 0.0062 sec.
+EVENT_PROP_BUILT GiftBox
+02:07.969  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GiftBox.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\ConfettiCannon.fbx'
+export finished in 0.0040 sec.
+EVENT_PROP_BUILT ConfettiCannon
+02:10.469  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\ConfettiCannon.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\LuckySign.fbx'
+export finished in 0.0034 sec.
+EVENT_PROP_BUILT LuckySign
+02:17.313  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\LuckySign.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\FlowerArch.fbx'
+export finished in 0.0127 sec.
+EVENT_PROP_BUILT FlowerArch
+02:22.500  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\FlowerArch.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\FlowerPot.fbx'
+export finished in 0.0048 sec.
+EVENT_PROP_BUILT FlowerPot
+02:25.000  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\FlowerPot.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\BalloonBunch.fbx'
+export finished in 0.0056 sec.
+EVENT_PROP_BUILT BalloonBunch
+02:27.359  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\BalloonBunch.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\SunBadge.fbx'
+export finished in 0.0054 sec.
+EVENT_PROP_BUILT SunBadge
+02:29.891  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\SunBadge.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\RivalTent.fbx'
+export finished in 0.0076 sec.
+EVENT_PROP_BUILT RivalTent
+02:40.031  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\RivalTent.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\RivalBoard.fbx'
+export finished in 0.0047 sec.
+EVENT_PROP_BUILT RivalBoard
+02:46.813  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\RivalBoard.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\TubeMan.fbx'
+export finished in 0.0044 sec.
+EVENT_PROP_BUILT TubeMan
+02:49.922  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\TubeMan.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\PriceTag.fbx'
+export finished in 0.0032 sec.
+EVENT_PROP_BUILT PriceTag
+02:52.109  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\PriceTag.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\CouponStand.fbx'
+export finished in 0.0039 sec.
+EVENT_PROP_BUILT CouponStand
+03:01.719  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\CouponStand.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\Calculator.fbx'
+export finished in 0.0057 sec.
+EVENT_PROP_BUILT Calculator
+03:04.750  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\Calculator.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\ShoppingList.fbx'
+export finished in 0.0034 sec.
+EVENT_PROP_BUILT ShoppingList
+03:06.781  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\ShoppingList.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\BrokenTerminal.fbx'
+export finished in 0.0038 sec.
+EVENT_PROP_BUILT BrokenTerminal
+03:09.594  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\BrokenTerminal.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\WarningBadge.fbx'
+export finished in 0.0040 sec.
+EVENT_PROP_BUILT WarningBadge
+03:11.750  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\WarningBadge.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\OutOfOrderSign.fbx'
+export finished in 0.0035 sec.
+EVENT_PROP_BUILT OutOfOrderSign
+03:14.766  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\OutOfOrderSign.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\Toolbox.fbx'
+export finished in 0.0045 sec.
+EVENT_PROP_BUILT Toolbox
+03:17.922  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\Toolbox.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\FuelPump.fbx'
+export finished in 0.0050 sec.
+EVENT_PROP_BUILT FuelPump
+03:29.250  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\FuelPump.png'
+Warning: No mesh data to join
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\UpArrow.fbx'
+export finished in 0.0031 sec.
+EVENT_PROP_BUILT UpArrow
+03:30.813  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\UpArrow.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\OilBarrels.fbx'
+export finished in 0.0060 sec.
+EVENT_PROP_BUILT OilBarrels
+03:33.219  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\OilBarrels.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\JerryCan.fbx'
+export finished in 0.0038 sec.
+EVENT_PROP_BUILT JerryCan
+03:35.703  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\JerryCan.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\TrafficCarRed.fbx'
+export finished in 0.0101 sec.
+EVENT_PROP_BUILT TrafficCarRed
+03:38.672  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\TrafficCarRed.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\TrafficCarBlue.fbx'
+export finished in 0.0056 sec.
+EVENT_PROP_BUILT TrafficCarBlue
+03:41.641  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\TrafficCarBlue.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\TrafficCarYellow.fbx'
+export finished in 0.0076 sec.
+EVENT_PROP_BUILT TrafficCarYellow
+03:44.609  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\TrafficCarYellow.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\TrafficCarTeal.fbx'
+export finished in 0.0080 sec.
+EVENT_PROP_BUILT TrafficCarTeal
+03:47.594  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\TrafficCarTeal.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\SlowSign.fbx'
+export finished in 0.0039 sec.
+EVENT_PROP_BUILT SlowSign
+03:50.016  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\SlowSign.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\AngryCloud.fbx'
+export finished in 0.0046 sec.
+EVENT_PROP_BUILT AngryCloud
+03:52.813  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\AngryCloud.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\StepLadder.fbx'
+export finished in 0.0039 sec.
+EVENT_PROP_BUILT StepLadder
+03:55.391  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\StepLadder.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\RepairStation.fbx'
+export finished in 0.0052 sec.
+EVENT_PROP_BUILT RepairStation
+03:59.953  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\RepairStation.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\MaintenanceSign.fbx'
+export finished in 0.0040 sec.
+EVENT_PROP_BUILT MaintenanceSign
+04:02.969  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\MaintenanceSign.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\Gear.fbx'
+export finished in 0.0070 sec.
+EVENT_PROP_BUILT Gear
+04:04.984  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\Gear.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\BreakCorner.fbx'
+export finished in 0.0065 sec.
+EVENT_PROP_BUILT BreakCorner
+04:07.719  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\BreakCorner.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\CoffeeCup.fbx'
+export finished in 0.0061 sec.
+EVENT_PROP_BUILT CoffeeCup
+04:10.500  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\CoffeeCup.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\Zzz.fbx'
+export finished in 0.0041 sec.
+EVENT_PROP_BUILT Zzz
+04:12.641  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\Zzz.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\InspectionKit.fbx'
+export finished in 0.0039 sec.
+EVENT_PROP_BUILT InspectionKit
+04:15.531  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\InspectionKit.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\ClipboardIcon.fbx'
+export finished in 0.0032 sec.
+EVENT_PROP_BUILT ClipboardIcon
+04:17.813  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\ClipboardIcon.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\Magnifier.fbx'
+export finished in 0.0040 sec.
+EVENT_PROP_BUILT Magnifier
+04:20.344  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\Magnifier.png'
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\IdBadge.fbx'
+export finished in 0.0038 sec.
+EVENT_PROP_BUILT IdBadge
+04:22.453  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\IdBadge.png'
+12:03:09 | INFO: Data are loaded, start creating Blender stuff
+12:03:09 | INFO: Blender create Mesh node meshes[0]
+12:03:09 | INFO: glTF import finished in 0.18s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameCardboardBox.fbx'
+export finished in 0.0296 sec.
+EVENT_PROP_BUILT GameCardboardBox
+04:24.000  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameCardboardBox.png'
+12:03:10 | INFO: Data are loaded, start creating Blender stuff
+12:03:10 | INFO: Blender create Mesh node meshes[0]
+12:03:11 | INFO: glTF import finished in 0.20s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameVegetableCrate.fbx'
+export finished in 0.0328 sec.
+EVENT_PROP_BUILT GameVegetableCrate
+04:25.438  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameVegetableCrate.png'
+12:03:12 | INFO: Data are loaded, start creating Blender stuff
+12:03:12 | INFO: Blender create Mesh node meshes[0]
+12:03:12 | INFO: glTF import finished in 0.19s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameFruitStand.fbx'
+export finished in 0.0333 sec.
+EVENT_PROP_BUILT GameFruitStand
+04:26.828  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameFruitStand.png'
+12:03:13 | INFO: Data are loaded, start creating Blender stuff
+12:03:13 | INFO: Blender create Mesh node meshes[0]
+12:03:13 | INFO: glTF import finished in 0.19s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameCartoonCar.fbx'
+export finished in 0.0314 sec.
+EVENT_PROP_BUILT GameCartoonCar
+04:28.219  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameCartoonCar.png'
+12:03:15 | INFO: Data are loaded, start creating Blender stuff
+12:03:15 | INFO: Blender create Mesh node meshes[0]
+12:03:15 | INFO: glTF import finished in 0.18s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameStylizedCar.fbx'
+export finished in 0.0321 sec.
+EVENT_PROP_BUILT GameStylizedCar
+04:29.703  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameStylizedCar.png'
+12:03:16 | INFO: Data are loaded, start creating Blender stuff
+12:03:16 | INFO: Blender create Mesh node meshes[0]
+12:03:16 | INFO: glTF import finished in 0.18s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameToyVan.fbx'
+export finished in 0.0301 sec.
+EVENT_PROP_BUILT GameToyVan
+04:31.172  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameToyVan.png'
+12:03:18 | INFO: Data are loaded, start creating Blender stuff
+12:03:18 | INFO: Blender create Mesh node meshes[0]
+12:03:18 | INFO: glTF import finished in 0.02s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameDeliveryTruck.fbx'
+export finished in 0.0184 sec.
+EVENT_PROP_BUILT GameDeliveryTruck
+04:31.563  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameDeliveryTruck.png'
+12:03:18 | INFO: Data are loaded, start creating Blender stuff
+12:03:18 | INFO: Blender create Mesh node meshes[0]
+12:03:18 | INFO: glTF import finished in 0.10s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameFlowerPlanter.fbx'
+export finished in 0.0307 sec.
+EVENT_PROP_BUILT GameFlowerPlanter
+04:32.406  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameFlowerPlanter.png'
+12:03:19 | INFO: Data are loaded, start creating Blender stuff
+12:03:19 | INFO: Blender create Mesh node meshes[0]
+12:03:19 | INFO: glTF import finished in 0.18s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameTrafficLight.fbx'
+export finished in 0.0322 sec.
+EVENT_PROP_BUILT GameTrafficLight
+04:33.844  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameTrafficLight.png'
+12:03:20 | INFO: Data are loaded, start creating Blender stuff
+12:03:20 | INFO: Blender create Mesh node meshes[0]
+12:03:20 | INFO: glTF import finished in 0.18s
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\EventProps\\GameWorker.fbx'
+export finished in 0.0311 sec.
+EVENT_PROP_BUILT GameWorker
+04:35.297  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\EventProps\Previews\GameWorker.png'
+EVENT_PROPS_DONE 75
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 02:38:20)
+
+Blender quit

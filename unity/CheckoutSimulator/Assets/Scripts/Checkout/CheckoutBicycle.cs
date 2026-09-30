@@ -54,7 +54,9 @@ namespace Checkout
         public Vector3 Pedal(int side, float crankAngle)
         {
             float a = crankAngle + (side > 0 ? Mathf.PI : 0);
-            return root.TransformPoint(Crank + new Vector3(side * .13f, -Mathf.Cos(a) * CrankRadius, Mathf.Sin(a) * CrankRadius));
+            // Forward pedalling: from the bottom of the stroke the pedal swings back (-Z) and up, matching
+            // the crank and wheel rotation (which carry the top of the wheel forward).
+            return root.TransformPoint(Crank + new Vector3(side * .13f, -Mathf.Cos(a) * CrankRadius, -Mathf.Sin(a) * CrankRadius));
         }
 
         static Material Flat(Color color, float gloss)

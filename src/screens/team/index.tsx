@@ -8,11 +8,15 @@ import { GameText as Text } from "@/components/game-text";
 import { employeeDefinitions } from "@/data/employees";
 import { getEmployeeTrainingCost } from "@/services/employee-progression";
 import { useGameStore } from "@/stores/game-store";
+import { describeEmployeeActivity } from "./activity";
 
 export function TeamScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	const coins = useGameStore((state) => state.coins);
 	const level = useGameStore((state) => state.market.level);
 	const employees = useGameStore((state) => state.employees.employees);
+	const tasks = useGameStore((state) => state.employees.tasks) ?? [];
+	const lastPayroll = useGameStore((state) => state.employees.lastPayroll);
+	const isOpen = useGameStore((state) => state.market.isOpen);
 	const hireEmployee = useGameStore((state) => state.hireEmployee);
 	const setEmployeeWorking = useGameStore((state) => state.setEmployeeWorking);
 	const trainEmployee = useGameStore((state) => state.trainEmployee);
@@ -31,9 +35,16 @@ export function TeamScreen({ onBack }: EmbeddedNavigationProps = {}) {
 					<Text style={styles.coins}>🪙 {coins.toLocaleString("pt-BR")}</Text>
 				</View>
 				<Text style={styles.description}>
-					Uma boa equipe transforma vendas em rotina: atendimento, reposição e
-					reputação evoluem junto com o seu mercado.
+					Cada contratado trabalha sozinho no mercado. O salário de quem está
+					ativo é descontado ao fechar cada turno.
 				</Text>
+				{lastPayroll ? (
+					<Text style={lastPayroll.paid ? styles.payroll : styles.payrollLate}>
+						{lastPayroll.paid
+							? `Último turno: 🪙 ${lastPayroll.amount.toLocaleString("pt-BR")} em salários`
+							: `Faltaram 🪙 ${lastPayroll.amount.toLocaleString("pt-BR")} para os salários: a equipe parou`}
+					</Text>
+				) : null}
 			</View>
 
 			{employeeDefinitions.map((definition) => {
@@ -67,12 +78,15 @@ export function TeamScreen({ onBack }: EmbeddedNavigationProps = {}) {
 							</Text>
 							{employee ? (
 								<View style={styles.employeeActions}>
+									<Text style={styles.activity}>
+										{describeEmployeeActivity(employee, tasks, isOpen)}
+									</Text>
 									<View style={styles.employeeStats}>
 										<Text style={styles.statText}>
 											Nv. {employee.level} · {employee.efficiency} eficiência
 										</Text>
 										<Text style={styles.salary}>
-											🪙 {employee.salary}/turno
+											🪙 {employee.salary} por turno
 										</Text>
 									</View>
 									<View style={styles.buttons}>
@@ -94,17 +108,22 @@ export function TeamScreen({ onBack }: EmbeddedNavigationProps = {}) {
 									</View>
 								</View>
 							) : (
-								<GameButton
-									disabled={levelLocked || hireLocked}
+								<View style={styles.employeeActions}>
+									<Text style={styles.salary}>
+										Salário: 🪙 {definition.salary} por turno
+									</Text>
+									<GameButton
+										disabled={levelLocked || hireLocked}
 									label={
 										levelLocked
 											? `Chegue ao nível ${definition.level}`
 											: `Contratar por ${definition.hireCost.toLocaleString("pt-BR")}`
 									}
-									onPress={() => hireEmployee(definition.id)}
-									size="small"
-									variant="success"
-								/>
+										onPress={() => hireEmployee(definition.id)}
+										size="small"
+										variant="success"
+									/>
+								</View>
 							)}
 						</View>
 					</View>
@@ -214,6 +233,23 @@ const styles = StyleSheet.create((theme) => ({
 		lineHeight: 17,
 	},
 	employeeActions: { gap: theme.gap(0.5) },
+	activity: {
+		color: theme.colors["green-600"],
+		fontSize: 11,
+		fontWeight: "700",
+	},
+	payroll: {
+		marginTop: theme.gap(0.75),
+		color: theme.colors["amber-200"],
+		fontSize: 12,
+		fontWeight: "700",
+	},
+	payrollLate: {
+		marginTop: theme.gap(0.75),
+		color: theme.colors["red-200"],
+		fontSize: 12,
+		fontWeight: "700",
+	},
 	employeeStats: {
 		flexDirection: "row",
 		justifyContent: "space-between",

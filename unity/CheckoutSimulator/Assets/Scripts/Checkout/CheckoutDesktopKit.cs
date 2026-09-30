@@ -4,6 +4,19 @@ using UnityEngine;
 namespace Checkout {
  // Cozy cream look shared with the React Native theme: rounded cards, 3D pressable buttons.
  public static class CheckoutDesktopKit {
+  // The UI fonts have no emoji: coin/diamond/clock/lock pictographs from the shared page texts are dropped
+  // (the icons next to them say the same).
+  public static string Clean(string text){
+   if(string.IsNullOrEmpty(text))return text;
+   var sb=new System.Text.StringBuilder(text.Length);
+   for(int i=0;i<text.Length;i++){
+    char c=text[i];
+    if(char.IsHighSurrogate(c)&&i+1<text.Length){i++;continue;} // 🪙 💎 🔒 🏗 …
+    if(c=='\uFE0F'||c=='\u23F1'||c=='\u2714'||c=='\u26A0')continue;       // variation selector, ⏱ ✔ ⚠
+    sb.Append(c);
+   }
+   return sb.ToString().Replace("  "," ").Trim();
+  }
   public static Color C(string hex){ColorUtility.TryParseHtmlString("#"+hex,out var c);return c;}
   public static readonly Color Cream=C("FFF7EC"),Paper=C("FBEEDA"),Border=C("D4B482"),Ink=C("4A3624"),Muted=C("8A7560"),White=Color.white;
 

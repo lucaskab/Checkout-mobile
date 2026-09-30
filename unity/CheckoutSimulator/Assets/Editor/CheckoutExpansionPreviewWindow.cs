@@ -25,11 +25,12 @@ public sealed class CheckoutExpansionPreviewWindow : EditorWindow
 
     static readonly float[,] Scales =
     {
-        { .78f, .68f },
-        { .86f, .78f },
-        { .93f, .88f },
-        { 1f, 1f },
-        { 1.12f, 1.12f }
+        // Keep in sync with src/services/simulator-layout.ts (React Native).
+        { .82f, .72f },
+        { .96f, .82f },
+        { 1.1f, .92f },
+        { 1.24f, 1.03f },
+        { 1.38f, 1.14f }
     };
 
     readonly List<Button> stageButtons = new List<Button>();
@@ -41,6 +42,8 @@ public sealed class CheckoutExpansionPreviewWindow : EditorWindow
     Button stopButton;
     int stage;
     int appliedStage;
+    // Preview the central warehouse expansion (replaces the depot, moves the truck yard, opens the adega).
+    static bool grandWarehouse;
     bool previewing;
     bool savingPreview;
     Transform world;
@@ -100,6 +103,10 @@ public sealed class CheckoutExpansionPreviewWindow : EditorWindow
         controls.Add(previousButton);
         controls.Add(nextButton);
         root.Add(controls);
+
+        var grand = new Toggle("Armazém central (adega + pátio novo)") { value = grandWarehouse };
+        grand.RegisterValueChangedCallback(evt => { grandWarehouse = evt.newValue; if (previewing) ApplyStage(stage); });
+        root.Add(grand);
 
         previewButton = new Button(StartPreview) { text = "Iniciar prévia" };
         stopButton = new Button(StopPreview) { text = "Parar prévia e voltar ao mapa base" };
@@ -202,6 +209,7 @@ public sealed class CheckoutExpansionPreviewWindow : EditorWindow
         var next = CreateLayout(value);
         layout.Apply(next);
         ApplySectorVisibility(next);
+        world.GetComponentInChildren<CheckoutStageDressing>(true)?.Apply(layout, next.stage, false);
         appliedStage = value;
         SceneView.RepaintAll();
         RefreshUI();
@@ -221,11 +229,13 @@ public sealed class CheckoutExpansionPreviewWindow : EditorWindow
             premium = true,
             sectorIds = new[] { "padaria", "queijaria", "acougue", "bebidas", "peixaria", "sorvetes" }
         });
+        layout.ResetToBase();
+        world.GetComponentInChildren<CheckoutStageDressing>(true)?.Apply(layout, 3, false);
         appliedStage = -1;
         SceneView.RepaintAll();
     }
 
-    static MarketLayout CreateLayout(int value)
+    public static MarketLayout CreateLayout(int value)
     {
         value = Mathf.Clamp(value, 0, 4);
         bool fresh = value >= 1;
@@ -237,6 +247,8 @@ public sealed class CheckoutExpansionPreviewWindow : EditorWindow
         if (service) { sectors.Add("acougue"); sectors.Add("bebidas"); }
         if (stock) sectors.Add("peixaria");
         if (premium) sectors.Add("sorvetes");
+        bool grand = grandWarehouse && fresh && stock;
+        if (grand) sectors.Add("adega");
         return new MarketLayout
         {
             stage = value,
@@ -246,13 +258,14 @@ public sealed class CheckoutExpansionPreviewWindow : EditorWindow
             parking = service,
             loadingYard = stock,
             premium = premium,
+            storageLarge = grand,
             sectorIds = sectors.ToArray()
         };
     }
 
     void ApplySectorVisibility(MarketLayout next)
     {
-        var sectorIds = new[] { "padaria", "queijaria", "acougue", "bebidas", "peixaria", "sorvetes" };
+        var sectorIds = new[] { "padaria", "queijaria", "acougue", "bebidas", "peixaria", "sorvetes", "adega" };
         foreach (var id in sectorIds)
         {
             bool present = next.sectorIds.Contains(id);
@@ -260,7 +273,8 @@ public sealed class CheckoutExpansionPreviewWindow : EditorWindow
             var progress = world.Find("Sector Construction/" + id)?.GetComponent<CheckoutSectorProgress>();
             if (progress)
             {
-                progress.gameObject.SetActive(present);
+                // Sectors of expansions not bought yet still show their building site.
+                progress.gameObject.SetActive(true);
                 progress.Apply(present, false);
             }
             else if (root) root.gameObject.SetActive(present);

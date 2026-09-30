@@ -5,13 +5,30 @@ export function ProductionSimulation() {
 	const processProductionJobs = useGameStore(
 		(state) => state.processProductionJobs,
 	);
+	const processMarketExpansionConstruction = useGameStore(
+		(state) => state.processMarketExpansionConstruction,
+	);
+	const processInteriorConstructions = useGameStore(
+		(state) => state.processInteriorConstructions,
+	);
 
 	useEffect(() => {
-		processProductionJobs();
-		const interval = setInterval(processProductionJobs, 1_000);
+		const tick = () => {
+			processProductionJobs();
+			// Market expansions under construction open on the same clock.
+			processMarketExpansionConstruction();
+			// So do the shelves, sectors and fixtures being built inside the market.
+			processInteriorConstructions();
+		};
+		tick();
+		const interval = setInterval(tick, 1_000);
 
 		return () => clearInterval(interval);
-	}, [processProductionJobs]);
+	}, [
+		processProductionJobs,
+		processMarketExpansionConstruction,
+		processInteriorConstructions,
+	]);
 
 	return null;
 }

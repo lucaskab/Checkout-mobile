@@ -25,18 +25,22 @@ namespace Checkout
             [System.NonSerialized] public float wait;
             [System.NonSerialized] public Renderer[] body;
             [System.NonSerialized] public int destination=-1;
-            [System.NonSerialized] public bool passengerWalking;
+            [System.NonSerialized] public bool passengerWalking, toMarket;
         }
         const float MarketStopX=8.5f; // Past the road works, so a car dropping off never blocks them.
         public Visit[] route;
         public Car[] cars;
         CheckoutCityTraffic marketTraffic;
         CheckoutCityPedestrian[] pedestrians;
+        CheckoutBridge bridge;int marketStop=-1;
+        // Nobody is dropped at the supermarket while it is closed: they would walk in and vanish.
+        bool MarketOpen{get{if(!bridge)bridge=FindAnyObjectByType<CheckoutBridge>();return !bridge||bridge.State==null||bridge.State.isOpen;}}
         void Start()
         {
             marketTraffic=FindAnyObjectByType<CheckoutCityTraffic>();
             pedestrians=FindObjectsByType<CheckoutCityPedestrian>();
             BuildRoute();
+            marketStop=System.Array.FindIndex(route,st=>st.road.x==MarketStopX && st.road.z== -14);
             for(int i=0;i<cars.Length;i++)
             {
                 var car=cars[i];
@@ -46,6 +50,8 @@ namespace Checkout
                 car.body=car.visitor.GetComponentsInChildren<Renderer>(true).Where(r=>r.enabled).ToArray();
                 car.visitor.gameObject.SetActive(false);
                 car.waypoint=(car.waypoint+1)%route.Length;
+                // Never start on a map edge: the next point would be on the other side of the city.
+                if(route[(car.waypoint-1+route.Length)%route.Length].edge){car.vehicle.position=route[car.waypoint].road;car.waypoint=(car.waypoint+1)%route.Length;}
                 ChooseDestination(car);
                 if(i==0)
                 {
@@ -75,7 +81,7 @@ namespace Checkout
                         car.vehicle.position=Vector3.MoveTowards(car.vehicle.position,stop.road,Time.deltaTime*speed);
                         continue;
                     }
-                    if(stop.entrance==Vector3.zero||car.waypoint!=car.destination){Next(car);continue;}
+                    if(stop.entrance==Vector3.zero||car.waypoint!=car.destination||(car.waypoint==marketStop&&!MarketOpen)){Next(car);continue;}
                     car.destination=-1; // Consume the sole stop before starting the drop-off.
                     car.visitor.gameObject.SetActive(true);
                     car.visitor.updateRotation=false;
@@ -87,7 +93,7 @@ namespace Checkout
                     {car.visitor.gameObject.SetActive(false);Next(car);continue;}
                     var facing=path.corners.Length>1?path.corners[1]-hit.position:stop.entrance-hit.position;facing.y=0;
                     if(facing.sqrMagnitude>.001f)car.visitor.transform.rotation=Quaternion.LookRotation(-facing);
-                    car.visitor.SetPath(path);car.visitor.isStopped=false;car.passengerWalking=true;car.phase=1;car.wait=0;car.visits++;
+                    car.visitor.SetPath(path);car.visitor.isStopped=false;car.passengerWalking=true;car.toMarket=car.waypoint==marketStop;car.phase=1;car.wait=0;car.visits++;
                 }
                 else if(car.phase==2)
                 {
@@ -110,7 +116,15 @@ namespace Checkout
             if(!car.passengerWalking||!agent.isOnNavMesh)return;
             var velocity=agent.velocity;velocity.y=0;
             if(velocity.sqrMagnitude>.004f)agent.transform.rotation=Quaternion.RotateTowards(agent.transform.rotation,Quaternion.LookRotation(-velocity),Time.deltaTime*540);
-            if(!agent.pathPending&&agent.remainingDistance<=.2f){agent.gameObject.SetActive(false);car.passengerWalking=false;}
+            // The market closed while they were on their way: carry on along the sidewalk instead.
+            if(car.toMarket&&!MarketOpen)
+            {
+                car.toMarket=false;
+                var p=agent.transform.position;float dir=p.x<0?-1:1;
+                var along=new Vector3(p.x+dir*16,.15f,CheckoutStreetLayout.NorthWalkZ);
+                if(NavMesh.SamplePosition(along,out var hit,3,NavMesh.AllAreas))agent.SetDestination(hit.position);
+            }
+            if(!agent.pathPending&&agent.remainingDistance<=.2f){agent.gameObject.SetActive(false);car.passengerWalking=false;car.toMarket=false;}
         }
         void Next(Car car)
         {
@@ -127,6 +141,8 @@ namespace Checkout
             var available=Enumerable.Range(0,route.Length).Where(i=>route[i].entrance!=Vector3.zero&&i!=car.destination).ToArray();
             int market=System.Array.FindIndex(route,s=>s.road.x==MarketStopX && s.road.z== -14);
             car.destination=Random.value<.4f?-1:Random.value<.5f?market:available.Length==0?-1:available[Random.Range(0,available.Length)];
+            if(car.destination==market&&!MarketOpen)car.destination=available.Length==0?-1:available[Random.Range(0,available.Length)];
+            if(car.destination==market&&!MarketOpen)car.destination=-1;
         }
         void BuildRoute()
         {
@@ -138,21 +154,29 @@ namespace Checkout
             void Stop(Vector3 door,float x,float z,Vector3 sidewalk){stops.Add(new Visit{road=new Vector3(x,.15f,z),sidewalk=sidewalk,entrance=door});}
             // Right-hand traffic. Local streets: x ±24.6 / ±22.4. Avenue lanes: eastbound z -23 (curb) and -20,
             // westbound z -17 and -14 (curb). There is no street behind the market block.
-            Road(24.6f,-20);
-            foreach(var door in streets.entrances.Where(p=>p.x>26).OrderBy(p=>p.z))Stop(door,24.6f,door.z,new Vector3(27.5f,.15f,door.z));
-            Edge(24.6f,b.max.z-3);Road(22.4f,b.max.z-3);
-            foreach(var door in streets.entrances.Where(p=>p.x>10 && p.x<19.5f && p.z>-11 && p.z<20).OrderByDescending(p=>p.z))Stop(door,22.4f,door.z,new Vector3(19.5f,.15f,door.z));
+            // Every drive runs from one end of the map to another (an edge: the car leaves and a later one
+            // comes in elsewhere), never back along the street it came: no U-turns at the dead ends.
+            // East street, northbound from its south end across the avenue.
+            Road(24.6f,b.min.z+3);
+            foreach(var door in streets.entrances.Where(p=>p.x>26).OrderBy(p=>p.z))Stop(door,24.6f,door.z,new Vector3(CheckoutStreetLayout.OuterWalkX,.15f,door.z));
+            Edge(24.6f,b.max.z-3);
+            // East street southbound from the north, then west along the avenue past the market.
+            Road(22.4f,b.max.z-3);
+            foreach(var door in streets.entrances.Where(p=>p.x>10 && p.x<CheckoutStreetLayout.LocalCurbInner && p.z>-11 && p.z<20).OrderByDescending(p=>p.z))Stop(door,22.4f,door.z,new Vector3(CheckoutStreetLayout.InnerWalkX,.15f,door.z));
             Road(22.4f,-14);
             var map=FindAnyObjectByType<CheckoutMap>();
-            Stop(map.Point(new Vector3(-1.75f,.74f,-6)),MarketStopX,-14,new Vector3(MarketStopX,.15f,-11.5f));
+            Stop(map.Point(new Vector3(-1.75f,.74f,-6)),MarketStopX,-14,new Vector3(MarketStopX,.15f,CheckoutStreetLayout.NorthWalkZ));
             // Swerve into the inner westbound lane around the road works (x -0.4 to 5.5), back after the entrance crossing.
             Detour(6.6f,-17);Detour(-1.2f,-17);Detour(-3.6f,-14);
-            Road(-22.4f,-14);Edge(-22.4f,b.max.z-3);Road(-24.6f,b.max.z-3);
-            foreach(var door in streets.entrances.Where(p=>p.x< -26).OrderByDescending(p=>p.z))Stop(door,-24.6f,door.z,new Vector3(-27.5f,.15f,door.z));
-            Road(-24.6f,-20);Edge(b.max.x-3,-20);
-            // Through traffic on the avenue: back west in the inner lane, then east again in the curb lane.
+            Road(-22.4f,-14);Edge(-22.4f,b.max.z-3);
+            // West street southbound from the north, through the roundabout, out at its south end.
+            Road(-24.6f,b.max.z-3);
+            foreach(var door in streets.entrances.Where(p=>p.x< -26).OrderByDescending(p=>p.z))Stop(door,-24.6f,door.z,new Vector3(-CheckoutStreetLayout.OuterWalkX,.15f,door.z));
+            Edge(-24.6f,b.min.z+3);
+            // Through traffic on the avenue, end to end in each lane.
+            Road(b.min.x+3,-20);Edge(b.max.x-3,-20);
             Road(b.max.x-3,-17);Edge(b.min.x+3,-17);
-            Road(b.min.x+3,-23);Road(8,-23);Road(14,-20);
+            Road(b.min.x+3,-23);Edge(b.max.x-3,-23);
             route=AroundRoundabout(stops).ToArray();
         }
         // Bends every drive through the west roundabout around its island. Stops inside the circle

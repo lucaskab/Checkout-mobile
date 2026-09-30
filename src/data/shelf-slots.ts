@@ -89,7 +89,7 @@ export function normalizeShelfSlotCounts(
 			? Math.max(1, getUnlockedPhysicalShelfCount(legacyUnlockedShelfSlots))
 			: 1;
 
-	return Object.fromEntries(
+	const counts = Object.fromEntries(
 		shelves.map((shelf, index) => {
 			const persistedCount = persistedCounts?.[shelf.id];
 			const defaultCount = index < legacyShelfCount ? productsPerShelf : 0;
@@ -112,6 +112,12 @@ export function normalizeShelfSlotCounts(
 			];
 		}),
 	) as GameShelfSlotCounts;
+	// Shelves open in order. When the order changes (the drinks cooler moved up to the third place), a shelf
+	// left locked before an open one opens too, so older saves never end up with a gap.
+	const last = shelves.reduce((found, shelf, index) => (counts[shelf.id] > 0 ? index : found), -1);
+	for (let index = 0; index < last; index++)
+		if (counts[shelves[index].id] <= 0) counts[shelves[index].id] = productsPerShelf;
+	return counts;
 }
 
 export function resolveShelfSlotCounts(

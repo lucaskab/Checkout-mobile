@@ -83,6 +83,8 @@ namespace Checkout {
   void PaintNamed(Transform prop){foreach(var r in prop.GetComponentsInChildren<Renderer>(true)){var shared=r.sharedMaterials;for(int i=0;i<shared.Length;i++){if(!shared[i])continue;var name=shared[i].name.Replace(" (Instance)","");int cut=name.LastIndexOf('_');if(cut>=0)name=name.Substring(cut+1);if(NamedColors.TryGetValue(name,out var hex))shared[i]=art.Material(hex);}r.sharedMaterials=shared;}}
   // Renderer bounds of a map object (warehouse, delivery trucks…) in this component's space.
   Bounds WorldBounds(string name,Bounds fallback){var sim=FindAnyObjectByType<MarketSimulation>();var t=sim&&sim.world?sim.world.Find(name):null;var rs=t&&t.gameObject.activeInHierarchy?t.GetComponentsInChildren<Renderer>().Where(r=>r.enabled).ToArray():new Renderer[0];if(rs.Length==0)return fallback;var b=rs[0].bounds;foreach(var r in rs.Skip(1))b.Encapsulate(r.bounds);b.center=transform.InverseTransformPoint(b.center);return b;}
+  // The central warehouse (when bought) takes over from the small storage building.
+  string Storage=>Has("Warehouse Large")?"Warehouse Large":"Warehouse";
   bool Has(string name){var sim=FindAnyObjectByType<MarketSimulation>();var t=sim&&sim.world?sim.world.Find(name):null;return t&&t.gameObject.activeInHierarchy&&t.GetComponentsInChildren<Renderer>().Any(r=>r.enabled);}
   void Build(string id,Transform root){var door=Door;var till=Till;switch(id){
    case "hora-do-pico":{
@@ -116,7 +118,7 @@ namespace Checkout {
    case "desconto-atacadista":{
     // Wholesale drop at the warehouse doorstep: stacks of the market's cardboard boxes, pallet jack, stocker and price board.
     // At the warehouse doorstep once the storage is bought; before that, on the sidewalk right of the entrance.
-    var house=WorldBounds("Warehouse",new Bounds(W(3,.34f,19),new Vector3(8,4,6)));bool storage=Has("Warehouse");
+    var house=WorldBounds(Storage,new Bounds(W(3,.34f,19),new Vector3(8,4,6)));bool storage=Has(Storage);
     var dock=storage?new Vector3(house.center.x+1.2f,.34f,house.min.z-2.2f):door+new Vector3(5.6f,0,-2.4f);
     var yard=Group(root,"Wholesale pallet offer",dock);
     for(int p=0;p<2;p++){var pallet=Group(yard,"Wholesale pallet",new Vector3(-1.1f+p*2.2f,0,p*.3f));M(pallet,"Pallet",Vector3.zero,0);
@@ -199,8 +201,8 @@ namespace Checkout {
    case "equipe-cansada":{
     // Tired team: break corner beside the warehouse, coffee, drowsy workers swaying and floating Zzz.
     // Beside the warehouse once it exists; before that, outside the store's east wall by the service door.
-    var house=WorldBounds("Warehouse",new Bounds(W(3,.34f,19),new Vector3(8,4,6)));var shell=WorldBounds("Building",new Bounds(W(0,.74f,-2),new Vector3(18,3,14)));
-    var spot=Has("Warehouse")?new Vector3(house.min.x-2.2f,.34f,house.center.z-.5f):new Vector3(shell.max.x+2f,.34f,shell.max.z-2.6f);
+    var house=WorldBounds(Storage,new Bounds(W(3,.34f,19),new Vector3(8,4,6)));var shell=WorldBounds("Building",new Bounds(W(0,.74f,-2),new Vector3(18,3,14)));
+    var spot=Has(Storage)?new Vector3(house.min.x-2.2f,.34f,house.center.z-.5f):new Vector3(shell.max.x+2f,.34f,shell.max.z-2.6f);
     var rest=Group(root,"Staff break corner",spot);M(rest,"BreakCorner",Vector3.zero,Face);
     var a=art.Actor(rest,"Worker_Cashier",new Vector3(-.9f,0,-1.5f),ActorFace,"Idle",.45f);Animated(a,"rock");
     var b=art.Actor(rest,"Worker_Baker",new Vector3(.4f,0,-1.7f),ActorFace-20,"Idle",.4f);Animated(b,"rock");

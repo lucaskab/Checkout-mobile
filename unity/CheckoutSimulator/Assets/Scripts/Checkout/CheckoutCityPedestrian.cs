@@ -25,7 +25,10 @@ namespace Checkout
             agent.updateRotation=false;
             streets=FindAnyObjectByType<CheckoutCityStreets>();
             body=GetComponentsInChildren<Renderer>().Where(r=>r.enabled).ToArray();
-            if(!NavMesh.SamplePosition(home,out var hit,12,NavMesh.AllAreas)){enabled=false;return;}
+            // Passers-by stay on the city surfaces: the shop floor, its ramps and the service path out back
+            // are baked as ShopArea, so nobody uses the supermarket as a shortcut across the block.
+            agent.areaMask&=~(1<<MarketDay.MarketSimulation.ShopArea);
+            if(!NavMesh.SamplePosition(home,out var hit,12,agent.areaMask)){enabled=false;return;}
             agent.Warp(hit.position);
             destination=Mathf.Abs(GetEntityId().GetHashCode()) % streets.entrances.Length;
             VisitNext();

@@ -4,7 +4,8 @@ export type ProductionSectorId =
 	| "acougue"
 	| "peixaria"
 	| "bebidas"
-	| "sorvetes";
+	| "sorvetes"
+	| "adega";
 
 export type ProductionIngredient = {
 	productId: number;

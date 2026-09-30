@@ -9,6 +9,7 @@ namespace Checkout {
  public partial class CheckoutDesktopHUD:MonoBehaviour {
   CheckoutDesktopHost host;RectTransform root;DesktopView view;
   readonly Dictionary<string,DesktopButton> pending=new Dictionary<string,DesktopButton>();
+  public readonly HashSet<string> Silent=new HashSet<string>();
 
   public void Initialize(CheckoutDesktopHost owner){
    host=owner;
@@ -18,7 +19,7 @@ namespace Checkout {
    var scaler=canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();scaler.uiScaleMode=UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1600,1000);scaler.matchWidthOrHeight=.5f;
    canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
    root=(RectTransform)canvasGo.transform;
-   BuildTop();BuildToolbar();BuildDrawer();BuildOverlay();
+   BuildTop();BuildToolbar();BuildDrawer();BuildShop();BuildOverlay();
    Offline("Carregando o jogo…");
   }
 
@@ -39,10 +40,12 @@ namespace Checkout {
   public void Apply(string json){
    DesktopView next;try {next=JsonUtility.FromJson<DesktopView>(json);}catch(System.Exception ex){Debug.LogError("CHECKOUT_DESKTOP bad view: "+ex.Message);return;}
    if(next==null||next.kind!="view")return;
-   view=next;ApplyTop(next);ApplyToolbar(next);ApplyDrawer(next);ApplyOverlay(next);
+   view=next;ApplyTop(next);ApplyToolbar(next);ApplyDrawer(next);ApplyShop(next);ApplyOverlay(next);
   }
   public void Result(string json){
    var result=JsonUtility.FromJson<DesktopResult>(json);if(result==null)return;
+   // Actions sent by the map editor for its sandbox (unlocks, money top-ups) finish without toasts.
+   if(Silent.Remove(result.id??""))return;
    pending.TryGetValue(result.id??"",out var source);pending.Remove(result.id??"");
    if(result.ok)Toast(string.IsNullOrEmpty(source?.ok)?"Feito!":source.ok,true);
    else Toast(!string.IsNullOrEmpty(source?.fail)?source.fail:result.reason=="game-rule-rejected"?"Não foi possível agora.":result.reason,false);
@@ -52,6 +55,10 @@ namespace Checkout {
    var data=button.Data;if(data==null)return;
    if(!data.enabled){if(!string.IsNullOrEmpty(data.fail))Toast(data.fail,false);return;}
    if(!string.IsNullOrEmpty(data.action)){pending[host.Action(data.action,data.args,data.after)]=data;return;}
+   // "@build" opens the build mode (bought furniture waits there to be placed).
+   if(data.route=="@build"){host.Route("");CheckoutBuildMode.OpenFromHud();return;}
+   // "@lots" shows the lots of the block from above (CheckoutLotView).
+   if(data.route=="@lots"){host.Route("");CheckoutLotView.Show();return;}
    // Buttons with neither an action nor a route are labels only.
    if(!string.IsNullOrEmpty(data.route))host.Route(data.route);
   }

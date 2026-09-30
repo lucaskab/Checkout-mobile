@@ -24,6 +24,11 @@ namespace MarketDay
         public int CompletedDeliveries { get; private set; }
         public bool HoldingTruck => Phase != DeliveryPhase.Waiting && Phase != DeliveryPhase.Returning;
         public bool Carrying { get; private set; }
+        // A door on the route (the rear roller door): the worker waits in front of it until it has rolled up.
+        // Set by whoever animates the door; without it the route is walked freely.
+        public Vector3? gateAt;
+        public Func<float> gateOpen;
+        float gateWait;
         public Vector3 LastDropPosition { get; private set; }
 
         readonly Queue<DeliveryStop> deliveries = new Queue<DeliveryStop>();
@@ -247,6 +252,14 @@ namespace MarketDay
             var direction = destination - transform.position;
             direction.y = 0;
             if (Vector3.Angle(transform.forward, direction) > 35) { Play(loaded ? "CarryIdle" : "Idle"); return false; }
+            if (gateAt.HasValue && gateOpen != null)
+            {
+                var gate = gateAt.Value; gate.y = transform.position.y;
+                var step = Vector3.MoveTowards(transform.position, destination, dt * walkSpeed);
+                bool under = Vector3.Distance(step, gate) < .8f;
+                if (under && gateOpen() < .85f && gateWait < 3) { gateWait += dt; Play(loaded ? "CarryIdle" : "Idle"); return false; }
+                if (!under) gateWait = 0;
+            }
             Play(loaded ? "CarryWalking" : "Walking");
             transform.position = Vector3.MoveTowards(transform.position, destination, dt * walkSpeed * (loaded ? .85f : 1));
             return Vector3.Distance(transform.position, destination) < .02f;

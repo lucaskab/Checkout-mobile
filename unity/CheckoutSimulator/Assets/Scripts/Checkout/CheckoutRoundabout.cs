@@ -9,7 +9,7 @@ namespace Checkout
     public class CheckoutRoundabout : MonoBehaviour
     {
         public Vector3 center = new Vector3(-23.5f, 0, -18.5f);
-        public float islandRadius = 3.4f, outerRadius = 7.5f, travelRadius = 5.5f, clipRadius = 9f;
+        public float islandRadius = 3.4f, outerRadius = 7.5f, travelRadius = 6.3f, clipRadius = 7.4f;
 
         static CheckoutRoundabout current;
         static bool searched;
@@ -54,7 +54,7 @@ namespace Checkout
             if (sweep < .15f) return result; // Only grazes the edge: keep the straight line.
             result.Add(new Vector3(entry.x, y, entry.z));
             int steps = Mathf.Max(4, Mathf.CeilToInt(sweep / .2f));
-            float ease = .5f; // Radians spent merging from the approach onto the travel radius.
+            float ease = .35f; // Stays inside the outer kerb (7.5 m) so cars never cut across the ring cycle track. Radians spent merging from the approach onto the travel radius.
             for (int s = 1; s < steps; s++)
             {
                 float t = s / (float)steps, angle = start + sweep * t;
