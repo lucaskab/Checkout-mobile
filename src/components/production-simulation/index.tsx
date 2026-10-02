@@ -11,6 +11,8 @@ export function ProductionSimulation() {
 	const processInteriorConstructions = useGameStore(
 		(state) => state.processInteriorConstructions,
 	);
+	const processLotClearing = useGameStore((state) => state.processLotClearing);
+	const processMarketEraConstruction = useGameStore((state) => state.processMarketEraConstruction);
 
 	useEffect(() => {
 		const tick = () => {
@@ -19,6 +21,9 @@ export function ProductionSimulation() {
 			processMarketExpansionConstruction();
 			// So do the shelves, sectors and fixtures being built inside the market.
 			processInteriorConstructions();
+			// And the next expansion and the lot being cleared.
+			processMarketEraConstruction();
+			processLotClearing();
 		};
 		tick();
 		const interval = setInterval(tick, 1_000);
@@ -28,6 +33,8 @@ export function ProductionSimulation() {
 		processProductionJobs,
 		processMarketExpansionConstruction,
 		processInteriorConstructions,
+		processMarketEraConstruction,
+		processLotClearing,
 	]);
 
 	return null;

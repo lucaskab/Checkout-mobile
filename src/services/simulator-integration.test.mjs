@@ -32,12 +32,12 @@ const build = (id, currency) => {
 };
 test("System stock and prices reach the Unity projection", () => {
 	const s = useGameStore.getState();
-	const id = s.shelfAssignments.bakery;
-	expect(s.setShelfPrice("bakery", 7)).toBe(true);
-	const shelf = snapshot().shelves.find((s) => s.id === "bakery");
+	const id = s.shelfAssignments.produce;
+	expect(s.setShelfPrice("produce", 22)).toBe(true);
+	const shelf = snapshot().shelves.find((s) => s.id === "produce");
 	expect(shelf.productId).toBe(id);
-	expect(shelf.price).toBe(7);
-	expect(shelf.stock).toBe(useGameStore.getState().shelfStock.bakery);
+	expect(shelf.price).toBe(22);
+	expect(shelf.stock).toBe(useGameStore.getState().shelfStock.produce);
 });
 test("Unity requests use the real store rules and are reflected in System", () => {
 	let revision = 1;
@@ -82,8 +82,8 @@ test("closed market cannot sell just because the renderer requests a snapshot", 
 });
 test("new players do not see unlocked high-level production sectors", () => {
 	expect(snapshot().sectors.every((s) => !s.unlocked)).toBe(true);
-	// Two shelves and the drinks cooler come with the shop.
-	expect(snapshot().shelves.filter((s) => s.unlocked).map((s) => s.id)).toEqual(["produce", "dairy", "drinks"]);
+	// The produce crates and the styrofoam cooler come with the sidewalk table.
+	expect(snapshot().shelves.filter((s) => s.unlocked).map((s) => s.id)).toEqual(["produce", "drinks"]);
 });
 test("simulator maps every four system slots to one physical shelf", () => {
 	const countUnlockedShelves = () =>
@@ -93,8 +93,8 @@ test("simulator maps every four system slots to one physical shelf", () => {
 	expect(countUnlockedShelves()).toBe(1);
 	useGameStore.setState({ unlockedShelfSlots: 5 });
 	expect(countUnlockedShelves()).toBe(2);
-	expect(isShelfSlotUnlocked("dairy", 5)).toBe(true);
-	expect(isShelfSlotUnlocked("dairy:1", 5)).toBe(true);
+	expect(isShelfSlotUnlocked("drinks", 5)).toBe(true);
+	expect(isShelfSlotUnlocked("drinks:1", 5)).toBe(true);
 	useGameStore.setState({ unlockedShelfSlots: 6 });
 	expect(countUnlockedShelves()).toBe(2);
 	useGameStore.setState({ unlockedShelfSlots: 7 });
@@ -117,10 +117,10 @@ test("simulator receives the same level roadmap and reward status as System", ()
 	expect(view.experience).toBe(useGameStore.getState().market.experience);
 	expect(view.experienceToNextLevel).toBeGreaterThan(0);
 	expect(view.dailyGoal).toBe(useGameStore.getState().daily.goal);
-	// The starter shelves are free: the bakery shelf (the first one bought) needs level 3.
-	expect(view.shelves.find((s) => s.id === "bakery").requiredLevel).toBe(3);
-	expect(view.shelves.find((s) => s.id === "coffee").requiredLevel).toBe(34);
-	expect(view.sectors.find((s) => s.id === "padaria").requiredLevel).toBe(2);
+	// Shelves come with the expansions (not levels); the bakery sector with the mercadinho.
+	expect(view.shelves.find((s) => s.id === "bakery").requiredLevel).toBe(1);
+	expect(view.shelves.find((s) => s.id === "bakery").unlocked).toBe(false);
+	expect(view.sectors.find((s) => s.id === "padaria").requiredLevel).toBe(19);
 	expect(view.expansionStates.find((e) => e.id === "fresh-wing")).toEqual(
 		expect.objectContaining({ requiredLevel: 4, unlocked: false }),
 	);
@@ -256,8 +256,9 @@ test("cold sector production and customer destinations stay shared between Syste
 	const state = useGameStore.getState();
 	useGameStore.setState({
 		coins: 500_000,
-		market: { ...state.market, level: 30 },
-		inventory: { ...state.inventory, 5: 5, 8: 5, 13: 5, 21: 5, 24: 5 },
+		market: { ...state.market, level: 50 },
+		era: { ...state.era, id: "hipermercado" },
+		inventory: { ...state.inventory, 5: 5, 8: 5, 13: 5, 21: 5, 24: 5, 46: 5, 49: 5, 53: 5 },
 		// Sectors produce only once they have been built.
 		builtSectorIds: ["bebidas", "sorvetes"],
 	});
@@ -293,8 +294,10 @@ test("cold sector production and customer destinations stay shared between Syste
 		},
 	});
 	expect(useGameStore.getState().processProductionJobs()).toBe(true);
-	expect(useGameStore.getState().inventory[113]).toBe(4);
-	expect(useGameStore.getState().inventory[116]).toBe(4);
+	expect(useGameStore.getState().inventory[113]).toBe(3);
+	expect(useGameStore.getState().inventory[116]).toBe(3);
+	// Enough ice cream for the sundae and the family pot.
+	useGameStore.setState({ inventory: { ...useGameStore.getState().inventory, 116: 5 } });
 	expect(
 		useGameStore.getState().startProduction({
 			sectorId: "sorvetes",
@@ -341,7 +344,7 @@ test("unbuilt production counters keep customers at their authoritative shelf", 
 		coins: 10_000,
 		market: {
 			...state.market,
-			level: 6,
+			level: 25,
 			recentCustomers: [
 				{
 					id: "cheese",
@@ -354,6 +357,8 @@ test("unbuilt production counters keep customers at their authoritative shelf", 
 		},
 	});
 	expect(snapshot().customers[0].purchases[0].shelfId).toBe("produce");
+	// The cheese counter comes with the supermarket (here without its wings yet).
+	useGameStore.setState({ era: { ...useGameStore.getState().era, id: "supermercado" } });
 	expect(build("fresh-wing")).toBe(
 		true,
 	);
@@ -394,7 +399,7 @@ test("central warehouse needs the depot and loading yard, keeps the shop size an
 		expect(build(id)).toBe(true);
 	}
 	expect(snapshot().layout.stage).toBe(4);
-	expect(snapshot().layout.widthScale).toBe(1.38);
+	expect(snapshot().layout.widthScale).toBe(1.78);
 });
 
 test("expansions take real time to build and diamonds can finish them early", () => {

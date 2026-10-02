@@ -1,3 +1,5 @@
+import { describeFixtureProducts } from "@/data/fixture-products";
+import { getSectorCounterFor } from "@/data/shelf-types";
 import type {
 	ProductionJob,
 	ProductionRecipe,
@@ -127,6 +129,8 @@ function sectorsPage(state: State) {
 				isBuilt
 					? `${activeJobs > 0 ? `${activeJobs} produção(ões) ativa(s)` : "Pronto para produzir"} · ${sector.slotCount} slots`
 					: buildLine(state, sector.id),
+				// Each sector also sells: its counter is a shelf for what it makes (src/data/shelf-types.ts).
+				`Vende no ${getSectorCounterFor(sector.id)?.name.toLocaleLowerCase("pt-BR") ?? "balcão"}: ${describeFixtureProducts(getSectorCounterFor(sector.id)?.id ?? "", state.market.unlockedProductIds) || "os produtos que ele fabricar"}`,
 			],
 			buttons: isBuilt
 				? [go("Abrir", `sector:${sector.id}`, { variant: "primary" })]
@@ -289,6 +293,11 @@ function sectorPage(state: State, sectorId: string) {
 			"Produções continuam mesmo fora desta tela.",
 			`Diamantes: ${fmt(state.logistics.premiumCurrency)}`,
 		],
+		// The sector sells what it makes at its own counter (like a shelf).
+		buttons:
+			build.status === "built" && getSectorCounterFor(sector.id)
+				? [go(`${getSectorCounterFor(sector.id)?.name} · vender`, `shelf:${getSectorCounterFor(sector.id)?.id}`, { variant: "primary" })]
+				: [],
 	});
 
 	const slots = Array.from({ length: sector.slotCount }, (_, slotIndex) =>

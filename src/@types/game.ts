@@ -133,6 +133,20 @@ export type RestockShelfInput = {
 export type GameState = {
 	/** Stage of the market (mesinha → rede) and the evolution being built. */
 	era: GameEraState;
+	/** Level of each product (productId → 1…10): more profit per sale and more attractive. */
+	productLevels: Record<number, number>;
+	/** Daily login gift: last calendar day claimed and the streak (1–7). */
+	dailyLogin: { lastClaimDay: string; streak: number };
+	/** Product album: collections whose reward was claimed. */
+	albumClaimedIds: string[];
+	/** Weekly event: the week being counted, the theme's sales when it started and whether its prize was paid. */
+	weeklyEvent: { weekKey: string; baseline: number; claimed: boolean };
+	/** Land around the market: lots bought, lots cleared and the one being cleared. */
+	lots: {
+		owned: string[];
+		cleared: string[];
+		clearing: { lotId: string; startedAt: number; endsAt: number } | null;
+	};
 	checkout: CheckoutCounterState;
 	coins: number;
 	currencyPurchases: CurrencyPurchaseState;
@@ -168,8 +182,13 @@ export type GameState = {
 	shelfSlotCounts: GameShelfSlotCounts;
 	unlockedShelfSlots: number;
 	shelfUpgradeLevels: GameShelfUpgradeLevels;
+	/** Condition 0–100 of each fixture (src/services/shelf-care.ts); missing = spotless. */
+	shelfCare: GameShelfCare;
 	statistics: GameStatistics;
 };
+
+/** Condition 0–100 of each physical fixture (shelf or sector counter). */
+export type GameShelfCare = Record<string, number>;
 
 export type GameActions = {
 	activateLogisticsBoost: () => boolean;
@@ -187,6 +206,22 @@ export type GameActions = {
 	devPassTime: (hours: number) => boolean;
 	/** Pays the next era and starts its obra. */
 	evolveMarketEra: () => boolean;
+	/** Pays the next level of a product (price set by the current expansion). */
+	upgradeProduct: (productId: number) => boolean;
+	/** Claims today's login gift (once per calendar day). */
+	claimDailyLogin: () => boolean;
+	/** Pays a completed collection of the product album (once). */
+	claimAlbumCollection: (collectionId: string) => boolean;
+	/** Pays the prize of this week's event once its goal is reached. */
+	claimWeeklyEvent: () => boolean;
+	/** Buys a lot (lot 1 first, then lots next to owned land or to the square). */
+	buyLot: (lotId: string) => boolean;
+	/** Pays the crew that clears a bought lot (abandoned house, rubble…). */
+	clearLot: (lotId: string) => boolean;
+	/** Finishes the clearing with diamonds. */
+	finishLotClearingNow: () => boolean;
+	/** Ends the clearing whose time has come (tick). */
+	processLotClearing: (now?: number) => boolean;
 	/** Finishes the era obra with diamonds. */
 	finishMarketEraNow: () => boolean;
 	processMarketEraConstruction: (now?: number) => boolean;
@@ -237,13 +272,20 @@ export type GameActions = {
 	dismissOfflineSummary: () => void;
 	resetGame: () => void;
 	resolveSpecialRequest: (requestId: string, optionId: string) => boolean;
-	startDay: (contractId: string) => boolean;
+	/** Opens a turn; from the Späti on it can be a night turn ("noite"). */
+	startDay: (contractId: string, shift?: "dia" | "noite") => boolean;
 	assignProductToShelf: (
 		shelfId: string,
 		productId: number,
 		replace?: boolean,
 	) => boolean;
 	clearShelf: (shelfId: string) => boolean;
+	/** Tidies a fixture up (shelf window): condition back to 100. */
+	tendShelf: (shelfId: string) => boolean;
+	/** DEV: makes a fixture messy (QA of the shelf care game). */
+	devWearShelf: (shelfId: string, amount?: number) => boolean;
+	/** Swaps two slots of the same fixture (product, stock and price move together). */
+	swapShelfSlots: (firstSlotId: string, secondSlotId: string) => boolean;
 	restockShelf: (input: RestockShelfInput) => boolean;
 	setMarketLevel: (level: number) => void;
 	setEmployeeWorking: (employeeId: string, isWorking: boolean) => boolean;

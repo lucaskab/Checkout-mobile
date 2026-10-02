@@ -5,7 +5,7 @@ import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
-import { getWaitingInteriorPieces } from "@/data/interior-decor";
+import { getPiecesToPlaceBeforeOpening } from "@/services/market-era";
 import { DAY_DURATION_MS, FREE_DAY_CONTRACT_ID } from "@/services/market-day";
 import { useGameStore } from "@/stores/game-store";
 import { contractIcon } from "./labels";
@@ -18,7 +18,7 @@ export function DayPlanningSheet() {
 	const day = useGameStore((state) => state.day);
 	const startDay = useGameStore((state) => state.startDay);
 	const waiting = useGameStore(
-		(state) => getWaitingInteriorPieces(state.interior).length,
+		(state) => getPiecesToPlaceBeforeOpening(state),
 	);
 	const minutes = Math.round(DAY_DURATION_MS / 60_000);
 

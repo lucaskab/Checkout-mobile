@@ -36,6 +36,8 @@ export type ProductionSector = {
 	description: string;
 	id: ProductionSectorId;
 	name: string;
+	/** Expansion whose building has room for it. */
+	eraId: import("./economy").MarketEraId;
 	requiredLevel: number;
 	slotCount: number;
 	subtitle: string;

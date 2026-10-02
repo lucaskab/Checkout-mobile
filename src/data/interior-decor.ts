@@ -44,11 +44,14 @@ export function getInteriorDecor(id: string) {
 
 export const initialInteriorState: InteriorState = { items: [], owned: {} };
 
-/** What the shop comes with: nothing stands inside yet, the player places these pieces in build mode. */
+/**
+ * What the shop comes with: the checkout, the produce crates and the drinks cooler (the fixtures of the
+ * sidewalk table, src/data/shelf-types.ts). Nothing stands inside yet: once the market has a floor, the
+ * player places these pieces in build mode.
+ */
 export const starterInteriorPieces: { id: string; type: string }[] = [
 	{ id: "checkout:main", type: "checkout" },
 	{ id: "shelf:produce", type: "shelf" },
-	{ id: "shelf:dairy", type: "shelf" },
 	{ id: "shelf:drinks", type: "shelf" },
 ];
 

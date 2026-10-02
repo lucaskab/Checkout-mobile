@@ -1,9 +1,11 @@
 export type MarketEraId =
 	| "mesinha"
-	| "banca"
 	| "tenda"
+	| "banca"
 	| "conteiner"
 	| "spati"
+	| "quitanda"
+	| "minimercado"
 	| "mercadinho"
 	| "supermercado"
 	| "hipermercado"
@@ -12,7 +14,7 @@ export type MarketEraId =
 /** One stage of the market, from the table on the sidewalk to the chain of hypermarkets. */
 export type MarketEraDefinition = {
 	id: MarketEraId;
-	/** 0 = mesinha … 8 = rede. */
+	/** 0 = mesinha … 10 = rede. */
 	index: number;
 	name: string;
 	/** Coins to evolve INTO this era (0 for the first one). */
@@ -25,8 +27,15 @@ export type MarketEraDefinition = {
 	productSlots: number;
 	/** Customers arrive this many times faster than the base rate. */
 	arrivalMultiplier: number;
-	/** Bigger baskets of pricier goods: scales budgets, prices and costs together. */
+	/**
+	 * Richer customers: scales what each customer can spend (not the prices). A bigger market draws
+	 * customers who come for the week's shopping instead of a snack.
+	 */
 	ticketMultiplier: number;
+	/** Most customers a 10-minute turn can have (the sidewalk table sees a few, the chain a crowd). */
+	maxCustomersPerTurn: number;
+	/** Extra products each customer takes (a basket, then a cart). */
+	basketBonus: number;
 	/**
 	 * While the player is away the market keeps selling: each hour away earns this many turns' worth of
 	 * profit (up to OFFLINE_CAP_MS per absence). 0 = nobody minds the stall.

@@ -1,3 +1,4 @@
+import type { MarketEraId } from "@/@types/economy";
 import type { StoreIncidentKind } from "./store-incident";
 
 export type EmployeeRole = "cashier" | "stock_clerk" | "cleaner";
@@ -7,6 +8,8 @@ export type EmployeeDefinition = {
 	hireCost: number;
 	id: EmployeeRole;
 	level: number;
+	/** Expansion from which this role can be hired (the stall has no room for staff at first). */
+	requiredEra: MarketEraId;
 	name: string;
 	salary: number;
 	description: string;

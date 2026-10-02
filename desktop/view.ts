@@ -11,6 +11,7 @@ import {
 	getPendingRequests,
 } from "@/services/market-day";
 import { getClaimableMissionCount } from "@/services/missions";
+import { canClaimDailyLogin } from "@/services/daily-login";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getNextSimulatorUnlocks } from "@/services/simulator-progression";
 import { getStoredInteriorBuilds } from "@/services/interior-construction";
@@ -209,7 +210,7 @@ export function createDesktopView(
 		dayPhase: day.phase,
 		dayTitle:
 			day.phase === "open"
-				? `DIA ${day.dayNumber} · ${clock((day.endsAt ?? now) - now)}`
+				? `${day.shift === "noite" ? "NOITE" : "DIA"} ${day.dayNumber} · ${clock((day.endsAt ?? now) - now)}`
 				: day.phase === "results"
 					? `DIA ${day.dayNumber} · NOTA ${day.result?.grade ?? "-"}`
 					: `DIA ${day.dayNumber}`,
@@ -253,7 +254,12 @@ export function createDesktopView(
 				enabled: !locked,
 				active: (stack[0] ?? "").split(":")[0] === tool.id,
 				fail: locked ? `Nível ${tool.requiredLevel}` : "",
-				badge: tool.id === "loja" && stored > 0 ? String(stored) : "",
+				badge:
+					tool.id === "loja" && stored > 0
+						? String(stored)
+						: tool.id === "missions" && canClaimDailyLogin(state.dailyLogin, Date.now())
+							? "!"
+							: "",
 			});
 		}),
 		hasOffline: Boolean(state.offlineSummary),

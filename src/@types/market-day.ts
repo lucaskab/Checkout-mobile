@@ -120,9 +120,13 @@ export type GameDayState = {
 	phase: MarketDayPhase;
 	requests: SpecialRequest[];
 	result: DayResult | null;
+	/** Turn of the day: "noite" from the Späti on (other customers, bigger night baskets). */
+	shift?: TurnShift;
 	startedAt: number | null;
 	stats: DayStats;
 };
+
+export type TurnShift = "dia" | "noite";
 
 export type DayCustomerInput = {
 	archetype: CustomerArchetype;

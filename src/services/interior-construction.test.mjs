@@ -27,7 +27,9 @@ const place = (...ids) =>
 	]);
 
 test("reaching a sector's level does not open it: it is bought, placed and built", () => {
-	game().setMarketLevel(3);
+	// The bakery comes with the mercadinho (the market building).
+	game().devSetMarketEra("mercadinho");
+	game().setMarketLevel(19);
 	useGameStore.setState({ coins: 50_000 });
 	expect(snapshot().sectors.find((s) => s.id === "padaria").unlocked).toBe(false);
 	expect(getSectorBuildStatus(game(), "padaria").status).toBe("available");
@@ -57,6 +59,7 @@ test("reaching a sector's level does not open it: it is bought, placed and built
 
 test("stored purchases never keep the market from opening", () => {
 	game().setMarketLevel(5);
+	game().devSetMarketEra("banca");
 	useGameStore.setState({ coins: 50_000 });
 	expect(game().unlockNextShelf()).toBe(true);
 	// The build mode reports the bought shelf as still stored: it stays owned by its construction.
@@ -66,7 +69,7 @@ test("stored purchases never keep the market from opening", () => {
 	expect(getNextShelfBuildStatus(game()).status).toBe("stored");
 });
 
-test("sectors need their level and the market wing that has room for them", () => {
+test("sectors need their expansion, their level and the market wing that has room for them", () => {
 	useGameStore.setState({ coins: 1_000_000 });
 	game().setMarketLevel(1);
 	expect(game().buildSector("padaria", "coins")).toBe(false);
@@ -78,6 +81,7 @@ test("sectors need their level and the market wing that has room for them", () =
 
 test("placed works wait in the builders' queue and diamonds finish them", () => {
 	game().setMarketLevel(30);
+	game().devSetMarketEra("mercadinho");
 	useGameStore.setState({
 		coins: 1_000_000,
 		logistics: { ...game().logistics, premiumCurrency: 500 },
@@ -106,6 +110,7 @@ test("placed works wait in the builders' queue and diamonds finish them", () => 
 
 test("a new shelf is built where the player places it and opens when the works end", () => {
 	game().setMarketLevel(5);
+	game().devSetMarketEra("banca");
 	useGameStore.setState({ coins: 50_000 });
 	expect(game().unlockNextShelf()).toBe(true);
 	const next = getNextShelfBuildStatus(game());
@@ -136,7 +141,7 @@ test("the second checkout waits in the inventory, then the builders install it",
 
 test("old saves keep the sectors their level had already opened", async () => {
 	const old = JSON.parse(initial);
-	old.market.level = 12;
+	old.market.level = 25;
 	delete old.builtSectorIds;
 	delete old.interiorConstructions;
 	const next = await useGameStore.persist.getOptions().migrate(old, 35);

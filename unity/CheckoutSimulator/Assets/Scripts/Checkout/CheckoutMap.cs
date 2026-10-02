@@ -6,8 +6,8 @@ using MarketDay;
 namespace Checkout {
  public class CheckoutMap:MonoBehaviour {
   Transform world;CheckoutBridge bridge;readonly Dictionary<string,CheckoutStatusMarker> markers=new Dictionary<string,CheckoutStatusMarker>();readonly CheckoutEventAssets markerArt=new CheckoutEventAssets();readonly Dictionary<string,Transform> staff=new Dictionary<string,Transform>();readonly Dictionary<string,GameObject> decorations=new Dictionary<string,GameObject>();readonly Dictionary<string,Vector3> homes=new Dictionary<string,Vector3>();readonly Dictionary<string,Quaternion> truckRotations=new Dictionary<string,Quaternion>();readonly HashSet<string> dispatchedDeliveryOrders=new HashSet<string>();MarketDeliveryWorker deliveryWorker;
-  readonly Dictionary<string,Vector3> fixtures=new Dictionary<string,Vector3>{{"produce",P(6.55f,.45f)},{"dairy",P(-6.4f,-1.6f)},{"bakery",P(-6.45f,1.05f)},{"snacks",P(-1.6f,.3f)},{"drinks",P(2,-1.18f)},{"coffee",P(-2.2f,6.37f)},{"pizza",P(4.85f,-5.36f)}};
-  readonly Dictionary<string,Vector3> approaches=new Dictionary<string,Vector3>{{"produce",P(5.1f,-1.2f)},{"dairy",P(-4,-1.6f)},{"bakery",P(-3.8f,2.55f)},{"snacks",P(-.18f,.5f)},{"drinks",P(3.3f,-1.2f)},{"coffee",P(-2f,5.1f)},{"pizza",P(4.85f,-3.85f)}};
+  readonly Dictionary<string,Vector3> fixtures=new Dictionary<string,Vector3>{{"produce",P(6.55f,.45f)},{"dairy",P(-6.4f,-1.6f)},{"bakery",P(-6.45f,1.05f)},{"snacks",P(-1.6f,.3f)},{"drinks",P(2,-1.18f)},{"coffee",P(-2.2f,6.37f)},{"pizza",P(4.85f,-5.36f)},{"home",P(-6.4f,4.2f)},{"icecream",P(6.4f,-4.2f)}};
+  readonly Dictionary<string,Vector3> approaches=new Dictionary<string,Vector3>{{"produce",P(5.1f,-1.2f)},{"dairy",P(-4,-1.6f)},{"bakery",P(-3.8f,2.55f)},{"snacks",P(-.18f,.5f)},{"drinks",P(3.3f,-1.2f)},{"coffee",P(-2f,5.1f)},{"pizza",P(4.85f,-3.85f)},{"home",P(-4.9f,4.2f)},{"icecream",P(4.9f,-4.2f)}};
   CheckoutMarketLayout layout;readonly Dictionary<Transform,Vector3> targets=new Dictionary<Transform,Vector3>();
   public Vector3 Point(Vector3 point)=>layout?layout.Point(point):point;
   // Furniture placed in build mode; when the scene has the Interior Kit it replaces the fixed fixtures.
@@ -31,8 +31,10 @@ namespace Checkout {
   Bounds SectorBounds(string id){var root=world.Find("Sector_"+id.Substring(7));var renderers=root?root.GetComponentsInChildren<Renderer>(true).Where(r=>r.enabled).ToArray():Array.Empty<Renderer>();if(renderers.Length==0)return new Bounds(P(0,4.3f),Vector3.one);var bounds=renderers[0].bounds;foreach(var renderer in renderers.Skip(1))bounds.Encapsulate(renderer.bounds);return bounds;}
   Vector3 SectorPosition(string id){var it=Piece(id);if(it!=null)return it.root.position;var bounds=SectorBounds(id);return P(bounds.center.x,bounds.center.z);}
   Vector3 SectorApproach(string id){var it=Piece(id);if(it!=null)return Interior.Approach(it);var bounds=SectorBounds(id);return P(bounds.center.x,bounds.min.z-.65f);}
-  public Vector3 Fixture(string id)=>CheckoutStall.Small?CheckoutStall.Crate(id):Piece(id) is CheckoutInterior.Item it?it.root.position:Special(id)?SectorPosition(id):world&&world.GetComponentInChildren<CheckoutShelfSlots>()?Point(CheckoutShelfSlots.Position(id)):fixtures.TryGetValue(id,out var p)?Point(p):Point(P(0,0));
-  public Vector3 Approach(string id)=>CheckoutStall.Small?CheckoutStall.Approach(id):Piece(id) is CheckoutInterior.Item it?Interior.Approach(it):Special(id)?SectorApproach(id):world&&world.GetComponentInChildren<CheckoutShelfSlots>()?Point(CheckoutShelfSlots.Position(id))+Vector3.back*(.7f*layout.State.depthScale+.55f):approaches.TryGetValue(id,out var p)?Point(p):Point(P(0,0));
+  // In the shop expansions the shelves the player placed inside are used; otherwise the stall crates.
+  bool StallCrate(string id)=>CheckoutStall.Small&&!(CheckoutStall.ShopInside&&Piece(id) is CheckoutInterior.Item it&&it.root&&it.root.gameObject.activeInHierarchy&&!it.building);
+  public Vector3 Fixture(string id)=>StallCrate(id)?CheckoutStall.Crate(id):Piece(id) is CheckoutInterior.Item it?it.root.position:Special(id)?SectorPosition(id):world&&world.GetComponentInChildren<CheckoutShelfSlots>()?Point(CheckoutShelfSlots.Position(id)):fixtures.TryGetValue(id,out var p)?Point(p):Point(P(0,0));
+  public Vector3 Approach(string id)=>StallCrate(id)?CheckoutStall.Approach(id):Piece(id) is CheckoutInterior.Item it?Interior.Approach(it):Special(id)?SectorApproach(id):world&&world.GetComponentInChildren<CheckoutShelfSlots>()?Point(CheckoutShelfSlots.Position(id))+Vector3.back*(.7f*layout.State.depthScale+.55f):approaches.TryGetValue(id,out var p)?Point(p):Point(P(0,0));
   public bool Special(string id)=>id!=null&&id.StartsWith("sector-");
   // Hired stock clerks and cleaners (CheckoutStaff) and the Staff Kit templates they and the incidents use.
   public CheckoutStaff Staff {get;private set;}
@@ -133,6 +135,8 @@ namespace Checkout {
    if(Furnished&&(furnitureMoved||resized||newSession||staff.Count!=placedClerks))PlaceClerks();
    if(resized||navigationChanged||furnitureMoved){FindAnyObjectByType<MarketSimulation>().RebuildLayoutNavigation(layout.State);foreach(var walker in FindObjectsByType<CheckoutWalker>(FindObjectsInactive.Include)){walker.RebaseLayout(previousLayout,layout.State);if(furnitureMoved)walker.FurnitureMoved();}}
    events.Apply(next.@event);
+   // Night turn (Späti on): the city goes dark and the street lights come on while it is open.
+   events.SetNight(next.day!=null&&next.day.shift=="noite"&&next.day.phase=="open");
    // Closed shop: nobody works inside (the unloader outside keeps his own shift).
    if(!next.isOpen)foreach(Transform t in world)if((t.name.StartsWith("Worker_")&&t.name!="Worker_Delivery")||t.name.StartsWith("Employee_"))t.gameObject.SetActive(false);
    UpdateConstructionSite(next);

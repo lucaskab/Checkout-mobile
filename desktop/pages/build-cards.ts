@@ -22,7 +22,10 @@ export function shelfThumb(shelfId: string) {
 		bakery: "shelf-bakery",
 		snacks: "shelf-snacks",
 		drinks: "shelf-cooler",
+		coffee: "shelf-grocery",
 		pizza: "shelf-freezer",
+		home: "shelf-cleaning",
+		icecream: "shelf-freezer",
 	};
 	return decorIcon(template[shelfId] ?? "shelf-grocery");
 }

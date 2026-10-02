@@ -1,4 +1,6 @@
+import type { MarketEraId } from "@/@types/economy";
 import type { MissionDefinition } from "@/@types/mission";
+import { getMarketEra, getNextMarketEra } from "@/data/economy";
 
 export const missions: MissionDefinition[] = [
 	{
@@ -9,7 +11,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-2",
 		metric: "level",
 		requiredLevel: 1,
-		reward: { coins: 250, items: [{ productId: 43, quantity: 4 }] },
+		reward: { coins: 250, items: [{ productId: 48, quantity: 4 }] },
 		title: "Primeiros passos",
 	},
 	{
@@ -20,7 +22,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-5",
 		metric: "level",
 		requiredLevel: 2,
-		reward: { coins: 800, items: [{ productId: 7, quantity: 3 }] },
+		reward: { coins: 800, items: [{ productId: 50, quantity: 3 }] },
 		title: "Mercado em crescimento",
 	},
 	{
@@ -31,7 +33,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-10",
 		metric: "level",
 		requiredLevel: 5,
-		reward: { coins: 2_500, items: [{ productId: 27, quantity: 2 }] },
+		reward: { coins: 2_500, items: [{ productId: 51, quantity: 3 }] },
 		title: "Dono do bairro",
 	},
 	{
@@ -42,7 +44,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-16",
 		metric: "level",
 		requiredLevel: 10,
-		reward: { coins: 7_500, items: [{ productId: 44, quantity: 5 }] },
+		reward: { coins: 7_500, items: [{ productId: 17, quantity: 4 }] },
 		title: "Rede regional",
 	},
 	{
@@ -53,7 +55,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-22",
 		metric: "level",
 		requiredLevel: 16,
-		reward: { coins: 20_000, items: [{ productId: 45, quantity: 8 }] },
+		reward: { coins: 20_000, items: [{ productId: 31, quantity: 2 }] },
 		title: "Império varejista",
 	},
 	{
@@ -75,7 +77,7 @@ export const missions: MissionDefinition[] = [
 		id: "customers-25",
 		metric: "customersServed",
 		requiredLevel: 2,
-		reward: { coins: 500, items: [{ productId: 5, quantity: 4 }] },
+		reward: { coins: 500, items: [{ productId: 46, quantity: 4 }] },
 		title: "Movimento constante",
 	},
 	{
@@ -97,7 +99,7 @@ export const missions: MissionDefinition[] = [
 		id: "customers-350",
 		metric: "customersServed",
 		requiredLevel: 8,
-		reward: { coins: 4_000, items: [{ productId: 17, quantity: 6 }] },
+		reward: { coins: 4_000, items: [{ productId: 14, quantity: 6 }] },
 		title: "Fila no caixa",
 	},
 	{
@@ -108,7 +110,7 @@ export const missions: MissionDefinition[] = [
 		id: "customers-1000",
 		metric: "customersServed",
 		requiredLevel: 15,
-		reward: { coins: 12_000, items: [{ productId: 31, quantity: 4 }] },
+		reward: { coins: 12_000, items: [{ productId: 55, quantity: 4 }] },
 		title: "Mil clientes felizes",
 	},
 	{
@@ -130,7 +132,7 @@ export const missions: MissionDefinition[] = [
 		id: "buyers-75",
 		metric: "customersWhoBought",
 		requiredLevel: 4,
-		reward: { coins: 1_100, items: [{ productId: 12, quantity: 6 }] },
+		reward: { coins: 1_100, items: [{ productId: 49, quantity: 6 }] },
 		title: "Bom atendimento",
 	},
 	{
@@ -141,7 +143,7 @@ export const missions: MissionDefinition[] = [
 		id: "buyers-300",
 		metric: "customersWhoBought",
 		requiredLevel: 9,
-		reward: { coins: 4_500, items: [{ productId: 29, quantity: 3 }] },
+		reward: { coins: 4_500, items: [{ productId: 22, quantity: 3 }] },
 		title: "Clientes fiéis",
 	},
 	{
@@ -152,7 +154,7 @@ export const missions: MissionDefinition[] = [
 		id: "units-10",
 		metric: "unitsSold",
 		requiredLevel: 1,
-		reward: { coins: 180, items: [{ productId: 9, quantity: 5 }] },
+		reward: { coins: 180, items: [{ productId: 46, quantity: 5 }] },
 		title: "Primeiras vendas",
 	},
 	{
@@ -174,7 +176,7 @@ export const missions: MissionDefinition[] = [
 		id: "units-200",
 		metric: "unitsSold",
 		requiredLevel: 5,
-		reward: { coins: 2_000, items: [{ productId: 22, quantity: 5 }] },
+		reward: { coins: 2_000, items: [{ productId: 9, quantity: 5 }] },
 		title: "Ritmo acelerado",
 	},
 	{
@@ -185,7 +187,7 @@ export const missions: MissionDefinition[] = [
 		id: "units-750",
 		metric: "unitsSold",
 		requiredLevel: 10,
-		reward: { coins: 6_000, items: [{ productId: 40, quantity: 8 }] },
+		reward: { coins: 6_000, items: [{ productId: 26, quantity: 8 }] },
 		title: "Máquina de vendas",
 	},
 	{
@@ -196,7 +198,7 @@ export const missions: MissionDefinition[] = [
 		id: "units-2500",
 		metric: "unitsSold",
 		requiredLevel: 18,
-		reward: { coins: 18_000, items: [{ productId: 33, quantity: 2 }] },
+		reward: { coins: 18_000, items: [{ productId: 20, quantity: 4 }] },
 		title: "Volume lendário",
 	},
 	{
@@ -218,7 +220,7 @@ export const missions: MissionDefinition[] = [
 		id: "revenue-5000",
 		metric: "revenue",
 		requiredLevel: 3,
-		reward: { coins: 900, items: [{ productId: 15, quantity: 6 }] },
+		reward: { coins: 900, items: [{ productId: 50, quantity: 6 }] },
 		title: "Boa margem",
 	},
 	{
@@ -229,7 +231,7 @@ export const missions: MissionDefinition[] = [
 		id: "revenue-25000",
 		metric: "revenue",
 		requiredLevel: 7,
-		reward: { coins: 3_500, items: [{ productId: 28, quantity: 4 }] },
+		reward: { coins: 3_500, items: [{ productId: 6, quantity: 4 }] },
 		title: "Resultado expressivo",
 	},
 	{
@@ -240,7 +242,7 @@ export const missions: MissionDefinition[] = [
 		id: "revenue-100000",
 		metric: "revenue",
 		requiredLevel: 13,
-		reward: { coins: 10_000, items: [{ productId: 31, quantity: 2 }] },
+		reward: { coins: 10_000, items: [{ productId: 24, quantity: 2 }] },
 		title: "Seis dígitos",
 	},
 	{
@@ -262,8 +264,8 @@ export const missions: MissionDefinition[] = [
 		goal: 40,
 		id: "bread-sales-40",
 		metric: "soldProduct",
-		requiredLevel: 2,
-		reward: { coins: 500, items: [{ productId: 43, quantity: 5 }] },
+		requiredLevel: 3,
+		reward: { coins: 500, items: [{ productId: 56, quantity: 5 }] },
 		targetProductId: 9,
 		title: "Pão quentinho",
 	},
@@ -274,7 +276,7 @@ export const missions: MissionDefinition[] = [
 		goal: 25,
 		id: "coffee-sales-25",
 		metric: "soldProduct",
-		requiredLevel: 3,
+		requiredLevel: 9,
 		reward: { coins: 600, items: [{ productId: 15, quantity: 5 }] },
 		targetProductId: 15,
 		title: "Hora do café",
@@ -298,7 +300,7 @@ export const missions: MissionDefinition[] = [
 		id: "variety-20",
 		metric: "uniqueProductsSold",
 		requiredLevel: 10,
-		reward: { coins: 4_000, items: [{ productId: 27, quantity: 2 }] },
+		reward: { coins: 4_000, items: [{ productId: 54, quantity: 5 }] },
 		title: "Catálogo completo",
 	},
 	{
@@ -308,7 +310,7 @@ export const missions: MissionDefinition[] = [
 		goal: 1,
 		id: "crafted-1",
 		metric: "productionCrafted",
-		requiredLevel: 2,
+		requiredLevel: 19,
 		reward: { coins: 300, items: [{ productId: 43, quantity: 4 }] },
 		title: "Produção inaugurada",
 	},
@@ -319,7 +321,7 @@ export const missions: MissionDefinition[] = [
 		goal: 10,
 		id: "crafted-10",
 		metric: "productionCrafted",
-		requiredLevel: 3,
+		requiredLevel: 20,
 		reward: { coins: 900, items: [{ productId: 7, quantity: 4 }] },
 		title: "Linha aquecida",
 	},
@@ -330,7 +332,7 @@ export const missions: MissionDefinition[] = [
 		goal: 50,
 		id: "crafted-50",
 		metric: "productionCrafted",
-		requiredLevel: 6,
+		requiredLevel: 22,
 		reward: { coins: 2_500, items: [{ productId: 5, quantity: 8 }] },
 		title: "Produção eficiente",
 	},
@@ -341,7 +343,7 @@ export const missions: MissionDefinition[] = [
 		goal: 200,
 		id: "crafted-200",
 		metric: "productionCrafted",
-		requiredLevel: 12,
+		requiredLevel: 27,
 		reward: { coins: 7_500, items: [{ productId: 27, quantity: 5 }] },
 		title: "Turno industrial",
 	},
@@ -352,7 +354,7 @@ export const missions: MissionDefinition[] = [
 		goal: 750,
 		id: "crafted-750",
 		metric: "productionCrafted",
-		requiredLevel: 20,
+		requiredLevel: 35,
 		reward: { coins: 22_000, items: [{ productId: 45, quantity: 8 }] },
 		title: "Mestre artesão",
 	},
@@ -375,7 +377,7 @@ export const missions: MissionDefinition[] = [
 		id: "inventory-75",
 		metric: "inventoryUnits",
 		requiredLevel: 3,
-		reward: { coins: 800, items: [{ productId: 7, quantity: 6 }] },
+		reward: { coins: 800, items: [{ productId: 47, quantity: 6 }] },
 		title: "Estoque seguro",
 	},
 	{
@@ -386,7 +388,7 @@ export const missions: MissionDefinition[] = [
 		id: "inventory-200",
 		metric: "inventoryUnits",
 		requiredLevel: 8,
-		reward: { coins: 3_000, items: [{ productId: 40, quantity: 8 }] },
+		reward: { coins: 3_000, items: [{ productId: 52, quantity: 8 }] },
 		title: "Centro de distribuição",
 	},
 	{
@@ -396,7 +398,7 @@ export const missions: MissionDefinition[] = [
 		goal: 20,
 		id: "flour-stock-20",
 		metric: "inventoryProduct",
-		requiredLevel: 2,
+		requiredLevel: 9,
 		reward: { coins: 350, items: [{ productId: 5, quantity: 3 }] },
 		targetProductId: 43,
 		title: "Reserva da padaria",
@@ -432,7 +434,7 @@ export const missions: MissionDefinition[] = [
 		id: "upgrades-5",
 		metric: "shelfUpgrades",
 		requiredLevel: 6,
-		reward: { coins: 1_800, items: [{ productId: 34, quantity: 5 }] },
+		reward: { coins: 1_800, items: [{ productId: 23, quantity: 5 }] },
 		title: "Loja otimizada",
 	},
 	{
@@ -443,10 +445,62 @@ export const missions: MissionDefinition[] = [
 		id: "upgrades-12",
 		metric: "shelfUpgrades",
 		requiredLevel: 12,
-		reward: { coins: 6_000, items: [{ productId: 41, quantity: 5 }] },
+		reward: { coins: 6_000, items: [{ productId: 18, quantity: 5 }] },
 		title: "Estrutura premium",
 	},
+	...expansionMissions(),
 ];
+
+// Missions of each expansion: one to grow into the next expansion and one about the shop itself. Rewards
+// follow the price of the next expansion (about a tenth of it), so they matter at every stage.
+function expansionMissions(): MissionDefinition[] {
+	const steps: {
+		era: MarketEraId;
+		goal: { metric: MissionDefinition["metric"]; goal: number; title: string; description: string };
+	}[] = [
+		{ era: "mesinha", goal: { metric: "productLevels", goal: 1, title: "Produto caprichado", description: "Suba um produto para o nível 1 na tela Prateleiras." } },
+		{ era: "tenda", goal: { metric: "unitsSold", goal: 60, title: "A tenda pegou", description: "Venda 60 unidades no total." } },
+		{ era: "banca", goal: { metric: "productLevels", goal: 5, title: "Banca afinada", description: "Some 5 níveis de produto." } },
+		{ era: "conteiner", goal: { metric: "customersServed", goal: 300, title: "Clientela fiel", description: "Atenda 300 clientes no total." } },
+		{ era: "spati", goal: { metric: "productLevels", goal: 12, title: "O Späti da esquina", description: "Some 12 níveis de produto." } },
+		{ era: "quitanda", goal: { metric: "unitsSold", goal: 1_500, title: "Freguesia do bairro", description: "Venda 1.500 unidades no total." } },
+		{ era: "minimercado", goal: { metric: "revenue", goal: 150_000, title: "Caixa cheio", description: "Fature 150.000 moedas no total." } },
+		{ era: "mercadinho", goal: { metric: "productLevels", goal: 30, title: "Mercadinho de respeito", description: "Some 30 níveis de produto." } },
+		{ era: "supermercado", goal: { metric: "customersServed", goal: 3_000, title: "Super movimento", description: "Atenda 3.000 clientes no total." } },
+		{ era: "hipermercado", goal: { metric: "revenue", goal: 2_000_000, title: "Gigante do varejo", description: "Fature 2 milhões de moedas no total." } },
+	];
+	return steps.flatMap(({ era, goal }) => {
+		const current = getMarketEra(era);
+		const next = getNextMarketEra(era);
+		const reward = Math.max(100, Math.round(((next ?? current).coinCost * 0.1) / 50) * 50);
+		const list: MissionDefinition[] = [
+			{
+				category: "progression",
+				description: `Missão da expansão ${current.name}. ${goal.description}`,
+				goal: goal.goal,
+				id: `exp-${era}-shop`,
+				metric: goal.metric,
+				requiredLevel: 1,
+				requiredEra: era,
+				reward: { coins: Math.round(reward / 2 / 10) * 10 },
+				title: goal.title,
+			},
+		];
+		if (next)
+			list.push({
+				category: "progression",
+				description: `Missão da expansão ${current.name}: evolua para ${next.name} na Loja, aba Expansões.`,
+				goal: next.index,
+				id: `exp-${era}-next`,
+				metric: "expansion",
+				requiredLevel: 1,
+				requiredEra: era,
+				reward: { coins: reward },
+				title: `Próxima expansão: ${next.name}`,
+			});
+		return list;
+	});
+}
 
 export function getMission(missionId: string) {
 	return missions.find((mission) => mission.id === missionId);

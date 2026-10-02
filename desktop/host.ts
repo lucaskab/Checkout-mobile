@@ -51,8 +51,16 @@ const hudActions: (keyof GameActions)[] = [
 	"devFinishMarketExpansion",
 	"devFinishInteriorConstructions",
 	"devTriggerIncident",
+	"devWearShelf",
 	"dismissOfflineSummary",
 	"evolveMarketEra",
+	"upgradeProduct",
+	"claimDailyLogin",
+	"claimAlbumCollection",
+	"claimWeeklyEvent",
+	"buyLot",
+	"clearLot",
+	"finishLotClearingNow",
 	"expandShelfSlots",
 	"finishMarketEraNow",
 	"finishMarketExpansionNow",
@@ -71,6 +79,8 @@ const hudActions: (keyof GameActions)[] = [
 	"setMarketLevel",
 	"setMarketOpen",
 	"setShelfPrice",
+	"swapShelfSlots",
+	"tendShelf",
 	"startDay",
 	"startProduction",
 	"trainEmployee",
@@ -220,6 +230,7 @@ setInterval(() => {
 	// Paid expansions open when their works end (the app runs this in ProductionSimulation).
 	store().processMarketExpansionConstruction();
 	store().processMarketEraConstruction();
+	store().processLotClearing();
 	// Shelves, sectors and fixtures being built inside the market open on the same clock.
 	store().processInteriorConstructions();
 }, 1_000);

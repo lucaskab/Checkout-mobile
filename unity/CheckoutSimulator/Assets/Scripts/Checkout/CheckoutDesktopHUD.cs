@@ -19,7 +19,7 @@ namespace Checkout {
    var scaler=canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();scaler.uiScaleMode=UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1600,1000);scaler.matchWidthOrHeight=.5f;
    canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
    root=(RectTransform)canvasGo.transform;
-   BuildTop();BuildToolbar();BuildDrawer();BuildShop();BuildOverlay();
+   BuildTop();BuildToolbar();BuildDrawer();BuildShop();BuildShelf();BuildOverlay();
    Offline("Carregando o jogo…");
   }
 
@@ -40,7 +40,7 @@ namespace Checkout {
   public void Apply(string json){
    DesktopView next;try {next=JsonUtility.FromJson<DesktopView>(json);}catch(System.Exception ex){Debug.LogError("CHECKOUT_DESKTOP bad view: "+ex.Message);return;}
    if(next==null||next.kind!="view")return;
-   view=next;ApplyTop(next);ApplyToolbar(next);ApplyDrawer(next);ApplyShop(next);ApplyOverlay(next);
+   view=next;ApplyTop(next);ApplyToolbar(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyOverlay(next);
   }
   public void Result(string json){
    var result=JsonUtility.FromJson<DesktopResult>(json);if(result==null)return;

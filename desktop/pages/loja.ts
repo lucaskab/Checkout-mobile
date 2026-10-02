@@ -1,3 +1,5 @@
+import { describeFixtureProducts } from "@/data/fixture-products";
+import { getFixtureName, getShelfType } from "@/data/shelf-types";
 import { interiorDecor } from "@/data/interior-decor";
 import { shopItemBuildDurations } from "@/data/interior-construction";
 import { productionSectors } from "@/data/production-sectors";
@@ -25,6 +27,8 @@ import {
 } from "../view-kit";
 import { buildCard, placeButton, shelfThumb } from "./build-cards";
 import { eraCards } from "./eras";
+import { lotCards } from "./lots";
+import { getMarketEra, getNextMarketEra } from "@/data/economy";
 import { routes as progress } from "./progress";
 import { routes as upgrades } from "./upgrades";
 
@@ -38,8 +42,8 @@ const tabs: Tab[] = [
 	{ id: "moveis", label: "Móveis e obras", icon: gameIcon("construction"), hint: "Prateleiras, setores e caixas · vão para o inventário e você escolhe o lugar" },
 	{ id: "melhorias", label: "Melhorias", icon: gameIcon("toolbox"), hint: "Equipamentos e tecnologia que deixam o mercado mais rápido e lucrativo" },
 	{ id: "equipe", label: "Equipe", icon: gameIcon("manager"), hint: "Contrate e treine funcionários" },
-	{ id: "evolucao", label: "Evolução", icon: gameIcon("market"), hint: "Da mesinha na calçada à rede de hipermercados · cada era traz mais lugares, clientes e vendas" },
-	{ id: "expansoes", label: "Expansões", icon: gameIcon("market"), hint: "Novas alas para o mercado crescer" },
+	{ id: "terrenos", label: "Terrenos", icon: gameIcon("key"), hint: "Compre os terrenos em volta do mercado e limpe o que tem neles · cada expansão precisa dos seus" },
+	{ id: "expansoes", label: "Expansões", icon: gameIcon("market"), hint: "Da mesinha na calçada à rede de hipermercados · cada expansão traz mais lugares, clientes e vendas" },
 	{ id: "decoracao", label: "Decoração", icon: gameIcon("plant"), hint: "Enfeites para dentro da loja e para a praça · vão para o inventário" },
 	{ id: "moedas", label: "Moedas e diamantes", icon: gameIcon("diamond"), hint: "Reforce o caixa" },
 ];
@@ -55,9 +59,11 @@ function shelfCard(state: State) {
 	const build = getNextShelfBuildStatus(state);
 	if (!build.shelf) return null;
 	return buildCard(state, {
-		title: `Prateleira: ${build.shelf.name}`,
+		title: getFixtureName(build.shelf.id, state.era.id),
 		icon: shelfThumb(build.shelf.id),
-		subtitle: "Mais espaço para vender: começa com quatro espaços de produto.",
+		subtitle: describeFixtureProducts(build.shelf.id, state.market.unlockedProductIds)
+			? `Aceita: ${describeFixtureProducts(build.shelf.id, state.market.unlockedProductIds)}. Começa com quatro espaços de produto.`
+			: `Os produtos dele chegam com: ${getMarketEra(getShelfType(build.shelf.id)?.eraId ?? state.era.id).name}.`,
 		status: build,
 		coins: { action: "unlockNextShelf", args: [], price: build.coinCost },
 	});
@@ -181,9 +187,12 @@ function destaques(state: State) {
 	const picks: Card[] = [];
 	const inventory = inventoryCard(state);
 	if (inventory) picks.push(inventory);
-	// The next era (or its obra) is the biggest thing to buy.
+	// The next expansion (or its obra) is the biggest thing to buy.
 	const era = eraCards(state, { roadmap: false })[1];
-	if (era && (era.tone === "featured" || era.tone === "warning")) picks.push({ ...era, eyebrow: "EVOLUÇÃO" });
+	if (era && (era.tone === "featured" || era.tone === "warning")) picks.push({ ...era, eyebrow: "EXPANSÃO" });
+	// The land the next expansion needs (to buy, to clear or being cleared) comes right after.
+	const land = lotCards(state).find((c) => c.eyebrow === "LIMPANDO" || c.eyebrow.startsWith("COMPRADO") || (c.eyebrow === "À VENDA" && c.lines.some((l) => l.includes(getNextMarketEra(state.era.id)?.name ?? "—"))));
+	if (land) picks.push({ ...land, eyebrow: `TERRENO · ${land.eyebrow}` });
 	const shelf = shelfCard(state);
 	if (shelf && shelf.tone === "") picks.push({ ...shelf, eyebrow: "RECOMENDADO" });
 	const sector = sectorCards(state).find((c) => c.tone === "");
@@ -233,10 +242,15 @@ function content(state: State, tab: string, sub: string): { cards: Card[]; chips
 		}
 		case "equipe":
 			return { cards: upgrades.team(state, []).cards, chips: [] };
-		case "evolucao":
-			return { cards: eraCards(state), chips: [] };
+		case "terrenos":
+			return { cards: lotCards(state), chips: [] };
 		case "expansoes":
-			return { cards: upgrades.expansions(state, []).cards, chips: [] };
+			// Da mesinha na calçada à rede: cada expansão traz mais lugares, clientes e vendas. The wings of the
+			// market building come with the supermercado and the hipermercado (ERA_BUILDING_EXPANSIONS).
+			return {
+				cards: eraCards(state),
+				chips: [],
+			};
 		case "decoracao":
 			return decoracao(state, sub);
 		case "moedas": {

@@ -1,9 +1,10 @@
 import { formatBuildDuration, formatConstructionCountdown, getMarketExpansionSkipCost } from "@/data/market-expansions";
 import { getMarketEra, getNextMarketEra, marketEras } from "@/data/economy";
 import { act, button, type Card, card, fmt, gameIcon, type State } from "../view-kit";
+import { missingLotsLine } from "./lots";
 
 // Evolution of the market, era by era: from the table on the sidewalk to the chain of hypermarkets.
-// Shown in the Loja ("Evolução") and in the DEV cheats.
+// The player only sees "expansões": shown in the Loja ("Expansões") and in the DEV cheats.
 
 const perks = (id: string) => {
 	const era = getMarketEra(id as never);
@@ -26,12 +27,11 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 	const next = getNextMarketEra(state.era.id);
 	const cards: Card[] = [
 		card(current.name, {
-			eyebrow: `ERA ${current.index} · SEU MERCADO`,
+			eyebrow: `EXPANSÃO ${current.index} · SEU MERCADO`,
 			icon: gameIcon("market"),
 			tone: "success",
 			badge: "Atual",
 			subtitle: perks(current.id),
-			buttons: [button("Ver lotes", { route: "@lots", variant: "secondary", icon: gameIcon("key") })],
 		}),
 	];
 	const obra = state.era.construction;
@@ -42,12 +42,12 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 		const cost = getMarketExpansionSkipCost(remaining);
 		cards.push(
 			card(target.name, {
-				eyebrow: `ERA ${target.index} · EM OBRA`,
+				eyebrow: `EXPANSÃO ${target.index} · EM OBRA`,
 				icon: gameIcon("construction"),
 				tone: "warning",
 				badge: formatConstructionCountdown(remaining),
 				progress: 1 - remaining / total,
-				subtitle: "Os construtores estão montando a próxima era.",
+				subtitle: "Os construtores estão montando a próxima expansão.",
 				lines: [`Pronto em ${formatConstructionCountdown(remaining)}`, perks(target.id)],
 				buttons: [
 					act(`Acelerar · ${cost}`, "finishMarketEraNow", [], {
@@ -61,18 +61,21 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 			}),
 		);
 	} else if (next) {
-		const affordable = state.coins >= next.coinCost;
+		const lotsMissing = missingLotsLine(state, next.id);
+		const affordable = state.coins >= next.coinCost && !lotsMissing;
 		cards.push(
 			card(next.name, {
-				eyebrow: `ERA ${next.index} · PRÓXIMA`,
+				eyebrow: `EXPANSÃO ${next.index} · PRÓXIMA`,
 				icon: gameIcon("market"),
 				tone: affordable ? "featured" : "",
 				badge: next.buildDurationMs > 0 ? `obra ${formatBuildDuration(next.buildDurationMs)}` : "na hora",
 				subtitle: perks(next.id),
 				lines: [
-					affordable
-						? "Evolua agora: a obra começa na hora."
-						: `Faltam ${fmt(next.coinCost - state.coins)} moedas.`,
+					lotsMissing
+						? lotsMissing
+						: affordable
+							? "Evolua agora: a obra começa na hora."
+							: `Faltam ${fmt(next.coinCost - state.coins)} moedas.`,
 				],
 				buttons: [
 					act(fmt(next.coinCost), "evolveMarketEra", [], {
@@ -80,8 +83,9 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 						icon: gameIcon("coin"),
 						enabled: affordable,
 						ok: `Obra de ${next.name} começou!`,
-						fail: "Moedas insuficientes",
+						fail: lotsMissing ? "Compre e limpe os terrenos antes." : "Moedas insuficientes",
 					}),
+					...(lotsMissing ? [button("Terrenos", { route: "~loja:terrenos", variant: "secondary", icon: gameIcon("key") })] : []),
 				],
 			}),
 		);
@@ -90,7 +94,7 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 		for (const era of marketEras.slice((obra ? getMarketEra(obra.eraId) : (next ?? current)).index + 1)) {
 			cards.push(
 				card(era.name, {
-					eyebrow: `ERA ${era.index} · MAIS À FRENTE`,
+					eyebrow: `EXPANSÃO ${era.index} · MAIS À FRENTE`,
 					icon: gameIcon("lock"),
 					tone: "locked",
 					badge: fmt(era.coinCost),
@@ -111,12 +115,12 @@ const shortName = (name: string) => {
 /** DEV: jump to any era and pass time away from the game. */
 export function devEraCards(state: State): Card[] {
 	return [
-		...[0, 3, 6].map((start) =>
-			card(`Pular para a era ${start} a ${start + 2}`, {
-				eyebrow: "ERAS",
+		...[0, 3, 6, 9].map((start) =>
+			card(`Pular para a expansão ${start} a ${Math.min(start + 2, marketEras.length - 1)}`, {
+				eyebrow: "EXPANSÕES",
 				icon: gameIcon("market"),
 				badge: start === 0 ? getMarketEra(state.era.id).name : "",
-				subtitle: start === 0 ? "Muda a era na hora, sem custo e sem obra." : "",
+				subtitle: start === 0 ? "Muda a expansão na hora, sem custo e sem obra." : "",
 				buttons: marketEras.slice(start, start + 3).map((era) =>
 					act(shortName(era.name), "devSetMarketEra", [era.id], {
 						variant: era.id === state.era.id ? "success" : "secondary",
@@ -129,7 +133,7 @@ export function devEraCards(state: State): Card[] {
 			eyebrow: "TEMPO",
 			icon: gameIcon("sleepy"),
 			subtitle:
-				"Como se você tivesse saído: a obra da era anda e o mercado aberto vende sozinho (até 8 h por vez).",
+				"Como se você tivesse saído: a obra da expansão anda e o mercado aberto vende sozinho (até 8 h por vez).",
 			lines: [
 				state.era.averageTurnProfit > 0
 					? `Um turno seu rende em média ${fmt(state.era.averageTurnProfit)} moedas.`

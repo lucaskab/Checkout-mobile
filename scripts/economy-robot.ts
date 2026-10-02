@@ -10,6 +10,8 @@
 // O que ainda é modelo (vem nas próximas etapas): as eras, os níveis dos itens e a parte offline por era.
 
 import { mkdirSync, writeFileSync } from "node:fs";
+import { ERA_LOTS, getMarketLot } from "@/data/market-lots";
+import { getLotClearCost } from "@/services/market-lots";
 import type { MarketEraDefinition } from "@/@types/economy";
 import {
 	getItemIncomeMultiplier,
@@ -21,7 +23,13 @@ import {
 	STARTING_COINS,
 	TURN_DURATION_MS,
 } from "@/data/economy";
-import { itemCatalog, marketProducts } from "@/data/market-products";
+import { getEraOrder, getUnlockedProductIds, itemCatalog } from "@/data/market-products";
+import { canShelfHold } from "@/data/shelf-categories";
+import { sectorCounters, shelfTypes } from "@/data/shelf-types";
+import { productionSectors } from "@/data/production-sectors";
+import { sectorBuildPlans } from "@/data/interior-construction";
+import { getMinArrivalDelayMs } from "@/data/economy";
+import { isMarketBuilding } from "@/services/market-era";
 import {
 	getCustomerArrivalDelay,
 	simulateMarketVisit,
@@ -31,6 +39,17 @@ import {
 	applyExperience,
 	getExperienceFromSales,
 } from "@/services/progression";
+
+/** Land an expansion adds (lots bought and cleared, src/services/market-lots.ts). */
+function landCost(eraId: MarketEraDefinition["id"], previousId: MarketEraDefinition["id"]) {
+	const before = new Set(ERA_LOTS[previousId] ?? []);
+	return (ERA_LOTS[eraId] ?? [])
+		.filter((id) => !before.has(id))
+		.reduce((total, id) => {
+			const lot = getMarketLot(id);
+			return lot ? total + lot.price + getLotClearCost(lot) : total;
+		}, 0);
+}
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -79,27 +98,34 @@ export type RobotRun = {
 	perTurn: Record<string, { profit: number; revenue: number; customers: number; turns: number }>;
 };
 
-const ranked = [...marketProducts].sort(
+const ranked = [...itemCatalog].sort(
 	(a, b) =>
 		(b.suggestedPrice - b.purchasePrice) * b.demand -
 		(a.suggestedPrice - a.purchasePrice) * a.demand,
 );
 
-/** The best products the player can sell: one per place, mixing categories. */
-function pickProducts(level: number, slots: number) {
-	const unlocked = ranked.filter((product) => product.unlockLevel <= level);
-	const chosen: typeof unlocked = [];
+/**
+ * What the player puts on sale: the most profitable products of the expansion and level reached, each on a
+ * fixture that can hold it (shelves bought so far and counters of the sectors built, four places each).
+ * Before the market building only `slots` products fit on the table/crates.
+ */
+function pickProducts(level: number, eraId: MarketEraDefinition["id"], fixtures: string[], slots: number) {
+	const unlocked = new Set(getUnlockedProductIds(level, eraId));
+	const free = new Map(fixtures.map((id) => [id, 4]));
+	const chosen: typeof ranked = [];
 	const used = new Set<string>();
-	for (const product of unlocked) {
-		if (chosen.length >= slots) break;
-		if (used.has(product.category) && unlocked.some((p) => !used.has(p.category) && !chosen.includes(p))) continue;
+	const place = (product: (typeof ranked)[number]) => {
+		const fixture = fixtures.find((id) => (free.get(id) ?? 0) > 0 && canShelfHold(id, product.category).ok);
+		if (!fixture) return false;
+		free.set(fixture, (free.get(fixture) ?? 0) - 1);
 		chosen.push(product);
 		used.add(product.category);
-	}
-	for (const product of unlocked) {
-		if (chosen.length >= slots) break;
-		if (!chosen.includes(product)) chosen.push(product);
-	}
+		return true;
+	};
+	const candidates = ranked.filter((product) => unlocked.has(product.id));
+	// First one of each category (variety), then the best of the rest.
+	for (const product of candidates) if (chosen.length < slots && !used.has(product.category)) place(product);
+	for (const product of candidates) if (chosen.length < slots && !chosen.includes(product)) place(product);
 	return chosen;
 }
 
@@ -122,6 +148,7 @@ export function runRobot(
 	let averageTurnXp = 0;
 	/** Yesterday's (sales + offline) / sales: an item upgrade also raises what the market sells offline. */
 	let offlineFactor = 1;
+	const fixtures: string[] = shelfTypes.filter((shelf) => shelf.coinCost === 0).map((shelf) => shelf.id);
 	const slotLevels: number[] = [];
 	const slotProfit: number[] = []; // profit of each place over the last day, to value upgrades
 	const eraLog: EraLog[] = [{ era: eras[0].name, day: 1, level: 1 }];
@@ -143,7 +170,8 @@ export function runRobot(
 
 	function playTurn(now: number, night: boolean) {
 		const era = eras[eraIndex];
-		const products = pickProducts(level, era.productSlots);
+		const slots = isMarketBuilding(era.id) ? 999 : era.productSlots;
+		const products = pickProducts(level, era.id, fixtures, slots);
 		while (slotLevels.length < products.length) {
 			slotLevels.push(0);
 			slotProfit.push(0);
@@ -160,7 +188,9 @@ export function runRobot(
 		}));
 		const arrival = era.arrivalMultiplier * (night ? 0.7 : 1);
 		const ticket = era.ticketMultiplier * (night ? 1.2 : 1);
-		let t = getCustomerArrivalDelay(level, products.length, seed, arrival) * 0.4;
+		const minDelay = getMinArrivalDelayMs(era);
+		const unlockedCount = getUnlockedProductIds(level, era.id).length;
+		let t = getCustomerArrivalDelay(level, unlockedCount, seed, arrival, minDelay) * 0.4;
 		let profit = 0;
 		let revenue = 0;
 		let turnXp = 0;
@@ -169,8 +199,8 @@ export function runRobot(
 			seed += 1;
 			const visit = simulateMarketVisit({
 				budgetMultiplier: (1 + Math.max(level - 1, 0) * 0.08) * ticket,
+				maxProductsBonus: era.basketBonus,
 				products: simulated,
-				revenueMultiplier: ticket,
 				seed,
 				storeReputation: 60,
 			});
@@ -193,7 +223,7 @@ export function runRobot(
 			const next = applyExperience(level, experience, xp);
 			level = next.level;
 			experience = next.experience;
-			t += getCustomerArrivalDelay(level, products.length, seed, arrival);
+			t += getCustomerArrivalDelay(level, unlockedCount, seed, arrival, minDelay);
 		}
 		totalRevenue += revenue;
 		averageTurnProfit = averageTurnProfit === 0 ? profit : averageTurnProfit * 0.7 + profit * 0.3;
@@ -212,7 +242,7 @@ export function runRobot(
 		const contract = offers[1] ?? offers[0];
 		const hash = ((seed * 2654435761) >>> 0) / 4294967296;
 		if (contract && hash < profile.contractRate) {
-			const reward = contract.reward.coins * era.ticketMultiplier;
+			const reward = contract.reward.coins;
 			coins += reward;
 			today.contracts += reward;
 			const next = applyExperience(level, experience, contract.reward.experience);
@@ -223,16 +253,34 @@ export function runRobot(
 
 	function shop(now: number) {
 		const next = eras[eraIndex + 1];
-		if (!building && next && eraIndex < stopAtEra && coins >= next.coinCost) {
-			coins -= next.coinCost;
-			today.spent += next.coinCost;
+		const nextCost = next ? next.coinCost + landCost(next.id, eras[eraIndex].id) : 0;
+		if (!building && next && eraIndex < stopAtEra && coins >= nextCost) {
+			coins -= nextCost;
+			today.spent += nextCost;
 			building = { index: eraIndex + 1, endsAt: now + next.buildDurationMs };
 			finishBuild(now);
 			return shop(now);
 		}
-		// Upgrades that pay for themselves in about a day and a half, without eating the era savings
-		// when the era is close.
+		// Shelves and sectors of the expansion reached: a new fixture as soon as it costs under a third of
+		// the savings (they open room for the expansion's new products).
 		const era = eras[eraIndex];
+		for (const shelf of shelfTypes) {
+			if (fixtures.includes(shelf.id) || getEraOrder(shelf.eraId) > getEraOrder(era.id)) continue;
+			if (coins < shelf.coinCost * 3) break;
+			coins -= shelf.coinCost;
+			today.spent += shelf.coinCost;
+			fixtures.push(shelf.id);
+		}
+		for (const sector of productionSectors) {
+			const counter = sectorCounters.find((item) => item.sectorId === sector.id);
+			if (!counter || fixtures.includes(counter.id)) continue;
+			if (getEraOrder(sector.eraId) > getEraOrder(era.id) || level < sector.requiredLevel) continue;
+			const cost = sectorBuildPlans[sector.id].coinCost;
+			if (coins < cost * 3) continue;
+			coins -= cost;
+			today.spent += cost;
+			fixtures.push(counter.id);
+		}
 		for (let guard = 0; guard < 200; guard++) {
 			let best = -1;
 			let bestScore = 0;
@@ -248,7 +296,7 @@ export function runRobot(
 			}
 			if (best < 0 || bestScore < 1 / UPGRADE_PAYBACK_DAYS) return;
 			const cost = getItemUpgradeCost(era.itemUpgradeBaseCost, slotLevels[best]);
-			const reserve = next && !building && next.coinCost - coins < cost * 2 ? next.coinCost : 0;
+			const reserve = next && !building && nextCost - coins < cost * 2 ? nextCost : 0;
 			if (coins - cost < Math.min(reserve, coins)) return;
 			if (coins < cost) return;
 			coins -= cost;
@@ -310,41 +358,37 @@ function reachedDay(run: RobotRun, eras: MarketEraDefinition[], index: number) {
 }
 
 /**
- * Finds, era by era, what makes the regular player reach the NEXT era on its target day (evening of
- * that day) by giving the era bigger baskets of pricier goods (the 3D market can only show so many
- * customers at once: the arrival rate is capped at one every 15 s). Eras that are already early with
- * the plain ticket are left as they are.
+ * Finds, era by era, how many customers each expansion must draw so the regular player reaches the NEXT
+ * one on its target day (evening of that day). The market grows by drawing more people (the sidewalk table
+ * a few, the hypermarket a crowd); prices stay the shelf prices and budgets follow the fixed era curve.
+ * Eras already early with the customers they have are left as they are.
  */
 export function calibrate(base: MarketEraDefinition[]) {
 	const eras = base.map((era) => ({ ...era }));
 	const regular = profiles.find((profile) => profile.id === "regular") as Profile;
 	const dayOf = (index: number) =>
 		reachedDay(runRobot(regular, eras, "por-era", index + 1), eras, index + 1);
+	const setCap = (index: number, cap: number) => {
+		eras[index].maxCustomersPerTurn = Math.round(cap);
+		// Enough people walk by for the market to fill up (the cap is what limits).
+		eras[index].arrivalMultiplier = Math.max(base[index].arrivalMultiplier, Math.round((cap / 40) * 100) / 100);
+	};
 	for (let index = 1; index < eras.length - 1; index++) {
 		const target = eras[index + 1].targetDay + 0.85;
-		const floor = Math.max(1, eras[index - 1].ticketMultiplier);
-		eras[index].ticketMultiplier = floor;
-		const search = (set: (value: number) => void, low: number, high: number, slower: "low" | "high") => {
-			for (let step = 0; step < 24; step++) {
-				const mid = Math.sqrt(low * high);
-				set(mid);
-				const late = dayOf(index) > target;
-				// "late" means the era must earn more: move towards the faster side.
-				if ((slower === "low") === late) low = mid;
-				else high = mid;
-			}
-			return slower === "low" ? high : low;
-		};
-		if (dayOf(index) < target) {
-			// Even the plain ticket gets there sooner than planned: leave it (the report shows how much
-			// sooner; raising that era's price is a design choice, not the robot's).
-			continue;
-		} else {
-			const ticket = search((value) => (eras[index].ticketMultiplier = value), floor, 400, "low");
-			eras[index].ticketMultiplier = Math.round(ticket * 100) / 100;
+		const floor = Math.max(base[index].maxCustomersPerTurn, eras[index - 1].maxCustomersPerTurn);
+		setCap(index, floor);
+		if (dayOf(index) < target) continue;
+		let low = floor;
+		let high = 800;
+		for (let step = 0; step < 14; step++) {
+			const mid = Math.round((low + high) / 2);
+			setCap(index, mid);
+			if (dayOf(index) > target) low = mid;
+			else high = mid;
 		}
+		setCap(index, high);
 	}
-	eras[eras.length - 1].ticketMultiplier = eras[eras.length - 2].ticketMultiplier;
+	setCap(eras.length - 1, Math.max(base[eras.length - 1].maxCustomersPerTurn, eras[eras.length - 2].maxCustomersPerTurn));
 	return eras;
 }
 
@@ -392,11 +436,11 @@ if (import.meta.main) {
 		"",
 		"## Multiplicadores usados",
 		"",
-		"| Era | Custo | Obra | Lugares | Chegada | Ticket | Offline (turnos/hora) |",
-		"|---|---|---|---|---|---|---|",
+		"| Era | Custo | Obra | Lugares | Chegada | Orçamento | Clientes/turno (máx) | Itens extras | Offline (turnos/hora) |",
+		"|---|---|---|---|---|---|---|---|---|",
 		...eras.map(
 			(era) =>
-				`| ${era.name} | ${era.coinCost} | ${Math.round(era.buildDurationMs / MINUTE)} min | ${era.productSlots} | ×${era.arrivalMultiplier} | ×${era.ticketMultiplier} | ${era.offlineTurnsPerHour} |`,
+				`| ${era.name} | ${era.coinCost} | ${Math.round(era.buildDurationMs / MINUTE)} min | ${era.productSlots} | ×${era.arrivalMultiplier} | ×${era.ticketMultiplier} | ${era.maxCustomersPerTurn} | +${era.basketBonus} | ${era.offlineTurnsPerHour} |`,
 		),
 	].join("\n");
 	mkdirSync("tmp", { recursive: true });

@@ -44,7 +44,7 @@ namespace Checkout {
 
   void ApplyDrawer(DesktopView v){
    // The shop has its own full-screen window (CheckoutDesktopHUD.Shop).
-   bool open=v.hasPage&&(v.page==null||v.page.layout!="shop");
+   bool open=v.hasPage&&(v.page==null||(v.page.layout!="shop"&&v.page.layout!="shelf"));
    drawer.SetActive(open);if(!open){shownPage=null;return;}
    var p=v.page;
    pageTitle.text=p.title;pageSubtitle.text=p.subtitle;pageSubtitle.gameObject.SetActive(!string.IsNullOrEmpty(p.subtitle));

@@ -8,7 +8,18 @@ namespace Checkout {
   public string title,eyebrow,subtitle,icon,badge,tone;public string[] lines;public float progress=-1;public DesktopButton[] buttons;
  }
  [Serializable] public class DesktopPage {
-  public string route,title,subtitle,icon,layout;public DesktopButton[] tabs,chips;public DesktopCard[] cards;
+  public string route,title,subtitle,icon,layout;public DesktopButton[] tabs,chips;public DesktopCard[] cards;public DesktopShelf shelf;
+ }
+ // The shelf window (layout "shelf"): mirrors ShelfView / ShelfSlotView / ShelfPickView of desktop/view-kit.ts.
+ [Serializable] public class DesktopShelfSlot {
+  public string slotId,state,row,name,icon,mood,moodTone,incoming;
+  public int index,productId,stock,capacity,reserve,price,minPrice,maxPrice,suggested,cost,level,maxLevel,upgradeCost,restockAmount,unlockCost,unlockLevel;
+ }
+ [Serializable] public class DesktopShelfPick {public string name,icon,category;public int productId,reserve,price,profit;}
+ [Serializable] public class DesktopShelf {
+  public string id,kind,art,tint,name,accepts,careTitle,careVerb,careHint,careSpot,rowTop,rowBottom,stallNote;
+  public int condition,slotCount,expandCost,expandLevel,capacity,capacityNext,capacityCost,capacityLevel;
+  public DesktopShelfSlot[] slots;public DesktopShelfPick[] picks;
  }
  [Serializable] public class DesktopView {
   public string kind;public int revision,level,xp,xpGoal,claimableMissions;

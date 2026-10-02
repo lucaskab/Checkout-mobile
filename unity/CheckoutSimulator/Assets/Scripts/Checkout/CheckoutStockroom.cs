@@ -252,7 +252,8 @@ namespace Checkout {
   void Update(){
    var s=bridge.State;
    int trucks=s?.dock?.Length??0,low=(s?.restockSlots??Array.Empty<RestockSlot>()).Count(x=>x.reserve>0&&x.stock<x.capacity*.35f);
-   bool free=!IsOpen&&!OtherGameOpen;
+   // The shop and shelf windows cover the corner where these buttons float.
+   bool free=!IsOpen&&!OtherGameOpen&&!CheckoutDesktopHUD.ShopOpen;
    dockFab.gameObject.SetActive(free&&trucks>0);if(trucks>0)dockCount.text=trucks.ToString();
    // A working stock clerk refills the shelves on his own, so the manual REPOR mini-game goes away.
    bool clerk=(s?.employees??Array.Empty<Employee>()).Any(e=>e!=null&&e.isWorking&&e.role=="stock_clerk");

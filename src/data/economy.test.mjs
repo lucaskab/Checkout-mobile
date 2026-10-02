@@ -20,10 +20,12 @@ test("a market turn lasts 10 minutes", () => {
 test("eras go from the sidewalk table to the chain, each one pricier, bigger and later", () => {
 	expect(marketEras.map((era) => era.id)).toEqual([
 		"mesinha",
-		"banca",
 		"tenda",
+		"banca",
 		"conteiner",
 		"spati",
+		"quitanda",
+		"minimercado",
 		"mercadinho",
 		"supermercado",
 		"hipermercado",

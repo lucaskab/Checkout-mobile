@@ -39,6 +39,10 @@ namespace Checkout
     public class DesignStage
     {
         public int stage;
+        // Layout the positions were saved in: 0 = the first map (the market at x -9.4, the old stage sizes),
+        // 2 = the lot grid (the market from the A1 corner, CheckoutMarketLayout.Offset). Older designs are
+        // moved onto the new market when they load (CheckoutDesignWorld.ApplyStage).
+        public int layoutVersion;
         public DesignPiece[] interior = new DesignPiece[0];
         public DesignObject[] objects = new DesignObject[0];
         // Painted ground: "x,z,ground,mark;..." on the 1 m map grid (CheckoutPaintLayer kinds).
@@ -136,7 +140,7 @@ namespace Checkout
         public static MarketLayout LayoutFor(int stage, bool warehouse)
         {
             stage = Mathf.Clamp(stage, 0, Stages - 1);
-            float[,] sizes = { { .82f, .72f }, { .96f, .82f }, { 1.1f, .92f }, { 1.24f, 1.03f }, { 1.38f, 1.14f } };
+            float[,] sizes = { { 1.18f, .65f }, { 1.18f, .98f }, { 1.18f, 1.3f }, { 1.48f, 1.3f }, { 1.78f, 1.3f } };
             var ids = new[] { "fresh-wing", "service-wing", "stock-annex", "premium-hall" }.Take(stage).ToList();
             var sectors = new List<string> { "padaria" };
             if (ids.Contains("fresh-wing")) sectors.Add("queijaria");
@@ -155,6 +159,29 @@ namespace Checkout
         }
 
         public static string StageName(int stage) => "Loja " + (stage + 1);
+
+        // ------------------------------------------------------------------ designs saved on the first map
+        public const int CurrentLayout = 2;
+        static readonly Vector2[] OldSizes = { new Vector2(.82f, .72f), new Vector2(.96f, .82f), new Vector2(1.1f, .92f), new Vector2(1.24f, 1.03f), new Vector2(1.38f, 1.14f) };
+        static readonly Vector3 OldOffset = new Vector3(0, 0, 2.1f);
+        // Objects the game places on the market (projected with its layout): their saved spots follow the shop.
+        static readonly string[] MarketPaths =
+        {
+            "Supermarket World/Market Stage Dressing/", "Supermarket World/City Detail Repairs/", "Supermarket World/Landscape Models/Entrance flowers",
+        };
+        /// <summary>The generated walls, floor and steps of the shop: an old design may hide them but not move them.</summary>
+        public static bool IsShellPart(string path) => path != null && path.StartsWith("Supermarket World/Market Shell/");
+        /// <summary>A design saved on the first map: where its market objects stand on the current shop.</summary>
+        public static Vector3 MoveOntoCurrentShop(DesignStage d, string path, Vector3 position, MarketLayout now)
+        {
+            if (d == null || d.layoutVersion >= CurrentLayout || path == null || now == null) return position;
+            bool market = false; foreach (var prefix in MarketPaths) if (path.StartsWith(prefix)) { market = true; break; }
+            if (!market) return position;
+            var old = OldSizes[Mathf.Clamp(d.stage, 0, OldSizes.Length - 1)];
+            var a = CheckoutMarketLayout.Anchor;
+            var local = a + Vector3.Scale(position - a - OldOffset, new Vector3(1 / old.x, 1, 1 / old.y));
+            return CheckoutMarketLayout.Project(local, now);
+        }
 
         // ------------------------------------------------------------------ scene paths
         // "Root/Child/Grandchild"; siblings sharing a name get "#n" (n-th of that name).
@@ -247,8 +274,20 @@ namespace Checkout
                 Rect? shop = null;
                 if (stage > d.stage && CheckoutInterior.Active) { var f = CheckoutInterior.Active.FloorRect; shop = Rect.MinMaxRect(f.xMin - .6f, f.yMin - 1.4f, f.xMax + .6f, f.yMax + .6f); }
                 bool Inside(Vector3 p) => shop.HasValue && shop.Value.Contains(new Vector2(p.x, p.z));
-                foreach (var o in d.objects.Where(o => o != null && !string.IsNullOrEmpty(o.path)).OrderBy(o => o.path.Count(ch => ch == '/')))
+                var layout = d.layoutVersion < CheckoutMapDesign.CurrentLayout ? FindAnyObjectByType<CheckoutMarketLayout>()?.State : null;
+                foreach (var saved in d.objects.Where(o => o != null && !string.IsNullOrEmpty(o.path)).OrderBy(o => o.path.Count(ch => ch == '/')))
+                {
+                    var o = saved;
+                    if (layout != null)
+                    {
+                        // Saved on the first map: the shop's own walls and floor are rebuilt for every layout, so only
+                        // a "hidden" survives; the decorations around the shop move with it.
+                        if (CheckoutMapDesign.IsShellPart(o.path) && !o.hidden) continue;
+                        var moved = CheckoutMapDesign.MoveOntoCurrentShop(d, o.path, o.position, layout);
+                        if (moved != o.position) { o = JsonUtility.FromJson<DesignObject>(JsonUtility.ToJson(o)); o.position = moved; }
+                    }
                     if (!Inside(o.position) || o.hidden) SetOverride(o);
+                }
                 foreach (var o in d.objects.Where(o => o != null && string.IsNullOrEmpty(o.path) && !string.IsNullOrEmpty(o.source)))
                     if (!Inside(o.position)) AddClone(o);
             }

@@ -38,12 +38,14 @@ namespace Checkout
         public bool holdNewDressing;
         CheckoutStageDressing dressing;
         CheckoutMarketShell shell;
-        // The west wall (next to the parking aisle) stays put: the shop grows east towards the street and
-        // north towards the yard. z -10.6 is where the entrance steps meet the sidewalk.
+        // The west wall stays put: the shop grows east towards the street and north towards the yard.
+        // z -10.6 is where the entrance steps meet the sidewalk.
         public static readonly Vector3 Anchor = new Vector3(-9.4f, 0, -10.6f);
-        // The whole shop sits 2.1 m further into the block than the supplied map, so the entrance steps
-        // start at the back edge of the sidewalk instead of on the footway and the cycle lane.
-        public static readonly Vector3 Offset = new Vector3(0, 0, 2.1f);
+        // The block is a grid of equal lots (src/data/market-lots.ts: columns A B C from the west, rows 1-4 from the
+        // avenue) and the market fills whole lots from the corner on the left of the avenue (A1). The whole shop
+        // sits 7.45 m west of the supplied map, so its west wall stands on the A1 edge (x -17.1), and 2.1 m
+        // further into the block, so the entrance steps start at the back edge of the sidewalk.
+        public static readonly Vector3 Offset = new Vector3(-7.45f, 0, 2.1f);
         public static Vector3 WorldAnchor => Anchor + Offset;
         public Vector3 Point(Vector3 point) => Project(point, State);
         public static Vector3 CheckoutPoint(Vector3 point, MarketLayout layout) => Project(point, layout);
@@ -73,6 +75,13 @@ namespace Checkout
             }
             simulation = FindAnyObjectByType<MarketSimulation>();
             traffic = FindAnyObjectByType<CheckoutCityTraffic>();
+            // The supermarket's depot stands on lot B3 (it straddled the A3 edge by most of a metre).
+            var depot = world.Find("Warehouse"); if (depot) depot.position += new Vector3(.9f, 0, 0);
+            // The old parking stripes painted along the west edge of the block: the parking lot is on C1/C3 now.
+            var paint = world.Find("City Block/CityPaint"); if (paint) paint.gameObject.SetActive(false);
+            // The hypermarket's open-air café stood where its parking lot (lot C3) is now.
+            var cafe = world.Find("Market Stage Dressing/S4 plaza cafe");
+            if (cafe) { var item = cafe.GetComponent<CheckoutStageItem>(); if (item) DestroyImmediate(item); cafe.gameObject.SetActive(false); }
             delivery = world.GetComponentInChildren<MarketDeliveryWorker>(true);
             if(delivery){deliveryRoute=(Vector3[])delivery.route.Clone();storageDoor=delivery.storageDoor.position;}
             string[] interior = { "Building", "Checkout", "Bakery", "Butcher", "Fishery", "Produce", "Groceries", "Owned Shelf Slots", "Sector Construction" };
@@ -195,7 +204,8 @@ namespace Checkout
             bool oldYard = next.loadingYard && !grand;
             SetActive("Warehouse", next.storage && !grand);
             SetActive(GrandWarehouse, grand);
-            SetActive(GrandWarehouseSite, !grand);
+            // The lots have their own ruins now (CheckoutLotSites): the old "future warehouse" dressing goes.
+            SetActive(GrandWarehouseSite, false);
             SetActive(GrandYard, grand);
             SetActive("Loading Yard Details", oldYard);
             SetActive("Expansion Park", next.premium);
@@ -212,14 +222,19 @@ namespace Checkout
                 // The service driveway across the north sidewalk only exists once the loading yard is bought.
                 properties.SetFloat("_LoadingAccessEnabled",oldYard?1:0);
                 properties.SetFloat("_GrandYardEnabled",grand?1:0);
-                properties.SetFloat("_ParkingSpaces",next.parking?(next.stage>=3?5:3):0);
+                // The parking bays are drawn on lot C1 or C3 (BuildParking), not painted by the tiles any more.
+                properties.SetFloat("_ParkingSpaces",0);
                 properties.SetVector("_ExpansionFeatures",new Vector4(next.storage?1:0,next.parking?1:0,oldYard?1:0,next.premium?1:0));
                 properties.SetVector("_MarketFootprint",new Vector4(center.x,center.z,9.4f*next.widthScale,7.4f*next.depthScale));
                 renderer.SetPropertyBlock(properties);
             }
-            foreach (var detail in parkingDetails) detail.SetActive(next.parking);
+            foreach (var detail in parkingDetails) detail.SetActive(false);
             var parking=world.GetComponentInChildren<CheckoutParkingSpaces>(true);
-            if(parking)parking.Apply(next.parking?(next.stage>=3?5:3):0);
+            if(parking)parking.Apply(0);
+            var lot = next.stage >= 3 ? CheckoutCityTraffic.ParkingLot.Back : CheckoutCityTraffic.ParkingLot.Front;
+            if (lot != CheckoutCityTraffic.Lot && traffic) traffic.ResetVisits();
+            CheckoutCityTraffic.Lot = lot;
+            BuildParking(next.parking);
             foreach (var detail in premiumDetails) detail.SetActive(next.premium);
             foreach (var detail in storageDetails) detail.SetActive(next.storage && !grand);
             var grandPath = grand ? world.Find(GrandYard + "/Worker path") : null;
@@ -242,12 +257,71 @@ namespace Checkout
             {
                 if (!next.parking) traffic.ResetVisits();
                 traffic.enabled = next.parking;
-                traffic.Capacity=next.stage>=3?5:3;
+                traffic.Capacity=CheckoutCityTraffic.Bays;
             }
             var cashier = world.Find("Worker_Cashier")?.GetComponent<CheckoutCashier>();
             if (cashier) { cashier.beltStart = CheckoutPoint(new Vector3(-4.65f, 1.57f, -4.7f),next); cashier.beltEnd = CheckoutPoint(new Vector3(-3.25f, 1.57f, -4.7f),next); }
             simulation.GetComponent<MarketAmbientLife>()?.RebaseDoors();
             return true;
+        }
+
+        // ------------------------------------------------------------------ parking lot
+        // Asphalt, bay lines and the driveway over the sidewalk of the market's parking lot: lot C1 for the
+        // supermarket (bays along the east edge, in from the avenue), lot C3 for the hypermarket (bays towards
+        // the back of the block, in from the east street). CheckoutCityTraffic drives the cars there.
+        GameObject parkingLot; CheckoutCityTraffic.ParkingLot parkingKind; Material asphalt, stripes;
+        readonly List<GameObject> parkingHidden = new List<GameObject>();
+        void BuildParking(bool show)
+        {
+            if (parkingLot && (!show || parkingKind != CheckoutCityTraffic.Lot))
+            {
+                Destroy(parkingLot); parkingLot = null;
+                foreach (var go in parkingHidden) if (go) go.SetActive(true);
+                parkingHidden.Clear();
+            }
+            if (!show || parkingLot) return;
+            parkingKind = CheckoutCityTraffic.Lot;
+            parkingLot = new GameObject("Market parking lot"); parkingLot.transform.SetParent(world, false);
+            if (!asphalt) { asphalt = new Material(Shader.Find("Standard")) { color = new Color(.25f, .26f, .28f) }; asphalt.SetFloat("_Glossiness", .05f); }
+            if (!stripes) { stripes = new Material(Shader.Find("Standard")) { color = new Color(.95f, .94f, .88f) }; stripes.SetFloat("_Glossiness", .05f); }
+            void Quad(float x0, float z0, float x1, float z1, float y, Material m)
+            {
+                var q = GameObject.CreatePrimitive(PrimitiveType.Cube); Destroy(q.GetComponent<Collider>());
+                q.transform.SetParent(parkingLot.transform, false);
+                q.transform.position = new Vector3((x0 + x1) * .5f, y, (z0 + z1) * .5f);
+                q.transform.localScale = new Vector3(Mathf.Abs(x1 - x0), .02f, Mathf.Abs(z1 - z0));
+                q.GetComponent<Renderer>().sharedMaterial = m;
+            }
+            const float ground = .19f, line = .205f, w = .1f;
+            // Map-design decorations standing on the asphalt (a bike rack in a bay) wait while the lot is a car park.
+            var lotArea = parkingKind == CheckoutCityTraffic.ParkingLot.Back ? Rect.MinMaxRect(5.95f, 20.9f, 17.1f, 28.35f) : Rect.MinMaxRect(5.95f, -8.35f, 17.1f, 4.6f);
+            var design = GameObject.Find("Map Design Objects");
+            if (design)
+                foreach (Transform child in design.transform)
+                    if (child.gameObject.activeSelf && lotArea.Contains(new Vector2(child.position.x, child.position.z))) { child.gameObject.SetActive(false); parkingHidden.Add(child.gameObject); }
+            if (parkingKind == CheckoutCityTraffic.ParkingLot.Back)
+            {
+                Quad(5.95f, 20.9f, 17.1f, 28.35f, ground, asphalt);
+                Quad(17.1f, 20.6f, 21.3f, 23.4f, ground + .01f, asphalt);          // driveway over the east sidewalk
+                for (int i = 0; i <= CheckoutCityTraffic.Bays; i++)
+                {
+                    float x = CheckoutCityTraffic.Bay(Mathf.Min(i, CheckoutCityTraffic.Bays - 1)).x + (i == CheckoutCityTraffic.Bays ? 1.15f : -1.15f);
+                    Quad(x - w * .5f, 23.7f, x + w * .5f, 28.1f, line, stripes);
+                }
+                Quad(5.95f + .3f, 28.1f, 17.1f - .3f, 28.2f, line, stripes);
+            }
+            else
+            {
+                Quad(5.95f, -8.35f, 17.1f, 4.6f, ground, asphalt);
+                Quad(9.9f, -12.5f, 12.5f, -8.35f, ground + .01f, asphalt);         // driveway over the avenue sidewalk
+                for (int i = 0; i < CheckoutCityTraffic.Bays; i++)
+                {
+                    float z = CheckoutCityTraffic.BayZ(i);
+                    Quad(13.9f, z - 1.3f - w * .5f, 17.0f, z - 1.3f + w * .5f, line, stripes);
+                    Quad(13.9f, z + 1.3f - w * .5f, 17.0f, z + 1.3f + w * .5f, line, stripes);
+                    Quad(16.95f, z - 1.3f, 17.05f, z + 1.3f, line, stripes);
+                }
+            }
         }
 
         public const string GrandWarehouse = "Warehouse Large", GrandWarehouseSite = "Abandoned Warehouse (future expansion)", GrandYard = "Grand Loading Yard";

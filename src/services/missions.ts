@@ -1,5 +1,6 @@
 import type { GameState } from "@/@types/game";
 import type { MissionDefinition, MissionStatus } from "@/@types/mission";
+import { getMarketEra } from "@/data/economy";
 import { missions } from "@/data/missions";
 
 export function getMissionProgress(
@@ -11,6 +12,10 @@ export function getMissionProgress(
 			return state.market.customersServed;
 		case "customersWhoBought":
 			return state.market.customersWhoBought;
+		case "expansion":
+			return getMarketEra(state.era?.id ?? "mesinha").index;
+		case "productLevels":
+			return Object.values(state.productLevels ?? {}).reduce((total, level) => total + level, 0);
 		case "inventoryProduct":
 			return state.inventory[mission.targetProductId ?? -1] ?? 0;
 		case "inventoryUnits":
@@ -49,6 +54,12 @@ export function getMissionStatus(
 	}
 
 	if (state.market.level < mission.requiredLevel) {
+		return "locked";
+	}
+	if (
+		mission.requiredEra &&
+		getMarketEra(state.era?.id ?? "mesinha").index < getMarketEra(mission.requiredEra).index
+	) {
 		return "locked";
 	}
 

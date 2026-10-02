@@ -29,7 +29,7 @@ import {
 // Mirrors src/components/dev-cheat-sheet (DEV Cheats) plus a reset section.
 const categories = [
 	{ id: "moedas", label: "Moedas" },
-	{ id: "eras", label: "Eras" },
+	{ id: "eras", label: "Expansões" },
 	{ id: "nivel", label: "Nível" },
 	{ id: "eventos", label: "Eventos" },
 	{ id: "estoque", label: "Estoque" },

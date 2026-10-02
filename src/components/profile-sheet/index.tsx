@@ -11,7 +11,7 @@ import {
 	getGameEventIcon,
 	getShopItemIcon,
 } from "@/data/game-icon-assets";
-import { marketProducts } from "@/data/market-products";
+import { shelves } from "@/data/market-products";
 import { getShelfCapacity } from "@/data/shelf-capacity";
 import { shopItems } from "@/data/shop-items";
 import { ProgressionRoadmap } from "@/screens/store/components/progression-roadmap";
@@ -23,6 +23,7 @@ import { useGameStore } from "@/stores/game-store";
 export function ProfileSheet() {
 	const { closeBottomSheet } = useBottomSheet();
 	const coins = useGameStore((state) => state.coins);
+	const shelfAssignments = useGameStore((state) => state.shelfAssignments);
 	const events = useGameStore((state) => state.events);
 	const inventory = useGameStore((state) => state.inventory);
 	const logistics = useGameStore((state) => state.logistics);
@@ -59,9 +60,10 @@ export function ProfileSheet() {
 		(total, amount) => total + amount,
 		0,
 	);
-	const totalShelfCapacity = marketProducts.reduce(
-		(total, product) =>
-			total + getShelfCapacity(shelfUpgradeLevels[product.shelfId]),
+	// Every assigned slot holds up to its shelf's capacity.
+	const totalShelfCapacity = Object.entries(shelfAssignments).reduce(
+		(total, [slotId, productId]) =>
+			productId ? total + getShelfCapacity(shelfUpgradeLevels[slotId.split(":")[0]]) : total,
 		0,
 	);
 
@@ -156,9 +158,7 @@ export function ProfileSheet() {
 				<InfoRow
 					label="Capacidade máxima por slot"
 					value={`${Math.max(
-						...marketProducts.map((product) =>
-							getShelfCapacity(shelfUpgradeLevels[product.shelfId]),
-						),
+						...shelves.map((shelf) => getShelfCapacity(shelfUpgradeLevels[shelf.id])),
 					)} unid.`}
 				/>
 			</Section>

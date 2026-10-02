@@ -14,7 +14,7 @@ namespace Checkout {
  [Serializable] public class Customer {public string id,name,status,mood;public double spent;public Purchase[] purchases;}
  [Serializable] public class Purchase {public string shelfId;public int productId,quantity;}
  // Market day (turn) from src/services/simulator-snapshot.ts; requests carry the waiting customer's id.
- [Serializable] public class DayState {public string phase,contractTitle,contractLabel,grade;public int dayNumber,loyalty;public double startedAt,endsAt;public float contractProgress;public bool contractCompleted;public DayRequest[] requests;}
+ [Serializable] public class DayState {public string phase,contractTitle,contractLabel,grade,shift;public int dayNumber,loyalty;public double startedAt,endsAt;public float contractProgress;public bool contractCompleted;public DayRequest[] requests;}
  [Serializable] public class DayRequest {public string id,customerId,customerName,kind,message,productName,status;public int productId;public double createdAt,expiresAt;}
  // Register line (src/services/checkout-counter.ts): baskets waiting to be rung up and the latest outcomes.
  [Serializable] public class CheckoutEntry {public string id,customerId,customerName,mood,method;public double total,cashGiven,readyAt,expiresAt;public CheckoutLine[] items;}
@@ -29,7 +29,8 @@ namespace Checkout {
  [Serializable] public class StaffTask {public string id,employeeId,role,kind,shelfId,slotId,productName,box,incidentId,incidentKind;public int productId,units;public double startedAt,endsAt;}
  [Serializable] public class MarketEvent {public string id,name,description,effectLabel,kind;public double endsAt;public float arrivalMultiplier,productionMultiplier;}
  // Stage of the market (src/services/market-era.ts) and the lots of the block (src/data/market-lots.ts).
- [Serializable] public class EraState {public string id,name,nextName;public int index;public LotGrid grid;public string[] lots,nextLots,plazaLots;public EraConstruction construction;}
+ [Serializable] public class EraState {public string id,name,nextName;public int index;public bool building;public LotGrid grid;public LotRect[] lotRects;public string[] lots,nextLots,plazaLots;public EraConstruction construction;}
+ [Serializable] public class LotRect {public string id,label,ruin,ruinName,status;public float x0,z0,x1,z1;public double price,clearCost,clearDurationMs,clearStartedAt,clearEndsAt;public int skipCost;public bool occupied;public string neededBy;}
  [Serializable] public class LotGrid {public float x0,z0,width,depth;public int columns,rows;}
  [Serializable] public class EraConstruction {public string eraId,name;public int index,skipCost;public double startedAt,endsAt;}
 }

@@ -181,15 +181,19 @@ export function getCustomerArrivalDelay(
 	unlockedProductCount: number,
 	seed: number,
 	arrivalMultiplier = 1,
+	/** Shortest wait between customers: the market's size caps how many come in a turn. */
+	minimumDelayMs = 15_000,
 ) {
 	const random = createSeededRandom(seed);
 	const levelBonus = Math.max(level - 1, 0) * 0.08;
-	const varietyBonus = Math.max(unlockedProductCount - 1, 0) * 0.025;
+	const varietyBonus = Math.min(Math.max(unlockedProductCount - 1, 0), 40) * 0.025;
 	const averageDelay =
 		32_000 / ((1 + levelBonus + varietyBonus) * arrivalMultiplier);
 	const randomVariation = randomBetween(random, 0.75, 1.25);
 
-	return Math.round(clamp(averageDelay * randomVariation, 15_000, 60_000));
+	return Math.round(
+		clamp(averageDelay * randomVariation, minimumDelayMs, Math.max(60_000, minimumDelayMs)),
+	);
 }
 
 function createCustomer(

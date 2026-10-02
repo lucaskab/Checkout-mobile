@@ -99,7 +99,29 @@ export type SimulatorSnapshot = {
 		id: string;
 		index: number;
 		name: string;
+		/** The market building on the lots (mercadinho on); false = a stall on the sidewalk. */
+		building: boolean;
 		grid: { x0: number; z0: number; width: number; depth: number; columns: number; rows: number };
+		/** Every lot of the block as a rectangle (src/data/market-lots.ts). */
+		lotRects: {
+			id: string;
+			label: string;
+			x0: number;
+			z0: number;
+			x1: number;
+			z1: number;
+			price: number;
+			ruin: string;
+			ruinName: string;
+			status: string;
+			clearCost: number;
+			clearDurationMs: number;
+			clearStartedAt: number;
+			clearEndsAt: number;
+			skipCost: number;
+			occupied: boolean;
+			neededBy: string;
+		}[];
 		lots: string[];
 		nextLots: string[];
 		nextName: string;
@@ -196,6 +218,8 @@ export type SimulatorDayRequest = {
 
 export type SimulatorDay = {
 	phase: string;
+	/** Turn of the day ("noite" from the Späti on). */
+	shift: "dia" | "noite";
 	dayNumber: number;
 	startedAt: number;
 	endsAt: number;

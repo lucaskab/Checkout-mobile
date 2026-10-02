@@ -11,13 +11,27 @@ import {
 	getAchievementTotals,
 } from "@/services/achievements";
 import { getMissionProgress, getMissionStatus } from "@/services/missions";
+import {
+	canClaimDailyLogin,
+	getLoginReward,
+	getNextLoginDay,
+	LOGIN_STREAK_DAYS,
+} from "@/services/daily-login";
 import type { Routes } from ".";
+import { getWeekEnd, getWeeklyProgress, getWeeklyReward } from "@/services/weekly-event";
+import {
+	albumCollections,
+	getCollectionProgress,
+	isProductCollected,
+	SALES_TO_COLLECT,
+} from "@/data/product-album";
 import {
 	act,
 	type Card,
 	card,
 	fmt,
 	gameIcon,
+	go,
 	page,
 	productIcon,
 	ratio,
@@ -84,6 +98,82 @@ function formatCompactNumber(value: number) {
 const productName = (id: number) =>
 	itemCatalog.find((item) => item.id === id)?.name ?? `#${id}`;
 
+// Weekly event: this week's theme, its goal and the prize.
+function weeklyEventCard(state: Parameters<Routes[string]>[0]): Card {
+	const now = Date.now();
+	const progress = getWeeklyProgress(state.weeklyEvent, state.market.soldByProduct, now);
+	const reward = getWeeklyReward(state.era.id);
+	const daysLeft = Math.max(1, Math.ceil((getWeekEnd(now) - now) / (24 * 60 * 60_000)));
+	const prize = `${fmt(reward.coins)} moedas + ${reward.diamonds} diamantes`;
+	return card(progress.theme.name, {
+		eyebrow: `EVENTO DA SEMANA · ${daysLeft === 1 ? "ÚLTIMO DIA" : `${daysLeft} DIAS`}`,
+		subtitle: `${progress.theme.description} Esses produtos vendem mais a semana toda.`,
+		icon: gameIcon("festival"),
+		tone: progress.done && !progress.claimed ? "featured" : "",
+		badge: progress.claimed ? "Resgatado" : progress.done ? "Pronto" : `${Math.min(progress.sold, progress.theme.goal)}/${progress.theme.goal}`,
+		progress: ratio(Math.min(progress.sold, progress.theme.goal), progress.theme.goal),
+		lines: [`Meta: vender ${progress.theme.goal} unidades desses produtos`, `Prêmio: ${prize}`],
+		buttons:
+			progress.done && !progress.claimed
+				? [act(`Resgatar ${prize}`, "claimWeeklyEvent", [], { variant: "success", ok: "Prêmio da semana resgatado!" })]
+				: [],
+	});
+}
+
+// Product album: one line on the missions page, the whole album on its own page.
+function albumSummaryCard(state: Parameters<Routes[string]>[0]): Card {
+	const progress = albumCollections.map((c) => getCollectionProgress(c, state.market.soldByProduct));
+	const collected = progress.reduce((total, p) => total + p.collected, 0);
+	const total = progress.reduce((sum, p) => sum + p.total, 0);
+	const ready = albumCollections.filter(
+		(c, i) => progress[i].complete && !(state.albumClaimedIds ?? []).includes(c.id),
+	).length;
+	return card("Álbum de produtos", {
+		eyebrow: "COLEÇÕES",
+		subtitle: `Cada produto vira figurinha quando você vende ${SALES_TO_COLLECT} unidades dele. Complete uma coleção para ganhar o prêmio.`,
+		icon: gameIcon("medal"),
+		badge: ready > 0 ? `${ready} prêmio(s)` : `${collected}/${total}`,
+		tone: ready > 0 ? "featured" : "",
+		progress: ratio(collected, total),
+		buttons: [go("Abrir álbum", "album", { variant: "primary" })],
+	});
+}
+
+// Daily login gift: a 7-day streak shown as a row of days, the next one ready to claim once a day.
+function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
+	const now = Date.now();
+	const ready = canClaimDailyLogin(state.dailyLogin, now);
+	const next = getNextLoginDay(state.dailyLogin, now);
+	const today = ready ? next : state.dailyLogin?.streak ?? 0;
+	const reward = getLoginReward(next, state.era.id);
+	const days = Array.from({ length: LOGIN_STREAK_DAYS }, (_, index) => {
+		const day = index + 1;
+		const gift = getLoginReward(day, state.era.id);
+		const mark = day < today || (!ready && day === today) ? "ok" : day === today ? "hoje" : "";
+		return `Dia ${day}: ${gift.coins} moedas${gift.diamonds ? ` + ${gift.diamonds} diamantes` : ""}${mark ? ` · ${mark}` : ""}`;
+	});
+	return card("Presente do dia", {
+		eyebrow: `SEQUÊNCIA ${Math.min(today, LOGIN_STREAK_DAYS)}/${LOGIN_STREAK_DAYS}`,
+		subtitle: ready
+			? "Volte todo dia: o presente cresce a cada dia seguido e o 7º dia dá diamantes. Perder um dia recomeça a sequência."
+			: "Presente de hoje resgatado. Volte amanhã para continuar a sequência.",
+		icon: gameIcon("gift"),
+		tone: ready ? "featured" : "",
+		badge: ready ? "Novo" : "Resgatado",
+		lines: days,
+		buttons: ready
+			? [
+					act(
+						`Resgatar ${reward.coins} moedas${reward.diamonds ? ` + ${reward.diamonds} diamantes` : ""}`,
+						"claimDailyLogin",
+						[],
+						{ variant: "success", ok: "Presente resgatado!", fail: "Já resgatado hoje." },
+					),
+				]
+			: [],
+	});
+}
+
 export const routes: Routes = {
 	missions: (state, [arg]) => {
 		const filter: MissionFilter = missionFilters.some((f) => f.id === arg)
@@ -122,6 +212,9 @@ export const routes: Routes = {
 				],
 				progress: ratio(claimed, missions.length),
 			}),
+			weeklyEventCard(state),
+			dailyGiftCard(state),
+			albumSummaryCard(state),
 		];
 		if (!filtered.length)
 			cards.push(
@@ -182,6 +275,35 @@ export const routes: Routes = {
 			chips: missionFilters.map((f) =>
 				swap(f.label, `missions:${f.id}`, f.id === filter),
 			),
+		});
+	},
+	album: (state) => {
+		const claimedIds = state.albumClaimedIds ?? [];
+		const cards = albumCollections.map((collection) => {
+			const progress = getCollectionProgress(collection, state.market.soldByProduct);
+			const claimed = claimedIds.includes(collection.id);
+			const names = collection.productIds.map((id) => {
+				const product = itemCatalog.find((item) => item.id === id);
+				const sold = state.market.soldByProduct[id] ?? 0;
+				return `${isProductCollected(state.market.soldByProduct, id) ? "ok" : `${Math.min(sold, SALES_TO_COLLECT)}/${SALES_TO_COLLECT}`} · ${product?.name ?? `#${id}`}`;
+			});
+			const prize = `${fmt(collection.reward.coins)} moedas + ${collection.reward.diamonds} diamantes`;
+			return card(collection.name, {
+				eyebrow: claimed ? "COMPLETA" : `${progress.collected}/${progress.total} FIGURINHAS`,
+				icon: productIcon(collection.productIds[0]),
+				tone: claimed ? "" : progress.complete ? "featured" : "",
+				badge: claimed ? "Resgatado" : prize,
+				progress: ratio(progress.collected, progress.total),
+				lines: names,
+				buttons:
+					progress.complete && !claimed
+						? [act(`Resgatar ${prize}`, "claimAlbumCollection", [collection.id], { variant: "success", ok: "Coleção completa! Prêmio resgatado." })]
+						: [],
+			});
+		});
+		return page("album", "Álbum de produtos", cards, {
+			subtitle: `Venda ${SALES_TO_COLLECT} unidades de um produto para ganhar a figurinha`,
+			icon: gameIcon("medal"),
 		});
 	},
 	achievements: (state, [arg]) => {

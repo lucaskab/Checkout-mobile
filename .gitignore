@@ -76,3 +76,4 @@ __pycache__/
 unity/**/ArtSource/*.log
 unity/**/Assets/_Recovery/
 unity/**/Assets/_Recovery.meta
+checkout-desktop-save.json.*

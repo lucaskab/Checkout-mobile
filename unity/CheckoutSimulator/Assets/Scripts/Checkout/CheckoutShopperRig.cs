@@ -33,6 +33,10 @@ namespace Checkout
         static readonly Dictionary<string, Material> painted = new Dictionary<string, Material>();
         static readonly List<CheckoutShopperRig> all = new List<CheckoutShopperRig>();
 
+        /// <summary>Some customers push a cart in the market building; at the stalls and small shops everybody carries a hand basket.</summary>
+        public static bool WantsCart(string actor) =>
+            (actor == "Customer_02" || actor == "Customer_05" || actor == "Customer_07") && !CheckoutStall.Small;
+
         public static CheckoutShopperRig For(Transform actor)
         {
             var rig = actor.GetComponent<CheckoutShopperRig>();
@@ -45,6 +49,14 @@ namespace Checkout
 
         public void SetVisible(bool show)
         {
+            // The expansion changed since this customer last shopped (stall ↔ market): swap cart and basket.
+            if (ready && show && !visible && cart != WantsCart(name))
+            {
+                if (prop) Destroy(prop.gameObject);
+                prop = gripL = gripR = grip = front = null;
+                goods.Clear();
+                ready = false;
+            }
             Setup();
             if (show && !visible) { picksAtStart = anim ? anim.Picks : 0; placed = false; attach = 0; }
             visible = show;
@@ -57,7 +69,7 @@ namespace Checkout
             ready = true;
             anim = GetComponent<MarketCharacterAnimator>();
             visual = anim && anim.animationPlayer ? anim.animationPlayer.transform : transform;
-            cart = name == "Customer_02" || name == "Customer_05" || name == "Customer_07";
+            cart = WantsCart(name);
             Transform Bone(string n) => visual.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == n);
             upperL = Bone("UpperArm_L"); foreL = Bone("Forearm_L"); handL = Bone("Hand_L");
             upperR = Bone("UpperArm_R"); foreR = Bone("Forearm_R"); handR = Bone("Hand_R"); head = Bone("Head"); thighL = Bone("Thigh_L");

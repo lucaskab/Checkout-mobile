@@ -1,5 +1,5 @@
 import type { DayContract, SpecialRequest } from "@/@types/market-day";
-import { getWaitingInteriorPieces } from "@/data/interior-decor";
+import { canOpenAtNight, getPiecesToPlaceBeforeOpening, NIGHT_TURN } from "@/services/market-era";
 import type { GameIconId } from "@/data/game-icon-assets";
 import {
 	DAY_DURATION_MS,
@@ -145,7 +145,7 @@ function dayStatus(state: State, now: number): Card {
 function planning(state: State) {
 	const { day } = state;
 	const minutes = Math.round(DAY_DURATION_MS / 60_000);
-	const waiting = getWaitingInteriorPieces(state.interior).length;
+	const waiting = getPiecesToPlaceBeforeOpening(state);
 	return page(
 		"day",
 		`Dia ${day.dayNumber}`,
@@ -182,6 +182,28 @@ function planning(state: State) {
 					}),
 				],
 			}),
+			// From the Späti on the shop can also open at night.
+			...(canOpenAtNight(state.era.id)
+				? [
+						card("Turno da noite", {
+							eyebrow: "SÓ A PARTIR DO SPÄTI",
+							subtitle: "Abre à noite, sem contrato. Vêm menos clientes, mas eles gastam mais e procuram bebidas, doces e congelados.",
+							icon: gameIcon("sleepy"),
+							lines: [
+								`Clientes ×${NIGHT_TURN.arrivalMultiplier.toLocaleString("pt-BR")} · gasto por cliente ×${NIGHT_TURN.budgetMultiplier.toLocaleString("pt-BR")}`,
+								"Bebidas, doces, salgadinhos e congelados vendem mais",
+							],
+							buttons: [
+								act("Abrir à noite", "startDay", [FREE_DAY_CONTRACT_ID, "noite"], {
+									variant: "primary",
+									after: "back",
+									ok: "Turno da noite aberto!",
+									fail: "Não foi possível abrir agora.",
+								}),
+							],
+						}),
+					]
+				: []),
 		],
 		{ icon: gameIcon("clipboard"), subtitle: "Contrato do dia" },
 	);

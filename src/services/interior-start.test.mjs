@@ -25,16 +25,25 @@ const placed = [
 	{ id: "shelf:drinks", type: "shelf", x: 2, z: 2, rot: 0 },
 ];
 
-test("a new shop is empty: the checkout, two shelves and the drinks cooler wait to be placed", () => {
+test("a new shop is empty: the checkout, the produce crates and the drinks cooler wait to be placed", () => {
 	const waiting = getWaitingInteriorPieces(game().interior).map((item) => item.id);
-	expect(waiting.sort()).toEqual(["checkout:main", "shelf:dairy", "shelf:drinks", "shelf:produce"]);
+	expect(waiting.sort()).toEqual(["checkout:main", "shelf:drinks", "shelf:produce"]);
 	const view = createSimulatorSnapshot(game(), "start", 1);
 	expect(view.interior.items.every((item) => item.stored)).toBe(true);
-	expect(view.shelves.filter((s) => s.unlocked).map((s) => s.id)).toEqual(["produce", "dairy", "drinks"]);
-	expect(view.shelves.find((s) => s.id === "drinks").name).toBe("Geladeira de bebidas");
+	expect(view.shelves.filter((s) => s.unlocked).map((s) => s.id)).toEqual(["produce", "drinks"]);
+	// On the sidewalk the drinks fridge is still a styrofoam cooler.
+	expect(view.shelves.find((s) => s.id === "drinks").name).toBe("Isopor com gelo");
 });
 
-test("the market only opens once the player has placed the furniture", () => {
+test("the stalls of the first expansions open without setting up any furniture", () => {
+	expect(game().era.id).toBe("mesinha");
+	expect(getWaitingInteriorPieces(game().interior)).toHaveLength(3);
+	expect(game().startDay(FREE_DAY_CONTRACT_ID)).toBe(true);
+	expect(game().market.isOpen).toBe(true);
+});
+
+test("the market building only opens once the player has placed the furniture", () => {
+	useGameStore.setState({ era: { ...game().era, id: "mercadinho" } });
 	expect(game().startDay(FREE_DAY_CONTRACT_ID)).toBe(false);
 	game().setMarketOpen(true);
 	expect(game().market.isOpen).toBe(false);
@@ -50,5 +59,5 @@ test("the market only opens once the player has placed the furniture", () => {
 test("a reset brings the empty shop back", () => {
 	game().saveInteriorLayout(placed);
 	game().resetGame();
-	expect(getWaitingInteriorPieces(game().interior)).toHaveLength(4);
+	expect(getWaitingInteriorPieces(game().interior)).toHaveLength(3);
 });

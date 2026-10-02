@@ -138,18 +138,22 @@ namespace Checkout
         // ------------------------------------------------------------------ snapshot
         static string ShelfTemplate(Shelf shelf)
         {
+            // Each fixture holds only its own kind of goods (src/data/shelf-types.ts in the app), so the model
+            // comes from the fixture itself: the produce stand, the dairy fridge, the upright drinks cooler, the
+            // frozen-food freezer, the chest freezer for ice cream, the grocery and home gondolas.
+            switch (shelf.id)
+            {
+                case "produce": return "shelf-produce";
+                case "dairy": return "shelf-dairy";
+                case "bakery": return "shelf-bakery";
+                case "snacks": return "shelf-snacks";
+                case "drinks": return "shelf-cooler";
+                case "coffee": return "shelf-grocery";
+                case "pizza": return "shelf-freezer";
+                case "icecream": return "shelf-freezer";
+                case "home": return "shelf-cleaning";
+            }
             string c = (shelf.category ?? "").ToLowerInvariant();
-            if (c.Length == 0)
-                switch (shelf.id)
-                {
-                    case "produce": return "shelf-produce";
-                    case "dairy": return "shelf-dairy";
-                    case "bakery": return "shelf-bakery";
-                    case "snacks": return "shelf-snacks";
-                    case "drinks": return "shelf-cooler";
-                    case "pizza": return "shelf-freezer";
-                    default: return "shelf-grocery";
-                }
             if (c.Contains("bebida") || c.Contains("refrigerante") || c.Contains("energetic") || c.Contains("agua") || c.Contains("drink")) return "shelf-cooler";
             if (c.Contains("laticin") || c.Contains("queijo") || c.Contains("frios") || c.Contains("carne") || c.Contains("peixe")) return "shelf-dairy";
             if (c.Contains("hortifruti") || c.Contains("organic") || c.Contains("fruta")) return "shelf-produce";
@@ -224,6 +228,16 @@ namespace Checkout
                 foreach (var w in want.Where(w => works.TryGetValue(w.id, out var b) && b.pending && !placedIds.Contains(w.id)).ToList()) { waiting[w.id] = (w.type, w.template); want.Remove(w); }
             }
             else want.RemoveAll(w => waiting.ContainsKey(w.id));
+            // In the small shops, furniture placed somewhere else (in the market building, by a DEV jump back)
+            // waits in the inventory instead of floating on the square.
+            if (CheckoutStall.ShopInside && !designMode && !editing)
+                foreach (var w in want.Where(w => IsFunctional(w.type)).ToList())
+                {
+                    var entry = saved.FirstOrDefault(e => e != null && e.id == w.id && !e.stored && !e.outside);
+                    var at = entry != null ? WorldOf(entry.x, entry.z) : Vector3.zero;
+                    if (entry == null || !FloorRect.Contains(new Vector2(at.x, at.z)))
+                    { if (!works.ContainsKey(w.id)) waiting[w.id] = (w.type, w.template); want.Remove(w); }
+                }
             foreach (var id in works.Where(p => p.Value.pending).Select(p => p.Key).ToList()) works.Remove(id);
             var designEntries = new Dictionary<string, DesignPiece>();
             if (!editing)
@@ -362,6 +376,7 @@ namespace Checkout
             if (!it.root) return;
             // Outside pieces sit on the block's paving in world coordinates; shop pieces follow the projected floor.
             var at = it.outside ? new Vector3(it.x, Ground, it.z) : WorldOf(it.x, it.z);
+            if (!it.outside && CheckoutStall.ShopInside) at.y = CheckoutStall.FloorY;
             it.root.SetPositionAndRotation(at, Quaternion.Euler(0, it.rot, 0));
             it.root.localScale = it.baseScale * (it.scale > 0 ? it.scale : 1);
         }
@@ -391,6 +406,9 @@ namespace Checkout
         void MarkCheckoutZone()
         {
             if (!holder) return;
+            // The small shops have no checkout area (their counter is part of the building).
+            if (zoneMarks) zoneMarks.gameObject.SetActive(!CheckoutStall.ShopInside);
+            if (CheckoutStall.ShopInside) return;
             var zone = CheckoutZone;
             if (zoneMarks && zone == zoneDrawn) return;
             zoneDrawn = zone;
@@ -432,7 +450,8 @@ namespace Checkout
         // The checkout area: a strip along the front wall (6 half squares deep) where only the manual checkouts and
         // the self-checkouts stand, marked on the floor. Customers pass through it to pay and to leave.
         public const float CheckoutZoneDepth = 3f;
-        public Rect CheckoutZone { get { var f = FloorRect; return Rect.MinMaxRect(f.xMin, f.yMin, f.xMax, Mathf.Min(f.yMax, f.yMin + CheckoutZoneDepth)); } }
+        // The small shops have their own counter (part of the model): no checkout area to place counters in.
+        public Rect CheckoutZone { get { var f = FloorRect; if (CheckoutStall.ShopInside) return Rect.MinMaxRect(f.xMin, f.yMin, f.xMax, f.yMin); return Rect.MinMaxRect(f.xMin, f.yMin, f.xMax, Mathf.Min(f.yMax, f.yMin + CheckoutZoneDepth)); } }
 
         // The shop with its entrance steps, the parking bays and the delivery path stay clear.
         IEnumerable<Rect> KeepClear()
@@ -490,7 +509,8 @@ namespace Checkout
         {
             // Wall to wall (inner faces, rail excluded). The shell sizes its walls so this is always a whole
             // number of half squares: the grid starts on the west/front walls and ends exactly on the others.
-            get => CheckoutMarketShell.ClearRect(layout.State);
+            // In the shop expansions (Späti, quitanda, minimercado) it is the little shop's floor.
+            get => CheckoutStall.ShopInside ? CheckoutStall.InteriorFloor : CheckoutMarketShell.ClearRect(layout.State);
         }
 
         // Kept clear in front of the doors so people can always get in.
@@ -498,7 +518,9 @@ namespace Checkout
         {
             get
             {
-                var door = WorldOf(DoorX, -7f); var f = FloorRect;
+                var f = FloorRect;
+                if (CheckoutStall.ShopInside) return new Footprint { c = new Vector2(CheckoutStall.Door.x, f.yMin + .6f), ax = Vector2.right, az = Vector2.up, hx = CheckoutStall.DoorHalf + .2f, hz = .6f };
+                var door = WorldOf(DoorX, -7f);
                 return new Footprint { c = new Vector2(door.x, f.yMin + .9f), ax = Vector2.right, az = Vector2.up, hx = 1.35f, hz = .9f };
             }
         }
@@ -509,6 +531,8 @@ namespace Checkout
         {
             get
             {
+                // The small shops have no rear service door.
+                if (CheckoutStall.ShopInside) return new Footprint { c = new Vector2(-999, -999), ax = Vector2.right, az = Vector2.up, hx = 0, hz = 0 };
                 var door = WorldOf(RearDoorX, 7f); var f = FloorRect;
                 return new Footprint { c = new Vector2(door.x, f.yMax - 1.3f), ax = Vector2.right, az = Vector2.up, hx = .98f, hz = 1.3f };
             }
@@ -578,6 +602,12 @@ namespace Checkout
                 else if (it.functional) { foreach (var c in Corners(f)) if (c.y < zone.yMax - eps) { why = "Área só para caixas"; return false; } }
             }
             if (Overlap(f, Entrance)) { why = "Deixe a entrada livre"; return false; }
+            if (CheckoutStall.ShopInside)
+            {
+                if (IsCounter(it)) { why = "Esta loja já tem o seu balcão"; return false; }
+                var counter = CheckoutStall.CounterArea; counter.xMin -= .5f; counter.yMin -= .6f;
+                if (Overlap(f, FromRect(counter))) { why = "Deixe o balcão livre"; return false; }
+            }
             if (Overlap(f, ServiceDoor)) { why = "Deixe a porta dos fundos livre"; return false; }
             foreach (var other in items.Values)
             {

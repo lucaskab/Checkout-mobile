@@ -17,4 +17,7 @@ export type ShelfUnlockUpgrade = {
 	coinCost: number;
 	playerLevel: number;
 	unlockedShelves: number;
+	/** Expansion that has room for it. */
+	eraId: import("./economy").MarketEraId;
+	shelfId: string;
 };

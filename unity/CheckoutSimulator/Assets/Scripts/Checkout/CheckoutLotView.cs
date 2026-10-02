@@ -7,7 +7,7 @@ using K = Checkout.CheckoutDesktopKit;
 
 namespace Checkout
 {
-    // "Ver lotes": the block seen from above, split in its equal lots (src/data/market-lots.ts). Lots the
+    // "Ver lotes": the block seen from above, split in its lots (src/data/market-lots.ts). Lots the
     // market already has are gold, the ones the next era takes are green, the free square is purple.
     // Opened from the Loja ("Evolução" → "Ver lotes", route "@lots"); "Voltar" puts the camera back.
     public class CheckoutLotView : MonoBehaviour
@@ -20,14 +20,17 @@ namespace Checkout
         const float Height = .22f;
 
         static readonly Color Owned = new Color(1f, .6f, .05f, .62f), Next = new Color(.2f, .8f, .4f, .55f),
-            Plaza = new Color(.62f, .42f, .9f, .42f), Free = new Color(1, 1, 1, .16f), Edge = new Color(1, 1, 1, .9f);
+            Plaza = new Color(.62f, .42f, .9f, .42f), Free = new Color(1, 1, 1, .16f), Edge = new Color(1, 1, 1, .9f),
+            Clearing = new Color(.95f, .35f, .2f, .5f), Blocked = new Color(.1f, .12f, .2f, .35f);
 
         public void Initialize(CheckoutBridge owner)
         {
             bridge = owner; simulation = FindAnyObjectByType<MarketSimulation>(); instance = this;
         }
 
-        public static void Show() { if (instance) instance.Enter(); }
+        // The lot view was replaced by the lots themselves (a padlock on each locked lot, a panel on click:
+        // CheckoutLotSites, CheckoutLotPopup). The old route "@lots" now does nothing.
+        public static void Show() { }
 
         void Enter()
         {
@@ -50,13 +53,20 @@ namespace Checkout
         }
 
         string shownEra;
+        // Redraw when the expansion or any lot's status changes (bought, cleared…).
+        static string Signature(EraState era)
+        {
+            var sb = new System.Text.StringBuilder(era.id);
+            if (era.lotRects != null) foreach (var l in era.lotRects) sb.Append('|').Append(l.id).Append(l.status);
+            return sb.ToString();
+        }
         void Update()
         {
             if (!Open) return;
             if (Input.GetKeyDown(KeyCode.Escape)) { Exit(); return; }
             // The era changed while the lots are shown (evolution finished, DEV jump): redraw them.
             var era = bridge.State?.era;
-            if (era != null && era.id != shownEra && era.grid != null)
+            if (era != null && Signature(era) != shownEra && era.grid != null)
             {
                 if (overlay) Destroy(overlay);
                 if (ui) Destroy(ui.gameObject);
@@ -73,12 +83,33 @@ namespace Checkout
                 material.renderQueue = 3100;
             }
             overlay = new GameObject("Lot view");
-            shownEra = era.id;
+            shownEra = Signature(era);
             var g = era.grid;
             float w = g.width / g.columns, d = g.depth / g.rows;
             var owned = new HashSet<string>(era.lots ?? new string[0]);
             var next = new HashSet<string>(era.nextLots ?? new string[0]);
             var plaza = new HashSet<string>(era.plazaLots ?? new string[0]);
+            if (era.lotRects != null && era.lotRects.Length > 0)
+            {
+                // Lots of different sizes following the market building (the depot is one big lot).
+                foreach (var lot in era.lotRects)
+                {
+                    // Land status (src/services/market-lots.ts): yours, for sale, bought (to clear), clearing.
+                    string st = lot.status ?? "";
+                    var colour = st == "seu" || owned.Contains(lot.id) ? Owned : st == "praca" || plaza.Contains(lot.id) ? Plaza
+                        : st == "comprado" || st == "limpando" ? Clearing : next.Contains(lot.id) ? Next : st == "bloqueado" ? Blocked : Free;
+                    float lw = lot.x1 - lot.x0, ld = lot.z1 - lot.z0;
+                    Quad(lot.id, new Vector3(lot.x0 + .12f, Height, lot.z0 + .12f), new Vector3(lot.x1 - .12f, Height, lot.z1 - .12f), colour);
+                    Frame(lot.id, lot.x0, lot.z0, lw, ld);
+                    string price = lot.price.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+                    string tag = st == "seu" ? "SEU" : st == "praca" ? "GRATUITA" : st == "comprado" ? "COMPRADO · LIMPAR"
+                        : st == "limpando" ? "LIMPANDO" : st == "venda" ? "À VENDA · " + price : st == "bloqueado" ? price
+                        : owned.Contains(lot.id) ? "SEU" : next.Contains(lot.id) ? "PRÓXIMA" : plaza.Contains(lot.id) ? "GRATUITA" : "";
+                    float size = Mathf.Clamp(Mathf.Min(lw, ld) * .55f, 1.6f, 4.2f);
+                    Label(lot.label, tag, new Vector3((lot.x0 + lot.x1) * .5f, Height + .05f, (lot.z0 + lot.z1) * .5f), size);
+                }
+            }
+            else
             for (int c = 0; c < g.columns; c++)
                 for (int r = 0; r < g.rows; r++)
                 {
@@ -87,10 +118,10 @@ namespace Checkout
                     float x0 = g.x0 + c * w, z0 = g.z0 + r * d;
                     Quad(id, new Vector3(x0 + .12f, Height, z0 + .12f), new Vector3(x0 + w - .12f, Height, z0 + d - .12f), colour);
                     Frame(id, x0, z0, w, d);
-                    string tag = owned.Contains(id) ? "SEU" : next.Contains(id) ? "PRÓXIMA ERA" : plaza.Contains(id) ? "PRAÇA" : "";
+                    string tag = owned.Contains(id) ? "SEU" : next.Contains(id) ? "PRÓXIMA" : plaza.Contains(id) ? "PRAÇA" : "";
                     Label(id, tag, new Vector3(x0 + w * .5f, Height + .05f, z0 + d * .5f));
                 }
-            // The first eras stand on the sidewalk in front of B1/C1.
+            // The first expansions stand on the sidewalk in front of the first lot.
             if (owned.Count == 0)
             {
                 float cx = g.x0 + g.width * .5f;
@@ -154,10 +185,13 @@ namespace Checkout
             U.Stretch(title.rectTransform, new Vector2(0, .5f), Vector2.one).offsetMin = new Vector2(28, 0);
             title.text = "Lotes do quarteirão · " + era.name;
             var legend = U.Label(bar.transform, "Legend", K.Body, 18, "E8DFC8", TextAlignmentOptions.Left);
-            var lr = U.Stretch(legend.rectTransform, Vector2.zero, new Vector2(1, .5f)); lr.offsetMin = new Vector2(28, 10); lr.offsetMax = new Vector2(-200, 0);
-            legend.text = "<color=#F9BD2E>■</color> seus   <color=#4DD973>■</color> próxima era: " + era.nextName + "   <color=#A06BE6>■</color> praça gratuita";
+            var lr = U.Stretch(legend.rectTransform, Vector2.zero, new Vector2(1, .5f)); lr.offsetMin = new Vector2(28, 10); lr.offsetMax = new Vector2(-380, 0);
+            legend.text = "<color=#F9BD2E>■</color> seus   <color=#F26A3A>■</color> comprados (limpar)   <color=#4DD973>■</color> " + era.nextName + " precisa   <color=#FFFFFF>■</color> à venda   <color=#A06BE6>■</color> praça";
             var back = U.Button(bar.transform, "Voltar", "primary", Exit, 64, 22);
             U.At((RectTransform)back.transform, new Vector2(1, .5f), new Vector2(170, 64), new Vector2(-105, 0));
+            // Straight to the land shop (Loja → Terrenos).
+            var buy = U.Button(bar.transform, "Terrenos", "secondary", () => { Exit(); var host = FindAnyObjectByType<CheckoutDesktopHost>(); if (host) host.Route("~loja:terrenos"); }, 64, 22);
+            U.At((RectTransform)buy.transform, new Vector2(1, .5f), new Vector2(170, 64), new Vector2(-285, 0));
         }
     }
 }

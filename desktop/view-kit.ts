@@ -33,6 +33,79 @@ export type Card = {
 	progress: number;
 	buttons: Button[];
 };
+/** One place of a fixture in the shelf window (layout "shelf"). */
+export type ShelfSlotView = {
+	slotId: string;
+	index: number;
+	/** "product" | "empty" | "locked" (can be opened with "Expandir") | "hidden". */
+	state: string;
+	/** "top" = eye level, "bottom" = the row below. */
+	row: string;
+	productId: number;
+	name: string;
+	icon: string;
+	stock: number;
+	capacity: number;
+	reserve: number;
+	price: number;
+	minPrice: number;
+	maxPrice: number;
+	suggested: number;
+	cost: number;
+	/** Customers' feeling about the price: "Barato", "Justo", "Caro", "Muito caro". */
+	mood: string;
+	/** "success" | "info" | "warning" | "danger". */
+	moodTone: string;
+	level: number;
+	maxLevel: number;
+	upgradeCost: number;
+	restockAmount: number;
+	/** "A caminho · 3 min" when an order is on the way and the depot is empty. */
+	incoming: string;
+	/** Locked slot: what opening it costs. */
+	unlockCost: number;
+	unlockLevel: number;
+};
+/** A product that can go on the fixture (picker of the shelf window). */
+export type ShelfPickView = {
+	productId: number;
+	name: string;
+	icon: string;
+	category: string;
+	reserve: number;
+	price: number;
+	profit: number;
+};
+/** The shelf window: the fixture drawn as in the shop, its places, its care and its upgrades. */
+export type ShelfView = {
+	id: string;
+	/** crates, produce, cooler, fridge, basket, bakery, display, gondola, freezer, chest, counter. */
+	kind: string;
+	/** Picture of the fixture (Resources/CheckoutDesktop/Fixtures/<art>). */
+	art: string;
+	/** Colour of the fixture's sign (hex without #). */
+	tint: string;
+	name: string;
+	accepts: string;
+	condition: number;
+	careTitle: string;
+	careVerb: string;
+	careHint: string;
+	/** What the mess looks like: wilted, melt, smudge, crumbs, mess, frost. */
+	careSpot: string;
+	rowTop: string;
+	rowBottom: string;
+	slotCount: number;
+	expandCost: number;
+	expandLevel: number;
+	capacity: number;
+	capacityNext: number;
+	capacityCost: number;
+	capacityLevel: number;
+	stallNote: string;
+	slots: ShelfSlotView[];
+	picks: ShelfPickView[];
+};
 export type Page = {
 	route: string;
 	title: string;
@@ -44,6 +117,8 @@ export type Page = {
 	tabs: Button[];
 	chips: Button[];
 	cards: Card[];
+	/** Layout "shelf" only. */
+	shelf: ShelfView | null;
 };
 export type State = GameStore;
 
@@ -105,7 +180,7 @@ export function page(
 	cards: Card[],
 	options: Partial<Page> = {},
 ): Page {
-	return { route, title, subtitle: "", icon: "", layout: "", tabs: [], chips: [], cards, ...options };
+	return { route, title, subtitle: "", icon: "", layout: "", tabs: [], chips: [], cards, shelf: null, ...options };
 }
 export const ratio = (value: number, total: number) =>
 	Math.max(0, Math.min(1, value / Math.max(total, 1)));

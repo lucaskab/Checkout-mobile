@@ -18,8 +18,9 @@ const initial = JSON.stringify(useGameStore.getState());
 beforeEach(() => useGameStore.setState(JSON.parse(initial)));
 function available() {
 	const state = useGameStore.getState();
+	// Fruit and vegetables: the produce stand only takes those.
 	return itemCatalog.filter(
-		(p) => !Object.values(state.shelfAssignments).includes(p.id),
+		(p) => p.category === "hortifruti" && !Object.values(state.shelfAssignments).includes(p.id),
 	);
 }
 function unlock(product) {
@@ -101,13 +102,17 @@ test("version 28 migration fills unlocked shelves with four available slots", as
 	old.unlockedShelfSlots = 7;
 	const next = await useGameStore.persist.getOptions().migrate(old, 28);
 	expect(next.shelfSlotCounts.produce).toBe(4);
-	expect(next.shelfSlotCounts.dairy).toBe(4);
+	expect(next.shelfSlotCounts.drinks).toBe(4);
+	// The dairy fridge comes with the fair stall: a sidewalk save does not have it.
+	expect(next.shelfSlotCounts.dairy).toBe(0);
 	expect(next.unlockedShelfSlots).toBe(8);
 	expect(next.shelfAssignments.produce).toBe(old.shelfAssignments.produce);
 	expect(next.shelfAssignments["produce:1"]).toBe(null);
 });
 test("unlocks complete shelves and expands only the selected shelf", () => {
 	useGameStore.getState().setMarketLevel(3);
+	// The bakery shelf comes with the banca.
+	useGameStore.getState().devSetMarketEra("banca");
 	useGameStore.setState({ coins: 5_000 });
 
 	expect(useGameStore.getState().unlockNextShelf()).toBe(true);
@@ -119,13 +124,13 @@ test("unlocks complete shelves and expands only the selected shelf", () => {
 	let state = useGameStore.getState();
 	expect(state.shelfSlotCounts.produce).toBe(4);
 	expect(state.shelfSlotCounts.bakery).toBe(4);
-	expect(state.unlockedShelfSlots).toBe(16);
+	expect(state.unlockedShelfSlots).toBe(12);
 
 	expect(state.expandShelfSlots("produce")).toBe(true);
 	state = useGameStore.getState();
 	expect(state.shelfSlotCounts.produce).toBe(5);
-	expect(state.shelfSlotCounts.dairy).toBe(4);
-	expect(state.unlockedShelfSlots).toBe(17);
+	expect(state.shelfSlotCounts.drinks).toBe(4);
+	expect(state.unlockedShelfSlots).toBe(13);
 });
 test("capacity upgrades apply to all four spaces and persist new assignments", async () => {
 	const [a] = available();
@@ -159,7 +164,7 @@ test("order quote matches charged price and delivery duration with current modif
 	expect(getShelfOrderQuote(after, product.id, 2).incoming).toBe(2);
 	expect(getShelfOrderQuote(after, product.id, 999).reason).not.toBe(null);
 });
-test("Unity receives seven physical shelves and customer destinations use the parent shelf", () => {
+test("Unity receives the nine physical shelves and customer destinations use the parent shelf", () => {
 	const state = useGameStore.getState();
 	useGameStore.setState({
 		market: {
@@ -175,7 +180,7 @@ test("Unity receives seven physical shelves and customer destinations use the pa
 		},
 	});
 	const snapshot = createSimulatorSnapshot(useGameStore.getState(), "test", 1);
-	expect(snapshot.shelves).toHaveLength(7);
+	expect(snapshot.shelves).toHaveLength(9);
 	expect(snapshot.customers[0].purchases[0].shelfId).toBe("produce");
 });
 test("logistics turbo only charges diamonds when it can be activated", () => {
@@ -195,4 +200,41 @@ test("logistics turbo only charges diamonds when it can be activated", () => {
 	expect(logistics.logisticsBoostExpiresAt).toBeGreaterThanOrEqual(
 		before + 15 * 60_000,
 	);
+});
+test("sales mess the fixture up; tidying it brings it back and gives a little experience", async () => {
+	const { getShelfCondition, wearShelfCare, getCareFactor, getSlotPositionFactor } = await import("./shelf-care.ts");
+	const worn = wearShelfCare({}, [{ shelfId: "produce:2", quantity: 10 }]);
+	expect(getShelfCondition(worn, "produce")).toBe(85);
+	expect(getCareFactor(100)).toBeGreaterThan(getCareFactor(30));
+	expect(getSlotPositionFactor("produce:1")).toBeGreaterThan(getSlotPositionFactor("produce:4"));
+	useGameStore.setState({ shelfCare: { produce: 40 } });
+	const xp = useGameStore.getState().market.totalExperience;
+	expect(useGameStore.getState().tendShelf("produce")).toBe(true);
+	expect(useGameStore.getState().shelfCare.produce).toBe(100);
+	expect(useGameStore.getState().market.totalExperience).toBeGreaterThan(xp);
+	// Already spotless: nothing to do. A fixture the player does not have cannot be tidied.
+	expect(useGameStore.getState().tendShelf("produce")).toBe(false);
+	useGameStore.setState({ shelfCare: { pizza: 10 } });
+	expect(useGameStore.getState().tendShelf("pizza")).toBe(false);
+	useGameStore.setState(JSON.parse(initial));
+});
+test("two slots of the same fixture swap product, stock and price", () => {
+	const [a, b] = available();
+	unlock(a);
+	unlock(b);
+	const actions = useGameStore.getState();
+	expect(actions.assignProductToShelf("produce:1", a.id)).toBe(true);
+	expect(actions.assignProductToShelf("produce:2", b.id)).toBe(true);
+	expect(actions.restockShelf({ shelfId: "produce:1", productId: a.id, amount: 2 })).toBe(true);
+	expect(actions.setShelfPrice("produce:1", a.sellingPrice + 1)).toBe(true);
+	expect(useGameStore.getState().swapShelfSlots("produce:1", "produce:2")).toBe(true);
+	const state = useGameStore.getState();
+	expect(state.shelfAssignments["produce:2"]).toBe(a.id);
+	expect(state.shelfAssignments["produce:1"]).toBe(b.id);
+	expect(state.shelfStock["produce:2"]).toBe(2);
+	expect(state.shelfPrices["produce:2"]).toBe(a.sellingPrice + 1);
+	// Not across fixtures.
+	expect(useGameStore.getState().swapShelfSlots("produce:1", "drinks:1")).toBe(false);
+	// Other test files share the store: leave it as it was.
+	useGameStore.setState(JSON.parse(initial));
 });

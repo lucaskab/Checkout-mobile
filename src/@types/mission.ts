@@ -1,3 +1,5 @@
+import type { MarketEraId } from "@/@types/economy";
+
 export type MissionCategory =
 	| "customers"
 	| "inventory"
@@ -9,9 +11,11 @@ export type MissionCategory =
 export type MissionMetric =
 	| "customersServed"
 	| "customersWhoBought"
+	| "expansion"
 	| "inventoryProduct"
 	| "inventoryUnits"
 	| "level"
+	| "productLevels"
 	| "productionCrafted"
 	| "revenue"
 	| "shelfUpgrades"
@@ -36,6 +40,8 @@ export type MissionDefinition = {
 	id: string;
 	metric: MissionMetric;
 	requiredLevel: number;
+	/** Only shows from this expansion on (missions of each expansion). */
+	requiredEra?: MarketEraId;
 	reward: MissionReward;
 	targetProductId?: number;
 	title: string;

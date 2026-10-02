@@ -109,7 +109,7 @@ namespace MarketDay
         {
             marketLayout=layout;
             obstacles.Clear();furniture.Clear();
-            if(Furniture!=null&&!Checkout.CheckoutStall.Small)furniture.AddRange(Furniture());
+            if(Furniture!=null&&(!Checkout.CheckoutStall.Small||Checkout.CheckoutStall.ShopInside))furniture.AddRange(Furniture());
             var slots=world.GetComponentInChildren<Checkout.CheckoutShelfSlots>();
             if(slots&&Furniture==null)foreach(Transform slot in slots.transform)if(slot.gameObject.activeSelf)
             {
@@ -141,23 +141,29 @@ namespace MarketDay
             else{
             Interior(new Vector3(0,.64f,0),new Vector3(18,.2f,14),Quaternion.identity);
             Interior(new Vector3(-1.75f,.345f,-8.825f),new Vector3(2.8f,.2f,3.6f),Quaternion.Euler(-9.44f,0,0));
+            // The foot of the entrance ramp meets the sidewalk: a flat apron bridges the strip of block in between
+            // (the deeper shops of the lot grid start the ramp a little further from the curb).
+            var foot=Checkout.CheckoutMarketLayout.Project(new Vector3(-1.75f,0,-10.6f),marketLayout);
+            Box(new Vector3(foot.x,.05f,foot.z-.5f),new Vector3(2.8f*marketLayout.widthScale,.2f,1.6f),ShopArea,Quaternion.identity);
             Interior(new Vector3(4,.37f,7.8f),new Vector3(1.1f,.2f,2.2f),Quaternion.Euler(20,0,0));
             var rear=Checkout.CheckoutMarketLayout.Project(new Vector3(4,.05f,8.8f),marketLayout);
             Box(new Vector3(rear.x,.05f,(rear.z+17.9f)*.5f),new Vector3(1.3f,.2f,17.9f-rear.z),ShopArea,Quaternion.identity);
             }
             // Outdoor customers use the same sidewalk surfaces as city pedestrians.
             // Do not bake the vehicle aisle: it creates shortcuts through parking bays.
-            if(FindAnyObjectByType<Checkout.CheckoutCityTraffic>())
-                for(int bay=0;bay<(marketLayout.stage>=3?5:3);bay++)Box(new Vector3(-17.1f,.05f,Checkout.CheckoutCityTraffic.BayZ(bay)-1.9f),new Vector3(5.4f,.2f,1.3f),0,Quaternion.identity);
+            if(FindAnyObjectByType<Checkout.CheckoutCityTraffic>()&&marketLayout.parking&&!stall)
+                foreach(var strip in Checkout.CheckoutCityTraffic.WalkStrips())Box(strip.center,strip.size,0,Quaternion.identity);
             var streets=FindAnyObjectByType<Checkout.CheckoutCityStreets>();
             if(streets)streets.AddNavigation(sources);
             foreach(var r in obstacles)Box(new Vector3(r.center.x,1.5f,r.center.y),new Vector3(r.width,3,r.height),1,Quaternion.identity);
             foreach(var f in furniture)Box(f.center,f.size,1,Quaternion.Euler(0,f.yaw,0));
+            // Ruins on the lots not bought/cleared yet (CheckoutLotSites).
+            foreach(var r in Checkout.CheckoutLotSites.Obstacles)Box(r.center,r.size,1,Quaternion.identity);
             // The shop's plinth: park and street surfaces under the building are not walkable, so city
             // pedestrians cannot cut through the walls. It stays well below the shop floor (.74) so the
             // floor itself is not merged with it.
             var low=Checkout.CheckoutMarketLayout.Project(new Vector3(-9.4f,0,-7.4f),marketLayout);var high=Checkout.CheckoutMarketLayout.Project(new Vector3(9.4f,0,7.4f),marketLayout);
-            if(stall){var s=Checkout.CheckoutStall.Centre;Box(new Vector3(s.x,1f,s.z),new Vector3(4.2f,2f,2.7f),1,Quaternion.identity);}
+            if(stall){foreach(var f in Checkout.CheckoutStall.Obstacles)Box(f.center,f.size,1,Quaternion.identity);if(Checkout.CheckoutStall.Obstacles.Count==0){var f=Checkout.CheckoutStall.Footprint;Box(f.center,f.size,1,Quaternion.identity);}}
             else Box(new Vector3((low.x+high.x)*.5f,-.4f,(low.z+high.z)*.5f),new Vector3(high.x-low.x+.3f,1.3f,high.z-low.z+.3f),1,Quaternion.identity);
             var settings=NavMesh.GetSettingsByID(0);settings.agentRadius=.28f;settings.agentHeight=2.3f;settings.agentClimb=.3f;settings.agentSlope=45;settings.overrideVoxelSize=true;settings.voxelSize=.075f;
             var navigationBounds=streets?streets.cityBounds:new Bounds(new Vector3(0,0,8),new Vector3(80,12,80));

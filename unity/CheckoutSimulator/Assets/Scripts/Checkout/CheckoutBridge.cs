@@ -17,11 +17,16 @@ namespace Checkout {
   MarketSimulation simulation;CheckoutMap map;CheckoutCityTraffic traffic;float hello;int commandSequence;Vector2 pointerStart;bool pointerDragged;
   readonly Queue<Customer> visits=new Queue<Customer>();readonly HashSet<string> seen=new HashSet<string>();readonly List<CheckoutWalker> walkers=new List<CheckoutWalker>();readonly List<string> appearanceBag=new List<string>();string lastAppearance;
   public readonly List<CheckoutWalker> Queue=new List<CheckoutWalker>();
+  const int MaxWalkers=27;
 #if UNITY_IOS && !UNITY_EDITOR
   [DllImport("__Internal")] static extern void sendMessageToMobileApp(string message);
 #endif
   void Awake(){name="CheckoutBridge";simulation=FindAnyObjectByType<MarketSimulation>();simulation.quietCapture=true;simulation.enabled=false;var qa=simulation.GetComponent<MarketPlaytest>();if(qa)qa.enabled=false;}
   void Start(){simulation.Initialize(false);simulation.hud.gameObject.SetActive(false);map=gameObject.AddComponent<CheckoutMap>();gameObject.AddComponent<CheckoutCounterGame>().Initialize(this);gameObject.AddComponent<CheckoutIncidents>().Initialize(this,map);gameObject.AddComponent<CheckoutStockroom>().Initialize(this);map.Initialize(simulation.world,this);gameObject.AddComponent<CheckoutBuildMode>().Initialize(this,map);gameObject.AddComponent<CheckoutLotView>().Initialize(this);traffic=FindAnyObjectByType<CheckoutCityTraffic>();
+   // The scene has a handful of shoppers; the hypermarket and the chain draw a crowd (up to 160 customers a
+   // turn in the app's economy), so the walkers are cloned from them up to MaxWalkers.
+   var shoppers=simulation.world.Cast<Transform>().Where(t=>t.name.StartsWith("Customer_")).ToList();
+   for(int i=0;shoppers.Count>0&&shoppers.Count+i<MaxWalkers;i++){var source=shoppers[i%shoppers.Count];var copy=Instantiate(source.gameObject,source.parent);copy.name="Customer_Extra"+i;copy.transform.position=source.position+new Vector3(.4f*(i%5),0,.4f*(i/5));}
    foreach(Transform t in simulation.world)if(t.name.StartsWith("Customer_")){var w=t.gameObject.AddComponent<CheckoutWalker>();w.Initialize(this,t.GetComponent<NavMeshAgent>(),map);walkers.Add(w);t.gameObject.SetActive(false);}
    // Integration is read-only until the React Native authority supplies a snapshot.
    foreach(Transform t in simulation.world)if(t.name.StartsWith("StockWorker_"))t.gameObject.SetActive(false);

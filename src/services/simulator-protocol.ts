@@ -57,6 +57,8 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	purchaseShopItem: [text, currency],
 	assignProductToShelf: [text, integer],
 	clearShelf: [text],
+	tendShelf: [text],
+	swapShelfSlots: [text, text],
 	restockShelf: [
 		(v) =>
 			object(v) &&

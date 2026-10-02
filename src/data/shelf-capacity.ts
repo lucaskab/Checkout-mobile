@@ -9,9 +9,8 @@ import {
 	maximumSlotsPerShelf,
 	productsPerShelf,
 } from "@/data/shelf-slots";
-import { starterShelfIds } from "@/data/market-products";
+import { shelfTypes } from "@/data/shelf-types";
 
-const starterShelfCount = starterShelfIds.length;
 
 export const initialUnlockedShelfSlots = productsPerShelf;
 
@@ -73,53 +72,22 @@ export function getNextShelfSlotUpgrade(unlockedSlots: number) {
 	} satisfies ShelfSlotUpgrade;
 }
 
-function getNextLegacyShelfSlotUpgrade(unlockedSlots: number) {
-	const nextUnlockedSlots = unlockedSlots + 1;
-	const configuredUpgrade = shelfSlotUpgrades.find(
-		(upgrade) => upgrade.unlockedSlots === nextUnlockedSlots,
-	);
-
-	if (configuredUpgrade) {
-		return configuredUpgrade;
-	}
-
-	if (!lastShelfSlotUpgrade || nextUnlockedSlots <= 7) {
-		return null;
-	}
-
-	const progressionStep =
-		nextUnlockedSlots - lastShelfSlotUpgrade.unlockedSlots;
-
-	return {
-		coinCost:
-			Math.round(
-				(lastShelfSlotUpgrade.coinCost * 1.8 ** progressionStep) / 100,
-			) * 100,
-		playerLevel: lastShelfSlotUpgrade.playerLevel + progressionStep * 4,
-		unlockedSlots: nextUnlockedSlots,
-	} satisfies ShelfSlotUpgrade;
-}
-
+/**
+ * The next shelf the player can buy (shelves open in order, src/data/shelf-types.ts): each one comes
+ * with the expansion that has room for it and costs a fixed price. `playerLevel` is kept at 1 for the
+ * screens that still show a level: the expansion is what gates it.
+ */
 export function getNextShelfUnlockUpgrade(unlockedShelves: number) {
 	const nextUnlockedShelves = unlockedShelves + 1;
-
-	if (nextUnlockedShelves > maximumShelfCount) {
-		return null;
-	}
-
-	// The starter shelves are free: the first shelf the player buys costs what the second one always did.
-	const paidShelves = Math.max(1, unlockedShelves - (starterShelfCount - 1));
-	const legacyUpgrade = getNextLegacyShelfSlotUpgrade(
-		paidShelves * productsPerShelf,
-	);
-
-	return legacyUpgrade
-		? ({
-				coinCost: legacyUpgrade.coinCost,
-				playerLevel: legacyUpgrade.playerLevel,
-				unlockedShelves: nextUnlockedShelves,
-			} satisfies ShelfUnlockUpgrade)
-		: null;
+	const shelf = shelfTypes[unlockedShelves];
+	if (nextUnlockedShelves > maximumShelfCount || !shelf) return null;
+	return {
+		coinCost: shelf.coinCost,
+		playerLevel: 1,
+		unlockedShelves: nextUnlockedShelves,
+		eraId: shelf.eraId,
+		shelfId: shelf.id,
+	} satisfies ShelfUnlockUpgrade;
 }
 
 export function normalizeUnlockedShelfSlots(unlockedSlots: unknown) {

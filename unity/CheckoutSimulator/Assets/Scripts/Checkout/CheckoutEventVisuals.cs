@@ -27,13 +27,18 @@ namespace Checkout {
   // Editor/dev preview: shows an event regardless of the game store; an empty id hands control back to the snapshots.
   public void Preview(string id){if(string.IsNullOrEmpty(id)){previewing=false;Apply(lastSnapshot);return;}previewing=true;expiresAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+3600000;SetEvent(id);}
   void SetEvent(string id){if(active==id)return;if(scenes.TryGetValue(active,out var previous)){previous.SetActive(false);foreach(var particles in previous.GetComponentsInChildren<ParticleSystem>(true))particles.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);}active=id;RoadWorks=id=="obras-na-rua";clock=0;umbrellaRefresh=0;rainPuddles.SetRaining(id=="chuva-forte");SetCustomerUmbrellas(id=="chuva-forte");
-   RestoreLight();SetStreetlights(id=="chuva-forte");if(string.IsNullOrEmpty(id))return;
+   RestoreLight();SetStreetlights(id=="chuva-forte"||night);if(string.IsNullOrEmpty(id)){if(night)NightLight();return;}
    if(scenes.TryGetValue(id,out var stale)&&builtFor.TryGetValue(id,out var key)&&key!=LayoutKey()){Destroy(stale);scenes.Remove(id);}
    if(!scenes.TryGetValue(id,out var scene)){building=id;builtFor[id]=LayoutKey();scene=new GameObject("Event · "+id);scene.transform.SetParent(transform,false);scene.SetActive(false);scenes[id]=scene;motions[id]=new List<Motion>();Build(id,scene.transform);}
    foreach(var motion in motions[id]){motion.root.localPosition=motion.home;motion.root.localRotation=motion.rot;motion.root.localScale=motion.scale;}scene.SetActive(true);foreach(var particles in scene.GetComponentsInChildren<ParticleSystem>())particles.Play();
    if(id=="chuva-forte"){if(sun){sun.color=new Color(.66f,.77f,.94f);sun.intensity=sunIntensity*.68f;}RenderSettings.ambientLight=new Color(.39f,.46f,.55f);if(view)view.backgroundColor=new Color(.52f,.63f,.66f);}
    if(id=="dia-perfeito"&&sun){sun.color=new Color(1,.94f,.75f);sun.intensity=sunIntensity*1.08f;}
+   if(night)NightLight();
   }
+  // Night turn: a dark blue sky over whatever the event set, with the street lights on.
+  bool night;
+  public void SetNight(bool value){if(night==value)return;night=value;var id=active;active="\u0000";SetEvent(id);}
+  void NightLight(){if(sun){sun.color=new Color(.55f,.64f,.98f);sun.intensity=(sun.intensity>0?sun.intensity:sunIntensity)*.28f;}RenderSettings.ambientLight=new Color(.16f,.19f,.31f);if(view)view.backgroundColor=new Color(.07f,.09f,.17f);}
   void SetCustomerUmbrellas(bool enabled){foreach(var customer in FindObjectsByType<MarketCharacterAnimator>(FindObjectsInactive.Include).Where(c=>c.GetComponent<CheckoutCityPedestrian>()||c.GetComponent<CheckoutCityAppearance>())){var pedestrian=customer.GetComponent<CheckoutCityPedestrian>();var rig=customer.GetComponent<MarketRainUmbrellaRig>();if(enabled&&!rig)rig=customer.gameObject.AddComponent<MarketRainUmbrellaRig>();if(!rig)continue;rig.Initialize(customer.animationPlayer,umbrellaPrefab);rig.SetRainShelter(enabled&&!(pedestrian&&pedestrian.IsSheltered));}}
   void Update(){if(active=="chuva-forte"&&(umbrellaRefresh+=Time.deltaTime)>.5f){umbrellaRefresh=0;SetCustomerUmbrellas(true);}if(string.IsNullOrEmpty(active))return;if(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()>=expiresAt){SetEvent("");return;}clock+=Time.deltaTime;
    if(!motions.TryGetValue(active,out var activeMotions))return;

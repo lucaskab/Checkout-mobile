@@ -42,7 +42,7 @@ test("saves from before the eras keep their market building", () => {
 	expect(normalizeEraState({ id: "nope" }, "mercadinho").id).toBe("mercadinho");
 	// Only the era right after the current one can be under construction.
 	expect(
-		normalizeEraState({ id: "tenda", construction: { eraId: "spati", startedAt: 0, endsAt: 1 } }, "mesinha")
+		normalizeEraState({ id: "banca", construction: { eraId: "spati", startedAt: 0, endsAt: 1 } }, "mesinha")
 			.construction,
 	).toBeNull();
 });
@@ -53,25 +53,28 @@ test("evolving pays the next era and opens it when the obra ends", () => {
 	expect(checkEraEvolution(era, 600).ok).toBe(true);
 	const building = startEraEvolution(era, 1_000);
 	expect(building.id).toBe("mesinha");
-	expect(building.construction?.eraId).toBe("banca");
-	const banca = getMarketEra("banca");
-	expect(finishEraConstruction(building, 1_000 + banca.buildDurationMs - 1)).toBe(building);
-	expect(finishEraConstruction(building, 1_000 + banca.buildDurationMs).id).toBe("banca");
+	expect(building.construction?.eraId).toBe("tenda");
+	const tenda = getMarketEra("tenda");
+	expect(finishEraConstruction(building, 1_000 + tenda.buildDurationMs - 1)).toBe(building);
+	expect(finishEraConstruction(building, 1_000 + tenda.buildDurationMs).id).toBe("tenda");
 	expect(checkEraEvolution(building, 1e9).ok).toBe(false);
 });
 
 test("the store charges the era, runs the obra and can finish it with diamonds", () => {
+	// The tenda stands on lot 1: no lot, no tenda.
 	useGameStore.setState({ coins: 1_000 });
+	expect(store().evolveMarketEra()).toBe(false);
+	useGameStore.setState({ lots: { owned: ["A1"], cleared: ["A1"], clearing: null } });
 	expect(store().evolveMarketEra()).toBe(true);
 	expect(store().coins).toBe(400);
-	expect(store().era.construction?.eraId).toBe("banca");
+	expect(store().era.construction?.eraId).toBe("tenda");
 	expect(store().evolveMarketEra()).toBe(false);
 	const diamonds = store().logistics.premiumCurrency;
 	expect(store().finishMarketEraNow()).toBe(true);
-	expect(store().era.id).toBe("banca");
+	expect(store().era.id).toBe("tenda");
 	expect(store().logistics.premiumCurrency).toBeLessThan(diamonds);
 	const snapshot = createSimulatorSnapshot(store(), "test", 1);
-	expect(snapshot.era).toMatchObject({ id: "banca", index: 1, construction: null });
+	expect(snapshot.era).toMatchObject({ id: "tenda", index: 1, construction: null });
 });
 
 test("DEV jumps to any era and passing time finishes the obra", () => {
@@ -113,4 +116,60 @@ test("the market only sells on its own when it was left open", () => {
 	store().processSessionResume();
 	expect(store().coins).toBeGreaterThan(0);
 	expect(store().offlineSummary?.coins).toBe(store().coins);
+});
+
+test("supermercado and hipermercado bring the wings of the market building", () => {
+	useGameStore.setState({ unlockedMarketExpansionIds: [] });
+	expect(store().devSetMarketEra("mercadinho")).toBe(true);
+	expect(store().unlockedMarketExpansionIds).toEqual([]);
+	useGameStore.setState({ coins: 10_000_000 });
+	// The supermercado needs lots 2, 3 and the depot.
+	expect(store().evolveMarketEra()).toBe(false);
+	useGameStore.setState({ lots: { owned: ["A1", "B1", "A2", "B2", "C1", "B3"], cleared: ["A1", "B1", "A2", "B2", "C1", "B3"], clearing: null } });
+	expect(store().evolveMarketEra()).toBe(true);
+	expect(store().finishMarketEraNow() || store().devPassTime(24)).toBe(true);
+	expect(store().era.id).toBe("supermercado");
+	expect(store().unlockedMarketExpansionIds).toEqual(expect.arrayContaining(["fresh-wing", "service-wing"]));
+	expect(store().devSetMarketEra("hipermercado")).toBe(true);
+	expect(store().unlockedMarketExpansionIds).toContain("grand-warehouse");
+	expect(store().devSetMarketEra("spati")).toBe(true);
+	expect(store().unlockedMarketExpansionIds).toEqual([]);
+});
+
+test("from the Späti on the shop can open at night: fewer customers, bigger baskets, drinks wanted", async () => {
+	const { getTurnEffects, canOpenAtNight } = await import("./market-era.ts");
+	expect(canOpenAtNight("conteiner")).toBe(false);
+	expect(canOpenAtNight("spati")).toBe(true);
+	const day = getTurnEffects("spati", "dia");
+	const night = getTurnEffects("spati", "noite");
+	expect(night.night).toBe(true);
+	expect(night.customerArrivalMultiplier).toBeLessThan(day.customerArrivalMultiplier);
+	expect(night.budgetMultiplier).toBeGreaterThan(day.budgetMultiplier);
+	expect(night.necessityMultiplier("bebidas")).toBeGreaterThan(1);
+	expect(night.necessityMultiplier("hortifruti")).toBe(1);
+	expect(getTurnEffects("tenda", "noite").night).toBe(false);
+	useGameStore.setState({ era: { ...store().era, id: "spati" } });
+	expect(store().startDay("livre", "noite")).toBe(true);
+	expect(store().day.shift).toBe("noite");
+});
+
+test("the first employee (a cashier) can only be hired from the contêiner on", () => {
+	useGameStore.setState({ coins: 100_000, market: { ...store().market, level: 10 } });
+	expect(store().hireEmployee("cashier")).toBe(false);
+	useGameStore.setState({ era: { ...store().era, id: "conteiner" } });
+	expect(store().hireEmployee("cashier")).toBe(true);
+	expect(store().hireEmployee("cleaner")).toBe(false);
+});
+
+test("each expansion brings its own missions, locked until the market gets there", async () => {
+	const { missions } = await import("../data/missions.ts");
+	const { getMissionStatus } = await import("./missions.ts");
+	const tenda = missions.find((m) => m.id === "exp-tenda-next");
+	expect(tenda).toBeTruthy();
+	expect(getMissionStatus(tenda, store())).toBe("locked");
+	useGameStore.setState({ era: { ...store().era, id: "tenda" } });
+	expect(getMissionStatus(tenda, store())).toBe("active");
+	useGameStore.setState({ era: { ...store().era, id: "banca" } });
+	expect(getMissionStatus(tenda, store())).toBe("claimable");
+	expect(missions.filter((m) => m.id.startsWith("exp-")).length).toBeGreaterThanOrEqual(20);
 });

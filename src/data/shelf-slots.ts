@@ -1,10 +1,16 @@
 import type { GameShelfSlotCounts } from "@/@types/game";
 import { shelves } from "./market-products";
+import { isSectorShelfId, sectorCounters } from "./shelf-types";
+
+/** Each production sector sells at its own counter: a "shelf" that opens when the sector is built. */
+export const sectorShelves = sectorCounters.map((counter) => ({ id: counter.id as string, name: counter.name }));
+/** Every place products can be sold: the shelves (in opening order) and the sector counters. */
+export const allFixtures = [...shelves, ...sectorShelves];
 
 export const productsPerShelf = 4;
 export const maximumSlotsPerShelf = 7;
 export const maximumShelfCount = shelves.length;
-export const maximumShelfSlots = maximumShelfCount * maximumSlotsPerShelf;
+export const maximumShelfSlots = allFixtures.length * maximumSlotsPerShelf;
 
 // The first slot retains the original ID, preserving existing saves and prices.
 export function getShelfSlotIds(shelfId: string, slotCount = productsPerShelf) {
@@ -73,7 +79,7 @@ export function getUnlockedPhysicalShelfCount(
 export function getTotalUnlockedShelfSlots(
 	shelfSlotCounts: GameShelfSlotCounts,
 ) {
-	return shelves.reduce(
+	return allFixtures.reduce(
 		(total, shelf) => total + getShelfSlotCount(shelf.id, shelfSlotCounts),
 		0,
 	);
@@ -117,6 +123,14 @@ export function normalizeShelfSlotCounts(
 	const last = shelves.reduce((found, shelf, index) => (counts[shelf.id] > 0 ? index : found), -1);
 	for (let index = 0; index < last; index++)
 		if (counts[shelves[index].id] <= 0) counts[shelves[index].id] = productsPerShelf;
+	// Sector counters open with their sector, in any order.
+	for (const counter of sectorShelves) {
+		const persisted = persistedCounts?.[counter.id];
+		counts[counter.id] =
+			typeof persisted === "number" && Number.isFinite(persisted) && persisted > 0
+				? Math.min(maximumSlotsPerShelf, Math.max(productsPerShelf, Math.floor(persisted)))
+				: 0;
+	}
 	return counts;
 }
 
@@ -148,7 +162,7 @@ export function resolveShelfSlotCounts(
 	return normalizeShelfSlotCounts(undefined, legacyUnlockedShelfSlots);
 }
 
-export const shelfProductSlots = shelves.flatMap((shelf) =>
+export const shelfProductSlots = allFixtures.flatMap((shelf) =>
 	getShelfSlotIds(shelf.id, maximumSlotsPerShelf).map((id) => ({
 		...shelf,
 		id,
@@ -160,7 +174,7 @@ export function isShelfSlotUnlocked(
 	shelfSlotCounts: number | GameShelfSlotCounts,
 ) {
 	const physicalShelfId = getPhysicalShelfId(slotId);
-	const physicalShelfIndex = shelves.findIndex(
+	const physicalShelfIndex = allFixtures.findIndex(
 		(shelf) => shelf.id === physicalShelfId,
 	);
 	const slotIndex = getShelfSlotIds(
@@ -174,6 +188,7 @@ export function isShelfSlotUnlocked(
 
 	if (typeof shelfSlotCounts === "number") {
 		return (
+			!isSectorShelfId(physicalShelfId) &&
 			physicalShelfIndex < getUnlockedPhysicalShelfCount(shelfSlotCounts) &&
 			slotIndex < productsPerShelf
 		);

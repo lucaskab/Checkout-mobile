@@ -122,7 +122,7 @@ namespace Checkout
         }
 
         // ------------------------------------------------------------------ stages
-        DesignStage Capture() => new DesignStage { stage = Stage, interior = Interior.CaptureDesign(), objects = World.CaptureObjects(), paint = World.Paint.Save() };
+        DesignStage Capture() => new DesignStage { stage = Stage, layoutVersion = CheckoutMapDesign.CurrentLayout, interior = Interior.CaptureDesign(), objects = World.CaptureObjects(), paint = World.Paint.Save() };
 
         void SwitchStage(int stage, bool first = false)
         {

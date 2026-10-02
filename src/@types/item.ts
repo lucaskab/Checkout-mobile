@@ -36,6 +36,8 @@ export type ItemDefinition = {
 	supplierQuantity: number;
 	supplierTime: string;
 	suggestedPrice: number;
+	/** Expansion from which the product can be sold (src/data/economy.ts marketEras). */
+	unlockEra: import("./economy").MarketEraId;
 	unlockLevel: number;
 	visualAttractiveness: number;
 	xpPerSale: number;

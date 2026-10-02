@@ -8,14 +8,17 @@ export function getSimulatorLayout(expansionIds: unknown): SimulatorLayout {
 	const ids = normalizeMarketExpansionIds(expansionIds);
 	// Only the shop wings enlarge the building; the central warehouse sits out back.
 	const stage = ids.filter((id) => marketBuildingExpansionIds.includes(id)).length;
-	// Keep in sync with Scales in CheckoutExpansionPreviewWindow.cs (Unity). The west wall stays by the
-	// parking aisle: the shop grows east until it reaches the street, and back towards the yard.
+	// Keep in sync with Scales in CheckoutExpansionPreviewWindow.cs (Unity). The block is a grid of equal lots
+	// (src/data/market-lots.ts) and the building fills whole lots from the corner on the left of the avenue
+	// (CheckoutMarketLayout.Offset puts its west wall at the lot A1 edge): the mercadinho fills A1 + B1, the
+	// supermercado the first two rows of A and B, the hipermercado the whole front (A1–C2). One metre of scale
+	// is 19 m of width and 20 m of depth of the base building.
 	const sizes = [
-		[0.82, 0.72],
-		[0.96, 0.82],
-		[1.1, 0.92],
-		[1.24, 1.03],
-		[1.38, 1.14],
+		[1.18, 0.65],
+		[1.18, 0.98],
+		[1.18, 1.3],
+		[1.48, 1.3],
+		[1.78, 1.3],
 	];
 	const [widthScale, depthScale] = sizes[stage];
 	const storageLarge = ids.includes("grand-warehouse");

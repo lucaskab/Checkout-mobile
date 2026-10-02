@@ -1,5 +1,5 @@
-import { getMarketEra, getNextMarketEra } from "@/data/economy";
-import { ERA_LOTS, LOT_GRID, PLAZA_LOTS } from "@/data/market-lots";
+import { getMarketEra, getNextMarketEra, marketEras } from "@/data/economy";
+import { ERA_LOTS, LOT_GRID, MARKET_LOTS, PLAZA_LOTS } from "@/data/market-lots";
 import type { GameState } from "@/@types/game";
 import type { SimulatorSnapshot } from "@/@types/simulator";
 import { getGameEvent } from "@/data/game-events";
@@ -10,6 +10,7 @@ import {
 } from "@/data/market-expansions";
 import { getInventoryCapacity } from "@/data/inventory-capacity";
 import { itemCatalog, shelves, starterShelfIds } from "@/data/market-products";
+import { getFixtureName } from "@/data/shelf-types";
 import {
 	productionRecipes,
 	productionSectors,
@@ -29,6 +30,8 @@ import { getActiveGameEventEffects } from "@/services/game-events";
 import { getContractProgress } from "@/services/market-day";
 import { getIncidentShelves } from "@/services/store-incidents-context";
 import { getClaimableMissionCount } from "@/services/missions";
+import { isMarketBuilding } from "@/services/market-era";
+import { getLotClearCost, getLotClearDuration, getLotStatus } from "@/services/market-lots";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getBoxUnits, getWarehouseZone } from "@/services/receiving";
 import { getSimulatorLayout } from "@/services/simulator-layout";
@@ -90,7 +93,8 @@ export function createSimulatorSnapshot(
 					: (getNextShelfUnlockUpgrade(index)?.playerLevel ?? 1);
 			return {
 				id: s.id,
-				name: s.name ?? s.id,
+				// The styrofoam cooler on the sidewalk is the drinks fridge from the container on.
+				name: getFixtureName(s.id, state.era.id),
 				productId: id,
 				productName: product?.name ?? "Prateleira vazia",
 				category: product?.category ?? "",
@@ -152,15 +156,37 @@ export function createSimulatorSnapshot(
 			}),
 		})),
 		expansions: state.unlockedMarketExpansionIds,
-		// Stage of the market (0 mesinha … 8 rede) and its evolution obra, if any.
+		// Stage of the market (0 mesinha … 10 rede) and its evolution obra, if any.
 		era: {
 			id: state.era.id,
 			index: getMarketEra(state.era.id).index,
 			name: getMarketEra(state.era.id).name,
+			building: isMarketBuilding(state.era.id),
 			// Lots of the block (see src/data/market-lots.ts): owned now, taken by the next era, square.
 			grid: LOT_GRID,
-			lots: ERA_LOTS[state.era.id],
-			nextLots: ERA_LOTS[(state.era.construction?.eraId ?? getNextMarketEra(state.era.id)?.id) ?? state.era.id],
+			// Each lot with its land status: "venda" (for sale), "bloqueado" (not next to your land yet),
+			// "comprado" (bought, still with its ruin), "limpando" (crew at work), "seu", "praca".
+			lotRects: MARKET_LOTS.map((lot) => {
+				const status = getLotStatus(state.lots, lot.id);
+				const clearing = state.lots?.clearing?.lotId === lot.id ? state.lots.clearing : null;
+				return {
+					...lot,
+					status,
+					clearCost: getLotClearCost(lot),
+					clearDurationMs: getLotClearDuration(lot),
+					clearStartedAt: clearing?.startedAt ?? 0,
+					clearEndsAt: clearing?.endsAt ?? 0,
+					skipCost: clearing ? getMarketExpansionSkipCost(clearing.endsAt - now) : 0,
+					// The market building (or the stall) stands on it now: no ruin, no sign.
+					occupied: (ERA_LOTS[state.era.id] ?? []).includes(lot.id),
+					// First expansion that needs it ("Supermercado"), for the lot's tap panel in the world.
+					neededBy: marketEras.find((era) => (ERA_LOTS[era.id] ?? []).includes(lot.id))?.name ?? "",
+				};
+			}),
+			lots: state.lots?.cleared ?? [],
+			nextLots: (ERA_LOTS[(state.era.construction?.eraId ?? getNextMarketEra(state.era.id)?.id) ?? state.era.id] ?? []).filter(
+				(id) => !(state.lots?.cleared ?? []).includes(id),
+			),
 			nextName: getMarketEra(state.era.construction?.eraId ?? getNextMarketEra(state.era.id)?.id ?? state.era.id).name,
 			plazaLots: PLAZA_LOTS,
 			construction: state.era.construction
@@ -289,7 +315,7 @@ export function createSimulatorSnapshot(
 					{
 						slotId,
 						shelfId: shelf.id,
-						shelfName: shelf.name ?? shelf.id,
+						shelfName: getFixtureName(shelf.id, state.era.id),
 						productId: product.id,
 						productName: product.name,
 						zone: getWarehouseZone(product.category),
@@ -370,6 +396,8 @@ export function createSimulatorSnapshot(
 		})),
 		day: {
 			phase: state.day.phase,
+			// "noite": night turn (Unity darkens the city).
+			shift: state.day.shift ?? "dia",
 			dayNumber: state.day.dayNumber,
 			startedAt: state.day.startedAt ?? 0,
 			endsAt: state.day.endsAt ?? 0,

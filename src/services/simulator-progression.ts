@@ -1,9 +1,7 @@
 import type { SimulatorUnlock } from "@/@types/simulator";
 import { employeeDefinitions } from "@/data/employees";
-import { marketExpansions } from "@/data/market-expansions";
 import { itemCatalog } from "@/data/market-products";
 import { productionSectors } from "@/data/production-sectors";
-import { getNextShelfUnlockUpgrade } from "@/data/shelf-capacity";
 import { shopItems } from "@/data/shop-items";
 
 const priority: Record<SimulatorUnlock["type"], number> = {
@@ -19,7 +17,8 @@ export function getNextSimulatorUnlocks(
 	level: number,
 	unlockedShelfCount: number,
 ) {
-	const shelf = getNextShelfUnlockUpgrade(unlockedShelfCount);
+	// Shelves come with the expansions (src/data/shelf-types.ts), not with levels: not in this roadmap.
+	void unlockedShelfCount;
 	const candidates: SimulatorUnlock[] = [
 		...productionSectors.map((sector) => ({
 			id: sector.id,
@@ -27,13 +26,6 @@ export function getNextSimulatorUnlocks(
 			panel: "sectors" as const,
 			requiredLevel: sector.requiredLevel,
 			type: "sector" as const,
-		})),
-		...marketExpansions.map((expansion) => ({
-			id: expansion.id,
-			label: expansion.name,
-			panel: "expansions" as const,
-			requiredLevel: expansion.requiredLevel,
-			type: "expansion" as const,
 		})),
 		...employeeDefinitions.map((employee) => ({
 			id: employee.id,
@@ -56,17 +48,6 @@ export function getNextSimulatorUnlocks(
 			requiredLevel: item.level,
 			type: "shop" as const,
 		})),
-		...(shelf
-			? [
-					{
-						id: `shelf-${shelf.unlockedShelves}`,
-						label: "Nova gôndola",
-						panel: "store" as const,
-						requiredLevel: shelf.playerLevel,
-						type: "shelf" as const,
-					},
-				]
-			: []),
 	]
 		.filter((unlock) => unlock.requiredLevel > level)
 		.sort(

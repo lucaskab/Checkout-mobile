@@ -1,6 +1,7 @@
 import type { EmployeeRole } from "@/@types/employee";
 import type { ShopCategory, ShopItemDefinition, ShopItemQuality } from "@/@types/shop";
-import { employeeDefinitions } from "@/data/employees";
+import { getMarketEra } from "@/data/economy";
+import { employeeDefinitions, isEmployeeEraReached } from "@/data/employees";
 import { getShopCategoryIcon, getShopItemIcon } from "@/data/game-icon-assets";
 import {
 	formatBuildDuration,
@@ -122,7 +123,8 @@ export const routes: Routes = {
 			const employee = employees.employees.find(
 				(item) => item.role === definition.id,
 			);
-			const levelLocked = level < definition.level;
+			const eraLocked = !isEmployeeEraReached(definition, state.era.id);
+			const levelLocked = eraLocked || level < definition.level;
 			const hireLocked = coins < definition.hireCost;
 
 			if (employee) {
@@ -162,7 +164,11 @@ export const routes: Routes = {
 			}
 
 			return card(definition.name, {
-				eyebrow: levelLocked ? `NÍVEL ${definition.level}` : "DISPONÍVEL",
+				eyebrow: eraLocked
+					? `A PARTIR DE: ${getMarketEra(definition.requiredEra).name.toLocaleUpperCase("pt-BR")}`
+					: levelLocked
+						? `NÍVEL ${definition.level}`
+						: "DISPONÍVEL",
 				icon: gameIcon(roleIcon(definition.id)),
 				tone: levelLocked ? "locked" : "",
 				subtitle: definition.description,
@@ -171,9 +177,11 @@ export const routes: Routes = {
 				],
 				buttons: [
 					act(
-						levelLocked
-							? `Chegue ao nível ${definition.level}`
-							: `Contratar por ${fmt(definition.hireCost)}`,
+						eraLocked
+							? `Precisa do ${getMarketEra(definition.requiredEra).name}`
+							: levelLocked
+								? `Chegue ao nível ${definition.level}`
+								: `Contratar por ${fmt(definition.hireCost)}`,
 						"hireEmployee",
 						[definition.id],
 						{

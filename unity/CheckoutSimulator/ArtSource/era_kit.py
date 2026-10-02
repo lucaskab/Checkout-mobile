@@ -237,7 +237,7 @@ def box(name, size, loc, m=None, rot=(0, 0, 0), bevel=.008, seg=2, c=None):
     o = bpy.context.active_object
     o.name = name
     o.scale = size
-    bpy.ops.object.transform_apply(scale=True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     link(o, c)
     return finish(o, m, bevel, seg)
 
@@ -258,7 +258,7 @@ def ball(name, r, loc, m=None, sub=1, scale=(1, 1, 1), rot=(0, 0, 0), c=None):
     o = bpy.context.active_object
     o.name = name
     o.scale = scale
-    bpy.ops.object.transform_apply(scale=True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     link(o, c)
     return finish(o, m, 0)
 
@@ -272,7 +272,7 @@ def tube(name, a, b, r, m=None, verts=8, c=None):
     return o
 
 
-def text(name, s, size, loc, m=None, rot=(0, 0, 0), extrude=.004, c=None, align='CENTER', spacing=1.0):
+def text(name, s, size, loc, m=None, rot=(0, 0, 0), extrude=.004, c=None, align='CENTER', spacing=1.0, res=3):
     bpy.ops.object.text_add(location=loc, rotation=rot)
     o = bpy.context.active_object
     o.data.body = s
@@ -281,7 +281,7 @@ def text(name, s, size, loc, m=None, rot=(0, 0, 0), extrude=.004, c=None, align=
     o.data.align_x = align
     o.data.align_y = 'CENTER'
     o.data.space_character = spacing
-    o.data.resolution_u = 3
+    o.data.resolution_u = res
     bpy.ops.object.convert(target='MESH')
     o = bpy.context.active_object
     o.name = name
@@ -468,7 +468,7 @@ def cloth(name, w, d, top_z, drop, m, c=None, seed=3):
     o = bpy.context.active_object
     o.name = name
     o.scale = (w, d, drop)
-    bpy.ops.object.transform_apply(scale=True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     bm = bmesh.new()
     bm.from_mesh(o.data)
     bottom = [f for f in bm.faces if f.normal.z < -.5]
@@ -636,7 +636,7 @@ def drink_mat(i):
 
 
 def product_box(name, loc, size, m, rot_z=0.):
-    o = box(name, size, (0, 0, size[2] / 2), m, bevel=min(.006, size[0] * .1), seg=1)
+    o = box(name, size, (0, 0, size[2] / 2), m, bevel=0)
     o.location = loc
     o.rotation_euler = (0, 0, rot_z)
     return o
@@ -692,11 +692,11 @@ def fridge_vertical(name, loc, w=.70, d=.65, h=1.95, rot_z=0., c=None, seed=4, m
     m_gl = glass()
     rnd = random.Random(seed)
     t = .04
-    parts = [box(name + "_side", (t, d, h), (-w / 2 + t / 2, 0, h / 2), m_body, bevel=.008, seg=2),
-             box(name + "_side", (t, d, h), (w / 2 - t / 2, 0, h / 2), m_body, bevel=.008, seg=2),
-             box(name + "_back", (w, t, h), (0, d / 2 - t / 2, h / 2), m_body, bevel=.008, seg=2),
-             box(name + "_top", (w, d, t), (0, 0, h - t / 2), m_body, bevel=.008, seg=2),
-             box(name + "_bottom", (w, d, .12), (0, 0, .06), m_body, bevel=.008, seg=2),
+    parts = [box(name + "_side", (t, d, h), (-w / 2 + t / 2, 0, h / 2), m_body, bevel=.008, seg=1),
+             box(name + "_side", (t, d, h), (w / 2 - t / 2, 0, h / 2), m_body, bevel=.008, seg=1),
+             box(name + "_back", (w, t, h), (0, d / 2 - t / 2, h / 2), m_body, bevel=.008, seg=1),
+             box(name + "_top", (w, d, t), (0, 0, h - t / 2), m_body, bevel=.008, seg=1),
+             box(name + "_bottom", (w, d, .12), (0, 0, .06), m_body, bevel=.008, seg=1),
              box(name + "_inback", (w - 2 * t, .01, h - .16), (0, d / 2 - t - .005, .12 + (h - .16) / 2), m_in, bevel=0),
              box(name + "_inside", (.01, d - t - .02, h - .16), (-w / 2 + t + .005, .01, .12 + (h - .16) / 2), m_in, bevel=0),
              box(name + "_inside", (.01, d - t - .02, h - .16), (w / 2 - t - .005, .01, .12 + (h - .16) / 2), m_in, bevel=0),
@@ -712,9 +712,9 @@ def fridge_vertical(name, loc, w=.70, d=.65, h=1.95, rot_z=0., c=None, seed=4, m
     zs = [.16 + i * (h - .40) / (n_shelves - 1) for i in range(n_shelves)]
     for z in zs:
         parts.append(box(name + "_shelf", (w - 2 * t - .02, d - t - .06, .015), (0, .0, z), m_frame, bevel=.003, seg=1))
-        cols = int((w - 2 * t - .06) / .075)
+        cols = int((w - 2 * t - .06) / .10)
         for i in range(cols):
-            x = -w / 2 + t + .05 + i * .075
+            x = -w / 2 + t + .06 + i * .10
             pm = drink_mat(rnd.randrange(8))
             if rnd.random() < .6:
                 parts.append(bottle(name + "_bt", (x, -d / 2 + .13, z + .008), pm, r=.03, h=.22))
@@ -853,23 +853,195 @@ def bottle_crate(name, loc, rot_z=0., c=None, m=None, with_bottles=True, seed=6)
     m = m or mat("ERA_CrateNavy", NAVYL, rough=.5, var=.05, scale=10)
     rnd = random.Random(seed)
     w, d, h, t = .40, .30, .30, .015
-    parts = [box(name + "_f", (w, d, .02), (0, 0, .01), m, bevel=.003, seg=1)]
+    parts = [box(name + "_f", (w, d, .02), (0, 0, .01), m, bevel=0)]
     for sy in (-1, 1):
-        parts.append(box(name + "_s", (w, t, .07), (0, sy * (d / 2 - t / 2), .045), m, bevel=.003, seg=1))
-        parts.append(box(name + "_s", (w, t, .06), (0, sy * (d / 2 - t / 2), h - .03), m, bevel=.003, seg=1))
-        for i in range(5):
-            parts.append(box(name + "_b", (.015, t, h), (-w / 2 + .02 + i * (w - .04) / 4, sy * (d / 2 - t / 2), h / 2), m, bevel=.002, seg=1))
+        parts.append(box(name + "_s", (w, t, .07), (0, sy * (d / 2 - t / 2), .045), m, bevel=0))
+        parts.append(box(name + "_s", (w, t, .06), (0, sy * (d / 2 - t / 2), h - .03), m, bevel=0))
+        for i in range(3):
+            parts.append(box(name + "_b", (.018, t, h), (-w / 2 + .02 + i * (w - .04) / 2, sy * (d / 2 - t / 2), h / 2), m, bevel=0))
     for sx in (-1, 1):
-        parts.append(box(name + "_s", (t, d, .07), (sx * (w / 2 - t / 2), 0, .045), m, bevel=.003, seg=1))
-        parts.append(box(name + "_s", (t, d, .06), (sx * (w / 2 - t / 2), 0, h - .03), m, bevel=.003, seg=1))
-        parts.append(box(name + "_b", (t, .015, h), (sx * (w / 2 - t / 2), 0, h / 2), m, bevel=.002, seg=1))
+        parts.append(box(name + "_s", (t, d, .07), (sx * (w / 2 - t / 2), 0, .045), m, bevel=0))
+        parts.append(box(name + "_s", (t, d, .06), (sx * (w / 2 - t / 2), 0, h - .03), m, bevel=0))
+        parts.append(box(name + "_b", (t, .018, h), (sx * (w / 2 - t / 2), 0, h / 2), m, bevel=0))
     if with_bottles:
         for i in range(4):
-            for j in range(3):
+            for j in range(2):
                 pm = drink_mat(rnd.randrange(8))
-                parts.append(bottle(name + "_bt", (-w / 2 + .05 + i * .10, -d / 2 + .05 + j * .10, .02), pm, r=.03, h=.24))
+                parts.append(bottle(name + "_bt", (-w / 2 + .05 + i * .10, -d / 2 + .075 + j * .15, .02), pm, r=.03, h=.24))
     o = join(parts, name, origin=(0, 0, 0))
     o.location = loc
     o.rotation_euler = (0, 0, rot_z)
     link(o, c)
+    return o
+
+
+# ================================================================ v9: checkout counter + manual register
+def tiles(name="ERA_FloorTiles", a=(.94, .86, .66, 1), b=(.90, .80, .60, 1), grout=(.72, .62, .46, 1), size=.4):
+    """Square floor tiles (brick texture with square cells)."""
+    m, nt = _new(name)
+    if nt is None:
+        return m
+    n, L = nt.nodes, nt.links
+    bsdf = n["Principled BSDF"]; bsdf.inputs["Roughness"].default_value = .35
+    tc = n.new("ShaderNodeTexCoord")
+    br = n.new("ShaderNodeTexBrick")
+    br.inputs["Scale"].default_value = 1.0 / size
+    br.inputs["Mortar Size"].default_value = .02; br.inputs["Bias"].default_value = 0
+    br.inputs["Brick Width"].default_value = 1.0; br.inputs["Row Height"].default_value = 1.0
+    br.offset = 0.0; br.offset_frequency = 1
+    br.inputs["Color1"].default_value = a; br.inputs["Color2"].default_value = b; br.inputs["Mortar"].default_value = grout
+    L.new(tc.outputs["Object"], br.inputs["Vector"])
+    noise = n.new("ShaderNodeTexNoise"); noise.inputs["Scale"].default_value = 4
+    L.new(tc.outputs["Object"], noise.inputs["Vector"])
+    mr = n.new("ShaderNodeMapRange"); mr.inputs["To Min"].default_value = .92; mr.inputs["To Max"].default_value = 1.06
+    L.new(noise.outputs[0], mr.inputs[0])
+    mul = n.new("ShaderNodeMix"); mul.data_type = 'RGBA'; mul.blend_type = 'MULTIPLY'; mul.inputs[0].default_value = 1
+    L.new(br.outputs[0], mul.inputs[6]); L.new(mr.outputs[0], mul.inputs[7]); L.new(mul.outputs[2], bsdf.inputs["Base Color"])
+    b_ = n.new("ShaderNodeBump"); b_.inputs["Strength"].default_value = .25
+    L.new(br.outputs[1], b_.inputs["Height"]); L.new(b_.outputs["Normal"], bsdf.inputs["Normal"])
+    return m
+
+
+def manual_register(name, loc, rot_z=0., c=None, scale=1.3):
+    """Classic NCR-style mechanical cash register (~5k tris): ornate cast body in cream enamel with navy
+    panels and brass mouldings, 3 stepped rows of keys with printed denominations + TOTAL bar, price-flag
+    window with numbered flags and a brass crest, "CHECKOUT" brand plate, receipt roll, side crank, bell,
+    and an open cash drawer with notes and coin cups. Origin at the bottom centre; keys face +Y (clerk)."""
+    m_body = mat("ERA_RegEnamel", CREAM, rough=.3, var=.04, scale=20)
+    m_navy = mat("ERA_RegNavy", NAVY, rough=.35, var=.04, scale=20)
+    m_brass = mat("ERA_Brass", GOLD, rough=.3, var=.06, scale=30, metallic=.9)
+    m_dark = mat("ERA_Ink", (.12, .10, .10, 1), rough=.8, var=0)
+    m_paper = mat("ERA_Paper", WHITE, rough=.9, var=.03, scale=30)
+    m_note = mat("ERA_Banknote", (.55, .72, .60, 1), rough=.8, var=.08, scale=40)
+    m_glass = glass()
+    W, D = .38, .42
+    P = []
+    # ---- cash drawer (open) with knob, notes and coin cups
+    P.append(box(name + "_drawerbox", (W, D, .10), (0, 0, .05), m_navy, bevel=.01, seg=2))
+    P.append(box(name + "_drawer", (W - .03, D - .04, .08), (0, .09, .05), m_navy, bevel=.006, seg=2))      # pulled out towards the clerk (+Y)
+    P.append(box(name + "_drawerface", (W - .02, .015, .085), (0, .09 + (D - .04) / 2, .05), m_brass, bevel=.004, seg=1))
+    P.append(cyl(name + "_knob", .014, .02, (0, .09 + (D - .04) / 2 + .015, .05), m_brass, verts=10, bevel=.003, rot=(math.radians(90), 0, 0)))
+    for i in range(4):   # coin cups with coins
+        P.append(cyl(name + "_cup", .028, .035, (-.11 + i * .073, .19, .085), m_brass, verts=12, bevel=.003))
+        P.append(cyl(name + "_coins", .02, .012, (-.11 + i * .073, .19, .105), m_brass, verts=10))
+    for i in range(3):   # note compartments with stacked notes
+        P.append(box(name + "_notes", (.09, .10, .025), (-.10 + i * .10, .10, .098), m_note, bevel=.003, seg=1))
+        P.append(box(name + "_clip", (.02, .10, .004), (-.10 + i * .10, .10, .112), m_brass, bevel=0))
+    # ---- ornate body: enamel block with rounded top shoulders, navy side panels, brass mouldings
+    P.append(box(name + "_body", (W, D - .06, .22), (0, -.02, .21), m_body, bevel=.022, seg=3))
+    P.append(cyl(name + "_shoulder", .05, W - .02, (0, -.21, .30), m_body, verts=16, rot=(0, math.radians(90), 0)))
+    P.append(box(name + "_band", (W + .012, D - .05, .035), (0, -.02, .125), m_navy, bevel=.008, seg=2))
+    P.append(box(name + "_bandtrim", (W + .016, D - .046, .006), (0, -.02, .146), m_brass, bevel=.002, seg=1))
+    for sx in (-1, 1):   # side panel mouldings (recessed navy panel + brass frame + scroll bosses)
+        P.append(box(name + "_panel", (.008, D - .14, .12), (sx * (W / 2 + .001), -.02, .22), m_navy, bevel=.003, seg=1))
+        for dz in (-.06, .06):
+            P.append(box(name + "_mould", (.012, D - .12, .012), (sx * (W / 2 + .004), -.02, .22 + dz), m_brass, bevel=.003, seg=1))
+        for dy in (-(D - .12) / 2, (D - .12) / 2):
+            P.append(box(name + "_mould", (.012, .012, .13), (sx * (W / 2 + .004), -.02 + dy, .22), m_brass, bevel=.003, seg=1))
+        P.append(ball(name + "_boss", .022, (sx * (W / 2 + .004), -.02, .22), m_brass, sub=2, scale=(.35, 1, 1)))
+        P.append(ball(name + "_boss", .012, (sx * (W / 2 + .004), -.02 - .10, .22), m_brass, sub=1, scale=(.4, 1, 1)))
+        P.append(ball(name + "_boss", .012, (sx * (W / 2 + .004), -.02 + .10, .22), m_brass, sub=1, scale=(.4, 1, 1)))
+    # front (customer, -Y) panel moulding + brand plate
+    fy = -.02 - (D - .06) / 2 - .004
+    P.append(box(name + "_fpanel", (W - .08, .008, .11), (0, fy, .215), m_navy, bevel=.003, seg=1))
+    for dz in (-.055, .055):
+        P.append(box(name + "_fmould", (W - .06, .012, .012), (0, fy - .003, .215 + dz), m_brass, bevel=.003, seg=1))
+    for dx in (-(W - .06) / 2, (W - .06) / 2):
+        P.append(box(name + "_fmould", (.012, .012, .12), (dx, fy - .003, .215), m_brass, bevel=.003, seg=1))
+    P.append(box(name + "_plate", (.17, .006, .045), (0, fy - .008, .215), m_brass, bevel=.004, seg=2))
+    P.append(text(name + "_brand", "CHECKOUT", .026, (0, fy - .012, .215), m_navy, rot=(math.radians(90), 0, 0), extrude=0, spacing=1.05, res=1))
+    # ---- stepped key deck (3 rows climbing towards -Y), piano-style key fronts with printed numbers
+    rows = [["1", "2", "5", "10", "20"], ["50", "100", "200", "500", "R$"], ["x", "+", "-", "=", "%"]]
+    for r, labels in enumerate(rows):
+        yb = .12 - r * .075            # row centre y (front row nearest the clerk)
+        zb = .32 + r * .045            # staircase
+        P.append(box(name + "_step", (W - .05, .08, .05 + r * .045), (0, yb, zb - (.05 + r * .045) / 2 + .025), m_navy, bevel=.006, seg=2))
+        P.append(box(name + "_steptrim", (W - .04, .082, .006), (0, yb, zb + .028), m_brass, bevel=.002, seg=1))
+        for i, lab in enumerate(labels):
+            px = -.13 + i * .065
+            P.append(box(name + "_key", (.05, .045, .022), (px, yb + .01, zb + .042), m_body if (i + r) % 2 == 0 else m_navy, bevel=.005, seg=1))
+            P.append(cyl(name + "_keystem", .006, .02, (px, yb + .01, zb + .03), m_brass, verts=6))
+            P.append(text(name + "_lbl", lab, .018, (px, yb + .01, zb + .054), m_dark if (i + r) % 2 == 0 else m_body, rot=(0, 0, math.pi), extrude=0, res=1))
+    P.append(box(name + "_totalbar", (W - .08, .035, .02), (0, .185, .33), m_brass, bevel=.006, seg=2))
+    P.append(text(name + "_lbl", "TOTAL", .016, (0, .185, .341), m_dark, rot=(0, 0, math.pi), extrude=0, spacing=1.1, res=1))
+    # ---- price-flag window on top (brass frame, glass, numbered flags) with a crest
+    P.append(box(name + "_head", (W - .06, .11, .16), (0, -.095, .40), m_body, bevel=.014, seg=3))
+    P.append(box(name + "_headrecess", (W - .09, .02, .11), (0, -.16, .405), m_navy, bevel=.003, seg=1))
+    P.append(box(name + "_headband", (W - .055, .14, .02), (0, -.10, .335), m_navy, bevel=.004, seg=1))
+    P.append(box(name + "_winframe", (W - .09, .012, .11), (0, -.172, .405), m_brass, bevel=.004, seg=1))
+    win = box(name + "_glass", (W - .12, .004, .085), (0, -.178, .405), m_glass, bevel=0)
+    for i, d in enumerate(["R$", "1", "2", "5", "0"]):
+        fx = -.10 + i * .05
+        P.append(box(name + "_flag", (.04, .006, .07), (fx, -.165, .40 + (.006 if i % 2 else 0)), m_body if i % 2 else m_navy, bevel=.002, seg=1))
+        P.append(text(name + "_lbl", d, .03, (fx, -.169, .40 + (.006 if i % 2 else 0)), m_navy if i % 2 else m_body, rot=(math.radians(90), 0, 0), extrude=0, res=1))
+    P.append(cyl(name + "_crest", .07, .02, (0, -.11, .48), m_brass, verts=24, bevel=.004, rot=(math.radians(90), 0, 0)))
+    P.append(box(name + "_crestbar", (W - .07, .025, .02), (0, -.11, .49), m_brass, bevel=.005, seg=2))
+    P.append(ball(name + "_finial", .018, (0, -.11, .555), m_brass, sub=1))
+    P.append(text(name + "_lbl", "C", .05, (0, -.123, .50), m_navy, rot=(math.radians(90), 0, 0), extrude=0, res=1))
+    # ---- receipt roll (back, clerk side) + paper strip
+    P.append(cyl(name + "_roll", .032, .07, (.08, .0, .50), m_paper, verts=14, rot=(0, math.radians(90), 0)))
+    P.append(cyl(name + "_rollaxle", .008, .11, (.08, .0, .50), m_brass, verts=8, rot=(0, math.radians(90), 0)))
+    P.append(box(name + "_paper", (.06, .002, .11), (.08, -.035, .52), m_paper, bevel=0, rot=(math.radians(15), 0, 0)))
+    # ---- side crank (right) + bell (left)
+    P.append(cyl(name + "_crankhub", .022, .02, (W / 2 + .012, -.02, .25), m_brass, verts=12, rot=(0, math.radians(90), 0)))
+    P.append(tube(name + "_crankarm", (W / 2 + .025, -.02, .25), (W / 2 + .025, .02, .34), .006, m_brass, verts=8))
+    P.append(tube(name + "_crankhandle", (W / 2 + .025, .02, .34), (W / 2 + .07, .02, .34), .01, m_dark, verts=8))
+    P.append(ball(name + "_bell", .03, (-W / 2 - .008, -.02, .27), m_brass, sub=2, scale=(.6, 1, 1)))
+    P.append(cyl(name + "_bellpin", .006, .02, (-W / 2 - .025, -.02, .27), m_dark, verts=8, rot=(0, math.radians(90), 0)))
+    o = join(P, name, origin=(0, 0, 0))
+    for p_ in o.data.polygons:
+        p_.use_smooth = True
+    win.parent = o
+    o.scale = (scale, scale, scale)
+    o.location = loc
+    o.rotation_euler = (0, 0, rot_z)
+    link(o, c); link(win, c)
+    win.name = name + "_Glass"
+    return o
+
+
+def checkout_counter(name, loc, rot_z=0., c=None, w=1.6, d=.65, h=1.0, with_stool=True):
+    """Checkout counter: wooden top, navy body with gold trims and a cream front panel, coin tray,
+    receipt spike, pen, manual register, and a clerk stool behind (+Y side). Front faces -Y."""
+    m_wood = wood("ERA_CounterTop", WOODL, WOOD, scale=2.5, axis='Y')
+    m_navy = mat("ERA_NavyPanel", NAVY, rough=.7, var=.07, scale=8, bump=.08)
+    m_gold = mat("ERA_Gold", GOLD, rough=.45, var=.08, metallic=.3)
+    m_cream = mat("ERA_Cream", CREAM, rough=.75, var=.08, bump=.1)
+    m_dark = mat("ERA_Ink", (.12, .10, .10, 1), rough=.8, var=0)
+    m_metal = mat("ERA_Metal", METAL, rough=.35, var=.05, metallic=.8)
+    m_paper = mat("ERA_Paper", WHITE, rough=.9, var=.03, scale=30)
+    parts = [box(name + "_body", (w, d, h - .05), (0, 0, (h - .05) / 2), m_navy, bevel=.012, seg=2),
+             box(name + "_top", (w + .06, d + .06, .05), (0, 0, h - .025), m_wood, bevel=.012, seg=3),
+             box(name + "_front", (w - .20, .02, h - .30), (0, -d / 2 - .005, (h - .30) / 2 + .12), m_cream, bevel=.006, seg=2),
+             box(name + "_frame", (w - .16, .025, .03), (0, -d / 2 - .006, h - .17), m_gold, bevel=.004, seg=1),
+             box(name + "_frame", (w - .16, .025, .03), (0, -d / 2 - .006, .11), m_gold, bevel=.004, seg=1),
+             box(name + "_frame", (.03, .025, h - .26), (-(w - .16) / 2, -d / 2 - .006, (h - .26) / 2 + .10), m_gold, bevel=.004, seg=1),
+             box(name + "_frame", (.03, .025, h - .26), ((w - .16) / 2, -d / 2 - .006, (h - .26) / 2 + .10), m_gold, bevel=.004, seg=1),
+             box(name + "_kick", (w + .02, d + .02, .08), (0, 0, .04), m_dark, bevel=.006, seg=1),
+             # coin tray / change mat, receipt spike, pen
+             box(name + "_mat", (.30, .20, .012), (-w / 2 + .35, -.05, h + .006), m_navy, bevel=.004, seg=2),
+             cyl(name + "_tray", .07, .015, (-w / 2 + .30, -.05, h + .02), m_gold, verts=16, bevel=.003),
+             cyl(name + "_spikebase", .03, .01, (-w / 2 + .62, .18, h + .005), m_metal, verts=12),
+             cyl(name + "_spike", .003, .12, (-w / 2 + .62, .18, h + .07), m_metal, verts=6),
+             box(name + "_receipts", (.06, .04, .02), (-w / 2 + .62, .18, h + .025), m_paper, bevel=0),
+             cyl(name + "_pen", .005, .14, (-w / 2 + .45, .20, h + .006), m_navy, verts=6, rot=(0, math.radians(90), math.radians(25)))]
+    parts.append(text(name + "_txt", "CHECKOUT", .11, (0, -d / 2 - .02, h / 2 + .02), m_gold, rot=(math.radians(90), 0, 0), extrude=.005, spacing=1.08))
+    o = join(parts, name, origin=(0, 0, 0))
+    reg = manual_register(name + "_Register", (w / 2 - .36, -.07, h), c=None)  # keys face the clerk (+Y), flags face the customer (-Y)
+    reg.parent = o
+    for ch in list(reg.children):
+        pass
+    if with_stool:
+        sp = [cyl(name + "_seat", .17, .04, (w / 2 - .35, d / 2 + .40, .72), m_wood, verts=16, bevel=.01, seg=2),
+              cyl(name + "_ring", .14, .015, (w / 2 - .35, d / 2 + .40, .25), m_navy, verts=16, bevel=.003)]
+        for b in range(4):
+            a = math.radians(b * 90 + 45)
+            sp.append(tube(name + "_leg", (w / 2 - .35 + .12 * math.cos(a), d / 2 + .40 + .12 * math.sin(a), .70), (w / 2 - .35 + .15 * math.cos(a), d / 2 + .40 + .15 * math.sin(a), 0), .012, m_navy, verts=6))
+        st = join(sp, name + "_Stool", origin=(0, 0, 0))
+        st.parent = o
+    o.location = loc
+    o.rotation_euler = (0, 0, rot_z)
+    link(o, c)
+    for ch in o.children_recursive:
+        link(ch, c)
     return o

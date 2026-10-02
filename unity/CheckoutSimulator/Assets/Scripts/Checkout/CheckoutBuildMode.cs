@@ -476,7 +476,7 @@ namespace Checkout
         void Update()
         {
             // The map editor has its own tools: no build button while it is open.
-            bool hidden = Open || CheckoutMapEditor.Open || CheckoutDesktopHUD.ShopOpen || CheckoutStall.Small;
+            bool hidden = Open || CheckoutMapEditor.Open || CheckoutDesktopHUD.ShopOpen || (CheckoutStall.Small && !CheckoutStall.ShopInside);
             if (buildButton && !CheckoutStartMenu.Showing && buildButton.activeSelf == hidden) buildButton.SetActive(!hidden);
             if (buildButton && CheckoutStartMenu.Showing && buildButton.activeSelf) buildButton.SetActive(false);
             // Furniture waiting to be placed shows on the button (a new shop starts empty).

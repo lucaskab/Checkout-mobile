@@ -1,6 +1,7 @@
 import type { GameState } from "@/@types/game";
 import type { StoreIncidentShelf } from "@/@types/store-incident";
-import { itemCatalog, shelves } from "@/data/market-products";
+import { itemCatalog } from "@/data/market-products";
+import { getFixtureName } from "@/data/shelf-types";
 import {
 	getPhysicalShelfId,
 	isShelfSlotUnlocked,
@@ -17,7 +18,7 @@ export function getIncidentShelves(
 		| "shelfSlotCounts"
 		| "shelfStock"
 		| "unlockedShelfSlots"
-	>,
+	> & { era?: Pick<GameState["era"], "id"> },
 ): StoreIncidentShelf[] {
 	const counts = resolveShelfSlotCounts(
 		state.shelfSlotCounts,
@@ -37,7 +38,7 @@ export function getIncidentShelves(
 			productId,
 			productName: product.name,
 			shelfId,
-			shelfName: shelves.find((shelf) => shelf.id === shelfId)?.name ?? shelfId,
+			shelfName: getFixtureName(shelfId, state.era?.id),
 			stock: state.shelfStock[slot.id] ?? 0,
 		});
 	}

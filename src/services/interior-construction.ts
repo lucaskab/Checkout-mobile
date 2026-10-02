@@ -8,7 +8,9 @@ import {
 	sectorBuildPlans,
 	shopItemBuildDurations,
 } from "@/data/interior-construction";
-import { shelves } from "@/data/market-products";
+import { getEraOrder, shelves } from "@/data/market-products";
+import { getMarketEra } from "@/data/economy";
+import type { MarketEraId } from "@/@types/economy";
 import { getProductionSector } from "@/data/production-sectors";
 import { getNextShelfUnlockUpgrade } from "@/data/shelf-capacity";
 import {
@@ -46,7 +48,12 @@ type BuildState = Pick<
 	| "unlockedShelfSlots"
 	| "shop"
 	| "unlockedMarketExpansionIds"
->;
+> & { era?: Pick<GameState["era"], "id"> };
+
+/** Is the market behind the expansion `eraId`? (No era given: old callers, never behind.) */
+function beforeEra(state: BuildState, eraId: MarketEraId) {
+	return state.era ? getEraOrder(state.era.id) < getEraOrder(eraId) : false;
+}
 
 function works(
 	construction: InteriorConstruction | null,
@@ -92,6 +99,8 @@ export function getSectorBuildStatus(
 	if (state.builtSectorIds.includes(sector.id))
 		return { status: "built", reason: "", ...base, ...works(null, now) };
 	if (construction) return { ...started(construction, now), ...base, ...works(construction, now) };
+	if (beforeEra(state, sector.eraId))
+		return { status: "locked", reason: `Chega com: ${getMarketEra(sector.eraId).name}`, ...base, ...works(null, now) };
 	if (state.market.level < sector.requiredLevel)
 		return { status: "locked", reason: `Nível ${sector.requiredLevel}`, ...base, ...works(null, now) };
 	if (!getSimulatorLayout(state.unlockedMarketExpansionIds).sectorIds.includes(sector.id))
@@ -116,6 +125,8 @@ export function getNextShelfBuildStatus(state: BuildState, now = Date.now()) {
 	let result: InteriorBuildStatus;
 	if (!shelf || !upgrade) result = { status: "built", reason: "Todas liberadas", ...base, ...works(null, now) };
 	else if (construction) result = { ...started(construction, now), ...base, ...works(construction, now) };
+	else if (beforeEra(state, upgrade.eraId))
+		result = { status: "locked", reason: `Chega com: ${getMarketEra(upgrade.eraId).name}`, ...base, ...works(null, now) };
 	else if (state.market.level < upgrade.playerLevel)
 		result = { status: "locked", reason: `Nível ${upgrade.playerLevel}`, ...base, ...works(null, now) };
 	else result = { status: "available", reason: "", ...base, ...works(null, now) };
