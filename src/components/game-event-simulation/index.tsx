@@ -6,7 +6,7 @@ export function GameEventSimulation() {
 
 	useEffect(() => {
 		processGameEvents();
-		const interval = setInterval(processGameEvents, 5_000);
+		const interval = setInterval(processGameEvents, 1_000);
 
 		return () => clearInterval(interval);
 	}, [processGameEvents]);

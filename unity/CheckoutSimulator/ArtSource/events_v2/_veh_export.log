@@ -1,0 +1,67 @@
+00:00.015  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+Info: No active image found in material slot (1) for object "Rush_CityBus"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Rush_CityBus.fbx'
+export finished in 0.0069 sec.
+EXPORTED Rush_CityBus {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Rush_CityBus.fbx', 'tris': 5541, 'dims': [11.45, 3.28, 3.51], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Rush_CityBus_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Rush_BusShelter.fbx'
+export finished in 0.0032 sec.
+EXPORTED Rush_BusShelter {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Rush_BusShelter.fbx', 'tris': 1283, 'dims': [5.11, 1.85, 3.08], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Rush_BusShelter_BaseColor.png'}
+Info: No active image found in material slot (3) for object "Ofertas_BoxTruck"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_BoxTruck.fbx'
+export finished in 0.0130 sec.
+EXPORTED Ofertas_BoxTruck {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_BoxTruck.fbx', 'tris': 4596, 'dims': [7.9, 3.26, 3.32], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_BoxTruck_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_PalletStack.fbx'
+export finished in 0.0031 sec.
+EXPORTED Ofertas_PalletStack {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_PalletStack.fbx', 'tris': 620, 'dims': [1.2, 1.0, 0.97], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_PalletStack_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_PalletJack.fbx'
+export finished in 0.0030 sec.
+EXPORTED Ofertas_PalletJack {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_PalletJack.fbx', 'tris': 436, 'dims': [1.5, 0.7, 1.49], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Ofertas_PalletJack_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Transito_Car"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_Car.fbx'
+export finished in 0.0049 sec.
+EXPORTED Transito_Car {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_Car.fbx', 'tris': 3420, 'dims': [4.2, 2.01, 1.71], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_Car_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_MessageBoard.fbx'
+export finished in 0.0048 sec.
+EXPORTED Transito_MessageBoard {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_MessageBoard.fbx', 'tris': 1278, 'dims': [2.95, 1.62, 4.13], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_MessageBoard_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Vigilancia_Car"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Vigilancia_Car.fbx'
+export finished in 0.0054 sec.
+EXPORTED Vigilancia_Car {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Vigilancia_Car.fbx', 'tris': 4072, 'dims': [4.7, 2.03, 1.86], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Vigilancia_Car_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Som_Van"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Som_Van.fbx'
+export finished in 0.0060 sec.
+EXPORTED Som_Van {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Som_Van.fbx', 'tris': 5160, 'dims': [4.53, 2.48, 2.68], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Som_Van_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Maquininha_TelecomVan"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Maquininha_TelecomVan.fbx'
+export finished in 0.0051 sec.
+EXPORTED Maquininha_TelecomVan {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Maquininha_TelecomVan.fbx', 'tris': 4154, 'dims': [5.59, 2.52, 2.7], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Maquininha_TelecomVan_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Excursao_SchoolBus"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Excursao_SchoolBus.fbx'
+export finished in 0.0060 sec.
+EXPORTED Excursao_SchoolBus {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Excursao_SchoolBus.fbx', 'tris': 5516, 'dims': [9.37, 3.45, 3.21], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Excursao_SchoolBus_BaseColor.png'}
+DONE 21.9
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

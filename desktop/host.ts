@@ -215,7 +215,8 @@ process.stdin.on("end", () => process.exit(0));
 const store = () => useGameStore.getState();
 store().processSessionResume();
 store().processInventorySpoilage();
-setInterval(() => store().processGameEvents(), 5_000);
+// Every second, so an event ends exactly at 0:00 and the market closing ends it at once.
+setInterval(() => store().processGameEvents(), 1_000);
 setInterval(() => store().processEmployeePayroll(), 5_000);
 setInterval(() => store().processInventorySpoilage(), 60_000);
 setInterval(() => store().market.isOpen && store().processNextCustomer(), 1_000);
@@ -241,8 +242,9 @@ setInterval(() => {
 	if (phase !== dayPhase && phase === "results") navigate("!day-result");
 	dayPhase = phase;
 	if (dirty) snapshot();
-	// Pages and the day clock carry live timers, so they refresh every second even when idle.
+	// Pages, the day clock and the event badge carry live timers, so they refresh every second even when idle.
 	const stale =
-		(routes.length > 0 || phase === "open") && Date.now() - viewSentAt > 1_000;
+		(routes.length > 0 || phase === "open" || store().events.activeEvent !== null) &&
+		Date.now() - viewSentAt > 1_000;
 	if ((viewDirty || stale) && Date.now() - viewSentAt > 250) view();
 }, 100);

@@ -32,6 +32,23 @@ namespace Checkout {
    foreach(var r in go.GetComponentsInChildren<Renderer>(true)){var shared=r.sharedMaterials;for(int i=0;i<shared.Length;i++)shared[i]=Remap(shared[i]);r.sharedMaterials=shared;r.shadowCastingMode=ShadowCastingMode.On;}
    return holder;}
 
+  // Event props v2 (Oct 2026): Blender FBX + one baked BaseColor atlas each, in Resources/EventProps2 (ArtSource/events_v2).
+  // Exported with the readable side facing +Z; the same Standard-shader look as the construction machines (CheckoutWorks).
+  readonly Dictionary<string,Material> bakedProps=new Dictionary<string,Material>();
+  public Transform Prop2(Transform parent,string model,Vector3 p,float yaw=0,float scale=1,string tint=null){
+   var holder=Group(parent,model,p);holder.gameObject.layer=2;holder.localRotation=Quaternion.Euler(0,yaw,0);holder.localScale=Vector3.one*scale;
+   var prefab=Resources.Load<GameObject>("EventProps2/"+model);if(!prefab){Debug.LogWarning("CHECKOUT_EVENT_PROP_MISSING "+model);return holder;}
+   var go=Object.Instantiate(prefab,holder,false);go.name=model+" model";
+   var key=model+"|"+tint;
+   if(!bakedProps.TryGetValue(key,out var material)||!material){
+    material=new Material(Shader.Find("Standard")){name=model+" (baked)"};var tex=Resources.Load<Texture2D>("EventProps2/"+model+"_BaseColor");
+    if(tex)material.mainTexture=tex;material.color=string.IsNullOrEmpty(tint)?Color.white:MarketSimulation.C(tint);
+    material.SetFloat("_Glossiness",.12f);material.SetFloat("_Metallic",0);bakedProps[key]=material;}
+   foreach(var t in go.GetComponentsInChildren<Transform>(true))t.gameObject.layer=2;
+   foreach(var c in go.GetComponentsInChildren<Collider>(true))Object.Destroy(c);
+   foreach(var r in go.GetComponentsInChildren<Renderer>(true)){var shared=r.sharedMaterials;for(int i=0;i<shared.Length;i++)shared[i]=material;r.sharedMaterials=shared;r.shadowCastingMode=ShadowCastingMode.On;}
+   return holder;}
+
   // A live copy of one of the market's rigged characters, looping one of its Blender clips.
   public Transform Actor(Transform parent,string source,Vector3 p,float yaw,string clip="Idle",float speed=1){
    var holder=Group(parent,"Event actor "+source,p);holder.localRotation=Quaternion.Euler(0,yaw,0);

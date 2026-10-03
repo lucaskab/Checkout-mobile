@@ -1,0 +1,17 @@
+00:00.014  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+00:02.654  gpu.texture      | ERROR Failed to create GPU texture from Blender image
+00:02.659  gpu.texture      | ERROR Failed to create GPU texture from Blender image
+00:02.663  gpu.texture      | ERROR Failed to create GPU texture from Blender image
+00:02.666  gpu.texture      | ERROR Failed to create GPU texture from Blender image
+00:03.429  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_FimDoMes.png'
+FBX version: 7400
+FBX version: 7400
+FBX version: 7400
+FBX version: 7400
+PREVIEW v2_FimDoMes /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_FimDoMes.png 2.7
+00:08.142  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_TurnoPuxado.png'
+PREVIEW v2_TurnoPuxado /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_TurnoPuxado.png 7.4
+DONE 7.4
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

@@ -1,0 +1,23 @@
+00:00.016  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+TRIS Pagamento_ATM 2755
+   [('lbl', 791), ('fkey', 144), ('key', 144), ('plinth', 108), ('body', 108), ('shelf', 108), ('screen_panel', 108), ('canopy', 108), ('topsign', 108), ('priv_frame', 88), ('priv_glass', 88), ('cam_dome', 80), ('vent', 60), ('spk_slot', 48)]
+TRIS Pagamento_QueueStanchions 1260
+   [('base', 360), ('head', 216), ('top', 216), ('post', 168), ('collar', 168), ('belt_clip', 72), ('belt', 60)]
+TRIS Feira_StallRed 3734
+   [('fruit', 860), ('valance', 312), ('crate_post', 288), ('crate_slat', 288), ('lbl', 146), ('crate_end', 144), ('crate_endbar', 144), ('paperbag', 132), ('scale_body', 124), ('scale_pan', 124), ('pole', 112), ('foot', 112), ('board_frame', 88), ('crate_bottom', 72)]
+TRIS Feira_Banner 1421
+   [('lbl', 649), ('rope', 144), ('grommet', 112), ('foot', 104), ('pennant', 96), ('post', 88), ('post_cap', 88), ('tie', 48), ('banner', 44), ('foot_band', 24), ('banner_edge', 24)]
+TRIS Calor_StreetThermometer 1570
+   [('lbl', 626), ('flange', 124), ('case', 108), ('pole_collar', 104), ('sun_ray', 96), ('case_trim', 88), ('glyph_bulb', 88), ('bolt', 80), ('pole', 52), ('case_cap', 44), ('brand_band', 44), ('sun_disc', 44), ('led_panel', 24), ('glyph_tube', 24)]
+TRIS Calor_IceCreamCart 3058
+   [('lbl', 486), ('tyre', 312), ('spoke', 240), ('pop_lid', 176), ('rim', 152), ('pop', 132), ('parasol_canopy', 128), ('rib', 128), ('rim_in', 120), ('box', 108), ('lid', 108), ('hub', 100), ('box_band', 88), ('lid_handle', 88)]
+TRIS Sorteio_WheelDisc 1547
+   [('wheel_rim', 384), ('lbl', 355), ('peg', 320), ('wheel_face', 192), ('divider', 96), ('hub_cap', 80), ('hub', 60), ('hub_ring', 60)]
+TRIS Jogo_BigScreen 3377
+   [('lbl', 673), ('brace', 672), ('chord', 240), ('speaker', 216), ('truss_plate', 176), ('circle', 160), ('player', 120), ('player_shorts', 120), ('screen_frame', 108), ('woofer', 104), ('ballast', 88), ('spk_grille', 88), ('tweeter', 72), ('mount', 48)]
+TRIS Jogo_FanTable 1890
+   [('cup', 180), ('snack', 140), ('bowl', 124), ('top', 108), ('cooler', 108), ('cooler_lid', 108), ('bottle', 108), ('lbl', 98), ('bottle_cap', 84), ('leg', 80), ('flag_globe', 68), ('chair_leg', 64), ('top_lip', 44), ('cloth', 44)]
+DONE 13.6
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

@@ -1,0 +1,35 @@
+00:00.015  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+TRIS Cafe_BreakTable 2542
+   [('tablecloth', 490), ('cup_handle', 256), ('cup', 176), ('coffee', 176), ('pao_de_queijo', 160), ('leg', 112), ('plate', 92), ('plate_rim', 92), ('leg_foot', 88), ('thermos_handle', 84), ('leg_pivot', 72), ('thermos_base', 68), ('thermos', 68), ('thermos_band', 68)]
+TRIS Cafe_FoldingChair 608
+   [('cap', 112), ('seat', 108), ('back', 108), ('frame_bar', 84), ('frame_f', 56), ('frame_r', 56), ('pivot', 56), ('frame_top', 28)]
+TRIS Cafe_BackDoor 1575
+   [('lbl', 187), ('hinge', 132), ('door', 108), ('push_bar', 108), ('panel', 88), ('push_bar_mount', 88), ('awn_plate', 88), ('awn_bracket', 80), ('vent', 60), ('door_frame', 44), ('door_frame_in', 44), ('kick_plate', 44), ('plate', 44), ('step', 44)]
+TRIS Cafe_CoffeeBoard 816
+   [('lbl', 224), ('easel_leg', 88), ('cup_icon_handle', 80), ('steam', 72), ('board_frame', 44), ('chalk_tray', 44), ('cup_icon', 44), ('easel_bar', 44), ('easel_top', 44), ('easel_leg_r', 44), ('easel_hinge', 44), ('chalk', 20), ('board', 12), ('cup_coffee', 12)]
+TRIS Viral_RingLightTripod 1700
+   [('ring_housing', 448), ('ring_led', 336), ('hub', 116), ('phone', 108), ('clamp_jaw', 88), ('foot', 84), ('column_lock', 72), ('leg', 60), ('brace', 48), ('ring_knob', 44), ('ring_bridge', 44), ('clamp', 44), ('phone_camera', 44), ('ring_mount', 36)]
+TRIS Viral_Backdrop 3182
+   [('neon', 640), ('neon_plate', 460), ('sandbag', 376), ('neon_in', 320), ('clip', 264), ('lbl', 194), ('stand_lock', 144), ('star', 144), ('drape', 108), ('foot_t', 88), ('foot_x', 88), ('stand', 56), ('drape_stripe', 48), ('drape_hem', 44)]
+TRIS Viral_Softbox 1036
+   [('sandbag', 188), ('hub', 116), ('softbox_body', 108), ('flash_head', 108), ('softbox_rim', 96), ('foot', 84), ('column_lock', 72), ('leg', 60), ('column', 56), ('tilt_bracket', 44), ('speedring', 44), ('tilt_knob', 36), ('diffuser', 12), ('cable', 12)]
+TRIS Viral_HeartPop 1196
+   [('heart', 636), ('heart_rim', 460), ('shine', 100)]
+TRIS FimMes_SaleBanner 885
+   [('lbl', 457), ('burst', 152), ('grommet', 144), ('rope', 64), ('banner', 44), ('banner_border', 12), ('banner_inner', 12)]
+TRIS FimMes_AFrame 1616
+   [('lbl', 968), ('chain', 396), ('frame', 88), ('hinge_strap', 88), ('hinge', 28), ('board', 24), ('header', 24)]
+TRIS FimMes_PriceTags 1704
+   [('tag', 544), ('lbl', 504), ('burst', 228), ('string', 168), ('tag_eyelet', 112), ('tag_string', 84), ('hook', 64)]
+TRIS FimMes_EmptyWallet 1280
+   [('card_slot', 264), ('flap', 216), ('moth_wing', 208), ('spine', 108), ('lining', 88), ('bill_pocket', 88), ('moth_spot', 88), ('slot_edge', 72), ('stitch', 48), ('coin', 44), ('moth_body', 20), ('moth_head', 20), ('antenna', 16)]
+TRIS Turno_SleepyBubble 1728
+   [('cloud', 1512), ('trail', 160), ('lbl', 56)]
+TRIS Turno_CoffeeCups 1344
+   [('cup', 176), ('sleeve', 176), ('cup_rim', 176), ('can', 164), ('lid', 88), ('dregs', 88), ('sachet', 88), ('stain', 72), ('lid_sip', 56), ('can_top', 52), ('can_bottom', 52), ('can_label', 52), ('can_bolt', 44), ('can_hole', 28)]
+TRIS Turno_YawnClock 1012
+   [('rim', 380), ('lbl', 188), ('tick', 144), ('face', 124), ('hour_hand', 44), ('min_hand', 44), ('pin', 36), ('hanger', 28), ('sec_hand', 12), ('brand_plate', 12)]
+DONE 3.4
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

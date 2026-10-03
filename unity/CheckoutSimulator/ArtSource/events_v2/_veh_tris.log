@@ -1,0 +1,27 @@
+00:00.014  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+TRIS Rush_CityBus 10293
+   [('lbl', 1621), ('bus_body', 1532), ('tyre', 560), ('bus_skirt', 556), ('win_glass', 528), ('rim', 416), ('rimdish', 288), ('sidewall', 272), ('taillamp', 264), ('archliner', 240), ('nut', 240), ('headlamp', 216), ('bumper_f', 188), ('bumper_r', 188)]
+TRIS Rush_BusShelter 2659
+   [('lbl', 463), ('post', 432), ('roof', 188), ('post_foot', 176), ('bench_slat', 176), ('bin', 164), ('stop_plate', 108), ('stop_ring', 108), ('glass_rail_top', 88), ('bench_leg', 88), ('bench_leg_f', 88), ('tt_line', 60), ('bin_ring', 52), ('roof_cap', 44)]
+TRIS Ofertas_BoxTruck 8188
+   [('lbl', 1032), ('tyre', 840), ('cab', 732), ('rim', 624), ('rimdish', 432), ('sidewall', 408), ('hub', 240), ('nut', 240), ('headlamp', 216), ('bumper_f', 188), ('fuel_tank', 188), ('roll_drum', 188), ('step', 176), ('cargo_post', 176)]
+TRIS Ofertas_PalletStack 1656
+   [('carton', 352), ('film', 324), ('lbl', 224), ('top_board', 220), ('stringer', 132), ('bottom_board', 132), ('block', 132), ('carton_tape', 96), ('film_top', 44)]
+TRIS Ofertas_PalletJack 788
+   [('pump_body', 108), ('steer_wheel', 104), ('fork', 88), ('fork_tip', 88), ('fork_wheel', 88), ('steer_hub', 56), ('fork_bridge', 44), ('pump_cyl', 44), ('tiller', 44), ('grip', 44), ('grip_lever', 44), ('tiller_pivot', 36)]
+TRIS Transito_Car 6780
+   [('body', 1276), ('lbl', 608), ('tyre', 560), ('rim', 416), ('rimdish', 288), ('sidewall', 272), ('archliner', 240), ('nut', 240), ('headlamp', 216), ('taillamp', 216), ('handle', 176), ('hub', 160), ('cabin', 156), ('bumper_f', 108)]
+TRIS Transito_MessageBoard 2110
+   [('tyre', 248), ('rim', 208), ('rimdish', 144), ('sidewall', 120), ('nut', 120), ('lbl', 110), ('trailer', 108), ('board', 108), ('trailer_hz', 88), ('mudguard', 88), ('outrigger', 88), ('outrigger_foot', 88), ('mast', 88), ('hub', 80)]
+TRIS Vigilancia_Car 7448
+   [('body', 1276), ('lbl', 928), ('tyre', 560), ('rim', 416), ('rimdish', 288), ('sidewall', 272), ('archliner', 240), ('nut', 240), ('headlamp', 216), ('taillamp', 216), ('handle', 176), ('hub', 160), ('cabin', 156), ('emblem', 136)]
+TRIS Som_Van 8624
+   [('lbl', 1364), ('body_low', 1276), ('tyre', 688), ('rim', 416), ('sidewall', 336), ('rimdish', 288), ('win_frame', 264), ('win', 264), ('archliner', 240), ('nut', 240), ('horn', 208), ('body_up', 188), ('handle', 176), ('hub', 160)]
+TRIS Maquininha_TelecomVan 7978
+   [('body', 1052), ('lbl', 1010), ('nose', 668), ('tyre', 560), ('rim', 416), ('rimdish', 288), ('sidewall', 272), ('archliner', 240), ('nut', 240), ('headlamp', 216), ('taillamp', 216), ('stripe', 176), ('hub', 160), ('handle', 132)]
+TRIS Excursao_SchoolBus 8996
+   [('lbl', 1268), ('tyre', 840), ('body', 732), ('win', 660), ('rim', 624), ('rimdish', 432), ('sidewall', 408), ('hub', 240), ('nut', 240), ('fender', 216), ('hood', 188), ('win_split', 180), ('stripe_black', 176), ('door_glass', 176)]
+DONE 51.6
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

@@ -150,6 +150,7 @@ import {
 	activateGameEvent,
 	advanceGameEvents,
 	createInitialGameEventsState,
+	getTurnEventKey,
 	getActiveGameEventEffects,
 	normalizeGameEventsState,
 } from "@/services/game-events";
@@ -1799,9 +1800,14 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			processGameEvents: () => {
-				const { employees, events, market, shop } = get();
+				const { day, employees, events, market, shop } = get();
 				const now = Date.now();
-				const nextEvents = advanceGameEvents(events, now);
+				const nextEvents = advanceGameEvents(events, now, {
+					endsAt: day.endsAt ?? 0,
+					key: getTurnEventKey(day),
+					open: day.phase === "open" && day.endsAt !== null,
+					startedAt: day.startedAt ?? now,
+				});
 
 				if (!nextEvents) {
 					return false;

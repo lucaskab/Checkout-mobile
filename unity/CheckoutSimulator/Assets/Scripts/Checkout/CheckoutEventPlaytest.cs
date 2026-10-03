@@ -17,9 +17,11 @@ namespace Checkout {
      var outside=FindObjectsByType<MarketDay.MarketCharacterAnimator>(FindObjectsInactive.Exclude).Where(c=>c.GetComponent<CheckoutCityPedestrian>()||c.GetComponent<CheckoutCityAppearance>()).Where(c=>{var pedestrian=c.GetComponent<CheckoutCityPedestrian>();return !pedestrian||!pedestrian.IsSheltered;}).ToArray();
      Require(outside.Length>0,"No exposed city characters are available for umbrella validation");
      Require(outside.All(c=>{var rig=c.GetComponent<MarketDay.MarketRainUmbrellaRig>();return rig&&rig.HasVisibleUmbrella&&rig.HasRightHandRig&&rig.ForearmIsUpright&&rig.IsShelteringHead;}),"An exposed city character needs a colored umbrella over the head, held in the raised right hand with an upright forearm");
-     var lamps=FindObjectsByType<Light>(FindObjectsInactive.Exclude).Where(l=>l.type==LightType.Spot&&l.name.ToLowerInvariant().Contains("spotlight")).ToArray();
+     var lamps=FindObjectsByType<Light>(FindObjectsInactive.Include).Where(l=>l.type==LightType.Spot&&l.name.ToLowerInvariant().Contains("spotlight")).ToArray();
      Require(lamps.Length>=28,"Streetlight fixtures are missing: "+lamps.Length);
-     Require(lamps.All(l=>l.enabled&&l.intensity>=5&&l.range>=11),"One or more streetlights did not brighten for the rain event");
+     var pools=effects.GetComponent<CheckoutStreetLightPools>();
+     Require(pools&&pools.Count>=lamps.Length,"Every street lamp needs a light pool: "+(pools?pools.Count:0)+" of "+lamps.Length);
+     Require(lamps.All(l=>!l.enabled),"Real spot lights must stay off (they only light a few meshes and leave half-moons)");
     }
     int count=scene.childCount;effects.Apply(state.@event);Require(scene.childCount==count,"Duplicate assets on snapshot");
     Capture(Path.Combine(folder,id+".png"),1280,800);if(id=="chuva-forte")Capture(Path.Combine(folder,"portrait-rain.png"),390,844);

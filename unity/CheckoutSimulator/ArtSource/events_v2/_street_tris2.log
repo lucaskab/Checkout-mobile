@@ -1,0 +1,9 @@
+00:00.014  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+TRIS Sorteio_BalloonArch 3144
+   [('balloon', 2880), ('weight', 216), ('weight_ribbon', 48)]
+TRIS Pagamento_QueueStanchions 1260
+   [('base', 360), ('head', 216), ('top', 216), ('post', 168), ('collar', 168), ('belt_clip', 72), ('belt', 60)]
+DONE 0.2
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

@@ -1,0 +1,35 @@
+00:00.017  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+Info: No active image found in material slot (1) for object "Transito_CarBlue"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarBlue.fbx'
+export finished in 0.0076 sec.
+EXPORTED Transito_CarBlue {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarBlue.fbx', 'tris': 6780, 'dims': [4.2, 2.01, 1.71], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarBlue_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Transito_CarYellow"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarYellow.fbx'
+export finished in 0.0065 sec.
+EXPORTED Transito_CarYellow {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarYellow.fbx', 'tris': 6780, 'dims': [4.2, 2.01, 1.71], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarYellow_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Transito_CarWhite"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarWhite.fbx'
+export finished in 0.0065 sec.
+EXPORTED Transito_CarWhite {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarWhite.fbx', 'tris': 6780, 'dims': [4.2, 2.01, 1.71], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarWhite_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Transito_CarTeal"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarTeal.fbx'
+export finished in 0.0067 sec.
+EXPORTED Transito_CarTeal {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarTeal.fbx', 'tris': 6780, 'dims': [4.2, 2.01, 1.71], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarTeal_BaseColor.png'}
+Info: No active image found in material slot (1) for object "Transito_CarGreen"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarGreen.fbx'
+export finished in 0.0073 sec.
+EXPORTED Transito_CarGreen {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarGreen.fbx', 'tris': 6780, 'dims': [4.2, 2.01, 1.71], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Transito_CarGreen_BaseColor.png'}
+DONE 6.7
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

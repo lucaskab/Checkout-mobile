@@ -1,0 +1,27 @@
+00:00.015  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+00:02.231  gpu.texture      | ERROR Failed to create GPU texture from Blender image
+00:02.235  gpu.texture      | ERROR Failed to create GPU texture from Blender image
+00:03.113  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_CarroDeSom.png'
+FBX version: 7400
+FBX version: 7400
+PREVIEW v2_CarroDeSom /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_CarroDeSom.png 2.3
+00:07.287  gpu.texture      | ERROR Failed to create GPU texture from Blender image
+00:08.078  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_CaminhaoDeOfertas.png'
+FBX version: 7400
+PREVIEW v2_CaminhaoDeOfertas /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_CaminhaoDeOfertas.png 7.2
+00:13.780  gpu.texture      | ERROR Failed to create GPU texture from Blender image
+00:14.565  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_HoraDoRush.png'
+FBX version: 7400
+PREVIEW v2_HoraDoRush /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_HoraDoRush.png 13.7
+00:19.372  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_ExcursaoDaEscola.png'
+PREVIEW v2_ExcursaoDaEscola /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_ExcursaoDaEscola.png 18.5
+00:22.939  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_VigilanciaSanitaria.png'
+PREVIEW v2_VigilanciaSanitaria /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_VigilanciaSanitaria.png 22.1
+00:25.865  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_MaquininhaVan.png'
+PREVIEW v2_MaquininhaVan /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_MaquininhaVan.png 25.0
+00:58.089  render           | Saved: '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_Engarrafamento.png'
+PREVIEW v2_Engarrafamento /Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/Review/events_v2/v2_Engarrafamento.png 57.2
+DONE 57.2
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

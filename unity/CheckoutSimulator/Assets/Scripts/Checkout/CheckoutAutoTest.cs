@@ -31,6 +31,7 @@ namespace Checkout {
    foreach(var f in Directory.GetFiles("Logs","at_*.png"))File.Delete(f);
    Note("scenarios: "+string.Join(",",scenarios));
    for(float t=0;t<90&&(bridge==null||bridge.State==null||bridge.State.shelves==null);t+=.5f){bridge=FindAnyObjectByType<CheckoutBridge>();yield return new WaitForSecondsRealtime(.5f);}
+   if(scenarios.All(x=>x=="lamps")){foreach(var x in scenarios){Note("== "+x);yield return Lamps();}Finish();yield break;}// visual check, no host needed
    if(bridge==null||bridge.State==null){Note("no snapshot from the host");Finish();yield break;}
    Note($"snapshot ok: coins={bridge.State.coins} shelves={bridge.State.shelves.Length} dock={(bridge.State.dock?.Length??-1)} slots={(bridge.State.restockSlots?.Length??-1)}");
    yield return new WaitForSecondsRealtime(3);
@@ -58,6 +59,12 @@ namespace Checkout {
   static void CloseAll(){
    foreach(var name in new[]{"CheckoutStockroom","CheckoutIncidentGame","CheckoutCounterGame"}){var c=GameObject.Find(name);if(!c)continue;var dim=c.transform.Find("Dim");if(dim&&dim.gameObject.activeSelf)dim.gameObject.SetActive(false);}
   }
+  // Street lamps: night turn and heavy rain, every lamp head with its warm pool.
+  IEnumerator Lamps(){var fx=FindAnyObjectByType<CheckoutEventVisuals>();if(!fx){Note("no CheckoutEventVisuals");yield break;}
+   var pools=fx.GetComponent<CheckoutStreetLightPools>();Note("lamp pools: "+(pools?pools.Count:-1));
+   fx.SetNight(true);yield return new WaitForSecondsRealtime(2.5f);yield return Shot("lamps_night");
+   fx.SetNight(false);fx.Preview("chuva-forte");yield return new WaitForSecondsRealtime(2.5f);yield return Shot("lamps_rain");
+   fx.Preview("");yield return new WaitForSecondsRealtime(2f);yield return Shot("lamps_day");}
   IEnumerator Shot(string name){yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot("Logs/at_"+name+".png");Note("shot "+name);yield return new WaitForSecondsRealtime(.3f);}
   static Vector2 ScreenOf(Transform t){var r=(RectTransform)t;return RectTransformUtility.WorldToScreenPoint(null,r.TransformPoint(r.rect.center));}
   static GameObject Find(string canvas,Func<Transform,bool> match){var c=GameObject.Find(canvas);if(!c)return null;return c.GetComponentsInChildren<Transform>(false).FirstOrDefault(match)?.gameObject;}

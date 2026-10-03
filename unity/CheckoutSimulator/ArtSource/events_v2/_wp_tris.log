@@ -1,0 +1,7 @@
+00:00.015  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+TRIS Obras_Backhoe 7836 [('tyre', 560), ('rim', 416), ('lbl', 336), ('rimdish', 288), ('sidewall', 272), ('nut', 240), ('headlamp', 216), ('larm_knee', 216), ('lug', 192), ('pillar', 176)]
+TRIS Energia_BucketTruck 7232 [('tyre', 560), ('cab', 484), ('rim', 416), ('lbl', 384), ('rimdish', 288), ('sidewall', 272), ('handle', 264), ('nut', 240), ('headlamp', 216), ('tall_locker', 216)]
+DONE 2.8
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit

@@ -1,0 +1,81 @@
+00:00.014  color_management | Using OCIO=/Applications/Blender.app/Contents/Resources/5.2/datafiles/colormanagement/config.ocio
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_BreakTable.fbx'
+export finished in 0.0043 sec.
+EXPORTED Cafe_BreakTable {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_BreakTable.fbx', 'tris': 2542, 'dims': [1.87, 0.87, 1.11], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_BreakTable_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_FoldingChair.fbx'
+export finished in 0.0029 sec.
+EXPORTED Cafe_FoldingChair {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_FoldingChair.fbx', 'tris': 608, 'dims': [0.46, 0.46, 0.87], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_FoldingChair_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_BackDoor.fbx'
+export finished in 0.0420 sec.
+EXPORTED Cafe_BackDoor {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_BackDoor.fbx', 'tris': 1575, 'dims': [1.4, 0.75, 2.52], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_BackDoor_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_CoffeeBoard.fbx'
+export finished in 0.0080 sec.
+EXPORTED Cafe_CoffeeBoard {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_CoffeeBoard.fbx', 'tris': 816, 'dims': [0.72, 0.65, 1.54], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Cafe_CoffeeBoard_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_RingLightTripod.fbx'
+export finished in 0.0035 sec.
+EXPORTED Viral_RingLightTripod {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_RingLightTripod.fbx', 'tris': 1700, 'dims': [0.78, 0.69, 2.34], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_RingLightTripod_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_Backdrop.fbx'
+export finished in 0.0035 sec.
+EXPORTED Viral_Backdrop {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_Backdrop.fbx', 'tris': 2358, 'dims': [2.6, 0.9, 2.34], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_Backdrop_BaseColor.png'}
+Info: No active image found in material slot (4) for object "Viral_Softbox"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_Softbox.fbx'
+export finished in 0.0033 sec.
+EXPORTED Viral_Softbox {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_Softbox.fbx', 'tris': 1036, 'dims': [0.86, 1.07, 2.8], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_Softbox_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_HeartPop.fbx'
+export finished in 0.0029 sec.
+EXPORTED Viral_HeartPop {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_HeartPop.fbx', 'tris': 1196, 'dims': [0.5, 0.17, 0.45], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Viral_HeartPop_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_SaleBanner.fbx'
+export finished in 0.0080 sec.
+EXPORTED FimMes_SaleBanner {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_SaleBanner.fbx', 'tris': 885, 'dims': [4.51, 0.06, 1.4], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_SaleBanner_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_AFrame.fbx'
+export finished in 0.0035 sec.
+EXPORTED FimMes_AFrame {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_AFrame.fbx', 'tris': 1616, 'dims': [0.64, 0.59, 0.92], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_AFrame_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_PriceTags.fbx'
+export finished in 0.0038 sec.
+EXPORTED FimMes_PriceTags {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_PriceTags.fbx', 'tris': 1704, 'dims': [3.02, 0.08, 0.88], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_PriceTags_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_EmptyWallet.fbx'
+export finished in 0.1565 sec.
+EXPORTED FimMes_EmptyWallet {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_EmptyWallet.fbx', 'tris': 1280, 'dims': [0.42, 0.39, 0.55], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/FimMes_EmptyWallet_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_SleepyBubble.fbx'
+export finished in 0.0032 sec.
+EXPORTED Turno_SleepyBubble {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_SleepyBubble.fbx', 'tris': 1026, 'dims': [0.86, 0.3, 0.84], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_SleepyBubble_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_CoffeeCups.fbx'
+export finished in 0.0074 sec.
+EXPORTED Turno_CoffeeCups {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_CoffeeCups.fbx', 'tris': 1344, 'dims': [0.6, 0.41, 0.16], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_CoffeeCups_BaseColor.png'}
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_YawnClock.fbx'
+export finished in 0.0030 sec.
+EXPORTED Turno_YawnClock {'fbx': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_YawnClock.fbx', 'tris': 1012, 'dims': [0.44, 0.08, 0.46], 'atlas': '/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/Assets/Resources/EventProps2/Turno_YawnClock_BaseColor.png'}
+DONE 23.9
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+
+Blender quit
