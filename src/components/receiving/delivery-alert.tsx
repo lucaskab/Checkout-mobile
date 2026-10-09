@@ -1,10 +1,14 @@
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import type { DockDelivery } from "@/@types/receiving";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { getRemainingUnits } from "@/services/receiving";
 import { useGameStore } from "@/stores/game-store";
+
+// One truck can carry several products: one dock delivery per product, all sharing the order id.
+const truckOf = (item: DockDelivery) => item.orderId ?? item.id;
 
 // System mode: a supplier truck is parked at the dock. One tap unloads everything that fits into
 // the stockroom. (The simulator unloads it box by box in Unity.)
@@ -14,14 +18,20 @@ export function DeliveryAlert() {
 	const delivery = dock[0];
 	if (!delivery) return null;
 	const units = dock.reduce((total, item) => total + getRemainingUnits(item), 0);
+	const firstTruck = dock.filter((item) => truckOf(item) === truckOf(delivery));
+	const trucks = new Set(dock.map(truckOf)).size;
+	const truckTitle =
+		firstTruck.length === 1
+			? `${getRemainingUnits(delivery)}x ${delivery.productName}`
+			: `Pedido · ${firstTruck.length} produtos`;
 
 	return (
 		<View style={styles.alert}>
 			<GameIcon icon="deliveryTruck" style={styles.icon} />
 			<View style={styles.copy}>
 				<Text numberOfLines={1} style={styles.title}>
-					Caminhão no pátio · {getRemainingUnits(delivery)}x {delivery.productName}
-					{dock.length > 1 ? ` (+${dock.length - 1})` : ""}
+					Caminhão no pátio · {truckTitle}
+					{trucks > 1 ? ` (+${trucks - 1})` : ""}
 				</Text>
 				<Text numberOfLines={1} style={styles.detail}>
 					{units} unidades esperando para entrar no depósito

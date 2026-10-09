@@ -21,7 +21,7 @@ const {
 	recordFinishedTurn,
 	startEraEvolution,
 } = await import("./market-era.ts");
-const { getMarketEra } = await import("../data/economy.ts");
+const { getMarketEra, getOfflineTurnsPerHour } = await import("../data/economy.ts");
 
 const initial = JSON.stringify(useGameStore.getState());
 beforeEach(() => useGameStore.setState(JSON.parse(initial)));
@@ -91,7 +91,7 @@ test("time away is worth part of a turn, more in bigger eras, up to 8 hours", ()
 	const mesinha = recordFinishedTurn(createInitialEraState("mesinha"), { profit: 1_000, customers: 20 });
 	const hiper = { ...mesinha, id: "hipermercado" };
 	const eightHours = getOfflineEraIncome(hiper, 8 * HOUR);
-	expect(eightHours.coins).toBe(Math.floor(8 * getMarketEra("hipermercado").offlineTurnsPerHour * 1_000));
+	expect(eightHours.coins).toBe(Math.floor(8 * getOfflineTurnsPerHour(getMarketEra("hipermercado")) * 1_000));
 	expect(getOfflineEraIncome(hiper, 30 * HOUR).coins).toBe(eightHours.coins);
 	expect(getOfflineEraIncome(mesinha, 8 * HOUR).coins).toBeLessThan(eightHours.coins);
 	// Averages follow the finished turns.
@@ -123,9 +123,9 @@ test("supermercado and hipermercado bring the wings of the market building", () 
 	expect(store().devSetMarketEra("mercadinho")).toBe(true);
 	expect(store().unlockedMarketExpansionIds).toEqual([]);
 	useGameStore.setState({ coins: 10_000_000 });
-	// The supermercado needs lots 2, 3 and the depot.
+	// The supermercado needs its lots: the parking (C1) and the depot (C2).
 	expect(store().evolveMarketEra()).toBe(false);
-	useGameStore.setState({ lots: { owned: ["A1", "B1", "A2", "B2", "C1", "B3"], cleared: ["A1", "B1", "A2", "B2", "C1", "B3"], clearing: null } });
+	useGameStore.setState({ lots: { owned: ["A1", "B1", "A2", "B2", "C1", "C2"], cleared: ["A1", "B1", "A2", "B2", "C1", "C2"], clearing: null } });
 	expect(store().evolveMarketEra()).toBe(true);
 	expect(store().finishMarketEraNow() || store().devPassTime(24)).toBe(true);
 	expect(store().era.id).toBe("supermercado");

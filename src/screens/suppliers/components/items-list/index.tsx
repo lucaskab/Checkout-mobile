@@ -16,6 +16,11 @@ import {
 	getOrderRemainingTime,
 	getSupplierOrderStatus,
 } from "@/services/logistics";
+import {
+	getOrderBoxes,
+	getOrderLines,
+	getOrderTitle,
+} from "@/services/supplier-cart";
 import { ProductCard } from "../product-card";
 
 interface ItemsListProps {
@@ -90,9 +95,12 @@ export const ItemsList = ({
 						</View>
 					)}
 					{visibleOrders.map((order) => {
-						const product = itemCatalog.find(
-							(item) => item.id === order.productId,
-						);
+						const lines = getOrderLines(order);
+						const singleProduct =
+							lines.length === 1
+								? itemCatalog.find((item) => item.id === lines[0].productId)
+								: undefined;
+						const boxes = getOrderBoxes(order);
 						const status = getSupplierOrderStatus(order, currentTime);
 						const progress = getOrderProgress(order, currentTime);
 						const isWaitingForInventory =
@@ -101,17 +109,40 @@ export const ItemsList = ({
 						return (
 							<View key={order.id} style={styles.orderCard}>
 								<View style={styles.orderContent}>
-									{product ? (
+									{singleProduct ? (
 										<ProductImage
-											productId={product.id}
+											productId={singleProduct.id}
 											style={styles.orderImage}
 										/>
-									) : (
+									) : lines.length === 1 ? (
 										<GameIcon icon="package" style={styles.orderEmoji} />
+									) : (
+										<GameIcon icon="deliveryTruck" style={styles.orderEmoji} />
 									)}
 									<View style={styles.orderCopy}>
-										<Text style={styles.orderTitle}>
-											{product?.name} · {order.quantity} unid.
+										<Text style={styles.orderTitle}>{getOrderTitle(order)}</Text>
+										<View style={styles.orderLines}>
+											{lines.map((line) => {
+												const lineProduct = itemCatalog.find(
+													(item) => item.id === line.productId,
+												);
+
+												return (
+													<View key={line.productId} style={styles.orderLine}>
+														<ProductImage
+															productId={line.productId}
+															style={styles.orderLineImage}
+														/>
+														<Text numberOfLines={1} style={styles.orderLineText}>
+															{line.boxes} cx {lineProduct?.name ?? "Produto"}
+														</Text>
+													</View>
+												);
+											})}
+										</View>
+										<Text style={styles.orderBoxes}>
+											{boxes === 1 ? "1 caixa" : `${boxes} caixas`} ·{" "}
+											{order.quantity} unid.
 										</Text>
 										<Text style={styles.orderStatus}>
 											{isWaitingForInventory
@@ -298,6 +329,31 @@ const styles = StyleSheet.create((theme) => ({
 		color: theme.colors["neutral-800"],
 		fontSize: theme.fonts.size.small,
 		fontWeight: "700",
+	},
+	orderLines: {
+		gap: 2,
+		marginTop: 2,
+	},
+	orderLine: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: theme.gap(0.5),
+	},
+	orderLineImage: {
+		width: theme.gap(2),
+		height: theme.gap(2),
+	},
+	orderLineText: {
+		flex: 1,
+		color: theme.colors["neutral-600"],
+		fontSize: 11,
+		fontWeight: "600",
+	},
+	orderBoxes: {
+		marginTop: 2,
+		color: theme.colors["neutral-500"],
+		fontSize: 11,
+		fontWeight: "600",
 	},
 	orderStatus: {
 		color: theme.colors["blue-600"],

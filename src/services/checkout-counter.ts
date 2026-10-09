@@ -11,7 +11,10 @@ import type {
 } from "@/@types/customer-simulation";
 
 // Shared checkout rules for System, the mobile simulator and desktop.
-export const CHECKOUT_READY_DELAY_MS = 10_000;
+// The basket is rung up only once the customer stands at the register: the 3D walker reports it
+// (checkoutArrived). Without a walker to report it (headless, offline) the basket is ready after this
+// long, the time a customer takes to finish shopping and walk to the till.
+export const CHECKOUT_READY_DELAY_MS = 180_000;
 // One customer every 9 s per unit of cashier efficiency.
 export const AUTO_CASHIER_INTERVAL_MS = 9_000;
 const MAX_RECENT = 12;
@@ -87,12 +90,16 @@ export function getCashGiven(total: number, seed: number) {
 
 export type CheckoutInput = {
 	archetype: CustomerArchetype;
+	/** The card machine is down (event): everyone pays in cash. */
+	cashOnly?: boolean;
 	categories: Record<string, number>;
 	customerId: string;
 	customerName: string;
 	experience: number;
 	items: CheckoutItem[];
 	mood: CustomerMood;
+	/** Customers wait this many times as long in line (shop: music, air conditioning). */
+	patienceMultiplier?: number;
 	profit: number;
 	satisfaction: number;
 	seed: number;
@@ -108,7 +115,9 @@ export function createPendingCheckout(
 		(sum, item) => sum + item.unitPrice * item.quantity,
 		0,
 	);
-	const method = choosePaymentMethod(input.archetype, input.seed);
+	const method: PaymentMethod = input.cashOnly
+		? "dinheiro"
+		: choosePaymentMethod(input.archetype, input.seed);
 	const readyAt = now + CHECKOUT_READY_DELAY_MS;
 	const soldByProduct: Record<number, number> = {};
 	for (const item of items)
@@ -121,7 +130,7 @@ export function createPendingCheckout(
 		customerId: input.customerId,
 		customerName: input.customerName,
 		experience: input.experience,
-		expiresAt: readyAt + checkoutPatienceMs[input.mood],
+		expiresAt: readyAt + Math.round(checkoutPatienceMs[input.mood] * (input.patienceMultiplier ?? 1)),
 		id: `caixa-${input.seed}`,
 		items,
 		method,
@@ -147,6 +156,27 @@ export function getReadyCheckouts(state: CheckoutCounterState, now: number) {
 	return state.queue
 		.filter((checkout) => checkout.readyAt <= now)
 		.sort((a, b) => a.readyAt - b.readyAt);
+}
+
+// The customer reached the register: the player (or a cashier) can ring them up from now, and their
+// patience starts counting here instead of while they were still shopping.
+export function markCheckoutArrived(
+	state: CheckoutCounterState,
+	customerId: string,
+	now: number,
+): CheckoutCounterState {
+	let changed = false;
+	const queue = state.queue.map((checkout) => {
+		if (checkout.customerId !== customerId || checkout.readyAt <= now) return checkout;
+		changed = true;
+		return {
+			...checkout,
+			readyAt: now,
+			// The whole patience window moves to the arrival.
+			expiresAt: checkout.expiresAt - (checkout.readyAt - now),
+		};
+	});
+	return changed ? { ...state, queue } : state;
 }
 
 function remember(

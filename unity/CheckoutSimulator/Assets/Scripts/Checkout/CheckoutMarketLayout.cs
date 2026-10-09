@@ -54,6 +54,14 @@ namespace Checkout
             return Anchor + Offset + Vector3.Scale(point - Anchor, new Vector3(layout.widthScale, 1, layout.depthScale));
         }
         public bool HasSector(string id) => State.sectorIds == null || Array.IndexOf(State.sectorIds, id) >= 0;
+        // The front sliding doors and the rear roller door keep their real size when the shop grows (a door
+        // stretched 1.78 times reads as a giant): only the walls and the glass sidelights around them widen.
+        // Small shops (width under 1) shrink them with the facade. Base door centres: front -1.75, rear 4.02.
+        public const float FrontDoorX = -1.75f, RearDoorX = 4.02f;
+        public static float DoorScale(MarketLayout layout) => layout == null ? 1 : Mathf.Min(1, layout.widthScale);
+        public static float DoorPoint(float baseX, float centre, MarketLayout layout) =>
+            Project(new Vector3(centre, 0, 0), layout).x + (baseX - centre) * DoorScale(layout);
+        static bool IsDoor(Transform t) => t.name.StartsWith("Anim_Door") || (t.parent && t.parent.name == "Clean entrance frame");
 
         public void Initialize(Transform root)
         {
@@ -75,8 +83,9 @@ namespace Checkout
             }
             simulation = FindAnyObjectByType<MarketSimulation>();
             traffic = FindAnyObjectByType<CheckoutCityTraffic>();
-            // The supermarket's depot stands on lot B3 (it straddled the A3 edge by most of a metre).
-            var depot = world.Find("Warehouse"); if (depot) depot.position += new Vector3(.9f, 0, 0);
+            // The depot: its pose in the scene is the old one behind the shop; PlaceDepot moves it per layout.
+            depot = world.Find("Warehouse");
+            if (depot) { depotBasePosition = depot.position; depotBaseRotation = depot.rotation; }
             // The old parking stripes painted along the west edge of the block: the parking lot is on C1/C3 now.
             var paint = world.Find("City Block/CityPaint"); if (paint) paint.gameObject.SetActive(false);
             // The hypermarket's open-air café stood where its parking lot (lot C3) is now.
@@ -84,6 +93,13 @@ namespace Checkout
             if (cafe) { var item = cafe.GetComponent<CheckoutStageItem>(); if (item) DestroyImmediate(item); cafe.gameObject.SetActive(false); }
             delivery = world.GetComponentInChildren<MarketDeliveryWorker>(true);
             if(delivery){deliveryRoute=(Vector3[])delivery.route.Clone();storageDoor=delivery.storageDoor.position;}
+            if (depot)
+            {
+                // The door the parcels go in by (the worker walks into it northwards in the scene), in the depot's frame.
+                doorLocal = depot.InverseTransformPoint(storageDoor);
+                doorInLocal = depot.InverseTransformDirection(Vector3.forward);
+                StorageDoor = storageDoor;
+            }
             string[] interior = { "Building", "Checkout", "Bakery", "Butcher", "Fishery", "Produce", "Groceries", "Owned Shelf Slots", "Sector Construction" };
             foreach (Transform child in world)
             {
@@ -102,6 +118,8 @@ namespace Checkout
                 if (child.parent && child.parent.name=="Clean entrance frame") placements.Add(new Placement { root=child,position=child.position,scale=child.localScale,resize=true });
                 if (child.parent&&child.parent.name=="Supplied Delivery Cargo"&&child.name!="Carried cardboard box"&&child.name!="Warehouse delivery doorstep") storageDetails.Add(child.gameObject);
             }
+            // The pallets and boxes by the depot door go wherever the depot goes.
+            if (depot) foreach (var detail in storageDetails) depotFollowers.Add((detail.transform, depot.InverseTransformPoint(detail.transform.position), Quaternion.Inverse(depot.rotation) * detail.transform.rotation));
         }
 
         // The Editor expansion preview lets artists move objects while a projected layout is
@@ -127,8 +145,9 @@ namespace Checkout
                     position.y = .63f + (position.y - .63f) / height;
                 }
                 placement.position = Unproject(position, State);
+                if (door) placement.position.x = FrontDoorX + (position.x - Project(new Vector3(FrontDoorX, 0, 0), State).x) / Mathf.Max(.0001f, DoorScale(State));
 
-                var projection = new Vector3(State.widthScale, 1, State.depthScale);
+                var projection = door ? new Vector3(DoorScale(State), 1, 1) : new Vector3(State.widthScale, 1, State.depthScale);
                 var scaleAxes = placement.resize
                     ? new Vector3(Vector3.Scale(root.right, projection).magnitude,
                         Vector3.Scale(root.up, projection).magnitude,
@@ -179,12 +198,13 @@ namespace Checkout
             foreach (var placement in placements)
             {
                 placement.root.position = Point(placement.position);
+                if (IsDoor(placement.root)) { var d = placement.root.position; d.x = DoorPoint(placement.position.x, FrontDoorX, next); placement.root.position = d; }
                 bool checkout = placement.root.name == "Checkout" || placement.root.name == "Worker_Cashier";
                 if (checkout) placement.root.position = CheckoutPoint(placement.position, next);
                 if (placement.resize)
                 {
                     // FBX roots use different up axes. Resize in world X/Z without flattening their height.
-                    var scale=new Vector3(next.widthScale,1,next.depthScale);
+                    var scale=IsDoor(placement.root)?new Vector3(DoorScale(next),1,1):new Vector3(next.widthScale,1,next.depthScale);
                     var axes=new Vector3(Vector3.Scale(placement.root.right,scale).magnitude,Vector3.Scale(placement.root.up,scale).magnitude,Vector3.Scale(placement.root.forward,scale).magnitude);
                     placement.root.localScale=Vector3.Scale(placement.scale,axes);
                 }
@@ -202,6 +222,7 @@ namespace Checkout
             foreach (var progress in world.GetComponentsInChildren<CheckoutSectorProgress>(true)) progress.RebaseHomes();
             bool grand = next.storageLarge;
             bool oldYard = next.loadingYard && !grand;
+            PlaceDepot(next);
             SetActive("Warehouse", next.storage && !grand);
             SetActive(GrandWarehouse, grand);
             // The lots have their own ruins now (CheckoutLotSites): the old "future warehouse" dressing goes.
@@ -212,6 +233,15 @@ namespace Checkout
             if (shell) shell.Apply(next);
             if (dressing) dressing.Apply(this, next.stage, holdNewDressing);
             holdNewDressing = false;
+            // The supermarket's flags and totem stood by the east wall, on lot C2 (now the depot) and later on the car
+            // park and the cycle lane: they stand on the shop's own forecourt instead, between the entrance steps and
+            // the east corner, a little back from the sidewalk. The flags turn to run along the facade.
+            {
+                float east = Point(new Vector3(9.4f, 0, 0)).x, z = WorldAnchor.z + 1.35f;
+                bool forecourt = next.stage >= 2 && next.stage <= 3;
+                Settle("Market Stage Dressing/S2 flags", forecourt, new Vector3(east - 5.2f, .13f, z), Quaternion.Euler(0, 90, 0));
+                Settle("Market Stage Dressing/S2 totem", forecourt, new Vector3(east - 1.25f, .13f, z), null);
+            }
             if (neighborhood) neighborhood.Apply(next);
             foreach(var renderer in FindObjectsByType<UnityEngine.Tilemaps.TilemapRenderer>())
             {
@@ -222,9 +252,10 @@ namespace Checkout
                 // The service driveway across the north sidewalk only exists once the loading yard is bought.
                 properties.SetFloat("_LoadingAccessEnabled",oldYard?1:0);
                 properties.SetFloat("_GrandYardEnabled",grand?1:0);
-                // The parking bays are drawn on lot C1 or C3 (BuildParking), not painted by the tiles any more.
+                // The parking bays are drawn on lot C1 or C3 (BuildGround), not painted by the tiles any more.
                 properties.SetFloat("_ParkingSpaces",0);
-                properties.SetVector("_ExpansionFeatures",new Vector4(next.storage?1:0,next.parking?1:0,oldYard?1:0,next.premium?1:0));
+                // The tiles' own car park (west of the entrance, from before the lots) stays off: BuildGround draws it.
+                properties.SetVector("_ExpansionFeatures",new Vector4(next.storage?1:0,0,oldYard?1:0,next.premium?1:0));
                 properties.SetVector("_MarketFootprint",new Vector4(center.x,center.z,9.4f*next.widthScale,7.4f*next.depthScale));
                 renderer.SetPropertyBlock(properties);
             }
@@ -234,25 +265,11 @@ namespace Checkout
             var lot = next.stage >= 3 ? CheckoutCityTraffic.ParkingLot.Back : CheckoutCityTraffic.ParkingLot.Front;
             if (lot != CheckoutCityTraffic.Lot && traffic) traffic.ResetVisits();
             CheckoutCityTraffic.Lot = lot;
-            BuildParking(next.parking);
+            BuildGround(next);
             foreach (var detail in premiumDetails) detail.SetActive(next.premium);
             foreach (var detail in storageDetails) detail.SetActive(next.storage && !grand);
-            var grandPath = grand ? world.Find(GrandYard + "/Worker path") : null;
-            if(delivery && grandPath && grandPath.childCount >= 2)
-            {
-                // Trucks unload at the dock of the central warehouse.
-                var path = new Vector3[grandPath.childCount];
-                for (int i = 0; i < path.Length; i++) path[i] = grandPath.GetChild(i).position;
-                delivery.SetDestination(path[0], path);
-            }
-            else if(delivery)
-            {
-                // Before the warehouse is bought, parcels are delivered to the shop's rear door.
-                var doorstep=next.storage?storageDoor:Point(new Vector3(CheckoutInterior.RearDoorX,.74f,6.65f));
-                var rear=Point(new Vector3(CheckoutInterior.RearDoorX,.15f,8.9f));
-                var route=next.storage?deliveryRoute:new[]{doorstep,rear,new Vector3(rear.x,.15f,16.19f),deliveryRoute[2],deliveryRoute[3]};
-                delivery.SetDestination(doorstep,route);
-            }
+            // Where the suppliers' trucks unload and the delivery worker's walk (CheckoutDeliveryTrucks).
+            if (CheckoutDeliveryTrucks.Current) CheckoutDeliveryTrucks.Current.Configure(this, next);
             if (traffic)
             {
                 if (!next.parking) traffic.ResetVisits();
@@ -265,25 +282,135 @@ namespace Checkout
             return true;
         }
 
-        // ------------------------------------------------------------------ parking lot
-        // Asphalt, bay lines and the driveway over the sidewalk of the market's parking lot: lot C1 for the
-        // supermarket (bays along the east edge, in from the avenue), lot C3 for the hypermarket (bays towards
-        // the back of the block, in from the east street). CheckoutCityTraffic drives the cars there.
-        GameObject parkingLot; CheckoutCityTraffic.ParkingLot parkingKind; Material asphalt, stripes;
-        readonly List<GameObject> parkingHidden = new List<GameObject>();
-        void BuildParking(bool show)
+        // ------------------------------------------------------------------ depot
+        // The supermarket's depot stands on lot C2, beside the shop: turned so its stairs face the shop across a
+        // corridor (the clerks come round from the shop's rear ramp) and its roller door faces the truck bay on the
+        // south side of the lot. Later stages without the central warehouse keep it behind the shop, on lot B3.
+        Transform depot; Vector3 depotBasePosition; Quaternion depotBaseRotation;
+        Vector3 doorLocal, doorInLocal = Vector3.back;
+        readonly List<(Transform t, Vector3 p, Quaternion r)> depotFollowers = new List<(Transform, Vector3, Quaternion)>();
+        public const float DepotWest = 7.25f, DepotNorth = 17.9f;
+        /// <summary>Where parcels go into the depot, and the direction one walks in through it.</summary>
+        public Vector3 StorageDoor { get; private set; }
+        public Vector3 StorageFacing { get; private set; } = Vector3.forward;
+        /// <summary>True while the depot stands beside the shop (lot C2) instead of behind it.</summary>
+        public static bool StorageBeside { get; private set; }
+        public Vector3[] SceneDeliveryRoute => deliveryRoute;
+
+        void PlaceDepot(MarketLayout next)
         {
-            if (parkingLot && (!show || parkingKind != CheckoutCityTraffic.Lot))
+            if (!depot) return;
+            bool beside = next.storage && !next.storageLarge && next.stage <= 2;
+            StorageBeside = beside;
+            if (beside)
             {
-                Destroy(parkingLot); parkingLot = null;
-                foreach (var go in parkingHidden) if (go) go.SetActive(true);
-                parkingHidden.Clear();
+                depot.rotation = Quaternion.Euler(0, 90, 0) * depotBaseRotation;
+                depot.position = depotBasePosition;
+                var b = MeshBounds(depot);
+                depot.position += new Vector3(DepotWest - b.min.x, 0, DepotNorth - b.max.z);
             }
-            if (!show || parkingLot) return;
-            parkingKind = CheckoutCityTraffic.Lot;
+            else { depot.rotation = depotBaseRotation; depot.position = depotBasePosition + new Vector3(.9f, 0, 0); }
+            foreach (var f in depotFollowers) if (f.t) f.t.SetPositionAndRotation(depot.TransformPoint(f.p), depot.rotation * f.r);
+            var door = depot.TransformPoint(doorLocal); door.y = storageDoor.y; StorageDoor = door;
+            var into = depot.TransformDirection(doorInLocal); into.y = 0; StorageFacing = into.sqrMagnitude > .01f ? into.normalized : Vector3.forward;
+        }
+
+        // World bounds of a model's meshes, also while it is hidden.
+        static Bounds MeshBounds(Transform root)
+        {
+            bool first = true; var box = new Bounds(root.position, Vector3.zero);
+            foreach (var mf in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                // Only what is drawn (the model carries a few switched-off helper meshes).
+                var renderer = mf.GetComponent<MeshRenderer>();
+                if (!mf.sharedMesh || !renderer || !renderer.enabled || renderer.forceRenderingOff || !mf.gameObject.activeSelf) continue;
+                var b = mf.sharedMesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var c = mf.transform.TransformPoint(new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z));
+                    if (first) { box = new Bounds(c, Vector3.zero); first = false; } else box.Encapsulate(c);
+                }
+            }
+            return box;
+        }
+
+        void Move(string path, Vector3 position) { var t = world.Find(path); if (t) t.position = position; }
+        // A dressing piece put somewhere else than its projected spot: its parts' centre lands on `centre` (turned to
+        // `turn` when given); otherwise it keeps the spot CheckoutStageDressing gave it and its own rotation.
+        readonly Dictionary<Transform, Quaternion> dressingTurns = new Dictionary<Transform, Quaternion>();
+        void Settle(string path, bool moved, Vector3 centre, Quaternion? turn)
+        {
+            var t = world.Find(path); if (!t) return;
+            if (!dressingTurns.ContainsKey(t)) dressingTurns[t] = t.rotation;
+            t.rotation = moved && turn.HasValue ? turn.Value : dressingTurns[t];
+            if (!moved) return;
+            // Mean of the parts' pivots (valid while the piece is still hidden for the construction reveal).
+            var renderers = t.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0) { t.position = centre; return; }
+            var mean = Vector3.zero; foreach (var r in renderers) mean += r.transform.position; mean /= renderers.Length;
+            var shift = centre - mean; shift.y = 0; t.position += shift;
+        }
+
+        // ------------------------------------------------------------------ parking lot and truck yard
+        // Asphalt, bay lines and the driveways over the sidewalks: the supermarket's car park on lot C1 (in from the
+        // avenue, bays on both sides of the aisle) with its depot's truck bay on the south edge of lot C2 (in from the
+        // east street); the hypermarket's car park on lot C3 (in from the east street, bays towards the back of the
+        // block). CheckoutCityTraffic drives the cars, CheckoutDeliveryTrucks the trucks.
+        GameObject parkingLot; string groundKey; Material asphalt, stripes, yellow;
+        readonly List<GameObject> parkingHidden = new List<GameObject>();
+        List<Rect> lotAreas = new List<Rect>();
+        float lotCheck;
+        // Map-design pieces (copies and moved scene objects: a bike rack, a lamp) standing on the car park or a truck
+        // yard wait hidden while it is one. The map design re-applies itself after the layout (stage changes), so
+        // this runs again every second, not only when the ground is rebuilt. Where a piece stands is the mean of its
+        // parts' pivots, which stays valid while it is hidden.
+        void ClearLots()
+        {
+            if (CheckoutMapEditor.Open) return;
+            bool On(Transform t)
+            {
+                var rs = t.GetComponentsInChildren<Renderer>(true);
+                var p = t.position;
+                if (rs.Length > 0) { p = Vector3.zero; foreach (var r in rs) p += r.transform.position; p /= rs.Length; }
+                var q = new Vector2(p.x, p.z);
+                return lotAreas.Exists(r => r.Contains(q));
+            }
+            // Pieces that moved off the lot (the design was reverted) come back.
+            for (int i = parkingHidden.Count - 1; i >= 0; i--)
+            {
+                var go = parkingHidden[i];
+                if (!go) { parkingHidden.RemoveAt(i); continue; }
+                if (!On(go.transform)) { go.SetActive(true); parkingHidden.RemoveAt(i); }
+            }
+            if (lotAreas.Count == 0) return;
+            void Hide(Transform t) { if (t && t.gameObject.activeSelf && On(t)) { t.gameObject.SetActive(false); parkingHidden.Add(t.gameObject); } }
+            var design = CheckoutDesignWorld.Active;
+            if (!design) return;
+            if (design.CloneRoot) foreach (Transform child in design.CloneRoot) Hide(child);
+            foreach (var o in design.Overrides) if (o != null && !o.hidden) Hide(CheckoutMapDesign.Find(o.path));
+        }
+        void LateUpdate()
+        {
+            if (Time.unscaledTime < lotCheck) return;
+            lotCheck = Time.unscaledTime + 1;
+            if (lotAreas.Count > 0 || parkingHidden.Count > 0) ClearLots();
+        }
+        void BuildGround(MarketLayout next)
+        {
+            bool show = next.parking, depotYard = next.storage && !next.storageLarge && next.stage <= 2, grandYard = next.storageLarge;
+            string key = show + ":" + CheckoutCityTraffic.Lot + ":" + depotYard + ":" + grandYard;
+            if (key == groundKey) return;
+            groundKey = key;
+            if (parkingLot) Destroy(parkingLot);
+            parkingLot = null;
+            foreach (var go in parkingHidden) if (go) go.SetActive(true);
+            parkingHidden.Clear();
+            lotAreas = new List<Rect>();
+            if (!show && !depotYard && !grandYard) return;
             parkingLot = new GameObject("Market parking lot"); parkingLot.transform.SetParent(world, false);
             if (!asphalt) { asphalt = new Material(Shader.Find("Standard")) { color = new Color(.25f, .26f, .28f) }; asphalt.SetFloat("_Glossiness", .05f); }
             if (!stripes) { stripes = new Material(Shader.Find("Standard")) { color = new Color(.95f, .94f, .88f) }; stripes.SetFloat("_Glossiness", .05f); }
+            if (!yellow) { yellow = new Material(Shader.Find("Standard")) { color = new Color(.96f, .76f, .2f) }; yellow.SetFloat("_Glossiness", .05f); }
             void Quad(float x0, float z0, float x1, float z1, float y, Material m)
             {
                 var q = GameObject.CreatePrimitive(PrimitiveType.Cube); Destroy(q.GetComponent<Collider>());
@@ -293,13 +420,15 @@ namespace Checkout
                 q.GetComponent<Renderer>().sharedMaterial = m;
             }
             const float ground = .19f, line = .205f, w = .1f;
-            // Map-design decorations standing on the asphalt (a bike rack in a bay) wait while the lot is a car park.
-            var lotArea = parkingKind == CheckoutCityTraffic.ParkingLot.Back ? Rect.MinMaxRect(5.95f, 20.9f, 17.1f, 28.35f) : Rect.MinMaxRect(5.95f, -8.35f, 17.1f, 4.6f);
-            var design = GameObject.Find("Map Design Objects");
-            if (design)
-                foreach (Transform child in design.transform)
-                    if (child.gameObject.activeSelf && lotArea.Contains(new Vector2(child.position.x, child.position.z))) { child.gameObject.SetActive(false); parkingHidden.Add(child.gameObject); }
-            if (parkingKind == CheckoutCityTraffic.ParkingLot.Back)
+            // Map-design decorations standing on the asphalt (a bike rack, a lamp) wait while it is a car park or a yard.
+            var areas = new List<Rect>();
+            if (show) areas.Add(CheckoutCityTraffic.Lot == CheckoutCityTraffic.ParkingLot.Back ? Rect.MinMaxRect(5.95f, 20.9f, 17.1f, 28.35f) : Rect.MinMaxRect(5.95f, -8.35f, 17.1f, 4.6f));
+            if (show && CheckoutCityTraffic.Lot != CheckoutCityTraffic.ParkingLot.Back) areas.Add(Rect.MinMaxRect(9.6f, -12.6f, 12.8f, -8.3f)); // its driveway
+            if (depotYard) areas.Add(Rect.MinMaxRect(5.75f, 4.5f, 17.25f, 18f));
+            if (grandYard) areas.Add(Rect.MinMaxRect(-.5f, 28.3f, 17.25f, 39f));
+            lotAreas = areas;
+            ClearLots();
+            if (show && CheckoutCityTraffic.Lot == CheckoutCityTraffic.ParkingLot.Back)
             {
                 Quad(5.95f, 20.9f, 17.1f, 28.35f, ground, asphalt);
                 Quad(17.1f, 20.6f, 21.3f, 23.4f, ground + .01f, asphalt);          // driveway over the east sidewalk
@@ -310,17 +439,37 @@ namespace Checkout
                 }
                 Quad(5.95f + .3f, 28.1f, 17.1f - .3f, 28.2f, line, stripes);
             }
-            else
+            else if (show)
             {
                 Quad(5.95f, -8.35f, 17.1f, 4.6f, ground, asphalt);
                 Quad(9.9f, -12.5f, 12.5f, -8.35f, ground + .01f, asphalt);         // driveway over the avenue sidewalk
-                for (int i = 0; i < CheckoutCityTraffic.Bays; i++)
+                // Bays on both sides of the aisle (x 11.2), noses towards the lot's edges; the spare one by the
+                // driveway is painted too.
+                var bays = new List<Vector3>();
+                for (int i = 0; i < CheckoutCityTraffic.Bays; i++) bays.Add(CheckoutCityTraffic.Bay(i));
+                bays.Add(new Vector3(CheckoutCityTraffic.FrontWestBayX, 0, CheckoutCityTraffic.BayZ(0)));
+                foreach (var bay in bays)
                 {
-                    float z = CheckoutCityTraffic.BayZ(i);
-                    Quad(13.9f, z - 1.3f - w * .5f, 17.0f, z - 1.3f + w * .5f, line, stripes);
-                    Quad(13.9f, z + 1.3f - w * .5f, 17.0f, z + 1.3f + w * .5f, line, stripes);
-                    Quad(16.95f, z - 1.3f, 17.05f, z + 1.3f, line, stripes);
+                    bool eastRow = bay.x > CheckoutCityTraffic.FrontAisleX;
+                    float x0 = eastRow ? 13.9f : 6.1f, x1 = eastRow ? 17.0f : 9.2f, end = eastRow ? 16.95f : 6.05f;
+                    Quad(x0, bay.z - 1.3f - w * .5f, x1, bay.z - 1.3f + w * .5f, line, stripes);
+                    Quad(x0, bay.z + 1.3f - w * .5f, x1, bay.z + 1.3f + w * .5f, line, stripes);
+                    Quad(end, bay.z - 1.3f, end + w, bay.z + 1.3f, line, stripes);
                 }
+            }
+            if (depotYard)
+            {
+                // The depot's truck bay along the south edge of lot C2, joined to the east street by a driveway.
+                float z0 = CheckoutDeliveryTrucks.DepotDriveZ0, z1 = CheckoutDeliveryTrucks.DepotDriveZ1;
+                Quad(5.95f, show ? 4.6f : z0, 17.1f, z1 + .1f, ground, asphalt);
+                Quad(17.1f, z0, 21.3f, z1, ground + .01f, asphalt);
+                Quad(17.1f, z0, 21.3f, z0 + .1f, line, stripes);
+                Quad(17.1f, z1 - .1f, 21.3f, z1, line, stripes);
+                // Yellow box of the loading bay.
+                float bx0 = CheckoutDeliveryTrucks.DepotRearX - .3f, bx1 = CheckoutDeliveryTrucks.DepotRearX + 6.2f, bz0 = CheckoutDeliveryTrucks.DepotTruckZ - 1.45f, bz1 = CheckoutDeliveryTrucks.DepotTruckZ + 1.45f;
+                Quad(bx0, bz0, bx1, bz0 + w, line, yellow); Quad(bx0, bz1 - w, bx1, bz1, line, yellow);
+                Quad(bx0, bz0, bx0 + w, bz1, line, yellow);
+                for (float x = bx0 + 1.2f; x < bx1 - .6f; x += 1.2f) Quad(x, bz0 + .2f, x + .35f, bz0 + .45f, line, yellow);
             }
         }
 

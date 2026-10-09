@@ -163,7 +163,7 @@ namespace Checkout
             go.transform.position = at;
             // Flat on the ground, turned to read from where the camera looks.
             go.transform.rotation = Quaternion.Euler(90, simulation.view ? simulation.view.transform.eulerAngles.y : 0, 0);
-            var text = go.AddComponent<TextMeshPro>();
+            var text = go.AddComponent<TextMeshPro>(); CheckoutI18nText.Register(text);
             text.font = K.Headline;
             text.text = string.IsNullOrEmpty(tag) ? id : id + "\n<size=45%>" + tag + "</size>";
             text.fontSize = size * 4;

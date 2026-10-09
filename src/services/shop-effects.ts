@@ -1,136 +1,95 @@
+import type { GameShopState, ShopItemEffect } from "@/@types/shop";
+import { shopItems } from "@/data/shop-items";
+
 export type ShopEffects = {
+	/** Customers come this many times as often (the shop's marketing and boosters). */
 	customerArrivalMultiplier: number;
+	/** The era's cap on customers per turn grows by this much too (more people fit in). */
+	customerCapacityMultiplier: number;
 	customerBudgetMultiplier: number;
 	maxProductsBonus: number;
 	offlineRevenueMultiplier: number;
 	productionDurationMultiplier: number;
 	revenueMultiplier: number;
+	/** Extra revenue share per product category (on top of revenueMultiplier). */
+	categoryRevenueBonuses: Record<string, number>;
 	storeReputationBonus: number;
 	restockMultiplier: number;
 	supplierCostMultiplier: number;
 	supplierDurationMultiplier: number;
+	/** The working cashier rings customers up this many times as fast. */
+	cashierSpeedMultiplier: number;
+	/** Self-checkout kiosks, in cashier-efficiency units: they work without a cashier. */
+	selfCheckoutRate: number;
+	/** Customers wait this many times as long in line. */
+	checkoutPatienceMultiplier: number;
 };
 
-const cartBonuses: Record<string, number> = {
-	"large-cart": 5,
-	"simple-cart": 2,
-	"turbo-cart": 8,
-};
+export function createEmptyShopEffects(): ShopEffects {
+	return {
+		customerArrivalMultiplier: 1,
+		customerCapacityMultiplier: 1,
+		customerBudgetMultiplier: 1,
+		maxProductsBonus: 0,
+		offlineRevenueMultiplier: 1,
+		productionDurationMultiplier: 1,
+		revenueMultiplier: 1,
+		categoryRevenueBonuses: {},
+		storeReputationBonus: 0,
+		restockMultiplier: 1,
+		supplierCostMultiplier: 1,
+		supplierDurationMultiplier: 1,
+		cashierSpeedMultiplier: 1,
+		selfCheckoutRate: 0,
+		checkoutPatienceMultiplier: 1,
+	};
+}
 
-const customerBonuses: Record<string, number> = {
-	billboard: 0.2,
-	influencer: 0.8,
-	"national-ad": 1.2,
-	"promotion-panel": 0.15,
-	radio: 0.3,
-	"shopping-basket": 0.1,
-	"street-banner": 0.1,
-	television: 0.5,
-};
+function addEffect(effects: ShopEffects, effect: ShopItemEffect): ShopEffects {
+	const customers = effect.customers ?? 0;
+	const categoryRevenueBonuses = { ...effects.categoryRevenueBonuses };
+	if (effect.categoryRevenue)
+		for (const category of effect.categoryRevenue.categories)
+			categoryRevenueBonuses[category] = (categoryRevenueBonuses[category] ?? 0) + effect.categoryRevenue.bonus;
+	return {
+		...effects,
+		customerArrivalMultiplier: effects.customerArrivalMultiplier + customers,
+		customerCapacityMultiplier: effects.customerCapacityMultiplier + customers,
+		maxProductsBonus: effects.maxProductsBonus + (effect.basketItems ?? 0),
+		offlineRevenueMultiplier: effects.offlineRevenueMultiplier + (effect.offline ?? 0),
+		revenueMultiplier: effects.revenueMultiplier + (effect.revenue ?? 0),
+		categoryRevenueBonuses,
+		storeReputationBonus: effects.storeReputationBonus + (effect.reputation ?? 0),
+		restockMultiplier: effects.restockMultiplier + (effect.restock ?? 0),
+		supplierCostMultiplier: Math.max(0.5, effects.supplierCostMultiplier - (effect.supplierDiscount ?? 0)),
+		supplierDurationMultiplier: effects.supplierDurationMultiplier * (effect.deliveryTime ?? 1),
+		cashierSpeedMultiplier: effects.cashierSpeedMultiplier * (effect.cashierSpeed ?? 1),
+		selfCheckoutRate: effects.selfCheckoutRate + (effect.selfCheckout ?? 0),
+		checkoutPatienceMultiplier: effects.checkoutPatienceMultiplier * (effect.checkoutPatience ?? 1),
+	};
+}
 
-const revenueBonuses: Record<string, number> = {
-	computer: 0.05,
-	"golden-register": 0.15,
-	"legendary-manager": 0.4,
-	"permanent-vip": 0.1,
-	"premium-floor": 0.02,
-	"premium-checkout": 0.25,
-	"refrigerated-fridge": 0.2,
-	"vertical-freezer": 0.3,
-};
+type ShopEffectsSource = Pick<GameShopState, "ownedItemIds"> & Partial<Pick<GameShopState, "activeBoosts">>;
 
-const restockBonuses: Record<string, number> = {
-	"atlas-drone": 1,
-	forklift: 0.35,
-	"inventory-drone": 0.25,
-	"premium-restock-robot": 1,
-	"stock-cart": 0.1,
-	"stock-robot": 0.5,
-};
+/**
+ * Everything the shop does right now: the upgrades owned plus the boosters still running at `now`.
+ * Accepts the shop state (or, for old callers, just the owned ids).
+ */
+export function getShopEffects(shop: ShopEffectsSource | string[], now = Date.now()): ShopEffects {
+	const ownedItemIds = Array.isArray(shop) ? shop : shop.ownedItemIds;
+	const activeBoosts = Array.isArray(shop) ? {} : (shop.activeBoosts ?? {});
+	let effects = createEmptyShopEffects();
+	for (const item of shopItems) {
+		if (!item.effect) continue;
+		const running = item.isConsumable ? (activeBoosts[item.id] ?? 0) > now : ownedItemIds.includes(item.id);
+		if (running) effects = addEffect(effects, item.effect);
+	}
+	return effects;
+}
 
-const arrivalBonuses: Record<string, number> = {
-	"auto-scanner": 0.25,
-	"delivery-truck": 0.2,
-	"face-checkout": 0.35,
-	"promotion-panel": 0.15,
-	"self-checkout": 0.4,
-	"smart-conveyor": 0.15,
-};
-
-const supplierCostBonuses: Record<string, number> = {
-	"distribution-center": -0.15,
-	"erp-system": -0.1,
-	pallet: -0.05,
-};
-
-const supplierDurationBonuses: Record<string, number> = {
-	"delivery-drone": 0.65,
-	"premium-truck": 0.5,
-	"smart-conveyor": 0.9,
-};
-
-const productionDurationBonuses: Record<string, number> = {
-	"golden-register": 0.9,
-};
-
-const reputationBonuses: Record<string, number> = {
-	fountain: 10,
-	garden: 6,
-	plant: 1,
-};
-
-const offlineRevenueBonuses: Record<string, number> = {
-	"ceo-manager": 1.4,
-	"delivery-drone": 1.5,
-};
-
-export function getShopEffects(ownedItemIds: string[]): ShopEffects {
-	return ownedItemIds.reduce<ShopEffects>(
-		(effects, itemId) => {
-			const supplierCostBonus = supplierCostBonuses[itemId] ?? 0;
-			const supplierDurationBonus = supplierDurationBonuses[itemId];
-			const productionDurationBonus = productionDurationBonuses[itemId];
-
-			return {
-				customerArrivalMultiplier:
-					effects.customerArrivalMultiplier +
-					(customerBonuses[itemId] ?? 0) +
-					(arrivalBonuses[itemId] ?? 0),
-				customerBudgetMultiplier: effects.customerBudgetMultiplier,
-				maxProductsBonus: effects.maxProductsBonus + (cartBonuses[itemId] ?? 0),
-				offlineRevenueMultiplier:
-					effects.offlineRevenueMultiplier +
-					(offlineRevenueBonuses[itemId] ?? 0),
-				productionDurationMultiplier:
-					productionDurationBonus === undefined
-						? effects.productionDurationMultiplier
-						: effects.productionDurationMultiplier *
-							(productionDurationBonus ?? 1),
-				revenueMultiplier:
-					effects.revenueMultiplier + (revenueBonuses[itemId] ?? 0),
-				storeReputationBonus:
-					effects.storeReputationBonus + (reputationBonuses[itemId] ?? 0),
-				restockMultiplier:
-					effects.restockMultiplier + (restockBonuses[itemId] ?? 0),
-				supplierCostMultiplier: Math.max(
-					0.35,
-					effects.supplierCostMultiplier + supplierCostBonus,
-				),
-				supplierDurationMultiplier:
-					effects.supplierDurationMultiplier * (supplierDurationBonus ?? 1),
-			};
-		},
-		{
-			customerArrivalMultiplier: 1,
-			customerBudgetMultiplier: 1,
-			maxProductsBonus: 0,
-			offlineRevenueMultiplier: 1,
-			productionDurationMultiplier: 1,
-			revenueMultiplier: 1,
-			storeReputationBonus: 0,
-			restockMultiplier: 1,
-			supplierCostMultiplier: 1,
-			supplierDurationMultiplier: 1,
-		},
-	);
+/** Boosters running at `now`, with the time left (ms). */
+export function getActiveBoosts(shop: Partial<Pick<GameShopState, "activeBoosts">>, now = Date.now()) {
+	return Object.entries(shop.activeBoosts ?? {})
+		.filter(([, endsAt]) => endsAt > now)
+		.map(([id, endsAt]) => ({ id, remainingMs: endsAt - now }));
 }

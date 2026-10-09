@@ -48,6 +48,26 @@ export type GameMarketState = {
 	totalRevenue: number;
 	unitsSold: number;
 	unlockedProductIds: number[];
+	/** Levels gained since the player last saw the level-up celebration (desktop/pages/level-up.ts). */
+	levelUp?: GameLevelUp | null;
+};
+
+/** A conquest waiting to be celebrated on screen (src/services/celebrations.ts). */
+export type GameCelebrationKind = "lot" | "era" | "sector" | "shelf" | "shop";
+export type GameCelebration = {
+	id: string;
+	kind: GameCelebrationKind;
+	/** Lot id, expansion id, sector id, fixture id or shop item id. */
+	targetId: string;
+	at: number;
+};
+
+export type GameLevelUp = {
+	/** Level before the first of these level-ups. */
+	from: number;
+	/** Level reached. */
+	to: number;
+	at: number;
 };
 
 export type GameShiftState = {
@@ -101,11 +121,16 @@ import type {
 	GrantCurrencyPurchaseInput,
 } from "./currency-purchase";
 import type { EmployeeRole, GameEmployeesState } from "./employee";
+import type { DeliveryPackResult, DeliveryState } from "./delivery";
 import type { GameEventsState } from "./game-event";
 import type { InteriorState } from "./interior";
 import type { InteriorConstruction } from "./interior-construction";
 import type { GameInventoryLots, GameShelfLots } from "./inventory-lot";
-import type { LogisticsState, PlaceSupplierOrderInput } from "./logistics";
+import type {
+	LogisticsState,
+	PlaceSupplierCartInput,
+	PlaceSupplierOrderInput,
+} from "./logistics";
 import type {
 	MarketExpansionConstruction,
 	MarketExpansionCurrency,
@@ -185,6 +210,10 @@ export type GameState = {
 	/** Condition 0–100 of each fixture (src/services/shelf-care.ts); missing = spotless. */
 	shelfCare: GameShelfCare;
 	statistics: GameStatistics;
+	/** Conquests still to be celebrated on screen, oldest first. */
+	celebrations?: GameCelebration[];
+	/** The Delivery app: online orders waiting, packed and on their way (src/services/delivery.ts). */
+	delivery: DeliveryState;
 };
 
 /** Condition 0–100 of each physical fixture (shelf or sector counter). */
@@ -196,8 +225,12 @@ export type GameActions = {
 	claimDayResult: () => boolean;
 	closeDay: () => boolean;
 	completeCheckout: (checkoutId: string, charged: number) => boolean;
+	/** The customer's walker reached the register: their basket can be rung up from now. */
+	checkoutArrived: (customerId: string) => boolean;
 	completeOrderFinalStage: (orderId: string) => boolean;
 	claimMission: (missionId: string) => boolean;
+	/** Claims every finished mission at once (the "Resgatar todas" button). */
+	claimAllMissions: () => boolean;
 	deliverOrderInstantly: (orderId: string) => boolean;
 	devAdjustCoins: (amount: number) => void;
 	/** DEV: jump straight to an era (no cost, no obra). */
@@ -249,14 +282,31 @@ export type GameActions = {
 	/** Build mode shop: buys one decoration (it waits in the inventory until placed). */
 	purchaseDecor: (decorId: string, currency?: "coins" | "diamonds") => boolean;
 	fixIncident: (incidentId: string) => boolean;
+	/** Engarrafamento: hand a drink through the window of the driver who asked (src/services/event-interactions.ts). */
+	serveWindowSale: (requestId: string) => boolean;
 	hireEmployee: (role: EmployeeRole) => boolean;
 	grantCurrencyPurchase: (input: GrantCurrencyPurchaseInput) => boolean;
 	placeSupplierOrder: (input: PlaceSupplierOrderInput) => boolean;
+	/** The shop's cart: one truck (one slot) carrying several products, each in boxes (src/services/supplier-cart.ts). */
+	placeSupplierCart: (input: PlaceSupplierCartInput) => boolean;
+	/** One truck with every product that is running out (as many boxes as the truck, room and coins allow). */
+	orderLowStock: () => boolean;
 	processGameEvents: () => boolean;
 	processCheckoutCounter: () => boolean;
 	processMarketDay: () => boolean;
 	processStoreIncidents: () => boolean;
 	processReceiving: () => boolean;
+	/** Delivery app: offers come and expire, packed bags reach the door, motoboys leave and deliver. */
+	processDelivery: (now?: number) => boolean;
+	/** Accepts an offer (a free slot, before it expires); the packing gets 4 minutes. */
+	acceptDeliveryOrder: (orderId: string, now?: number) => boolean;
+	declineDeliveryOrder: (orderId: string) => boolean;
+	/** Packs the bag from the stockroom (missing units allowed) and calls the motoboy. */
+	packDeliveryOrder: (orderId: string, result: DeliveryPackResult, now?: number) => boolean;
+	/** The motoboy at the door takes the bag ("a-caminho"). */
+	handOverDelivery: (orderId: string, now?: number) => boolean;
+	/** DEV: puts a new order in the Delivery app (QA). */
+	devSpawnDeliveryOffer: (now?: number) => boolean;
 	unloadAllDeliveries: () => boolean;
 	unloadDelivery: (deliveryId: string, units?: number) => boolean;
 	processEmployeeWork: () => boolean;
@@ -267,9 +317,14 @@ export type GameActions = {
 	processInventorySpoilage: () => boolean;
 	processSupplierOrders: () => boolean;
 	purchaseShopItem: (itemId: string, currency: ShopCurrency) => boolean;
+	/** Starts one bought booster (Melhorias → Boosters); a running one gets the extra time. */
+	activateShopBooster: (itemId: string) => boolean;
 	processNextCustomer: () => boolean;
 	processSessionResume: () => boolean;
 	dismissOfflineSummary: () => void;
+	/** The player closed the level-up celebration. */
+	dismissLevelUp: () => void;
+	dismissCelebration: (id: string) => void;
 	resetGame: () => void;
 	resolveSpecialRequest: (requestId: string, optionId: string) => boolean;
 	/** Opens a turn; from the Späti on it can be a night turn ("noite"). */
@@ -293,6 +348,8 @@ export type GameActions = {
 	setMarketOpen: (isOpen: boolean) => void;
 	setShelfPrice: (shelfId: string, price: number) => boolean;
 	startProduction: (input: StartProductionInput) => boolean;
+	/** Production made by hand in the kitchen game (stars 1–3; 3 = one extra unit). */
+	cookByHand: (input: { recipeId: string; sectorId: ProductionSectorId; stars: number }) => boolean;
 	upgradeSupplierOrderSlots: (currency: SupplierOrderSlotCurrency) => boolean;
 	upgradeInventoryCapacity: (productId: number) => boolean;
 	expandShelfSlots: (shelfId: string) => boolean;

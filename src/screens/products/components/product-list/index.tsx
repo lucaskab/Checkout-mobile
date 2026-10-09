@@ -15,6 +15,10 @@ import {
 	getOrderRemainingTime,
 	getSupplierOrderStatus,
 } from "@/services/logistics";
+import {
+	getOrderLines,
+	orderIncludesProduct,
+} from "@/services/supplier-cart";
 import { LockedProductCard } from "./components/locked-product-card";
 import { UnlockedProductCard } from "./components/unlocked-product-card";
 
@@ -84,9 +88,14 @@ export function ProductList({
 		const isUnlocked = unlockedProductIds.includes(item.id);
 		const incomingOrder = orders.find(
 			(order) =>
-				order.productId === item.id &&
+				orderIncludesProduct(order, item.id) &&
 				getSupplierOrderStatus(order, currentTime) !== "entregue",
 		);
+		// Units of this product on that truck (the order may carry other products too).
+		const incomingUnits = incomingOrder
+			? getOrderLines(incomingOrder).find((line) => line.productId === item.id)
+					?.quantity
+			: undefined;
 
 		return isUnlocked ? (
 			<UnlockedProductCard
@@ -95,7 +104,7 @@ export function ProductList({
 					item,
 					inventoryCapacityLevels[item.id],
 				)}
-				incomingQuantity={incomingOrder?.quantity}
+				incomingQuantity={incomingUnits}
 				incomingTime={
 					incomingOrder
 						? getOrderRemainingTime(incomingOrder, currentTime)

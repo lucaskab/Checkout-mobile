@@ -5,6 +5,7 @@ import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { getGameEvent } from "@/data/game-events";
 import { getGameEventIcon } from "@/data/game-icon-assets";
+import { getActiveEventEffectLabel } from "@/services/game-events";
 import { useGameStore } from "@/stores/game-store";
 
 export function GameEventBanner() {
@@ -63,7 +64,7 @@ export function GameEventBanner() {
 					<Text style={styles.title}> · {event.name}</Text>
 				</View>
 				<Text numberOfLines={1} style={styles.effect}>
-					{event.effectLabel}
+					{getActiveEventEffectLabel(event, activeEvent)}
 				</Text>
 			</View>
 			<View style={styles.timer}>

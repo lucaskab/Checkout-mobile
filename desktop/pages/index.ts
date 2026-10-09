@@ -6,6 +6,10 @@ import { routes as progress } from "./progress";
 import { routes as production } from "./production";
 import { routes as shelves } from "./shelves";
 import { routes as stock } from "./stock";
+import { routes as stockBoards } from "./stock-boards";
+import { routes as progressBoards } from "./progress-boards";
+import { routes as kitchen } from "./kitchen";
+import { routes as productionBoards } from "./production-boards";
 import { routes as suppliers } from "./suppliers";
 import { routes as upgrades } from "./upgrades";
 
@@ -22,6 +26,11 @@ const all: Routes = {
 	...dev,
 	...day,
 	...loja,
+	// Game windows (layout "board") for the stock, the depot and the deliveries.
+	...stockBoards,
+	...progressBoards,
+	...productionBoards,
+	...kitchen,
 	// Everything that is bought lives in the shop now: the old pages open their shop category.
 	team: (state) => shopPage(state, ["equipe"]),
 	shop: (state, [category]) => shopPage(state, ["melhorias", category ?? ""]),

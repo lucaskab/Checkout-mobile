@@ -1,5 +1,12 @@
 import { gameEvents } from "@/data/game-events";
 import {
+	describeGameEventRequirements,
+	formatEventDuration,
+	getActiveEventEffectLabel,
+	isGameEventAvailable,
+} from "@/services/game-events";
+import { getGameEventContext } from "@/stores/game-store";
+import {
 	formatConstructionCountdown,
 	getMarketExpansion,
 	getMarketExpansionSkipCost,
@@ -138,6 +145,7 @@ const builders: Record<Category, Builder> = {
 	eventos: (state) => {
 		const active = state.events.activeEvent;
 		const now = Date.now();
+		const context = getGameEventContext(state);
 		return devPage(
 			"eventos",
 			gameEvents.map((event) => {
@@ -146,13 +154,20 @@ const builders: Record<Category, Builder> = {
 				const seconds = isActive && active ? Math.ceil((active.endsAt - now) / 1000) : 0;
 				return card(event.name, {
 					eyebrow: isPositive ? "POSITIVO" : "NEGATIVO",
-					subtitle: event.effectLabel,
+					subtitle: isActive ? getActiveEventEffectLabel(event, active) : event.effectLabel,
 					icon: gameIcon(getGameEventIcon(event.id)),
-					badge: isActive ? "ATIVO" : `${event.durationMinutes} min`,
+					badge: isActive ? "ATIVO" : formatEventDuration(event),
 					tone: isActive ? "info" : isPositive ? "success" : "danger",
-					lines: isActive
-						? [`Faltam ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`]
-						: [],
+					// The cheat runs any event; the turns only draw the ones that make sense here.
+					lines: [
+						describeGameEventRequirements(event),
+						isGameEventAvailable(event, context)
+							? "Já pode acontecer no seu mercado"
+							: "Ainda não acontece no seu mercado",
+						...(isActive
+							? [`Faltam ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`]
+							: []),
+					],
 					buttons: [
 						act(isActive ? "Reativar" : "Ativar", "devActivateGameEvent", [event.id], {
 							variant: isPositive ? "success" : "danger",
@@ -259,7 +274,21 @@ const builders: Record<Category, Builder> = {
 					...trucks,
 					act("Remover caminhões de teste", "devClearDock", [], {
 						variant: "secondary",
-						enabled: state.receiving.dock.some((item) => item.orderId.startsWith("dev-")),
+						enabled: state.receiving.dock.some((item) => item.orderId?.startsWith("dev-")),
+					}),
+				],
+			}),
+			card("Delivery", {
+				eyebrow: "PEDIDOS ONLINE",
+				icon: gameIcon("deliveryTruck"),
+				badge: `${state.delivery.orders.filter((order) => order.status === "oferta").length} ofertas`,
+				subtitle: "Libera o delivery (era Minimercado) e gera um pedido novo agora.",
+				buttons: [
+					act("Ir para o Minimercado", "devSetMarketEra", ["minimercado"], { variant: "secondary" }),
+					act("Gerar pedido", "devSpawnDeliveryOffer", [], {
+						variant: "success",
+						ok: "Pedido novo no app Delivery!",
+						fail: "Sem estoque suficiente, loja fechada ou delivery bloqueado.",
 					}),
 				],
 			}),

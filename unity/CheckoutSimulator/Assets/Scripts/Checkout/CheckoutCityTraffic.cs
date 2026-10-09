@@ -85,7 +85,7 @@ namespace Checkout
                 if (delta.magnitude < .06f) { trip.waypoint++; continue; }
                 Vector3 direction = delta.normalized;
                 // Backing out of the bay (nose first in, so the first stretch of the way out is in reverse).
-                bool reverse = trip.phase == Phase.Leaving && Vector3.Distance(car.position, Bay(i)) < BackOut - .05f && trip.waypoint < 12;
+                bool reverse = trip.phase == Phase.Leaving && Vector3.Distance(car.position, Bay(i)) < BackOut(i) - .05f && trip.waypoint < 12;
                 float speed = InLot(car.position) ? 1.6f : 4.2f;
                 // Keep a safe following gap, and yield to customers crossing the parking aisle.
                 bool blocked = false;
@@ -116,6 +116,8 @@ namespace Checkout
                     float ahead=Vector3.Dot(direction,gap);
                     if(ahead>0&&ahead<4.4f&&(gap-direction*ahead).sqrMagnitude<1.6f)blocked=true;
                 }
+                // event vehicles (a bus at its stop, the jam's queues…) are waited for, never crept through
+                if (!reverse && CheckoutEventTraffic.Blocks(car.position+direction*1.9f,direction,2.6f,.9f)) continue;
                 if (CheckoutTrafficJunctions.Hold(car,direction,blocked)) continue;
                 var heading=Quaternion.LookRotation(reverse?-direction:direction);
                 speed*=Mathf.Lerp(.3f,1f,1-Mathf.Clamp01(Quaternion.Angle(car.rotation,heading)/70));
@@ -134,20 +136,22 @@ namespace Checkout
 
         // ------------------------------------------------------------------ the market's parking lot
         // The block is a grid of lots (src/data/market-lots.ts) and the market fills them from the corner on the
-        // left of the avenue. The supermarket's parking lot is C1, the lot on the right of the avenue: bays along
-        // the east edge, an aisle from the avenue. The hypermarket takes C1 for the building, so its parking lot
-        // is C3, behind it: an aisle in from the east street and bays nose-first towards the back of the block.
+        // left of the avenue. The supermarket's parking lot is C1, the lot on the right of the avenue: an aisle in
+        // from the avenue with bays on both sides (its depot's truck bay is on the south edge of C2, just behind).
+        // The hypermarket takes C1 for the building, so its parking lot is C3, behind it: an aisle in from the east
+        // street and bays nose-first towards the back of the block.
         public enum ParkingLot { Front, Back }
         public static ParkingLot Lot { get; set; } = ParkingLot.Front;
-        public static int Bays => Lot == ParkingLot.Back ? 5 : 3;
-        static float BackOut => Lot == ParkingLot.Back ? BackBayZ - BackAisle : FrontBayX - FrontAisle;
+        public static int Bays => 5;
+        static float BackOut(int index) => Lot == ParkingLot.Back ? BackBayZ - BackAisle : Mathf.Abs(Bay(index).x - FrontAisle);
         const float BackAisle = 22f, BackBayZ = 25.9f, FrontAisle = 11.2f, FrontBayX = 16.1f;
+        public const float FrontAisleX = FrontAisle, FrontWestBayX = 7.3f;
         public static float BayZ(int index) => -5.5f + index*4f;
         static float BackBayX(int index) => 7.2f + index * 2.3f;
-        /// <summary>Where the car of bay `index` stands.</summary>
-        public static Vector3 Bay(int index) => Lot == ParkingLot.Back ? P(BackBayX(index), BackBayZ) : P(FrontBayX, BayZ(index));
+        /// <summary>Where the car of bay `index` stands (front lot: three along the east edge, two on the west side).</summary>
+        public static Vector3 Bay(int index) => Lot == ParkingLot.Back ? P(BackBayX(index), BackBayZ) : index < 3 ? P(FrontBayX, BayZ(index)) : P(FrontWestBayX, BayZ(index - 2));
         /// <summary>Where its customer gets out (behind the car in the back lot, beside it in the front one).</summary>
-        public static Vector3 Door(int index) => Lot == ParkingLot.Back ? P(BackBayX(index), BackBayZ - 2.9f) : P(FrontBayX, BayZ(index) - 1.9f);
+        public static Vector3 Door(int index) => Lot == ParkingLot.Back ? P(BackBayX(index), BackBayZ - 2.9f) : Bay(index) + new Vector3(0, 0, -1.9f);
         /// <summary>Walkable strips from the doors to the sidewalk (baked into the navigation).</summary>
         public static IEnumerable<Bounds> WalkStrips()
         {
@@ -155,15 +159,23 @@ namespace Checkout
             {
                 float z = BackBayZ - 2.9f, x0 = BackBayX(0) - .7f, x1 = 19.9f;
                 yield return new Bounds(new Vector3((x0 + x1) * .5f, .05f, z), new Vector3(x1 - x0, .2f, 1.3f));
+                yield break;
             }
-            else for (int bay = 0; bay < Bays; bay++) yield return new Bounds(new Vector3(17.1f, .05f, BayZ(bay) - 1.9f), new Vector3(5.4f, .2f, 1.3f));
+            // From each door across to the aisle, and down the aisle to the avenue sidewalk.
+            for (int bay = 0; bay < Bays; bay++)
+            {
+                var door = Door(bay); float x0 = Mathf.Min(door.x, FrontAisle) - .6f, x1 = Mathf.Max(door.x, FrontAisle) + .6f;
+                yield return new Bounds(new Vector3((x0 + x1) * .5f, .05f, door.z), new Vector3(x1 - x0, .2f, 1.3f));
+            }
+            yield return new Bounds(new Vector3(FrontAisle, .05f, -3.6f), new Vector3(1.3f, .2f, 15.6f));
         }
-        /// <summary>The customer walks from the door to this sidewalk line, then to the corner and the entrance.</summary>
-        public static float WalkX => 19.5f;
-        public static Vector3 Corner => P(19.5f, -11.5f);
+        /// <summary>The customer walks from the door to this line (the aisle, or the east sidewalk for the back lot),
+        /// then to the corner and the entrance.</summary>
+        public static float WalkX => Lot == ParkingLot.Back ? 19.5f : FrontAisle;
+        public static Vector3 Corner => Lot == ParkingLot.Back ? P(19.5f, -11.5f) : P(FrontAisle, -10.6f);
         static bool InLot(Vector3 p) => Lot == ParkingLot.Back
             ? p.x > 5.5f && p.x < 26f && p.z > 19f && p.z < 28.5f
-            : p.x > 9f && p.x < 18.5f && p.z > -14f && p.z < 5f;
+            : p.x > 5.5f && p.x < 18.5f && p.z > -14f && p.z < 5f;
         static Vector3[] ArriveRoute(int i)
         {
             var bay = Bay(i);
@@ -180,7 +192,15 @@ namespace Checkout
             if (Lot == ParkingLot.Back)
                 // Back out into the aisle, right onto the southbound lane, right again into the westbound avenue.
                 return new[] { bay,P(bay.x,BackAisle),P(21f,BackAisle),P(22.4f,BackAisle-2.2f),P(22.4f,-12.4f),P(20f,-14),P(-38,-14) };
-            // Back out into the aisle, then right into the westbound curbside lane of the avenue.
+            // Back out into the aisle, then right into the westbound curbside lane of the avenue; when a market event
+            // blocks that lane (CheckoutEventTraffic) the car keeps to the inner lane past it.
+            if (CheckoutEventTraffic.HasCurbBlock)
+            {
+                float from=CheckoutEventTraffic.BlockFrom,to=CheckoutEventTraffic.BlockTo;
+                if (to+2.2f<8.8f-1f) return new[] { bay,P(FrontAisle,bay.z),P(FrontAisle,-13),P(8.8f,-14),P(to+2.2f,-17),P(from-1f,-17),P(Mathf.Max(from-3.4f,-13.5f),-14),P(-38,-14) };
+                if (to>FrontAisle-1.5f) return new[] { bay,P(FrontAisle,bay.z),P(FrontAisle,-12.9f),P(to+1.2f,-13.2f),P(to+1.2f,-17),P(from-1f,-17),P(Mathf.Max(from-3.4f,-13.5f),-14),P(-38,-14) };
+                return new[] { bay,P(FrontAisle,bay.z),P(FrontAisle,-13),P(FrontAisle-.8f,-17),P(from-1f,-17),P(Mathf.Max(from-3.4f,-13.5f),-14),P(-38,-14) };
+            }
             return new[] { bay,P(FrontAisle,bay.z),P(FrontAisle,-13),P(8.8f,-14),P(-38,-14) };
         }
         static Vector3 P(float x,float z) => new Vector3(x,.15f,z);

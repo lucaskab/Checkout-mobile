@@ -1,5 +1,7 @@
 import type { GameState } from "@/@types/game";
+import { getCaseSize } from "@/data/case-sizes";
 import { getInventoryCapacity } from "@/data/inventory-capacity";
+import { getMaxBoxesPerOrder } from "@/data/supplier-capacity";
 import { itemCatalog } from "@/data/market-products";
 import { getActiveGameEventEffects } from "./game-events";
 import {
@@ -8,23 +10,31 @@ import {
 } from "./logistics";
 import { getSupplierOrderPrice } from "./production";
 import { getShopEffects } from "./shop-effects";
+import { getSupplierIncoming } from "./supplier-cart";
+import { getFreeBoxPlaces } from "./stockroom";
 
+/**
+ * What an order of `boxes` supplier boxes of a product costs and whether it can be placed. Suppliers sell
+ * whole boxes (src/data/case-sizes.ts); the stockroom room and the stock are counted in units.
+ */
 export function getShelfOrderQuote(
 	state: GameState,
 	productId: number,
-	quantity: number,
+	boxes: number,
 	now = Date.now(),
 ) {
 	const product = itemCatalog.find((item) => item.id === productId);
 	if (!product) return null;
+	const caseSize = getCaseSize(product);
+	const units = Math.max(0, Math.floor(boxes)) * caseSize;
 	const event = getActiveGameEventEffects(state.events, now);
-	const shop = getShopEffects(state.shop.ownedItemIds);
+	const shop = getShopEffects(state.shop);
 	const activeOrders = state.logistics.orders.filter(
 		(order) => getSupplierOrderStatus(order, now) !== "entregue",
 	);
-	const incoming = activeOrders
-		.filter((order) => order.productId === productId)
-		.reduce((total, order) => total + order.quantity, 0);
+	// On the way, plus what already waits at the dock to be unloaded (every product of a cart counts).
+	const incoming = getSupplierIncoming(state, productId, now).units;
+	const maxBoxes = getMaxBoxesPerOrder(state.logistics.supplierOrderSlots);
 	const capacity = getInventoryCapacity(
 		product,
 		state.inventoryCapacityLevels[productId],
@@ -33,8 +43,20 @@ export function getShelfOrderQuote(
 		0,
 		capacity - (state.inventory[productId] ?? 0) - incoming,
 	);
+	// Free box places on the stockroom racks, after the stock and what is on the way.
+	const availableBoxes = getFreeBoxPlaces(
+		product,
+		state.inventory[productId] ?? 0,
+		state.inventoryCapacityLevels[productId],
+		incoming,
+	);
+	const boxPrice = Math.ceil(
+		getSupplierOrderPrice(productId, caseSize) *
+			event.supplierCostMultiplier *
+			shop.supplierCostMultiplier,
+	);
 	const total = Math.ceil(
-		getSupplierOrderPrice(productId, quantity) *
+		getSupplierOrderPrice(productId, units) *
 			event.supplierCostMultiplier *
 			shop.supplierCostMultiplier,
 	);
@@ -44,30 +66,46 @@ export function getShelfOrderQuote(
 			shop.supplierDurationMultiplier,
 	);
 	const reason =
-		!Number.isInteger(quantity) || quantity < 1
-			? "Escolha a quantidade."
-			: quantity > availableSpace
+		!Number.isInteger(boxes) || boxes < 1
+			? "Escolha quantas caixas."
+			: boxes > availableBoxes
 				? "Sem espaço suficiente no depósito."
-				: activeOrders.length >= state.logistics.supplierOrderSlots
-					? "Todas as entregas estão ocupadas."
-					: total > state.coins
-						? "Moedas insuficientes."
-						: null;
-	return { total, duration, incoming, availableSpace, capacity, reason };
+				: boxes > maxBoxes
+					? `O caminhão leva no máximo ${maxBoxes} caixas por pedido.`
+					: activeOrders.length >= state.logistics.supplierOrderSlots
+						? "Todas as entregas estão ocupadas."
+						: total > state.coins
+							? "Moedas insuficientes."
+							: null;
+	return {
+		boxes: Math.max(0, Math.floor(boxes)),
+		caseSize,
+		units,
+		boxPrice,
+		total,
+		duration,
+		incoming,
+		availableSpace,
+		availableBoxes,
+		capacity,
+		maxBoxes,
+		reason,
+	};
 }
 
-export function getMaxShelfOrderQuantity(state: GameState, productId: number) {
+/** The most boxes of this product that can be ordered now (room, money and free delivery slots). */
+export function getMaxShelfOrderBoxes(state: GameState, productId: number) {
 	const quote = getShelfOrderQuote(state, productId, 1);
 	if (!quote) return 0;
 
 	let minimum = 0;
-	let maximum = quote.availableSpace;
+	let maximum = quote.availableBoxes;
 	while (minimum < maximum) {
-		const quantity = Math.ceil((minimum + maximum) / 2);
-		if (getShelfOrderQuote(state, productId, quantity)?.reason === null) {
-			minimum = quantity;
+		const boxes = Math.ceil((minimum + maximum) / 2);
+		if (getShelfOrderQuote(state, productId, boxes)?.reason === null) {
+			minimum = boxes;
 		} else {
-			maximum = quantity - 1;
+			maximum = boxes - 1;
 		}
 	}
 

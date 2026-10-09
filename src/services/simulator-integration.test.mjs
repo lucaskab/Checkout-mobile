@@ -100,16 +100,17 @@ test("simulator maps every four system slots to one physical shelf", () => {
 	useGameStore.setState({ unlockedShelfSlots: 7 });
 	expect(countUnlockedShelves()).toBe(2);
 });
-test("System and simulator keep the five-unit capacity and exact supplier order quantity", () => {
+test("System and simulator keep the stockroom boxes and the supplier order in whole boxes", () => {
 	const product = itemCatalog.find((product) => product.id === 1);
-	expect(getInventoryCapacity(product)).toBe(5);
+	// Two boxes of tomatoes to start with (5 per caixote).
+	expect(getInventoryCapacity(product)).toBe(10);
 	const state = useGameStore.getState();
 	useGameStore.setState({ inventory: { ...state.inventory, 1: 0 } });
 	expect(
-		useGameStore.getState().placeSupplierOrder({ productId: 1, quantity: 3 }),
+		useGameStore.getState().placeSupplierOrder({ productId: 1, boxes: 2 }),
 	).toBe(true);
-	expect(useGameStore.getState().logistics.orders[0].quantity).toBe(3);
-	expect(snapshot().orders[0].quantity).toBe(3);
+	expect(useGameStore.getState().logistics.orders[0].quantity).toBe(10);
+	expect(snapshot().orders[0].quantity).toBe(10);
 	expect(snapshot().orders[0].productCategory).toBe(product.category);
 });
 test("simulator receives the same level roadmap and reward status as System", () => {
@@ -120,7 +121,7 @@ test("simulator receives the same level roadmap and reward status as System", ()
 	// Shelves come with the expansions (not levels); the bakery sector with the mercadinho.
 	expect(view.shelves.find((s) => s.id === "bakery").requiredLevel).toBe(1);
 	expect(view.shelves.find((s) => s.id === "bakery").unlocked).toBe(false);
-	expect(view.sectors.find((s) => s.id === "padaria").requiredLevel).toBe(19);
+	expect(view.sectors.find((s) => s.id === "padaria").requiredLevel).toBe(18);
 	expect(view.expansionStates.find((e) => e.id === "fresh-wing")).toEqual(
 		expect.objectContaining({ requiredLevel: 4, unlocked: false }),
 	);

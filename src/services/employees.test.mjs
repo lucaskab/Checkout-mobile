@@ -33,7 +33,8 @@ test("applies only active employee effects", () => {
 	});
 
 	expect(effects).toEqual({
-		customerArrivalMultiplier: 0.92,
+		// The cashier works the till; it no longer slows customers down.
+		customerArrivalMultiplier: 1,
 		restockAmount: 4,
 		storeReputationBonus: 0,
 	});

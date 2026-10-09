@@ -12,6 +12,8 @@ type ItemCardProps = {
 	isLocked: boolean;
 	isOwned: boolean;
 	onPurchase: (item: ShopItemDefinition) => void;
+	/** Boosters: start one of the bought ones. */
+	onUse?: (item: ShopItemDefinition) => void;
 	item: ShopItemDefinition;
 };
 
@@ -31,6 +33,7 @@ export function ItemCard({
 	isOwned,
 	item,
 	onPurchase,
+	onUse,
 }: ItemCardProps) {
 	const quality = getItemQuality(item);
 	const isDiamondPurchase = Boolean(item.diamondPrice);
@@ -97,6 +100,10 @@ export function ItemCard({
 							No inventário: {consumableAmount}
 						</Text>
 					</View>
+				)}
+
+				{item.isConsumable && consumableAmount > 0 && onUse && (
+					<GameButton fullWidth label="Usar agora" onPress={() => onUse(item)} variant="success" />
 				)}
 
 				<GameButton

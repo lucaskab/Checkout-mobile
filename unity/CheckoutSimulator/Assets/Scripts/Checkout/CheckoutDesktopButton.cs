@@ -28,7 +28,7 @@ namespace Checkout {
    button.icon=iconGo.AddComponent<UnityEngine.UI.Image>();button.icon.preserveAspect=true;button.icon.raycastTarget=false;
    var iconLayout=iconGo.AddComponent<UnityEngine.UI.LayoutElement>();iconLayout.preferredWidth=iconLayout.preferredHeight=Mathf.Round(height*(stacked?.45f:.5f));
    var labelGo=new GameObject("Label",typeof(RectTransform));labelGo.transform.SetParent(faceGo.transform,false);
-   button.label=labelGo.AddComponent<TextMeshProUGUI>();button.label.font=K.Label;button.label.fontSize=fontSize;button.label.alignment=TextAlignmentOptions.Center;
+   button.label=labelGo.AddComponent<TextMeshProUGUI>();button.label.font=K.Label;button.label.fontSize=fontSize;button.label.alignment=TextAlignmentOptions.Center;CheckoutI18nText.Register(button.label);
    button.label.textWrappingMode=TextWrappingModes.NoWrap;button.label.overflowMode=TextOverflowModes.Ellipsis;button.label.raycastTarget=false;
    button.Layout();return button;
   }

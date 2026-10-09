@@ -155,9 +155,22 @@ namespace Checkout
             }
             else if (s.storage)
             {
-                var d = delivery && delivery.storageDoor ? delivery.storageDoor.position : new Vector3(-1.65f, Yard, 16.72f);
-                storageFace = new Vector3(d.x, Yard, d.z + 1); storageSpot = new Vector3(d.x, Yard, d.z - .5f);
+                // The depot's door (CheckoutMarketLayout.PlaceDepot): behind the shop it faces the ramp, beside the
+                // shop (supermarket, lot C2) it faces the corridor between them.
+                var d = layout.StorageDoor; var into = layout.StorageFacing;
+                storageFace = new Vector3(d.x + into.x, Yard, d.z + into.z); storageSpot = new Vector3(d.x - into.x * .5f, Yard, d.z - into.z * .5f);
                 approach = storageSpot;
+                if (CheckoutMarketLayout.StorageBeside)
+                {
+                    // Out of the ramp, along the back of the shop (still on its own lots) and down the corridor.
+                    float back = Mathf.Min(RampFoot.z + .45f, CheckoutMarketLayout.DepotNorth - .2f);
+                    float lane = storageSpot.x - .1f;
+                    var path = new List<Vector3> { RampFoot, new Vector3(DoorX, Yard, back), new Vector3(lane, Yard, back), new Vector3(lane, Yard, storageSpot.z + 1.2f), storageSpot };
+                    walkPoints.Clear(); walkPoints.AddRange(Resample(Chaikin(path, 3), .3f));
+                    yardRoute.Clear(); yardRoute.AddRange(walkPoints.Skip(1)); yardRoute.AddRange(stairs);
+                    BuildWalkway();
+                    return;
+                }
             }
             else if (pallet)
             {

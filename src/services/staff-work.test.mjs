@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { getShiftSalary } from "./employees.ts";
 import { createStoreIncidentsState, MAX_DIRT, spawnFloorDirt } from "./store-incidents.ts";
 import {
 	getRestockTripMs,
@@ -108,7 +109,7 @@ test("trained staff are faster, and the shift payroll counts only who worked", (
 	expect(getRestockTripMs({ ...clerk, efficiency: 4 }, "warehouse")).toBeLessThan(
 		getRestockTripMs(clerk, "warehouse"),
 	);
-	expect(getShiftPayroll([clerk, cleaner, { ...cleaner, id: "x", isWorking: false }])).toBe(460);
+	expect(getShiftPayroll([clerk, cleaner, { ...cleaner, id: "x", isWorking: false }])).toBe(getShiftSalary(240) + getShiftSalary(220));
 });
 
 test("dirt piles up on its own pace, up to MAX_DIRT spots, only while open", () => {

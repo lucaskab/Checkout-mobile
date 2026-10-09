@@ -39,24 +39,57 @@ namespace Checkout {
    var holder=Group(parent,model,p);holder.gameObject.layer=2;holder.localRotation=Quaternion.Euler(0,yaw,0);holder.localScale=Vector3.one*scale;
    var prefab=Resources.Load<GameObject>("EventProps2/"+model);if(!prefab){Debug.LogWarning("CHECKOUT_EVENT_PROP_MISSING "+model);return holder;}
    var go=Object.Instantiate(prefab,holder,false);go.name=model+" model";
-   var key=model+"|"+tint;
-   if(!bakedProps.TryGetValue(key,out var material)||!material){
-    material=new Material(Shader.Find("Standard")){name=model+" (baked)"};var tex=Resources.Load<Texture2D>("EventProps2/"+model+"_BaseColor");
-    if(tex)material.mainTexture=tex;material.color=string.IsNullOrEmpty(tint)?Color.white:MarketSimulation.C(tint);
-    material.SetFloat("_Glossiness",.12f);material.SetFloat("_Metallic",0);bakedProps[key]=material;}
+   var material=Baked(model,tint);
    foreach(var t in go.GetComponentsInChildren<Transform>(true))t.gameObject.layer=2;
    foreach(var c in go.GetComponentsInChildren<Collider>(true))Object.Destroy(c);
    foreach(var r in go.GetComponentsInChildren<Renderer>(true)){var shared=r.sharedMaterials;for(int i=0;i<shared.Length;i++)shared[i]=material;r.sharedMaterials=shared;r.shadowCastingMode=ShadowCastingMode.On;}
    return holder;}
 
+  public Material Baked(string model,string tint=null){
+   var key=model+"|"+tint;
+   if(!bakedProps.TryGetValue(key,out var material)||!material){
+    material=new Material(Shader.Find("Standard")){name=model+" (baked)"};var tex=Resources.Load<Texture2D>("EventProps2/"+model+"_BaseColor");
+    if(tex)material.mainTexture=tex;material.color=string.IsNullOrEmpty(tint)?Color.white:MarketSimulation.C(tint);
+    material.SetFloat("_Glossiness",.12f);material.SetFloat("_Metallic",0);bakedProps[key]=material;}
+   return material;}
+
+  // Rigged event props (Resources/EventRigs, built by ArtSource/event_rigs): the parts are named "<Prop>__<part>" and
+  // keep the UVs of that prop's baked atlas; the legacy Animation plays the rig's clips ("Dig", "Spin", "Wind"...).
+  public Transform Rig(Transform parent,string rig,Vector3 p,float yaw=0,float scale=1,string clip=null,float speed=1){
+   var holder=Group(parent,rig,p);holder.gameObject.layer=2;holder.localRotation=Quaternion.Euler(0,yaw,0);holder.localScale=Vector3.one*scale;
+   var prefab=Resources.Load<GameObject>("EventRigs/"+rig);if(!prefab){Debug.LogWarning("CHECKOUT_EVENT_RIG_MISSING "+rig);return holder;}
+   var go=Object.Instantiate(prefab,holder,false);go.name=rig+" model";
+   foreach(var t in go.GetComponentsInChildren<Transform>(true))t.gameObject.layer=2;
+   foreach(var c in go.GetComponentsInChildren<Collider>(true))Object.Destroy(c);
+   foreach(var r in go.GetComponentsInChildren<Renderer>(true)){
+    var name=r.gameObject.name;int cut=name.IndexOf("__");var prop=cut>0?name.Substring(0,cut):rig;var part=cut>0?name.Substring(cut+2):"";
+    var material=part.StartsWith("Dirt")?Material("6B4A2E"):Baked(prop);
+    var shared=r.sharedMaterials;if(shared.Length==0)shared=new Material[1];for(int i=0;i<shared.Length;i++)shared[i]=material;r.sharedMaterials=shared;r.shadowCastingMode=ShadowCastingMode.On;
+    if(r is SkinnedMeshRenderer skinned)skinned.updateWhenOffscreen=true;}
+   var anim=go.GetComponentInChildren<Animation>(true);
+   if(anim){anim.playAutomatically=false;anim.cullingType=AnimationCullingType.AlwaysAnimate;anim.Stop();if(!string.IsNullOrEmpty(clip))PlayClip(anim,clip,WrapMode.Loop,speed);}
+   return holder;}
+  public static Animation RigAnimation(Transform rig)=>rig?rig.GetComponentInChildren<Animation>(true):null;
+  public static AnimationState ClipState(Animation anim,string clip){if(!anim)return null;foreach(AnimationState s in anim)if(s.name==clip||s.name.EndsWith("|"+clip))return s;return null;}
+  // Plays a clip of a rig (by its take name, with or without the "Armature|" prefix).
+  public static AnimationState PlayClip(Animation anim,string clip,WrapMode wrap=WrapMode.Loop,float speed=1,float time=0){var s=ClipState(anim,clip);if(s==null){Debug.LogWarning("CHECKOUT_EVENT_CLIP_MISSING "+clip);return null;}s.wrapMode=wrap;s.speed=speed;s.time=time;anim.Play(s.name);return s;}
+  public static Transform Bone(Transform rig,string name){if(!rig)return null;foreach(var t in rig.GetComponentsInChildren<Transform>(true))if(t.name==name)return t;return null;}
   // A live copy of one of the market's rigged characters, looping one of its Blender clips.
-  public Transform Actor(Transform parent,string source,Vector3 p,float yaw,string clip="Idle",float speed=1){
+  // `move` (optional) is an event move from EventRigs/EventMoves played over the character's own clip (CheckoutEventMoves).
+  public Transform Actor(Transform parent,string source,Vector3 p,float yaw,string clip="Idle",float speed=1,string move=null,float moveOffset=-1){
    var holder=Group(parent,"Event actor "+source,p);holder.localRotation=Quaternion.Euler(0,yaw,0);
    var world=Object.FindAnyObjectByType<MarketSimulation>();var root=world&&world.world?world.world.Find(source):null;
    // The simulation renames the stocker to StockWorker_0 when it spawns the stock team.
    if(!root&&world&&world.world&&source=="Worker_Stocker")foreach(var alt in new[]{"StockWorker_0","Worker_Delivery","Worker_Cashier"}){root=world.world.Find(alt);if(root)break;}
    if(!root){foreach(var a in Object.FindObjectsByType<MarketCharacterAnimator>(FindObjectsInactive.Include))if(a.name==source){root=a.transform;break;}}
    if(!root){Debug.LogWarning("CHECKOUT_EVENT_ACTOR_MISSING "+source);return holder;}
+   return Dress(holder,root,clip,speed,move,moveOffset);}
+  // The same from a given character (one of the city's appearance templates, so every person looks different).
+  public Transform Actor(Transform parent,Transform source,Vector3 p,float yaw,string clip="Idle",float speed=1,string move=null,float moveOffset=-1){
+   var holder=Group(parent,"Event actor "+(source?source.name:"?"),p);holder.localRotation=Quaternion.Euler(0,yaw,0);
+   if(!source){Debug.LogWarning("CHECKOUT_EVENT_ACTOR_MISSING (null)");return holder;}
+   return Dress(holder,source,clip,speed,move,moveOffset);}
+  Transform Dress(Transform holder,Transform root,string clip,float speed,string move,float moveOffset){
    var animator=root.GetComponent<MarketCharacterAnimator>();var player=animator&&animator.animationPlayer?animator.animationPlayer:root.GetComponentInChildren<Animation>(true);
    var visual=player?player.gameObject:root.gameObject;
    bool wasActive=holder.gameObject.activeSelf;holder.gameObject.SetActive(false);
@@ -65,12 +98,16 @@ namespace Checkout {
    foreach(var n in clone.GetComponentsInChildren<UnityEngine.AI.NavMeshAgent>(true))Object.DestroyImmediate(n);
    foreach(var c in clone.GetComponentsInChildren<Collider>(true))Object.DestroyImmediate(c);
    foreach(var t in clone.GetComponentsInChildren<Transform>(true)){t.gameObject.layer=2;if(t.name=="Handled purchase")t.gameObject.SetActive(false);}
+   // the rig's own skinned props (the red shopping basket) stay hidden, as CheckoutShopperRig does
+   foreach(var r in clone.GetComponentsInChildren<Renderer>(true))if(r.name.EndsWith("_Prop"))r.forceRenderingOff=true;
    clone.transform.localPosition=visual==root.gameObject?Vector3.zero:Quaternion.Inverse(root.rotation)*(visual.transform.position-root.position);
    clone.transform.localRotation=visual==root.gameObject?Quaternion.identity:Quaternion.Inverse(root.rotation)*visual.transform.rotation;
    clone.transform.localScale=visual.transform.lossyScale;clone.SetActive(true);
    foreach(var r in clone.GetComponentsInChildren<Renderer>(true))r.enabled=true;
    var anim=clone.GetComponent<Animation>();if(!anim)anim=clone.GetComponentInChildren<Animation>(true);
-   if(anim){anim.enabled=true;anim.cullingType=AnimationCullingType.AlwaysAnimate;var state=anim[clip]??anim["Idle"];if(state){state.wrapMode=WrapMode.Loop;state.speed=speed;state.time=Random.value*state.length;anim.Play(state.name);}}
+   if(anim){anim.enabled=true;anim.cullingType=AnimationCullingType.AlwaysAnimate;var state=anim[clip]??anim["Idle"];if(state){state.wrapMode=WrapMode.Loop;state.speed=speed;state.time=Random.value*state.length;anim.Play(state.name);}
+    foreach(var skin in clone.GetComponentsInChildren<SkinnedMeshRenderer>(true))skin.updateWhenOffscreen=true;
+    if(!string.IsNullOrEmpty(move))CheckoutEventMoves.Play(anim.gameObject,move,1,moveOffset<0?Random.value:moveOffset);}
    holder.gameObject.SetActive(wasActive);return holder;}
 
   // Primitive helpers (still used for tiny accents and fallbacks).

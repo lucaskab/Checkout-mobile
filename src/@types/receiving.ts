@@ -5,9 +5,12 @@ export type WarehouseZone = "refrigerados" | "bebidas" | "hortifruti" | "mercear
 
 export type DockDelivery = {
 	arrivedAt: number;
+	/** Units in each supplier box (src/data/case-sizes.ts); missing on deliveries from before boxes. */
+	caseSize?: number;
 	category: string;
 	id: string;
-	orderId: string;
+	/** The supplier order whose truck brought this product (missing on older deliveries). */
+	orderId?: string;
 	productId: number;
 	productName: string;
 	quantity: number;

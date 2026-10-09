@@ -38,6 +38,10 @@ namespace Checkout {
   public bool Special(string id)=>id!=null&&id.StartsWith("sector-");
   // Hired stock clerks and cleaners (CheckoutStaff) and the Staff Kit templates they and the incidents use.
   public CheckoutStaff Staff {get;private set;}
+  // The boosters running now (Melhorias → Boosters) seen in the market: auras, party lights, sale tags.
+  public CheckoutBoostFx Boosts {get;private set;}
+  // Over every shelf in use: where the sale tags of Liquidação Relâmpago hang.
+  public IEnumerable<Vector3> BoostShelfPoints(){if(state?.shelves==null)yield break;foreach(var shelf in state.shelves){if(!shelf.unlocked)continue;if(StallCrate(shelf.id)){yield return CheckoutStall.Crate(shelf.id)+Vector3.up*1.1f;continue;}if(markers.TryGetValue(shelf.id,out var m)&&m&&m.gameObject.activeInHierarchy){yield return m.transform.position;continue;}if(Piece(shelf.id)!=null)yield return MarkerPoint(shelf.id,1.35f);}}
   public Transform StaffTemplate(string name)=>world?world.Find("Staff Kit/"+name):null;
   public void SaveInterior(){if(bridge&&Interior)bridge.Command("saveInteriorLayout","["+Interior.ExportJson()+"]");}
   // The map design ("Modo edição"): moved/hidden/added scene objects and the painted ground.
@@ -50,9 +54,14 @@ namespace Checkout {
    foreach(var old in world.GetComponentsInChildren<DepartmentTarget>())old.gameObject.SetActive(false);
    teal=Mat("2E8CAE");
    foreach(var pair in fixtures){markers[pair.Key]=Marker(pair.Key,Fixture(pair.Key)+Vector3.up*1.35f);Target(Fixture(pair.Key),new Vector3(1.4f,2,1.1f),"store",pair.Key);}
+   // The city carries on past the map and fades into the sky (before the events read the sky colour).
+   Horizon=gameObject.AddComponent<CheckoutCityHorizon>();Horizon.Initialize(world);
    events=gameObject.AddComponent<CheckoutEventVisuals>();events.Initialize();
    Staff=gameObject.AddComponent<CheckoutStaff>();Staff.Initialize(world,this);
+   Boosts=gameObject.AddComponent<CheckoutBoostFx>();Boosts.Initialize(world,this);
    foreach(Transform t in world)if(t.name.StartsWith("Anim_Truck")){homes[t.name]=t.position;truckRotations[t.name]=t.rotation;t.gameObject.SetActive(false);}deliveryWorker=world.GetComponentInChildren<MarketDeliveryWorker>(true);
+   // Where the suppliers' trucks unload for each layout and how they drive there (the market layout configures it).
+   Trucks=gameObject.AddComponent<CheckoutDeliveryTrucks>();Trucks.Initialize(world,deliveryWorker,()=>Entrance);
    Target(P(3,18),new Vector3(8,5,4),"suppliers");Target(P(-3.9f,-4.7f),new Vector3(3,2,1.7f),"checkout"); // The register opens the playable checkout.
   }
   // Timelapse building site when a paid expansion grows the shop or builds the central warehouse.
@@ -96,7 +105,9 @@ namespace Checkout {
    float cx0=walls.max.x+.5f,cx1=grown.max.x-.4f;if(cx1-cx0<1.2f){cx0=walls.max.x+.5f;cx1=east-.6f;}
    plan.crewArea=new Bounds(F((cx0+cx1)*.5f,(front+1f+grown.max.z-.6f)*.5f),F(cx1-cx0,grown.max.z-.6f-front-1f));
    site.Show(plan);}
-  public void Apply(Snapshot next){bool editor=CheckoutMapEditor.Open;if(editor)next.layout=CheckoutMapDesign.LayoutFor(CheckoutMapEditor.Stage,CheckoutMapEditor.Warehouse);bool newSession=state==null||state.session!=next.session;bool animateSectors=!newSession; if(newSession)dispatchedDeliveryOrders.Clear();bool navigationChanged=state==null||!next.shelves.Select(s=>s.unlocked).SequenceEqual(state.shelves.Select(s=>s.unlocked))||!next.sectors.Select(s=>s.unlocked).SequenceEqual(state.sectors.Select(s=>s.unlocked));state=next;var previousLayout=layout.State;bool grow=!editor&&!newSession&&next.layout!=null&&next.layout.stage>previousLayout.stage;bool warehouseBuilt=!editor&&!newSession&&next.layout!=null&&next.layout.storageLarge&&!previousLayout.storageLarge;layout.holdNewDressing=grow;bool resized=layout.Apply(next.layout);if(layout.State.storageLarge!=grandBays){grandBays=layout.State.storageLarge;SwitchTruckBays(grandBays);}if(grow||warehouseBuilt)PlayConstruction(grow);
+  public void Apply(Snapshot next){bool editor=CheckoutMapEditor.Open;if(editor)next.layout=CheckoutMapDesign.LayoutFor(CheckoutMapEditor.Stage,CheckoutMapEditor.Warehouse);bool newSession=state==null||state.session!=next.session;bool animateSectors=!newSession; if(newSession)dispatchedDeliveryOrders.Clear();bool navigationChanged=state==null||!next.shelves.Select(s=>s.unlocked).SequenceEqual(state.shelves.Select(s=>s.unlocked))||!next.sectors.Select(s=>s.unlocked).SequenceEqual(state.sectors.Select(s=>s.unlocked));state=next;var previousLayout=layout.State;bool grow=!editor&&!newSession&&next.layout!=null&&next.layout.stage>previousLayout.stage;bool warehouseBuilt=!editor&&!newSession&&next.layout!=null&&next.layout.storageLarge&&!previousLayout.storageLarge;layout.holdNewDressing=grow;bool resized=layout.Apply(next.layout);if(grow||warehouseBuilt)PlayConstruction(grow);
+   // The suppliers panel opens from the yard where the trucks unload.
+   foreach(var key in targets.Keys)if(key&&Trucks&&key.GetComponent<CheckoutTarget>()?.panel=="suppliers")key.position=Trucks.SuppliersSpot;
    if(resized)foreach(var actor in staff.Values){var home=homes[actor.name];var original=CheckoutMarketLayout.Unproject(home,previousLayout);homes[actor.name]=Point(original);actor.position=homes[actor.name];}world.GetComponentInChildren<CheckoutShelfSlots>()?.Apply(next.shelves);
    bool furnitureMoved=Furnished&&Interior.Apply(next);
    // A wing bought in this session: the pieces move to the map design made for the bigger shop.
@@ -123,15 +134,15 @@ namespace Checkout {
    }
    // Stock clerks and cleaners are played by CheckoutStaff from the app's task timeline.
    Staff.Apply(next);
-   foreach(string id in next.ownedItems)if(id!=CheckoutLanes.ExtraItem&&id!=CheckoutLanes.SelfItem&&!decorations.ContainsKey("shop-"+id)){int i=decorations.Keys.Count(k=>k.StartsWith("shop-"));var item=Box("Upgrade "+id,new Vector3(-8.2f,1.25f,3.6f-i*.45f),new Vector3(.32f,.6f,.32f),teal);decorations["shop-"+id]=item;}
-   foreach(var pair in decorations.Where(p=>p.Key.StartsWith("shop-")))pair.Value.SetActive(next.ownedItems.Contains(pair.Key.Substring(5)));
+   if(Boosts)Boosts.Apply(next.boosts);
+   // Shop upgrades (Melhorias) are effects, not objects: only the extra checkout and the kiosks show up (CheckoutLanes).
    foreach(var pair in targets){var target=pair.Key.GetComponent<CheckoutTarget>();if(Furnished&&(target.panel=="store"||target.panel=="sectors"||target.panel=="checkout")){pair.Key.gameObject.SetActive(false);continue;}if(!string.IsNullOrEmpty(target.sectorId)){pair.Key.gameObject.SetActive(layout.HasSector(target.sectorId));pair.Key.position=SectorPosition("sector-"+target.sectorId);}else if(pair.Value.z<8&&Mathf.Abs(pair.Value.x)<10)pair.Key.position=target.panel=="checkout"?CheckoutPoint(pair.Value):Point(pair.Value);}
    if(Lanes.Apply(next.ownedItems))navigationChanged=true;Lanes.Rebase(layout.State);
    // The register is the player's until a cashier is hired: the operator only stands there while one works
-   // (the second checkout needs a second cashier).
+   // (the second checkout opens with the same cashier on staff: the Caixa Extra upgrade).
    int cashiers=next.employees?.Count(e=>e.role=="cashier"&&e.isWorking)??0;
    var mainCashier=world.Find("Worker_Cashier");if(mainCashier)mainCashier.gameObject.SetActive(next.isOpen&&cashiers>0);
-   var extraCashier=world.Find("Worker_Cashier 2");if(extraCashier)extraCashier.gameObject.SetActive(next.isOpen&&cashiers>1&&next.ownedItems!=null&&next.ownedItems.Contains(CheckoutLanes.ExtraItem));
+   var extraCashier=world.Find("Worker_Cashier 2");if(extraCashier)extraCashier.gameObject.SetActive(next.isOpen&&cashiers>0&&next.ownedItems!=null&&next.ownedItems.Contains(CheckoutLanes.ExtraItem));
    if(Furnished&&(furnitureMoved||resized||newSession||staff.Count!=placedClerks))PlaceClerks();
    if(resized||navigationChanged||furnitureMoved){FindAnyObjectByType<MarketSimulation>().RebuildLayoutNavigation(layout.State);foreach(var walker in FindObjectsByType<CheckoutWalker>(FindObjectsInactive.Include)){walker.RebaseLayout(previousLayout,layout.State);if(furnitureMoved)walker.FurnitureMoved();}}
    events.Apply(next.@event);
@@ -159,14 +170,18 @@ namespace Checkout {
   public float ServeCustomer(Customer customer){var cashier=world.Find("Worker_Cashier").GetComponent<CheckoutCashier>();return cashier?cashier.Serve(customer.purchases?.Sum(p=>p.quantity)??1):2f;}
   void Update(){if(state==null)return;workClock+=Time.deltaTime;
    foreach(var sector in state.sectors)if(sector.unlocked&&sector.jobs>0&&Mathf.FloorToInt(workClock)!=Mathf.FloorToInt(workClock-Time.deltaTime)&&Mathf.FloorToInt(workClock)%3==0){string name=sector.id=="padaria"?"Worker_Baker":sector.id=="queijaria"?"Worker_Cheesemaker":sector.id=="acougue"?"Worker_Butcher":sector.id=="peixaria"?"Worker_Fishmonger":"";var worker=string.IsNullOrEmpty(name)?null:world.Find(name);if(worker&&worker.gameObject.activeSelf)worker.GetComponent<MarketCharacterAnimator>()?.Perform("BuyAtSpecialSector");}
-   if(!CheckoutStall.Small)UpdateSupplierDeliveries();
+   if(!CheckoutStall.Small)UpdateSupplierDeliveries();else if(Trucks)Trucks.ReleaseAll();
   }
-  void UpdateSupplierDeliveries(){var claimed=new HashSet<Transform>();var docked=new HashSet<string>((state.dock??System.Array.Empty<DockEntry>()).Select(d=>d.id));foreach(var order in state.orders.Where(order=>order.status=="em-transporte"||docked.Contains("entrega-"+order.id)).OrderBy(order=>order.createdAt)){var truck=TruckFor(order,claimed);if(!truck||!homes.TryGetValue(truck.name,out var home))continue;claimed.Add(truck);if(!truck.gameObject.activeSelf){truck.position=home+truck.forward*9f;truck.rotation=truckRotations[truck.name];truck.gameObject.SetActive(true);}
-   truck.rotation=Quaternion.RotateTowards(truck.rotation,truckRotations[truck.name],Time.deltaTime*180);truck.position=Vector3.MoveTowards(truck.position,home,Time.deltaTime*3.25f);
-   if(Vector3.Distance(truck.position,home)<.04f&&dispatchedDeliveryOrders.Add(order.id))deliveryWorker?.QueueDelivery(truck,home,order.createdAt+order.deliveryDurationMs);
-   DockClick(truck,docked.Contains("entrega-"+order.id)&&Vector3.Distance(truck.position,home)<.1f);
+  // A truck per order on its way (by category): it drives in from the street onto its bay (CheckoutDeliveryTrucks),
+  // the delivery worker unloads it, and once the order is in it drives off again.
+  public CheckoutDeliveryTrucks Trucks {get;private set;}
+  public CheckoutCityHorizon Horizon {get;private set;}
+  void UpdateSupplierDeliveries(){if(!Trucks)return;var claimed=new HashSet<Transform>();var docked=new HashSet<string>((state.dock??System.Array.Empty<DockEntry>()).Select(d=>d.id));foreach(var order in state.orders.Where(order=>order.status=="em-transporte"||docked.Contains("entrega-"+order.id)).OrderBy(order=>order.createdAt)){var truck=TruckFor(order,claimed);if(!truck)continue;claimed.Add(truck);
+   bool atBay=Trucks.Arrive(truck);
+   if(atBay&&dispatchedDeliveryOrders.Add(order.id))deliveryWorker?.QueueDelivery(truck,Trucks.Home(truck),order.createdAt+order.deliveryDurationMs);
+   DockClick(truck,docked.Contains("entrega-"+order.id)&&atBay);
   }
-   foreach(var pair in homes){var truck=world.Find(pair.Key);if(!truck||claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck)))continue;truck.gameObject.SetActive(false);}
+   foreach(var truck in Trucks.All){if(claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck)))continue;Trucks.Release(truck);}
   }
   // A truck parked with goods still to unload can be clicked to open the unloading mini-game.
   static void DockClick(Transform truck,bool on){
@@ -174,12 +189,6 @@ namespace Checkout {
    if(on&&!click){var go=new GameObject("DockClick");go.transform.SetParent(truck,false);var box=go.AddComponent<BoxCollider>();var s=truck.lossyScale;box.size=new Vector3(3.2f/Mathf.Max(.01f,s.x),3.4f/Mathf.Max(.01f,s.y),7f/Mathf.Max(.01f,s.z));box.center=new Vector3(0,box.size.y*.5f,0);go.AddComponent<CheckoutTarget>().panel="dock";click=go.transform;}
    if(click)click.gameObject.SetActive(on);
   }
-  // With the central warehouse bought the trucks park in its yard (bays placed by the Central Park builder).
-  bool grandBays;readonly Dictionary<string,Vector3> baseTruckHomes=new Dictionary<string,Vector3>();readonly Dictionary<string,Quaternion> baseTruckRotations=new Dictionary<string,Quaternion>();
-  void SwitchTruckBays(bool grand){foreach(var name in truckRotations.Keys.ToArray()){if(!baseTruckHomes.ContainsKey(name)){baseTruckHomes[name]=homes[name];baseTruckRotations[name]=truckRotations[name];}var bay=grand?world.Find(CheckoutMarketLayout.GrandYard+"/Bays/"+name):null;
-   // The bay markers were saved with the truck's pivot height doubled (trucks floated 1.4 m up): keep the truck's own
-   // height on the yard and back it up to a hand's width from the dock shelter.
-   homes[name]=bay?new Vector3(bay.position.x+.2f,baseTruckHomes[name].y,bay.position.z):baseTruckHomes[name];truckRotations[name]=bay?bay.rotation:baseTruckRotations[name];var truck=world.Find(name);if(truck&&!truck.gameObject.activeSelf){truck.position=homes[name];truck.rotation=truckRotations[name];}}}
   Transform TruckFor(Order order,HashSet<Transform> claimed){string name=order.productCategory=="peixes"?"Anim_Truck_8":order.productCategory=="congelados"?"Anim_Truck_11":"Anim_Truck_5";var truck=world.Find(name);return truck&&!claimed.Contains(truck)?truck:null;}
   void OnDestroy(){markerArt.Dispose();if(teal)Destroy(teal);}
   Material Mat(string hex){var mat=new Material(Shader.Find("Standard"));mat.color=MarketSimulation.C(hex);mat.SetFloat("_Glossiness",0);return mat;}

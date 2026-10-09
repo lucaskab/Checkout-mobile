@@ -155,13 +155,13 @@ test("order quote matches charged price and delivery duration with current modif
 	const state = useGameStore.getState();
 	const quote = getShelfOrderQuote(state, product.id, 2);
 	expect(quote.reason).toBe(null);
-	expect(state.placeSupplierOrder({ productId: product.id, quantity: 2 })).toBe(
+	expect(state.placeSupplierOrder({ productId: product.id, boxes: 2 })).toBe(
 		true,
 	);
 	const after = useGameStore.getState();
 	expect(after.coins).toBe(state.coins - quote.total);
 	expect(after.logistics.orders[0].deliveryDurationMs).toBe(quote.duration);
-	expect(getShelfOrderQuote(after, product.id, 2).incoming).toBe(2);
+	expect(getShelfOrderQuote(after, product.id, 2).incoming).toBe(2 * quote.caseSize);
 	expect(getShelfOrderQuote(after, product.id, 999).reason).not.toBe(null);
 });
 test("Unity receives the nine physical shelves and customer destinations use the parent shelf", () => {

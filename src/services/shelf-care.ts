@@ -21,15 +21,16 @@ export function getShelfCondition(care: GameShelfCare | undefined, physicalShelf
 	return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 100;
 }
 
-/** Sales wear the fixtures they came from. */
+/** Sales wear the fixtures they came from (`multiplier` 2 when a school trip handles everything). */
 export function wearShelfCare(
 	care: GameShelfCare | undefined,
 	purchases: { shelfId: string; quantity: number }[],
+	multiplier = 1,
 ): GameShelfCare {
 	const next: GameShelfCare = { ...(care ?? {}) };
 	for (const purchase of purchases) {
 		const id = getPhysicalShelfId(purchase.shelfId);
-		next[id] = Math.max(0, getShelfCondition(next, id) - CARE_PER_UNIT * purchase.quantity);
+		next[id] = Math.max(0, getShelfCondition(next, id) - CARE_PER_UNIT * multiplier * purchase.quantity);
 	}
 	return next;
 }

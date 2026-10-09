@@ -1,5 +1,5 @@
 import { formatBuildDuration, formatConstructionCountdown, getMarketExpansionSkipCost } from "@/data/market-expansions";
-import { getMarketEra, getNextMarketEra, marketEras } from "@/data/economy";
+import { getMarketEra, getNextMarketEra, getOfflineTurnsPerHour, marketEras } from "@/data/economy";
 import { act, button, type Card, card, fmt, gameIcon, type State } from "../view-kit";
 import { missingLotsLine } from "./lots";
 
@@ -9,11 +9,10 @@ import { missingLotsLine } from "./lots";
 const perks = (id: string) => {
 	const era = getMarketEra(id as never);
 	const parts = [
-		`${era.productSlots} lugares de produto`,
 		era.arrivalMultiplier !== 1 ? `clientes ×${era.arrivalMultiplier.toLocaleString("pt-BR")}` : "",
 		era.ticketMultiplier > 1 ? `cesta ×${era.ticketMultiplier.toLocaleString("pt-BR")}` : "",
 		era.offlineTurnsPerHour > 0
-			? `vende sozinho ${Math.round(era.offlineTurnsPerHour * 100)}% de um turno por hora fora`
+			? `vende sozinho ${Math.round(getOfflineTurnsPerHour(era) * 100)}% de um turno por hora fora`
 			: "não vende sem você",
 		era.nightTurn ? "abre à noite" : "",
 	];

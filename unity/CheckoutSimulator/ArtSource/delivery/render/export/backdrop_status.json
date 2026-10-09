@@ -1,0 +1,26 @@
+{
+ "state": "done",
+ "secs": 210,
+ "size": [
+  1920,
+  1080
+ ],
+ "window_px": [
+  482,
+  572,
+  1472,
+  981
+ ],
+ "window_px_count": 404910,
+ "transparent_in_window": 299960,
+ "fully_transparent_in_window": 292945,
+ "transparent_outside_window": 0,
+ "transparent_in_window_pct": 74.08,
+ "rgb_vs_jpg_mean_abs": 0.0056,
+ "rgb_vs_jpg_p99_abs": 0.03268,
+ "glass_alpha_max": 0.13,
+ "files": {
+  "delivery_backdrop.png": 2426675,
+  "window_glass.png": 90583
+ }
+}

@@ -7,12 +7,14 @@ import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { ProductImage } from "@/components/product-image";
+import { getInventoryBoxCapacity } from "@/data/inventory-capacity";
 import { itemCatalog } from "@/data/market-products";
 import { formatSupplierDeliveryTime } from "@/services/logistics";
 import {
-	getMaxShelfOrderQuantity,
+	getMaxShelfOrderBoxes,
 	getShelfOrderQuote,
 } from "@/services/shelf-order-quote";
+import { getStoredBoxes } from "@/services/stockroom";
 import { useGameStore } from "@/stores/game-store";
 
 type SupplierOrderSheetProps = {
@@ -32,22 +34,36 @@ export function SupplierOrderSheet({
 	const { theme } = useUnistyles();
 	const state = useGameStore();
 	const product = itemCatalog.find((item) => item.id === productId);
-	const [quantity, setQuantity] = useState(1);
+	// The quantity is a number of supplier boxes (src/data/case-sizes.ts).
+	const [boxes, setBoxes] = useState(1);
 	const [feedback, setFeedback] = useState("");
 	const productName = product?.name ?? "produto";
-	const quote = getShelfOrderQuote(state, productId, quantity);
-	const unitQuote = getShelfOrderQuote(state, productId, 1);
-	const maxQuantity = getMaxShelfOrderQuantity(state, productId);
+	const quote = getShelfOrderQuote(state, productId, boxes);
+	const maxBoxes = getMaxShelfOrderBoxes(state, productId);
+	const storedBoxes = product
+		? getStoredBoxes(product, state.inventory[productId] ?? 0)
+		: 0;
+	const boxCapacity = getInventoryBoxCapacity(
+		state.inventoryCapacityLevels[productId],
+	);
 
 	if (!product || !quote) {
 		return null;
 	}
 
+	const boxLabel = boxes === 1 ? "1 caixa" : `${boxes} caixas`;
+	const roomLabel =
+		quote.availableBoxes <= 0
+			? "Depósito cheio para este produto"
+			: quote.availableBoxes === 1
+			? "Cabe mais 1 caixa no depósito"
+			: `Cabem mais ${quote.availableBoxes} caixas no depósito`;
+
 	function confirmOrder() {
 		const current = useGameStore.getState();
 
-		if (current.placeSupplierOrder({ productId, quantity })) {
-			const message = `Pedido de ${quantity} ${productName} confirmado! Acompanhe em Entregas.`;
+		if (current.placeSupplierOrder({ productId, boxes })) {
+			const message = `Pedido de ${boxLabel} de ${productName} confirmado! Acompanhe em Entregas.`;
 
 			if (onOrdered) {
 				onOrdered(message);
@@ -111,11 +127,12 @@ export function SupplierOrderSheet({
 				<View>
 					<Text style={styles.stockLabel}>Espaço no depósito</Text>
 					<Text style={styles.stockValue}>
-						{state.inventory[productId] ?? 0}/{quote.capacity} unid.
+						{storedBoxes}/{boxCapacity} caixas
 					</Text>
+					<Text style={styles.stockLabel}>{roomLabel}</Text>
 				</View>
 				<Text style={styles.availableSpace}>
-					{quote.availableSpace} livre{quote.availableSpace === 1 ? "" : "s"}
+					{quote.availableBoxes} livre{quote.availableBoxes === 1 ? "" : "s"}
 				</Text>
 			</View>
 
@@ -124,40 +141,50 @@ export function SupplierOrderSheet({
 				<View style={styles.quantityControl}>
 					<GameButton
 						accessibilityLabel="Diminuir quantidade"
-						disabled={quantity <= 0 || Boolean(feedback)}
+						disabled={boxes <= 0 || Boolean(feedback)}
 						label="−"
-						onPress={() => setQuantity(quantity - 1)}
+						onPress={() => setBoxes(Math.max(0, boxes - 1))}
 						size="small"
 						variant="secondary"
 					/>
 					<View style={styles.quantityValue}>
-						<Text style={styles.quantityNumber}>{quantity}</Text>
-						<Text style={styles.quantityLabel}>unidades</Text>
+						<Text style={styles.quantityNumber}>{boxes}</Text>
+						<Text style={styles.quantityLabel}>
+							{boxes === 1 ? "caixa" : "caixas"}
+						</Text>
 					</View>
 					<GameButton
 						accessibilityLabel="Aumentar quantidade"
-						disabled={quantity >= quote.availableSpace || Boolean(feedback)}
+						disabled={boxes >= quote.availableBoxes || Boolean(feedback)}
 						label="+"
-						onPress={() => setQuantity(quantity + 1)}
+						onPress={() => setBoxes(boxes + 1)}
 						size="small"
 						variant="secondary"
 					/>
 				</View>
+				<Text style={styles.boxInfo}>
+					{`Caixa com ${quote.caseSize} un. · ${quote.boxPrice} moedas a caixa`}
+				</Text>
+				<Text style={styles.boxInfo}>
+					{boxes === 1
+						? `1 caixa · ${quote.units} unidades`
+						: `${boxes} caixas · ${quote.units} unidades`}
+				</Text>
 				<View style={styles.quantityShortcuts}>
 					<GameButton
 						accessibilityLabel="Definir quantidade como zero"
-						disabled={quantity === 0 || Boolean(feedback)}
+						disabled={boxes === 0 || Boolean(feedback)}
 						label="0"
-						onPress={() => setQuantity(0)}
+						onPress={() => setBoxes(0)}
 						size="small"
 						style={styles.quantityShortcut}
 						variant="secondary"
 					/>
 					<GameButton
-						accessibilityLabel={`Definir quantidade máxima: ${maxQuantity}`}
-						disabled={quantity === maxQuantity || Boolean(feedback)}
-						label={`Máx · ${maxQuantity}`}
-						onPress={() => setQuantity(maxQuantity)}
+						accessibilityLabel={`Definir quantidade máxima: ${maxBoxes}`}
+						disabled={boxes === maxBoxes || Boolean(feedback)}
+						label={`Máx · ${maxBoxes}`}
+						onPress={() => setBoxes(maxBoxes)}
 						size="small"
 						style={styles.quantityShortcut}
 						variant="secondary"
@@ -167,13 +194,8 @@ export function SupplierOrderSheet({
 
 			<View style={styles.summaryCard}>
 				<View style={styles.summaryRow}>
-					<Text style={styles.summaryLabel}>Preço por unidade</Text>
-					<Text style={styles.summaryValue}>
-						{quantity > 0
-							? Number((quote.total / quantity).toFixed(2))
-							: (unitQuote?.total ?? 0)}{" "}
-						moedas
-					</Text>
+					<Text style={styles.summaryLabel}>Preço por caixa</Text>
+					<Text style={styles.summaryValue}>{quote.boxPrice} moedas</Text>
 				</View>
 				<View style={styles.summaryRow}>
 					<Text style={styles.summaryLabel}>Total do pedido</Text>
@@ -341,6 +363,13 @@ const styles = StyleSheet.create((theme) => ({
 		fontFamily: theme.fonts.family.numberBold,
 		fontSize: theme.fonts.size.large + 2,
 		fontWeight: "700",
+	},
+	boxInfo: {
+		marginTop: theme.gap(0.75),
+		color: theme.colors["neutral-600"],
+		fontSize: 11,
+		fontWeight: "600",
+		textAlign: "center",
 	},
 	quantityLabel: {
 		color: theme.colors["neutral-500"],

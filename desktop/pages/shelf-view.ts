@@ -1,5 +1,6 @@
 import type { MarketEraId } from "@/@types/economy";
-import { getMarketEra, MAX_ITEM_LEVEL } from "@/data/economy";
+import { MAX_ITEM_LEVEL } from "@/data/economy";
+import { getOrderLines } from "@/services/supplier-cart";
 import { describeFixtureProducts, getFixtureProducts } from "@/data/fixture-products";
 import { getEraOrder, itemCategories, itemCatalog, shelves } from "@/data/market-products";
 import {
@@ -17,9 +18,8 @@ import {
 } from "@/data/shelf-slots";
 import { getFixtureName, getSectorCounter } from "@/data/shelf-types";
 import { getOrderRemainingTime } from "@/services/logistics";
-import { isMarketBuilding } from "@/services/market-era";
 import { getProductLevel, getProductUpgradeCost } from "@/services/product-levels";
-import { getShelfCondition, SLOTS_PER_ROW } from "@/services/shelf-care";
+import { SLOTS_PER_ROW } from "@/services/shelf-care";
 import {
 	button,
 	decorIcon,
@@ -150,7 +150,7 @@ function slotView(state: State, fixtureId: string, slotId: string, index: number
 	const level = getProductLevel(state.productLevels, product.id);
 	const mood = priceMood(price, product.suggestedPrice);
 	const order = state.logistics.orders
-		.filter((item) => item.productId === product.id && item.status !== "entregue")
+		.filter((item) => getOrderLines(item).some((line) => line.productId === product.id) && item.status !== "entregue")
 		.sort((a, b) => a.createdAt + a.deliveryDurationMs - (b.createdAt + b.deliveryDurationMs))[0];
 	return {
 		...empty,
@@ -198,7 +198,6 @@ export function shelfViewPage(state: State, requested: string): Page {
 		}));
 	const slotUpgrade = getNextShelfSlotUpgrade(open);
 	const capacityUpgrade = getNextShelfCapacityUpgrade(state.shelfUpgradeLevels[fixtureId]);
-	const era = getMarketEra(state.era.id);
 	const accepts = describeFixtureProducts(fixtureId, state.market.unlockedProductIds);
 	const shelf: ShelfView = {
 		id: fixtureId,
@@ -207,11 +206,12 @@ export function shelfViewPage(state: State, requested: string): Page {
 		tint: look.tint,
 		name,
 		accepts: accepts ? `Aceita: ${accepts}.` : "Ainda não há produto liberado para este móvel.",
-		condition: Math.round(getShelfCondition(state.shelfCare, fixtureId)),
-		careTitle: kind.title,
-		careVerb: kind.verb,
-		careHint: kind.hint,
-		careSpot: kind.spot,
+		// The cleaning/freshness mechanic was removed: an empty careTitle hides it in Unity.
+		condition: 100,
+		careTitle: "",
+		careVerb: "",
+		careHint: "",
+		careSpot: "",
 		rowTop: `${kind.top} · vende mais`,
 		rowBottom: `${kind.bottom} · vende menos`,
 		slotCount: open,
@@ -221,16 +221,14 @@ export function shelfViewPage(state: State, requested: string): Page {
 		capacityNext: capacityUpgrade?.capacity ?? 0,
 		capacityCost: capacityUpgrade?.coinCost ?? 0,
 		capacityLevel: capacityUpgrade?.playerLevel ?? 0,
-		stallNote: isMarketBuilding(state.era.id)
-			? ""
-			: `${era.name}: só cabem ${era.productSlots} produtos à mostra. Ficam à venda os primeiros com estoque, na ordem das prateleiras.`,
+		// Every unlocked slot with stock is on sale: no per-expansion limit any more.
+		stallNote: "",
 		slots,
 		picks,
 	};
 	// The fixtures the player has, as tabs (a "!" asks for care or for stock).
 	const tabs = owned.map((id) => {
 		const fixtureLook = lookOf(id, state.era.id);
-		const condition = getShelfCondition(state.shelfCare, id);
 		const idsHere = getShelfSlotIds(id, getShelfSlotCount(id, counts));
 		const emptyStock = idsHere.some((slotId) => state.shelfAssignments[slotId] && (state.shelfStock[slotId] ?? 0) === 0);
 		return button(getFixtureName(id, state.era.id), {
@@ -238,7 +236,7 @@ export function shelfViewPage(state: State, requested: string): Page {
 			variant: "secondary",
 			active: id === fixtureId,
 			icon: decorIcon(getSectorCounter(id) ? id : fixtureLook.thumb),
-			badge: condition < 60 || emptyStock ? "!" : "",
+			badge: emptyStock ? "!" : "",
 		});
 	});
 	tabs.push(

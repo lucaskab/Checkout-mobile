@@ -17,6 +17,8 @@ const { createSimulatorCommandHandler } = await import(
 const { createSpecialRequest, addSpecialRequest, FREE_DAY_CONTRACT_ID } =
 	await import("./market-day.ts");
 const { getDayStoreContext } = await import("./market-day-context.ts");
+const { itemCatalog } = await import("../data/market-products.ts");
+const { getInventoryCapacity } = await import("../data/inventory-capacity.ts");
 // These tests run a shop that is already furnished (the starter pieces are placed).
 useGameStore.setState({ interior: { items: [], owned: {} } });
 const initial = JSON.stringify(useGameStore.getState());
@@ -306,11 +308,38 @@ test("a delivered supplier order waits at the dock until it is unloaded", () => 
 	const run = createSimulatorCommandHandler("doca", () => store(), () => revision);
 	const view = createSimulatorSnapshot(store(), "doca", revision);
 	expect(view.dock[0].boxUnits).toBe(1);
-	expect(view.dock[0].room).toBe(75 - before);
+	// An order from before supplier boxes: its units are split as before and need units of room.
+	const product = itemCatalog.find((item) => item.id === productId);
+	expect(view.dock[0].room).toBe(getInventoryCapacity(product, 4) - before);
 	expect(run({ protocol: 1, session: "doca", id: "box", revision, action: "unloadDelivery", args: [delivery.id, 1] }).ok).toBe(true);
 	expect(store().inventory[productId]).toBe(before + 1);
 	expect(store().unloadAllDeliveries()).toBe(true);
 	expect(store().inventory[productId]).toBe(before + 7);
 	expect(store().receiving.dock).toEqual([]);
 	unsubscribe();
+});
+
+test("orders are supplier boxes: paid per box, unloaded box by box, shelved unit by unit", () => {
+	const state = store();
+	const productId = state.market.unlockedProductIds[0];
+	const product = itemCatalog.find((item) => item.id === productId);
+	useGameStore.setState({ coins: 10_000, inventory: { ...state.inventory, [productId]: 0 }, inventoryCapacityLevels: { ...state.inventoryCapacityLevels, [productId]: 1 } });
+	expect(store().placeSupplierOrder({ productId, boxes: 2 })).toBe(true);
+	const order = store().logistics.orders[0];
+	expect(order.boxes).toBe(2);
+	expect(order.quantity).toBe(2 * product.caseSize);
+	// Old callers ask for units: they get the boxes that hold them.
+	expect(store().placeSupplierOrder({ productId, quantity: 1 })).toBe(true);
+	expect(store().logistics.orders[0].quantity).toBe(product.caseSize);
+	// 3 boxes ordered, the stockroom holds 3 at this level: a fourth does not fit.
+	expect(store().placeSupplierOrder({ productId, boxes: 1 })).toBe(false);
+	useGameStore.setState({ logistics: { ...store().logistics, orders: store().logistics.orders.map((item) => ({ ...item, createdAt: Date.now() - 10 * 60 * 60_000 })) } });
+	store().processSupplierOrders();
+	const dock = createSimulatorSnapshot(store(), "caixas", 1).dock.find((item) => item.productId === productId && item.quantity === 2 * product.caseSize);
+	expect(dock.boxUnits).toBe(product.caseSize);
+	expect(dock.boxes).toBe(2);
+	expect(store().unloadDelivery(dock.id, product.caseSize)).toBe(true);
+	expect(store().inventory[productId]).toBe(product.caseSize);
+	const view = createSimulatorSnapshot(store(), "caixas", 2);
+	expect(view.stockroom.find((item) => item.productId === productId).boxes).toBe(1);
 });

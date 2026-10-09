@@ -32,6 +32,7 @@ import {
 	resolveShelfSlotCounts,
 } from "@/data/shelf-slots";
 import { getOrderProgress, getOrderRemainingTime } from "@/services/logistics";
+import { orderIncludesProduct } from "@/services/supplier-cart";
 import { useGameStore } from "@/stores/game-store";
 import { BuildPanel } from "@/components/build-panel";
 import { getNextShelfBuildStatus } from "@/services/interior-construction";
@@ -330,7 +331,7 @@ export function ShelfManagementScreen({
 							? state.logistics.orders
 									.filter(
 										(order) =>
-											order.productId === product.id &&
+											orderIncludesProduct(order, product.id) &&
 											order.status !== "entregue",
 									)
 									.sort(

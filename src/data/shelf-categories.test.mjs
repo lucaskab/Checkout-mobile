@@ -48,8 +48,16 @@ test("the sidewalk table starts with the crates and the styrofoam cooler only", 
 	expect(getFixtureName("drinks", "mesinha")).toBe("Isopor com gelo");
 	expect(getFixtureName("drinks", "conteiner")).toBe("Geladeira de bebidas");
 	expect(getFixtureName("produce", "tenda")).toBe("Caixotes de hortifrúti");
-	const names = getUnlockedProductIds(99, "mesinha").map((id) => itemCatalog.find((p) => p.id === id).name);
-	expect(names.sort()).toEqual(["Alface", "Banana", "Refrigerante", "Tomate", "Água mineral"].sort());
+	const names = (level) => getUnlockedProductIds(level, "mesinha").map((id) => itemCatalog.find((p) => p.id === id).name).sort();
+	expect(names(1)).toEqual(["Alface", "Banana", "Refrigerante", "Tomate", "Água mineral"].sort());
+	// The levels keep bringing what fits the crates and the cooler; nothing that needs another fixture.
+	expect(names(99)).toEqual(
+		["Alface", "Banana", "Batata", "Brócolis", "Cenoura", "Cesta orgânica", "Maçã", "Ovos", "Pimentão", "Refrigerante", "Suco natural", "Tomate", "Uva", "Água mineral"].sort(),
+	);
+	for (const id of getUnlockedProductIds(99, "mesinha")) {
+		const product = itemCatalog.find((p) => p.id === id);
+		expect(canShelfHold("produce", product.category).ok || canShelfHold("drinks", product.category).ok).toBe(true);
+	}
 });
 
 test("no product opens before a fixture of its expansion can hold it", () => {

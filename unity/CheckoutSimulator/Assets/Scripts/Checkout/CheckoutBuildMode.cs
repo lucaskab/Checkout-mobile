@@ -401,12 +401,12 @@ namespace Checkout
             // Counters start in the checkout area, everything else in the free part of the shop in view.
             var ray = simulation.view.ScreenPointToRay(new Vector3(Screen.width * .5f, Screen.height * .5f));
             var at = new Plane(Vector3.up, new Vector3(0, CheckoutInterior.Floor, 0)).Raycast(ray, out var dist) ? ray.GetPoint(dist) : new Vector3(floor.center.x, CheckoutInterior.Floor, floor.center.y);
-            at.x = Mathf.Clamp(at.x, floor.xMin + 1.5f, floor.xMax - 1.5f);
-            at.z = counter ? zone.center.y : Mathf.Clamp(at.z, zone.yMax + 1.8f, floor.yMax - 1.8f);
+            at.x = counter ? zone.center.x : Mathf.Clamp(at.x, floor.xMin + 1.8f, Mathf.Max(floor.xMin + 1.8f, zone.xMin - 1.8f));
+            at.z = Mathf.Clamp(at.z, floor.yMin + 1.5f, floor.yMax - 1.5f);
             var it = Interior.PlaceWaiting(id, at);
             if (it == null) { Say("Não há espaço livre para isso agora. Afaste algum móvel.", true); return; }
             RefreshWaiting(); Select(it); map.FurnitureChanged(false);
-            Say(counter ? "O caixa fica na área dos caixas, perto da entrada. Arraste para ajustar." : "Arraste para o lugar que quiser.");
+            Say(counter ? "O caixa fica na área dos caixas, junto à parede do estacionamento. Arraste para ajustar." : "Arraste para o lugar que quiser.");
         }
 
         void ToggleShop(bool? open = null)

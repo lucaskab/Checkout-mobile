@@ -1,0 +1,130 @@
+{
+ "state": "done",
+ "done": [
+  [
+   "kraft_back",
+   29.6
+  ],
+  [
+   "kraft_front",
+   45.1
+  ],
+  [
+   "kraft_closed",
+   48.4
+  ],
+  [
+   "thermal_back",
+   66.8
+  ],
+  [
+   "thermal_front",
+   64.4
+  ],
+  [
+   "thermal_closed",
+   72.2
+  ]
+ ],
+ "jobs": [
+  "kraft_back",
+  "kraft_front",
+  "kraft_closed",
+  "thermal_back",
+  "thermal_front",
+  "thermal_closed"
+ ],
+ "i": 6,
+ "verify": {
+  "bag_kraft_back_solo.png": {
+   "size": [
+    716,
+    1012
+   ],
+   "bytes": 338815,
+   "alpha_px": 61367,
+   "bbox": [
+    121,
+    267,
+    686,
+    980
+   ],
+   "alpha_max": 1.0
+  },
+  "bag_kraft_front_solo.png": {
+   "size": [
+    716,
+    1012
+   ],
+   "bytes": 616069,
+   "alpha_px": 291898,
+   "bbox": [
+    131,
+    266,
+    644,
+    935
+   ],
+   "alpha_max": 1.0
+  },
+  "bag_kraft_closed_solo.png": {
+   "size": [
+    716,
+    1012
+   ],
+   "bytes": 617259,
+   "alpha_px": 333406,
+   "bbox": [
+    127,
+    266,
+    686,
+    887
+   ],
+   "alpha_max": 1.0
+  },
+  "bag_thermal_back_solo.png": {
+   "size": [
+    1140,
+    1216
+   ],
+   "bytes": 816934,
+   "alpha_px": 294233,
+   "bbox": [
+    225,
+    271,
+    979,
+    1183
+   ],
+   "alpha_max": 1.0
+  },
+  "bag_thermal_front_solo.png": {
+   "size": [
+    1140,
+    1216
+   ],
+   "bytes": 806780,
+   "alpha_px": 274008,
+   "bbox": [
+    225,
+    271,
+    971,
+    990
+   ],
+   "alpha_max": 1.0
+  },
+  "bag_thermal_closed_solo.png": {
+   "size": [
+    1140,
+    1216
+   ],
+   "bytes": 906171,
+   "alpha_px": 341415,
+   "bbox": [
+    225,
+    271,
+    979,
+    990
+   ],
+   "alpha_max": 1.0
+  }
+ }
+}

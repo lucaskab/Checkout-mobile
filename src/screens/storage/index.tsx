@@ -21,6 +21,7 @@ import {
 	getSupplierOrderStatus,
 } from "@/services/logistics";
 import { getShelfOrderQuote } from "@/services/shelf-order-quote";
+import { orderIncludesProduct } from "@/services/supplier-cart";
 import { useGameStore } from "@/stores/game-store";
 import { InventoryCapacitySheet } from "../products/components/inventory-capacity-sheet";
 import { SupplierOrderSheet } from "../suppliers/components/supplier-order-sheet";
@@ -82,7 +83,7 @@ export function StorageScreen({ presentation = "page" }: StorageScreenProps) {
 				: product.supplierTime,
 			incomingOrder: state.logistics.orders.find(
 				(order) =>
-					order.productId === product.id &&
+					orderIncludesProduct(order, product.id) &&
 					getSupplierOrderStatus(order) !== "entregue",
 			),
 		};

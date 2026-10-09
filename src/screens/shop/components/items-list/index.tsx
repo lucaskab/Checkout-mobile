@@ -18,6 +18,7 @@ type ItemsListProps = {
 	diamonds: number;
 	level: number;
 	onPurchase: (item: ShopItemDefinition) => boolean;
+	onUse: (item: ShopItemDefinition) => boolean;
 	ownedItemIds: string[];
 };
 
@@ -27,6 +28,7 @@ export function ItemsList({
 	diamonds,
 	level,
 	onPurchase,
+	onUse,
 	ownedItemIds,
 }: ItemsListProps) {
 	const [category, setCategory] = useState<ShopCategory>("equipamentos");
@@ -37,7 +39,7 @@ export function ItemsList({
 		if (onPurchase(item)) {
 			setFeedback(
 				item.isConsumable
-					? `${item.name} foi adicionado aos boosters.`
+					? `${item.name} guardado. Use quando quiser.`
 					: `${item.name} foi instalado no mercado.`,
 			);
 			return;
@@ -46,9 +48,16 @@ export function ItemsList({
 		setFeedback("Você ainda não atende aos requisitos desta compra.");
 	}
 
+	function use(item: ShopItemDefinition) {
+		setFeedback(onUse(item) ? `${item.name} ativado!` : "Nenhum guardado.");
+	}
+
 	function renderItem({ item }: LegendListRenderItemProps<ShopItemDefinition>) {
 		const isOwned = ownedItemIds.includes(item.id);
-		const isLocked = level < item.level;
+		// Some upgrades need another one installed first (more kiosks need the self-checkout).
+		const isLocked =
+			level < item.level ||
+			(!!item.requiresItemId && !ownedItemIds.includes(item.requiresItemId));
 		const consumableAmount = consumableAmounts[item.id] ?? 0;
 		const price = item.diamondPrice ?? item.coinPrice ?? 0;
 		const canAfford = item.diamondPrice ? diamonds >= price : coins >= price;
@@ -61,6 +70,7 @@ export function ItemsList({
 				isOwned={isOwned}
 				item={item}
 				onPurchase={purchase}
+				onUse={use}
 			/>
 		);
 	}

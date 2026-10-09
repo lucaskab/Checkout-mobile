@@ -1,0 +1,17 @@
+00:00.016  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:37: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  w = bpy.data.worlds.get("QA_World") or bpy.data.worlds.new("QA_World"); sc.world = w; w.use_nodes = True
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:42: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  gm = bpy.data.materials.get("QA_GroundMat") or bpy.data.materials.new("QA_GroundMat"); gm.use_nodes = True
+00:03.641  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\car.png'
+SHOT Transito_Car C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\car.png tris 11298 dims [4.15, 2.12, 1.93] 2.4
+00:06.172  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\inspection_car.png'
+SHOT Vigilancia_Car C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\inspection_car.png tris 12722 dims [4.65, 2.05, 1.92] 4.9
+00:11.125  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\sound_van.png'
+SHOT Som_Van C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\sound_van.png tris 11962 dims [4.49, 2.26, 2.67] 9.9
+00:18.797  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\telecom_van.png'
+SHOT Maquininha_TelecomVan C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\telecom_van.png tris 12289 dims [5.56, 2.43, 2.69] 17.5
+DONE 17.5
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 02:38:20)
+
+Blender quit

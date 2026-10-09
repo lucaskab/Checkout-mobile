@@ -1,0 +1,19 @@
+00:00.016  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:37: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  w = bpy.data.worlds.get("QA_World") or bpy.data.worlds.new("QA_World"); sc.world = w; w.use_nodes = True
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:42: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  gm = bpy.data.materials.get("QA_GroundMat") or bpy.data.materials.new("QA_GroundMat"); gm.use_nodes = True
+00:03.922  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\box_truck.png'
+SHOT Ofertas_BoxTruck C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\box_truck.png tris 12562 dims [7.82, 2.73, 3.36] 2.7
+00:08.531  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\bus.png'
+SHOT Rush_CityBus C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\bus.png tris 15391 dims [11.21, 2.91, 3.49] 7.3
+00:16.031  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\school_bus.png'
+SHOT Excursao_SchoolBus C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\school_bus.png tris 16593 dims [9.25, 3.33, 3.16] 14.8
+00:27.219  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\bucket_truck.png'
+SHOT Energia_BucketTruck C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\bucket_truck.png tris 13445 dims [7.66, 2.8, 2.68] 26.0
+00:43.844  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\backhoe.png'
+SHOT Obras_Backhoe C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\backhoe.png tris 12052 dims [6.67, 3.26, 3.24] 42.6
+DONE 42.6
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 02:38:20)
+
+Blender quit

@@ -1,0 +1,18 @@
+
+import bpy, json, time, traceback, os
+STAT = os.path.join(HERE, "render", "_status.json")
+def _w(d):
+    open(STAT, "w", encoding="utf-8").write(json.dumps(d))
+def run_job(code, label="job"):
+    """Run `code` (python source, exec'd in this namespace) from a bpy timer so the MCP call returns at once; status -> render/_status.json"""
+    _w({"label": label, "state": "queued", "t": time.time()})
+    def cb():
+        t0 = time.time(); _w({"label": label, "state": "running", "t": t0})
+        try:
+            ns = globals(); ns["_job_result"] = None
+            exec(code, ns)
+            _w({"label": label, "state": "done", "secs": round(time.time() - t0, 1), "result": str(ns.get("_job_result"))[:3000]})
+        except Exception:
+            _w({"label": label, "state": "error", "err": traceback.format_exc()[-3000:]})
+        return None
+    bpy.app.timers.register(cb, first_interval=0.3)

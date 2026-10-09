@@ -1,0 +1,1199 @@
+"""delivery_bike.py -- Checkout - Supermercado Simulator (Oct 2026)  --  DETAIL PASS v4
+Motoboy + Brazilian 150cc street bike (CG-style) with the market's delivery box ("bau") for the isometric 3D city.
+PREVIEW renders only. Own scene "DeliveryBike"; never saves the .blend.
+
+    exec(open(r"C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\delivery\\delivery_bike.py", encoding="utf-8").read())
+    render_all()      # bike_hero / bike_side / bike_parked / bike_detail / bike_iso  -> ArtSource/delivery/render
+
+Layout: bike points to +X, ground z = 0, wheelbase 1.30 m (axles x = +0.66 / -0.64), 18" wheels (r 0.30).
+v3: rider body = skin-modifier skeleton (one smooth organic mesh per garment, subdivision 3) instead of tube limbs;
+engine = finned barrel/head lathes + kick/gear/brake levers, intake boot, starter, oil cap; headlight with reflector,
+bulb, fluted lens; staggered tread knobs; dashed stitching (seat, jacket, jeans, gloves, sneakers); bau with gasket,
+rivets, corner bumpers, printed decal + QR sticker; per-object colour randomisation, paint flakes, wood knots, stronger
+procedural bump everywhere; vivid gradient sky world.
+"""
+import bpy, bmesh, math, os
+from mathutils import Vector, Matrix, Euler
+
+HERE = r"C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\delivery"
+OUT = os.path.join(HERE, "render")
+SCENE = "DeliveryBike"
+rad = math.radians; PI = math.pi
+
+def srgb(hexstr):
+    h = hexstr.lstrip("#"); c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    return tuple((v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4) for v in c) + (1.,)
+
+BLUE, BLUE_D, BLUE_L = srgb("#2E8CAE"), srgb("#1F6F8F"), srgb("#45B7D0")
+ORANGE = srgb("#F0A030"); WHITE = (0.93, 0.93, 0.90, 1); CREAM = (0.96, 0.90, 0.74, 1)
+PAINT = srgb("#D7362B"); CHROME = (0.86, 0.88, 0.90, 1); DARK = (0.07, 0.08, 0.09, 1); RUBBER = (0.045, 0.045, 0.05, 1)
+GUN = (0.24, 0.26, 0.28, 1); SKIN = srgb("#C98A5E"); PANTS = srgb("#3A566B"); HELMET = (0.05, 0.06, 0.07, 1)
+
+ROOT = None
+_M = {}
+SS_LEVEL = 3          # render subdivision level used by subsurf() when none is given
+SEG_SCALE = 0.6       # global tessellation scale for lathes / cylinders / spheres / tori / curve tubes (triangle budget)
+def _sg(n, lo=8): return max(lo, int(round(n * SEG_SCALE)))
+
+# ---------------------------------------------------------------- scene
+def scene():
+    sc = bpy.data.scenes.get(SCENE) or bpy.data.scenes.new(SCENE)
+    bpy.context.window.scene = sc
+    sc.render.engine = 'CYCLES'; sc.cycles.samples = 160; sc.cycles.use_denoising = True
+    try:
+        prefs = bpy.context.preferences.addons['cycles'].preferences; prefs.compute_device_type = 'OPTIX'
+        for d in prefs.devices: d.use = True
+        sc.cycles.device = 'GPU'
+    except Exception: pass
+    sc.render.resolution_x, sc.render.resolution_y = 1600, 1200; sc.render.resolution_percentage = 100
+    sc.render.film_transparent = False
+    sc.render.image_settings.file_format = 'PNG'; sc.render.image_settings.color_mode = 'RGBA'
+    sc.view_settings.view_transform = 'AgX'; sc.view_settings.look = 'AgX - Punchy'
+    return sc
+
+def clear():
+    sc = scene()
+    for o in list(sc.objects): bpy.data.objects.remove(o, do_unlink=True)
+    for c in list(bpy.data.curves):
+        if c.users == 0: bpy.data.curves.remove(c)
+    for c in list(bpy.data.armatures):
+        if c.users == 0: bpy.data.armatures.remove(c)
+    for c in list(bpy.data.actions):
+        if c.users == 0: bpy.data.actions.remove(c)
+    for me in list(bpy.data.meshes):
+        if me.users == 0: bpy.data.meshes.remove(me)
+    _M.clear()
+
+# ---------------------------------------------------------------- procedural materials
+def _node(nt, kind, **kw):
+    n = nt.nodes.new(kind)
+    for k, v in kw.items():
+        if k in n.inputs: n.inputs[k].default_value = v
+        else: setattr(n, k, v)
+    return n
+
+def _noise(nt, scale, detail=4., rough=.55, dist=0.):
+    return _node(nt, "ShaderNodeTexNoise", Scale=scale, Detail=detail, Roughness=rough, Distortion=dist)
+
+def _ramp(nt, a, b):
+    r = nt.nodes.new("ShaderNodeValToRGB"); r.color_ramp.elements[0].position = a; r.color_ramp.elements[1].position = b; return r
+
+def _math(nt, op, a=None, b=None, va=None, vb=None):
+    n = _node(nt, "ShaderNodeMath", operation=op)
+    if a is not None: nt.links.new(a, n.inputs[0])
+    if b is not None: nt.links.new(b, n.inputs[1])
+    if va is not None: n.inputs[0].default_value = va
+    if vb is not None: n.inputs[1].default_value = vb
+    return n.outputs[0]
+
+def mat(name, rgb, kind="plastic", rough=.5, metal=0., emit=0., alpha=1., coat=0., scale=40., bump=.15, wear=0., dirt=0., tint=None, spec=None, rand=.12, prefix="DB_"):
+    """Procedural material.  kind: plastic | paint | chrome | metal | rubber | fabric | leather | kraft | nylon | foil | wood | plaster | denim | none
+    wear = scratch mask strength (lighter chips + rougher patches), dirt = dark grime driven by noise + height (object z),
+    rand = per-object brightness variation (Object Info > Random)."""
+    if name in _M and _M[name].name in bpy.data.materials: return _M[name]
+    m = bpy.data.materials.get(prefix + name) or bpy.data.materials.new(prefix + name)
+    m.use_nodes = True; nt = m.node_tree
+    for n in list(nt.nodes): nt.nodes.remove(n)
+    out = nt.nodes.new("ShaderNodeOutputMaterial"); b = nt.nodes.new("ShaderNodeBsdfPrincipled"); nt.links.new(b.outputs[0], out.inputs[0])
+    b.inputs["Base Color"].default_value = rgb; b.inputs["Roughness"].default_value = rough; b.inputs["Metallic"].default_value = metal
+    if spec is not None and "Specular IOR Level" in b.inputs: b.inputs["Specular IOR Level"].default_value = spec
+    if coat: b.inputs["Coat Weight"].default_value = coat; b.inputs["Coat Roughness"].default_value = .04
+    if emit: b.inputs["Emission Color"].default_value = rgb; b.inputs["Emission Strength"].default_value = emit
+    if alpha < 1:
+        b.inputs["Alpha"].default_value = alpha
+        if hasattr(m, "surface_render_method"): m.surface_render_method = 'BLENDED'
+    tc = nt.nodes.new("ShaderNodeTexCoord"); mp = _node(nt, "ShaderNodeMapping"); nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    vec = mp.outputs["Vector"]
+    height = None; strength = 0.; rough_src = None
+    if kind in ("plastic", "paint"):
+        n = _noise(nt, scale * 3, 3, .5); nt.links.new(vec, n.inputs["Vector"]); height = n.outputs["Fac"]; strength = bump * .3
+        if kind == "paint":            # metallic flakes under the clearcoat
+            fl = _noise(nt, scale * 60, 1, .5); nt.links.new(vec, fl.inputs["Vector"])
+            fb = _node(nt, "ShaderNodeBump", Strength=.08, Distance=.001); nt.links.new(fl.outputs["Fac"], fb.inputs["Height"])
+            if "Coat Normal" in b.inputs: nt.links.new(fb.outputs["Normal"], b.inputs["Coat Normal"])
+    elif kind == "chrome":           # brushed: noise stretched along X + fine pits
+        mp2 = _node(nt, "ShaderNodeMapping"); mp2.inputs["Scale"].default_value = (1, 60, 60); nt.links.new(vec, mp2.inputs["Vector"])
+        n = _noise(nt, scale * 2, 3, .6); nt.links.new(mp2.outputs["Vector"], n.inputs["Vector"])
+        p = _noise(nt, scale * 8, 2, .5); nt.links.new(vec, p.inputs["Vector"])
+        height = _math(nt, 'ADD', n.outputs["Fac"], _math(nt, 'MULTIPLY', p.outputs["Fac"], vb=.3)); strength = bump * .4
+        rough_src = _math(nt, 'MULTIPLY', n.outputs["Fac"], vb=.25)
+    elif kind == "metal":            # cast metal: grainy noise + scratch streaks
+        n = _noise(nt, scale * 2, 6, .75); nt.links.new(vec, n.inputs["Vector"])
+        mp2 = _node(nt, "ShaderNodeMapping"); mp2.inputs["Scale"].default_value = (30, 1, 30); nt.links.new(vec, mp2.inputs["Vector"])
+        s = _noise(nt, scale, 2, .5); nt.links.new(mp2.outputs["Vector"], s.inputs["Vector"]); rp = _ramp(nt, .6, .7); nt.links.new(s.outputs["Fac"], rp.inputs["Fac"])
+        height = _math(nt, 'ADD', n.outputs["Fac"], _math(nt, 'MULTIPLY', rp.outputs["Color"], vb=.4)); strength = bump
+        rough_src = _math(nt, 'MULTIPLY', rp.outputs["Color"], vb=-.2)
+    elif kind == "rubber":
+        n = _noise(nt, scale * 4, 7, .85); nt.links.new(vec, n.inputs["Vector"]); v = _node(nt, "ShaderNodeTexVoronoi", Scale=scale * 1.5); nt.links.new(vec, v.inputs["Vector"])
+        height = _math(nt, 'ADD', n.outputs["Fac"], _math(nt, 'MULTIPLY', v.outputs["Distance"], vb=.5)); strength = bump * 1.5
+    elif kind == "fabric":           # weave = two crossed wave bands + soft folds
+        w1 = _node(nt, "ShaderNodeTexWave", Scale=scale * 8, Distortion=1.2, Detail=2); w1.wave_type = 'BANDS'; w1.bands_direction = 'X'
+        w2 = _node(nt, "ShaderNodeTexWave", Scale=scale * 8, Distortion=1.2, Detail=2); w2.wave_type = 'BANDS'; w2.bands_direction = 'Y'
+        nt.links.new(vec, w1.inputs["Vector"]); nt.links.new(vec, w2.inputs["Vector"])
+        mx = _math(nt, 'MULTIPLY', w1.outputs["Fac"], w2.outputs["Fac"])
+        folds = _noise(nt, scale * .25, 3, .5, 1.); nt.links.new(vec, folds.inputs["Vector"])
+        height = _math(nt, 'ADD', mx, _math(nt, 'MULTIPLY', folds.outputs["Fac"], vb=1.5)); strength = bump
+    elif kind == "denim":            # diagonal twill + folds
+        w1 = _node(nt, "ShaderNodeTexWave", Scale=scale * 10, Distortion=.6, Detail=1); w1.wave_type = 'BANDS'; w1.bands_direction = 'DIAGONAL'
+        nt.links.new(vec, w1.inputs["Vector"]); folds = _noise(nt, scale * .3, 3, .5, 1.2); nt.links.new(vec, folds.inputs["Vector"])
+        height = _math(nt, 'ADD', _math(nt, 'MULTIPLY', w1.outputs["Fac"], vb=.6), _math(nt, 'MULTIPLY', folds.outputs["Fac"], vb=1.5)); strength = bump
+    elif kind == "leather":
+        v = _node(nt, "ShaderNodeTexVoronoi", Scale=scale * 6); v.feature = 'DISTANCE_TO_EDGE'; nt.links.new(vec, v.inputs["Vector"])
+        n = _noise(nt, scale * 2, 4, .6); nt.links.new(vec, n.inputs["Vector"])
+        height = _math(nt, 'ADD', _math(nt, 'MULTIPLY', v.outputs["Distance"], vb=2.), n.outputs["Fac"]); strength = bump
+    elif kind == "nylon":            # quilted: large diagonal wave + fine weave
+        w1 = _node(nt, "ShaderNodeTexWave", Scale=scale * .6, Distortion=.3); w1.wave_type = 'BANDS'; w1.bands_direction = 'DIAGONAL'
+        nt.links.new(vec, w1.inputs["Vector"]); n = _noise(nt, scale * 10, 2, .5); nt.links.new(vec, n.inputs["Vector"])
+        height = _math(nt, 'ADD', w1.outputs["Fac"], n.outputs["Fac"]); strength = bump
+    elif kind == "foil":             # crinkled metallic lining
+        n = _noise(nt, scale * 2, 8, .9, 2.); nt.links.new(vec, n.inputs["Vector"]); height = n.outputs["Fac"]; strength = bump
+    elif kind == "kraft":            # paper fibres + wrinkles
+        n = _noise(nt, scale * 6, 8, .85); n2 = _noise(nt, scale * .4, 3, .6, 1.5); nt.links.new(vec, n.inputs["Vector"]); nt.links.new(vec, n2.inputs["Vector"])
+        mp2 = _node(nt, "ShaderNodeMapping"); mp2.inputs["Scale"].default_value = (1, 25, 1); nt.links.new(vec, mp2.inputs["Vector"])
+        fib = _noise(nt, scale * 3, 2, .5); nt.links.new(mp2.outputs["Vector"], fib.inputs["Vector"])
+        height = _math(nt, 'ADD', _math(nt, 'ADD', n.outputs["Fac"], n2.outputs["Fac"]), _math(nt, 'MULTIPLY', fib.outputs["Fac"], vb=.6)); strength = bump
+    elif kind == "wood":             # grain: wave bands distorted by noise + knots (voronoi rings)
+        w1 = _node(nt, "ShaderNodeTexWave", Scale=scale * .5, Distortion=4., Detail=3, **{"Detail Scale": 2.}); w1.wave_type = 'BANDS'; w1.bands_direction = 'X'
+        nt.links.new(vec, w1.inputs["Vector"])
+        kv = _node(nt, "ShaderNodeTexVoronoi", Scale=scale * .25); nt.links.new(vec, kv.inputs["Vector"])
+        kmask = _node(nt, "ShaderNodeMapRange"); kmask.inputs["From Min"].default_value = .05; kmask.inputs["From Max"].default_value = .32; kmask.inputs["To Min"].default_value = 1; kmask.inputs["To Max"].default_value = 0
+        nt.links.new(kv.outputs["Distance"], kmask.inputs["Value"])
+        rings = _math(nt, 'ADD', _math(nt, 'MULTIPLY', _math(nt, 'SINE', _math(nt, 'MULTIPLY', kv.outputs["Distance"], vb=55.)), vb=.5), vb=.5)
+        knots = _math(nt, 'MULTIPLY', rings, kmask.outputs[0])
+        fib = _node(nt, "ShaderNodeTexWave", Scale=scale * 6, Distortion=.4, Detail=1); fib.wave_type = 'BANDS'; fib.bands_direction = 'X'; nt.links.new(vec, fib.inputs["Vector"])
+        height = _math(nt, 'ADD', _math(nt, 'ADD', w1.outputs["Fac"], _math(nt, 'MULTIPLY', knots, vb=.9)), _math(nt, 'MULTIPLY', fib.outputs["Fac"], vb=.15)); strength = bump
+    elif kind == "plaster":
+        n = _noise(nt, scale * 2, 7, .75); nt.links.new(vec, n.inputs["Vector"]); n2 = _noise(nt, scale * .15, 2, .5); nt.links.new(vec, n2.inputs["Vector"])
+        height = _math(nt, 'ADD', n.outputs["Fac"], n2.outputs["Fac"]); strength = bump
+    if height is not None and strength > 0:
+        bp = _node(nt, "ShaderNodeBump", Strength=strength, Distance=.004); nt.links.new(height, bp.inputs["Height"]); nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
+    # colour: variation (+ wood grain) + wear chips + dirt + per-object random
+    var = _noise(nt, scale * .3, 2, .5); nt.links.new(vec, var.inputs["Vector"]); fac = _math(nt, 'MULTIPLY', var.outputs["Fac"], vb=.3)
+    if kind == "wood": fac = _math(nt, 'ADD', fac, _math(nt, 'MULTIPLY', height, vb=.6))
+    elif kind in ("kraft", "fabric", "denim", "leather") and height is not None: fac = _math(nt, 'ADD', fac, _math(nt, 'MULTIPLY', height, vb=.12))
+    mix1 = _node(nt, "ShaderNodeMix"); mix1.data_type = 'RGBA'; mix1.inputs[6].default_value = rgb
+    mix1.inputs[7].default_value = tint or (rgb[0] * .68, rgb[1] * .68, rgb[2] * .68, 1); nt.links.new(fac, mix1.inputs["Factor"]); col = mix1.outputs[2]
+    rough_out = None
+    if wear > 0:
+        sn = _noise(nt, scale * 1.5, 8, .8); nt.links.new(vec, sn.inputs["Vector"]); rp = _ramp(nt, .66, .72); nt.links.new(sn.outputs["Fac"], rp.inputs["Fac"])
+        wm = _math(nt, 'MULTIPLY', rp.outputs["Color"], vb=wear)
+        mix2 = _node(nt, "ShaderNodeMix"); mix2.data_type = 'RGBA'; nt.links.new(col, mix2.inputs[6])
+        mix2.inputs[7].default_value = (.75, .75, .72, 1) if kind == "paint" else (min(1, rgb[0] * 1.6 + .1), min(1, rgb[1] * 1.6 + .1), min(1, rgb[2] * 1.6 + .1), 1)
+        nt.links.new(wm, mix2.inputs["Factor"]); col = mix2.outputs[2]
+        rough_out = _math(nt, 'ADD', _math(nt, 'MULTIPLY', wm, vb=.35), va=rough)
+    if rough_src is not None:
+        rough_out = _math(nt, 'ADD', rough_src, rough_out) if rough_out is not None else _math(nt, 'ADD', rough_src, vb=rough)
+    if rough_out is not None: nt.links.new(rough_out, b.inputs["Roughness"])
+    if dirt > 0:
+        g = nt.nodes.new("ShaderNodeNewGeometry"); sep = nt.nodes.new("ShaderNodeSeparateXYZ"); nt.links.new(g.outputs["Position"], sep.inputs[0])
+        mr = _node(nt, "ShaderNodeMapRange"); mr.inputs["From Min"].default_value = .0; mr.inputs["From Max"].default_value = .55; mr.inputs["To Min"].default_value = 1; mr.inputs["To Max"].default_value = .15
+        nt.links.new(sep.outputs["Z"], mr.inputs["Value"]); dn = _noise(nt, scale * .8, 5, .7); nt.links.new(vec, dn.inputs["Vector"])
+        dm = _math(nt, 'MULTIPLY', _math(nt, 'MULTIPLY', mr.outputs[0], dn.outputs["Fac"]), vb=dirt)
+        mix3 = _node(nt, "ShaderNodeMix"); mix3.data_type = 'RGBA'; nt.links.new(col, mix3.inputs[6]); mix3.inputs[7].default_value = (.12, .10, .08, 1)
+        nt.links.new(dm, mix3.inputs["Factor"]); col = mix3.outputs[2]
+    if rand > 0 and kind != "none":
+        oi = nt.nodes.new("ShaderNodeObjectInfo"); hs = nt.nodes.new("ShaderNodeHueSaturation")
+        nt.links.new(_math(nt, 'ADD', _math(nt, 'MULTIPLY', oi.outputs["Random"], vb=rand), va=1 - rand / 2), hs.inputs["Value"])
+        nt.links.new(_math(nt, 'ADD', _math(nt, 'MULTIPLY', oi.outputs["Random"], vb=rand * .25), va=.5 - rand * .125), hs.inputs["Hue"])
+        nt.links.new(col, hs.inputs["Color"]); col = hs.outputs["Color"]
+    nt.links.new(col, b.inputs["Base Color"])
+    _M[name] = m; return m
+
+# ---------------------------------------------------------------- primitives / modelling helpers
+def _finish(o, name, m, smooth=True):
+    o.name = name
+    if m is not None: o.data.materials.append(m)
+    if smooth and o.type == 'MESH':
+        for p in o.data.polygons: p.use_smooth = True
+        if hasattr(o.data, "set_sharp_from_angle"): o.data.set_sharp_from_angle(angle=rad(60))
+    if ROOT is not None: o.parent = ROOT
+    return o
+
+def subsurf(o, level=None):
+    md = o.modifiers.new("ss", 'SUBSURF'); lv = level or SS_LEVEL; md.levels = 0; md.render_levels = lv; return o   # viewport 0: keeps the build fast
+
+def bevel(o, width, seg=4):
+    md = o.modifiers.new("b", 'BEVEL'); md.width = width; md.segments = seg; md.limit_method = 'ANGLE'; md.angle_limit = rad(40); return md
+
+def box(name, size, loc, m, bev=.01, seg=4, rot=(0, 0, 0), ss=0):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=rot); o = bpy.context.object
+    o.scale = size; bpy.ops.object.transform_apply(scale=True)
+    if bev > 0: bevel(o, min(bev, min(size) * .49), 1 if min(size) < .014 else seg)    # tiny parts: one bevel segment (triangle budget)
+    if ss: subsurf(o, ss)
+    return _finish(o, name, m)
+
+def rbox(name, size, loc, m, rot=(0, 0, 0), seg=5, ss=2):
+    """Pillow box: big bevel + subdivision -> organic rounded block (tank, seat, limbs, helmet pieces)."""
+    return box(name, size, loc, m, bev=min(size) * .45, seg=seg, rot=rot, ss=ss)
+
+def cyl(name, r, h, loc, m, rot=(0, 0, 0), verts=32, bev=0., axis=None, ss=0):
+    if axis == 'Y': rot = (rad(90), 0, 0)
+    elif axis == 'X': rot = (0, rad(90), 0)
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=h, location=loc, rotation=rot, vertices=_sg(verts, 6)); o = bpy.context.object
+    if bev > 0: bevel(o, min(bev, r * .5, h * .49), 3)
+    if ss: subsurf(o, ss)
+    return _finish(o, name, m)
+
+def sphere(name, r, loc, m, scale=(1, 1, 1), seg=32, rot=(0, 0, 0), ss=0):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=r, location=loc, segments=_sg(seg), ring_count=_sg(seg) // 2, rotation=rot); o = bpy.context.object
+    o.scale = scale; bpy.ops.object.transform_apply(scale=True)
+    if ss: subsurf(o, ss)
+    return _finish(o, name, m)
+
+def torus(name, R, r, loc, m, rot=(0, 0, 0), axis=None, segs=(48, 16)):
+    if axis == 'Y': rot = (rad(90), 0, 0)
+    elif axis == 'X': rot = (0, rad(90), 0)
+    bpy.ops.mesh.primitive_torus_add(major_radius=R, minor_radius=r, location=loc, rotation=rot, major_segments=_sg(segs[0], 12), minor_segments=_sg(segs[1], 5)); o = bpy.context.object
+    return _finish(o, name, m)
+
+def tube(name, a, b, r, m, verts=20, cap=True, ss=0):
+    a, b = Vector(a), Vector(b); d = b - a
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=d.length, location=(a + b) / 2, vertices=_sg(verts, 6)); o = bpy.context.object
+    o.rotation_euler = d.to_track_quat('Z', 'Y').to_euler()
+    if ss: subsurf(o, ss)
+    _finish(o, name, m)
+    if cap:
+        sphere(name + "_a", r, a, m, seg=20); sphere(name + "_b", r, b, m, seg=20)
+    return o
+
+def lathe(name, profile, loc, m, segs=48, axis='Z', rot=None, angle=2 * PI, ss=0, closed=True):
+    """Revolve a (radius, height) profile around local Z (axis='X'/'Y' or an explicit rot re-orients it)."""
+    bm = bmesh.new()
+    vs = [bm.verts.new((r, 0, z)) for r, z in profile]
+    es = [bm.edges.new((vs[i], vs[i + 1])) for i in range(len(vs) - 1)]
+    on_axis = profile[0][0] < 1e-6 and profile[-1][0] < 1e-6
+    if closed and not on_axis and (profile[0] != profile[-1]): es.append(bm.edges.new((vs[-1], vs[0])))
+    full = angle >= 2 * PI - 1e-6
+    bmesh.ops.spin(bm, geom=vs + es, cent=(0, 0, 0), axis=(0, 0, 1), angle=angle, steps=_sg(segs, 12), use_merge=full)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o); o.location = loc
+    if rot is None: rot = (rad(90), 0, 0) if axis == 'Y' else (0, rad(90), 0) if axis == 'X' else (0, 0, 0)
+    o.rotation_euler = rot
+    if ss: subsurf(o, ss)
+    return _finish(o, name, m)
+
+def fins(r_core, r_fin, z0, n, pitch, t, lead=.0):
+    """Lathe profile of a finned barrel: n fins of thickness t every `pitch`, core radius r_core, fin radius r_fin."""
+    p = [(0, z0), (r_core, z0)]
+    z = z0 + lead
+    for k in range(n):
+        p += [(r_core, z), (r_fin, z + t * .15), (r_fin, z + t * .85), (r_core, z + t)]
+        z += pitch
+    p += [(r_core, z), (0, z)]
+    return p
+
+def curve_tube(name, pts, r, m, res=12, cyclic=False, smooth=True):
+    cu = bpy.data.curves.new(name, 'CURVE'); cu.dimensions = '3D'; cu.bevel_depth = r; cu.bevel_resolution = 2; cu.fill_mode = 'FULL'; cu.resolution_u = max(3, int(res * SEG_SCALE))
+    sp = cu.splines.new('NURBS' if smooth else 'POLY'); sp.points.add(len(pts) - 1)
+    for i, p in enumerate(pts): sp.points[i].co = (p[0], p[1], p[2], 1)
+    sp.use_cyclic_u = cyclic
+    if smooth: sp.order_u = min(4, len(pts)); sp.use_endpoint_u = not cyclic
+    sp.use_smooth = True
+    o = bpy.data.objects.new(name, cu); bpy.context.scene.collection.objects.link(o); o.data.materials.append(m)
+    if ROOT is not None: o.parent = ROOT
+    return o
+
+def _resample(pts, step):
+    pts = [Vector(p) for p in pts]; out = []; acc = 0.
+    for i in range(len(pts) - 1):
+        a, b = pts[i], pts[i + 1]; L = (b - a).length
+        if L < 1e-9: continue
+        d = (b - a) / L; s = acc
+        while s <= L:
+            out.append((a + d * s, d)); s += step
+        acc = s - L
+    return out
+
+def stitches(name, pts, m, step=.012, r=.0012, length=.006):
+    step = step * 1.5
+    """Dashed stitching: small capsules laid along a polyline (seat seams, jacket, jeans, gloves, sneakers)."""
+    for k, (p, d) in enumerate(_resample(pts, step)):
+        bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=length, location=p, vertices=6); o = bpy.context.object
+        o.rotation_euler = d.to_track_quat('Z', 'Y').to_euler(); _finish(o, f"{name}_{k}", m)
+
+def text(name, body, size, loc, m, rot=(0, 0, 0), extrude=.002, bold=True):
+    cu = bpy.data.curves.new(name, 'FONT'); cu.body = body; cu.size = size; cu.align_x = 'CENTER'; cu.align_y = 'CENTER'; cu.extrude = extrude; cu.resolution_u = 6
+    cu.offset = .01 * size if bold else 0
+    o = bpy.data.objects.new(name, cu); bpy.context.scene.collection.objects.link(o)
+    o.location = loc; o.rotation_euler = rot; o.data.materials.append(m)
+    if ROOT is not None: o.parent = ROOT
+    return o
+
+def arc_pts(center, R, a0, a1, n=12, plane='XZ', off=0.):
+    out = []
+    for i in range(n + 1):
+        a = rad(a0 + (a1 - a0) * i / n)
+        if plane == 'XZ': out.append((center[0] + R * math.cos(a), center[1] + off, center[2] + R * math.sin(a)))
+        elif plane == 'YZ': out.append((center[0] + off, center[1] + R * math.cos(a), center[2] + R * math.sin(a)))
+        else: out.append((center[0] + R * math.cos(a), center[1] + R * math.sin(a), center[2] + off))
+    return out
+
+def arc_shell(name, center, r_in, r_out, width, a0, a1, m, segs=48, y=0., ss=2, lip=0.):
+    """Fender: curved shell; lip > 0 adds a rolled edge on both sides."""
+    bm = bmesh.new(); rows = []
+    prof = [(r_in, -width / 2), (r_out, -width / 2), (r_out, width / 2), (r_in, width / 2)]
+    if lip > 0: prof = [(r_in + lip, -width / 2), (r_in, -width / 2 + lip), (r_out, -width / 2), (r_out, width / 2), (r_in, width / 2 - lip), (r_in + lip, width / 2)]
+    for i in range(segs + 1):
+        a = rad(a0 + (a1 - a0) * i / segs); c, s = math.cos(a), math.sin(a)
+        rows.append([bm.verts.new((center[0] + r * c, center[1] + y + w, center[2] + r * s)) for r, w in prof])
+    n = len(prof)
+    for i in range(segs):
+        p, q = rows[i], rows[i + 1]
+        for k in range(n): bm.faces.new((p[k], q[k], q[(k + 1) % n], p[(k + 1) % n]))
+    bm.faces.new(rows[0][::-1]); bm.faces.new(rows[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    bevel(o, (r_out - r_in) * .4, 3)
+    if ss: subsurf(o, ss)
+    return _finish(o, name, m)
+
+def skin_obj(name, nodes, edges, m, ss=3, smooth_iters=0):
+    """Organic mesh from a skeleton: nodes = [(point, (rx, ry))], edges = [(i, j)]. Skin modifier + subdivision -> smooth body."""
+    bm = bmesh.new(); lay = bm.verts.layers.skin.verify(); vs = []
+    for i, (p, r) in enumerate(nodes):
+        v = bm.verts.new(Vector(p)); rr = (r, r) if isinstance(r, (int, float)) else r
+        v[lay].radius = rr; v[lay].use_root = (i == 0); vs.append(v)
+    for a, b in edges: bm.edges.new((vs[a], vs[b]))
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    md = o.modifiers.new("skin", 'SKIN'); md.use_smooth_shade = True
+    if smooth_iters:
+        sm = o.modifiers.new("sm", 'SMOOTH'); sm.factor = .5; sm.iterations = smooth_iters
+    s = o.modifiers.new("ss", 'SUBSURF'); s.levels = 0; s.render_levels = ss
+    return _finish(o, name, m, smooth=False)
+
+# ---------------------------------------------------------------- bike materials
+def M():
+    return dict(
+        paint=mat("paint", PAINT, "paint", rough=.2, coat=1., wear=.4, dirt=.15, scale=30, tint=(srgb("#B82A22")[0], srgb("#B82A22")[1], srgb("#B82A22")[2], 1)),
+        chrome=mat("chrome", CHROME, "chrome", rough=.16, metal=1., bump=.35, wear=.15, scale=20),
+        steel=mat("steel", (0.62, 0.64, 0.66, 1), "chrome", rough=.35, metal=1., bump=.45, dirt=.4, scale=25),
+        gun=mat("gun", GUN, "metal", rough=.42, metal=.8, bump=.45, dirt=.5, wear=.3, scale=30),
+        gun_d=mat("gun_d", (0.13, 0.14, 0.15, 1), "metal", rough=.5, metal=.7, bump=.35, dirt=.5, scale=30),
+        black=mat("black", DARK, "plastic", rough=.5, bump=.35, wear=.15, scale=50),
+        rubber=mat("rubber", RUBBER, "rubber", rough=.9, bump=.5, dirt=.6, scale=12),
+        grip=mat("grip", (0.06, 0.06, 0.065, 1), "rubber", rough=.85, bump=.6, scale=40),
+        seat=mat("seat", (0.06, 0.06, 0.07, 1), "leather", rough=.5, bump=.6, wear=.12, scale=18),
+        white=mat("white", WHITE, "plastic", rough=.45, bump=.2, wear=.2, scale=40),
+        glass=mat("glass", (0.95, 0.95, 0.85, 1), "plastic", rough=.05, alpha=.35, coat=1., bump=0, rand=0),
+        lens_glass=mat("lens_glass", (0.9, 0.93, 0.95, 1), "plastic", rough=.08, alpha=.3, coat=1., bump=0, rand=0),
+        bulb=mat("bulb", (1, .95, .8, 1), "none", emit=12, rand=0),
+        tail=mat("tail", (0.9, 0.06, 0.04, 1), "plastic", rough=.15, emit=.6, coat=1., bump=.1, scale=80),
+        amber=mat("amber", (1.0, 0.52, 0.06, 1), "plastic", rough=.15, emit=.6, coat=1., bump=.1, scale=80),
+        blue=mat("blue", BLUE, "paint", rough=.3, coat=.6, wear=.35, dirt=.3, scale=25),
+        blue_d=mat("blue_d", BLUE_D, "paint", rough=.35, coat=.4, wear=.25, scale=25),
+        orange=mat("orange", ORANGE, "plastic", rough=.4, bump=.15, wear=.2, scale=40),
+        refl=mat("refl", (0.95, 0.08, 0.06, 1), "plastic", rough=.15, emit=.3, coat=1., bump=.05),
+        ink=mat("ink", DARK, "plastic", rough=.7, bump=0, rand=0),
+        cable=mat("cable", (0.05, 0.05, 0.06, 1), "rubber", rough=.6, bump=.2, scale=80),
+        spring=mat("spring", (0.80, 0.10, 0.08, 1), "metal", rough=.4, metal=.5, bump=.2),
+        jacket=mat("jacket", BLUE, "fabric", rough=.75, bump=.5, scale=30, dirt=.1, wear=.08),
+        jacket_d=mat("jacket_d", BLUE_D, "fabric", rough=.75, bump=.5, scale=30),
+        pants=mat("pants", PANTS, "denim", rough=.85, bump=.55, scale=25, wear=.2, tint=(0.22, 0.34, 0.45, 1)),
+        glove=mat("glove", (0.07, 0.07, 0.08, 1), "leather", rough=.55, bump=.55, scale=40),
+        skin=mat("skin", SKIN, "plastic", rough=.55, bump=.1, scale=60),
+        helmet=mat("helmet", HELMET, "paint", rough=.1, coat=1., wear=.15, scale=40),
+        visor=mat("visor", (0.05, 0.07, 0.10, 1), "plastic", rough=.04, metal=.4, coat=1., bump=0),
+        sneaker=mat("sneaker", (0.92, 0.92, 0.90, 1), "fabric", rough=.7, bump=.45, scale=60, dirt=.5),
+        sole=mat("sole", (0.85, 0.82, 0.74, 1), "rubber", rough=.8, bump=.5, scale=40, dirt=.4),
+        zipper=mat("zipper", (0.75, 0.76, 0.78, 1), "chrome", rough=.3, metal=1., bump=.6, scale=200),
+        stripe=mat("stripe", (0.80, 0.82, 0.84, 1), "plastic", rough=.25, metal=.6, bump=.3, scale=200),
+        thread=mat("thread", (0.85, 0.78, 0.55, 1), "fabric", rough=.8, bump=.3, scale=300),
+        thread_w=mat("thread_w", (0.9, 0.9, 0.88, 1), "fabric", rough=.8, bump=.3, scale=300),
+        qr=mat("qr", (0.05, 0.05, 0.06, 1), "plastic", rough=.6, bump=0, rand=0),
+    )
+
+# ---------------------------------------------------------------- wheels
+R = 0.30; AX_F, AX_R = 0.66, -0.64
+
+def wheel(nm, x, width, front=True):
+    m = M(); w = width
+    prof = [(.205, -w * .45), (.235, -w * .55), (.268, -w * .52), (.290, -w * .42), (.300, -w * .36)]
+    for zz in (-.24, -.08, .08, .24):
+        prof += [(.300, w * (zz - .025)), (.291, w * (zz - .012)), (.291, w * (zz + .012)), (.300, w * (zz + .025))]
+    prof += [(.300, w * .36), (.290, w * .42), (.268, w * .52), (.235, w * .55), (.205, w * .45)]
+    lathe(f"{nm}_tyre", prof, (x, 0, R), m["rubber"], segs=128, axis='Y', ss=2)
+    for s in (-1, 1):   # raised sidewall ribs / brand ring
+        lathe(f"{nm}_sw{s}", [(.248, s * w * .50), (.262, s * w * .53), (.262, s * w * .545), (.248, s * w * .515)], (x, 0, R), m["rubber"], segs=96, axis='Y')
+    n = 40
+    for k in range(n):   # staggered two-row chevron tread knobs + centre rib
+        a = rad(k * 360 / n)
+        for s in (-1, 1):
+            a2 = a + rad(180 / n) * (1 if s > 0 else 0)
+            box(f"{nm}_tread{k}{s}", (.012, w * .30, .0045), (x + (R - .001) * math.cos(a2), s * w * .22, R + (R - .001) * math.sin(a2)), m["rubber"], bev=.0015, seg=1, rot=(0, -a2, rad(25) * s))
+        box(f"{nm}_treadc{k}", (.016, w * .10, .004), (x + (R - .001) * math.cos(a + rad(90 / n)), 0, R + (R - .001) * math.sin(a + rad(90 / n))), m["rubber"], bev=.0012, seg=2, rot=(0, -a - rad(90 / n), 0))
+    rim = [(.195, -.024), (.215, -.026), (.218, -.018), (.205, -.012), (.205, .012), (.218, .018), (.215, .026), (.195, .024)]
+    lathe(f"{nm}_rim", rim, (x, 0, R), m["chrome"], segs=96, axis='Y', ss=2)
+    lathe(f"{nm}_rim_in", [(.190, -.02), (.198, -.02), (.198, .02), (.190, .02)], (x, 0, R), m["steel"], segs=96, axis='Y')
+    tube(f"{nm}_valve", (x + .19 * math.cos(rad(40)), .028, R + .19 * math.sin(rad(40))), (x + .17 * math.cos(rad(40)), .05, R + .17 * math.sin(rad(40))), .004, m["steel"], verts=10, cap=False)
+    cyl(f"{nm}_valve_cap", .0055, .008, (x + .17 * math.cos(rad(40)), .052, R + .17 * math.sin(rad(40))), m["black"], rot=(rad(90), 0, 0), verts=10)
+    if front:
+        hub = [(0, -.07), (.03, -.07), (.045, -.06), (.05, -.045), (.055, -.03), (.045, -.02), (.045, .02), (.055, .03), (.05, .045), (.045, .06), (.03, .07), (0, .07)]
+    else:   # drum brake: ribbed cooling rings on the left side
+        hub = [(0, -.075), (.04, -.075), (.075, -.07), (.085, -.058), (.088, -.050), (.080, -.044), (.088, -.038), (.080, -.032), (.088, -.026), (.080, -.020), (.085, -.012), (.06, -.015), (.045, .02), (.055, .03), (.05, .045), (.045, .06), (.03, .07), (0, .07)]
+    lathe(f"{nm}_hub", hub, (x, 0, R), m["gun"], segs=64, axis='Y', ss=2)
+    cyl(f"{nm}_axle", .012, .30, (x, 0, R), m["chrome"], axis='Y', verts=16)
+    for s in (-1, 1):
+        cyl(f"{nm}_axnut{s}", .018, .016, (x, s * .145, R), m["steel"], axis='Y', verts=6)
+        cyl(f"{nm}_axwash{s}", .022, .004, (x, s * .136, R), m["steel"], axis='Y', verts=24)
+    for k in range(18):
+        a = rad(k * 20)
+        for s in (-1, 1):
+            a2 = a + rad(12 * s)
+            hx, hz = .045 * math.cos(a), .045 * math.sin(a); rx, rz = .196 * math.cos(a2), .196 * math.sin(a2)
+            tube(f"{nm}_spk{k}{s}", (x + hx, s * .052, R + hz), (x + rx, s * .010, R + rz), .0022, m["chrome"], verts=6, cap=False)
+            sphere(f"{nm}_nip{k}{s}", .0045, (x + rx, s * .010, R + rz), m["chrome"], seg=8)
+    if front:
+        lathe(f"{nm}_disc", [(.06, .082), (.125, .082), (.125, .088), (.06, .088)], (x, 0, R), m["steel"], segs=96, axis='Y')
+        lathe(f"{nm}_disc_c", [(.045, .080), (.065, .080), (.065, .090), (.045, .090)], (x, 0, R), m["gun"], segs=48, axis='Y')
+        for k in range(12):
+            a = rad(k * 30); cyl(f"{nm}_dbolt{k}", .005, .012, (x + .075 * math.cos(a), .085, R + .075 * math.sin(a)), m["chrome"], axis='Y', verts=8)
+        for k in range(24):
+            a = rad(k * 15 + 7); cyl(f"{nm}_dhole{k}", .004, .008, (x + .105 * math.cos(a), .085, R + .105 * math.sin(a)), m["gun_d"], axis='Y', verts=8)
+        box(f"{nm}_caliper", (.07, .04, .11), (x - .025, .10, R + .105), m["paint"], bev=.012, seg=4, ss=2)
+        box(f"{nm}_cal_pad", (.05, .02, .06), (x - .02, .085, R + .11), m["gun_d"], bev=.006)
+        for k in range(2): cyl(f"{nm}_cal_bolt{k}", .006, .008, (x - .025, .121, R + .075 + k * .06), m["chrome"], axis='Y', verts=8)
+        cyl(f"{nm}_banjo", .009, .012, (x - .03, .11, R + .165), m["chrome"], verts=10)
+        curve_tube(f"{nm}_brakeline", [(x - .03, .11, R + .17), (x - .05, .12, R + .30), (x - .09, .11, R + .45), (0.45, .13, 0.92)], .004, m["cable"])
+    else:
+        box(f"{nm}_drum_arm", (.14, .015, .03), (x - .07, -.095, R + .02), m["steel"], bev=.005)
+        curve_tube(f"{nm}_brake_rod", [(x - .14, -.10, R + .02), (x + .25, -.17, R + .03), (-0.05, -.19, .34)], .004, m["chrome"])
+        torus(f"{nm}_rod_spring", .008, .003, (x + .06, -.16, R + .025), m["spring"], rot=(0, rad(90), 0), segs=(24, 8))
+
+# ---------------------------------------------------------------- bike
+def build_bike(parked=False):
+    m = M()
+    wheel("fw", AX_F, .090, True); wheel("rw", AX_R, .110, False)
+    # ---- front end
+    f_bot = Vector((AX_F, 0, R)); f_top = Vector((0.40, 0, 0.92)); fd = (f_top - f_bot).normalized()
+    fork_rot = fd.to_track_quat('Z', 'Y').to_euler()
+    for s in (-1, 1):
+        lathe(f"fork_lo{s}", [(0, 0), (.030, 0), (.030, .03), (.025, .05), (.025, .33), (.030, .35), (.030, .37), (0, .37)], f_bot + Vector((0, s * .095, 0)), m["chrome"], segs=40, rot=fork_rot, ss=2)
+        gaiter = [(0, .36)]
+        for k in range(9): gaiter += [(.022, .36 + k * .016), (.031, .36 + k * .016 + .006), (.031, .36 + k * .016 + .010)]
+        gaiter += [(.022, .36 + 9 * .016), (0, .36 + 9 * .016)]
+        lathe(f"gaiter{s}", gaiter, f_bot + Vector((0, s * .095, 0)), m["rubber"], segs=40, rot=fork_rot, ss=1)
+        lathe(f"fork_hi{s}", [(0, .50), (.021, .50), (.021, .76), (0, .76)], f_bot + Vector((0, s * .095, 0)), m["black"], segs=32, rot=fork_rot)
+        cyl(f"fork_cap{s}", .024, .01, f_top + fd * .10 + Vector((0, s * .095, 0)), m["chrome"], rot=fork_rot, verts=24, bev=.003)
+        box(f"axle_clamp{s}", (.05, .03, .04), f_bot + Vector((0, s * .095, .02)), m["chrome"], bev=.008, seg=3, ss=1)
+    box("clamp_lo", (.10, .25, .035), f_top - fd * .16, m["gun"], bev=.012, seg=4, ss=2, rot=(0, -math.atan2(fd.x, fd.z), 0))
+    box("clamp_hi", (.10, .27, .035), f_top + fd * .06, m["gun"], bev=.012, seg=4, ss=2, rot=(0, -math.atan2(fd.x, fd.z), 0))
+    for s in (-1, 1): cyl(f"clamp_bolt{s}", .009, .012, f_top + fd * .06 + Vector((-.03, s * .095, .022)), m["chrome"], rot=fork_rot, verts=6)
+    lathe("steer", [(0, -.22), (.03, -.22), (.03, .08), (0, .08)], f_top, m["paint"], segs=32, rot=fork_rot)
+    lathe("steer_nut", [(.03, .06), (.04, .06), (.04, .08), (.03, .08)], f_top, m["chrome"], segs=8, rot=fork_rot)
+    hb = f_top + fd * .12
+    bar = [(0, -.36, 0), (0, -.30, 0), (-.03, -.22, .03), (-.08, -.14, .06), (-.08, 0, .06), (-.08, .14, .06), (-.03, .22, .03), (0, .30, 0), (0, .36, 0)]
+    curve_tube("handlebar", [(hb.x + p[0], hb.y + p[1], hb.z + p[2]) for p in bar], .0125, m["chrome"], res=24)
+    for s in (-1, 1):
+        box(f"bar_clamp{s}", (.04, .03, .04), hb + Vector((-.08, s * .05, .06)), m["gun"], bev=.008, seg=3, ss=1)
+        gp = hb + Vector((0, s * .32, 0))
+        grip = [(0, -.06), (.016, -.06), (.020, -.055)]
+        for k in range(7): grip += [(.0195, -.05 + k * .017), (.0165, -.05 + k * .017 + .006), (.0165, -.05 + k * .017 + .011), (.0195, -.05 + k * .017 + .017)]
+        grip += [(.022, .07), (.018, .076), (0, .076)]
+        lathe(f"grip{s}", grip, gp, m["grip"], segs=36, rot=(rad(-90) * s, 0, 0), ss=1)
+        lathe(f"grip_end{s}", [(0, 0), (.024, 0), (.024, .01), (0, .01)], hb + Vector((0, s * .395, 0)), m["chrome"], segs=24, rot=(rad(90) * -s, 0, 0))
+        lp = hb + Vector((0, s * .25, 0)); curve_tube(f"lever{s}", [(lp.x + .02, lp.y, lp.z), (lp.x + .08, lp.y + s * .01, lp.z - .01), (lp.x + .14, lp.y + s * .03, lp.z - .035)], .0055, m["chrome"])
+        sphere(f"lever_ball{s}", .008, (lp.x + .14, lp.y + s * .03, lp.z - .035), m["chrome"], seg=12)
+        box(f"lever_perch{s}", (.035, .03, .03), lp + Vector((.01, 0, 0)), m["black"], bev=.008, ss=1)
+        box(f"switch{s}", (.035, .045, .035), hb + Vector((-.01, s * .17, 0)), m["black"], bev=.006, seg=3, ss=1)
+        for k in range(2): box(f"switch_btn{s}{k}", (.012, .010, .006), hb + Vector((-.012 + k * .014, s * .17, .019)), m["orange"] if k else m["white"], bev=.002)
+        st0 = hb + Vector((-.02, s * .20, .02)); st1 = st0 + Vector((-.04, s * .08, .17)); st2 = st1 + Vector((-.02, s * .05, .04))
+        curve_tube(f"mir_stalk{s}", [st0, st0 + Vector((-.01, s * .01, .05)), st1, st2], .006, m["black"])
+        mir_rot = Vector((-.6, s * .35, .25)).to_track_quat('Z', 'Y').to_euler()
+        lathe(f"mirror{s}", [(0, 0), (.045, 0), (.055, .006), (.058, .018), (.052, .026), (.046, .028), (0, .028)], st2, m["black"], segs=40, rot=mir_rot, ss=2)
+        lathe(f"mirror_glass{s}", [(0, .028), (.045, .028), (.045, .030), (0, .030)], st2, m["chrome"], segs=40, rot=mir_rot)
+        ip = f_top + fd * .16 + Vector((.02, s * .19, -.04))
+        tube(f"blink_f_st{s}", ip + Vector((.02, -s * .08, .02)), ip, .007, m["black"], verts=10, cap=False)
+        lathe(f"blink_f{s}", [(0, -.02), (.028, -.02), (.03, 0), (.03, .02), (.026, .03), (0, .03)], ip, m["black"], segs=32, axis='X', ss=2)
+        lathe(f"blink_f_lens{s}", [(0, .03), (.025, .03), (.02, .045), (0, .05)], ip, m["amber"], segs=32, axis='X', ss=2)
+        for k in range(4): torus(f"blink_f_rib{s}{k}", .010 + k * .004, .0008, ip + Vector((.032 + k * .003, 0, 0)), m["amber"], rot=(0, rad(90), 0), segs=(32, 6))
+    lathe("throttle_tube", [(0, 0), (.015, 0), (.015, .03), (0, .03)], hb + Vector((0, -.20, 0)), m["black"], segs=20, axis='Y')
+    # speedometer cluster
+    cp = f_top + fd * .22 + Vector((-.02, 0, 0)); cup_rot = fork_rot
+    lathe("speedo", [(0, -.02), (.045, -.02), (.052, -.01), (.054, .02), (.052, .035), (0, .035)], cp, m["black"], segs=48, rot=cup_rot, ss=2)
+    lathe("speedo_bezel", [(.046, .034), (.056, .034), (.056, .040), (.046, .040)], cp, m["chrome"], segs=48, rot=cup_rot, ss=1)
+    lathe("speedo_face", [(0, .034), (.046, .034), (.046, .036), (0, .036)], cp, m["white"], segs=48, rot=cup_rot)
+    lathe("speedo_glass", [(0, .036), (.047, .036), (.047, .040), (0, .041)], cp, m["glass"], segs=48, rot=cup_rot)
+    ax = Vector(fd); right = ax.cross(Vector((0, 0, 1))).normalized(); upl = right.cross(ax).normalized()
+    for k in range(17):
+        a = rad(-120 + k * 15); p = cp + ax * .037 + (right * math.cos(a) + upl * math.sin(a)) * .036
+        box(f"tick{k}", (.004 if k % 2 == 0 else .0025, .008 if k % 2 == 0 else .005, .002), p, m["ink"], bev=0, rot=cup_rot)
+    needle_rot = (Euler(cup_rot).to_matrix() @ Matrix.Rotation(rad(35), 3, 'Z')).to_euler()
+    box("needle", (.004, .030, .002), cp + ax * .038 + (right * -.3 + upl * .8) * .014, m["tail"], bev=0, rot=needle_rot)
+    cyl("needle_hub", .005, .003, cp + ax * .038, m["ink"], rot=cup_rot, verts=12)
+    box("odo", (.016, .007, .002), cp + ax * .038 + upl * -.018, m["ink"], bev=0, rot=cup_rot)
+    # headlight (reflector + bulb + fluted lens) + front fender
+    hl = Vector((0.49, 0, 0.90)); hl_rot = (0, rad(90), 0)
+    lathe("hl_bucket", [(0, -.06), (.06, -.06), (.095, -.03), (.105, 0), (.108, .03), (0, .03)], hl, m["black"], segs=64, rot=hl_rot, ss=2)
+    lathe("hl_bezel", [(.098, .028), (.112, .028), (.112, .040), (.098, .040)], hl, m["chrome"], segs=64, rot=hl_rot, ss=1)
+    refl = [(0, .0)] + [(.095 * math.sqrt(t), .0 + .032 * t) for t in (0.04, .12, .25, .40, .60, .80, 1.0)]
+    lathe("hl_reflector", refl, hl, m["chrome"], segs=64, rot=hl_rot, ss=1)
+    sphere("hl_bulb", .012, hl + Vector((.012, 0, 0)), m["bulb"], scale=(1.6, 1, 1), seg=16)
+    lathe("hl_lens", [(0, .034), (.098, .034), (.096, .042), (.060, .054), (0, .058)], hl, m["lens_glass"], segs=64, rot=hl_rot, ss=2)
+    for k in range(5): torus(f"hl_flute{k}", .018 + k * .017, .0012, hl + Vector((.038 + .018 * (1 - (k / 5) ** 2), 0, 0)), m["lens_glass"], rot=(0, rad(90), 0), segs=(48, 6))
+    for s in (-1, 1): box(f"hl_ear{s}", (.03, .012, .05), hl + Vector((-.03, s * .103, -.01)), m["gun"], bev=.004)
+    arc_shell("fender_f", (AX_F, 0, R), R + .035, R + .052, .16, 8, 168, m["paint"], lip=.012)
+    for s in (-1, 1): tube(f"fender_brace{s}", (AX_F + .20, s * .085, R + .25), (AX_F - .22, s * .085, R + .25), .005, m["chrome"], verts=8)
+    box("fender_tab", (.04, .06, .012), (AX_F, 0, R + .055), m["chrome"], bev=.003)
+    # ---- frame, swingarm, shocks, pegs
+    head = Vector((0.40, 0, 0.84))
+    tube("bb", head + Vector((-.04, 0, 0)), (-0.32, 0, 0.74), .024, m["paint"], ss=2)
+    tube("dt", head + Vector((-.02, 0, -.06)), (0.22, 0, 0.30), .022, m["paint"], ss=2)
+    tube("cradle", (0.22, 0, 0.30), (-0.26, 0, 0.30), .020, m["paint"], ss=2)
+    tube("riser", (-0.26, 0, 0.30), (-0.32, 0, 0.74), .022, m["paint"], ss=2)
+    box("gusset", (.10, .03, .08), (0.33, 0, 0.78), m["paint"], bev=.01, rot=(0, rad(-25), 0))
+    for p in ((0.22, 0, 0.30), (-0.26, 0, 0.30), (-0.32, 0, 0.74)): sphere("weld", .026, p, m["paint"], seg=16, ss=1)
+    shock_rot = Vector((.04, 0, .42)).to_track_quat('Z', 'Y').to_euler()
+    for s in (-1, 1):
+        tube(f"sub{s}", (-0.30, s * .12, 0.73), (-0.98, s * .12, 0.80), .017, m["paint"], ss=2)
+        tube(f"sub_d{s}", (-0.26, s * .11, 0.42), (-0.62, s * .12, 0.74), .015, m["paint"], ss=2)
+        box(f"swing{s}", (.44, .035, .055), (-0.45, s * .12, 0.36), m["gun"], bev=.012, seg=4, ss=2)
+        box(f"chain_adj{s}", (.05, .04, .03), (-0.66, s * .12, 0.33), m["gun_d"], bev=.006)
+        cyl(f"adj_bolt{s}", .005, .04, (-0.70, s * .12, 0.33), m["chrome"], axis='X', verts=8)
+        lathe(f"shock{s}", [(0, 0), (.016, 0), (.016, .22), (.022, .22), (.022, .40), (0, .40)], (-0.64, s * .145, 0.36), m["chrome"], segs=32, rot=shock_rot, ss=2)
+        spring = [(0, .06)]
+        for k in range(8): spring += [(.030, .06 + k * .038), (.024, .06 + k * .038 + .012), (.030, .06 + k * .038 + .024)]
+        spring += [(0, .06 + 8 * .038)]
+        lathe(f"spring{s}", spring, (-0.64, s * .145, 0.36), m["spring"], segs=32, rot=shock_rot, ss=1)
+        box(f"shock_top{s}", (.04, .03, .05), (-0.60, s * .145, 0.78), m["gun"], bev=.008, ss=1)
+        cyl(f"shock_nut{s}", .01, .012, (-0.60, s * .165, 0.78), m["chrome"], axis='Y', verts=6)
+        peg = [(0, 0), (.014, 0), (.014, .02)]
+        for k in range(5): peg += [(.011, .02 + k * .018), (.014, .02 + k * .018 + .009)]
+        peg += [(.014, .12), (0, .12)]
+        lathe(f"peg{s}", peg, (-0.08, s * .16, 0.33), m["rubber"], segs=24, rot=(rad(90) * -s, 0, 0), ss=1)
+        box(f"peg_mount{s}", (.05, .06, .025), (-0.08, s * .13, 0.33), m["gun"], bev=.006)
+        # passenger pegs on the subframe
+        lathe(f"ppeg{s}", peg, (-0.50, s * .17, 0.44), m["rubber"], segs=20, rot=(rad(90) * -s, 0, 0))
+        box(f"ppeg_mount{s}", (.04, .05, .02), (-0.50, s * .14, 0.44), m["gun"], bev=.005)
+    # ---- engine: crankcase, finned barrel + head, carb + boot + airbox, levers, exhaust, chain
+    lathe("crank", [(0, -.14), (.12, -.14), (.15, -.11), (.155, .0), (.15, .11), (.12, .14), (0, .14)], (-0.02, 0, 0.40), m["gun"], segs=64, axis='Y', ss=2)
+    lathe("crank_cover", [(0, .14), (.08, .14), (.10, .15), (.10, .165), (.085, .17), (.085, .175), (.06, .175), (.06, .17), (0, .17)], (-0.02, 0, 0.40), m["gun"], segs=48, axis='Y', ss=2)
+    lathe("clutch_cover", [(0, -.14), (.10, -.14), (.10, -.155), (.08, -.16), (.08, -.165), (.05, -.165), (.05, -.16), (0, -.16)], (-0.02, 0, 0.40), m["gun"], segs=48, axis='Y', ss=2)
+    for k in range(8):
+        a = rad(k * 45); cyl(f"crank_bolt{k}", .006, .006, (-0.02 + .085 * math.cos(a), .17, .40 + .085 * math.sin(a)), m["chrome"], axis='Y', verts=6)
+        cyl(f"clutch_bolt{k}", .006, .006, (-0.02 + .085 * math.cos(a), -.16, .40 + .085 * math.sin(a)), m["chrome"], axis='Y', verts=6)
+    for k in range(6): box(f"clutch_rib{k}", (.03, .006, .004), (-0.02 + .03 * math.cos(rad(k * 60)), -.168, .40 + .03 * math.sin(rad(k * 60))), m["gun"], bev=.001, rot=(0, -rad(k * 60), 0))
+    lathe("oil_cap", [(0, 0), (.016, 0), (.018, .006), (.018, .012), (.012, .016), (0, .016)], (-0.09, -.17, 0.47), m["chrome"], segs=16, axis='Y', ss=1)
+    lathe("starter", [(0, 0), (.03, 0), (.032, .005), (.032, .10), (.028, .105), (0, .105)], (-0.14, .0, 0.52), m["gun_d"], segs=24, axis='Y', ss=1)
+    blk_rot = (0, rad(-12), 0); blk_dir = Matrix.Rotation(blk_rot[1], 4, 'Y') @ Vector((0, 0, 1))
+    def along(z): return Vector((0.08, 0, 0.47)) + blk_dir * z
+    box("block_base", (.20, .22, .09), along(-.02), m["gun"], bev=.012, seg=4, ss=2, rot=blk_rot)
+    lathe("barrel", fins(.088, .118, .02, 10, .024, .008, lead=.01), along(0), m["gun"], segs=48, rot=blk_rot, ss=1)
+    for k in range(10):   # square fin plates around the round barrel (CG-style rectangular fins)
+        box(f"fin{k}", (.20 - (k % 2) * .012, .23 - (k % 2) * .012, .0065), along(.034 + k * .024), m["gun_d"] if k % 2 else m["gun"], bev=.006, seg=3, rot=blk_rot)
+    lathe("head", fins(.090, .122, .27, 4, .026, .010), along(0), m["gun"], segs=48, rot=blk_rot, ss=1)
+    for k in range(4): box(f"hfin{k}", (.21, .20, .0075), along(.283 + k * .026), m["gun"], bev=.006, seg=3, rot=blk_rot)
+    box("head_cap", (.13, .15, .035), along(.395), m["black"], bev=.012, seg=3, ss=2, rot=blk_rot)
+    for sx in (-1, 1):
+        for sy in (-1, 1): cyl(f"head_bolt{sx}{sy}", .007, .012, along(.40) + Vector((sx * .05, sy * .06, 0)), m["chrome"], rot=blk_rot, verts=6)
+    lathe("spark", [(0, 0), (.012, 0), (.012, .03), (.006, .035), (.006, .05), (0, .05)], (0.11, .08, 0.86), m["white"], segs=16, rot=(rad(-30), rad(-40), 0))
+    cyl("spark_cap", .009, .02, (0.085, .10, 0.875), m["black"], rot=(rad(-30), rad(-40), 0), verts=12)
+    lathe("carb", [(0, 0), (.035, 0), (.04, .01), (.04, .08), (.03, .09), (0, .09)], (0.09, .13, 0.66), m["steel"], segs=32, axis='X', ss=2)
+    lathe("carb_bowl", [(0, 0), (.028, 0), (.03, .03), (0, .03)], (0.09, .13, 0.60), m["steel"], segs=32, ss=2)
+    cyl("carb_top", .018, .02, (0.09, .13, 0.715), m["black"], verts=20)
+    lathe("carb_adj", [(0, 0), (.006, 0), (.006, .02), (0, .02)], (0.09, .13, 0.73), m["chrome"], segs=8)
+    curve_tube("intake_boot", [(0.17, .09, .74), (0.13, .12, .70), (0.10, .13, .67)], .028, m["rubber"], res=10)
+    torus("boot_clamp", .029, .003, (0.145, .105, .72), m["chrome"], rot=Vector((-.6, .4, -.7)).to_track_quat('Z', 'Y').to_euler(), segs=(32, 8))
+    lathe("airbox", [(0, 0), (.05, 0), (.06, .02), (.06, .10), (.05, .12), (0, .12)], (-0.04, .135, 0.66), m["black"], segs=32, axis='X', ss=2)
+    for k in range(5): box(f"airbox_rib{k}", (.09, .006, .02), (-0.02 + k * .0, .165, .60 + k * .022), m["black"], bev=.002)
+    curve_tube("throttle_cable", [(0.09, .14, .72), (0.15, .16, .85), (0.30, .18, .98), (0.40, -.19, 1.02)], .0035, m["cable"])
+    curve_tube("clutch_cable", [(-0.02, -.17, .50), (0.05, -.20, .70), (0.25, -.22, .95), (0.40, -.20, 1.02)], .0035, m["cable"])
+    curve_tube("plug_wire", [(0.11, .085, .87), (0.0, .14, .92), (-0.15, .13, .80), (-0.25, .14, .72)], .003, m["cable"])
+    curve_tube("speedo_cable", [(AX_F, .07, R + .02), (AX_F - .05, .10, R + .20), (0.46, .10, 0.80), (0.38, .04, 0.95)], .003, m["cable"])
+    curve_tube("wiring", [(0.36, -.05, .86), (0.20, -.06, .80), (0.0, -.10, .75), (-0.30, -.12, .68)], .004, m["cable"])
+    # kick-start (right), gear lever (left), rear brake pedal (right)
+    curve_tube("kick", [(-0.06, .16, .40), (-0.14, .20, .52), (-0.16, .22, .62)], .008, m["chrome"])
+    lathe("kick_pedal", [(0, 0), (.012, 0), (.012, .05), (0, .05)], (-0.16, .22, .62), m["rubber"], segs=16, axis='Y')
+    curve_tube("gear", [(-0.03, -.17, .42), (0.08, -.19, .38), (0.14, -.21, .36)], .007, m["chrome"])
+    lathe("gear_tip", [(0, 0), (.012, 0), (.012, .04), (0, .04)], (0.14, -.21, .36), m["rubber"], segs=16, rot=(rad(-90), 0, 0))
+    curve_tube("brake_pedal", [(-0.05, .17, .35), (0.06, .19, .33), (0.14, .21, .33)], .007, m["chrome"])
+    box("brake_pad", (.05, .03, .01), (0.14, .21, .34), m["rubber"], bev=.003)
+    curve_tube("exhaust", [(0.21, .07, .80), (0.30, .10, .62), (0.36, .12, .42), (0.30, .14, .31), (0.0, .15, .33), (-0.34, .16, .38)], .021, m["chrome"], res=24)
+    torus("exh_flange", .028, .006, (0.215, .075, .77), m["gun"], rot=Vector((.4, .15, -.9)).to_track_quat('Z', 'Y').to_euler(), segs=(24, 8))
+    muf_rot = Vector((-.55, .0, .06)).to_track_quat('Z', 'Y').to_euler()
+    lathe("muffler", [(0, 0), (.03, 0), (.055, .05), (.058, .30), (.052, .50), (.04, .56), (0, .56)], (-0.33, .165, 0.36), m["chrome"], segs=48, rot=muf_rot, ss=2)
+    lathe("muffler_tip", [(0, 0), (.03, 0), (.03, .03), (.024, .03), (.024, .0)], (-0.885, .165, 0.42), m["black"], segs=32, axis='X')
+    lathe("heat_shield", [(.064, .0), (.066, .0), (.066, .28), (.064, .28)], (-0.33, .165, 0.36), m["chrome"], segs=32, rot=muf_rot, angle=PI * .9, closed=True)
+    for k in range(6): cyl(f"shield_rivet{k}", .004, .006, (-0.36 - k * .045, .23, 0.40 + k * .004), m["black"], axis='Y', verts=8)
+    for k in range(8): cyl(f"shield_slot{k}", .003, .004, (-0.38 - k * .03, .232, 0.43 + k * .004), m["gun_d"], axis='Y', verts=6)
+    lathe("sprocket_r", [(0, -.006), (.085, -.006), (.085, .006), (0, .006)], (AX_R, -.125, R), m["steel"], segs=64, axis='Y')
+    for k in range(32):
+        a = rad(k * 360 / 32); box(f"tooth_r{k}", (.008, .010, .012), (AX_R + .09 * math.cos(a), -.125, R + .09 * math.sin(a)), m["steel"], bev=.002, seg=2, rot=(0, -a, 0))
+    for k in range(5):
+        a = rad(k * 72); cyl(f"spr_hole{k}", .012, .014, (AX_R + .05 * math.cos(a), -.125, R + .05 * math.sin(a)), m["gun_d"], axis='Y', verts=12)
+        cyl(f"spr_bolt{k}", .006, .008, (AX_R + .03 * math.cos(a + rad(36)), -.132, R + .03 * math.sin(a + rad(36))), m["chrome"], axis='Y', verts=6)
+    fs = Vector((-0.10, -.125, 0.40))
+    lathe("sprocket_f", [(0, -.006), (.032, -.006), (.032, .006), (0, .006)], fs, m["steel"], segs=32, axis='Y')
+    chain = arc_pts((AX_R, -.125, R), .092, 90, 270, 14) + arc_pts((fs.x, fs.y, fs.z), .038, 270, 450, 8)
+    curve_tube("chain", chain, .006, m["gun_d"], res=24, cyclic=True)
+    for k, (p, d) in enumerate(_resample([Vector(p) for p in chain] + [Vector(chain[0])], .016)):   # chain rollers / side plates
+        if k % 2 == 0: cyl(f"roller{k}", .0075, .014, p, m["steel"], axis='Y', verts=10)
+    box("chain_cover", (.42, .022, .07), (-0.44, -.145, 0.38), m["black"], bev=.01, seg=4, ss=2)
+    for k in range(3): box(f"chain_cover_rib{k}", (.10, .004, .05), (-0.56 + k * .12, -.158, 0.38), m["black"], bev=.002)
+    box("sprocket_cover", (.12, .02, .12), (-0.09, -.155, 0.42), m["gun"], bev=.012, seg=4, ss=2)
+    for k in range(3): cyl(f"spc_bolt{k}", .005, .006, (-0.13 + k * .04, -.166, 0.37 + (k % 2) * .09), m["chrome"], axis='Y', verts=6)
+    # ---- tank, covers, seat, rear fender, grab rail
+    rbox("tank", (.52, .36, .28), (0.06, 0, 0.86), m["paint"], rot=(0, rad(-6), 0), seg=7, ss=3)
+    rbox("tank_top", (.34, .22, .08), (0.07, 0, 0.955), m["paint"], rot=(0, rad(-6), 0), seg=5, ss=3)
+    curve_tube("tank_seam", [(0.31, 0, .915), (0.15, 0, .99), (0.0, 0, 1.0), (-0.18, 0, .95)], .0025, m["paint"], res=12)
+    lathe("fuel_cap", [(0, 0), (.03, 0), (.036, .006), (.036, .014), (.028, .018), (.028, .022), (0, .022)], (0.10, 0, 0.99), m["chrome"], segs=40, rot=(0, rad(-6), 0), ss=2)
+    for k in range(12):
+        a = rad(k * 30); box(f"cap_knurl{k}", (.004, .008, .012), (0.10 + .036 * math.cos(a), .036 * math.sin(a), 1.0), m["chrome"], bev=0, rot=(0, 0, a))
+    cyl("cap_keyhole", .004, .004, (0.10, 0, 1.012), m["ink"], verts=8)
+    for s in (-1, 1):
+        rbox(f"kneepad{s}", (.16, .022, .12), (-0.05, s * .178, 0.80), m["rubber"], rot=(0, rad(-6), 0), seg=4, ss=2)
+        for k in range(4): box(f"kneepad_groove{s}{k}", (.12, .004, .006), (-0.05 + .002 * k, s * .19, 0.76 + k * .026), m["gun_d"], bev=.001, rot=(0, rad(-6), 0))
+        rbox(f"tank_stripe{s}", (.30, .010, .045), (0.08, s * .183, 0.86), m["white"], rot=(0, rad(-6), 0), seg=3, ss=1)
+        rbox(f"tank_stripe2{s}", (.30, .010, .012), (0.08, s * .183, 0.895), m["orange"], rot=(0, rad(-6), 0), seg=3)
+        rbox(f"tank_emblem{s}", (.07, .006, .03), (0.16, s * .186, 0.90), m["chrome"], rot=(0, rad(-6), 0), seg=3)
+        text(f"tank_txt{s}", "CKT", .018, (0.16, s * .19, 0.90), m["ink"], rot=(rad(90), rad(-6) * s, rad(90) * s), extrude=.0008)
+        rbox(f"side_cover{s}", (.28, .035, .20), (-0.30, s * .15, 0.60), m["paint"], seg=5, ss=3)
+        rbox(f"side_badge{s}", (.12, .008, .035), (-0.32, s * .170, 0.63), m["white"], seg=3)
+        text(f"side_txt{s}", "CG 150", .022, (-0.32, s * .176, 0.63), m["ink"], rot=(rad(90), 0, rad(90) * s), extrude=.001)
+        for k in range(3): box(f"side_vent{s}{k}", (.006, .004, .06), (-0.22 + k * .012, s * .169, 0.55), m["gun_d"], bev=.001)
+        box(f"side_screw{s}", (.012, .004, .012), (-0.41, s * .169, 0.68), m["chrome"], bev=.002)
+    rbox("seat", (.62, .30, .10), (-0.42, 0, 0.80), m["seat"], seg=7, ss=3)
+    rbox("seat_step", (.22, .26, .05), (-0.20, 0, 0.84), m["seat"], seg=5, ss=3)
+    for k in range(6):
+        x = -0.66 + k * .09; stitches(f"seam{k}", [(x, -.14, .83), (x, -.07, .853), (x, 0, .856), (x, .07, .853), (x, .14, .83)], m["thread_w"], step=.011)
+    stitches("seam_long", [(-0.70, 0, .82), (-0.55, 0, .855), (-0.30, 0, .86), (-0.14, 0, .85)], m["thread_w"], step=.011)
+    curve_tube("seat_piping", [(-0.72, -.15, .80), (-0.42, -.155, .81), (-0.12, -.14, .83), (-0.10, 0, .84), (-0.12, .14, .83), (-0.42, .155, .81), (-0.72, .15, .80), (-0.73, 0, .80)], .003, m["seat"], res=16, cyclic=True)
+    box("seat_base", (.64, .32, .03), (-0.42, 0, 0.74), m["black"], bev=.01, seg=3)
+    box("seat_latch", (.03, .02, .04), (-0.74, .12, 0.76), m["chrome"], bev=.004)
+    arc_shell("fender_r", (AX_R, 0, R), R + .05, R + .068, .17, 95, 205, m["paint"], lip=.012)
+    curve_tube("grab", [(-0.60, -.17, 0.78), (-0.72, -.18, 0.80), (-0.78, -.10, 0.80), (-0.78, .10, 0.80), (-0.72, .18, 0.80), (-0.60, .17, 0.78)], .011, m["chrome"])
+    # ---- rack, bau, tail light, plate, rear indicators
+    rz = 0.86
+    for s in (-1, 1):
+        tube(f"rack_rail{s}", (-0.66, s * .19, rz), (-1.02, s * .19, rz), .011, m["black"])
+        tube(f"rack_leg{s}", (-0.98, s * .19, rz), (-0.96, s * .12, 0.78), .009, m["black"])
+    for x in (-0.72, -0.82, -0.92, -1.02): tube(f"rack_x{x:.2f}", (x, -.19, rz), (x, .19, rz), .009, m["black"])
+    build_bau((-0.86, 0, rz + .016))
+    lathe("tail", [(0, 0), (.055, 0), (.06, .02), (.05, .04), (0, .045)], (-1.00, 0, 0.66), m["black"], segs=40, rot=(0, rad(-90), 0), ss=2)
+    lathe("tail_lens", [(0, .04), (.05, .04), (.042, .055), (0, .06)], (-1.00, 0, 0.66), m["tail"], segs=40, rot=(0, rad(-90), 0), ss=2)
+    for k in range(3): torus(f"tail_rib{k}", .015 + k * .012, .001, (-1.052 - k * .003, 0, .66), m["tail"], rot=(0, rad(90), 0), segs=(32, 6))
+    box("plate_bracket", (.02, .06, .10), (-1.00, 0, 0.58), m["gun"], bev=.004)
+    box("plate", (.010, .20, .13), (-1.03, 0, 0.53), m["white"], bev=.003, seg=3)
+    decal_plane("plate_decal", .196, .098, (-1.0358, 0, 0.53), (rad(90), 0, rad(-90)), decal_mat("plate", D_img("plate"), rough=.4, spec=.6, coat=.2), ROOT)
+    for s in (-1, 1): cyl(f"plate_bolt{s}", .005, .006, (-1.040, s * .08, 0.58), m["chrome"], axis='X', verts=8)
+    for s in (-1, 1):
+        ip = Vector((-0.98, s * .23, 0.70))
+        tube(f"blink_r_st{s}", (-0.94, s * .12, 0.76), ip, .007, m["black"], verts=10, cap=False)
+        lathe(f"blink_r{s}", [(0, -.02), (.028, -.02), (.03, 0), (.03, .02), (.026, .03), (0, .03)], ip, m["black"], segs=32, rot=(0, rad(-90), 0), ss=2)
+        lathe(f"blink_r_lens{s}", [(0, .03), (.025, .03), (.02, .045), (0, .05)], ip, m["amber"], segs=32, rot=(0, rad(-90), 0), ss=2)
+        for k in range(4): torus(f"blink_r_rib{s}{k}", .010 + k * .004, .0008, ip + Vector((-.032 - k * .003, 0, 0)), m["amber"], rot=(0, rad(90), 0), segs=(32, 6))
+    if parked:
+        tube("kickstand", (-0.20, -.13, 0.32), (-0.08, -.30, 0.0), .010, m["black"])
+        box("kick_foot", (.04, .05, .012), (-0.08, -.30, 0.006), m["black"], bev=.004)
+        tube("kick_spring", (-0.18, -.15, 0.30), (-0.30, -.13, 0.33), .005, m["chrome"], verts=8)
+        coil = [(0, 0)]
+        for k in range(20): coil += [(.006, k * .004), (.004, k * .004 + .002)]
+        lathe("kick_coil", coil + [(0, .08)], (-0.19, -.145, 0.31), m["spring"], segs=12, rot=Vector((-.12, .02, .03)).to_track_quat('Z', 'Y').to_euler())
+
+# ---------------------------------------------------------------- bau
+def bag_logo(nm, loc, rot, m_white, size=.17, m_handle=None):
+    bpy.ops.object.empty_add(location=loc, rotation=rot); e = bpy.context.object; e.name = nm; e.parent = ROOT
+    saved = globals()["ROOT"]; globals()["ROOT"] = e
+    rbox(nm + "_body", (size, size * .80, .006), (0, -size * .10, 0), m_white, seg=4, ss=2)
+    torus(nm + "_handle", size * .24, size * .035, (0, size * .30, 0), m_handle or m_white, segs=(40, 12))
+    globals()["ROOT"] = saved
+    return e
+
+def qr_sticker(nm, loc, rot, m_white, m_ink, size=.06):
+    """Printed sticker with a pseudo QR code (deterministic bit pattern)."""
+    bpy.ops.object.empty_add(location=loc, rotation=rot); e = bpy.context.object; e.name = nm; e.parent = ROOT
+    saved = globals()["ROOT"]; globals()["ROOT"] = e
+    box(nm + "_bg", (size * 1.25, size * 1.25, .003), (0, 0, 0), m_white, bev=.004, seg=3)
+    n = 11; c = size / n
+    for i in range(n):
+        for j in range(n):
+            finder = (i < 3 and j < 3) or (i < 3 and j >= n - 3) or (i >= n - 3 and j < 3)
+            bit = finder and (i in (0, 2) or j in (0, 2) or (i == 1 and j == 1) or (i == 1 and j == n - 2) or (i == n - 2 and j == 1)) or (not finder and ((i * 7 + j * 13 + (i * j) % 5) % 3 == 0))
+            if finder and not (i in (0, 2, n - 3, n - 1) or j in (0, 2, n - 3, n - 1) or (i, j) in ((1, 1), (1, n - 2), (n - 2, 1))): bit = False
+            if bit: box(f"{nm}_q{i}_{j}", (c * .95, c * .95, .002), ((i - n / 2 + .5) * c, (j - n / 2 + .5) * c, .0025), m_ink, bev=0)
+    globals()["ROOT"] = saved
+    return e
+
+def D_img(name):
+    """Printed decal image (generated on demand by delivery_decals.py)."""
+    im = bpy.data.images.get(name + ".png")
+    if im is None: im = globals()["decal_" + name]()
+    return im
+
+def build_bau(loc):
+    m = M(); W, D, H = .46, .46, .42; x, y, z = loc
+    box("bau_body", (W, D, H), (x, y, z + H / 2), m["blue"], bev=.045, seg=6, ss=1)
+    box("bau_lid", (W + .02, D + .02, .07), (x, y, z + H + .035), m["blue_d"], bev=.03, seg=6, ss=1)
+    box("bau_gasket", (W + .026, D + .026, .010), (x, y, z + H), m["ink"], bev=.004, seg=3)
+    for k, yy in enumerate((y - .14, y + .14)):
+        cyl(f"bau_hinge{k}", .012, .08, (x + W / 2 + .018, yy, z + H + .01), m["steel"], axis='Y', verts=20, bev=.002)
+        box(f"bau_hinge_pl{k}", (.03, .05, .006), (x + W / 2 + .005, yy, z + H + .045), m["steel"], bev=.002)
+        box(f"bau_hinge_pl{k}b", (.006, .05, .04), (x + W / 2 + .016, yy, z + H - .02), m["steel"], bev=.002)
+        for s in (-1, 1): cyl(f"bau_hinge_riv{k}{s}", .004, .004, (x + W / 2 + .018, yy + s * .015, z + H + .049), m["chrome"], verts=8)
+        box(f"bau_latch{k}", (.012, .05, .09), (x - W / 2 - .008, yy, z + H - .03), m["steel"], bev=.003, seg=3, ss=2)
+        box(f"bau_latch_hook{k}", (.016, .03, .02), (x - W / 2 - .010, yy, z + H + .02), m["steel"], bev=.004)
+        box(f"bau_latch_lever{k}", (.008, .036, .05), (x - W / 2 - .016, yy, z + H - .055), m["steel"], bev=.003, seg=3)
+    rbox("bau_handle", (.20, .05, .03), (x, y + .165, z + H + .085), m["black"], seg=4, ss=2)
+    for s in (-1, 1): box(f"bau_handle_leg{s}", (.03, .03, .03), (x + s * .085, y + .165, z + H + .075), m["black"], bev=.006)
+    for sx in (-1, 1):   # rubber corner bumpers (bottom)
+        for sy in (-1, 1): rbox(f"bau_bumper{sx}{sy}", (.07, .07, .05), (x + sx * (W / 2 - .025), y + sy * (D / 2 - .025), z + .02), m["black"], seg=4, ss=2)
+    bz = z + H * .30
+    box("bau_band_l", (W + .008, .010, .06), (x, y - D / 2 - .003, bz), m["orange"], bev=.003)
+    box("bau_band_r", (W + .008, .010, .06), (x, y + D / 2 + .003, bz), m["orange"], bev=.003)
+    box("bau_band_b", (.010, D + .008, .06), (x - W / 2 - .003, y, bz), m["orange"], bev=.003)
+    for k in range(8):
+        box(f"bau_refl_b{k}", (.008, .05, .03), (x - W / 2 - .002, y - .20 + k * .056, z + .06), m["refl"] if k % 2 else m["white"], bev=.002)
+        box(f"bau_refl_lid{k}", (.008, .05, .018), (x - W / 2 - .012, y - .20 + k * .056, z + H + .035), m["refl"] if k % 2 else m["white"], bev=.002)
+    for s in (-1, 1):
+        for k in range(8):
+            box(f"bau_refl_s{s}{k}", (.05, .008, .03), (x - .20 + k * .056, y + s * (D / 2 + .002), z + .06), m["refl"] if k % 2 else m["white"], bev=.002)
+        for k in range(6): cyl(f"bau_rivet{s}{k}", .004, .004, (x - .20 + k * .08, y + s * (D / 2 + .002), z + .11), m["chrome"], axis='Y', verts=8)
+        for sx in (-1, 1):   # pressed vertical ribs framing the printed panel
+            rbox(f"bau_rib{s}{sx}", (.012, .006, .245), (x + sx * .185, y + s * (D / 2 + .001), z + .295), m["blue_d"], seg=3, ss=1)
+        rbox(f"bau_ribtop{s}", (.37, .006, .012), (x, y + s * (D / 2 + .001), z + .405), m["blue_d"], seg=3, ss=1)
+    for sy in (-1, 1): rbox(f"bau_ribb{sy}", (.006, .012, .245), (x - W / 2 - .001, y + sy * .185, z + .295), m["blue_d"], seg=3, ss=1)
+    # printed decals (vinyl): market logo on both sides + back, order sticker, lid wordmark
+    vin = lambda nm: decal_mat(nm, D_img(nm), rough=.33, spec=.6, coat=.35)
+    lg = vin("bau_logo"); st = vin("bau_sticker"); ld = vin("bau_lid")
+    lw, lh = .25, .25 * 700 / 900
+    decal_plane("bau_decal_r", lw, lh, (x, y - D / 2 - .0035, z + .295), (rad(90), 0, 0), lg, ROOT)
+    decal_plane("bau_decal_l", lw, lh, (x, y + D / 2 + .0035, z + .295), (rad(90), 0, rad(180)), lg, ROOT)
+    decal_plane("bau_decal_b", lw, lh, (x - W / 2 - .0035, y, z + .295), (rad(90), 0, rad(-90)), lg, ROOT)
+    decal_plane("bau_sticker_r", .085, .085 * 420 / 640, (x + .155, y - D / 2 - .0045, z + .205), (rad(90), 0, 0), st, ROOT)
+    decal_plane("bau_sticker_b", .085, .085 * 420 / 640, (x - W / 2 - .0045, y - .155, z + .205), (rad(90), 0, rad(-90)), st, ROOT)
+    decal_plane("bau_decal_lid", .34, .34 * 420 / 1200, (x + .0, y - .07, z + H + .0705), (0, 0, 0), ld, ROOT)
+    for k in range(4): cyl(f"bau_bolt{k}", .008, .01, (x - .16 + (k % 2) * .32, y - .16 + (k // 2) * .32, z - .005), m["steel"], verts=8)
+
+# ---------------------------------------------------------------- assembly / cameras / lights / render
+def build(parked=False, name="Moto_Root", loc=(0, 0, 0), yaw=0., rider=None, tag=None):
+    """Bike + bau at `loc`/`yaw`.  rider='ride' seats the game's delivery worker (helmet on); default: rider on unless parked."""
+    global ROOT
+    bpy.ops.object.empty_add(location=loc); ROOT = bpy.context.object; ROOT.name = name; ROOT.rotation_euler = (0, 0, yaw)
+    build_bike(parked=parked)
+    root = ROOT; ROOT = None
+    if rider is None: rider = None if parked else 'ride'
+    if rider == 'ride': add_rider(root, tag or (name + "_rider"))
+    fit_assets(root)
+    return root
+
+BUDGET = dict(bike=148000, bau=40000, helmet=9000)
+def fit_assets(root):
+    """Keep every asset inside its triangle budget (heaviest curved parts lose subdivision first)."""
+    fit_budget(asset_objects(root, 'bike'), BUDGET['bike']); fit_budget(asset_objects(root, 'bau'), BUDGET['bau'])
+    fit_budget([o for o in asset_objects(root, 'rider') if '_helm' in o.name], BUDGET['helmet'], min_level=0)
+
+def add_rider(root, tag):
+    """The game's Worker_Delivery (24k tris, shipped texture) seated on the bike: hands on the grips, boots on the pegs, full-face helmet."""
+    bpy.context.view_layer.update()
+    rig, body = import_courier(tag, loc=(0, 0, 0), yaw=rad(90), parent=root)
+    rig.matrix_parent_inverse = Matrix.Identity(4); bpy.context.view_layer.update()
+    build_helmet(rig, tag)
+    pose_ride(rig, root, hip=(-0.24, 0, 0.97), lean=42., head_pitch=-5.)
+    return rig, body
+
+def face_count(root=None):
+    """Evaluated (render-level) polygon count of everything under `root` (or the whole scene)."""
+    dg = bpy.context.evaluated_depsgraph_get(); n = 0
+    for o in bpy.context.scene.objects:
+        if root is not None and not (o.parent == root or (o.parent and o.parent.parent == root)): continue
+        if o.type in ('MESH', 'CURVE', 'FONT'):
+            try:
+                ev = o.evaluated_get(dg); me = ev.to_mesh(); f = len(me.polygons); ev.to_mesh_clear()
+                for md in o.modifiers:   # subsurf is evaluated at viewport level 0 -> scale to the render level
+                    if md.type == 'SUBSURF': f *= 4 ** (md.render_levels - md.levels)
+                n += f
+            except Exception: pass
+    return n
+
+def world_sky(top=(.10, .40, .95, 1), horizon=(.60, .80, 1.0, 1), strength=.55, name="DB_World"):
+    """Vivid stylised sky: vertical gradient in camera window space (always behind the subject); low strength so the
+    warm key/sun dominate and colours stay saturated."""
+    sc = bpy.context.scene
+    w = bpy.data.worlds.get(name) or bpy.data.worlds.new(name); sc.world = w; w.use_nodes = True; nt = w.node_tree
+    for n in list(nt.nodes): nt.nodes.remove(n)
+    out = nt.nodes.new("ShaderNodeOutputWorld"); bg = nt.nodes.new("ShaderNodeBackground"); nt.links.new(bg.outputs[0], out.inputs[0])
+    tc = nt.nodes.new("ShaderNodeTexCoord"); sep = nt.nodes.new("ShaderNodeSeparateXYZ"); nt.links.new(tc.outputs["Window"], sep.inputs[0])
+    rp = nt.nodes.new("ShaderNodeValToRGB"); rp.color_ramp.elements[0].position = .0; rp.color_ramp.elements[0].color = horizon
+    rp.color_ramp.elements[1].position = .80; rp.color_ramp.elements[1].color = top
+    nt.links.new(sep.outputs["Y"], rp.inputs["Fac"]); nt.links.new(rp.outputs["Color"], bg.inputs["Color"]); bg.inputs["Strength"].default_value = strength
+    return w
+
+def lights(target=(0, 0, .8), size=2.4, sun=3.0):
+    sc = bpy.context.scene
+    world_sky()
+    t = Vector(target)
+    def area(n, loc, energy, s, color=(1, .96, .90)):
+        bpy.ops.object.light_add(type='AREA', location=loc); l = bpy.context.object; l.name = n
+        l.data.energy = energy; l.data.size = s; l.data.color = color
+        l.rotation_euler = (t - Vector(loc)).to_track_quat('-Z', 'Y').to_euler()
+    area("Key", (t.x + size * 1.4, t.y - size * 1.8, t.z + size * 2.2), 1800 * (size / 2.4) ** 2, size * 1.6, (1, .94, .84))
+    area("Fill", (t.x - size * 1.6, t.y - size * 1.4, t.z + size * .8), 350 * (size / 2.4) ** 2, size * 2.2, (.88, .94, 1))
+    area("Rim", (t.x - size * .8, t.y + size * 2.0, t.z + size * 1.6), 600 * (size / 2.4) ** 2, size * 1.2, (1, .98, .95))
+    bpy.ops.object.light_add(type='SUN', location=(0, 0, 10)); s = bpy.context.object; s.name = "Sun"
+    s.data.energy = sun * 1.5; s.data.angle = rad(5); s.data.color = (1, .95, .85); s.rotation_euler = (rad(42), rad(14), rad(-30))
+
+def camera(target, pitch_deg, yaw_deg, dist, lens=50, ortho=None):
+    sc = bpy.context.scene
+    cam = bpy.data.objects.get("DB_Cam")
+    if not cam:
+        cam = bpy.data.objects.new("DB_Cam", bpy.data.cameras.new("DB_Cam")); sc.collection.objects.link(cam)
+    cam.data.lens = lens; cam.data.sensor_width = 36; cam.data.clip_end = 300
+    cam.data.type = 'ORTHO' if ortho else 'PERSP'
+    if ortho: cam.data.ortho_scale = ortho
+    p, y = rad(pitch_deg), rad(yaw_deg); t = Vector(target)
+    cam.location = t + Vector((math.sin(y) * math.cos(p) * dist, -math.cos(y) * math.cos(p) * dist, math.sin(p) * dist))
+    cam.rotation_euler = (t - cam.location).to_track_quat('-Z', 'Y').to_euler()
+    sc.camera = cam; return cam
+
+def studio_floor(r=30.):
+    """Cream paver floor (large bevelled slabs with grout) fading into the gradient sky."""
+    slab = mat("studio_floor", (0.96, 0.88, 0.66, 1), "plaster", rough=.8, bump=.25, scale=2, dirt=.08, wear=.15, tint=(0.86, 0.74, 0.50, 1))
+    grout = mat("studio_grout", (0.74, 0.64, 0.46, 1), "plaster", rough=.95, bump=.2, scale=4, rand=0)
+    bpy.ops.mesh.primitive_plane_add(size=r * 2, location=(0, 0, -.015)); o = bpy.context.object; _finish(o, "floor", slab)
+    s = .6; n = 9
+    box("grout", (s * (2 * n + 1), s * (2 * n + 1), .004), (0, 0, -.012), grout, bev=0)
+    for i in range(-n, n + 1):
+        for j in range(-n, n + 1):
+            box(f"slab{i}_{j}", (s - .012, s - .012, .02), (i * s, j * s, -.01), slab, bev=.004, seg=2)
+
+def street_tile():
+    m = M()
+    road = mat("road", (0.050, 0.052, 0.056, 1), "rubber", rough=.92, bump=.55, scale=3, tint=(0.03, 0.03, 0.034, 1), dirt=.2); edge = mat("edge", (0.86, 0.84, 0.76, 1), "plaster", rough=.85, bump=.3, scale=3)
+    stripe = mat("stripe_rd", (0.95, 0.95, 0.92, 1), "plastic", rough=.7, bump=.2, wear=.25, scale=4); grass = mat("grass", (0.23, 0.48, 0.07, 1), "rubber", rough=.95, bump=.6, scale=4)
+    wall = mat("wall", CREAM, "plaster", rough=.85, bump=.2, scale=3); paver = mat("paver", (0.80, 0.78, 0.70, 1), "plaster", rough=.88, bump=.3, scale=3, dirt=.12, wear=.1, tint=(0.66, 0.63, 0.55, 1))
+    box("asphalt", (16, 7, .06), (0, -1.5, -.03), road, bev=0)
+    for s in (-1, 1): box(f"curb{s}", (16, .25, .14), (0, -1.5 + s * 3.6, .0), edge, bev=.03)
+    for i in range(-13, 14):
+        for j in range(5): box(f"pv{i}_{j}", (.58, .58, .12), (i * .6, 2.4 + j * .6, .0), paver, bev=.012, seg=2)
+    for k in range(4): box(f"xw{k}", (.5, 6.4, .004), (5.4 + k * .9, -1.5, .032), stripe, bev=0)
+    for k in range(8): box(f"dash{k}", (.9, .12, .004), (-7.2 + k * 1.6, -1.5, .032), stripe, bev=0)
+    box("facade", (10, 1.2, 4.2), (-1, 5.7, 2.1), wall, bev=.04)
+    for k in range(2): box(f"fac_win{k}", (.9, .05, 1.1), (-4 + k * 1.5, 5.08, 2.2), mat("glass2", (0.55, 0.78, 0.92, 1), "paint", rough=.3, bump=0), bev=.01)
+    for k in range(2): box(f"fac_sill{k}", (1.0, .12, .06), (-4 + k * 1.5, 5.06, 1.62), m["white"], bev=.01)
+    box("awning", (6, 1.3, .08), (-1, 4.6, 2.6), m["blue"], bev=.03)
+    for k in range(13): box(f"awn_scallop{k}", (.44, .06, .12), (-3.9 + k * .48, 3.96, 2.52), m["blue"] if k % 2 else m["white"], bev=.01)
+    box("door", (1.6, .05, 2.3), (-0.3, 5.08, 1.15), mat("glass2", (0.55, 0.78, 0.92, 1), "paint", rough=.3, bump=0), bev=.01)
+    box("fac_sign", (3.0, .08, .5), (-1, 5.06, 3.4), m["white"], bev=.01)
+    text("fac_txt", "CHECKOUT", .3, (-1, 5.0, 3.4), m["blue"], rot=(rad(90), 0, 0), extrude=.01)
+    cyl("lamp", .06, 4.5, (3.5, 3.2, 2.25), m["gun"], verts=16)
+    sphere("lamp_head", .22, (3.5, 3.2, 4.6), m["white"], seg=24)
+    box("grass", (2.5, 2.4, .10), (6.2, 3.7, .06), grass, bev=.02)
+    cyl("tree", .08, 1.8, (6.2, 3.7, .9), mat("bark", (0.35, 0.22, 0.12, 1), "wood", rough=.9, bump=.6, scale=10), verts=14)
+    for k, (dx, dy, dz, r) in enumerate(((0, 0, 2.4, .8), (.5, .2, 2.2, .5), (-.4, -.3, 2.1, .45))): sphere(f"leaf{k}", r, (6.2 + dx, 3.7 + dy, dz), mat("leaf", (0.33, 0.58, 0.20, 1), "leather", rough=.9, bump=.6, scale=5), seg=28, ss=1)
+
+def _render(fn, res=(1600, 1200), transparent=False, samples=None):
+    sc = bpy.context.scene; os.makedirs(OUT, exist_ok=True)
+    sc.render.resolution_x, sc.render.resolution_y = res; sc.render.film_transparent = transparent
+    if samples: sc.cycles.samples = samples
+    p = os.path.join(OUT, fn); sc.render.filepath = p; bpy.ops.render.render(write_still=True, scene=sc.name); _grade(p); return p
+
+def _grade(path, sat=1.22, contrast=1.04):
+    """Final grade: the market's vivid palette (saturation boost + a touch of contrast) applied to the rendered PNG."""
+    try:
+        import numpy as np
+        im = bpy.data.images.load(path, check_existing=False); w, h = im.size
+        a = np.array(im.pixels[:], dtype=np.float32).reshape(h, w, 4); rgb = a[..., :3]
+        lum = (rgb * np.array([.2126, .7152, .0722], dtype=np.float32)).sum(-1, keepdims=True)
+        rgb = np.clip(lum + (rgb - lum) * sat, 0, 1); rgb = np.clip((rgb - .5) * contrast + .5, 0, 1); a[..., :3] = rgb
+        im.pixels.foreach_set(a.ravel()); im.filepath_raw = path; im.file_format = 'PNG'; im.save(); bpy.data.images.remove(im)
+    except Exception as e:
+        print("grade failed", e)
+
+def build_studio():
+    """Cream paver studio: the riding courier on the bike (hero / baú close-up)."""
+    clear(); studio_floor(); root = build(name="Moto_Riding"); lights(); return root
+
+def build_street():
+    """Game-like street: dark asphalt, white dashed lane, light sidewalk, shop front.  Riding courier on the road, parked bike on the
+    pavement with the standing courier handing over the thermal bag."""
+    clear(); street_tile()
+    riding = build(name="Moto_Riding", loc=(1.4, -0.7, 0.0), yaw=0.)
+    parked = build(parked=True, name="Moto_Parked", loc=(-1.5, 3.55, 0.0), yaw=0., rider=None)
+    rig, body, bag, info = add_standing_courier("courier", loc=(0.75, 2.55, 0.0), yaw=0., with_bag=True)
+    lights(target=(0, 1.2, 0), size=8, sun=4.0); world_sky(top=(.40, .70, 1.0, 1), horizon=(.75, .88, 1.0, 1), strength=1.0)
+    return riding, parked, rig, bag
+
+def final_studio(samples=128):
+    root = build_studio(); out = []
+    camera((-0.10, 0, 0.84), 15, 42, 4.4, lens=60); out.append(_render("final_bike_hero.png", (1600, 1200), samples=samples))
+    camera((-0.88, 0, 1.12), 14, 52, 1.9, lens=70); out.append(_render("final_bau_closeup.png", (1600, 1200), samples=samples))
+    return out, root
+
+def final_street(samples=128):
+    riding, parked, rig, bag = build_street(); out = []
+    camera((0.2, 0.9, 0.5), 38, 36.4, 40, ortho=10.5); out.append(_render("final_bike_iso.png", (1800, 1100), samples=samples))
+    camera((-0.85, 2.9, 0.95), 11, -22, 6.8, lens=50); out.append(_render("final_rider_handover.png", (1600, 1200), samples=samples))
+    return out
+
+def final_handover(samples=128):
+    riding, parked, rig, bag = build_street()
+    camera((-0.85, 2.9, 0.95), 11, -22, 6.8, lens=50)
+    return [_render("final_rider_handover.png", (1600, 1200), samples=samples)]
+
+def render_all():
+    return final_studio()[0] + final_street()
+
+# ---------------------------------------------------------------- helper modules: printed decals + the game's courier character
+for _m in ("delivery_decals.py", "delivery_courier.py", "delivery_budget.py"):
+    exec(open(os.path.join(HERE, _m), encoding="utf-8").read(), globals())
+
+# ================================================================ FBX EXPORT for Unity (delivery_bike_riding / delivery_bike_parked)
+# Contract: 1 unit = 1 m, forward +Z in Unity, origin on the ground under the bike centre, <= 40k tris per FBX, base-colour maps.
+# Per variant: build at render detail -> apply modifiers -> one static mesh per material (world space) -> decimate (collapse; parts
+# under FX_DECIMATE_MIN tris untouched, so decals / bulbs keep their shape) -> smart UV per part -> bake DIFFUSE colour (procedural
+# shading) to 1024/2048 sRGB PNG (alpha: constant, or the decal image alpha) -> FBX (forward -Z, up Y, unit scale 1, COPY textures).
+# The bike is built along +X; FX_YAW turns it to -Y, which the FBX export (-Z forward, Y up) lands on Unity +Z.
+#     exec(open(r"C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\delivery\\delivery_bike.py", encoding="utf-8").read())
+#     export_fbx()                  # timer driven (MCP-safe); progress in render/fbx/fbx_status.json (~25-35 min for both)
+FBX_DIR = r"C:\Checkout-mobile\unity\CheckoutSimulator\Assets\Resources\CheckoutDelivery"
+FX_DIR = os.path.join(OUT, "fbx")
+FX_TRI_MAX = 40000
+FX_TRI_TARGET = 38500
+FX_DECIMATE_MIN = 3000
+FX_YAW = rad(-90)
+FX_PARKED = {"riding": False, "parked": True}
+
+def _fx_status(**kw):
+    import json
+    os.makedirs(FX_DIR, exist_ok=True)
+    with open(os.path.join(FX_DIR, "fbx_status.json"), "w", encoding="utf-8") as f: json.dump(kw, f, indent=1, default=str)
+
+def _fx_tris(objs):
+    return sum(max(0, len(p.vertices) - 2) for o in objs if o.type == 'MESH' for p in o.data.polygons)
+
+def _fx_gather(v):
+    """Build the variant at render subdivision, bake every modifier into world-space geometry, one object per material."""
+    sc = scene(); clear()
+    build(parked=FX_PARKED[v], name="FX_" + v, loc=(0, 0, 0), yaw=FX_YAW)
+    for o in sc.objects:
+        for md in o.modifiers:
+            if md.type == 'SUBSURF': md.levels = md.render_levels
+    dg = bpy.context.evaluated_depsgraph_get(); dg.update()
+    groups = {}
+    for o in [o for o in sc.objects if o.type in ('MESH', 'CURVE', 'FONT')]:
+        me = bpy.data.meshes.new_from_object(o.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
+        me.transform(o.matrix_world)
+        mats = list(me.materials)
+        bsrc = bmesh.new(); bsrc.from_mesh(me); bpy.data.meshes.remove(me)
+        uv_src = bsrc.loops.layers.uv.active
+        by_mi = {}
+        for f in bsrc.faces: by_mi.setdefault(f.material_index, []).append(f)
+        for mi, faces in by_mi.items():
+            mat = mats[mi] if mi < len(mats) else None
+            key = mat.name if mat is not None else "none"
+            if key not in groups: groups[key] = [mat, bmesh.new()]
+            bt = groups[key][1]
+            uv_t = bt.loops.layers.uv.active or bt.loops.layers.uv.new("UVMap")
+            vmap = {}
+            for f in faces:
+                vts = []
+                for vv in f.verts:
+                    if vv.index not in vmap: vmap[vv.index] = bt.verts.new(vv.co)
+                    vts.append(vmap[vv.index])
+                try: nf = bt.faces.new(vts)
+                except ValueError: continue
+                nf.smooth = f.smooth
+                if uv_src is not None:
+                    for lt, ls in zip(nf.loops, f.loops): lt[uv_t].uv = ls[uv_src].uv
+        bsrc.free()
+    outs = []
+    for key, (mat, bt) in groups.items():
+        name = "fx_%s_%s" % (v, key)
+        me = bpy.data.meshes.new(name); bt.to_mesh(me); bt.free(); me.update()
+        if mat is not None: me.materials.append(mat)
+        ob = bpy.data.objects.new(name, me); sc.collection.objects.link(ob); outs.append(ob)
+    minz = min(vv.co.z for ob in outs for vv in ob.data.vertices)           # origin on the ground under the bike centre (root = centre)
+    for ob in outs: ob.data.transform(Matrix.Translation((0, 0, -minz)))
+    for o in list(sc.objects):
+        if o not in outs: bpy.data.objects.remove(o, do_unlink=True)
+    return outs
+
+def _fx_decimate(objs, target):
+    """Collapse decimation with one global ratio (small parts untouched); retried until the total fits `target`."""
+    base = {o.name: o.data for o in objs}
+    tri = {o.name: _fx_tris([o]) for o in objs}
+    small = sum(t for t in tri.values() if t < FX_DECIMATE_MIN); big = sum(t for t in tri.values() if t >= FX_DECIMATE_MIN)
+    g = max(.02, min(1., (target - small) / max(1, big)))
+    total = sum(tri.values())
+    for _ in range(10):
+        dg = bpy.context.evaluated_depsgraph_get()
+        for o in objs:
+            me0 = base[o.name]; old = o.data
+            if tri[o.name] < FX_DECIMATE_MIN or g >= .999:
+                o.data = me0
+            else:
+                o.data = me0
+                md = o.modifiers.new("fx_dec", 'DECIMATE'); md.decimate_type = 'COLLAPSE'; md.ratio = g
+                dg.update()
+                me = bpy.data.meshes.new_from_object(o.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
+                o.modifiers.remove(md)
+                me.materials.clear()
+                for m in me0.materials: me.materials.append(m)
+                o.data = me
+            if old is not me0 and old.users == 0: bpy.data.meshes.remove(old)
+        total = sum(_fx_tris([o]) for o in objs)
+        if total <= FX_TRI_MAX or g < .05: break
+        g *= .98 * FX_TRI_TARGET / max(1, total)
+    for n, me0 in base.items():
+        if me0.users == 0: bpy.data.meshes.remove(me0)
+    return total
+
+def _fx_unwrap(ob):
+    vl = bpy.context.view_layer
+    bpy.ops.object.select_all(action='DESELECT'); ob.select_set(True); vl.objects.active = ob
+    bpy.ops.object.mode_set(mode='EDIT')
+    try:
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.smart_project(angle_limit=rad(66), island_margin=.006, correct_aspect=True)
+    finally:
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+def _fx_write_png(px, path, name):
+    import numpy as np
+    h, w = px.shape[:2]
+    im = bpy.data.images.new("fx_" + name, w, h, alpha=True)
+    im.colorspace_settings.name = 'Non-Color'; im.alpha_mode = 'STRAIGHT'
+    im.pixels.foreach_set(np.ascontiguousarray(px, dtype=np.float32).ravel())
+    im.filepath_raw = path; im.file_format = 'PNG'; im.save()
+    return im
+
+def _fx_bake(ob, v):
+    """Bake the part's procedural base colour to a texture and swap in a plain Principled material that uses it."""
+    import numpy as np
+    sc = bpy.data.scenes[SCENE]
+    orig = ob.data.materials[0] if len(ob.data.materials) else None
+    name = "%s_%s" % (v, ob.name.split("_", 2)[-1].replace("DB_", "").replace("DK_", "dk_"))
+    path = os.path.join(FX_DIR, name + ".png")
+    size = 2048 if _fx_tris([ob]) >= 6000 else 1024
+    pb = None; decal = None; const_a = 1.; rough = .5; metal = 0.; uses_img = False
+    if orig is not None and orig.use_nodes:
+        pb = next((n for n in orig.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        uses_img = any(n.type == 'TEX_IMAGE' for n in orig.node_tree.nodes)
+    if pb is not None:
+        al = pb.inputs["Alpha"]
+        if al.is_linked:
+            src = al.links[0].from_node
+            if src.type == 'TEX_IMAGE' and src.image is not None: decal = src.image
+        else: const_a = float(al.default_value)
+        if not pb.inputs["Roughness"].is_linked: rough = float(pb.inputs["Roughness"].default_value)
+        if not pb.inputs["Metallic"].is_linked: metal = float(pb.inputs["Metallic"].default_value)
+    if decal is None and not uses_img: _fx_unwrap(ob)   # image-textured parts (rider atlas, decal planes) keep their own UVs to sample from
+    if orig is not None and orig.use_nodes:
+        nt = orig.node_tree
+        img = bpy.data.images.new("bk_" + name, size, size, alpha=False)
+        tex = nt.nodes.new("ShaderNodeTexImage"); tex.image = img; nt.nodes.active = tex
+        prev_s = sc.cycles.samples; sc.cycles.samples = 4
+        try:
+            bpy.ops.object.select_all(action='DESELECT'); ob.select_set(True); bpy.context.view_layer.objects.active = ob
+            # metals have no diffuse colour: their base colour is the glossy (specular) tint
+            bpy.ops.object.bake(type='GLOSSY' if metal >= .5 else 'DIFFUSE', pass_filter={'COLOR'}, margin=8, use_clear=True)
+        finally:
+            sc.cycles.samples = prev_s; nt.nodes.remove(tex)
+        px = np.empty(size * size * 4, np.float32); img.pixels.foreach_get(px); px = px.reshape(size, size, 4)
+        bpy.data.images.remove(img)
+    else:
+        px = np.ones((size, size, 4), np.float32); px[..., :3] = .5
+    alpha = np.full((size, size), const_a, np.float32)
+    if decal is not None:
+        dw, dh = decal.size; dpx = np.empty(dw * dh * 4, np.float32); decal.pixels.foreach_get(dpx); dpx = dpx.reshape(dh, dw, 4)
+        alpha = dpx[(np.arange(size) * dh // size)[:, None], (np.arange(size) * dw // size)[None, :], 3].copy()
+    px[..., :3] = np.clip(px[..., :3], 0., 1.)       # sRGB byte image: pixels are already the encoded texel values
+    px[..., 3] = alpha
+    im = _fx_write_png(px, path, name)
+    fm = bpy.data.materials.new("FX_" + name); fm.use_nodes = True; fnt = fm.node_tree
+    for n in list(fnt.nodes): fnt.nodes.remove(n)
+    fo = fnt.nodes.new("ShaderNodeOutputMaterial"); fb = fnt.nodes.new("ShaderNodeBsdfPrincipled"); fnt.links.new(fb.outputs[0], fo.inputs[0])
+    ft = fnt.nodes.new("ShaderNodeTexImage"); ft.image = im
+    fnt.links.new(ft.outputs["Color"], fb.inputs["Base Color"])
+    fb.inputs["Roughness"].default_value = rough; fb.inputs["Metallic"].default_value = metal
+    if decal is not None:
+        fnt.links.new(ft.outputs["Alpha"], fb.inputs["Alpha"])
+    else:
+        fb.inputs["Alpha"].default_value = const_a
+    if (decal is not None or const_a < 1.) and hasattr(fm, "surface_render_method"): fm.surface_render_method = 'BLENDED'
+    ob.data.materials.clear(); ob.data.materials.append(fm)
+    return path
+
+def _fx_export(objs, v):
+    os.makedirs(FBX_DIR, exist_ok=True)
+    path = os.path.join(FBX_DIR, "delivery_bike_%s.fbx" % v)
+    bpy.ops.object.select_all(action='DESELECT')
+    for ob in objs: ob.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={'MESH'}, global_scale=1.0, apply_unit_scale=True,
+                             apply_scale_options='FBX_SCALE_NONE', axis_forward='-Z', axis_up='Y', bake_space_transform=False,
+                             use_mesh_modifiers=False, mesh_smooth_type='FACE', use_tspace=False, use_custom_props=False,
+                             add_leaf_bones=False, bake_anim=False, path_mode='COPY', embed_textures=False)
+    return path
+
+def _fx_check(v, path):
+    """Re-import the FBX into a temp scene and render it (checks geometry, texture paths and colours)."""
+    win = bpy.context.window; prev = win.scene if win else None
+    sc = bpy.data.scenes.get("DeliveryFBXCheck") or bpy.data.scenes.new("DeliveryFBXCheck")
+    if win: win.scene = sc
+    for o in list(sc.objects): bpy.data.objects.remove(o, do_unlink=True)
+    sc.render.engine = 'CYCLES'; sc.cycles.samples = 32; sc.cycles.use_denoising = True
+    sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1200, 800, 100
+    sc.render.film_transparent = False; sc.view_settings.view_transform = 'AgX'; sc.view_settings.look = 'AgX - Punchy'
+    bpy.ops.import_scene.fbx(filepath=path, axis_forward='-Z', axis_up='Y', global_scale=1.0, use_image_search=True)
+    meshes = [o for o in sc.objects if o.type == 'MESH']
+    pts = [o.matrix_world @ Vector(c) for o in meshes for c in o.bound_box]
+    mn = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    mx = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    ctr = (mn + mx) / 2; ext = max(mx - mn)
+    lt = bpy.data.lights.new("chk_sun", 'SUN'); lt.energy = 3.0
+    lo = bpy.data.objects.new("chk_sun", lt); sc.collection.objects.link(lo); lo.rotation_euler = (rad(55), 0, rad(35))
+    wd = bpy.data.worlds.new("chk_world"); wd.use_nodes = True; bg = wd.node_tree.nodes["Background"]
+    bg.inputs[0].default_value = (.55, .72, .95, 1); bg.inputs[1].default_value = 1.0; sc.world = wd
+    cd = bpy.data.cameras.new("chk_cam"); cd.lens = 50; co = bpy.data.objects.new("chk_cam", cd); sc.collection.objects.link(co)
+    co.location = ctr + Vector((1.0, -1.0, .42)).normalized() * ext * 1.9
+    co.rotation_euler = (ctr - co.location).to_track_quat('-Z', 'Y').to_euler(); sc.camera = co
+    sc.render.filepath = os.path.join(FX_DIR, "check_%s.png" % v)
+    bpy.ops.render.render(write_still=True, scene=sc.name)
+    if win and prev: win.scene = prev
+    return dict(dims=[round(x, 3) for x in (mx - mn)], tris=_fx_tris(meshes), meshes=len(meshes), check=sc.render.filepath)
+
+def _fx_job(variants):
+    import time
+    win = bpy.context.window; prev = win.scene if win else None
+    res = {}; t0 = time.time()
+    for v in variants:
+        _fx_status(state="building", variant=v, secs=round(time.time() - t0))
+        objs = _fx_gather(v)
+        yield
+        tri0 = _fx_tris(objs)
+        _fx_status(state="decimating", variant=v, parts=len(objs), tris_before=tri0)
+        tri1 = _fx_decimate(objs, FX_TRI_TARGET)
+        yield
+        for i, ob in enumerate(objs):
+            _fx_status(state="baking", variant=v, part=i + 1, of=len(objs), part_name=ob.name, secs=round(time.time() - t0), tris_after_decimate=tri1)
+            _fx_bake(ob, v)
+            yield
+        _fx_status(state="exporting", variant=v, secs=round(time.time() - t0))
+        path = _fx_export(objs, v)
+        yield
+        _fx_status(state="checking", variant=v, secs=round(time.time() - t0))
+        info = _fx_check(v, path)
+        info.update(fbx=path, bytes=os.path.getsize(path), tris_before_decimate=tri0, tris_export=tri1, parts=len(objs))
+        res[v] = info
+        if win and prev: win.scene = prev
+        yield
+    _fx_status(state="done", secs=round(time.time() - t0), results=res)
+
+def export_fbx(variants=("riding", "parked")):
+    """Timer-driven FBX export of both bike variants (MCP-safe).  Status: render/fbx/fbx_status.json."""
+    _fx_status(state="queued")
+    gen = _fx_job(list(variants))
+    def tick():
+        import traceback
+        try:
+            next(gen); return .2
+        except StopIteration:
+            return None
+        except Exception:
+            _fx_status(state="error", error=traceback.format_exc()); return None
+    bpy.app.timers.register(tick, first_interval=.5)
+    return "queued"

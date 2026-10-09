@@ -19,7 +19,7 @@ namespace Checkout {
    var scaler=canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();scaler.uiScaleMode=UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1600,1000);scaler.matchWidthOrHeight=.5f;
    canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
    root=(RectTransform)canvasGo.transform;
-   BuildTop();BuildToolbar();BuildDrawer();BuildShop();BuildShelf();BuildOverlay();
+   BuildTop();BuildBoosts();BuildToolbar();BuildDrawer();BuildShop();BuildShelf();BuildBoard();BuildKitchen();BuildOverlay();BuildLevelUp();BuildConquest();
    Offline("Carregando o jogo…");
   }
 
@@ -40,13 +40,16 @@ namespace Checkout {
   public void Apply(string json){
    DesktopView next;try {next=JsonUtility.FromJson<DesktopView>(json);}catch(System.Exception ex){Debug.LogError("CHECKOUT_DESKTOP bad view: "+ex.Message);return;}
    if(next==null||next.kind!="view")return;
-   view=next;ApplyTop(next);ApplyToolbar(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyOverlay(next);
+   view=next;ApplyTop(next);ApplyBoosts(next);ApplyToolbar(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyBoard(next);ApplyKitchen(next);ApplyOverlay(next);ApplyConquest(next);ApplyLevelUp(next);
+   // A window opened: the lot balloon (its own canvas, above the windows) closes.
+   if(next.hasPage)CheckoutLotPopup.Hide();
   }
   public void Result(string json){
    var result=JsonUtility.FromJson<DesktopResult>(json);if(result==null)return;
    // Actions sent by the map editor for its sandbox (unlocks, money top-ups) finish without toasts.
    if(Silent.Remove(result.id??""))return;
    pending.TryGetValue(result.id??"",out var source);pending.Remove(result.id??"");
+   BoardFeedback(result.ok);
    if(result.ok)Toast(string.IsNullOrEmpty(source?.ok)?"Feito!":source.ok,true);
    else Toast(!string.IsNullOrEmpty(source?.fail)?source.fail:result.reason=="game-rule-rejected"?"Não foi possível agora.":result.reason,false);
   }
@@ -59,12 +62,18 @@ namespace Checkout {
    if(data.route=="@build"){host.Route("");CheckoutBuildMode.OpenFromHud();return;}
    // "@lots" shows the lots of the block from above (CheckoutLotView).
    if(data.route=="@lots"){host.Route("");CheckoutLotView.Show();return;}
+   // "@shop" opens the supplier market app; "@shop:<productId>" also puts one box of that product in the cart.
+   if((data.route??"")=="@shop"||(data.route??"").StartsWith("@shop:")){host.Route("");int.TryParse((data.route??"").Length>6?data.route.Substring(6):"0",out var shopProduct);CheckoutSupplierShop.Show(shopProduct);return;}
+   // "@delivery" opens the store computer on the Delivery tab (CheckoutDeliveryApp).
+   if((data.route??"")=="@delivery"){host.Route("");CheckoutSupplierShop.ShowDelivery();return;}
    // Buttons with neither an action nor a route are labels only.
    if(!string.IsNullOrEmpty(data.route))host.Route(data.route);
   }
   void Update(){
-   if(Input.GetKeyDown(KeyCode.Escape)&&view!=null&&view.hasPage)host.Route(view.canBack?"back":"");
-   UpdateToast();
+   // Esc closes the level-up celebration first (UpdateLevelUp), the page only when nothing is over it.
+   bool celebrating=LevelUpOpen||ConquestOpen;
+   if(Input.GetKeyDown(KeyCode.Escape)&&!celebrating&&view!=null&&view.hasPage)host.Route(view.canBack?"back":"");
+   UpdateToast();UpdateBoosts();UpdateBoard();UpdateLevelUp();UpdateConquest();
   }
  }
 }

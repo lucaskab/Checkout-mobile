@@ -24,9 +24,14 @@ import type {
 	GameStore,
 	OfflineRewardSummary,
 } from "@/@types/game";
-import type { GameEventsState } from "@/@types/game-event";
+import type { GameEventContext, GameEventsState } from "@/@types/game-event";
+import { getGameEvent } from "@/data/game-events";
 import type { GameInventoryLots, GameShelfLots } from "@/@types/inventory-lot";
-import type { LogisticsState, SupplierOrder } from "@/@types/logistics";
+import type {
+	LogisticsState,
+	PlaceSupplierCartInput,
+	SupplierOrder,
+} from "@/@types/logistics";
 import type { GameMissionsState } from "@/@types/mission";
 import type { GameProductionState, ProductionJob } from "@/@types/production";
 import type { GameShopState } from "@/@types/shop";
@@ -37,6 +42,8 @@ import {
 	getNextInventoryCapacityUpgrade,
 	normalizeInventoryCapacityLevel,
 } from "@/data/inventory-capacity";
+import { getBoxCount, getCaseSize } from "@/data/case-sizes";
+import { getFreeBoxPlaces, getStockroomRoom } from "@/services/stockroom";
 import {
 	getMarketExpansion,
 	getMarketExpansionSkipCost,
@@ -52,7 +59,7 @@ import {
 	shelves,
 	starterShelfIds,
 } from "@/data/market-products";
-import { getMission } from "@/data/missions";
+import { getMission, missions as missionList } from "@/data/missions";
 import {
 	getProductionSector,
 	productionRecipes,
@@ -76,7 +83,7 @@ import {
 	resolveShelfSlotCounts,
 	shelfProductSlots,
 } from "@/data/shelf-slots";
-import { shopItems } from "@/data/shop-items";
+import { retiredShopItemIds, shopItems } from "@/data/shop-items";
 import {
 	getNextSupplierOrderSlotUpgrade,
 	initialSupplierOrderSlots,
@@ -99,6 +106,7 @@ import {
 	createPendingCheckout,
 	enqueueCheckout,
 	expireCheckouts,
+	markCheckoutArrived,
 	nextAutoCheckout,
 	normalizeCheckoutCounterState,
 } from "@/services/checkout-counter";
@@ -114,13 +122,28 @@ import {
 } from "@/services/store-incidents";
 import { getIncidentShelves } from "@/services/store-incidents-context";
 import {
+	WINDOW_CATEGORIES,
+	advanceInspection,
+	advanceWindowSales,
+	createInspectionRun,
+	createWindowSales,
+	getWindowSalePrice,
+	getWindowSalesBonus,
+	openInspectionStop,
+	pickInspectionKind,
+	scoreInspection,
+	serveWindowRequest,
+} from "@/services/event-interactions";
+import {
 	acceptsCustomers,
 	addSpecialRequest,
 	advanceMarketDay,
 	closeMarketDay,
 	createInitialDayState,
 	createSpecialRequest,
+	DAY_OFFERS_REVISION,
 	expireSpecialRequests,
+	FIRST_REQUEST_DELAY_MS,
 	FREE_DAY_CONTRACT_ID,
 	getLoyaltyArrivalMultiplier,
 	isDayOver,
@@ -129,9 +152,12 @@ import {
 	recordDayCustomer,
 	recordDayIncidentFixed,
 	recordDaySale,
+	refreshDayOffers,
 	resolveSpecialRequest as resolveDayRequest,
+	SPECIAL_REQUEST_CHANCE,
 	startDay as startMarketDay,
 } from "@/services/market-day";
+import { type DayForecast, forecastDay, getFallbackDayForecast } from "@/services/day-forecast";
 import {
 	getDayProduct,
 	getDayStoreContext,
@@ -149,6 +175,12 @@ import {
 import {
 	activateGameEvent,
 	advanceGameEvents,
+	applyPassiveEventWear,
+	type EventFixture,
+	getAvailableGameEvents,
+	getEventDemandMultiplier,
+	getReferencePrice,
+	pickFeaturedProduct,
 	createInitialGameEventsState,
 	getTurnEventKey,
 	getActiveGameEventEffects,
@@ -161,15 +193,9 @@ import {
 	reconcileInventoryLots,
 	takeInventoryLots,
 } from "@/services/inventory-lots";
-import {
-	getSupplierDeliveryDuration,
-	getSupplierOrderStatus,
-} from "@/services/logistics";
+import { getSupplierOrderStatus } from "@/services/logistics";
 import { getMissionProgress } from "@/services/missions";
-import {
-	getProductionDiamondCost,
-	getSupplierOrderPrice,
-} from "@/services/production";
+import { getProductionDiamondCost } from "@/services/production";
 import {
 	applyExperience,
 	getExperienceFromSales,
@@ -192,18 +218,16 @@ import {
 } from "@/services/staff-work";
 import { mmkvStorage } from "@/storage/mmkv";
 import type { MarketEraId } from "@/@types/economy";
-import { getMarketEra, STARTING_COINS } from "@/data/economy";
+import { getMarketEra, marketEras, STARTING_COINS } from "@/data/economy";
 import { canShelfHold } from "@/data/shelf-categories";
-import { getSectorCounterFor, shelfTypes } from "@/data/shelf-types";
+import { getSectorCounterFor, isSectorShelfId, shelfTypes } from "@/data/shelf-types";
 import {
-	getCareFactor,
 	getShelfCondition,
 	getSlotPositionFactor,
 	normalizeShelfCare,
-	wearShelfCare,
 } from "@/services/shelf-care";
 import { albumCollections, getCollectionProgress } from "@/data/product-album";
-import { ERA_LOTS, getMarketLot } from "@/data/market-lots";
+import { ERA_LOTS, getMarketLot, migrateDepotLot } from "@/data/market-lots";
 import {
 	checkBuyLot,
 	checkClearLot,
@@ -214,6 +238,7 @@ import {
 	normalizeLotsState,
 	startLotClearing,
 } from "@/services/market-lots";
+import { normalizeCelebrations, pushCelebration } from "@/services/celebrations";
 import {
 	createWeeklyEventState,
 	getWeeklyNecessityMultiplier,
@@ -270,6 +295,41 @@ import {
 	sectorBuildPlans,
 	shopItemBuildDurations,
 } from "@/data/interior-construction";
+import { getMaxBoxesPerOrder } from "@/data/supplier-capacity";
+import {
+	getOrderLines,
+	getSupplierCartQuote,
+	getSupplierIncoming,
+	LOW_STOCK_SHARE,
+} from "@/services/supplier-cart";
+import type { DeliveryItem, DeliveryOrder, DeliveryState } from "@/@types/delivery";
+import {
+	advanceDeliveryOrder,
+	applyLateCancelToRating,
+	applyStarsToRating,
+	assignCourier,
+	clampPackedItems,
+	createDeliveryOffer,
+	createDeliveryRandom,
+	createInitialDeliveryState,
+	getDeliverySlots,
+	getFillRatio,
+	getItemsValue,
+	getNextOrderId,
+	getOfferIntervalMs,
+	getPackStars,
+	handOverOrder,
+	isActiveDeliveryOrder,
+	isDeliveryArrived,
+	isDeliveryUnlocked,
+	MAX_WAITING_OFFERS,
+	normalizeDeliveryState,
+	PACK_WINDOW_MS,
+	pushRating,
+	replaceDeliveryOrder,
+	settleDelivery,
+	trimDeliveryOrders,
+} from "@/services/delivery";
 
 // A new game: a few crates of what the sidewalk table sells (tomato, lettuce, banana, water, soda).
 const initialInventory: GameInventory = {
@@ -309,6 +369,7 @@ const initialShelfSlotCounts = normalizeShelfSlotCounts(
 const initialShelfUpgradeLevels: GameShelfUpgradeLevels = {};
 
 const initialShopState: GameShopState = {
+	activeBoosts: {},
 	consumableAmounts: {},
 	ownedItemIds: [],
 };
@@ -423,6 +484,8 @@ const initialGameState: GameState = {
 	shelfUpgradeLevels: initialShelfUpgradeLevels,
 	shelfCare: {},
 	statistics: initialStatistics,
+	celebrations: [],
+	delivery: createInitialDeliveryState(),
 };
 
 function getInitialGameState(): GameState {
@@ -494,6 +557,7 @@ function getInitialGameState(): GameState {
 			jobs: [...initialGameState.production.jobs],
 		},
 		shop: {
+			activeBoosts: {},
 			consumableAmounts: { ...initialGameState.shop.consumableAmounts },
 			ownedItemIds: [...initialGameState.shop.ownedItemIds],
 		},
@@ -506,6 +570,8 @@ function getInitialGameState(): GameState {
 		shelfUpgradeLevels: { ...initialGameState.shelfUpgradeLevels },
 		shelfCare: {},
 		statistics: { ...initialGameState.statistics },
+		celebrations: [],
+		delivery: createInitialDeliveryState(),
 	};
 }
 
@@ -663,15 +729,23 @@ function migrateGameState(persistedState: unknown): GameState {
 		normalizedShelfState.shelfStock,
 		shelfAssignments,
 	);
+	// Upgrades removed from the shop (src/data/shop-items.ts retiredShopItemIds) leave old saves.
+	const knownShopItem = (id: string) => !retiredShopItemIds.includes(id);
 	const shop = {
 		...initialGameState.shop,
 		...state.shop,
-		consumableAmounts: {
-			...initialGameState.shop.consumableAmounts,
-			...state.shop?.consumableAmounts,
-		},
-		ownedItemIds:
-			state.shop?.ownedItemIds ?? initialGameState.shop.ownedItemIds,
+		activeBoosts: Object.fromEntries(
+			Object.entries(state.shop?.activeBoosts ?? {}).filter(([id]) => knownShopItem(id)),
+		),
+		consumableAmounts: Object.fromEntries(
+			Object.entries({
+				...initialGameState.shop.consumableAmounts,
+				...state.shop?.consumableAmounts,
+			}).filter(([id]) => knownShopItem(id)),
+		),
+		ownedItemIds: (
+			state.shop?.ownedItemIds ?? initialGameState.shop.ownedItemIds
+		).filter(knownShopItem),
 	};
 	const shelfPrices = normalizeShelfPrices(state.shelfPrices, shelfAssignments);
 	const production = {
@@ -749,6 +823,7 @@ function migrateGameState(persistedState: unknown): GameState {
 			state.lots,
 			normalizeEraState(state.era, state.era ? "mesinha" : getEraForExpansions(unlockedMarketExpansionIds)).id,
 		),
+		celebrations: normalizeCelebrations(state.celebrations),
 		albumClaimedIds: Array.isArray(state.albumClaimedIds)
 			? state.albumClaimedIds.filter((id): id is string => typeof id === "string")
 			: [],
@@ -835,13 +910,40 @@ function migrateGameState(persistedState: unknown): GameState {
 		shelfUpgradeLevels,
 		shelfCare: normalizeShelfCare(state.shelfCare),
 		statistics,
+		delivery: normalizeDeliveryState(state.delivery),
 	};
 }
 
 export const useGameStore = create<GameStore>()(
 	persist(
-		(set, get) => ({
+		(rawSet, get) => {
+			// Every level gained (sales, contracts, missions, the day's result...) leaves a celebration for the
+			// HUD: the levels since the player last closed it (dismissLevelUp).
+			const set = ((partial: unknown, replace?: boolean) => {
+				const before = get().market.level;
+				(rawSet as (partial: unknown, replace?: boolean) => void)(partial, replace);
+				const market = get().market;
+				if (!replace && market.level > before)
+					rawSet({
+						market: {
+							...market,
+							levelUp: {
+								from: Math.min(market.levelUp?.from ?? before, before),
+								to: market.level,
+								at: Date.now(),
+							},
+						},
+					});
+			}) as typeof rawSet;
+			return {
 			...getInitialGameState(),
+			dismissLevelUp: () => {
+				if (get().market.levelUp) set({ market: { ...get().market, levelUp: null } });
+			},
+			dismissCelebration: (id) => {
+				const list = get().celebrations ?? [];
+				if (list.some((item) => item.id === id)) set({ celebrations: list.filter((item) => item.id !== id) });
+			},
 			claimDailyGoal: () => {
 				const { coins, daily, market } = get();
 				const normalizedDaily = normalizeDailyState(daily, market.level);
@@ -875,7 +977,7 @@ export const useGameStore = create<GameStore>()(
 				}
 
 				const daily = normalizeDailyState(state.daily, state.market.level, now);
-				const shopEffects = getShopEffects(state.shop.ownedItemIds);
+				const shopEffects = getShopEffects(state.shop);
 				// Obras keep going while the player is away.
 				get().processMarketEraConstruction(now);
 				// The market keeps selling while the player is away (if it was left open): every hour
@@ -985,14 +1087,9 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
+			// "Finalizar": a truck past half its trip parks at the dock now (every product of the order).
 			completeOrderFinalStage: (orderId) => {
-				const {
-					inventory,
-					inventoryCapacityLevels,
-					inventoryLots,
-					logistics,
-					statistics,
-				} = get();
+				const { logistics, statistics } = get();
 				const order = logistics.orders.find((item) => item.id === orderId);
 				const now = Date.now();
 
@@ -1000,35 +1097,17 @@ export const useGameStore = create<GameStore>()(
 					!order ||
 					order.status === "entregue" ||
 					logistics.premiumCurrency < 2 ||
-					now < order.createdAt + order.deliveryDurationMs / 2 ||
-					!canAddToInventory(
-						order.productId,
-						order.quantity,
-						inventory,
-						inventoryCapacityLevels,
-					)
+					now < order.createdAt + order.deliveryDurationMs / 2
 				) {
 					return false;
 				}
 
 				set({
-					inventory: {
-						...inventory,
-						[order.productId]:
-							(inventory[order.productId] ?? 0) + order.quantity,
-					},
-					inventoryLots: {
-						...inventoryLots,
-						[order.productId]: appendInventoryLots(
-							inventoryLots[order.productId],
-							createInventoryLots(order.productId, order.quantity, now),
-						),
-					},
 					logistics: {
 						...logistics,
 						orders: logistics.orders.map((item) =>
 							item.id === orderId
-								? { ...item, deliveredAt: now, status: "entregue" }
+								? { ...item, createdAt: now - item.deliveryDurationMs }
 								: item,
 						),
 						premiumCurrency: logistics.premiumCurrency - 2,
@@ -1038,8 +1117,14 @@ export const useGameStore = create<GameStore>()(
 						instantDeliveries: statistics.instantDeliveries + 1,
 					},
 				});
+				get().processSupplierOrders();
 
 				return true;
+			},
+			claimAllMissions: () => {
+				let claimed = false;
+				for (const mission of missionList) claimed = get().claimMission(mission.id) || claimed;
+				return claimed;
 			},
 			claimMission: (missionId) => {
 				const state = get();
@@ -1092,27 +1177,14 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
+			// "Chegar já": the truck (every product of the order) parks at the dock right now, like a normal
+			// arrival, so the boxes still go through the stockroom (unloadDelivery / the receiving mini-game).
 			deliverOrderInstantly: (orderId) => {
-				const {
-					inventory,
-					inventoryCapacityLevels,
-					inventoryLots,
-					logistics,
-					statistics,
-				} = get();
+				const { logistics, statistics } = get();
 				const order = logistics.orders.find((item) => item.id === orderId);
 				const now = Date.now();
 
-				if (
-					!order ||
-					order.status === "entregue" ||
-					!canAddToInventory(
-						order.productId,
-						order.quantity,
-						inventory,
-						inventoryCapacityLevels,
-					)
-				) {
+				if (!order || order.status === "entregue") {
 					return false;
 				}
 
@@ -1124,18 +1196,6 @@ export const useGameStore = create<GameStore>()(
 				}
 
 				set({
-					inventory: {
-						...inventory,
-						[order.productId]:
-							(inventory[order.productId] ?? 0) + order.quantity,
-					},
-					inventoryLots: {
-						...inventoryLots,
-						[order.productId]: appendInventoryLots(
-							inventoryLots[order.productId],
-							createInventoryLots(order.productId, order.quantity, now),
-						),
-					},
 					logistics: {
 						...logistics,
 						emergencyTokens: canUseToken
@@ -1143,7 +1203,7 @@ export const useGameStore = create<GameStore>()(
 							: logistics.emergencyTokens,
 						orders: logistics.orders.map((item) =>
 							item.id === orderId
-								? { ...item, deliveredAt: now, status: "entregue" }
+								? { ...item, createdAt: now - item.deliveryDurationMs }
 								: item,
 						),
 						premiumCurrency: canUseToken
@@ -1155,6 +1215,7 @@ export const useGameStore = create<GameStore>()(
 						instantDeliveries: statistics.instantDeliveries + 1,
 					},
 				});
+				get().processSupplierOrders();
 
 				return true;
 			},
@@ -1226,14 +1287,15 @@ export const useGameStore = create<GameStore>()(
 
 				const { employees, events, market, shop } = get();
 				const now = Date.now();
-				const nextEvents = activateGameEvent(events, eventId, now);
+				const activated = activateGameEvent(events, eventId, now);
 
-				if (!nextEvents) {
+				if (!activated) {
 					return false;
 				}
+				const nextEvents = withFeaturedProduct(activated, get());
 
 				const eventEffects = getActiveGameEventEffects(nextEvents, now);
-				const shopEffects = getShopEffects(shop.ownedItemIds);
+				const shopEffects = getShopEffects(shop);
 				const employeeEffects = getEmployeeEffects(employees);
 
 				set({
@@ -1251,7 +1313,7 @@ export const useGameStore = create<GameStore>()(
 											eventEffects.customerArrivalMultiplier *
 											employeeEffects.customerArrivalMultiplier *
 								getTurnEffects(get().era.id, get().day.shift).customerArrivalMultiplier,
-										getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs,
+										getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
 									),
 							}
 						: market,
@@ -1273,8 +1335,9 @@ export const useGameStore = create<GameStore>()(
 				set({
 					receiving: addDockDelivery(
 						get().receiving,
-						{ id: `dev-${now}`, productId, quantity: units },
-						{ category: product.category, name: product.name },
+						// Whole boxes, like a real order.
+						{ id: `dev-${now}`, productId, quantity: Math.max(1, Math.round(units / product.caseSize)) * product.caseSize },
+						{ category: product.category, name: product.name, caseSize: product.caseSize },
 						now,
 					),
 				});
@@ -1300,6 +1363,7 @@ export const useGameStore = create<GameStore>()(
 				const market = get().market;
 				set({
 					era: next,
+					celebrations: pushCelebration(get().celebrations, "era", next.id),
 					// The new expansion brings its own products.
 					market: {
 						...market,
@@ -1355,7 +1419,7 @@ export const useGameStore = create<GameStore>()(
 				const lot = getMarketLot(lots.clearing.lotId);
 				const next = finishLotClearing(lots, now === Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : now);
 				if (next === lots) return false;
-				set({ lots: next });
+				set({ lots: next, celebrations: pushCelebration(get().celebrations, "lot", lots.clearing.lotId) });
 				// The crew sells the scrap: the cleared lot pays some experience.
 				if (lot) {
 					const xp = getLotClearExperience(lot);
@@ -1495,7 +1559,7 @@ export const useGameStore = create<GameStore>()(
 			devClearDock: () => {
 				if (!__DEV__) return false;
 				const { receiving } = get();
-				const dock = receiving.dock.filter((item) => !item.orderId.startsWith("dev-"));
+				const dock = receiving.dock.filter((item) => !item.orderId?.startsWith("dev-"));
 				if (dock.length === receiving.dock.length) return false;
 				set({ receiving: { ...receiving, dock } });
 				return true;
@@ -1648,79 +1712,36 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
-			placeSupplierOrder: ({
-				productId,
-				quantity,
-				useFreightCoupon = false,
-			}) => {
-				const {
-					coins,
-					events,
-					inventory,
-					inventoryCapacityLevels,
-					logistics,
-					statistics,
-				} = get();
-				const shopEffects = getShopEffects(get().shop.ownedItemIds);
-				const product = itemCatalog.find((item) => item.id === productId);
+			// One truck carries a cart: several products, each in boxes (src/services/supplier-cart.ts).
+			placeSupplierCart: (input) => {
 				const now = Date.now();
-				const activeOrders = logistics.orders.filter(
-					(order) => getSupplierOrderStatus(order, now) !== "entregue",
-				);
-				const hasCoupon = useFreightCoupon && logistics.freightCoupons > 0;
-				const eventEffects = getActiveGameEventEffects(events, now);
-				const supplierOrderPrice = Math.ceil(
-					getSupplierOrderPrice(productId, quantity) *
-						eventEffects.supplierCostMultiplier *
-						shopEffects.supplierCostMultiplier,
-				);
-				const incomingQuantity = logistics.orders
-					.filter(
-						(order) =>
-							order.productId === productId &&
-							getSupplierOrderStatus(order, now) !== "entregue",
-					)
-					.reduce((total, order) => total + order.quantity, 0);
-				const discountedCost = hasCoupon
-					? Math.ceil(supplierOrderPrice * 0.9)
-					: supplierOrderPrice;
-
-				if (
-					!product ||
-					quantity <= 0 ||
-					supplierOrderPrice <= 0 ||
-					!canAddToInventory(
-						productId,
-						quantity + incomingQuantity,
-						inventory,
-						inventoryCapacityLevels,
-					) ||
-					coins < discountedCost ||
-					activeOrders.length >= logistics.supplierOrderSlots
-				) {
-					return false;
-				}
-
+				const { coins, logistics, statistics } = get();
+				const quote = getSupplierCartQuote(get(), input, now);
+				if (quote.reason) return false;
+				const productId = quote.lines[0].productId;
 				const order: SupplierOrder = {
 					createdAt: now,
-					deliveryDurationMs: Math.round(
-						getSupplierDeliveryDuration(product.supplierTime, logistics, now) *
-							eventEffects.supplierDurationMultiplier *
-							shopEffects.supplierDurationMultiplier,
-					),
+					deliveryDurationMs: quote.deliveryDurationMs,
 					deliveredAt: null,
-					id: `${productId}-${now}`,
+					// Two orders of the same product in the same millisecond still get their own truck.
+					id: logistics.orders.some((item) => item.id === `${productId}-${now}`)
+						? `${productId}-${now}-${logistics.orders.length}`
+						: `${productId}-${now}`,
 					productId,
-					quantity,
+					quantity: quote.units,
+					boxes: quote.boxes,
+					// A truck with one product keeps the unit size it always had.
+					...(quote.lines.length === 1 ? { caseSize: quote.lines[0].caseSize } : {}),
+					lines: quote.lines,
 					status: "em-producao",
-					totalCost: discountedCost,
+					totalCost: quote.total,
 				};
 
 				set({
-					coins: coins - discountedCost,
+					coins: coins - quote.total,
 					logistics: {
 						...logistics,
-						freightCoupons: hasCoupon
+						freightCoupons: quote.couponUsed
 							? logistics.freightCoupons - 1
 							: logistics.freightCoupons,
 						orders: [order, ...logistics.orders].slice(0, 20),
@@ -1733,6 +1754,24 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
+			// The stepper pages order one product: a cart of one line.
+			placeSupplierOrder: ({
+				productId,
+				boxes: requestedBoxes,
+				quantity: requestedUnits,
+				useFreightCoupon = false,
+			}) => {
+				const product = itemCatalog.find((item) => item.id === productId);
+				// Suppliers sell whole boxes (src/data/case-sizes.ts): `boxes`, or the boxes that hold `quantity` units.
+				const caseSize = product ? getCaseSize(product) : 1;
+				const boxes = Math.floor(
+					requestedBoxes ?? (requestedUnits !== undefined ? getBoxCount(requestedUnits, caseSize) : 0),
+				);
+				return get().placeSupplierCart({
+					lines: [{ productId, boxes }],
+					useFreightCoupon,
+				});
+			},
 			purchaseShopItem: (itemId, currency) => {
 				const { coins, logistics, market, shop, statistics } = get();
 				const item = shopItems.find((shopItem) => shopItem.id === itemId);
@@ -1742,6 +1781,10 @@ export const useGameStore = create<GameStore>()(
 				}
 
 				if (!item.isConsumable && shop.ownedItemIds.includes(item.id)) {
+					return false;
+				}
+
+				if (item.requiresItemId && !shop.ownedItemIds.includes(item.requiresItemId)) {
 					return false;
 				}
 
@@ -1773,6 +1816,7 @@ export const useGameStore = create<GameStore>()(
 								}
 							: logistics,
 					shop: {
+						...shop,
 						consumableAmounts: item.isConsumable
 							? {
 									...shop.consumableAmounts,
@@ -1799,44 +1843,171 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
-			processGameEvents: () => {
-				const { day, employees, events, market, shop } = get();
+			activateShopBooster: (itemId) => {
+				const { shop } = get();
+				const item = shopItems.find((shopItem) => shopItem.id === itemId);
+				if (!item?.isConsumable || !item.durationMs) return false;
+				if ((shop.consumableAmounts[item.id] ?? 0) <= 0) return false;
 				const now = Date.now();
-				const nextEvents = advanceGameEvents(events, now, {
-					endsAt: day.endsAt ?? 0,
-					key: getTurnEventKey(day),
-					open: day.phase === "open" && day.endsAt !== null,
-					startedAt: day.startedAt ?? now,
+				// Using one more while it runs adds its time to what is left.
+				const endsAt = Math.max(now, shop.activeBoosts?.[item.id] ?? 0) + item.durationMs;
+				set({
+					shop: {
+						...shop,
+						activeBoosts: { ...shop.activeBoosts, [item.id]: endsAt },
+						consumableAmounts: {
+							...shop.consumableAmounts,
+							[item.id]: (shop.consumableAmounts[item.id] ?? 0) - 1,
+						},
+					},
 				});
+				return true;
+			},
+			processGameEvents: () => {
+				const state = get();
+				const { day, events } = state;
+				const now = Date.now();
+				// Only events that make sense for this market are drawn (expansion, team, fridges).
+				const scheduled = advanceGameEvents(
+					events,
+					now,
+					{
+						endsAt: day.endsAt ?? 0,
+						key: getTurnEventKey(day),
+						open: day.phase === "open" && day.endsAt !== null,
+						startedAt: day.startedAt ?? now,
+					},
+					getAvailableGameEvents(getGameEventContext(state)),
+				);
+				let nextEvents = scheduled ?? events;
+				let shelfCare = state.shelfCare;
+				let coins = state.coins;
+				let market = state.market;
 
-				if (!nextEvents) {
-					return false;
+				// A new event: Viralizou! picks the product in the video.
+				if (nextEvents.activeEvent && nextEvents.activeEvent !== events.activeEvent)
+					nextEvents = withFeaturedProduct(nextEvents, state);
+
+				// Time-based wear while the event runs (wilting produce, thawing freezers), every few seconds.
+				const running = nextEvents.activeEvent;
+				const runningEffects = getActiveGameEventEffects(nextEvents, now);
+				if (running && runningEffects.passiveWear) {
+					const elapsed = Math.min(now, running.endsAt) - (nextEvents.wearTickAt ?? running.startedAt);
+					if (elapsed >= PASSIVE_WEAR_TICK_MS) {
+						shelfCare = applyPassiveEventWear(
+							shelfCare,
+							runningEffects,
+							getEventFixtures(state, runningEffects.powerOutage),
+							elapsed,
+						);
+						nextEvents = { ...nextEvents, wearTickAt: now };
+					}
 				}
 
-				const eventEffects = getActiveGameEventEffects(nextEvents, now);
-				const shopEffects = getShopEffects(shop.ownedItemIds);
-				const employeeEffects = getEmployeeEffects(employees);
+				// What the player does during the event: the inspector's checklist (each stop is a real mishap to fix
+				// in time) and drinks asked through car windows in the jam (src/services/event-interactions.ts).
+				let incidents = state.incidents;
+				const interaction = running ? runningEffects.interaction : null;
+				if (running && interaction === "inspection") {
+					let run =
+						nextEvents.inspection && nextEvents.inspection.startedAt === running.startedAt
+							? nextEvents.inspection
+							: createInspectionRun(running.startedAt, running.endsAt);
+					const step = advanceInspection(run, now, incidents.active);
+					run = step.run;
+					if (step.needsIncident) {
+						const shelves = getIncidentShelves(state);
+						let incident = null;
+						for (const kind of pickInspectionKind(run, true, nextEvents.randomSeed + run.stops.length + incidents.seed)) {
+							incident = createStoreIncident(incidents, shelves, now, state.market.level, kind);
+							if (incident) break;
+						}
+						if (incident) incidents = { ...incidents, active: [...incidents.active, incident], seed: incidents.seed + 1 };
+						run = openInspectionStop(run, step.needsIncident.id, incident, now);
+					}
+					if (run !== nextEvents.inspection) nextEvents = { ...nextEvents, inspection: run };
+				}
+				if (running && interaction === "window-sales") {
+					const sales = nextEvents.windowSales ?? createWindowSales(running.startedAt);
+					const drinks = state.market.unlockedProductIds.filter((productId) =>
+						WINDOW_CATEGORIES.includes(itemCatalog.find((item) => item.id === productId)?.category ?? ""),
+					);
+					const advanced = advanceWindowSales(sales, now, drinks, running.endsAt);
+					if (advanced !== nextEvents.windowSales) nextEvents = { ...nextEvents, windowSales: advanced };
+				}
 
-				set({
-					events: nextEvents,
-					market: market.isOpen
-						? {
-								...market,
-								nextCustomerAt:
-									now +
-									getCustomerArrivalDelay(
-										market.level,
-										market.unlockedProductIds.length,
-										market.randomSeed,
-										shopEffects.customerArrivalMultiplier *
-											eventEffects.customerArrivalMultiplier *
-											employeeEffects.customerArrivalMultiplier *
-								getTurnEffects(get().era.id, get().day.shift).customerArrivalMultiplier,
-										getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs,
-									),
-							}
-						: market,
-				});
+				// The event that just ended may leave something behind: the inspector's verdict, the jam's sales.
+				const ended = events.activeEvent && !nextEvents.activeEvent ? events.activeEvent : null;
+				const endedInteraction = ended ? (getGameEvent(ended.eventId)?.effects.interaction ?? null) : null;
+				if (ended && endedInteraction === "inspection" && events.inspection) {
+					const run = advanceInspection(events.inspection, now, incidents.active).run;
+					const result = scoreInspection(run, state.daily.goal);
+					coins = Math.max(0, coins + result.coins);
+					market = {
+						...market,
+						customerSatisfaction: Math.max(0, Math.min(100, market.customerSatisfaction + result.reputation)),
+					};
+					nextEvents = {
+						...nextEvents,
+						inspection: null,
+						sealTurnKey: result.grade === "approved" ? (ended.turnKey ?? getTurnEventKey(day)) : nextEvents.sealTurnKey ?? null,
+						outcome: {
+							at: now,
+							eventId: ended.eventId,
+							kind: result.grade === "fined" ? "negative" : "positive",
+							text:
+								result.grade === "approved"
+									? `Fiscal aprovou o mercado: ${result.passed}/${result.total} resolvidos (+${result.coins} moedas, +${result.reputation} de reputação)`
+									: result.grade === "warning"
+										? `Advertência do fiscal: ${result.passed}/${result.total} resolvidos`
+										: `Multa do fiscal: ${result.passed}/${result.total} resolvidos (${result.coins} moedas)`,
+						},
+					};
+				} else if (ended && endedInteraction === "window-sales" && events.windowSales) {
+					const sold = events.windowSales.served;
+					nextEvents = {
+						...nextEvents,
+						windowSales: null,
+						outcome: {
+							at: now,
+							eventId: ended.eventId,
+							kind: "positive",
+							text:
+								sold === 0
+									? "Nenhuma bebida vendida pela janela desta vez"
+									: sold === 1
+										? "Você vendeu 1 bebida pela janela"
+										: `Você vendeu ${sold} bebidas pela janela`,
+						},
+					};
+				}
+
+				if (nextEvents === events && shelfCare === state.shelfCare && incidents === state.incidents) return false;
+
+				// Starting or ending an event changes how often customers come.
+				if (scheduled && market.isOpen) {
+					const eventEffects = getActiveGameEventEffects(nextEvents, now);
+					const shopEffects = getShopEffects(state.shop);
+					const employeeEffects = getEmployeeEffects(state.employees);
+					const turnEffects = getTurnEffects(state.era.id, state.day.shift);
+					market = {
+						...market,
+						nextCustomerAt:
+							now +
+							getCustomerArrivalDelay(
+								market.level,
+								market.unlockedProductIds.length,
+								market.randomSeed,
+								shopEffects.customerArrivalMultiplier *
+									eventEffects.customerArrivalMultiplier *
+									employeeEffects.customerArrivalMultiplier *
+									turnEffects.customerArrivalMultiplier,
+								turnEffects.minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
+							),
+					};
+				}
+
+				set({ coins, events: nextEvents, incidents, market, shelfCare });
 
 				return true;
 			},
@@ -1900,7 +2071,8 @@ export const useGameStore = create<GameStore>()(
 					isOpen: state.market.isOpen && state.day.phase === "open",
 					nextTaskNumber: state.employees.nextTaskNumber ?? 1,
 					now,
-					restockMultiplier: getShopEffects(state.shop.ownedItemIds).restockMultiplier,
+					restockMultiplier: getShopEffects(state.shop).restockMultiplier,
+					speedMultiplier: getActiveGameEventEffects(state.events, now).staffSpeedMultiplier,
 					slots: getRestockCandidates(state),
 					storage: getStaffStorageKind(
 						getSimulatorLayout(state.unlockedMarketExpansionIds),
@@ -2074,14 +2246,25 @@ export const useGameStore = create<GameStore>()(
 					const status = getSupplierOrderStatus(order, now);
 
 					if (status === "entregue") {
-						const product = itemCatalog.find((item) => item.id === order.productId);
 						hasChanges = true;
-						nextReceiving = addDockDelivery(
-							nextReceiving,
-							order,
-							{ category: product?.category ?? "", name: product?.name ?? "Produto" },
-							now,
-						);
+						// The truck parks with one dock delivery per product on it. Orders from before carts keep
+						// their old delivery (its units split as before, see getDeliveryBoxUnits).
+						const cart = (order.lines?.length ?? 0) > 0;
+						for (const line of getOrderLines(order)) {
+							const product = itemCatalog.find((item) => item.id === line.productId);
+							nextReceiving = addDockDelivery(
+								nextReceiving,
+								{
+									id: order.id,
+									productId: line.productId,
+									quantity: line.quantity,
+									caseSize: cart ? line.caseSize : order.caseSize,
+								},
+								{ category: product?.category ?? "", name: product?.name ?? "Produto" },
+								now,
+								cart ? `${order.id}:${line.productId}` : undefined,
+							);
+						}
 						return { ...order, deliveredAt: now, status };
 					}
 
@@ -2112,9 +2295,11 @@ export const useGameStore = create<GameStore>()(
 					? itemCatalog.find((item) => item.id === delivery.productId)
 					: undefined;
 				if (!delivery || !product) return false;
-				const room =
-					getInventoryCapacity(product, state.inventoryCapacityLevels[product.id]) -
-					(state.inventory[product.id] ?? 0);
+				// Boxes go onto free places on the racks; older deliveries (no boxes) only need units of room.
+				const room = delivery.caseSize
+					? getStockroomRoom(product, state.inventory[product.id] ?? 0, state.inventoryCapacityLevels[product.id])
+					: getInventoryCapacity(product, state.inventoryCapacityLevels[product.id]) -
+						(state.inventory[product.id] ?? 0);
 				const now = Date.now();
 				const result = unloadDock(
 					state.receiving,
@@ -2140,6 +2325,54 @@ export const useGameStore = create<GameStore>()(
 				});
 				return true;
 			},
+			orderLowStock: () => {
+				// Emptiest first, so the products about to run out get the trucks.
+				const state = get();
+				const now = Date.now();
+				const low = itemCatalog
+					.filter(
+						(product) =>
+							product.acquisition === "supplier" &&
+							state.market.unlockedProductIds.includes(product.id),
+					)
+					.map((product) => ({
+						product,
+						share:
+							(state.inventory[product.id] ?? 0) /
+							Math.max(1, getInventoryCapacity(product, state.inventoryCapacityLevels[product.id])),
+					}))
+					.filter((item) => item.share < LOW_STOCK_SHARE)
+					.sort((a, b) => a.share - b.share);
+				// One truck: every low product gets the most boxes that still fit the truck, the racks and the coins.
+				const maxBoxes = getMaxBoxesPerOrder(state.logistics.supplierOrderSlots);
+				const lines: PlaceSupplierCartInput["lines"] = [];
+				let boxes = 0;
+				for (const { product } of low) {
+					if (boxes >= maxBoxes) break;
+					const fits = (count: number) =>
+						getSupplierCartQuote(state, { lines: [...lines, { productId: product.id, boxes: count }] }, now)
+							.reason === null;
+					const free = getFreeBoxPlaces(
+						product,
+						state.inventory[product.id] ?? 0,
+						state.inventoryCapacityLevels[product.id],
+						getSupplierIncoming(state, product.id, now).units,
+					);
+					// Binary search: the most boxes of this product that the cart still takes.
+					let most = 0;
+					let high = Math.min(free, maxBoxes - boxes);
+					while (most < high) {
+						const next = Math.ceil((most + high) / 2);
+						if (fits(next)) most = next;
+						else high = next - 1;
+					}
+					if (most > 0) {
+						lines.push({ productId: product.id, boxes: most });
+						boxes += most;
+					}
+				}
+				return lines.length > 0 && get().placeSupplierCart({ lines });
+			},
 			unloadAllDeliveries: () => {
 				let moved = false;
 				for (const delivery of [...get().receiving.dock])
@@ -2158,6 +2391,208 @@ export const useGameStore = create<GameStore>()(
 				if (!step.box) return false;
 				return get().unloadDelivery(step.box.deliveryId, step.box.units);
 			},
+			// Delivery (src/services/delivery.ts): online orders the player packs and hands to a motoboy.
+			processDelivery: (now = Date.now()) => {
+				const state = get();
+				const start = state.delivery;
+				let coins = state.coins;
+				let market = state.market;
+				let streak = start.streak;
+				let bestStreak = start.bestStreak;
+				let rating = start.rating;
+				let ratings = start.ratings;
+				let delivered = start.delivered;
+				let earnings = start.earnings;
+				let ordersChanged = false;
+				const orders: DeliveryOrder[] = start.orders.map((order) => {
+					let next = advanceDeliveryOrder(order, now);
+					if (order.status === "aceito" && next.status === "cancelado") {
+						rating = applyLateCancelToRating(rating);
+						streak = 0;
+					}
+					if (isDeliveryArrived(next, now)) {
+						const settlement = settleDelivery(next, streak);
+						coins += settlement.total;
+						earnings += settlement.total;
+						delivered += 1;
+						streak = settlement.stars >= 5 ? streak + 1 : 0;
+						bestStreak = Math.max(bestStreak, streak);
+						rating = applyStarsToRating(rating, settlement.stars);
+						ratings = pushRating(ratings, settlement.stars);
+						market = creditDeliverySales(market, state.era.id, next.packed ?? [], settlement.goods);
+						next = {
+							...next,
+							status: "entregue",
+							tip: settlement.tip,
+							bonus: settlement.bonus,
+							paid: settlement.total,
+						};
+					}
+					if (next !== order) ordersChanged = true;
+					return next;
+				});
+
+				// Offers come in waves while the market is open (and the app is unlocked): one wave every
+				// 75–150 s, at most MAX_WAITING_OFFERS waiting at a time.
+				let seed = start.seed;
+				let nextOfferAt = start.nextOfferAt;
+				let all = orders;
+				if (state.market.isOpen && isDeliveryUnlocked(state.era.id)) {
+					const rush = getActiveGameEventEffects(state.events, now).customerArrivalMultiplier;
+					if (nextOfferAt === null) {
+						nextOfferAt = now + getOfferIntervalMs(rating, createDeliveryRandom(seed), rush);
+						seed += 1;
+					} else if (now >= nextOfferAt) {
+						const random = createDeliveryRandom(seed);
+						seed += 1;
+						const waiting = orders.filter((order) => order.status === "oferta").length;
+						if (waiting < MAX_WAITING_OFFERS) {
+							const offer = createDeliveryOffer({
+								id: getNextOrderId(now, orders),
+								now,
+								random,
+								stock: getDeliveryStock(state),
+							});
+							if (offer) all = [...orders, offer];
+						}
+						nextOfferAt = now + getOfferIntervalMs(rating, random, rush);
+					}
+				}
+
+				const trimmed = trimDeliveryOrders(all);
+				const changed =
+					ordersChanged || trimmed.length !== start.orders.length || nextOfferAt !== start.nextOfferAt;
+				if (!changed) return false;
+				set({
+					coins,
+					market,
+					delivery: {
+						...start,
+						orders: trimmed,
+						nextOfferAt,
+						rating,
+						ratings,
+						streak,
+						bestStreak,
+						delivered,
+						earnings,
+						seed,
+					},
+				});
+				return true;
+			},
+			acceptDeliveryOrder: (orderId, now = Date.now()) => {
+				const state = get();
+				const { delivery } = state;
+				const order = delivery.orders.find((item) => item.id === orderId);
+				if (!order || order.status !== "oferta" || now >= order.expiresAt) return false;
+				if (!isDeliveryUnlocked(state.era.id)) return false;
+				if (delivery.orders.filter(isActiveDeliveryOrder).length >= getDeliverySlots(state.era.id)) return false;
+				set({
+					delivery: {
+						...delivery,
+						orders: trimDeliveryOrders(
+							replaceDeliveryOrder(delivery.orders, {
+								...order,
+								status: "aceito",
+								acceptedAt: now,
+								packBy: now + PACK_WINDOW_MS,
+							}),
+						),
+					},
+				});
+				return true;
+			},
+			declineDeliveryOrder: (orderId) => {
+				const { delivery } = get();
+				const order = delivery.orders.find((item) => item.id === orderId);
+				if (!order || order.status !== "oferta") return false;
+				set({
+					delivery: {
+						...delivery,
+						orders: trimDeliveryOrders(replaceDeliveryOrder(delivery.orders, { ...order, status: "recusado" })),
+					},
+				});
+				return true;
+			},
+			packDeliveryOrder: (orderId, result, now = Date.now()) => {
+				const state = get();
+				const { delivery } = state;
+				const order = delivery.orders.find((item) => item.id === orderId);
+				if (!order || order.status !== "aceito") return false;
+				if (order.packBy !== undefined && now >= order.packBy) {
+					set({ delivery: cancelLateDelivery(delivery, order) });
+					return false;
+				}
+				// Only what the stockroom holds leaves with the bag (missing units are allowed).
+				const packed = clampPackedItems(order, result.items, (productId) => state.inventory[productId] ?? 0);
+				const inventory = { ...state.inventory };
+				const inventoryLots = { ...state.inventoryLots };
+				for (const item of packed) {
+					const stored = state.inventory[item.productId] ?? 0;
+					inventory[item.productId] = stored - item.quantity;
+					inventoryLots[item.productId] = takeInventoryLots(
+						reconcileInventoryLots(item.productId, stored, state.inventoryLots[item.productId], now),
+						item.quantity,
+					).remainingLots;
+				}
+				const random = createDeliveryRandom(delivery.seed);
+				const quality = Math.min(1, Math.max(0, Number(result.quality) || 0));
+				const fillRatio = getFillRatio(order.items, packed);
+				const packedOrder: DeliveryOrder = {
+					...order,
+					status: "aguardando-moto",
+					packed,
+					fillRatio,
+					quality,
+					stars: getPackStars({ fillRatio, quality, seconds: Math.max(0, Number(result.seconds) || 0) }),
+					itemsValue: getItemsValue(order.items, (productId) => getDeliveryPrice(state, productId)),
+					packedAt: now,
+					courier: assignCourier(random, now),
+				};
+				set({
+					inventory,
+					inventoryLots,
+					delivery: {
+						...delivery,
+						orders: trimDeliveryOrders(replaceDeliveryOrder(delivery.orders, packedOrder)),
+						seed: delivery.seed + 1,
+					},
+				});
+				return true;
+			},
+			handOverDelivery: (orderId, now = Date.now()) => {
+				const { delivery } = get();
+				const order = delivery.orders.find((item) => item.id === orderId);
+				if (!order || order.status !== "moto-na-porta") return false;
+				set({
+					delivery: {
+						...delivery,
+						orders: trimDeliveryOrders(replaceDeliveryOrder(delivery.orders, handOverOrder(order, now))),
+					},
+				});
+				return true;
+			},
+			devSpawnDeliveryOffer: (now = Date.now()) => {
+				const state = get();
+				const { delivery } = state;
+				if (!isDeliveryUnlocked(state.era.id)) return false;
+				const offer = createDeliveryOffer({
+					id: getNextOrderId(now, delivery.orders),
+					now,
+					random: createDeliveryRandom(delivery.seed),
+					stock: getDeliveryStock(state),
+				});
+				if (!offer) return false;
+				set({
+					delivery: {
+						...delivery,
+						orders: trimDeliveryOrders([...delivery.orders, offer]),
+						seed: delivery.seed + 1,
+					},
+				});
+				return true;
+			},
 			startProduction: ({ recipeId, sectorId }) => {
 				const {
 					events,
@@ -2167,7 +2602,7 @@ export const useGameStore = create<GameStore>()(
 					production,
 					statistics,
 				} = get();
-				const shopEffects = getShopEffects(get().shop.ownedItemIds);
+				const shopEffects = getShopEffects(get().shop);
 				const sector = getProductionSector(sectorId);
 				const recipe = productionRecipes.find(
 					(item) => item.id === recipeId && item.sectorId === sectorId,
@@ -2260,6 +2695,67 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
+			// Made by hand in the sector's kitchen game: no slot and no wait (the player did the work);
+			// a perfect game (3 stars) makes one extra unit.
+			cookByHand: ({ recipeId, sectorId, stars }) => {
+				const state = get();
+				const sector = getProductionSector(sectorId);
+				const recipe = productionRecipes.find(
+					(item) => item.id === recipeId && item.sectorId === sectorId,
+				);
+				if (
+					!sector ||
+					!recipe ||
+					!state.builtSectorIds.includes(sector.id) ||
+					state.market.level < sector.requiredLevel ||
+					state.market.level < recipe.requiredLevel ||
+					!recipe.ingredients.every(
+						(ingredient) => (state.inventory[ingredient.productId] ?? 0) >= ingredient.quantity,
+					)
+				) {
+					return false;
+				}
+				const queuedOutput = state.production.jobs
+					.filter((job) => job.outputProductId === recipe.outputProductId)
+					.reduce((total, job) => total + job.outputQuantity, 0);
+				const fits = (quantity: number) =>
+					canAddToInventory(
+						recipe.outputProductId,
+						quantity + queuedOutput,
+						state.inventory,
+						state.inventoryCapacityLevels,
+					);
+				if (!fits(recipe.outputQuantity)) {
+					return false;
+				}
+				const bonus = stars >= 3 && fits(recipe.outputQuantity + 1) ? 1 : 0;
+				const made = recipe.outputQuantity + bonus;
+				const now = Date.now();
+				const nextInventory = { ...state.inventory };
+				for (const ingredient of recipe.ingredients) {
+					nextInventory[ingredient.productId] -= ingredient.quantity;
+				}
+				nextInventory[recipe.outputProductId] = (nextInventory[recipe.outputProductId] ?? 0) + made;
+				set({
+					inventory: nextInventory,
+					inventoryLots: {
+						...state.inventoryLots,
+						[recipe.outputProductId]: appendInventoryLots(
+							state.inventoryLots[recipe.outputProductId],
+							createInventoryLots(recipe.outputProductId, made, now),
+						),
+					},
+					production: {
+						...state.production,
+						totalCrafted: state.production.totalCrafted + made,
+					},
+					statistics: {
+						...state.statistics,
+						productionJobsStarted: state.statistics.productionJobsStarted + 1,
+					},
+				});
+				return true;
+			},
 			processNextCustomer: () => {
 				const {
 					employees,
@@ -2274,7 +2770,7 @@ export const useGameStore = create<GameStore>()(
 				const now = Date.now();
 				const daily = normalizeDailyState(get().daily, market.level, now);
 				const eventEffects = getActiveGameEventEffects(events, now);
-				const shopEffects = getShopEffects(shop.ownedItemIds);
+				const shopEffects = getShopEffects(shop);
 				const employeeEffects = getEmployeeEffects(employees);
 				const { day } = get();
 				if (
@@ -2286,6 +2782,25 @@ export const useGameStore = create<GameStore>()(
 					return false;
 				}
 
+				const featuredProductId =
+					events.activeEvent && events.activeEvent.endsAt > now
+						? events.activeEvent.featuredProductId
+						: undefined;
+				// "Cheap" at the end of the month means cheaper than the middle price of what is on sale.
+				const referencePrice =
+					eventEffects.cheapPreference > 0
+						? getReferencePrice(
+								shelfProductSlots.flatMap((slot) => {
+									const productId = shelfAssignments[slot.id];
+									if (!productId || (shelfStock[slot.id] ?? 0) <= 0) return [];
+									return [
+										shelfPrices[slot.id] ??
+											itemCatalog.find((item) => item.id === productId)?.sellingPrice ??
+											0,
+									];
+								}),
+							)
+						: 0;
 				// A new week starts counting the weekly event's sales from here.
 				const weekly = syncWeeklyEvent(get().weeklyEvent, market.soldByProduct, now);
 				if (weekly !== get().weeklyEvent) set({ weeklyEvent: weekly });
@@ -2317,15 +2832,25 @@ export const useGameStore = create<GameStore>()(
 								...product,
 								availableQuantity: shelfStock[shelf.id] ?? 0,
 								marketPrice: product.suggestedPrice,
-								// Night customers want drinks and snacks more. A tidy fixture and a spot at eye level
-								// sell more (src/services/shelf-care.ts).
+								// Night customers want drinks and snacks more. A spot at eye level sells
+								// more (src/services/shelf-care.ts).
 								necessity: Math.min(
 									100,
 									product.demand *
 										getTurnEffects(get().era.id, get().day.shift).necessityMultiplier(product.category) *
 										getWeeklyNecessityMultiplier(product.category, now) *
-										getCareFactor(getShelfCondition(get().shelfCare, getPhysicalShelfId(shelf.id))) *
-										getSlotPositionFactor(shelf.id),
+										getSlotPositionFactor(shelf.id) *
+										// Events: cold drinks in the heat, the product in the video, cheap goods at month's end.
+										getEventDemandMultiplier(
+											eventEffects,
+											{
+												category: product.category,
+												productId: product.id,
+												sellingPrice: shelfPrices[shelf.id] ?? product.sellingPrice,
+											},
+											featuredProductId,
+											referencePrice,
+										),
 								),
 								productId: product.id,
 								promotionRate: 0,
@@ -2346,11 +2871,8 @@ export const useGameStore = create<GameStore>()(
 							},
 						];
 					});
-				// A stall only has so many places on its table/crates: before the market building, only the
-				// first products on display (in shelf order) are on sale.
-				const onSale = isMarketBuilding(get().era.id)
-					? availableProducts
-					: availableProducts.slice(0, getMarketEra(get().era.id).productSlots);
+				// Every unlocked slot with stock is on sale, on any fixture.
+				const onSale = availableProducts;
 				const plainVisit = simulateMarketVisit({
 					budgetMultiplier:
 						(1 + Math.max(market.level - 1, 0) * 0.08) *
@@ -2359,10 +2881,13 @@ export const useGameStore = create<GameStore>()(
 						getTurnEffects(get().era.id, get().day.shift).budgetMultiplier,
 					// Bigger markets: customers come with a basket, then a cart (more products each).
 					maxProductsBonus:
-						shopEffects.maxProductsBonus + getEraEffects(get().era.id).basketBonus,
+						shopEffects.maxProductsBonus +
+						getEraEffects(get().era.id).basketBonus +
+						eventEffects.extraBasketItems,
 					products: onSale,
 					// Customers pay the shelf price: the era makes them richer (budget), never the goods dearer.
 					revenueMultiplier: shopEffects.revenueMultiplier * eventEffects.revenueMultiplier,
+					categoryRevenueBonuses: shopEffects.categoryRevenueBonuses,
 					seed: market.randomSeed,
 					storeReputation:
 						market.customerSatisfaction +
@@ -2406,8 +2931,8 @@ export const useGameStore = create<GameStore>()(
 					nextShelfStock[purchase.shelfId] -= purchase.quantity;
 					nextShelfLots[purchase.shelfId] = soldLots.remainingLots;
 				}
-				// Every product taken leaves its fixture a little messier (src/services/shelf-care.ts).
-				const nextShelfCare = wearShelfCare(get().shelfCare, visit.purchases);
+				// The cleaning/freshness mechanic was removed: fixtures never get messy.
+				const nextShelfCare = get().shelfCare;
 
 				const nextSeed = market.randomSeed + 1;
 				const visitor = createMarketCustomer(
@@ -2429,6 +2954,8 @@ export const useGameStore = create<GameStore>()(
 				const checkout = createPendingCheckout(
 					{
 						archetype: visit.customer.archetype,
+						cashOnly: eventEffects.cashOnly,
+						patienceMultiplier: shopEffects.checkoutPatienceMultiplier,
 						categories: saleCategories,
 						customerId: visitor.id,
 						customerName: visitor.name,
@@ -2512,7 +3039,7 @@ export const useGameStore = create<GameStore>()(
 									employeeEffects.customerArrivalMultiplier *
 								getTurnEffects(get().era.id, get().day.shift).customerArrivalMultiplier *
 									getLoyaltyArrivalMultiplier(day.loyalty),
-								getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs,
+								getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
 							),
 						recentCustomers: [customer, ...market.recentCustomers].slice(0, 3),
 						randomSeed: nextSeed,
@@ -2523,6 +3050,14 @@ export const useGameStore = create<GameStore>()(
 				});
 
 				get().processEmployeeWork();
+				return true;
+			},
+			checkoutArrived: (customerId) => {
+				const checkout = markCheckoutArrived(get().checkout, customerId, Date.now());
+				// Already standing at the till (a repeated report): nothing to change.
+				if (checkout === get().checkout)
+					return get().checkout.queue.some((item) => item.customerId === customerId);
+				set({ checkout });
 				return true;
 			},
 			completeCheckout: (checkoutId, charged) => {
@@ -2553,7 +3088,17 @@ export const useGameStore = create<GameStore>()(
 						(employee) => employee.isWorking && employee.role === "cashier",
 					)
 					.reduce((total, employee) => total + employee.efficiency, 0);
-				const next = nextAutoCheckout(get().checkout, now, cashierEfficiency);
+				// Shop upgrades: a second lane, a conveyor and a scanner speed the cashier up; self-checkout
+				// kiosks ring customers up on their own, with or without one.
+				const shopEffects = getShopEffects(get().shop, now);
+				const next = nextAutoCheckout(
+					get().checkout,
+					now,
+					cashierEfficiency *
+						getActiveGameEventEffects(get().events, now).staffSpeedMultiplier *
+						shopEffects.cashierSpeedMultiplier +
+						shopEffects.selfCheckoutRate,
+				);
 				if (next.state !== get().checkout) set({ checkout: next.state });
 				if (next.checkoutId) {
 					const payment = completeCheckoutRule(
@@ -2590,6 +3135,57 @@ export const useGameStore = create<GameStore>()(
 							state.market.customerSatisfaction + 1,
 						),
 					},
+				});
+				return true;
+			},
+			serveWindowSale: (requestId) => {
+				const state = get();
+				const now = Date.now();
+				const sales = state.events.windowSales;
+				const request = sales?.requests.find((item) => item.id === requestId);
+				const product = request ? itemCatalog.find((item) => item.id === request.productId) : undefined;
+				if (!sales || !request || !product) return false;
+				// The bottle comes from a shelf holding the product, else from the storeroom.
+				const slot = shelfProductSlots.find(
+					(item) => state.shelfAssignments[item.id] === product.id && (state.shelfStock[item.id] ?? 0) > 0,
+				);
+				const stored = state.inventory[product.id] ?? 0;
+				if (!slot && stored <= 0) return false;
+				const served = serveWindowRequest(sales, requestId, now);
+				if (!served) return false;
+				const { price, tip } = getWindowSalePrice(
+					slot ? (state.shelfPrices[slot.id] ?? product.sellingPrice) : product.sellingPrice,
+				);
+				const stock: Partial<GameState> = slot
+					? {
+							shelfLots: {
+								...state.shelfLots,
+								[slot.id]: takeInventoryLots(
+									reconcileInventoryLots(product.id, state.shelfStock[slot.id] ?? 0, state.shelfLots[slot.id], now),
+									1,
+								).remainingLots,
+							},
+							shelfStock: { ...state.shelfStock, [slot.id]: (state.shelfStock[slot.id] ?? 0) - 1 },
+						}
+					: {
+							inventory: { ...state.inventory, [product.id]: stored - 1 },
+							inventoryLots: {
+								...state.inventoryLots,
+								[product.id]: takeInventoryLots(
+									reconcileInventoryLots(product.id, stored, state.inventoryLots[product.id]),
+									1,
+								).remainingLots,
+							},
+						};
+				const experience = Math.round(
+					product.xpPerSale * getActiveGameEventEffects(state.events, now).experienceMultiplier,
+				);
+				const sale = applyStreetSale(state, product, price, tip, experience, now);
+				set({
+					...stock,
+					...sale,
+					coins: (sale.coins ?? state.coins) + (served.reachedGoal ? getWindowSalesBonus(state.daily.goal) : 0),
+					events: { ...state.events, windowSales: served.state },
 				});
 				return true;
 			},
@@ -2926,7 +3522,7 @@ export const useGameStore = create<GameStore>()(
 				const now = Date.now();
 				const daily = normalizeDailyState(get().daily, market.level, now);
 				const eventEffects = getActiveGameEventEffects(events, now);
-				const shopEffects = getShopEffects(shop.ownedItemIds);
+				const shopEffects = getShopEffects(shop);
 				const employeeEffects = getEmployeeEffects(employees);
 				let day = get().day;
 				// Opening always happens inside a day: without a chosen contract it is a free day.
@@ -2962,7 +3558,7 @@ export const useGameStore = create<GameStore>()(
 								employeeEffects.customerArrivalMultiplier *
 								getTurnEffects(get().era.id, get().day.shift).customerArrivalMultiplier *
 								getLoyaltyArrivalMultiplier(day.loyalty),
-							getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs,
+							getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
 						);
 				const lastShiftSummary =
 					isClosing && market.currentShift
@@ -3105,11 +3701,10 @@ export const useGameStore = create<GameStore>()(
 					totalExperience: market.totalExperience + reward.experience,
 					unlockedProductIds,
 				};
-				const nextDay = advanceMarketDay(
-					day,
-					progression.level,
-					getDayStoreContext({ ...state, market: nextMarket }),
-				);
+				const nextDay = advanceMarketDay(day, progression.level, {
+					...getDayStoreContext({ ...state, market: nextMarket }),
+					forecast: getDayForecastFor({ ...state, market: nextMarket }),
+				});
 				if (!nextDay) return false;
 				set({
 					coins: state.coins + reward.coins,
@@ -3203,6 +3798,15 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			processMarketDay: () => {
+				// Offers sized with older rules (or before the store could forecast its own day) are made again
+				// while the day is still being planned.
+				if (get().day.phase === "planning" && get().day.offersRevision !== DAY_OFFERS_REVISION) {
+					const refreshed = refreshDayOffers(get().day, get().market.level, {
+						...getDayStoreContext(get()),
+						forecast: getDayForecastFor(get()),
+					});
+					if (refreshed) set({ day: refreshed });
+				}
 				const { day, market } = get();
 				const now = Date.now();
 				// Saves from before turns (or a desync) never leave an open market outside a day.
@@ -3400,7 +4004,9 @@ export const useGameStore = create<GameStore>()(
 				let shelfSlotCounts = getCurrentShelfSlotCounts(state);
 				let builtSectorIds = state.builtSectorIds;
 				let ownedItemIds = state.shop.ownedItemIds;
+				let celebrations = state.celebrations;
 				for (const item of done) {
+					celebrations = pushCelebration(celebrations, item.kind, item.targetId, Math.min(now, Date.now()));
 					if (item.kind === "shelf" && getShelfSlotCount(item.targetId, shelfSlotCounts) <= 0)
 						shelfSlotCounts = { ...shelfSlotCounts, [item.targetId]: initialUnlockedShelfSlots };
 					else if (item.kind === "sector" && !builtSectorIds.includes(item.targetId as ProductionSectorId)) {
@@ -3423,6 +4029,7 @@ export const useGameStore = create<GameStore>()(
 					unlockedShelfSlots: getTotalUnlockedShelfSlots(shelfSlotCounts),
 					builtSectorIds,
 					shop: { ...state.shop, ownedItemIds },
+					celebrations,
 				});
 				return true;
 			},
@@ -3688,7 +4295,8 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
-		}),
+			};
+		},
 		{
 			migrate: (persistedState, version) => {
 				// Convert the legacy global slot count into complete physical shelves.
@@ -3710,9 +4318,16 @@ export const useGameStore = create<GameStore>()(
 				}
 				// 40: new catalog (products open with the expansions, two retired) and sector counters.
 				// 41: fixtures open with the expansion that has room for them (no dairy fridge on the sidewalk).
+				// 42: the supermarket's depot moved from lot B3 to C2: who bought B3 for it gets C2 too.
+				// 43: products open level by level with the fixture that holds them (fruit and juice already on the
+				// sidewalk): migrateGameState adds what the save's level and expansion open now.
 				let migrated = persistedState;
 				if (version < 40) migrated = migrateCatalog40(migrated);
 				if (version < 41) migrated = migrateFixtures41(migrated);
+				if (version < 42) {
+					const state = migrated as Partial<GameState>;
+					migrated = { ...state, lots: migrateDepotLot(state.lots) ?? state.lots };
+				}
 				return migrateGameState(migrated);
 			},
 			name: "checkout.game",
@@ -3755,6 +4370,8 @@ export const useGameStore = create<GameStore>()(
 				albumClaimedIds,
 				weeklyEvent,
 				lots,
+				celebrations,
+				delivery,
 			}) => ({
 				era,
 				checkout,
@@ -3794,6 +4411,8 @@ export const useGameStore = create<GameStore>()(
 				albumClaimedIds,
 				weeklyEvent,
 				lots,
+				celebrations,
+				delivery,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
 			// 35: employees gained tasks/nextTaskNumber/lastPayroll (staff jobs and per-shift pay).
@@ -3801,7 +4420,10 @@ export const useGameStore = create<GameStore>()(
 			// 37: market eras (era: mesinha → rede); old saves start at the mercadinho or later.
 			// 38: land (lots bought and cleared) and the fields of product levels, daily gift, album and weekly event.
 			// 39: the land became a grid of 12 equal lots (A1–C4); old lot ids are mapped onto it.
-			version: 41,
+			// 42: the supermarket's depot is on lot C2 (was B3).
+			// 43: products, sectors, staff and decor open on a level-by-level ladder (scripts/economy/catalog.py).
+			// 44: the Delivery app (online orders from the minimercado on). Old saves start with no orders.
+			version: 44,
 		},
 	),
 );
@@ -4025,6 +4647,77 @@ function normalizeShelfAssignments(
 	return nextAssignments;
 }
 
+// What one day of this market should bring, with its shelves as they are now (sizes the day's contracts).
+// Same factors as processNextCustomer, without the passing ones (events, the weekly theme, open incidents).
+function getDayForecastFor(state: GameState): DayForecast {
+	const shopEffects = getShopEffects(state.shop.ownedItemIds);
+	const employeeEffects = getEmployeeEffects(state.employees);
+	const turn = getTurnEffects(state.era.id, "dia");
+	const counts = getCurrentShelfSlotCounts(state);
+	const products = shelfProductSlots.flatMap((shelf) => {
+		if (!isShelfUnlocked(shelf.id, counts)) return [];
+		const product = itemCatalog.find((item) => item.id === state.shelfAssignments[shelf.id]);
+		if (!product || !state.market.unlockedProductIds.includes(product.id)) return [];
+		return [
+			{
+				...product,
+				availableQuantity: Math.max(1, state.shelfStock[shelf.id] ?? 0),
+				marketPrice: product.suggestedPrice,
+				necessity: Math.min(
+					100,
+					product.demand *
+						turn.necessityMultiplier(product.category) *
+						getSlotPositionFactor(shelf.id),
+				),
+				productId: product.id,
+				promotionRate: 0,
+				visualAttractiveness:
+					(product.visualAttractiveness ?? 0) +
+					getProductLevel(state.productLevels, product.id) * ATTRACTIVENESS_PER_LEVEL,
+				sellingPrice: state.shelfPrices[shelf.id] ?? product.sellingPrice,
+				shelfId: shelf.id,
+			},
+		];
+	});
+	const onSale = products;
+	const forecast = forecastDay({
+		level: state.market.level,
+		unlockedProductCount: state.market.unlockedProductIds.length,
+		arrivalMultiplier:
+			shopEffects.customerArrivalMultiplier *
+			employeeEffects.customerArrivalMultiplier *
+			turn.customerArrivalMultiplier *
+			getLoyaltyArrivalMultiplier(state.day.loyalty),
+		minArrivalDelayMs: turn.minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
+		products: onSale,
+		purchasePrice: (productId) => itemCatalog.find((item) => item.id === productId)?.purchasePrice ?? 0,
+		budgetMultiplier:
+			(1 + Math.max(state.market.level - 1, 0) * 0.08) *
+			shopEffects.customerBudgetMultiplier *
+			turn.budgetMultiplier,
+		maxProductsBonus: shopEffects.maxProductsBonus + getEraEffects(state.era.id).basketBonus,
+		revenueMultiplier: shopEffects.revenueMultiplier,
+		categoryRevenueBonuses: shopEffects.categoryRevenueBonuses,
+		storeReputation:
+			state.market.customerSatisfaction +
+			shopEffects.storeReputationBonus +
+			employeeEffects.storeReputationBonus,
+		requestChance: SPECIAL_REQUEST_CHANCE,
+		firstRequestDelayMs: FIRST_REQUEST_DELAY_MS,
+	});
+	if (onSale.length > 0) return forecast;
+	// Empty shelves (a brand-new market): the customers are real, the basket is the usual first one.
+	const fallback = getFallbackDayForecast(state.market.level);
+	const scale = forecast.customers / Math.max(1, fallback.customers);
+	return {
+		...forecast,
+		buyers: fallback.buyers * scale,
+		revenue: fallback.revenue * scale,
+		profit: fallback.profit * scale,
+		units: fallback.units * scale,
+	};
+}
+
 function getCurrentShelfSlotCounts(
 	state: Pick<GameState, "shelfSlotCounts" | "unlockedShelfSlots">,
 ) {
@@ -4243,6 +4936,49 @@ function applyCheckoutPayment(
 	};
 }
 
+// A sale outside the register (a drink handed through a car window): the same money, XP and sales
+// records as a paid basket of one unit.
+function applyStreetSale(
+	state: GameState,
+	product: { id: number; category: string; purchasePrice: number },
+	price: number,
+	tip: number,
+	experience: number,
+	now: number,
+): Partial<GameState> {
+	const { market } = state;
+	const daily = markDailySale(normalizeDailyState(state.daily, market.level, now), price, 0, 1);
+	const progression = applyExperience(market.level, market.experience, experience);
+	const unlockedProductIds = Array.from(
+		new Set([...market.unlockedProductIds, ...getUnlockedProductIds(progression.level, state.era.id)]),
+	);
+	const recentUnlockProductIds = unlockedProductIds.filter((productId) => !market.unlockedProductIds.includes(productId));
+	return {
+		coins: state.coins + price + tip,
+		daily,
+		day: recordDaySale(state.day, {
+			categories: { [product.category]: 1 },
+			profit: price - product.purchasePrice,
+			revenue: price,
+			units: 1,
+		}),
+		lastSessionAt: now,
+		market: {
+			...market,
+			experience: progression.experience,
+			lastExperienceGain: experience,
+			level: progression.level,
+			recentUnlockProductIds: recentUnlockProductIds.length > 0 ? recentUnlockProductIds : market.recentUnlockProductIds,
+			soldByProduct: { ...market.soldByProduct, [product.id]: (market.soldByProduct[product.id] ?? 0) + 1 },
+			todayRevenue: daily.revenue,
+			totalExperience: market.totalExperience + experience,
+			totalRevenue: market.totalRevenue + price,
+			unitsSold: market.unitsSold + 1,
+			unlockedProductIds,
+		},
+	};
+}
+
 // Abandoned baskets: items return to their shelf (or storage if the shelf changed product).
 function returnAbandonedCheckouts(
 	state: GameState,
@@ -4302,3 +5038,116 @@ const customerProfiles: Record<CustomerArchetype, { names: string[] }> = {
 	normal: { names: ["Caio", "Igor", "Pedro"] },
 	premium: { names: ["Helena", "Clara", "Sofia"] },
 };
+
+/** Passive event wear is applied in steps of a few seconds (fewer saves, same total). */
+const PASSIVE_WEAR_TICK_MS = 5_000;
+
+/** Fixtures that need power (besides the sector counters and the drinks fridge). */
+const POWERED_FIXTURES = ["dairy", "pizza", "icecream"];
+
+// Delivery (src/services/delivery.ts): the price a product has on its shelf now (the base price without one).
+function getDeliveryPrice(state: GameState, productId: number) {
+	const product = itemCatalog.find((item) => item.id === productId);
+	const slot = shelfProductSlots.find((item) => state.shelfAssignments[item.id] === productId);
+	return (slot ? state.shelfPrices[slot.id] : undefined) ?? product?.sellingPrice ?? 0;
+}
+
+// Products the market sells that are in the stockroom now: the lines an order can ask for.
+function getDeliveryStock(state: GameState) {
+	return state.market.unlockedProductIds.flatMap((productId) => {
+		const units = state.inventory[productId] ?? 0;
+		return units > 0 ? [{ productId, units, price: getDeliveryPrice(state, productId) }] : [];
+	});
+}
+
+// A delivered bag is a sale: its units and their experience count like the sales at the register.
+function creditDeliverySales(
+	market: GameState["market"],
+	eraId: GameState["era"]["id"],
+	packed: DeliveryItem[],
+	goods: number,
+): GameState["market"] {
+	const units = packed.reduce((total, item) => total + item.quantity, 0);
+	const experience = packed.reduce(
+		(total, item) => total + (itemCatalog.find((product) => product.id === item.productId)?.xpPerSale ?? 0) * item.quantity,
+		0,
+	);
+	const progression = applyExperience(market.level, market.experience, experience);
+	const unlockedProductIds = Array.from(
+		new Set([...market.unlockedProductIds, ...getUnlockedProductIds(progression.level, eraId)]),
+	);
+	const recentUnlockProductIds = unlockedProductIds.filter((productId) => !market.unlockedProductIds.includes(productId));
+	const soldByProduct = { ...market.soldByProduct };
+	for (const item of packed) soldByProduct[item.productId] = (soldByProduct[item.productId] ?? 0) + item.quantity;
+	return {
+		...market,
+		experience: progression.experience,
+		lastExperienceGain: experience,
+		level: progression.level,
+		recentUnlockProductIds: recentUnlockProductIds.length > 0 ? recentUnlockProductIds : market.recentUnlockProductIds,
+		soldByProduct,
+		totalExperience: market.totalExperience + experience,
+		totalRevenue: market.totalRevenue + goods,
+		unitsSold: market.unitsSold + units,
+		unlockedProductIds,
+	};
+}
+
+// A bag packed too late: the customer cancels, the rating drops and the streak ends.
+function cancelLateDelivery(delivery: DeliveryState, order: DeliveryOrder): DeliveryState {
+	return {
+		...delivery,
+		orders: trimDeliveryOrders(replaceDeliveryOrder(delivery.orders, { ...order, status: "cancelado" })),
+		rating: applyLateCancelToRating(delivery.rating),
+		streak: 0,
+	};
+}
+
+const eraPosition = (id: MarketEraId) => marketEras.findIndex((era) => era.id === id);
+
+/**
+ * Open fixtures and the categories on them. With `poweredOnly`, only what runs on power: the dairy
+ * display, the freezers, the sector counters, and the drinks fridge (before the container it is a
+ * styrofoam box with ice, which a power cut does not touch).
+ */
+function getEventFixtures(state: GameState, poweredOnly: boolean): EventFixture[] {
+	const counts = getCurrentShelfSlotCounts(state);
+	const fixtures = new Map<string, Set<string>>();
+	for (const slot of shelfProductSlots) {
+		if (!isShelfUnlocked(slot.id, counts)) continue;
+		const id = getPhysicalShelfId(slot.id);
+		const categories = fixtures.get(id) ?? new Set<string>();
+		fixtures.set(id, categories);
+		const product = itemCatalog.find((item) => item.id === state.shelfAssignments[slot.id]);
+		if (product) categories.add(product.category);
+	}
+	const powered = (id: string) =>
+		POWERED_FIXTURES.includes(id) ||
+		isSectorShelfId(id) ||
+		(id === "drinks" && eraPosition(state.era.id) >= eraPosition("conteiner"));
+	return Array.from(fixtures, ([id, categories]) => ({ id, categories: Array.from(categories) })).filter(
+		(fixture) => !poweredOnly || powered(fixture.id),
+	);
+}
+
+/** What the market has, so only events that make sense are drawn. */
+export function getGameEventContext(state: GameState): GameEventContext {
+	return {
+		eraId: state.era.id,
+		hasWorkingStaff: state.employees.employees.some((employee) => employee.isWorking),
+		hasRefrigeration: getEventFixtures(state, true).some((fixture) => fixture.categories.length > 0),
+	};
+}
+
+/** Viralizou!: the influencer films one of the products on sale (stocked right now). */
+function withFeaturedProduct(events: GameEventsState, state: GameState): GameEventsState {
+	const active = events.activeEvent;
+	if (!active || active.featuredProductId !== undefined) return events;
+	if ((getGameEvent(active.eventId)?.effects.featuredProductBoost ?? 1) === 1) return events;
+	const onSale = shelfProductSlots.flatMap((slot) => {
+		const productId = state.shelfAssignments[slot.id];
+		return productId && (state.shelfStock[slot.id] ?? 0) > 0 ? [productId] : [];
+	});
+	const featuredProductId = pickFeaturedProduct(onSale, events.randomSeed);
+	return featuredProductId === undefined ? events : { ...events, activeEvent: { ...active, featuredProductId } };
+}

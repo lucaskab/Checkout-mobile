@@ -5,7 +5,14 @@ using MarketDay;
 namespace Checkout {
  public class CheckoutWalker:MonoBehaviour {
   CheckoutBridge bridge;CheckoutMap map;NavMeshAgent agent;MarketCharacterAnimator motion;Customer customer;CheckoutLane lane;int phase,index;float wait,helpWait,tillWait;bool snapHeading,asked;bool Cart=>rig&&rig.cart;CheckoutRequestBubble bubble;CheckoutShopperRig rig;Vector3 target;Quaternion facing;
-  public void Initialize(CheckoutBridge owner,NavMeshAgent navigation,CheckoutMap projection){bridge=owner;map=projection;agent=navigation;motion=GetComponent<MarketCharacterAnimator>();rig=CheckoutShopperRig.For(transform);agent.avoidancePriority=40+(CheckoutShopperRig.WantsCart(name)?5:0);}
+  public void Initialize(CheckoutBridge owner,NavMeshAgent navigation,CheckoutMap projection){bridge=owner;map=projection;agent=navigation;motion=GetComponent<MarketCharacterAnimator>();rig=CheckoutShopperRig.For(transform);agent.avoidancePriority=40+(CheckoutShopperRig.WantsCart(name)?5:0);if(!All.Contains(this))All.Add(this);}
+  void OnDestroy(){All.Remove(this);}
+  static readonly List<CheckoutWalker> All=new List<CheckoutWalker>();
+  // A basket can be rung up only while its customer stands at the register (phase 30), never while they are still
+  // shopping, queueing or on their way in. A customer with no walker on the map does not block the register (the
+  // store then waits CHECKOUT_READY_DELAY_MS for them).
+  public static bool AtRegister(string customerId){if(string.IsNullOrEmpty(customerId))return true;foreach(var w in All)if(w&&w.gameObject.activeInHierarchy&&w.customer!=null&&w.customer.id==customerId)return w.phase==30;return true;}
+  float arrivalPing;
   List<CheckoutWalker> Line=>lane!=null?lane.queue:bridge.Queue;
   // Customers with a special request wait by the entrance until the player answers (or they give up).
   static readonly List<CheckoutWalker> helpLine=new List<CheckoutWalker>();
@@ -68,6 +75,8 @@ namespace Checkout {
    UpdateBubble();
    if(phase==30){ // At the register until the basket is rung up (player, cashier) or they give up.
     agent.isStopped=true;tillWait+=Time.deltaTime;transform.rotation=Quaternion.RotateTowards(transform.rotation,facing,Time.deltaTime*240);Sync();
+    // Tell the store they are here: the basket becomes ready and their patience starts now (sent again if lost).
+    var waiting=bridge.CheckoutFor(customer?.id);if(waiting!=null&&waiting.readyAt>CheckoutBridge.Now&&Time.time>=arrivalPing){arrivalPing=Time.time+3;bridge.Command("checkoutArrived","[\""+customer.id+"\"]");}
     if(bridge.CheckoutFor(customer?.id)==null||tillWait>300){var result=bridge.CheckoutResultFor(customer?.id);
      if(result!=null&&result.status=="left"){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);}
      else if(result!=null&&result.status=="paid"){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),.8f);}
@@ -96,7 +105,7 @@ namespace Checkout {
    else if(phase==20){phase=21;agent.velocity=Vector3.zero;browseFor=Random.Range(7f,12f);}
    else if(phase==2){lane=null;Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}
    else if(phase==3&&Line.Count>0&&Line[0]==this){if(customer.spent<=0){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);return;}
-    if(bridge.CheckoutFor(customer.id)!=null){phase=30;tillWait=0;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));return;}
+    if(bridge.CheckoutFor(customer.id)!=null){phase=30;tillWait=0;arrivalPing=0;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));return;}
     phase=8;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));wait=map.ScanCustomer(customer,lane);}
    else if(phase==5){if(returnedToCar!=null){phase=12;Go(CheckoutCityTraffic.Corner);}else{phase=13;Go(Away());}}
    else if(phase==13){Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}
@@ -116,7 +125,7 @@ namespace Checkout {
    var request=Request;if(request!=null&&request.status=="pending"){bubble.Apply(request);return;}
    bubble.Apply(request);
    var checkout=bridge.CheckoutFor(customer?.id);
-   if(checkout!=null&&(phase==3||phase==30)&&checkout.readyAt<=CheckoutBridge.Now)bubble.Show(checkout.id,"cart",checkout.readyAt,checkout.expiresAt,"checkout",checkout.id);
+   if(checkout!=null&&phase==30&&checkout.readyAt<=CheckoutBridge.Now)bubble.Show(checkout.id,"cart",checkout.readyAt,checkout.expiresAt,"checkout",checkout.id);
    else if(checkout==null){var result=bridge.CheckoutResultFor(customer?.id);if(result!=null)bubble.Resolve(result.id,result.status!="left");}
   }
   void Sync(){transform.position=agent.nextPosition;var p=transform.position;var u=CheckoutMarketLayout.Unproject(p,bridge.State.layout??new MarketLayout());p.y=CheckoutStall.ShopInside&&CheckoutStall.InteriorFloor.Contains(new Vector2(p.x,p.z))?CheckoutStall.FloorY:CheckoutStall.Small||u.x< -9.4f||u.x>9.4f||u.z< -10.6f?.15f:MarketSimulation.Ground(u.z);transform.position=p;}

@@ -33,6 +33,9 @@ namespace Checkout
         CheckoutCityTraffic marketTraffic;
         CheckoutCityPedestrian[] pedestrians;
         CheckoutBridge bridge;int marketStop=-1;
+        // The swerve round a blocked curb lane (CheckoutEventTraffic: road works, a parked truck, the street market):
+        // these stops move with the block, and the drop-off at the market moves past it.
+        Visit marketVisit,detourIn,detourMid,detourOut;bool hidden;
         // Nobody is dropped at the supermarket while it is closed: they would walk in and vanish.
         bool MarketOpen{get{if(!bridge)bridge=FindAnyObjectByType<CheckoutBridge>();return !bridge||bridge.State==null||bridge.State.isOpen;}}
         void Start()
@@ -41,6 +44,7 @@ namespace Checkout
             pedestrians=FindObjectsByType<CheckoutCityPedestrian>();
             BuildRoute();
             marketStop=System.Array.FindIndex(route,st=>st.road.x==MarketStopX && st.road.z== -14);
+            marketVisit=marketStop>=0?route[marketStop]:null;
             for(int i=0;i<cars.Length;i++)
             {
                 var car=cars[i];
@@ -55,15 +59,33 @@ namespace Checkout
                 ChooseDestination(car);
                 if(i==0)
                 {
-                    car.destination=System.Array.FindIndex(route,s=>s.road.x==MarketStopX && s.road.z== -14);
+                    car.destination=marketStop;
                     car.waypoint=car.destination;
                     car.vehicle.position=route[car.waypoint-1].road;
                 }
                 car.vehicle.rotation=Quaternion.LookRotation((route[car.waypoint].road-car.vehicle.position).normalized);
             }
         }
+        // Event detour: the three swerve stops follow the blocked stretch [from, to] of the curb lane.
+        void FollowBlock()
+        {
+            bool blocked=CheckoutEventTraffic.HasCurbBlock;
+            float from=blocked?CheckoutEventTraffic.BlockFrom:-.4f,to=blocked?CheckoutEventTraffic.BlockTo:5.5f;
+            if(detourIn!=null)detourIn.road=new Vector3(Mathf.Max(to+2.2f,from+1f),.15f,-17);
+            if(detourMid!=null)detourMid.road=new Vector3(from-1f,.15f,-17);
+            if(detourOut!=null)detourOut.road=new Vector3(Mathf.Max(from-3.4f,-13.5f),.15f,-14);
+            if(marketVisit!=null){marketVisit.road=new Vector3(blocked?Mathf.Max(MarketStopX,to+2.8f):MarketStopX,.15f,-14);marketVisit.sidewalk=new Vector3(marketVisit.road.x,.15f,CheckoutStreetLayout.NorthWalkZ);}
+        }
         void Update()
         {
+            FollowBlock();
+            // A market event jams the avenue: its own queues are the traffic, the city's cars wait off stage.
+            if(CheckoutEventTraffic.AvenueJammed!=hidden)
+            {
+                hidden=CheckoutEventTraffic.AvenueJammed;
+                foreach(var c in cars)if(c.vehicle&&c.phase!=2)c.vehicle.gameObject.SetActive(!hidden);
+            }
+            if(hidden){foreach(var car in cars)UpdatePassenger(car);return;}
             foreach(var car in cars)
             {
                 UpdatePassenger(car);
@@ -74,6 +96,8 @@ namespace Checkout
                     if(delta.sqrMagnitude>.04f)
                     {
                         var direction=delta.normalized;
+                        // event vehicles (a bus at its stop, the sound car…) are waited for, never crept through
+                        if(CheckoutEventTraffic.Blocks(car.vehicle.position+direction*1.9f,direction,2.6f,.9f))continue;
                         if(CheckoutTrafficJunctions.Hold(car.vehicle,direction,Blocked(car,direction)))continue;
                         var heading=Quaternion.LookRotation(direction);
                         float speed=3.4f*Mathf.Lerp(.25f,1,1-Mathf.Clamp01(Quaternion.Angle(car.vehicle.rotation,heading)/70));
@@ -132,14 +156,14 @@ namespace Checkout
             var stop=route[car.waypoint];
             if(stop.edge && stop.road.x>35 && !car.passengerWalking)ChooseDestination(car);
             car.waypoint=(car.waypoint+1)%route.Length;car.phase=0;car.wait=0;
-            while(route[car.waypoint].detour&&!CheckoutEventVisuals.RoadWorks)car.waypoint=(car.waypoint+1)%route.Length;
+            while(route[car.waypoint].detour&&!CheckoutEventTraffic.HasCurbBlock)car.waypoint=(car.waypoint+1)%route.Length;
             // Leave at the end of the street and come back later from the other lane.
             if(stop.edge){car.phase=2;car.wait=-Random.Range(2f,5f);car.vehicle.gameObject.SetActive(false);car.vehicle.position=route[car.waypoint].road;}
         }
         void ChooseDestination(Car car)
         {
             var available=Enumerable.Range(0,route.Length).Where(i=>route[i].entrance!=Vector3.zero&&i!=car.destination).ToArray();
-            int market=System.Array.FindIndex(route,s=>s.road.x==MarketStopX && s.road.z== -14);
+            int market=marketStop;
             car.destination=Random.value<.4f?-1:Random.value<.5f?market:available.Length==0?-1:available[Random.Range(0,available.Length)];
             if(car.destination==market&&!MarketOpen)car.destination=available.Length==0?-1:available[Random.Range(0,available.Length)];
             if(car.destination==market&&!MarketOpen)car.destination=-1;
@@ -167,7 +191,7 @@ namespace Checkout
             var map=FindAnyObjectByType<CheckoutMap>();
             Stop(map.Point(new Vector3(-1.75f,.74f,-6)),MarketStopX,-14,new Vector3(MarketStopX,.15f,CheckoutStreetLayout.NorthWalkZ));
             // Swerve into the inner westbound lane around the road works (x -0.4 to 5.5), back after the entrance crossing.
-            Detour(6.6f,-17);Detour(-1.2f,-17);Detour(-3.6f,-14);
+            Detour(6.6f,-17);detourIn=stops[stops.Count-1];Detour(-1.2f,-17);detourMid=stops[stops.Count-1];Detour(-3.6f,-14);detourOut=stops[stops.Count-1];
             Road(-22.4f,-14);Edge(-22.4f,b.max.z-3);
             // West street southbound from the north, through the roundabout, out at its south end.
             Road(-24.6f,b.max.z-3);

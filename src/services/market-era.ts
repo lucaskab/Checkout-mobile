@@ -13,15 +13,17 @@ import {
 	getMinArrivalDelayMs,
 	getNextMarketEra,
 	marketEras,
+	getOfflineTurnsPerHour,
 	OFFLINE_CAP_MS,
+	TURN_SHARE,
 } from "@/data/economy";
 
 // Eras of the market (mesinha → rede): which one the player is in, the evolution being built, and
 // what the market earns while the player is away. Pure rules; the store wires them in.
 
 const HOUR = 60 * 60_000;
-/** Customers of a turn before the player finished any (about one every 30 s for 10 minutes). */
-const DEFAULT_TURN_CUSTOMERS = 18;
+/** Customers of a played turn before the first one is finished (18 per 10 minutes). */
+const DEFAULT_TURN_CUSTOMERS = Math.max(1, Math.round(18 * TURN_SHARE));
 /** Share of the ticket that is profit before the player finished any turn. */
 const DEFAULT_MARGIN = 0.35;
 /** Weight of the newest turn in the moving averages. */
@@ -181,7 +183,7 @@ export function getOfflineEraIncome(
 ): OfflineEraIncome {
 	const definition = getMarketEra(era.id);
 	const counted = Math.min(Math.max(0, awayMs), OFFLINE_CAP_MS);
-	const turns = (counted / HOUR) * definition.offlineTurnsPerHour;
+	const turns = (counted / HOUR) * getOfflineTurnsPerHour(definition);
 	const turnProfit =
 		era.averageTurnProfit > 0
 			? era.averageTurnProfit

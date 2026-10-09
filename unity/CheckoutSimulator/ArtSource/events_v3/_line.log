@@ -1,0 +1,15 @@
+00:00.032  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:37: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  w = bpy.data.worlds.get("QA_World") or bpy.data.worlds.new("QA_World"); sc.world = w; w.use_nodes = True
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:42: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  gm = bpy.data.materials.get("QA_GroundMat") or bpy.data.materials.new("QA_GroundMat"); gm.use_nodes = True
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:91: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  mat = bpy.data.materials.new("REF_" + name); mat.use_nodes = True
+03:12.125  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\lineup.png'
+FBX version: 7400
+FBX version: 7400
+LINEUP C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\lineup.png 190.9
+DONE 190.9
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 02:38:20)
+
+Blender quit

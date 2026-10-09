@@ -10,14 +10,15 @@ import { getFixturesForCategory, shelfTypes } from "@/data/shelf-types";
 //   a bottle of champagne a lot more than a beer. Margins follow retail: staples (rice, beans, milk,
 //   water) earn little per unit, fruit and vegetables a bit more, impulse buys (sweets, soft drinks)
 //   and premium goods the most.
-// - Every product opens with an expansion (`unlockEra`) and a level inside it (`unlockLevel`), so each
-//   expansion brings the goods its fixtures can hold (src/data/shelf-types.ts): on the sidewalk table only
-//   what fits the crates and the styrofoam cooler (tomato, lettuce, banana, water, soda); bread with the
-//   tent's basket; milk and dairy with the fair stall's refrigerated display; sweets and energy drinks
-//   with the container's fridge and shelves; grocery staples and beer with the Späti; frozen food with
-//   the quitanda; home and hygiene with the minimercado; the butcher's and the fishmonger's with the
-//   supermarket and the hypermarket; champagne with the chain. A product never opens before a fixture
-//   that can hold it.
+// - Every product opens with a level (`unlockLevel`) and needs a fixture that can hold it, which comes with
+//   an expansion (`unlockEra`, src/data/shelf-types.ts). The levels are a ladder: one or two products per
+//   level, so every level-up brings something to sell (scripts/economy/catalog.py SCHEDULE). Fruit,
+//   vegetables, eggs and juice fit the sidewalk table's crates and cooler, so they open by level alone
+//   (potato and carrot at 2, apple and eggs at 3...); bread waits for the tent's basket, dairy for the fair
+//   stall's display, sweets for the container, grocery staples and beer for the Späti, frozen food for the
+//   quitanda, home and hygiene for the minimercado, meat and fish for the butcher's and fishmonger's of the
+//   supermarket and hypermarket, champagne for the chain. Each of those opens from about the level a
+//   regular player buys its expansion. A product never opens before a fixture that can hold it.
 // - Crafted goods (acquisition "production") cost what their ingredients cost and sell for about 40%
 //   more than the ingredients would on their own: the sector pays for itself with time.
 // - Experience per sale grows with the square root of the price (a 240-coin champagne gives 19 XP, a

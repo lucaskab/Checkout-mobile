@@ -35,7 +35,7 @@ export function ProfileSheet() {
 	const achievementStars = useGameStore(
 		(state) => getAchievementTotals(state).stars,
 	);
-	const shopEffects = getShopEffects(shop.ownedItemIds);
+	const shopEffects = getShopEffects(shop);
 	const eventEffects = getActiveGameEventEffects(events);
 	const activeEvent =
 		events.activeEvent && events.activeEvent.endsAt > Date.now()

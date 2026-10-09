@@ -16,12 +16,14 @@ import type { MarketEraDefinition } from "@/@types/economy";
 import {
 	getItemIncomeMultiplier,
 	getItemUpgradeCost,
+	getOfflineTurnsPerHour,
 	MAX_ITEM_LEVEL,
 	marketEras,
 	OFFLINE_CAP_MS,
 	OFFLINE_XP_SHARE,
 	STARTING_COINS,
 	TURN_DURATION_MS,
+	TURN_SHARE,
 } from "@/data/economy";
 import { getEraOrder, getUnlockedProductIds, itemCatalog } from "@/data/market-products";
 import { canShelfHold } from "@/data/shelf-categories";
@@ -319,7 +321,7 @@ export function runRobot(
 					gained = Math.floor(customers * (buyers > 0 ? totalRevenue / buyers : 18));
 				} else {
 					const hours = Math.min(now - lastSessionAt, OFFLINE_CAP_MS) / HOUR;
-					const turns = hours * eras[eraIndex].offlineTurnsPerHour;
+					const turns = hours * getOfflineTurnsPerHour(eras[eraIndex]);
 					gained = Math.floor(turns * averageTurnProfit);
 					// Offline sales also give experience (a fraction of a played turn's).
 					const next = applyExperience(level, experience, Math.round(turns * averageTurnXp * OFFLINE_XP_SHARE));
@@ -332,7 +334,8 @@ export function runRobot(
 			shop(now);
 			let time = now;
 			const night = hour >= 20 && eras[eraIndex].nightTurn;
-			for (let turn = 0; turn < profile.turnsPerSession; turn++) {
+			// Profiles count 10-minute turns: the same minutes of play are more, shorter turns.
+			for (let turn = 0; turn < Math.round(profile.turnsPerSession / TURN_SHARE); turn++) {
 				playTurn(time, night);
 				time += TURN_DURATION_MS + MINUTE;
 				finishBuild(time);
@@ -425,7 +428,7 @@ if (import.meta.main) {
 		"",
 		table(today, eras),
 		"",
-		"## Lucro médio por turno de 10 min (regular)",
+		`## Lucro médio por turno de ${TURN_DURATION_MS / 60_000} min (regular)`,
 		"",
 		"| Era | Lucro/turno | Faturamento/turno | Clientes/turno |",
 		"|---|---|---|---|",

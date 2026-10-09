@@ -79,6 +79,8 @@ export type MarketVisitOptions = {
 	maxProductsBonus?: number;
 	products: MarketSimulationProduct[];
 	revenueMultiplier?: number;
+	/** Extra revenue share by product category (shop upgrades such as the drinks fridge). */
+	categoryRevenueBonuses?: Record<string, number>;
 	seed: number;
 	storeReputation: number;
 };

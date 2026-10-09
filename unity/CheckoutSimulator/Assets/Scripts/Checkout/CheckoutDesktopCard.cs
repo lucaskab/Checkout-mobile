@@ -15,7 +15,7 @@ namespace Checkout {
   public static UnityEngine.UI.VerticalLayoutGroup Column(GameObject go,int spacing,RectOffset padding=null){var v=go.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();v.spacing=spacing;v.padding=padding??new RectOffset();v.childControlWidth=v.childControlHeight=true;v.childForceExpandWidth=true;v.childForceExpandHeight=false;return v;}
   public static UnityEngine.UI.HorizontalLayoutGroup Row(GameObject go,int spacing,RectOffset padding=null){var h=go.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();h.spacing=spacing;h.padding=padding??new RectOffset();h.childControlWidth=h.childControlHeight=true;h.childForceExpandWidth=false;h.childForceExpandHeight=false;h.childAlignment=TextAnchor.MiddleLeft;return h;}
   public static TextMeshProUGUI Text(Transform parent,string name,TMP_FontAsset font,float size,Color color){
-   var t=Node(name,parent).gameObject.AddComponent<TextMeshProUGUI>();t.font=font;t.fontSize=size;t.color=color;t.raycastTarget=false;t.textWrappingMode=TextWrappingModes.Normal;return t;
+   var t=Node(name,parent).gameObject.AddComponent<TextMeshProUGUI>();t.font=font;t.fontSize=size;t.color=color;t.raycastTarget=false;t.textWrappingMode=TextWrappingModes.Normal;CheckoutI18nText.Register(t);return t;
   }
   public static UnityEngine.UI.Image Image(Transform parent,string name,Color color,int radius){
    var image=Node(name,parent).gameObject.AddComponent<UnityEngine.UI.Image>();image.color=color;image.raycastTarget=false;

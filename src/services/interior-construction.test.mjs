@@ -1,4 +1,4 @@
-import { beforeEach, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, expect, mock, test } from "bun:test";
 
 globalThis.__DEV__ = true;
 const memory = new Map();
@@ -16,6 +16,8 @@ const { getSectorBuildStatus, getNextShelfBuildStatus, getShopItemBuildStatus } 
 const { sectorBuildPlans } = await import("../data/interior-construction.ts");
 const initial = JSON.stringify(useGameStore.getState());
 beforeEach(() => useGameStore.setState(JSON.parse(initial)));
+// Leave the store as it was found: the test files share it (the next one reads it as the new shop).
+afterAll(() => useGameStore.setState(JSON.parse(initial)));
 const game = () => useGameStore.getState();
 const snapshot = () => createSimulatorSnapshot(game(), "builds", 1);
 const finishAll = () => game().processInteriorConstructions(Number.MAX_SAFE_INTEGER);
@@ -141,7 +143,7 @@ test("the second checkout waits in the inventory, then the builders install it",
 
 test("old saves keep the sectors their level had already opened", async () => {
 	const old = JSON.parse(initial);
-	old.market.level = 25;
+	old.market.level = 26;
 	delete old.builtSectorIds;
 	delete old.interiorConstructions;
 	const next = await useGameStore.persist.getOptions().migrate(old, 35);

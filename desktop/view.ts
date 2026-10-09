@@ -1,6 +1,9 @@
 import type { SimulatorPanel } from "@/@types/simulator";
 import { getGameEvent } from "@/data/game-events";
-import { type GameIconId, gameIconAssets, getGameEventIcon } from "@/data/game-icon-assets";
+import { getActiveEventEffectLabel, getRecentEventOutcome } from "@/services/game-events";
+import { type GameIconId, gameIconAssets, getGameEventIcon, getShopItemIcon } from "@/data/game-icon-assets";
+import { getShopItem } from "@/data/shop-items";
+import { getActiveBoosts } from "@/services/shop-effects";
 import { itemCatalog } from "@/data/market-products";
 import {
 	getUnlockedPhysicalShelfCount,
@@ -15,6 +18,8 @@ import { canClaimDailyLogin } from "@/services/daily-login";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getNextSimulatorUnlocks } from "@/services/simulator-progression";
 import { getStoredInteriorBuilds } from "@/services/interior-construction";
+import { type LevelUpView, levelUpView } from "./level-up";
+import { type CelebrationView, celebrationView } from "./celebration";
 import { pages } from "./pages";
 import {
 	act,
@@ -64,15 +69,60 @@ export type DesktopView = {
 	eventEffect: string;
 	eventIcon: string;
 	eventNegative: boolean;
+	/** Boosters running now: the HUD shows a glowing chip for each and tints the screen edges. */
+	boosts: BoostView[];
 	tools: Button[];
 	hasOffline: boolean;
 	offline: Card;
+	// Level-up celebration with everything the new level opened (desktop/level-up.ts); null when seen.
+	levelUp: LevelUpView | null;
+	// Conquest celebration (lot cleared, new expansion, sector or shelf ready: desktop/celebration.ts); null when none.
+	celebration: CelebrationView | null;
 	hasPage: boolean;
 	canBack: boolean;
 	page: Page;
 };
 
-const tools: {
+export type BoostView = {
+	id: string;
+	name: string;
+	icon: string;
+	/** What it does right now, in a few words. */
+	effect: string;
+	/** Seconds left and the full length, for the countdown and the draining bar. */
+	seconds: number;
+	total: number;
+	/** Hex colour of its aura. */
+	tint: string;
+};
+
+// Each booster has its own colour and a short line for the HUD chip.
+const boostLooks: Record<string, { tint: string; effect: string }> = {
+	"energy-coffee": { tint: "F0A030", effect: "Equipe 2x mais rápida" },
+	"happy-hour": { tint: "E35DB0", effect: "+50% de clientes" },
+	"flash-sale": { tint: "E5452B", effect: "+2 produtos por cliente" },
+};
+
+function boostViews(state: State, now: number): BoostView[] {
+	return getActiveBoosts(state.shop, now).flatMap(({ id, remainingMs }) => {
+		const item = getShopItem(id);
+		if (!item) return [];
+		const look = boostLooks[id] ?? { tint: "F2B03D", effect: item.description };
+		return [
+			{
+				id,
+				name: item.name,
+				icon: gameIcon(getShopItemIcon(id)),
+				effect: look.effect,
+				seconds: Math.ceil(remainingMs / 1000),
+				total: Math.round((item.durationMs ?? remainingMs) / 1000),
+				tint: look.tint,
+			},
+		];
+	});
+}
+
+export const tools: {
 	id: SimulatorPanel | "dev" | "loja";
 	label: string;
 	icon: GameIconId;
@@ -81,10 +131,10 @@ const tools: {
 	// Everything that is bought (furniture, upgrades, team, expansions, decorations, coins) is in the shop.
 	{ id: "loja", label: "Loja", icon: "market", requiredLevel: 1 },
 	{ id: "store", label: "Prateleiras", icon: "shelf", requiredLevel: 1 },
-	{ id: "products", label: "Estoque", icon: "basket", requiredLevel: 1 },
-	{ id: "storage", label: "Depósito", icon: "warehouse", requiredLevel: 1 },
+	// Estoque is also the depot (route "storage" opens it on the dock).
+	{ id: "products", label: "Estoque", icon: "warehouse", requiredLevel: 1 },
 	{ id: "suppliers", label: "Entregas", icon: "deliveryTruck", requiredLevel: 1 },
-	{ id: "sectors", label: "Produção", icon: "conveyor", requiredLevel: 2 },
+	{ id: "sectors", label: "Produção", icon: "conveyor", requiredLevel: 18 },
 	{ id: "missions", label: "Missões", icon: "trophy", requiredLevel: 1 },
 	{ id: "achievements", label: "Conquistas", icon: "crown", requiredLevel: 1 },
 	{ id: "dev", label: "Dev", icon: "toolbox", requiredLevel: 1 },
@@ -155,6 +205,32 @@ function offline(state: State) {
 	});
 }
 
+/** The event chip's second line: the effect, or the interaction's progress while the player plays it. */
+function eventEffectLine(
+	state: State,
+	event: NonNullable<ReturnType<typeof getGameEvent>>,
+	active: State["events"]["activeEvent"],
+	now: number,
+	clock: (ms: number) => string,
+) {
+	const inspection = event.effects.interaction === "inspection" ? state.events.inspection : null;
+	if (inspection) {
+		const fixed = inspection.stops.filter((stop) => stop.status === "fixed").length;
+		const open = inspection.stops.find((stop) => stop.status === "open");
+		return open
+			? `Checklist do fiscal ${fixed}/${inspection.stops.length} · resolva em ${clock(open.deadline - now)}`
+			: `Checklist do fiscal ${fixed}/${inspection.stops.length} · o fiscal está andando pelo mercado`;
+	}
+	const sales = event.effects.interaction === "window-sales" ? state.events.windowSales : null;
+	if (sales) {
+		const honking = sales.requests.some((request) => request.status === "waiting");
+		return honking
+			? `Venda pela janela ${sales.served}/${sales.goal} · um motorista está buzinando: clique no carro!`
+			: `Venda pela janela ${sales.served}/${sales.goal} · espere a buzina`;
+	}
+	return getActiveEventEffectLabel(event, active);
+}
+
 export function createDesktopView(
 	state: State,
 	revision: number,
@@ -167,6 +243,9 @@ export function createDesktopView(
 	const event = getGameEvent(active?.eventId);
 	const seconds = active ? Math.ceil((active.endsAt - Date.now()) / 1000) : 0;
 	const hasEvent = Boolean(event && active && seconds > 0);
+	// After the event: the inspector's report stays on the chip for a few seconds.
+	const outcome = hasEvent ? null : getRecentEventOutcome(state.events);
+	const outcomeEvent = getGameEvent(outcome?.eventId);
 	const summary = offline(state);
 	const now = Date.now();
 	const day = state.day;
@@ -235,28 +314,42 @@ export function createDesktopView(
 			: "",
 		requestUrgent: Boolean(urgent && urgent.expiresAt - now < 15_000),
 		claimableMissions: getClaimableMissionCount(state),
-		hasEvent,
-		eventName: hasEvent && event ? event.name : "",
+		hasEvent: hasEvent || Boolean(outcome && outcomeEvent),
+		eventName: hasEvent && event ? event.name : (outcomeEvent?.name ?? ""),
 		eventTimer: hasEvent
 			? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
 			: "",
-		eventEffect: hasEvent && event ? event.effectLabel : "",
-		eventIcon: hasEvent && event ? gameIcon(getGameEventIcon(event.id)) : "",
-		eventNegative: hasEvent && event?.kind === "negative",
-		tools: tools.map((tool) => {
+		eventEffect: hasEvent && event ? eventEffectLine(state, event, active, now, clock) : (outcome?.text ?? ""),
+		eventIcon:
+			hasEvent && event
+				? gameIcon(getGameEventIcon(event.id))
+				: outcomeEvent
+					? gameIcon(getGameEventIcon(outcomeEvent.id))
+					: "",
+		eventNegative: hasEvent ? event?.kind === "negative" : outcome?.kind === "negative",
+		boosts: boostViews(state, now),
+		// Release builds (scripts/release/build-host.ts) hide the Dev tab.
+		tools: tools.filter((tool) => tool.id !== "dev" || __DEV__).map((tool) => {
 			const locked = state.market.level < tool.requiredLevel;
 			const stored = getStoredInteriorBuilds(state).length;
+			// Trucks waiting at the dock to be unloaded.
+			const atDock = state.receiving.dock.filter((delivery) => delivery.quantity > delivery.unloaded).length;
 			return button(tool.label, {
 				icon: gameIcon(tool.icon),
 				route: `!${tool.id}`,
 				// The shop stands out in gold.
 				variant: tool.id === "loja" ? "coin" : "secondary",
 				enabled: !locked,
-				active: (stack[0] ?? "").split(":")[0] === tool.id,
+				// Estoque also lights up on the old Depósito route ("storage"), which is the same window now.
+				active: ((root) => root !== "" && (root === tool.id || (tool.id === "products" && root === "storage")))(
+					(stack[0] ?? "").split(":")[0],
+				),
 				fail: locked ? `Nível ${tool.requiredLevel}` : "",
 				badge:
 					tool.id === "loja" && stored > 0
 						? String(stored)
+						: tool.id === "products" && atDock > 0
+							? String(atDock)
 						: tool.id === "missions" && canClaimDailyLogin(state.dailyLogin, Date.now())
 							? "!"
 							: "",
@@ -264,6 +357,8 @@ export function createDesktopView(
 		}),
 		hasOffline: Boolean(state.offlineSummary),
 		offline: summary,
+		levelUp: levelUpView(state),
+		celebration: celebrationView(state),
 		hasPage: Boolean(route),
 		canBack: stack.length > 1,
 		page: current,

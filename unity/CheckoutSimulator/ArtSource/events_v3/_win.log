@@ -1,0 +1,19 @@
+00:00.016  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+Info: No active image found in material slot (3) for object "Transito_Car"
+Info: Baking map saved to internal image, save it externally or pack it
+
+FBX export starting... 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Temp\\qa\\v3props\\Transito_Car.fbx'
+export finished in 0.0203 sec.
+EXPORT_TMP {'fbx': 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Temp\\qa\\v3props\\Transito_Car.fbx', 'tris': 11298, 'dims': [4.15, 2.12, 1.93], 'atlas': 'C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Temp\\qa\\v3props\\Transito_Car_BaseColor.png'} 3.4
+FBX version: 7400
+FBX version: 7400
+RIG bones ['Root', 'Body', 'Window_Driver', 'Driver_Root', 'Driver_Head', 'Driver_Arm_L', 'Driver_Forearm_L', 'Driver_Hand_L', 'Wheel_F_R', 'Wheel_R_R', 'Wheel_F_L', 'Wheel_R_L'] parts ['Transito_Car__Body', 'Transito_Car__Window_Driver', 'Transito_Car__Wheel_F_R', 'Transito_Car__Wheel_R_R', 'Transito_Car__Wheel_F_L', 'Transito_Car__Wheel_R_L', 'Transito_Car__Body_interior', 'Transito_Car__Body_seat_back', 'Transito_Car__Body_door_sill', 'Transito_Car__Driver'] car_tris 11624 driver_tris 4023
+00:06.453  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\_jam_0.png'
+00:06.672  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\_jam_1.png'
+00:06.906  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\_jam_2.png'
+00:07.141  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\_jam_3.png'
+JAM C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\jam_window.png 6.7
+DONE
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 02:38:20)
+
+Blender quit

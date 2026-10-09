@@ -12,8 +12,8 @@ import {
 } from "./economy";
 import { DAY_DURATION_MS } from "../services/market-day";
 
-test("a market turn lasts 10 minutes", () => {
-	expect(TURN_DURATION_MS).toBe(10 * 60_000);
+test("a market turn lasts 5 minutes", () => {
+	expect(TURN_DURATION_MS).toBe(5 * 60_000);
 	expect(DAY_DURATION_MS).toBe(TURN_DURATION_MS);
 });
 

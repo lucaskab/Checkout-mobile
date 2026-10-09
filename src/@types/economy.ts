@@ -37,7 +37,7 @@ export type MarketEraDefinition = {
 	/** Extra products each customer takes (a basket, then a cart). */
 	basketBonus: number;
 	/**
-	 * While the player is away the market keeps selling: each hour away earns this many turns' worth of
+	 * While the player is away the market keeps selling: each hour away earns this many 10-minute turns' worth of
 	 * profit (up to OFFLINE_CAP_MS per absence). 0 = nobody minds the stall.
 	 */
 	offlineTurnsPerHour: number;

@@ -1,0 +1,27 @@
+00:00.015  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:37: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  w = bpy.data.worlds.get("QA_World") or bpy.data.worlds.new("QA_World"); sc.world = w; w.use_nodes = True
+C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\events_v3\run_v3.py:42: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  gm = bpy.data.materials.get("QA_GroundMat") or bpy.data.materials.new("QA_GroundMat"); gm.use_nodes = True
+00:03.156  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\car.png'
+SHOT Transito_Car C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\car.png tris 10120 dims [4.15, 2.05, 1.85] 2.0
+00:06.343  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\inspection_car.png'
+SHOT Vigilancia_Car C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\inspection_car.png tris 11216 dims [4.65, 2.01, 1.91] 5.1
+00:12.500  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\sound_van.png'
+SHOT Som_Van C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\sound_van.png tris 10552 dims [4.49, 2.26, 2.67] 11.3
+00:22.968  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\telecom_van.png'
+SHOT Maquininha_TelecomVan C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\telecom_van.png tris 10848 dims [5.56, 2.43, 2.69] 21.8
+00:40.062  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\box_truck.png'
+SHOT Ofertas_BoxTruck C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\box_truck.png tris 11233 dims [7.82, 2.77, 3.36] 38.9
+01:01.672  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\bus.png'
+SHOT Rush_CityBus C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\bus.png tris 12759 dims [11.21, 3.28, 3.49] 60.5
+01:31.765  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\school_bus.png'
+SHOT Excursao_SchoolBus C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\school_bus.png tris 14174 dims [9.25, 3.45, 3.19] 90.6
+02:09.547  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\bucket_truck.png'
+SHOT Energia_BucketTruck C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\bucket_truck.png tris 12180 dims [7.66, 2.8, 2.68] 128.4
+02:47.390  render           | Saved: 'C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\backhoe.png'
+SHOT Obras_Backhoe C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\Review\vehicles_v3\backhoe.png tris 11370 dims [6.67, 3.26, 3.22] 166.2
+DONE 166.2
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 02:38:20)
+
+Blender quit

@@ -6,8 +6,9 @@ import type { MarketEraId } from "@/@types/economy";
 // the left (west, by the roundabout), B the middle, C the right; row 1 is on the avenue, row 4 at the back.
 // The player starts on the sidewalk in front of A1 (the mesinha), buys A1 for the tenda and the little shops,
 // B1 for the minimercado and the mercadinho (A1 + B1), then the supermarket takes the first two rows of A and B
-// plus C1 for its parking lot and B3 for its depot, and the hypermarket the whole front (A1–C2) with the big
-// warehouse, the loading yard and the parking lot on rows 3 and 4. Every lot has a different old building on it
+// plus C1 for its parking lot and C2 for its depot (its trucks come in from the east street: a depot on B3 would
+// have no way in for them), and the hypermarket the whole front (A1–C2) with the big warehouse, the loading yard
+// and the parking lot on rows 3 and 4. Every lot has a different old building on it
 // that has to be cleared after buying (src/services/market-lots.ts).
 
 /** What stands on a lot before the player buys and clears it (one Blender model each: CheckoutLots/Lot_<Name>). */
@@ -64,8 +65,8 @@ function lot(id: string, price: number, ruin: LotRuin, ruinName: string): Market
 }
 
 // Prices: A1 is the first goal of the game (the mesinha on the sidewalk saves for it), B1 comes with the
-// minimercado, then the lots are part of the price of the supermercado (A2, B2, C1, B3: 165 mil) and of the
-// hipermercado (the other six: 270 mil).
+// minimercado, then the lots are part of the price of the supermercado (A2, B2, C1, C2: 160 mil) and of the
+// hipermercado (the other six: 275 mil).
 export const MARKET_LOTS: MarketLot[] = [
 	lot("A1", 300, "casa", "Casa abandonada"),
 	lot("B1", 12_000, "loja", "Loja fechada"),
@@ -90,8 +91,22 @@ export const FIRST_LOT = "A1";
 /** Lot ids of older saves (before the grid) and the grid lot that took their place. */
 export const OLD_LOT_IDS: Record<string, string> = { "1": "A1", "2": "C1", "3": "B2", "4": "B3", "5": "C2", "6": "A2" };
 
+/**
+ * Saves from before the supermarket's depot moved from B3 to C2 (v42): whoever already bought B3 for it gets C2
+ * as well (bought, and cleared if B3 was), so nobody pays twice; B3 stays theirs for the hypermarket.
+ */
+export function migrateDepotLot<T extends { owned: string[]; cleared: string[] }>(lots: T | undefined): T | undefined {
+	if (!lots || !Array.isArray(lots.owned) || !lots.owned.includes("B3") || lots.owned.includes("C2")) return lots;
+	const cleared = Array.isArray(lots.cleared) ? lots.cleared : [];
+	return {
+		...lots,
+		owned: [...lots.owned, "C2"],
+		cleared: cleared.includes("B3") ? [...cleared, "C2"] : cleared,
+	};
+}
+
 const FRONT = ["A1", "B1"];
-const SUPER = ["A1", "B1", "A2", "B2", "C1", "B3"];
+const SUPER = ["A1", "B1", "A2", "B2", "C1", "C2"];
 const ALL = MARKET_LOTS.map((item) => item.id);
 
 /**

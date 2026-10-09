@@ -77,3 +77,6 @@ unity/**/ArtSource/*.log
 unity/**/Assets/_Recovery/
 unity/**/Assets/_Recovery.meta
 checkout-desktop-save.json.*
+
+# Release builds for testers (scripts/release/build-host.ts, Checkout/Desktop/Build Release for testers)
+/release/

@@ -148,6 +148,60 @@ for p in P:
     rows.append(dict(id=pid,name=name,category=cat,tier=tier,buy=b,sell=s,demand=dem,popularity=pop,pref=pref,acq='production',level=lvl(tier,k)))
 if '--json' in sys.argv:
     print(json.dumps(dict(rows=rows,R={k:v for k,v in R.items()},SECTOR=SECTOR),ensure_ascii=False)); sys.exit()
+# Level by level (claude/niveis-desbloqueios.md): every level opens something, and each product opens with the
+# first expansion that has a fixture for it (hortifruti and drinks already on the sidewalk table), one or two
+# per level from the level a regular player reaches that expansion. Overrides the tier-based level above.
+SCHEDULE={
+48:('mesinha',2),3:('mesinha',2),
+49:('mesinha',3),50:('mesinha',3),
+62:('mesinha',4),
+9:('tenda',5),13:('mesinha',5),
+2:('mesinha',6),
+5:('banca',7),8:('banca',7),
+7:('banca',8),56:('tenda',8),4:('mesinha',8),
+22:('conteiner',9),12:('conteiner',9),23:('conteiner',9),
+25:('conteiner',10),6:('banca',10),51:('spati',10),
+52:('spati',11),60:('spati',11),
+55:('spati',12),17:('quitanda',12),
+26:('spati',13),20:('quitanda',13),
+53:('spati',14),18:('quitanda',14),
+54:('spati',15),40:('quitanda',15),34:('minimercado',15),
+43:('spati',16),35:('minimercado',16),10:('tenda',16),
+58:('minimercado',17),28:('banca',17),
+59:('minimercado',18),16:('spati',18),101:('mercadinho',18),
+36:('minimercado',19),24:('conteiner',19),102:('mercadinho',19),
+37:('minimercado',20),15:('spati',20),103:('mercadinho',20),
+38:('minimercado',21),29:('mesinha',21),
+39:('minimercado',22),19:('quitanda',22),
+30:('spati',23),32:('conteiner',23),
+41:('conteiner',24),31:('mercadinho',24),104:('supermercado',24),
+57:('supermercado',25),27:('supermercado',25),
+113:('supermercado',26),
+61:('supermercado',27),105:('supermercado',27),
+107:('supermercado',28),
+114:('supermercado',29),
+115:('supermercado',30),
+108:('supermercado',31),
+109:('supermercado',32),
+44:('hipermercado',33),
+45:('hipermercado',34),110:('hipermercado',34),
+111:('hipermercado',35),
+116:('hipermercado',36),
+117:('hipermercado',37),
+119:('hipermercado',38),
+106:('hipermercado',39),
+118:('hipermercado',40),
+120:('hipermercado',42),
+112:('hipermercado',44),
+33:('rede',46),
+121:('hipermercado',47),
+}
+# Level of each production sector (it opens with its first recipe).
+SECTOR_LEVEL={'padaria':18,'queijaria':24,'acougue':25,'bebidas':26,'peixaria':33,'sorvetes':36,'adega':38}
+for r in rows:
+    r['era']=E[r['tier']]
+    if r['id'] in SCHEDULE: r['era'],r['level']=SCHEDULE[r['id']]
+rows.sort(key=lambda r:(r['acq']=='production',r['level'],E.index(r['era'])))
 lv={r['id']:r['level'] for r in rows}
 rec=[]
 for pid,(ing,q,mins) in R.items():
@@ -156,7 +210,7 @@ for pid,(ing,q,mins) in R.items():
 out=[]
 for r in rows:
     out.append('\t{ id: %d, name: "%s", category: "%s", unlockEra: "%s", unlockLevel: %d, purchasePrice: %d, sellingPrice: %d, rarity: "%s", demand: %d, popularity: %d, preferredCustomers: %s, xpPerSale: %d%s },' % (
-        r['id'],r['name'],r['category'],E[r['tier']],r['level'],r['buy'],r['sell'],rarity(r['sell']/PRICE_SCALE),r['demand'],r['popularity'],json.dumps(r['pref']),xp(r['sell']), ', acquisition: "production"' if r['acq']=='production' else ''))
+        r['id'],r['name'],r['category'],r['era'],r['level'],r['buy'],r['sell'],rarity(r['sell']/PRICE_SCALE),r['demand'],r['popularity'],json.dumps(r['pref']),xp(r['sell']), ', acquisition: "production"' if r['acq']=='production' else ''))
 if '--write' in sys.argv:
     import os
     here=os.path.dirname(os.path.abspath(__file__)); repo=os.path.dirname(os.path.dirname(here))
@@ -164,6 +218,7 @@ if '--write' in sys.argv:
     open(os.path.join(repo,'src/data/market-products.ts'),'w').write(t)
     t=open(os.path.join(here,'production-sectors.tpl')).read().replace('/*RECIPES*/','\n'.join(rec))
     for i,b in enumerate(BASE): t=t.replace('__L%d__'%i,str(b))
+    for k,v in SECTOR_LEVEL.items(): t=t.replace('__S_%s__'%k,str(v))
     open(os.path.join(repo,'src/data/production-sectors.ts'),'w').write(t)
     print('written; base levels',BASE)
 else:

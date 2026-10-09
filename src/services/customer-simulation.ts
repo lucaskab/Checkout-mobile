@@ -154,7 +154,10 @@ export function simulateMarketVisit(options: MarketVisitOptions): MarketVisit {
 		}
 
 		const revenue = Math.round(
-			quantity * product.sellingPrice * (options.revenueMultiplier ?? 1),
+			quantity *
+				product.sellingPrice *
+				((options.revenueMultiplier ?? 1) +
+					(options.categoryRevenueBonuses?.[product.category] ?? 0)),
 		);
 		purchases.push({
 			productId: product.productId,
@@ -162,7 +165,8 @@ export function simulateMarketVisit(options: MarketVisitOptions): MarketVisit {
 			revenue,
 			shelfId: product.shelfId,
 		});
-		remainingBudget -= revenue;
+		// The customer pays the shelf price: upgrades raise what the market earns, not the bill.
+		remainingBudget -= quantity * product.sellingPrice;
 	}
 
 	return {

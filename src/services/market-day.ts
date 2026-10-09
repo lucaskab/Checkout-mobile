@@ -18,10 +18,12 @@ import {
 	dayContractDefinitions,
 	dayContractRewardMultiplier,
 } from "@/data/day-contracts";
+import { type DayForecast, getFallbackDayForecast } from "@/services/day-forecast";
 import {
 	getContractCoins,
 	getContractExperience,
 	TURN_DURATION_MS,
+	TURN_SHARE,
 } from "@/data/economy";
 
 // One turn of the market. The same rules run in System (React Native) and Simulator (Unity);
@@ -32,6 +34,9 @@ export const MAX_PENDING_REQUESTS = 3;
 // Give the player a moment to settle in before the first request of the day.
 export const FIRST_REQUEST_DELAY_MS = 12_000;
 export const INITIAL_LOYALTY = 20;
+// Rules the day's offers are sized with: offers made under an older revision (or without the store's own
+// forecast) are made again while the day is still being planned (see refreshDayOffers).
+export const DAY_OFFERS_REVISION = 2;
 // Contract id used to open the market without a contract ("dia livre").
 export const FREE_DAY_CONTRACT_ID = "livre";
 const MAX_REQUEST_HISTORY = 40;
@@ -73,6 +78,14 @@ function seeded(seed: number): Random {
 		value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
 		return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 	};
+}
+
+/** Spreads close seeds apart (murmur3 finaliser). */
+function mixSeed(seed: number) {
+	let value = seed >>> 0;
+	value = Math.imul(value ^ (value >>> 16), 0x85ebca6b);
+	value = Math.imul(value ^ (value >>> 13), 0xc2b2ae35);
+	return (value ^ (value >>> 16)) >>> 0;
 }
 
 function pick<T>(items: readonly T[], random: Random): T | undefined {
@@ -117,9 +130,10 @@ export function createEmptyDayStats(): DayStats {
 function buildContract(
 	definition: DayContractDefinition,
 	level: number,
+	forecast: DayForecast,
 	category?: { id: string; label: string },
 ): DayContract {
-	const target = definition.target(level);
+	const target = definition.target(level, forecast, category?.id);
 	const multiplier = dayContractRewardMultiplier[definition.difficulty];
 	const label = category?.label ?? "";
 	return {
@@ -144,9 +158,11 @@ function buildContract(
 export function createDayOffers(
 	dayNumber: number,
 	level: number,
-	context?: Pick<DayStoreContext, "catalog" | "shelfProductIds">,
+	context?: Pick<DayStoreContext, "catalog" | "shelfProductIds" | "forecast">,
 ): DayContract[] {
-	const random = seeded(dayNumber * 97 + level * 13);
+	// Neighbouring days hash far apart (plain consecutive seeds kept drawing the same contracts).
+	const random = seeded(mixSeed(dayNumber * 97 + level * 13));
+	const forecast = context?.forecast ?? getFallbackDayForecast(level);
 	const categories = Array.from(
 		new Map(
 			(context?.shelfProductIds ?? []).flatMap((id) => {
@@ -175,6 +191,7 @@ export function createDayOffers(
 			buildContract(
 				definition,
 				level,
+				forecast,
 				definition.kind === "category" ? pick(categories, random) : undefined,
 			),
 		);
@@ -249,7 +266,7 @@ export function getContractProgress(
 
 export function createInitialDayState(
 	level: number,
-	context?: Pick<DayStoreContext, "catalog" | "shelfProductIds">,
+	context?: Pick<DayStoreContext, "catalog" | "shelfProductIds" | "forecast">,
 ): GameDayState {
 	return {
 		contract: null,
@@ -257,6 +274,7 @@ export function createInitialDayState(
 		endsAt: null,
 		loyalty: INITIAL_LOYALTY,
 		offers: createDayOffers(1, level, context),
+		offersRevision: context?.forecast ? DAY_OFFERS_REVISION : 0,
 		phase: "planning",
 		requests: [],
 		result: null,
@@ -836,9 +854,10 @@ export function closeMarketDay(
 			? settled.contract.reward
 			: emptyReward();
 	const bonus: DayReward = {
-		coins: Math.round(((30 + level * 12) * gradeMultiplier[grade]) / 5) * 5,
+		// The day's bonus is sized for a 10-minute turn: a shorter turn earns its share.
+		coins: Math.max(5, Math.round(((30 + level * 12) * TURN_SHARE * gradeMultiplier[grade]) / 5) * 5),
 		diamonds: grade === "S" ? 1 : 0,
-		experience: Math.round((10 + level * 4) * gradeMultiplier[grade]),
+		experience: Math.max(1, Math.round((10 + level * 4) * TURN_SHARE * gradeMultiplier[grade])),
 	};
 	const stats = settled.stats;
 	const highlights: string[] = [];
@@ -899,11 +918,26 @@ export function closeMarketDay(
 	};
 }
 
+// Offers of a day still in planning made with older rules, or before the store could forecast its own day,
+// are made again (same day number, so the same kinds of contract come back with the new targets).
+export function refreshDayOffers(
+	day: GameDayState,
+	level: number,
+	context: Pick<DayStoreContext, "catalog" | "shelfProductIds" | "forecast">,
+): GameDayState | null {
+	if (day.phase !== "planning" || day.offersRevision === DAY_OFFERS_REVISION || !context.forecast) return null;
+	return {
+		...day,
+		offers: createDayOffers(day.dayNumber, level, context),
+		offersRevision: DAY_OFFERS_REVISION,
+	};
+}
+
 // After the player collects the results, the next day starts in planning with new offers.
 export function advanceMarketDay(
 	day: GameDayState,
 	level: number,
-	context?: Pick<DayStoreContext, "catalog" | "shelfProductIds">,
+	context?: Pick<DayStoreContext, "catalog" | "shelfProductIds" | "forecast">,
 ): GameDayState | null {
 	if (day.phase !== "results") return null;
 	const dayNumber = day.dayNumber + 1;
@@ -913,6 +947,7 @@ export function advanceMarketDay(
 		dayNumber,
 		endsAt: null,
 		offers: createDayOffers(dayNumber, level, context),
+		offersRevision: context?.forecast ? DAY_OFFERS_REVISION : 0,
 		phase: "planning",
 		requests: [],
 		result: null,

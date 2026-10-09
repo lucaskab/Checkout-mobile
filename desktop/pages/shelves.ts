@@ -10,13 +10,10 @@ import { getFixtureName, getShelfType } from "@/data/shelf-types";
 import { describeFixtureProducts } from "@/data/fixture-products";
 import { getItemIncomeMultiplier, getMarketEra, MAX_ITEM_LEVEL } from "@/data/economy";
 import { getProductLevel, getProductUpgradeCost } from "@/services/product-levels";
-import { isMarketBuilding } from "@/services/market-era";
 import {
 	getShelfSlotCount,
 	getShelfSlotIds,
 	sectorShelves,
-	isShelfSlotUnlocked,
-	shelfProductSlots,
 	getUnlockedPhysicalShelfCount,
 	resolveShelfSlotCounts,
 } from "@/data/shelf-slots";
@@ -26,9 +23,12 @@ import {
 	getOrderRemainingTime,
 } from "@/services/logistics";
 import {
-	getMaxShelfOrderQuantity,
+	getMaxShelfOrderBoxes,
 	getShelfOrderQuote,
 } from "@/services/shelf-order-quote";
+import { getStoredBoxes } from "@/services/stockroom";
+import { getOrderLines } from "@/services/supplier-cart";
+import { getInventoryBoxCapacity } from "@/data/inventory-capacity";
 import {
 	act,
 	button,
@@ -82,38 +82,6 @@ function acceptsNow(state: State, shelfId: string) {
 const productOf = (state: State, slotId: string) =>
 	itemCatalog.find((item) => item.id === state.shelfAssignments[slotId]);
 
-// Before the market building the stall shows only a few products: the first ones with stock, in shelf order.
-function stallCard(state: State): Card[] {
-	if (isMarketBuilding(state.era.id)) return [];
-	const era = getMarketEra(state.era.id);
-	const counts = slotCounts(state);
-	const stocked = shelfProductSlots.filter(
-		(slot) =>
-			isShelfSlotUnlocked(slot.id, counts) &&
-			state.shelfAssignments[slot.id] != null &&
-			(state.shelfStock[slot.id] ?? 0) > 0,
-	);
-	const onSale = stocked.slice(0, era.productSlots);
-	const waiting = stocked.slice(era.productSlots);
-	const name = (slotId: string) => productOf(state, slotId)?.name ?? "?";
-	return [
-		card(`${era.name}: ${era.productSlots} lugares de produto`, {
-			eyebrow: "À VENDA AGORA",
-			icon: gameIcon("market"),
-			badge: `${onSale.length}/${era.productSlots}`,
-			subtitle:
-				"Antes do mercadinho cabem poucos produtos à mostra. Ficam à venda os primeiros com estoque, na ordem das prateleiras; quando um acaba, o próximo entra no lugar. Cada expansão traz mais lugares.",
-			lines: [
-				onSale.length
-					? `À venda: ${onSale.map((slot) => name(slot.id)).join(", ")}`
-					: "Nada à venda: coloque estoque nas prateleiras.",
-				...(waiting.length ? [`Esperando lugar: ${waiting.map((slot) => name(slot.id)).join(", ")}`] : []),
-			],
-			tone: onSale.length ? "featured" : "warning",
-		}),
-	];
-}
-
 // ShelfListScreen
 function storePage(state: State) {
 	const counts = slotCounts(state);
@@ -159,7 +127,7 @@ function storePage(state: State) {
 		});
 	});
 	if (nextShelfUpgrade) cards.push(shelfBuild(state, "Nova prateleira"));
-	return page("store", "Prateleiras", [...stallCard(state), ...cards], {
+	return page("store", "Prateleiras", cards, {
 		icon: gameIcon("shelf"),
 		subtitle:
 			"Seu mix de produtos, do seu jeito. Cada prateleira começa com quatro espaços.",
@@ -182,7 +150,7 @@ function slotCard(state: State, shelfId: string, slotId: string, index: number) 
 	const price = state.shelfPrices[slotId] ?? product.sellingPrice ?? 0;
 	const reserve = state.inventory[product.id] ?? 0;
 	const incomingOrder = state.logistics.orders
-		.filter((order) => order.productId === product.id && order.status !== "entregue")
+		.filter((order) => getOrderLines(order).some((line) => line.productId === product.id) && order.status !== "entregue")
 		.sort(
 			(first, second) =>
 				first.createdAt + first.deliveryDurationMs - (second.createdAt + second.deliveryDurationMs),
@@ -209,7 +177,7 @@ function slotCard(state: State, shelfId: string, slotId: string, index: number) 
 					enabled: false,
 				})
 			: reserve === 0
-				? go("Pedir estoque", `shelforder:${product.id}:1`, {
+				? go("Pedir caixas", `@shop:${product.id}`, {
 						variant: "coin",
 						icon: gameIcon("deliveryTruck"),
 					})
@@ -407,40 +375,48 @@ function pickerPage(state: State, [shelfId = "", slot = "0", filter = "all"]: st
 function orderPage(state: State, [id = "0", qty = "1"]: string[]) {
 	const productId = Number(id);
 	const product = itemCatalog.find((item) => item.id === productId);
-	const quantity = Math.max(0, Math.floor(Number(qty) || 0));
-	const quote = getShelfOrderQuote(state, productId, quantity);
-	const unitQuote = getShelfOrderQuote(state, productId, 1);
+	const boxes = Math.max(0, Math.floor(Number(qty) || 0));
+	const quote = getShelfOrderQuote(state, productId, boxes);
 	if (!product || !quote) return page(`shelforder:${id}:${qty}`, "Pedir estoque", []);
-	const maxQuantity = getMaxShelfOrderQuantity(state, productId);
+	const maxBoxes = getMaxShelfOrderBoxes(state, productId);
+	const storedBoxes = getStoredBoxes(product, state.inventory[productId] ?? 0);
+	const boxCapacity = getInventoryBoxCapacity(state.inventoryCapacityLevels[productId]);
 	const route = (value: number) => `shelforder:${productId}:${value}`;
 	const step = (label: string, value: number, enabled: boolean) => ({
 		...swap(label, route(value), false),
 		enabled,
 	});
-	const unitPrice =
-		quantity > 0 ? Number((quote.total / quantity).toFixed(2)) : (unitQuote?.total ?? 0);
+	const boxLabel = boxes === 1 ? "1 caixa" : `${boxes} caixas`;
+	const roomLine =
+		quote.availableBoxes <= 0
+			? "Depósito cheio para este produto"
+			: quote.availableBoxes === 1
+			? "Cabe mais 1 caixa no depósito"
+			: `Cabem mais ${quote.availableBoxes} caixas no depósito`;
 	return page(
-		route(quantity),
+		route(boxes),
 		"Pedir estoque",
 		[
 			card(`Pedir ${product.name}`, {
 				eyebrow: "FORNECEDORES",
 				icon: productIcon(product.id),
 				subtitle: `Entrega no depósito em cerca de ${formatSupplierDeliveryTime(quote.duration)}.`,
-				lines: [
-					`Espaço no depósito: ${state.inventory[productId] ?? 0}/${quote.capacity} unid.`,
-					`${quote.availableSpace} livre${quote.availableSpace === 1 ? "" : "s"}`,
-				],
-				progress: ratio(state.inventory[productId] ?? 0, quote.capacity),
+				lines: [`Espaço no depósito: ${storedBoxes}/${boxCapacity} caixas`, roomLine],
+				progress: ratio(storedBoxes, boxCapacity),
 			}),
 			card("Quantidade exata", {
-				badge: `${quantity} unid.`,
-				subtitle: `${quantity} unidades`,
+				badge: `x${boxes}`,
+				subtitle: `Caixa com ${quote.caseSize} un. · 🪙 ${fmt(quote.boxPrice)} a caixa`,
+				lines: [
+					boxes === 1
+						? `1 caixa · ${quote.units} unidades`
+						: `${boxes} caixas · ${quote.units} unidades`,
+				],
 				buttons: [
-					step("−", quantity - 1, quantity > 0),
-					step("+", quantity + 1, quantity < quote.availableSpace),
-					step("0", 0, quantity !== 0),
-					step(`Máx · ${maxQuantity}`, maxQuantity, quantity !== maxQuantity),
+					step("−", Math.max(0, boxes - 1), boxes > 0),
+					step("+", boxes + 1, boxes < quote.availableBoxes),
+					step("0", 0, boxes !== 0),
+					step(`Máx · ${maxBoxes}`, maxBoxes, boxes !== maxBoxes),
 				],
 			}),
 			card("Total do pedido", {
@@ -448,17 +424,17 @@ function orderPage(state: State, [id = "0", qty = "1"]: string[]) {
 				badge: fmt(quote.total),
 				tone: quote.reason ? "warning" : "",
 				lines: [
-					`Preço por unidade: ${unitPrice} moedas`,
+					`Preço por caixa: ${fmt(quote.boxPrice)} moedas`,
 					`Seu saldo: ${fmt(state.coins)} moedas`,
 					...(quote.reason ? [quote.reason] : []),
 				],
 				buttons: [
-					act(`Confirmar pedido · ${fmt(quote.total)}`, "placeSupplierOrder", [{ productId, quantity }], {
+					act(`Confirmar pedido · ${fmt(quote.total)}`, "placeSupplierOrder", [{ productId, boxes }], {
 						variant: "coin",
 						icon: gameIcon("deliveryTruck"),
 						enabled: !quote.reason,
 						after: "back",
-						ok: `Pedido de ${quantity} ${product.name} confirmado! Acompanhe em Entregas.`,
+						ok: `Pedido de ${boxLabel} de ${product.name} confirmado! Acompanhe em Entregas.`,
 						fail: "As condições do pedido mudaram. Confira saldo, espaço e entregas disponíveis.",
 					}),
 				],

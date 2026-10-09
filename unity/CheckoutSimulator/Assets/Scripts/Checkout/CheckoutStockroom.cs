@@ -31,8 +31,8 @@ namespace Checkout {
    sound=gameObject.AddComponent<AudioSource>();sound.playOnAwake=false;sound.volume=.45f;
    thud=U.Tone(90,.12f,70,.7f);click=U.Tone(2200,.03f);ding=U.Tone(990,.22f,1480);buzz=U.Tone(150,.3f,110,.6f);slide=U.Noise(.14f,.1f);
    root=U.Canvas(transform,"CheckoutStockroom",82);
-   dockFab=Fab("EntregaButton","ENTREGA","truck_back","2E8CAE","1F6A86",116,out dockCount,()=>OpenDock());
-   restockFab=Fab("ReporButton","REPOR","cardboard_box","8B5C9E","6A4279",262,out restockCount,()=>OpenRestock());
+   dockFab=Fab("EntregaButton","ENTREGA","truck_back","2E8CAE","1F6A86",116,out dockCount,()=>ShowDock());
+   restockFab=Fab("ReporButton","REPOR","cardboard_box","8B5C9E","6A4279",262,out restockCount,()=>CheckoutRestockGame.Show());
    stage=U.GameWindow(root,"dock_backdrop",out window,out title,out backdrop,Close);
    window.SetActive(false);
   }
@@ -58,7 +58,7 @@ namespace Checkout {
   void Hint(Func<Vector2> from,Func<Vector2> to){if(hint)Destroy(hint);hint=U.Hint(this,stage,from,to);}
   void StopHint(){if(hint)Destroy(hint);hint=null;}
   void Close(){StopAllCoroutines();Clear();window.SetActive(false);closeAt=0;}
-  bool OtherGameOpen=>(CheckoutCounterGame.Instance&&CheckoutCounterGame.Instance.IsOpen)||(CheckoutIncidents.Instance&&CheckoutIncidents.Instance.IsOpen);
+  bool OtherGameOpen=>(CheckoutSupplierShop.Instance&&CheckoutSupplierShop.Instance.IsOpen)||(CheckoutCounterGame.Instance&&CheckoutCounterGame.Instance.IsOpen)||(CheckoutIncidents.Instance&&CheckoutIncidents.Instance.IsOpen)||(CheckoutRestockGame.Instance&&CheckoutRestockGame.Instance.IsOpen)||(CheckoutReceivingGame.Instance&&CheckoutReceivingGame.Instance.IsOpen)||(CheckoutPackingGame.Instance&&CheckoutPackingGame.Instance.IsOpen);
   void OpenWindow(string backdropArt,string heading){
    window.SetActive(true);window.transform.SetAsLastSibling();StopAllCoroutines();Clear();closeAt=0;
    U.SetArt(backdrop,backdropArt);title.text=heading;Canvas.ForceUpdateCanvases();
@@ -95,7 +95,9 @@ namespace Checkout {
 
   // ------------------------------------------------------------------ receiving: unload the truck
   DockEntry delivery;Vector2 truckHome;int roomLeft;TextMeshProUGUI roomLabel;readonly List<RectTransform> boxes=new List<RectTransform>();Image truck;RectTransform cargo;
-  public static void ShowDock(){if(Instance)Instance.OpenDock();}
+  public static void ShowDock(){if(CheckoutReceivingGame.HasArt&&CheckoutReceivingGame.Instance)CheckoutReceivingGame.Show();else if(Instance)Instance.OpenDock();}
+  // The flat dock window, kept as the fallback without the receiving art (and for CheckoutAutoTest).
+  public static void ShowLegacyDock(){if(Instance)Instance.OpenDock();}
   void OpenDock(){
    var dock=bridge.State?.dock;if(dock==null||dock.Length==0||OtherGameOpen)return;
    OpenWindow("dock_backdrop","Receber entrega");
@@ -187,7 +189,8 @@ namespace Checkout {
   // ------------------------------------------------------------------ stockroom: refill the shelves
   sealed class ShelfCard {public RestockSlot slot;public Image image;public Image fill;public TextMeshProUGUI count;public int stock;}
   readonly List<ShelfCard> cards=new List<ShelfCard>();readonly Dictionary<int,int> reserve=new Dictionary<int,int>();
-  public static void ShowRestock(){if(Instance)Instance.OpenRestock();}
+  // The REPOR game is CheckoutRestockGame now (the fixture itself, lane by lane); this old card version stays for reference.
+  public static void ShowRestock()=>CheckoutRestockGame.Show();
   static bool Needs(RestockSlot s)=>s.reserve>0&&s.stock<s.capacity;
   void OpenRestock(){
    var slots=(bridge.State?.restockSlots??Array.Empty<RestockSlot>()).Where(Needs).OrderBy(s=>s.stock/(float)Mathf.Max(1,s.capacity)).Take(4).ToList();
@@ -251,7 +254,7 @@ namespace Checkout {
 
   void Update(){
    var s=bridge.State;
-   int trucks=s?.dock?.Length??0,low=(s?.restockSlots??Array.Empty<RestockSlot>()).Count(x=>x.reserve>0&&x.stock<x.capacity*.35f);
+   int trucks=s?.dock==null?0:s.dock.Select(d=>string.IsNullOrEmpty(d.orderId)?d.id:d.orderId).Distinct().Count(),low=(s?.restockSlots??Array.Empty<RestockSlot>()).Count(x=>x.reserve>0&&x.stock<x.capacity*.35f);
    // The shop and shelf windows cover the corner where these buttons float.
    bool free=!IsOpen&&!OtherGameOpen&&!CheckoutDesktopHUD.ShopOpen;
    dockFab.gameObject.SetActive(free&&trucks>0);if(trucks>0)dockCount.text=trucks.ToString();

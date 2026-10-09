@@ -1,3 +1,4 @@
+import type { DayForecast } from "@/services/day-forecast";
 import type { CustomerArchetype, CustomerMood } from "./customer-simulation";
 
 // A market day is a turn: pick a contract, open, serve special requests, close and review.
@@ -117,6 +118,8 @@ export type GameDayState = {
 	// Customer loyalty (0-100) carries over between days and brings more visits.
 	loyalty: number;
 	offers: DayContract[];
+	/** Version of the rules the offers were sized with (DAY_OFFERS_REVISION); older offers are made again. */
+	offersRevision?: number;
 	phase: MarketDayPhase;
 	requests: SpecialRequest[];
 	result: DayResult | null;
@@ -148,6 +151,8 @@ export type DayCatalogProduct = {
 // What the store can offer right now: products on shelves (with stock) and in storage.
 export type DayStoreContext = {
 	catalog: DayCatalogProduct[];
+	/** What one day of this market should bring (sizes the contracts); see services/day-forecast.ts. */
+	forecast?: DayForecast;
 	shelfProductIds: number[];
 	storageProductIds: number[];
 	unlockedProductIds: number[];

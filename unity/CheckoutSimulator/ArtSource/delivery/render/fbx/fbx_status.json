@@ -1,0 +1,36 @@
+{
+ "state": "done",
+ "secs": 191,
+ "results": {
+  "riding": {
+   "dims": [
+    0.84,
+    2.117,
+    1.826
+   ],
+   "tris": 38133,
+   "meshes": 33,
+   "check": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\delivery\\render\\fbx\\check_riding.png",
+   "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\CheckoutDelivery\\delivery_bike_riding.fbx",
+   "bytes": 1267548,
+   "tris_before_decimate": 219170,
+   "tris_export": 38803,
+   "parts": 33
+  },
+  "parked": {
+   "dims": [
+    0.81,
+    2.115,
+    1.406
+   ],
+   "tris": 37960,
+   "meshes": 27,
+   "check": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\delivery\\render\\fbx\\check_parked.png",
+   "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\Assets\\Resources\\CheckoutDelivery\\delivery_bike_parked.fbx",
+   "bytes": 1277404,
+   "tris_before_decimate": 186370,
+   "tris_export": 38418,
+   "parts": 27
+  }
+ }
+}

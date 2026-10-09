@@ -1,15 +1,28 @@
 import { getMarketEra, getNextMarketEra, marketEras } from "@/data/economy";
 import { ERA_LOTS, LOT_GRID, MARKET_LOTS, PLAZA_LOTS } from "@/data/market-lots";
 import type { GameState } from "@/@types/game";
-import type { SimulatorSnapshot } from "@/@types/simulator";
+import type {
+	SimulatorDelivery,
+	SimulatorDeliveryOrder,
+	SimulatorSnapshot,
+	SimulatorSupplierProduct,
+} from "@/@types/simulator";
+import {
+	DELIVERY_UNLOCK_ERA_ID,
+	getCourierProfile,
+	getDeliverySlots,
+	isActiveDeliveryOrder,
+	isDeliveryUnlocked,
+} from "@/services/delivery";
 import { getGameEvent } from "@/data/game-events";
 import { interiorDecor } from "@/data/interior-decor";
 import {
 	getMarketExpansionSkipCost,
 	marketExpansions,
 } from "@/data/market-expansions";
-import { getInventoryCapacity } from "@/data/inventory-capacity";
-import { itemCatalog, shelves, starterShelfIds } from "@/data/market-products";
+import { getInventoryBoxCapacity, getInventoryCapacity } from "@/data/inventory-capacity";
+import { itemCatalog, itemCategories, shelves, starterShelfIds } from "@/data/market-products";
+import { shelfProductSlots } from "@/data/shelf-slots";
 import { getFixtureName } from "@/data/shelf-types";
 import {
 	productionRecipes,
@@ -26,20 +39,146 @@ import {
 	productsPerShelf,
 	resolveShelfSlotCounts,
 } from "@/data/shelf-slots";
-import { getActiveGameEventEffects } from "@/services/game-events";
+import { getActiveGameEventEffects, getTurnEventKey } from "@/services/game-events";
 import { getContractProgress } from "@/services/market-day";
 import { getIncidentShelves } from "@/services/store-incidents-context";
 import { getClaimableMissionCount } from "@/services/missions";
 import { isMarketBuilding } from "@/services/market-era";
 import { getLotClearCost, getLotClearDuration, getLotStatus } from "@/services/market-lots";
 import { getExperienceToNextLevel } from "@/services/progression";
-import { getBoxUnits, getWarehouseZone } from "@/services/receiving";
+import { getActiveBoosts } from "@/services/shop-effects";
+import { getBoxCount, getCaseSize } from "@/data/case-sizes";
+import { getMaxBoxesPerOrder } from "@/data/supplier-capacity";
+import { getFreeBoxPlaces, getStockroomRoom } from "@/services/stockroom";
+import {
+	getActiveSupplierOrders,
+	getOrderBoxes,
+	getOrderLines,
+	getSupplierCost,
+	getSupplierDurationMs,
+	getSupplierIncoming,
+	LOW_STOCK_SHARE,
+} from "@/services/supplier-cart";
+import { getDeliveryBoxUnits, getRemainingBoxes, getWarehouseZone } from "@/services/receiving";
 import { getSimulatorLayout } from "@/services/simulator-layout";
 import {
 	findInteriorConstruction,
 	getInteriorBuildName,
 	getInteriorSkipCost,
 } from "@/data/interior-construction";
+/** The shop's catalog: unlocked products first, then the locked ones of this and the next expansion. */
+function createSupplierCatalog(state: GameState, now: number): SimulatorSupplierProduct[] {
+	const unlocked = new Set(state.market.unlockedProductIds);
+	const nextEraId = getNextMarketEra(state.era.id)?.id;
+	return itemCatalog
+		.filter(
+			(product) =>
+				product.acquisition === "supplier" &&
+				(unlocked.has(product.id) || product.unlockEra === state.era.id || product.unlockEra === nextEraId),
+		)
+		.sort(
+			(a, b) =>
+				Number(!unlocked.has(a.id)) - Number(!unlocked.has(b.id)) ||
+				a.unlockLevel - b.unlockLevel ||
+				a.id - b.id,
+		)
+		.map((product) => {
+			const caseSize = getCaseSize(product);
+			const level = state.inventoryCapacityLevels[product.id];
+			const stockUnits = state.inventory[product.id] ?? 0;
+			const incoming = getSupplierIncoming(state, product.id, now);
+			const slots = Object.entries(state.shelfAssignments)
+				.filter(([, productId]) => productId === product.id)
+				.map(([slotId]) => slotId);
+			const boxPrice = getSupplierCost(state, product.id, caseSize, now);
+			return {
+				productId: product.id,
+				name: product.name,
+				category: product.category,
+				categoryLabel:
+					itemCategories.find((category) => category.id === product.category)?.label ?? product.category,
+				caseSize,
+				boxPrice,
+				unitCost: Math.round((boxPrice / caseSize) * 100) / 100,
+				salePrice:
+					slots.map((slotId) => state.shelfPrices[slotId]).find((price) => price !== undefined) ??
+					product.sellingPrice,
+				stockUnits,
+				shelfUnits: slots.reduce((total, slotId) => total + (state.shelfStock[slotId] ?? 0), 0),
+				capacityBoxes: getInventoryBoxCapacity(level),
+				freeBoxes: getFreeBoxPlaces(product, stockUnits, level, incoming.units),
+				incomingBoxes: incoming.boxes,
+				low: stockUnits / Math.max(1, getInventoryCapacity(product, level)) < LOW_STOCK_SHARE,
+				locked: !unlocked.has(product.id),
+				unlockLevel: product.unlockLevel,
+				deliverySeconds: Math.round(getSupplierDurationMs(state, product.supplierTime, now) / 1000),
+			};
+		});
+}
+
+/** The Delivery app: every order flattened for Unity (src/services/delivery.ts has the rules). */
+function createDeliverySnapshot(state: GameState): SimulatorDelivery {
+	const { delivery } = state;
+	const orders = delivery.orders.map((order): SimulatorDeliveryOrder => {
+		const courier = getCourierProfile(order.courier?.id);
+		return {
+			id: order.id,
+			status: order.status,
+			customerName: order.customer.name,
+			neighborhood: order.customer.neighborhood,
+			avatar: order.customer.avatar,
+			note: order.note,
+			items: order.items.map((item) => {
+				const product = itemCatalog.find((entry) => entry.id === item.productId);
+				return {
+					productId: item.productId,
+					productName: product?.name ?? "",
+					category: product?.category ?? "",
+					quantity: item.quantity,
+					packed: order.packed?.find((line) => line.productId === item.productId)?.quantity ?? 0,
+				};
+			}),
+			distanceKm: order.distanceKm,
+			fee: order.fee,
+			itemsValue: order.itemsValue,
+			fillRatio: order.fillRatio ?? 0,
+			quality: order.quality ?? 0,
+			stars: order.stars ?? 0,
+			tip: order.tip ?? 0,
+			bonus: order.bonus ?? 0,
+			paid: order.paid ?? 0,
+			courier:
+				order.courier && courier
+					? {
+							id: order.courier.id,
+							name: order.courier.name,
+							color: order.courier.color,
+							phrases: courier.phrases,
+						}
+					: null,
+			createdAt: order.createdAt,
+			expiresAt: order.expiresAt,
+			acceptedAt: order.acceptedAt ?? 0,
+			packBy: order.packBy ?? 0,
+			packedAt: order.packedAt ?? 0,
+			arriveAt: order.courier?.arriveAt ?? 0,
+			doorSince: order.courier?.doorSince ?? 0,
+			deliverAt: order.courier?.deliverAt ?? 0,
+		};
+	});
+	return {
+		unlocked: isDeliveryUnlocked(state.era.id),
+		unlockEraName: getMarketEra(DELIVERY_UNLOCK_ERA_ID).name,
+		slots: getDeliverySlots(state.era.id),
+		active: delivery.orders.filter(isActiveDeliveryOrder).length,
+		rating: delivery.rating,
+		streak: delivery.streak,
+		bestStreak: delivery.bestStreak,
+		delivered: delivery.delivered,
+		orders,
+	};
+}
+
 export function createSimulatorSnapshot(
 	state: GameState,
 	session: string,
@@ -135,8 +274,25 @@ export function createSimulatorSnapshot(
 			productCategory:
 				itemCatalog.find((product) => product.id === order.productId)
 					?.category ?? "",
+			// One truck, one row per product on it (orders from before carts have one).
+			boxes: getOrderBoxes(order),
+			lines: getOrderLines(order).map((line) => ({
+				productId: line.productId,
+				productName:
+					itemCatalog.find((product) => product.id === line.productId)?.name ??
+					"Produto",
+				boxes: line.boxes,
+			})),
 		})),
+		supplierCatalog: createSupplierCatalog(state, now),
+		supplierInfo: {
+			slots: state.logistics.supplierOrderSlots,
+			active: getActiveSupplierOrders(state, now).length,
+			maxBoxes: getMaxBoxesPerOrder(state.logistics.supplierOrderSlots),
+			freightCoupons: state.logistics.freightCoupons,
+		},
 		jobs: state.production.jobs,
+		delivery: createDeliverySnapshot(state),
 		customers: state.market.recentCustomers.map((customer) => ({
 			...customer,
 			purchases: customer.purchases?.map((purchase) => {
@@ -220,6 +376,13 @@ export function createSimulatorSnapshot(
 			};
 		}),
 		ownedItems: state.shop.ownedItemIds,
+		...(() => {
+			const running = getActiveBoosts(state.shop, now);
+			return {
+				boosts: running.map((boost) => boost.id),
+				boostSeconds: running.map((boost) => Math.ceil(boost.remainingMs / 1000)),
+			};
+		})(),
 		expansionStates: marketExpansions.map((expansion) => ({
 			id: expansion.id,
 			name: expansion.name,
@@ -284,21 +447,25 @@ export function createSimulatorSnapshot(
 		})),
 		dock: state.receiving.dock.map((delivery) => ({
 			id: delivery.id,
+			orderId: delivery.orderId ?? "",
 			productId: delivery.productId,
 			productName: delivery.productName,
 			category: delivery.category,
 			zone: delivery.zone,
 			quantity: delivery.quantity,
 			unloaded: delivery.unloaded,
-			boxUnits: getBoxUnits(delivery.quantity),
+			boxUnits: getDeliveryBoxUnits(delivery),
+			boxes: getRemainingBoxes(delivery).length,
 			// Free space for this product in the stockroom (a full stockroom refuses the boxes).
-			room: Math.max(
-				0,
-				getInventoryCapacity(
-					{ id: delivery.productId },
-					state.inventoryCapacityLevels[delivery.productId],
-				) - (state.inventory[delivery.productId] ?? 0),
-			),
+			room: (() => {
+				const product = itemCatalog.find((item) => item.id === delivery.productId);
+				if (!product) return 0;
+				const units = state.inventory[delivery.productId] ?? 0;
+				const level = state.inventoryCapacityLevels[delivery.productId];
+				return delivery.caseSize
+					? getStockroomRoom(product, units, level)
+					: Math.max(0, getInventoryCapacity(product, level) - units);
+			})(),
 			arrivedAt: delivery.arrivedAt,
 		})),
 		restockSlots: shelves.flatMap((shelf) => {
@@ -322,9 +489,28 @@ export function createSimulatorSnapshot(
 						stock: state.shelfStock[slotId] ?? 0,
 						capacity,
 						reserve: state.inventory[product.id] ?? 0,
+						caseSize: product.caseSize,
 					},
 				];
 			});
+		}),
+		// The stockroom racks: every product with stock, in its boxes.
+		stockroom: itemCatalog.flatMap((product) => {
+			const units = state.inventory[product.id] ?? 0;
+			if (units <= 0) return [];
+			const level = state.inventoryCapacityLevels[product.id];
+			return [
+				{
+					productId: product.id,
+					productName: product.name,
+					category: product.category,
+					zone: getWarehouseZone(product.category),
+					units,
+					caseSize: product.caseSize,
+					boxes: getBoxCount(units, product.caseSize),
+					capacityBoxes: getInventoryBoxCapacity(level),
+				},
+			];
 		}),
 		// Store mishaps, shown at their shelf; clicking one opens its small task in Unity.
 		incidents: state.incidents.active.map((incident) => ({
@@ -436,6 +622,37 @@ export function createSimulatorSnapshot(
 			endsAt: active?.endsAt ?? 0,
 			arrivalMultiplier: effects.customerArrivalMultiplier,
 			productionMultiplier: effects.productionDurationMultiplier,
+			interaction: effects.interaction ?? "",
+			stops: (active ? (state.events.inspection?.stops ?? []) : []).map((stop) => ({
+				id: stop.id,
+				status: stop.status,
+				shelfId: stop.shelfId ?? "",
+				incidentId: stop.incidentId ?? "",
+				kind: stop.kind ?? "",
+				at: stop.at,
+				deadline: stop.deadline,
+			})),
+			seal:
+				Boolean(state.events.sealTurnKey) &&
+				state.day.phase === "open" &&
+				state.events.sealTurnKey === getTurnEventKey(state.day),
+			windowRequests: (active ? (state.events.windowSales?.requests ?? []) : []).map((request) => ({
+				id: request.id,
+				lane: request.lane,
+				slot: request.slot,
+				productId: request.productId,
+				productName: itemCatalog.find((item) => item.id === request.productId)?.name ?? "",
+				status: request.status,
+				expiresAt: request.expiresAt,
+				inStock:
+					(state.inventory[request.productId] ?? 0) > 0 ||
+					shelfProductSlots.some(
+						(slot) =>
+							state.shelfAssignments[slot.id] === request.productId && (state.shelfStock[slot.id] ?? 0) > 0,
+					),
+			})),
+			windowServed: active ? (state.events.windowSales?.served ?? 0) : 0,
+			windowGoal: active ? (state.events.windowSales?.goal ?? 0) : 0,
 		},
 	};
 }

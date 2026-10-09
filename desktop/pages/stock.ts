@@ -5,12 +5,14 @@ import {
 } from "@/data/inventory-capacity";
 import { itemCatalog, itemCategories } from "@/data/market-products";
 import { getEarliestInventoryExpiry } from "@/services/inventory-lots";
+import { describeProductLock } from "@/services/level-unlocks";
 import {
 	formatSupplierDeliveryTime,
 	getOrderRemainingTime,
 	getSupplierOrderStatus,
 } from "@/services/logistics";
 import { getShelfOrderQuote } from "@/services/shelf-order-quote";
+import { getOrderLines } from "@/services/supplier-cart";
 import type { Routes } from ".";
 import {
 	act,
@@ -57,7 +59,7 @@ const findProduct = (id: string | undefined) =>
 function incomingOrder(state: State, productId: number, now: number) {
 	return state.logistics.orders.find(
 		(order) =>
-			order.productId === productId &&
+			getOrderLines(order).some((line) => line.productId === productId) &&
 			getSupplierOrderStatus(order, now) !== "entregue",
 	);
 }
@@ -80,19 +82,14 @@ function expiryLine(state: State, productId: number, now: number) {
 
 function lockedProductCard(state: State, product: ItemDefinition): Card {
 	const level = state.market.level;
-	const levelsLeft = product.unlockLevel - level;
+	const lock = describeProductLock(product, level, state.era.id);
 	return card(product.name, {
 		eyebrow: categoryLabel(product),
 		icon: productIcon(product.id),
 		badge: `Nv ${product.unlockLevel}`,
 		tone: "locked",
 		progress: Math.min(1, level / product.unlockLevel),
-		lines: [
-			`${product.sellingPrice} por venda · +${product.xpPerSale} XP`,
-			levelsLeft > 0
-				? `Faltam ${levelsLeft} ${levelsLeft === 1 ? "nível" : "níveis"} para desbloquear`
-				: "Pronto para desbloquear",
-		],
+		lines: [`${product.sellingPrice} por venda · +${product.xpPerSale} XP`, lock.detail],
 	});
 }
 
@@ -116,7 +113,7 @@ function unlockedProductCard(state: State, product: ItemDefinition, now: number)
 		],
 		buttons: [
 			go("Ampliar", `capacity:${product.id}`, { icon: gameIcon("warehouse") }),
-			go("Abastecer", `order:${product.id}:1`, {
+			go("Pedir caixas", `@shop:${product.id}`, {
 				icon: gameIcon("deliveryTruck"),
 				variant: "primary",
 			}),
@@ -252,7 +249,7 @@ function storageProductCard(state: State, product: ItemDefinition, now: number):
 		buttons: [
 			...(isSupplier
 				? [
-						go("Pedir ao fornecedor", `order:${product.id}:1`, {
+						go("Pedir caixas", `@shop:${product.id}`, {
 							icon: gameIcon("deliveryTruck"),
 							variant: "primary",
 						}),

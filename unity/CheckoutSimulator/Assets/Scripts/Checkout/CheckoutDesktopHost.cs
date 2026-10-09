@@ -13,6 +13,7 @@ namespace Checkout {
   Process process;StreamWriter input;readonly ConcurrentQueue<string> lines=new ConcurrentQueue<string>();
   CheckoutBridge bridge;CheckoutDesktopHUD hud;
   [Serializable] class Kind{public string kind;}
+  [Serializable] class I18nMessage{public string lang;public string[] keys;public string[] values;}
 
 #if UNITY_EDITOR || (UNITY_STANDALONE && !UNITY_IOS && !UNITY_ANDROID)
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -24,6 +25,19 @@ namespace Checkout {
    CheckoutStartMenu.Show(bridge.gameObject);
   }
 #endif
+
+  // Release builds (Checkout/Build Release) ship the game host compiled with Bun in StreamingAssets, so
+  // testers need neither Node nor the repository. Returns null when the player has no bundled host.
+  public static string BundledHost(){
+   if(Application.isEditor)return null;
+   string name;
+   if(Application.platform==RuntimePlatform.WindowsPlayer)name="checkout-host-win-x64.exe";
+   else if(Application.platform==RuntimePlatform.OSXPlayer)name=System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture==System.Runtime.InteropServices.Architecture.Arm64?"checkout-host-mac-arm64":"checkout-host-mac-x64";
+   else return null;
+   var path=Path.Combine(Application.streamingAssetsPath,name);
+   return File.Exists(path)?path:null;
+  }
+  public static bool IsRelease=>BundledHost()!=null;
 
   static string Node(){
    foreach(var path in new[]{Environment.GetEnvironmentVariable("CHECKOUT_NODE"),"/opt/homebrew/bin/node","/usr/local/bin/node","/usr/bin/node"})if(!string.IsNullOrEmpty(path)&&File.Exists(path))return path;
@@ -49,11 +63,23 @@ namespace Checkout {
   static bool HasHost(string root)=>Directory.Exists(root)&&File.Exists(Path.Combine(root,"desktop","host.ts"));
 
   void Awake(){
-   bridge=GetComponent<CheckoutBridge>();var repo=Repo();
-   if(!File.Exists(Path.Combine(repo,"desktop","host.ts"))){Debug.LogWarning("CHECKOUT_DESKTOP host.ts not found under "+repo);Destroy(this);return;}
-   var start=new ProcessStartInfo(Node(),"--no-warnings --import ./desktop/register.mjs desktop/host.ts"){WorkingDirectory=repo,UseShellExecute=false,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true,StandardOutputEncoding=System.Text.Encoding.UTF8};
+   bridge=GetComponent<CheckoutBridge>();
+   ProcessStartInfo start;var bundled=BundledHost();
+   if(bundled!=null)start=new ProcessStartInfo(bundled,""){WorkingDirectory=Application.persistentDataPath};
+   else{
+    var repo=Repo();
+    if(!File.Exists(Path.Combine(repo,"desktop","host.ts"))){Debug.LogWarning("CHECKOUT_DESKTOP host.ts not found under "+repo);Destroy(this);return;}
+    start=new ProcessStartInfo(Node(),"--no-warnings --import ./desktop/register.mjs desktop/host.ts"){WorkingDirectory=repo};
+   }
+   start.UseShellExecute=false;start.RedirectStandardInput=true;start.RedirectStandardOutput=true;start.RedirectStandardError=true;start.CreateNoWindow=true;start.StandardOutputEncoding=System.Text.Encoding.UTF8;
    // "Modo edição" plays on its own sandbox save (infinite money, everything unlocked): the real game is untouched.
-   start.EnvironmentVariables["CHECKOUT_DESKTOP_SAVE"]=Path.Combine(Application.persistentDataPath,CheckoutStartMenu.EditMode?"checkout-editor-save.json":"checkout-desktop-save.json");
+   // The release build (sent to testers) keeps its own save, so trying it on the dev machine never touches the real game.
+   var save=Path.Combine(Application.persistentDataPath,CheckoutStartMenu.EditMode?"checkout-editor-save.json":bundled!=null?"checkout-release-save.json":"checkout-desktop-save.json");
+   // QA runs play a fresh copy of the player's save (they switch stages with the dev tools).
+   if(CheckoutStartMenu.QaMode){var qa=Path.Combine(Application.persistentDataPath,"checkout-qa-save.json");try{if(File.Exists(save))File.Copy(save,qa,true);}catch{}save=qa;}
+   start.EnvironmentVariables["CHECKOUT_DESKTOP_SAVE"]=save;
+   // The language picked on the start screen: the host translates every page before sending it.
+   start.EnvironmentVariables["CHECKOUT_LANG"]=CheckoutI18n.Language;
    try {process=Process.Start(start);}catch(Exception ex){Debug.LogError("CHECKOUT_DESKTOP could not start node: "+ex.Message);Destroy(this);return;}
    input=new StreamWriter(process.StandardInput.BaseStream,new System.Text.UTF8Encoding(false)){AutoFlush=true,NewLine="\n"};
    process.OutputDataReceived+=(_,e)=>{if(e.Data!=null)lines.Enqueue(e.Data);};
@@ -87,9 +113,10 @@ namespace Checkout {
     else if(kind=="snapshot")bridge.Receive(line);
     else if(kind=="result")hud.Result(line);
     else if(kind=="receipt")bridge.Receipt(line); // retries stale commands, logs other rejections
+    else if(kind=="i18n"){var m=JsonUtility.FromJson<I18nMessage>(line);if(m!=null)CheckoutI18n.Load(m.lang,m.keys,m.values);}
    }
    if(latestView!=null)hud.Apply(latestView);
-   if(process!=null&&process.HasExited&&Active==this){Active=null;hud.Offline("O processo do jogo (node) parou. Veja o Console.");}
+   if(process!=null&&process.HasExited&&Active==this){Active=null;hud.Offline(CheckoutI18n.T(IsRelease?"O jogo parou de responder. Feche e abra de novo.":"O processo do jogo (node) parou. Veja o Console."));}
   }
 
   void OnDestroy(){

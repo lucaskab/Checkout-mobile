@@ -9,6 +9,7 @@ import type {
 	StoreIncidentKind,
 } from "@/@types/store-incident";
 import { getEmployeeDefinition } from "@/data/employees";
+import { getShiftSalary } from "./employees";
 import { incidentStaff } from "./store-incidents";
 
 // Shared rules for what the stock clerks and cleaners do on their own (System, mobile simulator and
@@ -128,6 +129,8 @@ export type StaffPlanInput = {
 	nextTaskNumber: number;
 	now: number;
 	restockMultiplier?: number;
+	/** Events: a coffee break makes the team faster (>1), a long shift slower (<1). */
+	speedMultiplier?: number;
 	slots: RestockCandidate[];
 	storage: StaffStorageKind;
 	tasks: StaffTask[];
@@ -177,7 +180,7 @@ export function planStaffTasks(input: StaffPlanInput): StaffPlan {
 		if (incident) {
 			const task: StaffTask = {
 				employeeId: employee.id,
-				endsAt: input.now + getIncidentTaskMs(employee, incident.kind),
+				endsAt: input.now + Math.round(getIncidentTaskMs(employee, incident.kind) / (input.speedMultiplier ?? 1)),
 				id: `tarefa-${nextTaskNumber}`,
 				incidentId: incident.id,
 				incidentKind: incident.kind,
@@ -218,7 +221,7 @@ export function planStaffTasks(input: StaffPlanInput): StaffPlan {
 		const task: StaffTask = {
 			box,
 			employeeId: employee.id,
-			endsAt: input.now + getRestockTripMs(employee, input.storage),
+			endsAt: input.now + Math.round(getRestockTripMs(employee, input.storage) / (input.speedMultiplier ?? 1)),
 			id: `tarefa-${nextTaskNumber}`,
 			kind: "restock",
 			productId: slot.productId,
@@ -246,7 +249,7 @@ export function takeFinishedStaffTasks(tasks: StaffTask[], now: number) {
 export function getShiftPayroll(employees: GameEmployee[]) {
 	return employees
 		.filter((employee) => employee.isWorking)
-		.reduce((total, employee) => total + employee.salary, 0);
+		.reduce((total, employee) => total + getShiftSalary(employee.salary), 0);
 }
 
 export function getStaffStorageKind(layout: {

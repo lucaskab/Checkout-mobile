@@ -14,21 +14,17 @@ namespace Checkout {
  //  - picks a place to see the product up close (stock, price tag and what customers think of it, level);
  //  - drags a product to another place (the top row is at eye level and sells more);
  //  - puts a product in an empty place, swaps or removes it;
- //  - tidies the fixture up by tapping the mess of its own kind (wilted leaves, melted ice, frost, crumbs,
- //    smudges, crooked products): a messy fixture sells less (src/services/shelf-care.ts).
  // Art: Resources/CheckoutDesktop/Fixtures/<art>_back|_front (ArtSource/fixture_art.py), the products are
- // drawn between the two layers. Care sprites: Resources/CheckoutDesktop/Care.
+ // drawn between the two layers.
  public partial class CheckoutDesktopHUD {
   public static bool ShelfOpen;
 
-  GameObject shelfWin;RectTransform shelfRail,shelfArt,shelfSlotsLayer,shelfOverlay,shelfSpots,shelfDetail,shelfHeaderIcon;
-  Image shelfHeader,shelfBack,shelfFront,shelfCareFill,shelfIcon;TextMeshProUGUI shelfTitle,shelfSubtitle,shelfSign,shelfCareLabel,shelfCareHint,shelfCareEffect,shelfNote,shelfCoins;
+  GameObject shelfWin;RectTransform shelfRail,shelfArt,shelfSlotsLayer,shelfOverlay,shelfDetail,shelfHeaderIcon;
+  Image shelfHeader,shelfBack,shelfFront,shelfIcon;TextMeshProUGUI shelfTitle,shelfSubtitle,shelfSign,shelfNote,shelfCoins;
   GameObject shelfNoteBar;CheckoutDesktopButton shelfExpand,shelfCapacity;
   readonly List<CheckoutDesktopButton> shelfTabs=new List<CheckoutDesktopButton>();readonly List<GameObject> shelfTabBadges=new List<GameObject>();
   readonly List<ShelfSlotUi> shelfSlots=new List<ShelfSlotUi>();
-  readonly List<Image> shelfSpotPool=new List<Image>();
   DesktopShelf shelfData;string shelfShown,shelfDetailKey;int shelfSelected=-1;bool shelfPicking;
-  int shelfSpotsLeft;string shelfSpotsKey;
 
   // ------------------------------------------------------------------ build
   void BuildShelf(){
@@ -62,7 +58,7 @@ namespace Checkout {
    var tiles=N.Image(wall.transform,"Tiles",Color.white,0);tiles.sprite=K.Icon("Game/wall_backdrop");tiles.color=new Color(1,1,1,.55f);Stretch(tiles.rectTransform,new Vector2(6,190),new Vector2(-6,-6));
    shelfNoteBar=N.Image(stage,"Note",K.C("FFF1CF"),12).gameObject;var nr=(RectTransform)shelfNoteBar.transform;nr.anchorMin=new Vector2(0,1);nr.anchorMax=Vector2.one;nr.pivot=new Vector2(.5f,1);nr.offsetMin=new Vector2(10,-44);nr.offsetMax=new Vector2(-10,-8);
    shelfNote=N.Text(shelfNoteBar.transform,"Text",K.Body,14,K.Ink);shelfNote.alignment=TextAlignmentOptions.Center;Stretch(shelfNote.rectTransform,new Vector2(10,0),new Vector2(-10,0));
-   // Art: 3:2, back layer, products, front layer, labels and the mess on top.
+   // Art: 3:2, back layer, products, front layer, then the labels.
    shelfArt=N.Node("Art",stage);shelfArt.anchorMin=shelfArt.anchorMax=new Vector2(.5f,1);shelfArt.pivot=new Vector2(.5f,1);shelfArt.sizeDelta=new Vector2(744,496);shelfArt.anchoredPosition=new Vector2(0,-48);
    shelfBack=N.Image(shelfArt,"Back",Color.white,0);Stretch(shelfBack.rectTransform,Vector2.zero,Vector2.zero);
    shelfSlotsLayer=Stretch(N.Node("Products",shelfArt),Vector2.zero,Vector2.zero);
@@ -70,16 +66,8 @@ namespace Checkout {
    shelfSign=N.Text(shelfArt,"Sign",K.Headline,22,K.Ink);shelfSign.alignment=TextAlignmentOptions.Center;shelfSign.textWrappingMode=TextWrappingModes.NoWrap;
    var sr=shelfSign.rectTransform;sr.anchorMin=new Vector2(.3f,.855f);sr.anchorMax=new Vector2(.7f,.965f);sr.offsetMin=sr.offsetMax=Vector2.zero;
    shelfOverlay=Stretch(N.Node("Labels",shelfArt),Vector2.zero,Vector2.zero);
-   shelfSpots=Stretch(N.Node("Mess",shelfArt),Vector2.zero,Vector2.zero);
-   for(int i=0;i<7;i++)shelfSlots.Add(ShelfSlotUi.Create(this,i,shelfSlotsLayer,shelfOverlay));
+      for(int i=0;i<7;i++)shelfSlots.Add(ShelfSlotUi.Create(this,i,shelfSlotsLayer,shelfOverlay));
 
-   // Care strip under the fixture.
-   var careBox=N.Image(stage,"Care",K.Cream,16);var cr=careBox.rectTransform;cr.anchorMin=Vector2.zero;cr.anchorMax=new Vector2(1,0);cr.pivot=new Vector2(.5f,0);cr.offsetMin=new Vector2(10,76);cr.offsetMax=new Vector2(-10,176);
-   shelfCareLabel=N.Text(careBox.transform,"Label",K.Headline,19,K.Ink);var cl=shelfCareLabel.rectTransform;cl.anchorMin=new Vector2(0,1);cl.anchorMax=new Vector2(.5f,1);cl.offsetMin=new Vector2(16,-40);cl.offsetMax=new Vector2(0,-8);shelfCareLabel.textWrappingMode=TextWrappingModes.NoWrap;
-   shelfCareEffect=N.Text(careBox.transform,"Effect",K.Label,15,K.Muted);shelfCareEffect.alignment=TextAlignmentOptions.Right;var ce=shelfCareEffect.rectTransform;ce.anchorMin=new Vector2(.5f,1);ce.anchorMax=Vector2.one;ce.offsetMin=new Vector2(0,-40);ce.offsetMax=new Vector2(-16,-8);shelfCareEffect.textWrappingMode=TextWrappingModes.NoWrap;
-   var track=N.Image(careBox.transform,"Track",K.C("EADBC4"),7);var tr=track.rectTransform;tr.anchorMin=new Vector2(0,1);tr.anchorMax=Vector2.one;tr.offsetMin=new Vector2(16,-58);tr.offsetMax=new Vector2(-16,-44);
-   shelfCareFill=N.Image(track.transform,"Fill",K.C("5DA637"),7);var fr=shelfCareFill.rectTransform;fr.anchorMin=Vector2.zero;fr.anchorMax=new Vector2(1,1);fr.offsetMin=fr.offsetMax=Vector2.zero;
-   shelfCareHint=N.Text(careBox.transform,"Hint",K.Body,15,K.Muted);var ch=shelfCareHint.rectTransform;ch.anchorMin=Vector2.zero;ch.anchorMax=new Vector2(1,0);ch.offsetMin=new Vector2(16,8);ch.offsetMax=new Vector2(-16,38);
    // Upgrades of the fixture.
    var ups=N.Node("Upgrades",stage);ups.anchorMin=Vector2.zero;ups.anchorMax=new Vector2(1,0);ups.pivot=new Vector2(.5f,0);ups.offsetMin=new Vector2(10,10);ups.offsetMax=new Vector2(-10,66);
    var ur=N.Row(ups.gameObject,10);ur.childControlHeight=true;ur.childForceExpandHeight=true;ur.childForceExpandWidth=true;
@@ -98,7 +86,7 @@ namespace Checkout {
    if(shelfWin.activeSelf!=on)shelfWin.SetActive(on);ShelfOpen=on;
    if(!on){shelfShown=null;return;}
    var p=v.page;var s=p.shelf;shelfData=s;
-   if(s.id!=shelfShown){shelfShown=s.id;shelfSelected=FirstProduct(s);shelfPicking=false;shelfDetailKey=null;shelfSpotsKey=null;}
+   if(s.id!=shelfShown){shelfShown=s.id;shelfSelected=FirstProduct(s);shelfPicking=false;shelfDetailKey=null;}
    shelfCoins.text=v.coins;
    var tint=K.C(string.IsNullOrEmpty(s.tint)?"8A5A2B":s.tint);shelfHeader.color=tint;
    shelfTitle.text=K.Clean(s.name);shelfSubtitle.text=K.Clean(s.accepts);shelfSign.text=K.Clean(s.name);
@@ -109,15 +97,6 @@ namespace Checkout {
    ApplyShelfTabs(p.tabs??new DesktopButton[0]);
    var slots=s.slots??new DesktopShelfSlot[0];
    for(int i=0;i<shelfSlots.Count;i++)shelfSlots[i].Apply(i<slots.Length?slots[i]:null,i==shelfSelected);
-   // Care.
-   int c=Mathf.Clamp(s.condition,0,100);
-   shelfCareLabel.text=$"{s.careTitle}: {c}%";
-   shelfCareFill.rectTransform.anchorMax=new Vector2(Mathf.Max(.02f,c/100f),1);
-   shelfCareFill.color=c>=70?K.C("5DA637"):c>=40?K.C("E8B54A"):K.C("E15533");
-   float factor=.8f+.25f*c/100f;int pct=Mathf.RoundToInt((factor-1)*100);
-   shelfCareEffect.text=pct>=0?$"Vendas +{pct}%":$"Vendas {pct}%";shelfCareEffect.color=pct>=0?K.C("427A24"):K.C("C0401F");
-   ApplyShelfSpots(s);
-   shelfCareHint.text=c>=100?"Tudo em ordem: este móvel está vendendo o máximo.":$"{s.careVerb}: {s.careHint}";
    // Upgrades.
    shelfExpand.gameObject.SetActive(s.expandCost>0);
    if(s.expandCost>0)shelfExpand.Apply(Btn($"Mais um espaço · {Fmt(s.expandCost)}","expandShelfSlots",Args(s.id),"coin","Icons/coin",
@@ -149,46 +128,6 @@ namespace Checkout {
     shelfTabs[i].GetComponent<Image>().color=data.active?K.C("C58A1E"):K.C("D9BE93");
     bool badge=!string.IsNullOrEmpty(data.badge);shelfTabBadges[i].SetActive(badge);if(badge)shelfTabBadges[i].GetComponentInChildren<TextMeshProUGUI>().text=data.badge;
    }
-  }
-
-  // ------------------------------------------------------------------ care game
-  static readonly float[,] SpotSpots={{.12f,.66f},{.55f,.70f},{.80f,.58f},{.32f,.30f},{.68f,.26f},{.22f,.52f},{.47f,.48f},{.86f,.34f},{.40f,.18f},{.62f,.62f}};
-  void ApplyShelfSpots(DesktopShelf s){
-   int want=s.condition>=100?0:Mathf.Clamp(Mathf.CeilToInt((100-s.condition)/10f),1,10);
-   string key=s.id+"|"+want;
-   if(key!=shelfSpotsKey){
-    // A new mess (or a new fixture): lay it out again.
-    shelfSpotsKey=key;shelfSpotsLeft=want;
-    while(shelfSpotPool.Count<10){
-     var img=N.Image(shelfSpots,"Spot",Color.white,0);img.preserveAspect=true;img.raycastTarget=true;
-     var index=shelfSpotPool.Count;var trigger=img.gameObject.AddComponent<Button>();trigger.transition=Selectable.Transition.None;trigger.onClick.AddListener(()=>CleanSpot(index));
-     shelfSpotPool.Add(img);
-    }
-    var sprite=K.Icon("Care/"+SpotSprite(s.careSpot));
-    for(int i=0;i<shelfSpotPool.Count;i++){
-     var img=shelfSpotPool[i];bool on=i<want;img.gameObject.SetActive(on);if(!on)continue;
-     img.transform.localScale=Vector3.one;img.color=Color.white;
-     // Crooked products on the gondola: the products of the fixture, tilted.
-     if(s.careSpot=="mess"){var products=new List<DesktopShelfSlot>();foreach(var slot in s.slots)if(slot.state=="product")products.Add(slot);
-      img.sprite=products.Count>0?K.Icon(products[i%products.Count].icon):sprite;img.transform.localRotation=Quaternion.Euler(0,0,i%2==0?38:-34);}
-     else{img.sprite=sprite;img.transform.localRotation=Quaternion.Euler(0,0,(i*47)%360);}
-     var r=img.rectTransform;r.anchorMin=r.anchorMax=new Vector2(SpotSpots[i,0],SpotSpots[i,1]);r.sizeDelta=s.careSpot=="mess"?new Vector2(64,64):new Vector2(124,124);r.anchoredPosition=Vector2.zero;
-    }
-   }
-  }
-  static string SpotSprite(string spot)=>spot=="wilted"||spot=="frost"||spot=="crumbs"||spot=="smudge"||spot=="melt"?spot:"smudge";
-  void CleanSpot(int index){
-   if(index>=shelfSpotPool.Count||!shelfSpotPool[index].gameObject.activeSelf||shelfData==null)return;
-   StartCoroutine(Vanish(shelfSpotPool[index]));
-   shelfSpotsLeft--;
-   if(shelfSpotsLeft<=0)Run("tendShelf",Args(shelfData.id),$"{shelfData.name} arrumada! Vende mais agora.","Não deu para arrumar agora.");
-  }
-  IEnumerator Vanish(Image img){
-   var rect=img.rectTransform;float t=0;var start=rect.localScale;
-   // A sparkle where the mess was.
-   var spark=N.Image(shelfSpots,"Sparkle",Color.white,0);spark.sprite=K.Icon("Game/sparkle");var sr=spark.rectTransform;sr.anchorMin=sr.anchorMax=rect.anchorMin;sr.sizeDelta=new Vector2(70,70);
-   while(t<.28f){t+=Time.unscaledDeltaTime;float k=t/.28f;rect.localScale=start*(1-k*.6f);img.color=new Color(1,1,1,1-k);spark.color=new Color(1,1,1,1-k);sr.localScale=Vector3.one*(1+k);yield return null;}
-   img.gameObject.SetActive(false);Destroy(spark.gameObject);
   }
 
   // ------------------------------------------------------------------ slot events
@@ -237,7 +176,6 @@ namespace Checkout {
    Line(col,"Como cuidar deste móvel",K.Label,16,K.Ink);
    Line(col,"• Toque num lugar para ver o produto de perto: estoque, preço e nível.",K.Body,15,K.Ink);
    Line(col,"• Arraste um produto para outro lugar. "+s.rowTop+"; "+s.rowBottom.ToLowerInvariant()+".",K.Body,15,K.Ink);
-   Line(col,"• "+s.careVerb+": "+s.careHint,K.Body,15,K.Ink);
    Line(col,"• Um preço justo vende mais; muito caro afasta os clientes.",K.Body,15,K.Ink);
   }
 

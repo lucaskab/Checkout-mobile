@@ -28,6 +28,9 @@ namespace MarketDay
         // Set by whoever animates the door; without it the route is walked freely.
         public Vector3? gateAt;
         public Func<float> gateOpen;
+        // Where to stand to take a parcel out of a truck (behind its tail, wherever it is parked). When set, the last
+        // point of the route goes there; otherwise the old yard rule moves the last two points with the truck.
+        public Func<Transform, Vector3> approach;
         float gateWait;
         public Vector3 LastDropPosition { get; private set; }
 
@@ -232,6 +235,11 @@ namespace MarketDay
         Vector3 RoutePoint(int index)
         {
             var point = route[index];
+            if (approach != null)
+            {
+                if (index == route.Length - 1 && truck) { var a = approach(truck); a.y = point.y; return a; }
+                return point;
+            }
             // The loading bays share the same footway. Only the final two approach points move per dock.
             if (index >= route.Length - 2) point += Vector3.right * (PickupPoint().x - pickupPoint.x);
             return point;

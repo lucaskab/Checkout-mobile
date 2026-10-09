@@ -8,10 +8,12 @@ namespace Checkout
 {
     // The land around the market (src/services/market-lots.ts): a grid of 12 equal lots, each with its own old
     // building (abandoned house, closed shop, old gas station...). Like the locked areas of Township, Hay Day or
-    // Idle Supermarket Tycoon there are no fences or sale boards: a lot that is not the player's yet is a little
-    // darker and has a faint padlock floating over it (gold when it can be bought now, grey when it is not next
-    // to the player's land yet, open and orange once bought and waiting to be cleared). Clicking the lot opens a
-    // small panel with what it needs (CheckoutLotPopup): buy it, clear it, or speed the clearing up.
+    // Idle Supermarket Tycoon there are no fences or sale boards: a lot that is not the player's yet has its ground
+    // tinted in the colour of its status (about 25% opaque), a dashed white border a little inside its edge and a
+    // padlock badge in the middle (Game/lot_lock*.png, ArtSource/lock_art.py): gold padlock on green when it can be
+    // bought now, steel on slate when it is not next to the player's land yet. A bought lot shows none of it any more
+    // (its ruin waits to be cleared). Clicking the lot (or its padlock) opens a small panel with what it needs (CheckoutLotPopup):
+    // buy it, clear it, or speed the clearing up.
     // Clearing is a works scene that fits what stands there (CheckoutWorksScene): sledgehammers and a skip for
     // the house, a tow truck for the workshop's old car, brush cutters on the overgrown plot, a wrecking ball
     // for the factory... while the ruin comes down with the countdown.
@@ -26,9 +28,10 @@ namespace Checkout
         class Site
         {
             public string id, status, signature;
-            public GameObject root, dim;
-            public Transform ruin, marker, shackle;
-            public Collider click;
+            public GameObject root, dim, dirt;
+            public Transform ruin, marker;
+            public Renderer fill, dash, badge;
+            public Collider click, lockClick;
             public LotRect lot;
             public CheckoutWorksScene works;
             public float top;
@@ -37,7 +40,10 @@ namespace Checkout
 
         Transform world; MarketSimulation simulation; CheckoutMap map;
         readonly Dictionary<string, Site> sites = new Dictionary<string, Site>();
-        Material dimMat, lockGold, lockGrey, lockOrange, keyhole;
+        // Every lot of the last snapshot (also the cleared ones, whose site is gone): where to celebrate.
+        readonly Dictionary<string, LotRect> known = new Dictionary<string, LotRect>();
+        readonly Dictionary<string, Material> areaMats = new Dictionary<string, Material>();
+        static Texture2D dashTexture;
         float clock;
         public double Coins { get; private set; }
         public double Diamonds { get; private set; }
@@ -58,7 +64,7 @@ namespace Checkout
             var want = new HashSet<string>();
             bool changed = false;
             ClearingBusy = false;
-            if (lots != null) foreach (var lot in lots) if (lot != null && lot.status == "limpando") ClearingBusy = true;
+            if (lots != null) foreach (var lot in lots) if (lot != null) { known[lot.id] = lot; if (lot.status == "limpando") ClearingBusy = true; }
             if (lots != null && !CheckoutMapEditor.Open)
                 foreach (var lot in lots)
                 {
@@ -70,7 +76,11 @@ namespace Checkout
                     {
                         existing.lot = lot;
                         if (existing.signature == signature) continue;
+                        bool wasLocked = existing.status == "venda" || existing.status == "bloqueado";
                         existing.signature = signature; existing.status = lot.status;
+                        // Just bought: its padlock pops open before the marker goes away.
+                        if (wasLocked && lot.status != "venda" && lot.status != "bloqueado" && existing.marker && existing.marker.gameObject.activeSelf)
+                            CheckoutConquestFx.Instance.LockPop(existing.marker, Resources.Load<Texture2D>("CheckoutDesktop/Game/lot_lock_open"));
                         Refresh(existing);
                         continue;
                     }
@@ -87,6 +97,15 @@ namespace Checkout
         }
 
         public LotRect Lot(string id) => sites.TryGetValue(id, out var s) ? s.lot : null;
+
+        /// <summary>The lot is the player's: dust, light and confetti over it (the camera flies there when it may).
+        /// Returns how long the show takes before the celebration card comes up.</summary>
+        public float CelebrateLot(string id, bool moveCamera)
+        {
+            if (string.IsNullOrEmpty(id) || !known.TryGetValue(id, out var lot) || lot == null) return 0;
+            var center = new Vector3((lot.x0 + lot.x1) * .5f, 0, (lot.z0 + lot.z1) * .5f);
+            return CheckoutConquestFx.Instance.LotCleared(center, Mathf.Abs(lot.x1 - lot.x0), Mathf.Abs(lot.z1 - lot.z0), moveCamera);
+        }
 
         void Remove(Site site)
         {
@@ -123,8 +142,9 @@ namespace Checkout
             click.transform.position = new Vector3((x0 + x1) * .5f, .15f, (z0 + z1) * .5f);
             var box = click.AddComponent<BoxCollider>(); box.size = new Vector3(x1 - x0 - .1f, .3f, z1 - z0 - .1f);
             site.click = box;
-            site.dim = Dim(site.root.transform, x0, z0, x1, z1);
-            site.marker = Padlock(site.root.transform, new Vector3((x0 + x1) * .5f, site.top + 1.6f, (z0 + z1) * .5f), out site.shackle);
+            site.dirt = Dirt(site, x0, z0, x1, z1);
+            site.dim = Area(site, x0, z0, x1, z1);
+            site.marker = Badge(site, new Vector3((x0 + x1) * .5f, BadgeY, (z0 + z1) * .5f));
             Refresh(site);
             return site;
         }
@@ -133,15 +153,16 @@ namespace Checkout
         void Refresh(Site site)
         {
             string st = site.status;
+            // Only a lot that is still locked shows its area and padlock: once bought it is the player's (the ruin
+            // waits to be cleared, clicking the ground still opens the panel).
             bool locked = st == "venda" || st == "bloqueado";
-            if (site.dim) site.dim.SetActive(st != "limpando");
+            if (site.dim) site.dim.SetActive(locked);
+            if (site.fill) site.fill.sharedMaterial = AreaMaterial(st, false);
+            if (site.dash) site.dash.sharedMaterial = AreaMaterial(st, true);
             if (site.marker)
             {
-                site.marker.gameObject.SetActive(st != "limpando");
-                var m = st == "venda" ? Lock(ref lockGold, new Color(1f, .8f, .3f, .62f)) : st == "comprado" ? Lock(ref lockOrange, new Color(1f, .55f, .2f, .66f)) : Lock(ref lockGrey, new Color(.92f, .93f, .97f, .42f));
-                foreach (var r in site.marker.GetComponentsInChildren<Renderer>(true)) if (r.name != "Keyhole") r.sharedMaterial = m;
-                // Bought: the padlock is open.
-                if (site.shackle) site.shackle.localPosition = new Vector3(locked ? 0 : -.26f, locked ? .62f : .9f, 0);
+                site.marker.gameObject.SetActive(locked);
+                if (site.badge) site.badge.sharedMaterial = AreaMaterial(st, false, true);
             }
             if (st == "limpando" && !site.works) StartClearing(site);
             if (st != "limpando" && site.works) { Destroy(site.works.gameObject); site.works = null; ResetRuin(site); }
@@ -203,6 +224,11 @@ namespace Checkout
             piece.transform.position = centre;
             var cb = CheckoutWorksKit.Bounds(piece);
             piece.transform.position += new Vector3(centre.x - cb.center.x, -cb.min.y + .02f, centre.z - cb.center.z);
+            // Each ruin model stands on its own ground slab ("*_pad": concrete, a yard...), each a different colour.
+            // The lot shows the shared bare earth instead (Dirt), so every abandoned lot reads the same; the slab
+            // still sized and placed the ruin above.
+            foreach (var t in piece.GetComponentsInChildren<Transform>(true))
+                if (t != piece.transform && t.name.EndsWith("_pad", System.StringComparison.OrdinalIgnoreCase)) t.gameObject.SetActive(false);
             return holder;
         }
 
@@ -221,59 +247,159 @@ namespace Checkout
         }
 
         // ------------------------------------------------------------------ look of a locked lot
-        GameObject Dim(Transform parent, float x0, float z0, float x1, float z1)
+        const float DirtY = .222f, AreaY = .234f, DashY = .248f, DashInset = .34f, DashWidth = .26f, DashPeriod = 1.15f, BadgeY = 1.7f;
+        // Ground tint (about 25% opaque, the dirt shows through) and border of each status: for sale, not reachable yet, bought.
+        static Color FillOf(string st) => st == "venda" ? new Color(.98f, .74f, .22f, .25f) : st == "comprado" ? new Color(.97f, .52f, .16f, .25f) : new Color(.16f, .2f, .33f, .25f);
+        static Color DashOf(string st) => st == "bloqueado" ? new Color(.84f, .88f, .97f, .85f) : new Color(1f, .98f, .92f, .97f);
+        static string BadgeOf(string st) => st == "venda" ? "lot_lock" : st == "comprado" ? "lot_lock_open" : "lot_lock_grey";
+
+        Material AreaMaterial(string st, bool dash, bool badge = false)
         {
-            if (!dimMat) { dimMat = new Material(Shader.Find("Sprites/Default")) { name = "Locked lot", color = new Color(.05f, .06f, .12f, .2f) }; dimMat.renderQueue = 3050; }
-            var go = new GameObject("Locked tint", typeof(MeshFilter), typeof(MeshRenderer)); go.transform.SetParent(parent, false);
-            const float y = .215f, e = .08f;
-            var mesh = new Mesh { name = "Locked tint" };
-            mesh.vertices = new[] { new Vector3(x0 + e, y, z0 + e), new Vector3(x0 + e, y, z1 - e), new Vector3(x1 - e, y, z1 - e), new Vector3(x1 - e, y, z0 + e) };
-            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            var key = (badge ? "badge:" : dash ? "dash:" : "fill:") + st;
+            if (areaMats.TryGetValue(key, out var m) && m) return m;
+            if (badge)
+            {
+                // Drawn over everything (like the game's other map icons) so a tall ruin never hides it.
+                m = new Material(Shader.Find("UI/Default")) { name = "Lot badge " + st, mainTexture = Resources.Load<Texture2D>("CheckoutDesktop/Game/" + BadgeOf(st)) };
+                m.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.Always);
+                m.renderQueue = 3200;
+            }
+            else
+            {
+                m = new Material(Shader.Find("Sprites/Default")) { name = (dash ? "Lot border " : "Lot area ") + st, color = dash ? DashOf(st) : FillOf(st) };
+                if (dash) m.mainTexture = DashTexture();
+                m.renderQueue = dash ? 3051 : 3050;
+            }
+            return areaMats[key] = m;
+        }
+
+        // One dash and its gap, with soft ends and edges (the strip repeats it along each side).
+        static Texture2D DashTexture()
+        {
+            if (dashTexture) return dashTexture;
+            const int w = 64, h = 8; const float on = .62f;
+            var t = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = "Lot dash", wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float u = (x + .5f) / w, v = (y + .5f) / h;
+                    float along = Mathf.Clamp01(Mathf.Min(u, on - u) * w / 2.2f);          // rounded-ish ends
+                    float across = Mathf.Clamp01(Mathf.Min(v, 1 - v) * h / 1.4f);           // soft edges
+                    px[y * w + x] = new Color32(255, 255, 255, (byte)(u < on ? along * across * 255 : 0));
+                }
+            t.SetPixels32(px); t.Apply(false, true);
+            return dashTexture = t;
+        }
+
+        // Lot rectangles come in world coordinates (the ruins are placed with .position too): the area meshes and the
+        // badge hang from a holder that sits at the world origin, whatever the transform of the map root.
+        static Transform WorldHolder(Transform parent, string name)
+        {
+            var t = new GameObject(name).transform; t.SetParent(parent, false);
+            t.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            var ls = parent.lossyScale; t.localScale = new Vector3(1 / Mathf.Max(ls.x, 1e-4f), 1 / Mathf.Max(ls.y, 1e-4f), 1 / Mathf.Max(ls.z, 1e-4f));
+            return t;
+        }
+
+        // Outline of a rectangle with round corners (clockwise seen from above), corner arcs of `steps` segments.
+        static List<Vector3> RoundedRect(float x0, float z0, float x1, float z1, float r, float y, int steps = 8)
+        {
+            r = Mathf.Min(r, (x1 - x0) * .5f, (z1 - z0) * .5f);
+            var pts = new List<Vector3>();
+            void Arc(float cx, float cz, float from)
+            {
+                for (int i = 0; i <= steps; i++)
+                {
+                    float a = (from - 90f * i / steps) * Mathf.Deg2Rad;
+                    pts.Add(new Vector3(cx + Mathf.Cos(a) * r, y, cz + Mathf.Sin(a) * r));
+                }
+            }
+            Arc(x0 + r, z1 - r, 180); // top left, going clockwise
+            Arc(x1 - r, z1 - r, 90);
+            Arc(x1 - r, z0 + r, 0);
+            Arc(x0 + r, z0 + r, -90);
+            return pts;
+        }
+
+        // Bare ground of an abandoned lot (Game/lot_dirt.png, ArtSource/lot_dirt_tex.py) over the paving, until the lot
+        // is bought and cleared (the site goes away and the paving shows again). Mapped in world units, so neighbouring
+        // lots join without a seam.
+        Material dirtMat;
+        const float DirtTile = 7f;
+        GameObject Dirt(Site site, float x0, float z0, float x1, float z1)
+        {
+            if (!dirtMat)
+            {
+                dirtMat = new Material(Shader.Find("Standard")) { name = "Lot dirt", mainTexture = Resources.Load<Texture2D>("CheckoutDesktop/Game/lot_dirt") };
+                dirtMat.SetFloat("_Glossiness", .04f); dirtMat.SetFloat("_Metallic", 0);
+            }
+            var holder = WorldHolder(site.root.transform, "Lot ground");
+            var corners = new[] { new Vector3(x0, DirtY, z0), new Vector3(x0, DirtY, z1), new Vector3(x1, DirtY, z1), new Vector3(x1, DirtY, z0) };
+            var uv = new Vector2[4];
+            for (int i = 0; i < 4; i++) uv[i] = new Vector2(corners[i].x / DirtTile, corners[i].z / DirtTile);
+            var r = MeshObject(holder, "Lot dirt", corners, uv, new[] { 0, 1, 2, 0, 2, 3 });
+            r.sharedMaterial = dirtMat; r.receiveShadows = true;
+            return holder.gameObject;
+        }
+
+        GameObject Area(Site site, float x0, float z0, float x1, float z1)
+        {
+            var root = WorldHolder(site.root.transform, "Locked area").gameObject;
+            // Tint: the whole lot with soft round corners, as a fan around its middle.
+            const float e = .08f;
+            var rim = RoundedRect(x0 + e, z0 + e, x1 - e, z1 - e, .9f, AreaY);
+            var fv = new List<Vector3> { new Vector3((x0 + x1) * .5f, AreaY, (z0 + z1) * .5f) }; fv.AddRange(rim);
+            var fu = new List<Vector2>(); foreach (var v in fv) fu.Add(new Vector2(.5f, .5f));
+            var ft = new List<int>();
+            for (int i = 0; i < rim.Count; i++) ft.AddRange(new[] { 0, 1 + i, 1 + (i + 1) % rim.Count });
+            site.fill = MeshObject(root.transform, "Area fill", fv.ToArray(), fu.ToArray(), ft.ToArray());
+            // Border: a dashed ribbon a little inside the edge, round at the corners; the dash length is fitted so a
+            // whole number of dashes goes around and the pattern closes without a seam.
+            var path = RoundedRect(x0 + DashInset, z0 + DashInset, x1 - DashInset, z1 - DashInset, .6f, DashY);
+            float perimeter = 0;
+            for (int i = 0; i < path.Count; i++) perimeter += Vector3.Distance(path[i], path[(i + 1) % path.Count]);
+            float period = perimeter / Mathf.Max(4, Mathf.Round(perimeter / DashPeriod));
+            var verts = new List<Vector3>(); var uvs = new List<Vector2>(); var tris = new List<int>();
+            float run = 0;
+            for (int i = 0; i <= path.Count; i++)
+            {
+                var p = path[i % path.Count];
+                var prev = path[(i - 1 + path.Count) % path.Count]; var next = path[(i + 1) % path.Count];
+                var tangent = (next - prev); tangent.y = 0; tangent.Normalize();
+                var side = new Vector3(-tangent.z, 0, tangent.x) * (DashWidth * .5f);
+                if (i > 0) run += Vector3.Distance(path[i - 1], p);
+                verts.Add(p - side); verts.Add(p + side);
+                uvs.Add(new Vector2(run / period, 0)); uvs.Add(new Vector2(run / period, 1));
+                if (i > 0) { int k = verts.Count - 4; tris.AddRange(new[] { k, k + 1, k + 3, k, k + 3, k + 2 }); }
+            }
+            site.dash = MeshObject(root.transform, "Area border", verts.ToArray(), uvs.ToArray(), tris.ToArray());
+            return root;
+        }
+
+        static Renderer MeshObject(Transform parent, string name, Vector3[] verts, Vector2[] uvs, int[] tris)
+        {
+            var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer)); go.transform.SetParent(parent, false);
+            var white = new Color[verts.Length]; for (int i = 0; i < white.Length; i++) white[i] = Color.white;
+            var mesh = new Mesh { name = name, vertices = verts, uv = uvs, colors = white, triangles = tris };
             mesh.RecalculateBounds(); mesh.RecalculateNormals();
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
-            var r = go.GetComponent<MeshRenderer>(); r.sharedMaterial = dimMat;
+            var r = go.GetComponent<MeshRenderer>();
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false;
-            return go;
+            return r;
         }
 
-        Material Lock(ref Material slot, Color c)
+        // The padlock badge: a square picture that always faces the camera, over the middle of the lot.
+        Transform Badge(Site site, Vector3 at)
         {
-            if (slot) return slot;
-            // Standard shader in Fade mode: a see-through padlock.
-            slot = new Material(Shader.Find("Standard")) { color = c };
-            slot.SetFloat("_Mode", 2); slot.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            slot.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha); slot.SetInt("_ZWrite", 0);
-            slot.DisableKeyword("_ALPHATEST_ON"); slot.EnableKeyword("_ALPHABLEND_ON"); slot.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            slot.renderQueue = 3100; slot.SetFloat("_Glossiness", .55f);
-            slot.EnableKeyword("_EMISSION"); slot.SetColor("_EmissionColor", new Color(c.r, c.g, c.b) * .35f);
-            return slot;
-        }
-
-        // A chunky padlock: a body with a keyhole and a U shackle (bars + a rounded top of small segments).
-        Transform Padlock(Transform parent, Vector3 at, out Transform shackle)
-        {
-            var root = new GameObject("Padlock").transform; root.SetParent(parent, false); root.position = at;
-            var grey = Lock(ref lockGrey, new Color(.92f, .93f, .97f, .42f));
-            void Part(Transform p, string n, Vector3 pos, Vector3 size, Material m, PrimitiveType type = PrimitiveType.Cube, Quaternion? rot = null)
-            {
-                var go = GameObject.CreatePrimitive(type); Destroy(go.GetComponent<Collider>()); go.name = n;
-                go.transform.SetParent(p, false); go.transform.localPosition = pos; go.transform.localScale = size; go.transform.localRotation = rot ?? Quaternion.identity;
-                var r = go.GetComponent<Renderer>(); r.sharedMaterial = m; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            }
-            Part(root, "Body", Vector3.zero, new Vector3(1.25f, 1.0f, .42f), grey);
-            if (!keyhole) keyhole = new Material(Shader.Find("Standard")) { color = new Color(.12f, .14f, .22f) };
-            Part(root, "Keyhole", new Vector3(0, .1f, -.22f), new Vector3(.16f, .16f, .04f), keyhole, PrimitiveType.Cylinder, Quaternion.Euler(90, 0, 0));
-            Part(root, "Keyhole", new Vector3(0, -.1f, -.22f), new Vector3(.08f, .26f, .04f), keyhole);
-            shackle = new GameObject("Shackle").transform; shackle.SetParent(root, false); shackle.localPosition = new Vector3(0, .62f, 0);
-            const float r0 = .38f;
-            Part(shackle, "Bar L", new Vector3(-r0, -.05f, 0), new Vector3(.14f, .5f, .14f), grey);
-            Part(shackle, "Bar R", new Vector3(r0, -.05f, 0), new Vector3(.14f, .5f, .14f), grey);
-            for (int i = 0; i <= 6; i++)
-            {
-                float a = Mathf.PI * i / 6f;
-                Part(shackle, "Arc", new Vector3(Mathf.Cos(a) * r0, .2f + Mathf.Sin(a) * r0, 0), new Vector3(.16f, .16f, .14f), grey, PrimitiveType.Cube, Quaternion.Euler(0, 0, a * Mathf.Rad2Deg));
-            }
-            return root;
+            var r = MeshObject(WorldHolder(site.root.transform, "Padlock holder"), "Padlock badge",
+                new[] { new Vector3(-.5f, -.5f, 0), new Vector3(-.5f, .5f, 0), new Vector3(.5f, .5f, 0), new Vector3(.5f, -.5f, 0) },
+                new[] { Vector2.zero, Vector2.up, Vector2.one, Vector2.right }, new[] { 0, 1, 2, 0, 2, 3 });
+            r.transform.position = at;
+            site.badge = r;
+            var box = r.gameObject.AddComponent<BoxCollider>(); box.size = new Vector3(.8f, .8f, .1f);
+            site.lockClick = box;
+            return r.transform;
         }
 
         // ------------------------------------------------------------------ clearing works
@@ -483,16 +609,18 @@ namespace Checkout
         {
             var cam = simulation && simulation.view ? simulation.view : Camera.main;
             if (!cam) return;
-            var f = cam.transform.forward; f.y = 0; if (f.sqrMagnitude < .001f) f = Vector3.forward;
-            var face = Quaternion.LookRotation(f.normalized);
             float t = Time.time;
+            // The border of the lots for sale glows softly.
+            if (areaMats.TryGetValue("dash:venda", out var saleDash) && saleDash) { var c = DashOf("venda"); c.a = .72f + .25f * (.5f + .5f * Mathf.Sin(t * 3f)); saleDash.color = c; }
             foreach (var site in sites.Values)
             {
                 if (!site.marker || !site.marker.gameObject.activeSelf) continue;
                 var lot = site.lot;
-                site.marker.position = new Vector3((lot.x0 + lot.x1) * .5f, site.top + 2.0f + Mathf.Sin(t * 1.4f + lot.x0) * .15f, (lot.z0 + lot.z1) * .5f);
-                site.marker.rotation = face;
-                site.marker.localScale = Vector3.one * (site.status == "venda" ? 1.6f + Mathf.Sin(t * 3f) * .06f : 1.35f);
+                // In the middle of the lot, bobbing gently; the one for sale breathes to call the eye.
+                float size = Mathf.Clamp(Mathf.Min(lot.x1 - lot.x0, lot.z1 - lot.z0) * .36f, 1.8f, 3.2f);
+                site.marker.position = new Vector3((lot.x0 + lot.x1) * .5f, BadgeY + Mathf.Sin(t * 1.6f + lot.x0) * .12f, (lot.z0 + lot.z1) * .5f);
+                site.marker.rotation = cam.transform.rotation;
+                site.marker.localScale = Vector3.one * (site.status == "venda" ? size * (1.06f + Mathf.Sin(t * 3f) * .04f) : size);
             }
         }
 
@@ -507,7 +635,7 @@ namespace Checkout
                 foreach (var site in sites.Values)
                 {
                     if (site.works && site.works.Clicked(hit.collider)) return; // the countdown handles it
-                    if (site.click && hit.collider == site.click && hit.distance < near) { near = hit.distance; best = site; }
+                    if ((site.click && hit.collider == site.click || site.lockClick && hit.collider == site.lockClick) && hit.distance < near) { near = hit.distance; best = site; }
                 }
             if (best != null) CheckoutLotPopup.Show(this, best.lot);
         }

@@ -155,8 +155,9 @@ namespace Checkout
                     break;
                 }
                 case "supermercado":
-                    // Behind the mercadinho, over lots A2 and B2; trucks come in from lot B3 at the back.
-                    Big(snapshot, new Bounds(new Vector3(-5.7f, 0, 10.4f), new Vector3(22.2f, 0, 10.4f)), back: true);
+                    // Behind the mercadinho, over lots A2 and B2; the site yard takes lot C2 (the depot's lot) and the
+                    // trucks come in from the east street (lot B3 behind is not the market's yet).
+                    Big(snapshot, new Bounds(new Vector3(-5.7f, 0, 10.4f), new Vector3(22.2f, 0, 10.4f)), back: false);
                     break;
                 case "hipermercado":
                     // Lots C1 and C2, next to the supermarket; trucks come in from the east street.

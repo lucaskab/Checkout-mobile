@@ -1413,6 +1413,181 @@ for _state in ('dead', 'off'):
         V2_SPRITES[f'bulb_{_state}_{_i}'] = bulb_frame(_state, _i)
 
 
+
+# ---------------------------------------------------------------- register v3 (cash payment by taps)
+# A real cash register for the cash step: navy body with gold trims, a keyboard deck, a receipt printer and a
+# customer display, its drawer open towards the cashier with one compartment per note (a stack of notes held
+# by a spring clip) and a cup of coins. Notes and coins redrawn: saturated paper, white margins, a rosette,
+# big numerals in coloured ink. CheckoutCounterGame.cs uses register_open (marks: bin0..bin5 for 100..2,
+# coins, display), note3_<v>, coin3_1 and change_dish3.
+
+NOTE3 = {  # dark ink, light paper, mid band
+    100: ('1C7FC1', 'D9EFFB', '5FB3E6'), 50: ('D2601C', 'FCE5CC', 'F0A35E'), 20: ('C98F0A', 'FDF2C6', 'F2C94C'),
+    10: ('C8392E', 'FBDAD4', 'EE7F72'), 5: ('6D4BB5', 'E8E0F9', 'A58BDF'), 2: ('1F8E83', 'D4F2ED', '5CC3B5'),
+}
+NOTE3_ORDER = [100, 50, 20, 10, 5, 2]
+
+
+def _star(name, r_out, r_in, m, loc, rot=(90, 0, 0), depth=.02, points=5):
+    pts = []
+    for k in range(points * 2):
+        a = math.pi / 2 + k * math.pi / points
+        r = r_out if k % 2 == 0 else r_in
+        pts.append((math.cos(a) * r, math.sin(a) * r))
+    o = _poly_mesh(name, pts, depth, m, loc, bev=.004)
+    o.rotation_euler = [R(a) for a in rot]
+    return o
+
+
+def _note_stack(x, y, z, w, d, value, count=7):
+    """A stack of notes lying in a drawer compartment (seen from above), slightly fanned."""
+    import random
+    rnd = random.Random(value)
+    c1, c2, c3 = NOTE3[value]
+    paper = tex('paper', c2, c3, rough=.65, scale=1, bump=.1, coat=0)
+    edge = mat(c1, .55)
+    for k in range(count):
+        dx = rnd.uniform(-.03, .03); dy = rnd.uniform(-.04, .04); rz = rnd.uniform(-3, 3)
+        box((w, d, .025), (x + dx, y + dy, z + k * .028), paper if k < count - 1 else edge, .01, rot=(0, 0, rz))
+    top = z + count * .028 + .01
+    # Top note: value printed big so the compartment reads at a glance.
+    box((w * .92, d * .94, .012), (x, y, top), tex('paper', c2, c2, rough=.6, scale=1, bump=.06, coat=0), .01)
+    box((w * .25, d * .94, .014), (x - w * .3, y, top + .002), mat(c3, .5), .005)
+    text(str(value), (x + w * .1, y - d * .22, top + .012), .34 if value < 100 else .27, mat(c1, .4), rot=(0, 0, 0), extrude=.01, bevel=.002)
+    return top
+
+
+def register_open():
+    navy = tex('plastic', NAVY, NAVY_D, rough=.38, scale=1.5, bump=.04)
+    navy_d = tex('plastic', NAVY_D, '0F1A30', rough=.4, scale=1.5, bump=.04)
+    steel = tex('brushed', 'DCE2E4', 'A9B3B6', metal=.85, rough=.28, scale=.4)
+    gold = gold_metal()
+    cream = mat('FFF4E0', .35, coat=.4)
+    # Body: a chunky rounded block behind the drawer, gold stripe, brand plate.
+    box((5.2, 2.0, 1.25), (0, 1.55, .62), navy, .22)
+    box((5.24, 2.04, .1), (0, 1.55, 1.12), gold, .04)
+    # Keyboard deck, tilted towards the cashier: light keys, a red and a big green key.
+    tilt = math.tan(R(18))
+    box((3.0, 1.35, .32), (-.55, 1.6, 1.42), navy_d, .14, rot=(18, 0, 0))
+    deck_top = lambda y, h: 1.42 + .16 + h / 2 + (y - 1.6) * tilt
+    for r in range(3):
+        for c in range(4):
+            kx = -1.55 + c * .42; ky = 1.22 + r * .38
+            box((.32, .3, .14), (kx, ky, deck_top(ky, .14)), mat('F3F1EA', .35, coat=.5), .06, rot=(18, 0, 0))
+    box((.5, .66, .16), (.32, 1.4, deck_top(1.4, .16)), mat(GREEN, .3, coat=.6), .07, rot=(18, 0, 0))
+    box((.5, .3, .16), (.32, 1.95, deck_top(1.95, .16)), mat(RED, .3, coat=.6), .07, rot=(18, 0, 0))
+    # Receipt printer on the right with a curl of paper.
+    box((1.3, 1.2, .55), (1.75, 1.75, 1.45), navy_d, .14)
+    box((.9, .08, .05), (1.75, 1.18, 1.62), mat('0B1322', .5), .02)
+    bpy.ops.mesh.primitive_cylinder_add(radius=.32, depth=.82, location=(1.75, 1.05, 1.85), rotation=(0, R(90), 0), vertices=48)
+    roll = bpy.context.object
+    finish(roll, tex('paper', 'FFFDF7', 'EDE6D6', rough=.7, scale=1, bump=.05, coat=0), 0)
+    box((.8, .03, .5), (1.75, .98, 1.55), tex('paper', 'FFFDF7', 'EDE6D6', rough=.7, scale=1, bump=.05, coat=0), .01, rot=(12, 0, 0))
+    # Customer display on a pole at the back left, facing the cashier.
+    bar((-1.9, 2.3, 1.2), (-1.9, 2.3, 2.45), .07, gold)
+    box((1.5, .22, .78), (-1.9, 2.25, 2.7), navy_d, .1, rot=(-8, 0, 0))
+    mark('display', box((1.3, .05, .58), (-1.9, 2.13, 2.7), mat('0E2A1F', .3, emit=.15, coat=.9), .04, rot=(-8, 0, 0)))
+    # The drawer, pulled out towards the cashier.
+    box((5.0, 3.1, .62), (0, -.9, .31), navy_d, .1)
+    box((4.8, 2.9, .08), (0, -.9, .58), steel, .03)
+    box((5.1, .34, .78), (0, -2.42, .39), navy, .12)
+    box((5.12, .06, .08), (0, -2.6, .7), gold, .02)
+    box((1.4, .16, .18), (0, -2.66, .42), gold, .06)
+    cyl(.07, .08, (1.9, -2.6, .5), mat('E9B345', .25, .9), rot=(90, 0, 0))
+    # Six note compartments (100 → 2) with a spring clip each, then the coin cup and change slots.
+    bw = .74
+    for i, v in enumerate(NOTE3_ORDER):
+        x = -1.95 + i * .78
+        box((.04, 1.75, .3), (x + bw / 2 + .02, -.25, .72), steel, .01)
+        mark(f'bin{i}', box((bw - .02, 1.7, .05), (x, -.25, .64), mat('1A2332', .6), .01))
+        top = _note_stack(x, -.3, .68, bw - .1, 1.45, v)
+        bar((x, .45, top + .06), (x, -.15, top + .06), .035, gold)
+        cyl(.07, .1, (x, -.15, top + .06), gold, rot=(90, 0, 0))
+        box((bw - .08, .26, .05), (x, -1.32, .64), mat('FFF7EA', .4), .03)
+        text(str(v), (x, -1.33, .68), .2, mat(NOTE3[v][0], .4), rot=(0, 0, 0), extrude=.01, bevel=0)
+    # Coin row: one wide cup heaped with R$ 1 coins.
+    mark('coins', box((3.2, .62, .06), (-.6, -1.9, .64), mat('1A2332', .6), .02))
+    coin_gold = tex('noise', 'F3C95C', 'C8962E', metal=1, rough=.22, scale=1, bump=.05)
+    coin_silver = tex('noise', 'E3E8EA', 'A7B1B5', metal=1, rough=.22, scale=1, bump=.05)
+    import random
+    rnd = random.Random(4)
+    for k in range(22):
+        cx = -2.0 + rnd.uniform(0, 2.8); cy = -1.9 + rnd.uniform(-.2, .2); cz = .7 + rnd.uniform(0, .08) + (k % 3) * .03
+        cyl(.17, .05, (cx, cy, cz), coin_gold, rot=(rnd.uniform(-8, 8), rnd.uniform(-8, 8), 0), v=32, bev=.01)
+        cyl(.1, .052, (cx, cy, cz + .002), coin_silver, rot=(rnd.uniform(-8, 8), rnd.uniform(-8, 8), 0), v=32, bev=.005)
+    box((1.3, .4, .05), (1.6, -1.9, .65), mat('FFF7EA', .4), .03)
+    text('R$ 1', (1.6, -1.91, .69), .22, mat(NAVY, .4), rot=(0, 0, 0), extrude=.01, bevel=0)
+    # Brand on the drawer front, either side of the handle.
+    text('CAIXA', (-1.55, -2.6, .38), .28, mat(GOLD, .3, .7), extrude=.02, bevel=.004)
+    text('01', (1.35, -2.6, .38), .28, mat(GOLD, .3, .7), extrude=.02, bevel=.004)
+    studio(elev=46, yaw=0, width=1000, height=960, size=6.4, target=(0, 0, 1.15), light=1.1, samples=96)
+
+
+def banknote3(value):
+    def build():
+        c1, c2, c3 = NOTE3[value]
+        mix = ''.join('%02X' % round(int(c2[i:i + 2], 16) * .62 + int(c3[i:i + 2], 16) * .38) for i in (0, 2, 4))
+        paper = tex('paper', mix, c2, rough=.62, scale=1, bump=.05, coat=0)
+        ink = mat(c1, .45, coat=.15)
+        band = tex('ribs', c3, c2, rough=.55, scale=14, bump=.03, coat=0)
+        box((2.4, .03, 1.15), (0, 0, .58), mat('FFFFFF', .6, coat=0), .03)        # white margin
+        box((2.26, .02, 1.01), (0, -.012, .58), paper, .02)                       # tinted paper
+        box((2.18, .006, .93), (0, -.024, .58), band, .01)                         # engraved guilloche
+        box((2.06, .008, .81), (0, -.03, .58), paper, .01)
+        box((.72, .01, .81), (-.67, -.036, .58), mat(c1, .5, coat=.15), .01)       # colour panel
+        # Rosette with a star, the note's emblem.
+        cyl(.3, .01, (-.67, -.045, .64), mat('FFFFFF', .45), rot=(90, 0, 0), v=48)
+        torus(.3, .025, (-.67, -.05, .64), mat(GOLD, .3, .7), rot=(90, 0, 0))
+        torus(.22, .01, (-.67, -.05, .64), ink, rot=(90, 0, 0))
+        _star('Star', .17, .075, ink, (-.67, -.04, .64))
+        text('BRASIL', (-.67, -.046, .25), .09, mat('FFFFFF', .5), extrude=.003, bevel=0)
+        # Value in big coloured ink with a white outline.
+        text(str(value), (.38, -.042, .56), .62 if value < 100 else .5, mat('FFFFFF', .4), extrude=.004, bevel=.018)
+        text(str(value), (.38, -.06, .56), .62 if value < 100 else .5, ink, extrude=.006, bevel=.004)
+        text('R$', (.38, -.05, .98), .14, ink, extrude=.003, bevel=0)
+        text('REAIS', (.38, -.05, .2), .12, ink, extrude=.003, bevel=0)
+        text(str(value), (-.86, -.05, .98), .12, ink, extrude=.003, bevel=0)
+        text(str(value), (1.0, -.05, .18), .12, ink, extrude=.003, bevel=0)
+        studio(elev=8, yaw=0, width=480, height=240, size=2.5, target=(0, 0, .58), light=1.05)
+    build.__name__ = f'note3_{value}'
+    return build
+
+
+def coin3():
+    # R$ 1 bimetal coin: gold ring, silver core, reeded edge, embossed 1.
+    gold = tex('brushed', 'F6D06A', 'D7A63E', metal=1, rough=.22, scale=.3)
+    silver = tex('brushed', 'EEF2F3', 'C5CDD0', metal=1, rough=.2, scale=.3)
+    relief = mat('8E989C', .3, 1)
+    cyl(.6, .14, (0, 0, .07), gold, v=96, bev=.035)
+    for k in range(72):
+        a = k * 2 * math.pi / 72
+        box((.018, .05, .1), (math.cos(a) * .6, math.sin(a) * .6, .07), gold, .005, rot=(0, 0, math.degrees(a)))
+    torus(.57, .02, (0, 0, .145), gold)
+    cyl(.4, .16, (0, 0, .08), silver, v=96, bev=.03)
+    torus(.4, .018, (0, 0, .165), silver)
+    text('1', (0, .03, .17), .5, relief, rot=(0, 0, 0), extrude=.035, bevel=.012)
+    text('REAL', (0, -.26, .17), .1, relief, rot=(0, 0, 0), extrude=.01, bevel=.002)
+    studio(elev=72, yaw=0, width=256, height=256, size=1.36, target=(0, 0, .08))
+
+
+def change_dish3():
+    # Rubber change mat on a gold rim: nubbed red surface and the word TROCO.
+    cyl(1.25, .18, (0, 0, .09), gold_metal(), bev=.07, v=96)
+    cyl(1.12, .06, (0, 0, .17), tex('plastic', 'C8392E', 'A92B22', rough=.75, scale=2, bump=.1, coat=.1), bev=.03, v=96)
+    nub = mat('B8322A', .7, coat=.1)
+    for r in range(-7, 8):
+        for c in range(-7, 8):
+            x, y = c * .135 + (r % 2) * .067, r * .12
+            if x * x + y * y < .92 ** 2 and not (-.55 < x < .55 and -.85 < y < -.5):
+                cyl(.035, .04, (x, y, .21), nub, v=12, bev=.01)
+    text('TROCO', (0, -.68, .22), .26, mat(GOLD, .3, .7), rot=(0, 0, 0), extrude=.02, bevel=.004)
+    studio(elev=58, yaw=0, width=440, height=340, size=2.9, target=(0, 0, .1))
+
+
+V3_SPRITES = {'register_open': register_open, 'coin3_1': coin3, 'change_dish3': change_dish3}
+for _v in NOTE3_ORDER:
+    V3_SPRITES[f'note3_{_v}'] = banknote3(_v)
+
 SPRITES = {
     'reg_backdrop': reg_backdrop, 'belt': belt, 'belt_tile': belt_tile, 'scanner_bed': scanner_bed,
     'pos_terminal': pos_terminal, 'card_machine': card_machine,
@@ -1438,6 +1613,7 @@ SPRITES = {
 SPRITES.update(COOLER_SPRITES)
 SPRITES.update(RECEIVING_SPRITES)
 SPRITES.update(V2_SPRITES)
+SPRITES.update(V3_SPRITES)
 
 
 def main(args):

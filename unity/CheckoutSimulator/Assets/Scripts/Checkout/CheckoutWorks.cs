@@ -844,7 +844,7 @@ namespace Checkout
             fill.GetComponent<Renderer>().sharedMaterial = new Material(Shader.Find("Standard")) { color = new Color(1f, .78f, .25f) };
             pillFill = fill.transform;
             var text = new GameObject("Text"); text.transform.SetParent(pill, false); text.transform.localPosition = new Vector3(0, .07f, -.06f);
-            pillText = text.AddComponent<TextMeshPro>(); pillText.font = K.Headline; pillText.alignment = TextAlignmentOptions.Center;
+            pillText = text.AddComponent<TextMeshPro>(); CheckoutI18nText.Register(pillText); pillText.font = K.Headline; pillText.alignment = TextAlignmentOptions.Center;
             pillText.color = new Color(1f, .9f, .5f); pillText.rectTransform.sizeDelta = new Vector2(3.2f, .6f);
             pillText.enableAutoSizing = true; pillText.fontSizeMin = 1; pillText.fontSizeMax = 4;
             pillLabel = label; pillRoute = route;

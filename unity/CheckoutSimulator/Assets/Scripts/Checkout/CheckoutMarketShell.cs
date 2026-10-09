@@ -108,7 +108,10 @@ namespace Checkout
             walls = Group("Walls"); ground = Group("Base");
             Vector3 P(float x, float z) => CheckoutMarketLayout.Project(new Vector3(x, 0, z), layout);
             float x0 = P(X0, 0).x, x1 = P(X1, 0).x, z0 = P(0, Z0).z, z1 = P(0, Z1).z;
-            float da = P(DoorA, 0).x, db = P(DoorB, 0).x, ra = P(RearA, 0).x, rb = P(RearB, 0).x;
+            // The door openings keep the doors' real width (CheckoutMarketLayout.DoorScale); the walls and the
+            // sidelights take the rest of the growth.
+            float da = CheckoutMarketLayout.DoorPoint(DoorA, CheckoutMarketLayout.FrontDoorX, layout), db = CheckoutMarketLayout.DoorPoint(DoorB, CheckoutMarketLayout.FrontDoorX, layout);
+            float ra = CheckoutMarketLayout.DoorPoint(RearA, CheckoutMarketLayout.RearDoorX, layout), rb = CheckoutMarketLayout.DoorPoint(RearB, CheckoutMarketLayout.RearDoorX, layout);
             float sa = P(SlideA, 0).x, sb = P(SlideB, 0).x;
             Thickness(layout, out tSide, out tEnd);
             Footprint = new Bounds(new Vector3((x0 + x1) * .5f, (Floor + Top) * .5f, (z0 + z1) * .5f), new Vector3(x1 - x0, Top - Floor, z1 - z0));
@@ -202,6 +205,20 @@ namespace Checkout
 
             Entrance(da, db, z0);
             RearRamp(ra, rb, z1, P(0, 8.85f).z);
+            FadePortal();
+        }
+
+        // The entrance portal (pillars, header, "BEM-VINDO" sign, gold trims) is see-through like the entrance
+        // canopies, so the door and the people going in and out stay visible behind it.
+        static readonly string[] PortalParts = { "Portal jamb L", "Portal jamb R", "Portal header", "Portal trim top", "Portal trim low", "Portal light", "Portal sign", "Portal sign trim", "Mullion L", "Mullion R", "Sidelight kick L", "Sidelight kick R" };
+        void FadePortal()
+        {
+            // Only while playing: in the editor the builders save the shell into the scene with its real materials.
+            if (!Application.isPlaying) return;
+            foreach (var n in PortalParts) { var t = walls.Find(n); if (t) CheckoutStageDressing.FadeRenderer(t.GetComponent<Renderer>()); }
+            var label = walls.Find("Portal label");
+            var text = label ? label.GetComponent<TextMesh>() : null;
+            if (text) { var c = text.color; c.a = CheckoutStageDressing.CanopyOpacity; text.color = c; }
         }
 
         // One straight run of wall: navy fluted outside, limestone base, cream plaster inside with a navy

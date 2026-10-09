@@ -206,6 +206,43 @@ def success():
     return reverb(x, .35, .25)
 
 
+def pad(freq, sec, attack=.03, decay=.9):
+    """Warm sustained note (sine with soft 2nd/3rd harmonics), no vibrato: steady and bright."""
+    t = t_(sec)
+    x = np.sin(2 * np.pi * freq * t) + .35 * np.sin(4 * np.pi * freq * t) + .12 * np.sin(6 * np.pi * freq * t)
+    return x * env(len(t), attack, decay, 1, .25)
+
+
+def levelup():
+    """Level up: the bright C-E-G-C bell run (as 'success'), then a held C major chord and rising sparkles.
+    Every interval is major and nothing wobbles, so it reads as a reward."""
+    x = np.zeros(1)
+    for k, f in enumerate((523.25, 659.25, 783.99, 1046.5)):
+        x = mixat(x, bell(f, .9, .45) * (.75 + k * .08), k * .085)
+    chord_at = .36
+    for f, amp in ((261.63, .35), (523.25, .55), (659.25, .45), (783.99, .45), (1046.5, .4)):
+        x = mixat(x, pad(f, 1.5, .02, .7) * amp, chord_at)
+        x = mixat(x, bell(f * 2, 1.2, .6) * amp * .35, chord_at)
+    for k, f in enumerate((1567.98, 2093.0, 2637.0, 3135.96, 4186.0)):
+        x = mixat(x, bell(f, .5, .18) * (.22 - k * .02), chord_at + .1 + k * .07)
+    return reverb(x, .45, .28)
+
+
+def conquest():
+    """Conquest (a lot, an expansion, a sector ready): a quick rising shimmer, a G major chord and sparkles.
+    Shorter and lighter than the level-up fanfare, every interval major, nothing wobbles."""
+    x = np.zeros(1)
+    for k, f in enumerate((783.99, 987.77, 1174.66, 1567.98)):
+        x = mixat(x, bell(f, .7, .3) * (.55 + k * .1), k * .05)
+    at = .24
+    for f, amp in ((196.0, .3), (392.0, .5), (493.88, .42), (587.33, .42), (783.99, .38)):
+        x = mixat(x, pad(f, 1.2, .015, .55) * amp, at)
+        x = mixat(x, bell(f * 2, .9, .45) * amp * .3, at)
+    for k, f in enumerate((2349.32, 3135.96, 3951.07)):
+        x = mixat(x, bell(f, .4, .15) * (.2 - k * .03), at + .08 + k * .08)
+    return reverb(x, .4, .25)
+
+
 def bubble(seed=0):
     r = np.random.default_rng(seed)
     f0 = r.uniform(900, 1400)
@@ -287,7 +324,7 @@ SOUNDS = {
     'coin_0': lambda: coin(0), 'coin_1': lambda: coin(1), 'coin_2': lambda: coin(2),
     'note_0': lambda: note_rustle(0), 'note_1': lambda: note_rustle(1),
     'card_slide': card_slide, 'card_ok': approved, 'card_no': declined, 'printer': printer,
-    'pop': pop, 'tap': tap, 'whoosh': whoosh, 'bonk': bonk, 'success': success,
+    'pop': pop, 'tap': tap, 'whoosh': whoosh, 'bonk': bonk, 'success': success, 'levelup': levelup, 'conquest': conquest,
     'bubble_0': lambda: bubble(0), 'bubble_1': lambda: bubble(1), 'bubble_2': lambda: bubble(2),
     'scrub_0': lambda: scrub(0), 'scrub_1': lambda: scrub(1), 'scrub_2': lambda: scrub(2),
     'glass_0': lambda: glass(0), 'glass_1': lambda: glass(1), 'glass_2': lambda: glass(2), 'glass_dump': glass_dump,
@@ -298,5 +335,5 @@ SOUNDS = {
 if __name__ == '__main__':
     out = Path(sys.argv[1] if len(sys.argv) > 1 else 'Sounds'); out.mkdir(parents=True, exist_ok=True)
     for name, make in SOUNDS.items():
-        write(out / (name + '.wav'), make(), peak=.55 if name in ('success', 'cash_register', 'bulb_on') else .7)
+        write(out / (name + '.wav'), make(), peak=.55 if name in ('success', 'cash_register', 'bulb_on', 'levelup', 'conquest') else .7)
         print('SOUND', name)

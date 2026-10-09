@@ -11,6 +11,9 @@ import {
 	marketExpansions,
 } from "@/data/market-expansions";
 import { shopCategories, shopItems } from "@/data/shop-items";
+import { AUTO_CASHIER_INTERVAL_MS } from "@/services/checkout-counter";
+import { getActiveGameEventEffects } from "@/services/game-events";
+import { getShopEffects } from "@/services/shop-effects";
 import {
 	EMPLOYEE_MAX_LEVEL,
 	getEmployeeTrainingCost,
@@ -19,6 +22,7 @@ import {
 	EMPLOYEE_PAYROLL_INTERVAL_MS,
 	getEmployeeEffects,
 	getEmployeePayrollCost,
+	getShiftSalary,
 } from "@/services/employees";
 import type { Routes } from ".";
 import { getShopItemBuildStatus } from "@/services/interior-construction";
@@ -30,6 +34,7 @@ import {
 	gameIcon,
 	page,
 	ratio,
+	type State,
 	swap,
 } from "../view-kit";
 
@@ -83,6 +88,18 @@ function formatPrice(price: number) {
 	return price.toString();
 }
 
+// How fast the line moves without the player: the cashier (sped up by the shop) plus self-checkout.
+function checkoutPaceLine(state: State) {
+	const shop = getShopEffects(state.shop);
+	const cashier = state.employees.employees
+		.filter((employee) => employee.isWorking && employee.role === "cashier")
+		.reduce((total, employee) => total + employee.efficiency, 0);
+	const events = getActiveGameEventEffects(state.events, Date.now());
+	const rate = cashier * events.staffSpeedMultiplier * shop.cashierSpeedMultiplier + shop.selfCheckoutRate;
+	if (rate <= 0) return "Sem operador: quem passa as compras no caixa é você";
+	return `Caixa automático: 1 cliente a cada ${(Math.round((AUTO_CASHIER_INTERVAL_MS / 1000 / rate) * 10) / 10).toLocaleString("pt-BR")} s`;
+}
+
 function timer(ms: number) {
 	const total = Math.max(0, Math.ceil(ms / 1000));
 	const minutes = Math.floor(total / 60);
@@ -113,7 +130,7 @@ export const routes: Routes = {
 				...(payroll > coins
 					? ["Sem saldo para a folha: a equipe será pausada"]
 					: []),
-				`Fila ${Math.round((1 - effects.customerArrivalMultiplier) * 100)}% mais rápida · +${effects.restockAmount} reposição`,
+				checkoutPaceLine(state),
 				`Reputação +${effects.storeReputationBonus}`,
 			],
 			progress: 1 - ratio(remaining, EMPLOYEE_PAYROLL_INTERVAL_MS),
@@ -138,7 +155,7 @@ export const routes: Routes = {
 					subtitle: definition.description,
 					lines: [
 						`Nv. ${employee.level} · ${employee.efficiency} eficiência`,
-						`🪙 ${employee.salary}/turno`,
+						`🪙 ${getShiftSalary(employee.salary)}/turno`,
 					],
 					buttons: [
 						act(
@@ -173,7 +190,7 @@ export const routes: Routes = {
 				tone: levelLocked ? "locked" : "",
 				subtitle: definition.description,
 				lines: [
-					`${definition.efficiency} eficiência · 🪙 ${definition.salary}/turno`,
+					`${definition.efficiency} eficiência · 🪙 ${getShiftSalary(definition.salary)}/turno`,
 				],
 				buttons: [
 					act(
@@ -207,27 +224,35 @@ export const routes: Routes = {
 		const diamonds = state.logistics.premiumCurrency;
 		const level = state.market.level;
 		const { consumableAmounts, ownedItemIds } = state.shop;
-		const items = shopItems.filter((item) => item.category === category);
+		const activeBoosts = state.shop.activeBoosts ?? {};
+		const now = Date.now();
+		// What can be bought first, then what is still locked by level, then what is installed.
+		const items = shopItems
+			.filter((item) => item.category === category)
+			.sort((a, b) => {
+				const rank = (item: ShopItemDefinition) =>
+					ownedItemIds.includes(item.id) ? 2 : level < item.level ? 1 : 0;
+				return rank(a) - rank(b) || a.level - b.level;
+			});
 
 		const cards = items.map((item) => {
 			const isOwned = ownedItemIds.includes(item.id);
-			const isLocked = level < item.level;
+			const required = item.requiresItemId ? shopItems.find((other) => other.id === item.requiresItemId) : undefined;
+			const missingRequired = !!required && !ownedItemIds.includes(required.id);
+			const isLocked = level < item.level || missingRequired;
 			const consumableAmount = consumableAmounts[item.id] ?? 0;
 			const isDiamond = Boolean(item.diamondPrice);
 			const price = item.diamondPrice ?? item.coinPrice ?? 0;
 			const canAfford = isDiamond ? diamonds >= price : coins >= price;
 			const quality = getItemQuality(item);
 			const isLegendary = quality === "lendario" || quality === "mitico";
-			const verb = item.isConsumable
-				? "Comprar"
-				: isLegendary
-					? "Desbloquear"
-					: "Comprar";
 			const label = isOwned
 				? "Instalado"
-				: isLocked
+				: level < item.level
 					? `Nível ${item.level}`
-					: `${verb} · ${formatPrice(price)}`;
+					: missingRequired && required
+						? `Precisa de ${required.name}`
+					: `Comprar · ${formatPrice(price)}`;
 
 			// Fixtures (second checkout, self-checkout) are installed by the builders over time.
 			const build = getShopItemBuildStatus(state, item.id);
@@ -250,14 +275,49 @@ export const routes: Routes = {
 						}),
 					],
 				});
+
+			// Boosters: buy as many as you like, start one when the market needs it.
+			if (item.isConsumable) {
+				const endsAt = activeBoosts[item.id] ?? 0;
+				const running = endsAt > now;
+				return card(item.name, {
+					eyebrow: running ? "ATIVO AGORA" : isLocked ? `NÍVEL ${item.level}` : "BOOSTER",
+					icon: gameIcon(getShopItemIcon(item.id)),
+					badge: running ? timer(endsAt - now) : consumableAmount > 0 ? `x${consumableAmount}` : "",
+					tone: running ? "success" : isLocked ? "locked" : "",
+					progress: running && item.durationMs ? ratio(endsAt - now, item.durationMs) : -1,
+					subtitle: item.description,
+					lines: [
+						`${isDiamond ? "💎" : "🪙"} ${formatPrice(price)} cada`,
+						...(consumableAmount > 0 ? [`Guardados: ${consumableAmount}`] : []),
+						...(running ? [`Termina em ${timer(endsAt - now)}`] : []),
+					],
+					buttons: [
+						act(isLocked ? `Nível ${item.level}` : formatPrice(price), "purchaseShopItem", [item.id, isDiamond ? "diamonds" : "coins"], {
+							variant: isDiamond ? "gem" : "coin",
+							icon: gameIcon(isDiamond ? "diamond" : "coin"),
+							enabled: !isLocked && canAfford,
+							ok: `${item.name} guardado. Use quando quiser.`,
+							fail: isLocked ? `Nível ${item.level}` : "Diamantes insuficientes",
+						}),
+						...(consumableAmount > 0
+							? [
+									act(running ? "Usar mais um" : "Usar agora", "activateShopBooster", [item.id], {
+										variant: "success",
+										ok: `${item.name} ativado!`,
+										fail: "Nenhum guardado",
+									}),
+								]
+							: []),
+					],
+				});
+			}
+
 			const busy = !!build && build.status === "busy";
 			return card(item.name, {
-				eyebrow: `${qualityLabels[quality]} ${"★".repeat(qualityStars[quality])}`,
+				eyebrow: isOwned ? "ATIVO" : `${qualityLabels[quality]} ${"★".repeat(qualityStars[quality])}`,
 				icon: gameIcon(getShopItemIcon(item.id)),
-				badge:
-					item.isConsumable && consumableAmount > 0
-						? `x${consumableAmount}`
-						: `Nv ${item.level}`,
+				badge: `Nv ${item.level}`,
 				tone: isOwned
 					? "success"
 					: isLocked
@@ -267,11 +327,11 @@ export const routes: Routes = {
 							: "",
 				subtitle: item.description,
 				lines: [
-					`Nível ${item.level} · ${isDiamond ? "💎" : "🪙"} ${formatPrice(price)}`,
+					isOwned
+						? "Funcionando no mercado"
+						: `Nível ${item.level} · ${isDiamond ? "💎" : "🪙"} ${formatPrice(price)}`,
+					...(missingRequired && required ? [`Instale antes: ${required.name}`] : []),
 					...(build && !isOwned ? [`Instalação de ${formatBuildDuration(build.durationMs)}${busy ? " · construtores ocupados" : ""}`] : []),
-					...(item.isConsumable && consumableAmount > 0
-						? [`No inventário: ${consumableAmount}`]
-						: []),
 				],
 				buttons: [
 					act(
@@ -282,12 +342,18 @@ export const routes: Routes = {
 							variant: isOwned ? "success" : isDiamond ? "gem" : "coin",
 							icon: gameIcon(isDiamond ? "diamond" : "coin"),
 							enabled: !isOwned && !isLocked && canAfford && !busy,
-							ok: item.isConsumable
-								? `${item.name} foi adicionado aos boosters.`
-								: build
-									? `Os construtores começaram a instalar ${item.name}.`
-									: `${item.name} foi instalado no mercado.`,
-							fail: busy ? "Construtores ocupados com outra obra." : "Você ainda não atende aos requisitos desta compra.",
+							ok: build
+								? `Os construtores começaram a instalar ${item.name}.`
+								: `${item.name} foi instalado no mercado.`,
+							fail: busy
+								? "Construtores ocupados com outra obra."
+								: missingRequired && required
+									? `Instale antes: ${required.name}`
+									: isLocked
+										? `Nível ${item.level}`
+										: isDiamond
+										? "Diamantes insuficientes"
+										: "Moedas insuficientes",
 						},
 					),
 				],

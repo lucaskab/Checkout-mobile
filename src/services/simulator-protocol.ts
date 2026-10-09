@@ -11,6 +11,8 @@ const positive = (v: unknown): boolean =>
 	typeof v === "number" && Number.isFinite(v) && v > 0;
 const integer = (v: unknown): boolean => positive(v) && Number.isSafeInteger(v);
 const boolean = (v: unknown): boolean => typeof v === "boolean";
+const nonNegativeInteger = (v: unknown): boolean => Number.isSafeInteger(v) && Number(v) >= 0;
+const unitInterval = (v: unknown): boolean => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
 const currency = (v: unknown): boolean => v === "coins" || v === "diamonds";
 const object = (v: unknown): v is Record<string, unknown> =>
 	!!v && typeof v === "object" && !Array.isArray(v);
@@ -20,8 +22,18 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	claimDayResult: [],
 	closeDay: [],
 	completeCheckout: [text, positive],
+	checkoutArrived: [text],
 	completeOrderFinalStage: [text],
 	claimMission: [text],
+	claimAllMissions: [],
+	cookByHand: [
+		(v) =>
+			object(v) &&
+			text(v.recipeId) &&
+			text(v.sectorId) &&
+			typeof v.stars === "number" &&
+			Number.isFinite(v.stars),
+	],
 	deliverOrderInstantly: [text],
 	finishProductionNow: [text],
 	finishMarketExpansionNow: [],
@@ -42,6 +54,8 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	saveInteriorLayout: [(v) => Array.isArray(v) && v.length <= 300],
 	purchaseDecor: [text, currency],
 	fixIncident: [text],
+	// A driver of the jam asks for a drink through the window (event "engarrafamento").
+	serveWindowSale: [text],
 	unloadDelivery: [text, integer],
 	unloadAllDeliveries: [],
 	hireEmployee: [
@@ -51,10 +65,43 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 		(v) =>
 			object(v) &&
 			integer(v.productId) &&
-			integer(v.quantity) &&
+			// Supplier boxes (or, from older clients, units rounded up to boxes).
+			(integer(v.boxes) || integer(v.quantity)) &&
 			(v.useFreightCoupon === undefined || boolean(v.useFreightCoupon)),
 	],
+	// The shop's cart: several products, each in boxes, on one truck (src/services/supplier-cart.ts).
+	placeSupplierCart: [
+		(v) =>
+			object(v) &&
+			Array.isArray(v.lines) &&
+			v.lines.length >= 1 &&
+			v.lines.length <= 40 &&
+			v.lines.every(
+				(line) => object(line) && integer(line.productId) && integer(line.boxes),
+			) &&
+			(v.useFreightCoupon === undefined || boolean(v.useFreightCoupon)),
+	],
+	// Delivery app (src/services/delivery.ts): accept or decline an offer, pack the bag, hand it to the motoboy.
+	acceptDeliveryOrder: [text],
+	declineDeliveryOrder: [text],
+	packDeliveryOrder: [
+		text,
+		(v) =>
+			object(v) &&
+			Array.isArray(v.items) &&
+			v.items.length <= 10 &&
+			v.items.every(
+				(line) => object(line) && integer(line.productId) && nonNegativeInteger(line.quantity),
+			) &&
+			unitInterval(v.quality) &&
+			typeof v.seconds === "number" &&
+			Number.isFinite(v.seconds) &&
+			v.seconds >= 0 &&
+			v.seconds <= 3600,
+	],
+	handOverDelivery: [text],
 	purchaseShopItem: [text, currency],
+	activateShopBooster: [text],
 	assignProductToShelf: [text, integer],
 	clearShelf: [text],
 	tendShelf: [text],

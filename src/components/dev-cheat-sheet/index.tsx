@@ -12,6 +12,7 @@ import { ProductImage } from "@/components/product-image";
 import { gameEvents } from "@/data/game-events";
 import { type GameIconId, getGameEventIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
+import { formatEventDuration } from "@/services/game-events";
 import { useGameStore } from "@/stores/game-store";
 
 export function DevCheatSheet() {
@@ -94,7 +95,7 @@ export function DevCheatSheet() {
 					{event.effectLabel}
 				</Text>
 				<View style={styles.eventFooter}>
-					<Text style={styles.eventDuration}>{event.durationMinutes} min</Text>
+					<Text style={styles.eventDuration}>{formatEventDuration(event)}</Text>
 					<Text
 						style={[
 							styles.eventAction,

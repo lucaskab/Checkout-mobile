@@ -54,7 +54,7 @@ public static class CheckoutToolRunner {
  static void Handle(string line){
   var words=line.Split(new[]{' '},StringSplitOptions.RemoveEmptyEntries);if(words.Length==0)return;
   var kind=words[0];var rest=string.Join(" ",words,1,words.Length-1);
-  foreach(var c in rest)if(!(char.IsLetterOrDigit(c)||c=='_'||c=='-'||c=='.'||c=='/'||c==' '||c==','))return; // plain names only
+  foreach(var c in rest)if(!(char.IsLetterOrDigit(c)||c=='_'||c=='-'||c=='.'||c=='/'||c==' '||c==','||c=='+'||c=='@'||c=='~')){Write($"kind={kind}\nrejected character '{c}'");return;} // plain names (+ @ ~ are autotest route/action separators)
   var root=Path.GetFullPath(Path.Combine(Project,"..",".."));
   switch(kind){
    case "sprites":Run(kind,Blender,$"-b --factory-startup --python \"{Path.Combine(root,"scripts","blender","build_ui_sprites.py")}\" -- {rest}",root);Wake("refresh");return;

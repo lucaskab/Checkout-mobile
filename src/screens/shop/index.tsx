@@ -13,6 +13,7 @@ export function ShopScreen() {
 	const level = useGameStore((state) => state.market.level);
 	const shop = useGameStore((state) => state.shop);
 	const purchaseShopItem = useGameStore((state) => state.purchaseShopItem);
+	const activateShopBooster = useGameStore((state) => state.activateShopBooster);
 	const interiorConstructions = useGameStore((state) => state.interiorConstructions);
 	const finishInteriorConstructionNow = useGameStore((state) => state.finishInteriorConstructionNow);
 	// Fixtures being installed by the builders (second checkout, self-checkout).
@@ -43,6 +44,7 @@ export function ShopScreen() {
 				diamonds={diamonds}
 				level={level}
 				onPurchase={purchase}
+				onUse={(item) => activateShopBooster(item.id)}
 				ownedItemIds={[...shop.ownedItemIds, ...installing.map((item) => item.targetId)]}
 			/>
 		</View>

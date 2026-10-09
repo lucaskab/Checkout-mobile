@@ -41,6 +41,54 @@ namespace Checkout
 
         public string Title(int stage) => stageTitles[Mathf.Clamp(stage, 0, stageTitles.Length - 1)];
 
+        // Pieces taken out of the game: the clock towers on the corners of the bigger shops looked heavy and
+        // out of scale with the grown facade.
+        static readonly string[] Retired = { "S3 clock tower", "S4 tower east", "S4 tower west" };
+        public static bool IsRetired(CheckoutStageItem item) => System.Array.IndexOf(Retired, item.name) >= 0;
+
+        // The big entrance canopies (supermercado, hipermercado) are see-through, so the door and the people going
+        // in and out stay visible under them.
+        static readonly string[] SeeThrough = { "S2 entrance canopy", "S4 glass canopy" };
+        public const float CanopyOpacity = .5f;
+        static readonly Dictionary<Material, Material> faded = new Dictionary<Material, Material>();
+        readonly HashSet<CheckoutStageItem> fadedItems = new HashSet<CheckoutStageItem>();
+        static Shader fadeShader;
+        static void Fade(CheckoutStageItem item)
+        {
+            if (System.Array.IndexOf(SeeThrough, item.name) < 0) return;
+            foreach (var r in item.GetComponentsInChildren<Renderer>(true)) FadeRenderer(r);
+        }
+        // Swaps a renderer's materials for see-through copies (same colour and texture, CanopyOpacity). Safe to call
+        // again: already faded materials are kept. Used by the canopies and the shell's entrance portal.
+        public static void FadeRenderer(Renderer r)
+        {
+            // Only while playing: the editor previews would save the runtime copies into the scene.
+            if (!Application.isPlaying || !r || r is ParticleSystemRenderer) return;
+            if (!fadeShader) fadeShader = Shader.Find("MarketDay/Faded");
+            if (!fadeShader) { Debug.LogWarning("CHECKOUT_DRESSING no MarketDay/Faded shader"); return; }
+            {
+                var list = r.sharedMaterials; bool changed = false;
+                for (int i = 0; i < list.Length; i++)
+                {
+                    var m = list[i];
+                    if (!m || m.shader == fadeShader || m.renderQueue >= 2500) continue;
+                    if (!faded.TryGetValue(m, out var copy) || !copy)
+                    {
+                        copy = new Material(fadeShader) { name = m.name + " (faded)" };
+                        copy.color = m.HasProperty("_Color") ? m.color : Color.white;
+                        if (m.HasProperty("_MainTex") && m.mainTexture) { copy.mainTexture = m.mainTexture; copy.mainTextureScale = m.mainTextureScale; copy.mainTextureOffset = m.mainTextureOffset; }
+                        if (m.shader.name.Contains("Triplanar") && m.HasProperty("_Tiling")) copy.SetFloat("_Tiling", Mathf.Max(.01f, m.GetFloat("_Tiling")));
+                        if (m.HasProperty("_EmissionColor") && m.IsKeywordEnabled("_EMISSION")) copy.SetColor("_EmissionColor", m.GetColor("_EmissionColor"));
+                        copy.SetFloat("_Fade", CanopyOpacity);
+                        faded[m] = copy;
+                    }
+                    list[i] = copy; changed = true;
+                }
+                if (changed) r.sharedMaterials = list;
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+        }
+
         // Places every item on the projected market and shows the ones of this stage. With `hold`, the
         // newly visible pieces stay hidden until Reveal() (used by the construction timelapse).
         public List<CheckoutStageItem> Apply(CheckoutMarketLayout layout, int stage, bool hold)
@@ -52,7 +100,10 @@ namespace Checkout
             foreach (var item in Items)
             {
                 if (!item) continue;
+                if (IsRetired(item)) { item.gameObject.SetActive(false); continue; }
                 if (!item.captured) item.Capture();
+                // `captured` is saved with the scene, so fading runs once per session on its own.
+                if (fadedItems.Add(item)) Fade(item);
                 var t = item.transform;
                 var fit = item.Fits(layout ? layout.State : null);
                 if (item.fixedPosition) { item.gameObject.SetActive(item.Visible(stage) && fit); continue; }
@@ -90,7 +141,7 @@ namespace Checkout
             hidden.Clear();
             foreach (var item in list)
             {
-                if (!item || !item.Visible(Stage)) continue;
+                if (!item || !item.Visible(Stage) || IsRetired(item)) continue;
                 item.gameObject.SetActive(true);
                 StartCoroutine(Pop(item.transform, item.transform.localScale));
                 yield return new WaitForSeconds(spacing);
@@ -107,7 +158,7 @@ namespace Checkout
 
         public void RevealNow()
         {
-            foreach (var item in hidden) if (item) item.gameObject.SetActive(item.Visible(Stage));
+            foreach (var item in hidden) if (item) item.gameObject.SetActive(item.Visible(Stage) && !IsRetired(item));
             hidden.Clear();
         }
 

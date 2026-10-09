@@ -5,14 +5,19 @@ import type { SimulatorPanel } from "@/@types/simulator";
 import { shelves } from "@/data/market-products";
 import { createSimulatorCommandHandler } from "@/services/simulator-protocol";
 import { getUnlockedSimulatorSectorId } from "@/services/simulator-sector-selection";
+import { getRecentEventOutcome } from "@/services/game-events";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
 import { useGameStore } from "@/stores/game-store";
+import { getCatalog, getLanguage, localizeSnapshot, localizeView, setLanguage } from "@/i18n";
 import { createDesktopView } from "./view.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
 // timers as src/app/_layout.tsx and speaks the Unity bridge protocol over stdin/stdout.
 // stdout carries one JSON message per line, so logs from the game code go to stderr.
 console.log = console.info = console.warn = console.error;
+// The language picked on Unity's start screen ("pt", "en", "es", "fr", "de"). The game's texts are
+// Portuguese; pages and snapshots are translated on the way out, so Unity only draws them.
+setLanguage(process.env.CHECKOUT_LANG);
 
 const panels: SimulatorPanel[] = [
 	"store",
@@ -30,13 +35,20 @@ const panels: SimulatorPanel[] = [
 // Everything the app's screens call on the store. Timers stay owned by this host.
 const hudActions: (keyof GameActions)[] = [
 	"activateLogisticsBoost",
+	"activateShopBooster",
 	"assignProductToShelf",
 	"buildSector",
 	"claimDailyGoal",
 	"claimDayResult",
+	"acceptDeliveryOrder",
+	"declineDeliveryOrder",
+	"packDeliveryOrder",
+	"handOverDelivery",
 	"claimMission",
+	"claimAllMissions",
 	"clearShelf",
 	"completeCheckout",
+	"checkoutArrived",
 	"closeDay",
 	"completeOrderFinalStage",
 	"deliverOrderInstantly",
@@ -48,11 +60,14 @@ const hudActions: (keyof GameActions)[] = [
 	"devPassTime",
 	"devSetMarketEra",
 	"devClearDock",
+	"devSpawnDeliveryOffer",
 	"devFinishMarketExpansion",
 	"devFinishInteriorConstructions",
 	"devTriggerIncident",
 	"devWearShelf",
 	"dismissOfflineSummary",
+	"dismissLevelUp",
+	"dismissCelebration",
 	"evolveMarketEra",
 	"upgradeProduct",
 	"claimDailyLogin",
@@ -70,11 +85,14 @@ const hudActions: (keyof GameActions)[] = [
 	"grantCurrencyPurchase",
 	"hireEmployee",
 	"placeSupplierOrder",
+	"placeSupplierCart",
+	"orderLowStock",
 	"purchaseDecor",
 	"purchaseShopItem",
 	"resetGame",
 	"resolveSpecialRequest",
 	"restockShelf",
+	"serveWindowSale",
 	"setEmployeeWorking",
 	"setMarketLevel",
 	"setMarketOpen",
@@ -83,6 +101,7 @@ const hudActions: (keyof GameActions)[] = [
 	"tendShelf",
 	"startDay",
 	"startProduction",
+	"cookByHand",
 	"trainEmployee",
 	"unlockMarketExpansion",
 	"unlockNextShelf",
@@ -110,12 +129,12 @@ function send(message: unknown) {
 function snapshot() {
 	if (!ready) return;
 	dirty = false;
-	send(createSimulatorSnapshot(useGameStore.getState(), session, revision));
+	send(localizeSnapshot(createSimulatorSnapshot(useGameStore.getState(), session, revision)));
 }
 function view() {
 	viewDirty = false;
 	viewSentAt = Date.now();
-	send(createDesktopView(useGameStore.getState(), revision, routes));
+	send(localizeView(createDesktopView(useGameStore.getState(), revision, routes)));
 }
 // "" closes every page, "back" pops one, "~route" replaces the top one, "!route" starts a
 // fresh stack (toolbar), anything else pushes.
@@ -165,6 +184,8 @@ function runHudAction(message: {
 		const ok = run(...message.args) !== false;
 		send({ kind: "result", id, action, ok, reason: ok ? "" : "game-rule-rejected" });
 		if (ok && message.after === "back") routes.pop();
+		// "!route" / "~route": the action then opens a page (the level-up celebration's group buttons).
+		else if (ok && typeof message.after === "string" && /^[!~]/.test(message.after)) navigate(message.after);
 	} catch (error) {
 		send({ kind: "result", id, action, ok: false, reason: String(error) });
 	}
@@ -181,6 +202,9 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 	}
 	if (message.kind === "ready") {
 		ready = true;
+		// Unity's own texts (counter game, map popups, HUD labels) use the same catalog.
+		const catalog = getCatalog();
+		send({ kind: "i18n", lang: getLanguage(), keys: Object.keys(catalog), values: Object.values(catalog) });
 		snapshot();
 		view();
 	} else if (message.kind === "panel" && message.panel === "requests") {
@@ -226,6 +250,7 @@ setInterval(() => {
 	store().processCheckoutCounter();
 	store().processStoreIncidents();
 	store().processReceiving();
+	store().processDelivery();
 	store().processEmployeeWork();
 	store().processMarketDay();
 	// Paid expansions open when their works end (the app runs this in ProductionSimulation).
@@ -244,7 +269,10 @@ setInterval(() => {
 	if (dirty) snapshot();
 	// Pages, the day clock and the event badge carry live timers, so they refresh every second even when idle.
 	const stale =
-		(routes.length > 0 || phase === "open" || store().events.activeEvent !== null) &&
+		(routes.length > 0 ||
+			phase === "open" ||
+			store().events.activeEvent !== null ||
+			getRecentEventOutcome(store().events, Date.now() - 1_500) !== null) &&
 		Date.now() - viewSentAt > 1_000;
 	if ((viewDirty || stale) && Date.now() - viewSentAt > 250) view();
 }, 100);

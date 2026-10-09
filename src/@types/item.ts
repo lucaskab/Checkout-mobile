@@ -33,7 +33,8 @@ export type ItemDefinition = {
 	shelfId?: string;
 	shelfSpace: number;
 	spoilChance: number;
-	supplierQuantity: number;
+	/** Units in one supplier box (case pack): orders are placed and paid per box (src/data/case-sizes.ts). */
+	caseSize: number;
 	supplierTime: string;
 	suggestedPrice: number;
 	/** Expansion from which the product can be sold (src/data/economy.ts marketEras). */

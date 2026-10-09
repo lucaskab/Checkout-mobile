@@ -5,20 +5,37 @@ import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
 import { getGameEvent } from "@/data/game-events";
 import { getGameEventIcon } from "@/data/game-icon-assets";
+import { getActiveEventEffectLabel, getRecentEventOutcome } from "@/services/game-events";
 import { useGameStore } from "@/stores/game-store";
 
 export function SimulatorEvent() {
 	const active = useGameStore((state) => state.events.activeEvent);
+	const events = useGameStore((state) => state.events);
 	const [now, setNow] = useState(Date.now());
 	const [expanded, setExpanded] = useState(false);
 	const event = getGameEvent(active?.eventId);
+	const outcome = getRecentEventOutcome(events, now);
+	const outcomeEvent = getGameEvent(outcome?.eventId);
 	useEffect(() => {
 		setExpanded(false);
 		setNow(Date.now());
-		if (!active) return;
+		if (!active && !events.outcome) return;
 		const timer = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(timer);
-	}, [active]);
+	}, [active, events.outcome]);
+	// After the event: the inspector's report stays for a few seconds.
+	if (outcome && outcomeEvent)
+		return (
+			<View style={[styles.chip, outcome.kind === "negative" && styles.negative]}>
+				<View style={styles.row}>
+					<GameIcon icon={getGameEventIcon(outcomeEvent.id)} style={styles.icon} />
+					<Text numberOfLines={1} style={styles.name}>
+						{outcomeEvent.name}
+					</Text>
+				</View>
+				<Text style={styles.detail}>{outcome.text}</Text>
+			</View>
+		);
 	if (!event || !active || active.endsAt <= now) return null;
 	const seconds = Math.ceil((active.endsAt - now) / 1000);
 	return (
@@ -38,7 +55,7 @@ export function SimulatorEvent() {
 					{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
 				</Text>
 			</View>
-			{expanded && <Text style={styles.detail}>{event.effectLabel}</Text>}
+			{expanded && <Text style={styles.detail}>{getActiveEventEffectLabel(event, active)}</Text>}
 		</Pressable>
 	);
 }

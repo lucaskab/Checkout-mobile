@@ -48,7 +48,7 @@ test("the block is a grid of 12 equal lots covering it all", async () => {
 });
 
 test("old saves keep the lots their expansion stands on", () => {
-	expect(normalizeLotsState(undefined, "supermercado").cleared).toEqual(["A1", "B1", "A2", "B2", "C1", "B3"]);
+	expect(normalizeLotsState(undefined, "supermercado").cleared).toEqual(["A1", "B1", "A2", "B2", "C1", "C2"]);
 	expect(normalizeLotsState(undefined, "mesinha").owned).toEqual([]);
 	expect(normalizeLotsState({ owned: ["A1"], cleared: ["A1"], clearing: null }, "mesinha").cleared).toEqual(["A1"]);
 	expect(getMissingLots(none, "tenda")).toEqual(["A1"]);

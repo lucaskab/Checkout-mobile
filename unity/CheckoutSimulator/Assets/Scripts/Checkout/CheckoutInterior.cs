@@ -317,7 +317,8 @@ namespace Checkout
                 bool moved = false;
                 // Also pieces that ended up under furniture the map design added.
                 var fixedPieces = items.Values.Where(i => i.root && i.design && !i.outside).Select(i => FootprintOf(i, -.012f)).ToList();
-                foreach (var it in items.Values.Where(i => i.root && !i.outside && !i.ghost && !i.design).OrderBy(i => i.id).ToList())
+                // Shelves leave the checkout strip first, so the checkouts find it free.
+                foreach (var it in items.Values.Where(i => i.root && !i.outside && !i.ghost && !i.design).OrderBy(i => IsCounter(i) ? 1 : 0).ThenBy(i => i.id).ToList())
                     if ((Overlap(FootprintOf(it), ServiceDoor) || fixedPieces.Any(f => Overlap(FootprintOf(it), f)) || !InItsArea(it)) && Settle(it)) moved = true;
                 if (moved) { changed = true; MarkPending(); map?.SaveInterior(); }
             }
@@ -397,11 +398,11 @@ namespace Checkout
             if (it.outside) return BlockRect;
             if (designMode || it.design) return FloorRect;
             if (IsCounter(it)) return CheckoutZone;
-            if (it.functional) { var f = FloorRect; return Rect.MinMaxRect(f.xMin, CheckoutZone.yMax, f.xMax, f.yMax); }
+            if (it.functional) { var f = FloorRect; return Rect.MinMaxRect(f.xMin, f.yMin, CheckoutZone.xMin, f.yMax); }
             return FloorRect;
         }
         static bool IsCounter(Item it) => it.type == "checkout" || it.type == "kiosk";
-        // The checkout area is painted on the floor: a darker band of tiles with a gold line where it ends.
+        // The checkout area is painted on the floor: a darker band of tiles with a gold line along its inner edge.
         Transform zoneMarks; Rect zoneDrawn;
         void MarkCheckoutZone()
         {
@@ -426,8 +427,8 @@ namespace Checkout
                 t.localScale = new Vector3(x1 - x0, z1 - z0, 1);
             }
             Put("Band", zone.xMin, zone.yMin, zone.xMax, zone.yMax, Floor + .004f);
-            Put("Line shadow", zone.xMin, zone.yMax - .05f, zone.xMax, zone.yMax + .12f, Floor + .005f);
-            Put("Line", zone.xMin, zone.yMax - .05f, zone.xMax, zone.yMax + .07f, Floor + .006f);
+            Put("Line shadow", zone.xMin - .12f, zone.yMin, zone.xMin + .05f, zone.yMax, Floor + .005f);
+            Put("Line", zone.xMin - .07f, zone.yMin, zone.xMin + .05f, zone.yMax, Floor + .006f);
         }
         void Mark(string name, Color color, int queue)
         {
@@ -443,15 +444,47 @@ namespace Checkout
             if (it.outside || it.design || !it.functional || !it.root) return true;
             var zone = CheckoutZone;
             foreach (var c in Corners(FootprintOf(it)))
-                if (IsCounter(it) ? c.y > zone.yMax + .01f : c.y < zone.yMax - .01f) return false;
+                if (IsCounter(it) ? c.x < zone.xMin - .01f : c.x > zone.xMin + .01f) return false;
+            if (IsCounter(it) && !QueueInZone(it, it.root.position, it.rot)) return false;
             return true;
         }
+        // The line of a checkout waits inside the checkout area too (not across the aisles of the shop).
+        bool QueueInZone(Item it, Vector3 position, float rot)
+        {
+            var zone = CheckoutZone;
+            foreach (var s in ServicePoints(it, position, rot)) if (s.x < zone.xMin + .05f) return false;
+            return true;
+        }
+        // A checkout that has to move goes to the checkout strip along the east wall: staff against the wall,
+        // customers facing the shop (90°) and the line running from the back towards the front door. The free spot
+        // nearest `near` (default: the front wall) wins, so new counters line up one behind the other.
+        bool SettleCounter(Item it, float? near = null)
+        {
+            var zone = CheckoutZone; if (zone.width < .5f) return false;
+            float y = it.root.position.y, from = near ?? zone.yMin;
+            var rows = new List<float>();
+            for (float z = zone.yMin; z <= zone.yMax + .001f; z += GridSize) rows.Add(z);
+            rows.Sort((a, b) => Mathf.Abs(a - from).CompareTo(Mathf.Abs(b - from)));
+            foreach (var turn in new[] { 90f, 270f })
+            {
+                var probe = Aabb(FootprintAt(it, new Vector3(zone.xMax, y, zone.center.y), turn));
+                float flush = zone.xMax - (probe.xMax - zone.xMax);
+                foreach (var z in rows)
+                    for (float dx = 0; dx <= zone.width - probe.width + .001f; dx += GridSize)
+                    {
+                        var p = new Vector3(flush - dx, y, z);
+                        if (Fits(it, p, turn, out _)) { it.rot = turn; MoveTo(it, p); return true; }
+                    }
+            }
+            return false;
+        }
 
-        // The checkout area: a strip along the front wall (6 half squares deep) where only the manual checkouts and
-        // the self-checkouts stand, marked on the floor. Customers pass through it to pay and to leave.
+        // The checkout area: a strip along the east wall (the parking side), from the front wall to the back wall,
+        // 6 half squares wide, where only the manual checkouts and the self-checkouts stand, marked on the floor.
+        // Customers queue along it towards the front and walk out through the door.
         public const float CheckoutZoneDepth = 3f;
         // The small shops have their own counter (part of the model): no checkout area to place counters in.
-        public Rect CheckoutZone { get { var f = FloorRect; if (CheckoutStall.ShopInside) return Rect.MinMaxRect(f.xMin, f.yMin, f.xMax, f.yMin); return Rect.MinMaxRect(f.xMin, f.yMin, f.xMax, Mathf.Min(f.yMax, f.yMin + CheckoutZoneDepth)); } }
+        public Rect CheckoutZone { get { var f = FloorRect; if (CheckoutStall.ShopInside) return Rect.MinMaxRect(f.xMax, f.yMin, f.xMax, f.yMax); return Rect.MinMaxRect(Mathf.Max(f.xMin, f.xMax - CheckoutZoneDepth), f.yMin, f.xMax, f.yMax); } }
 
         // The shop with its entrance steps, the parking bays and the delivery path stay clear.
         IEnumerable<Rect> KeepClear()
@@ -598,8 +631,12 @@ namespace Checkout
             if (!designMode && !it.design)
             {
                 var zone = CheckoutZone;
-                if (IsCounter(it)) { foreach (var c in Corners(f)) if (c.y > zone.yMax + eps) { why = "O caixa fica na área dos caixas"; return false; } }
-                else if (it.functional) { foreach (var c in Corners(f)) if (c.y < zone.yMax - eps) { why = "Área só para caixas"; return false; } }
+                if (IsCounter(it))
+                {
+                    foreach (var c in Corners(f)) if (c.x < zone.xMin - eps) { why = "O caixa fica na área dos caixas"; return false; }
+                    if (!QueueInZone(it, position, rot)) { why = "Gire o caixa: a fila fica na área dos caixas"; return false; }
+                }
+                else if (it.functional) { foreach (var c in Corners(f)) if (c.x > zone.xMin + eps) { why = "Área só para caixas"; return false; } }
             }
             if (Overlap(f, Entrance)) { why = "Deixe a entrada livre"; return false; }
             if (CheckoutStall.ShopInside)
@@ -685,6 +722,7 @@ namespace Checkout
             if (!it.root) return false;
             var start = it.root.position;
             if (Fits(it, start, it.rot, out _)) return true;
+            if (IsCounter(it) && !designMode && !it.design && SettleCounter(it)) return true;
             // Slide first (keeping the way it faces), turn only when there is no room at all.
             float[] turns = { it.rot, it.rot + 90, it.rot + 270, it.rot + 180 };
             foreach (var t in turns)
@@ -971,11 +1009,13 @@ namespace Checkout
         {
             if (!waiting.TryGetValue(id, out var w) || items.ContainsKey(id) || !kit.Find(w.template)) return null;
             var it = new Item { id = id, type = w.type, template = w.template, functional = true, placed = true };
-            var d = DefaultFor(id, out _); it.rot = d.y;
+            var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : d.y;
             Build(it); if (!it.root) return null;
             items[id] = it;
             MoveTo(it, near);
-            if (!Settle(it)) { Destroy(it.root.gameObject); items.Remove(id); return null; }
+            // Checkouts go flush against the east wall, at the free spot nearest where the player is looking.
+            bool settled = IsCounter(it) && !designMode && SettleCounter(it, near.z);
+            if (!settled && !Settle(it)) { Destroy(it.root.gameObject); items.Remove(id); return null; }
             waiting.Remove(id);
             return it;
         }

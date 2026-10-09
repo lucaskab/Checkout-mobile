@@ -17,6 +17,11 @@ export function getNextSupplierOrderSlotUpgrade(slots: number) {
 	);
 }
 
+// A truck holds 10 boxes at the start, two more for every extra truck of the supplier slots.
+export function getMaxBoxesPerOrder(slots: number) {
+	return 10 + 2 * (slots - initialSupplierOrderSlots);
+}
+
 export function normalizeSupplierOrderSlots(slots: unknown) {
 	const maximumSlots =
 		supplierOrderSlotUpgrades.at(-1)?.slots ?? initialSupplierOrderSlots;

@@ -1,0 +1,23 @@
+00:00.016  color_management | Using OCIO=C:\Program Files\Blender Foundation\Blender 5.2\5.2\datafiles\colormanagement\config.ocio
+TRIS Transito_Car 11298 [4.15, 2.12, 1.93]
+   [('body', 3206), ('tyre', 1264), ('lbl', 608), ('arch_flare', 512), ('rimhole', 512), ('rim', 416), ('bumper', 376), ('tyre_groove', 304), ('sidewall', 304), ('seam', 288), ('hubcap', 256), ('lamp_ring', 248), ('archliner', 240), ('mirror', 216), ('lamp', 216), ('indicator_f', 216)]
+TRIS Vigilancia_Car 12722 [4.65, 2.05, 1.92]
+   [('body', 3452), ('tyre', 1264), ('lbl', 994), ('arch_flare', 512), ('rimhole', 512), ('rim', 416), ('bumper', 376), ('tyre_groove', 304), ('sidewall', 304), ('seam', 288), ('hubcap', 256), ('lamp_ring', 248), ('archliner', 240), ('mirror', 216), ('lamp', 216), ('indicator_f', 216)]
+TRIS Som_Van 11962 [4.49, 2.26, 2.67]
+   [('body', 2718), ('tyre', 1264), ('lbl', 1204), ('arch_flare', 512), ('rimhole', 512), ('rim', 416), ('bumper', 376), ('tyre_groove', 304), ('sidewall', 304), ('seam', 288), ('hubcap', 256), ('lamp_ring', 248), ('archliner', 240), ('lamp', 216), ('indicator', 216), ('mirror', 216)]
+TRIS Maquininha_TelecomVan 12289 [5.56, 2.43, 2.69]
+   [('body', 2623), ('tyre', 1264), ('lbl', 1150), ('seam', 588), ('arch_flare', 512), ('rimhole', 512), ('rim', 416), ('bumper', 376), ('tyre_groove', 304), ('sidewall', 304), ('stripe', 304), ('hubcap', 256), ('lamp_ring', 248), ('archliner', 240), ('lamp', 216), ('indicator', 216)]
+TRIS Ofertas_BoxTruck 12562 [7.82, 2.73, 3.36]
+   [('tyre', 1896), ('cab', 1398), ('lbl', 1056), ('rim', 624), ('cargo', 608), ('rimhole', 512), ('seam', 480), ('tyre_groove', 456), ('sidewall', 456), ('hubcap', 384), ('arch_flare', 256), ('mudguard_arc', 252), ('lamp_ring', 248), ('lamp', 216), ('indicator', 216), ('mirror_h', 216)]
+TRIS Rush_CityBus 15391 [11.21, 2.91, 3.49]
+   [('bus_body', 2861), ('tyre', 1392), ('lbl', 1366), ('skirt_stripe', 720), ('arch_flare', 512), ('rimhole', 512), ('rim', 416), ('bumper', 376), ('stripe_main', 372), ('tyre_groove', 336), ('sidewall', 336), ('win_R_seal', 322), ('win_R', 322), ('taillamp', 264), ('stripe_thin', 260), ('hubcap', 256)]
+TRIS Excursao_SchoolBus 16593 [9.25, 3.33, 3.16]
+   [('bus_body', 2966), ('tyre', 1896), ('lbl', 1455), ('hood', 820), ('stripe_black', 768), ('rim', 624), ('rimhole', 512), ('fender_arc', 472), ('tyre_groove', 456), ('sidewall', 456), ('hubcap', 384), ('bumper', 376), ('win_R_seal', 368), ('win_R', 368), ('win_L_seal', 322), ('win_L', 322)]
+TRIS Energia_BucketTruck 13445 [7.66, 2.8, 2.68]
+   [('tyre', 1896), ('cab', 1404), ('lbl', 743), ('rim', 624), ('seam', 600), ('lockers', 578), ('rimhole', 512), ('tyre_groove', 456), ('sidewall', 456), ('hubcap', 384), ('tall_locker', 376), ('handle', 264), ('arch_flare', 256), ('mudguard_arc', 252), ('lamp_ring', 248), ('lamp', 216)]
+TRIS Obras_Backhoe 12052 [6.67, 3.26, 3.24]
+   [('tyre', 1264), ('hood', 764), ('rimhole', 640), ('fender_arc', 472), ('louver', 440), ('pillar', 432), ('larm', 432), ('lug', 432), ('rim', 416), ('lbl', 336), ('tyre_groove', 304), ('sidewall', 304), ('hubcap', 256), ('lamp_ring', 248), ('lamp', 216), ('cab_skirt_s', 216)]
+DONE 184.7
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 02:38:20)
+
+Blender quit

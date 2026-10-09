@@ -2,22 +2,28 @@ import type {
 	DayContractDifficulty,
 	DayContractKind,
 } from "@/@types/market-day";
-import { TURN_SCALE } from "@/data/economy";
+import type { DayForecast } from "@/services/day-forecast";
 
-// Contracts offered at the start of each day. Targets scale with the market level and are
-// sized for one DAY_DURATION_MS turn (TURN_SCALE = turn length / 5 min); see services/market-day.ts.
+// Contracts offered at the start of each day. Targets come from the day's forecast (what this market,
+// with its shelves, level and size, should see in one turn; src/services/day-forecast.ts):
+// the easy one is usually done before half of the day, the medium one a little after half, and the hard
+// one asks for nearly a whole good day.
+export const CONTRACT_SHARE = { easy: 0.4, medium: 0.6, hard: 0.85 } as const;
+
 export type DayContractDefinition = {
 	description: (target: number, categoryLabel: string) => string;
 	difficulty: DayContractDifficulty;
 	icon: string;
 	id: string;
 	kind: DayContractKind;
-	target: (level: number) => number;
+	target: (level: number, forecast: DayForecast, category?: string) => number;
 	title: (categoryLabel: string) => string;
 };
 
 const round = (value: number, step: number) =>
 	Math.max(step, Math.round(value / step) * step);
+/** Coins rounded to a friendly number (5 by 5 when small, 10 by 10 after). */
+const coins = (value: number) => round(value, value < 150 ? 5 : 10);
 
 export const dayContractDefinitions: DayContractDefinition[] = [
 	{
@@ -28,7 +34,7 @@ export const dayContractDefinitions: DayContractDefinition[] = [
 		title: () => "Caixa cheio",
 		description: (target) =>
 			`Fature ${target.toLocaleString("pt-BR")} moedas hoje.`,
-		target: (level) => round((180 + level * 45) * TURN_SCALE, 10),
+		target: (_level, forecast) => Math.max(20, coins(forecast.revenue * CONTRACT_SHARE.easy)),
 	},
 	{
 		id: "margem-boa",
@@ -38,7 +44,7 @@ export const dayContractDefinitions: DayContractDefinition[] = [
 		title: () => "Margem saudável",
 		description: (target) =>
 			`Termine o dia com ${target.toLocaleString("pt-BR")} moedas de lucro nas vendas.`,
-		target: (level) => round((70 + level * 20) * TURN_SCALE, 10),
+		target: (_level, forecast) => Math.max(10, coins(forecast.profit * CONTRACT_SHARE.medium)),
 	},
 	{
 		id: "casa-cheia",
@@ -47,8 +53,7 @@ export const dayContractDefinitions: DayContractDefinition[] = [
 		icon: "customers",
 		title: () => "Casa cheia",
 		description: (target) => `Receba ${target} clientes antes de fechar.`,
-		target: (level) =>
-			Math.round((7 + Math.min(8, Math.floor(level / 2))) * TURN_SCALE),
+		target: (_level, forecast) => Math.max(3, Math.round(forecast.customers * CONTRACT_SHARE.easy)),
 	},
 	{
 		id: "atendimento-ouro",
@@ -58,8 +63,8 @@ export const dayContractDefinitions: DayContractDefinition[] = [
 		title: () => "Atendimento de ouro",
 		description: (target) =>
 			`Resolva bem ${target} pedidos especiais de clientes.`,
-		target: (level) =>
-			Math.round((2 + Math.min(3, Math.floor(level / 4))) * (1 + (TURN_SCALE - 1) / 2)),
+		// Requests depend on luck and on the player answering them: half of the expected ones.
+		target: (_level, forecast) => Math.max(1, Math.round(forecast.requests * 0.5)),
 	},
 	{
 		id: "clientes-sorrindo",
@@ -79,8 +84,7 @@ export const dayContractDefinitions: DayContractDefinition[] = [
 		title: () => "Ninguém fica esperando",
 		description: (target) =>
 			`Atenda ${target} pedidos especiais sem deixar nenhum cliente ir embora.`,
-		target: (level) =>
-			Math.round((3 + Math.min(3, Math.floor(level / 5))) * (1 + (TURN_SCALE - 1) / 2)),
+		target: (_level, forecast) => Math.max(2, Math.round(forecast.requests * 0.7)),
 	},
 	{
 		id: "especialista",
@@ -90,8 +94,12 @@ export const dayContractDefinitions: DayContractDefinition[] = [
 		title: (category) => `Especialista em ${category}`,
 		description: (target, category) =>
 			`Venda ${target} unidades de ${category.toLocaleLowerCase("pt-BR")}.`,
-		target: (level) =>
-			Math.round((5 + Math.min(10, Math.floor(level * 0.8))) * TURN_SCALE),
+		target: (_level, forecast, category) => {
+			const expected =
+				(category ? forecast.unitsByCategory[category] : undefined) ??
+				forecast.units / Math.max(1, Object.keys(forecast.unitsByCategory).length);
+			return Math.max(2, Math.round(expected * CONTRACT_SHARE.hard));
+		},
 	},
 ];
 

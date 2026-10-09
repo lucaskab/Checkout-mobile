@@ -14,6 +14,7 @@ export function MarketSimulation() {
 		(state) => state.processStoreIncidents,
 	);
 	const processReceiving = useGameStore((state) => state.processReceiving);
+	const processDelivery = useGameStore((state) => state.processDelivery);
 	const processEmployeeWork = useGameStore((state) => state.processEmployeeWork);
 
 	useEffect(() => {
@@ -34,6 +35,7 @@ export function MarketSimulation() {
 			processCheckoutCounter();
 			processStoreIncidents();
 			processReceiving();
+			processDelivery();
 			processEmployeeWork();
 			processMarketDay();
 		};
@@ -43,6 +45,7 @@ export function MarketSimulation() {
 		return () => clearInterval(interval);
 	}, [
 		processCheckoutCounter,
+		processDelivery,
 		processEmployeeWork,
 		processMarketDay,
 		processReceiving,

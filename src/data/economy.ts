@@ -8,10 +8,15 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
 /** One market turn ("dia" inside the game). */
-export const TURN_MINUTES = 10;
+export const TURN_MINUTES = 5;
 export const TURN_DURATION_MS = TURN_MINUTES * MINUTE;
-/** Contract targets and rewards were first sized for 5-minute turns. */
-export const TURN_SCALE = TURN_MINUTES / 5;
+/**
+ * The money side of the game (customers per minute, contract and day rewards, salaries, offline income)
+ * was balanced on 10-minute turns. Shorter turns keep the same pace per minute of play: the per-turn
+ * amounts below are multiplied by TURN_SHARE (a 5-minute turn is worth half a 10-minute one).
+ */
+export const BALANCE_TURN_MINUTES = 10;
+export const TURN_SHARE = TURN_MINUTES / BALANCE_TURN_MINUTES;
 
 /** Coins of a brand-new game (enough for a few crates of stock, not for the stall). */
 export const STARTING_COINS = 200;
@@ -21,10 +26,10 @@ export const STARTING_COINS = 200;
  * turn of sales: the contract is a bonus for the day, selling is still the job.
  */
 export function getContractCoins(level: number) {
-	return 60 + level * 20;
+	return Math.max(10, Math.round((60 + level * 20) * TURN_SHARE));
 }
 export function getContractExperience(level: number) {
-	return 15 + level * 6;
+	return Math.max(5, Math.round((15 + level * 6) * TURN_SHARE));
 }
 
 /** Levels an item can gain on top of the one bought (income up to ×1,10^10 ≈ ×2,6). */
@@ -228,8 +233,14 @@ export function getMarketEra(id: MarketEraId) {
 }
 
 /** Shortest wait between two customers in `era`: a turn holds at most `maxCustomersPerTurn` of them. */
+/** maxCustomersPerTurn counts customers per 10-minute window (BALANCE_TURN_MINUTES), whatever the turn length. */
 export function getMinArrivalDelayMs(era: Pick<MarketEraDefinition, "maxCustomersPerTurn">) {
-	return Math.round(TURN_DURATION_MS / Math.max(1, era.maxCustomersPerTurn));
+	return Math.round((BALANCE_TURN_MINUTES * MINUTE) / Math.max(1, era.maxCustomersPerTurn));
+}
+
+/** Played turns an hour away is worth (offlineTurnsPerHour counts 10-minute turns). */
+export function getOfflineTurnsPerHour(era: Pick<MarketEraDefinition, "offlineTurnsPerHour">) {
+	return era.offlineTurnsPerHour / TURN_SHARE;
 }
 
 export function getNextMarketEra(id: MarketEraId) {

@@ -1,6 +1,7 @@
 import type { SupplierOrder } from "@/@types/logistics";
 import { getMarketCategoryProductId } from "@/data/game-icon-assets";
-import { getInventoryCapacity } from "@/data/inventory-capacity";
+import { getBoxCount } from "@/data/case-sizes";
+import { getInventoryBoxCapacity, getInventoryCapacity } from "@/data/inventory-capacity";
 import { itemCatalog, itemCategories } from "@/data/market-products";
 import { productionRecipes } from "@/data/production-sectors";
 import { getNextSupplierOrderSlotUpgrade } from "@/data/supplier-capacity";
@@ -11,10 +12,12 @@ import {
 	getSupplierOrderStatus,
 } from "@/services/logistics";
 import { getProductionEconomy } from "@/services/production";
+import { getOrderBoxes, getOrderLines } from "@/services/supplier-cart";
 import {
-	getMaxShelfOrderQuantity,
+	getMaxShelfOrderBoxes,
 	getShelfOrderQuote,
 } from "@/services/shelf-order-quote";
+import { getStoredBoxes } from "@/services/stockroom";
 import type { Routes } from ".";
 import {
 	act,
@@ -79,6 +82,14 @@ const clock = (ms: number) => {
 };
 
 // One "Pedidos em andamento" row of ItemsList.
+// A truck of one product, or of a cart with several products (in boxes).
+function orderTitle(order: SupplierOrder) {
+	const lines = getOrderLines(order);
+	if (lines.length > 1) return `Pedido · ${lines.length} produtos · ${getOrderBoxes(order)} cx`;
+	const product = itemCatalog.find((item) => item.id === order.productId);
+	return `${product?.name ?? "Produto"} · ${order.quantity} unid.`;
+}
+
 function orderCard(state: State, order: SupplierOrder, now: number, header: string): Card {
 	const product = itemCatalog.find((item) => item.id === order.productId);
 	const status = getSupplierOrderStatus(order, now);
@@ -104,7 +115,7 @@ function orderCard(state: State, order: SupplierOrder, now: number, header: stri
 						]
 					: []),
 			];
-	return card(`${product?.name ?? "Produto"} · ${order.quantity} unid.`, {
+	return card(orderTitle(order), {
 		eyebrow: header,
 		icon: product ? productIcon(product.id) : gameIcon("package"),
 		subtitle: waiting
@@ -163,11 +174,11 @@ export const routes: Routes = {
 						...(product.productionSavingsPercent !== undefined
 							? [`Fabricar economiza ${product.productionSavingsPercent}%`]
 							: []),
-						`Escolha a quantidade · Entrega: ${product.shelfTime}`,
+						`Escolha quantas caixas · Entrega: ${product.shelfTime}`,
 						`Vende por ${product.sellPrice}/un`,
 					],
 					buttons: [
-						go("Escolher quantidade", `order:${product.id}:1`, {
+						go("Pedir caixas", `@shop:${product.id}`, {
 							variant: "primary",
 							icon: gameIcon("deliveryTruck"),
 						}),
@@ -190,48 +201,62 @@ export const routes: Routes = {
 			),
 		});
 	},
-	// "order:<productId>:<qty>" — SupplierOrderSheet.
+	// "order:<productId>:<boxes>" — SupplierOrderSheet. The stepper counts supplier boxes (src/data/case-sizes.ts).
 	order: (state, [id, qty]) => {
 		const productId = Number(id);
 		const product = itemCatalog.find((item) => item.id === productId);
 		const parsed = Number.parseInt(qty ?? "1", 10);
-		const quantity = Number.isFinite(parsed) ? Math.max(0, parsed) : 1;
-		const quote = getShelfOrderQuote(state, productId, quantity);
+		const boxes = Number.isFinite(parsed) ? Math.max(0, parsed) : 1;
+		const quote = getShelfOrderQuote(state, productId, boxes);
 		if (!product || !quote) return page(`order:${id}:${qty}`, "Produto não encontrado", []);
-		const unitQuote = getShelfOrderQuote(state, productId, 1);
-		const maxQuantity = getMaxShelfOrderQuantity(state, productId);
+		const maxBoxes = getMaxShelfOrderBoxes(state, productId);
 		const owned = state.inventory[productId] ?? 0;
+		const storedBoxes = getStoredBoxes(product, owned);
+		const boxCapacity = getInventoryBoxCapacity(state.inventoryCapacityLevels[productId]);
+		const incomingBoxes = getBoxCount(quote.incoming, quote.caseSize);
 		const to = (value: number) => `order:${productId}:${value}`;
 		const step = (label: string, value: number, enabled: boolean) => ({
 			...swap(label, to(value), false),
 			enabled,
 		});
-		const unitPrice =
-			quantity > 0 ? Number((quote.total / quantity).toFixed(2)) : (unitQuote?.total ?? 0);
-		const message = `Pedido de ${quantity} ${product.name} confirmado! Acompanhe em Entregas.`;
-		return page(to(quantity), `Pedir ${product.name}`, [
+		const boxLabel = boxes === 1 ? "1 caixa" : `${boxes} caixas`;
+		const roomLine =
+			quote.availableBoxes <= 0
+				? "Depósito cheio para este produto"
+				: quote.availableBoxes === 1
+				? "Cabe mais 1 caixa no depósito"
+				: `Cabem mais ${quote.availableBoxes} caixas no depósito`;
+		const incomingLine =
+			incomingBoxes === 1 ? "A caminho: 1 caixa" : `A caminho: ${incomingBoxes} caixas`;
+		const message = `Pedido de ${boxLabel} de ${product.name} confirmado! Acompanhe em Entregas.`;
+		return page(to(boxes), `Pedir ${product.name}`, [
 			card("Espaço no depósito", {
 				eyebrow: "FORNECEDORES",
 				icon: gameIcon("warehouse"),
-				subtitle: `${owned}/${quote.capacity} unid.`,
-				badge: `${quote.availableSpace} livre${quote.availableSpace === 1 ? "" : "s"}`,
-				lines: quote.incoming > 0 ? [`A caminho: ${quote.incoming} unid.`] : [],
-				progress: ratio(owned, quote.capacity),
+				subtitle: `${storedBoxes}/${boxCapacity} caixas`,
+				badge: `${quote.availableBoxes} livre${quote.availableBoxes === 1 ? "" : "s"}`,
+				lines: [roomLine, ...(quote.incoming > 0 ? [incomingLine] : [])],
+				progress: ratio(storedBoxes, boxCapacity),
 			}),
 			card("Quantidade exata", {
-				subtitle: `${quantity} unidades`,
-				badge: `x${quantity}`,
+				subtitle: `Caixa com ${quote.caseSize} un. · 🪙 ${fmt(quote.boxPrice)} a caixa`,
+				lines: [
+					boxes === 1
+						? `1 caixa · ${quote.units} unidades`
+						: `${boxes} caixas · ${quote.units} unidades`,
+				],
+				badge: `x${boxes}`,
 				buttons: [
-					step("−10", Math.max(0, quantity - 10), quantity > 0),
-					step("−", quantity - 1, quantity > 0),
-					step("+", quantity + 1, quantity < quote.availableSpace),
-					step("+10", Math.min(quote.availableSpace, quantity + 10), quantity < quote.availableSpace),
+					step("−5", Math.max(0, boxes - 5), boxes > 0),
+					step("−", Math.max(0, boxes - 1), boxes > 0),
+					step("+", boxes + 1, boxes < quote.availableBoxes),
+					step("+5", Math.min(quote.availableBoxes, boxes + 5), boxes < quote.availableBoxes),
 				],
 			}),
 			card("Atalhos", {
 				buttons: [
-					step("0", 0, quantity !== 0),
-					step(`Máx · ${maxQuantity}`, maxQuantity, quantity !== maxQuantity),
+					step("0", 0, boxes !== 0),
+					step(`Máx · ${maxBoxes}`, maxBoxes, boxes !== maxBoxes),
 				],
 			}),
 			card("Total do pedido", {
@@ -240,12 +265,12 @@ export const routes: Routes = {
 				tone: quote.reason ? "warning" : "",
 				subtitle: quote.reason ?? "",
 				lines: [
-					`Preço por unidade: ${unitPrice.toLocaleString("pt-BR")} moedas`,
+					`Preço por caixa: ${fmt(quote.boxPrice)} moedas`,
 					`Total do pedido: ${fmt(quote.total)} moedas`,
 					`Seu saldo: ${fmt(state.coins)} moedas`,
 				],
 				buttons: [
-					act(`Confirmar pedido · ${quote.total}`, "placeSupplierOrder", [{ productId, quantity }], {
+					act(`Confirmar pedido · ${quote.total}`, "placeSupplierOrder", [{ productId, boxes }], {
 						variant: "coin",
 						icon: gameIcon("deliveryTruck"),
 						enabled: !quote.reason,

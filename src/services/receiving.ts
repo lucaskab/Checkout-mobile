@@ -49,9 +49,14 @@ export function normalizeReceivingState(
 	};
 }
 
-// Units per box, so an order never needs more than MAX_BOXES boxes.
+// Deliveries from before supplier boxes: units per box, so an order never needs more than MAX_BOXES boxes.
 export function getBoxUnits(quantity: number) {
 	return Math.max(MIN_BOX_UNITS, Math.ceil(quantity / MAX_BOXES));
+}
+
+/** Units in each box of this delivery: the product's supplier box (older deliveries split their units). */
+export function getDeliveryBoxUnits(delivery: Pick<DockDelivery, "quantity" | "caseSize">) {
+	return delivery.caseSize && delivery.caseSize > 0 ? delivery.caseSize : getBoxUnits(delivery.quantity);
 }
 
 export function getRemainingUnits(delivery: DockDelivery) {
@@ -60,28 +65,31 @@ export function getRemainingUnits(delivery: DockDelivery) {
 
 // The boxes still in the truck (the last one may be partial).
 export function getRemainingBoxes(delivery: DockDelivery) {
-	const size = getBoxUnits(delivery.quantity);
+	const size = getDeliveryBoxUnits(delivery);
 	const boxes: number[] = [];
 	for (let left = getRemainingUnits(delivery); left > 0; left -= size)
 		boxes.push(Math.min(size, left));
 	return boxes;
 }
 
+// One truck can carry several products (one dock delivery per product): `deliveryId` names each one.
 export function addDockDelivery(
 	state: ReceivingState,
-	order: { id: string; productId: number; quantity: number },
-	product: { name: string; category: string },
+	order: { id: string; productId: number; quantity: number; caseSize?: number },
+	product: { name: string; category: string; caseSize?: number },
 	now: number,
+	deliveryId = `entrega-${order.id}`,
 ): ReceivingState {
-	if (state.dock.some((item) => item.orderId === order.id)) return state;
+	if (state.dock.some((item) => item.id === deliveryId)) return state;
 	return {
 		...state,
 		dock: [
 			...state.dock,
 			{
 				arrivedAt: now,
+				caseSize: order.caseSize ?? product.caseSize,
 				category: product.category,
-				id: `entrega-${order.id}`,
+				id: deliveryId,
 				orderId: order.id,
 				productId: order.productId,
 				productName: product.name,
