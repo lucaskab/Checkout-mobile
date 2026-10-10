@@ -30,13 +30,18 @@ import {
 // only the interface differs.
 export const DAY_DURATION_MS = TURN_DURATION_MS;
 export const SPECIAL_REQUEST_CHANCE = 0.34;
+// Customers' special requests are switched off (author's call, out/2026): no new requests are made, the two contracts
+// about them are no longer offered and the day's grade is made of the contract and the satisfaction only. The rules
+// below stay so old saves with a pending request still resolve.
+export const SPECIAL_REQUESTS_ENABLED = false;
+const REQUEST_CONTRACT_KINDS = ["requests", "no-expired"];
 export const MAX_PENDING_REQUESTS = 3;
 // Give the player a moment to settle in before the first request of the day.
 export const FIRST_REQUEST_DELAY_MS = 12_000;
 export const INITIAL_LOYALTY = 20;
 // Rules the day's offers are sized with: offers made under an older revision (or without the store's own
 // forecast) are made again while the day is still being planned (see refreshDayOffers).
-export const DAY_OFFERS_REVISION = 2;
+export const DAY_OFFERS_REVISION = 3;
 // Contract id used to open the market without a contract ("dia livre").
 export const FREE_DAY_CONTRACT_ID = "livre";
 const MAX_REQUEST_HISTORY = 40;
@@ -183,7 +188,8 @@ export function createDayOffers(
 		const candidates = dayContractDefinitions.filter(
 			(definition) =>
 				definition.difficulty === difficulty &&
-				(definition.kind !== "category" || categories.length > 0),
+				(definition.kind !== "category" || categories.length > 0) &&
+				(SPECIAL_REQUESTS_ENABLED || !REQUEST_CONTRACT_KINDS.includes(definition.kind)),
 		);
 		const definition = pick(candidates, random);
 		if (!definition) continue;
@@ -812,9 +818,9 @@ export function getDayScore(day: Pick<GameDayState, "contract" | "stats">) {
 		stats.requestsPartial +
 		stats.requestsFailed +
 		stats.requestsExpired;
-	const requests = totalRequests
-		? (stats.requestsServed + stats.requestsPartial * 0.6) / totalRequests
-		: 0.7;
+	// A day without any request is graded on the contract and the satisfaction alone.
+	if (!totalRequests) return Math.round(contract * 55 + satisfaction * 45);
+	const requests = (stats.requestsServed + stats.requestsPartial * 0.6) / totalRequests;
 	return Math.round(contract * 40 + satisfaction * 30 + requests * 30);
 }
 

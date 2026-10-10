@@ -57,7 +57,7 @@ namespace Checkout {
 
    N.Node("Spacer",bar).gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
    var wallet=N.Node("Wallet",bar);N.Column(wallet.gameObject,6);wallet.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=0;
-   coinsText=Chip(wallet,"coin",()=>host.Route("!dev:moedas"));
+   coinsText=Chip(wallet,"coin",()=>host.Route(CheckoutDesktopHost.IsRelease?"!currency":"!dev:moedas")); // the coin cheats only in development
    gemsText=Chip(wallet,"diamond",()=>host.Route("!currency"));
    marketButton=CheckoutDesktopButton.Create(bar,96,17,18,true);marketButton.SetWidth(132);marketButton.Clicked=Press;
   }

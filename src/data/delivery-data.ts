@@ -97,8 +97,8 @@ export const deliveryCouriers: DeliveryCourierProfile[] = [
 		},
 	},
 	{
-		id: "preta",
-		name: "Preta da Moto",
+		id: "carla",
+		name: "Carla Turbo",
 		color: "#2BB673",
 		phrases: {
 			arrive: ["Cheguei, meu bem! Chega aqui na porta.", "Moto na porta, sem bagunça!"],

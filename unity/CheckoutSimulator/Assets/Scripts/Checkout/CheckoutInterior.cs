@@ -407,9 +407,11 @@ namespace Checkout
         void MarkCheckoutZone()
         {
             if (!holder) return;
-            // The small shops have no checkout area (their counter is part of the building).
-            if (zoneMarks) zoneMarks.gameObject.SetActive(!CheckoutStall.ShopInside);
-            if (CheckoutStall.ShopInside) return;
+            // The small shops have no checkout area (their counter is part of the building), except the
+            // minimercado, where the player places the checkout like in the market.
+            bool noZone = CheckoutStall.ShopInside && !CheckoutStall.PlacedCounter;
+            if (zoneMarks) zoneMarks.gameObject.SetActive(!noZone);
+            if (noZone) return;
             var zone = CheckoutZone;
             if (zoneMarks && zone == zoneDrawn) return;
             zoneDrawn = zone;
@@ -426,9 +428,10 @@ namespace Checkout
                 t.SetPositionAndRotation(new Vector3((x0 + x1) * .5f, y, (z0 + z1) * .5f), Quaternion.Euler(90, 0, 0));
                 t.localScale = new Vector3(x1 - x0, z1 - z0, 1);
             }
-            Put("Band", zone.xMin, zone.yMin, zone.xMax, zone.yMax, Floor + .004f);
-            Put("Line shadow", zone.xMin - .12f, zone.yMin, zone.xMin + .05f, zone.yMax, Floor + .005f);
-            Put("Line", zone.xMin - .07f, zone.yMin, zone.xMin + .05f, zone.yMax, Floor + .006f);
+            float fy = CheckoutStall.ShopInside ? CheckoutStall.FloorY : Floor;
+            Put("Band", zone.xMin, zone.yMin, zone.xMax, zone.yMax, fy + .004f);
+            Put("Line shadow", zone.xMin - .12f, zone.yMin, zone.xMin + .05f, zone.yMax, fy + .005f);
+            Put("Line", zone.xMin - .07f, zone.yMin, zone.xMin + .05f, zone.yMax, fy + .006f);
         }
         void Mark(string name, Color color, int queue)
         {
@@ -484,7 +487,7 @@ namespace Checkout
         // Customers queue along it towards the front and walk out through the door.
         public const float CheckoutZoneDepth = 3f;
         // The small shops have their own counter (part of the model): no checkout area to place counters in.
-        public Rect CheckoutZone { get { var f = FloorRect; if (CheckoutStall.ShopInside) return Rect.MinMaxRect(f.xMax, f.yMin, f.xMax, f.yMax); return Rect.MinMaxRect(Mathf.Max(f.xMin, f.xMax - CheckoutZoneDepth), f.yMin, f.xMax, f.yMax); } }
+        public Rect CheckoutZone { get { var f = FloorRect; if (CheckoutStall.ShopInside && !CheckoutStall.PlacedCounter) return Rect.MinMaxRect(f.xMax, f.yMin, f.xMax, f.yMax); return Rect.MinMaxRect(Mathf.Max(f.xMin, f.xMax - CheckoutZoneDepth), f.yMin, f.xMax, f.yMax); } }
 
         // The shop with its entrance steps, the parking bays and the delivery path stay clear.
         IEnumerable<Rect> KeepClear()
@@ -639,7 +642,7 @@ namespace Checkout
                 else if (it.functional) { foreach (var c in Corners(f)) if (c.x > zone.xMin + eps) { why = "Área só para caixas"; return false; } }
             }
             if (Overlap(f, Entrance)) { why = "Deixe a entrada livre"; return false; }
-            if (CheckoutStall.ShopInside)
+            if (CheckoutStall.ShopInside && !CheckoutStall.PlacedCounter)
             {
                 if (IsCounter(it)) { why = "Esta loja já tem o seu balcão"; return false; }
                 var counter = CheckoutStall.CounterArea; counter.xMin -= .5f; counter.yMin -= .6f;

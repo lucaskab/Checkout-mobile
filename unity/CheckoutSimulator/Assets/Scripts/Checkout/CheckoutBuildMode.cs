@@ -537,7 +537,7 @@ namespace Checkout
             }
             if (rotating) EndRotate();
 
-            bool overUi = EventSystem.current && (Input.touchCount > 0 ? EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId) : EventSystem.current.IsPointerOverGameObject());
+            bool overUi = CheckoutPointer.OverUiNow();
             var ray = simulation.view.ScreenPointToRay(mouse);
             if (Input.GetMouseButtonDown(0) && !overUi && Input.touchCount < 2)
             {

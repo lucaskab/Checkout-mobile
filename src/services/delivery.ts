@@ -117,6 +117,18 @@ function normalizeItems(value: unknown): DeliveryItem[] {
 	);
 }
 
+/** Couriers renamed since older saves: the old id maps to the current profile. */
+const LEGACY_COURIER_IDS: Record<string, string> = { preta: "carla" };
+
+/** The saved courier keeps its timings; id, name and colour always come from the current profile. */
+function normalizeCourier(value: unknown): DeliveryOrder["courier"] {
+	if (!isRecord(value) || typeof value.id !== "string") return undefined;
+	const id = LEGACY_COURIER_IDS[value.id] ?? value.id;
+	const profile = getCourierProfile(id);
+	const courier = value as unknown as NonNullable<DeliveryOrder["courier"]>;
+	return profile ? { ...courier, id, name: profile.name, color: profile.color } : courier;
+}
+
 function normalizeOrder(value: unknown): DeliveryOrder[] {
 	if (!isRecord(value) || typeof value.id !== "string") return [];
 	if (!ORDER_STATUSES.includes(value.status as DeliveryOrderStatus)) return [];
@@ -130,6 +142,7 @@ function normalizeOrder(value: unknown): DeliveryOrder[] {
 				avatar: finiteOr(customer.avatar, 1),
 			},
 			note: typeof value.note === "string" ? value.note : "",
+			courier: normalizeCourier(value.courier),
 			items: normalizeItems(value.items),
 			packed: value.packed === undefined ? undefined : normalizeItems(value.packed),
 			distanceKm: finiteOr(value.distanceKm, DISTANCE_KM.min),

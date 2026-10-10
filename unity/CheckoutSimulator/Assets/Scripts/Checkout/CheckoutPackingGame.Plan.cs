@@ -51,16 +51,11 @@ namespace Checkout {
    parSec=30f+9f*lines.Sum(x=>x.quantity); // the whole stockroom is open: finding the boxes takes time
   }
 
-  // The twist of the order (seeded by the order id): ovos com cuidado when there is fragile food, else no plastic bags.
+  // No twist card when the storage opens (author asked for no alert there), so no hidden twist rules either: only the
+  // normal rules apply (cold in the thermal bag, nothing heavy on top of fragile food).
   void PlanOrder(){
    rng=new System.Random(Hash(orderId));
    twistFragile=false;twistEco=false;twistTitle="";twistBody="";substMistakes=0;
-   var cands=new List<int>();
-   if(lines.Any(x=>x.quantity>0&&FragileCats.Contains(x.category)))cands.Add(2);
-   cands.Add(3);
-   int pick=cands[rng.Next(cands.Count)];
-   if(pick==2){twistFragile=true;twistTitle="Ovos com cuidado";twistBody="Frágeis (ovos, pão, frutas) sempre por último na sacola.";}
-   else{twistEco=true;twistTitle="Sem sacola plástica";twistBody="Só papel: uma sacola extra conta como cuidado. Gelado segue na térmica.";}
    // Every line the racks cannot fill gets the substitution picker before packing starts.
    substQueue.Clear();substQueue.AddRange(lines.Where(l=>l.need<l.quantity));
    pendingSubst=substQueue.Count>0;

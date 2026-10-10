@@ -488,7 +488,7 @@ namespace Checkout
                 marqueeBox = U.Box(root, "Marquee", "E0B040", 4, Vector2.zero, Vector2.zero); marqueeBox.color = new Color(1f, .8f, .25f, .22f); marqueeBox.raycastTarget = false;
                 marqueeBox.rectTransform.pivot = Vector2.zero;
             }
-            var canvas = root.GetComponent<Canvas>(); float k = canvas ? canvas.scaleFactor : 1;
+            var canvas = root.GetComponentInParent<Canvas>(); float k = canvas ? canvas.scaleFactor : 1;
             var min = Vector2.Min(marqueeStart, now) / k; var size = (Vector2.Max(marqueeStart, now) - Vector2.Min(marqueeStart, now)) / k;
             var rt = marqueeBox.rectTransform; rt.anchorMin = rt.anchorMax = Vector2.zero; rt.anchoredPosition = min; rt.sizeDelta = size;
             marqueeBox.gameObject.SetActive(true);

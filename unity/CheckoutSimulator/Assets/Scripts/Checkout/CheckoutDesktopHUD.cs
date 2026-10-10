@@ -16,9 +16,9 @@ namespace Checkout {
    if(!FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>()){var events=new GameObject("EventSystem");events.AddComponent<UnityEngine.EventSystems.EventSystem>();events.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();}
    var canvasGo=new GameObject("CheckoutDesktopHUD",typeof(RectTransform));canvasGo.transform.SetParent(transform,false);
    var canvas=canvasGo.AddComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=50;
-   var scaler=canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();scaler.uiScaleMode=UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1600,1000);scaler.matchWidthOrHeight=.5f;
+   CheckoutScreen.Fit(canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>());
    canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
-   root=(RectTransform)canvasGo.transform;
+   root=CheckoutScreen.SafeArea(canvasGo.transform);
    BuildTop();BuildBoosts();BuildToolbar();BuildDrawer();BuildShop();BuildShelf();BuildBoard();BuildKitchen();BuildOverlay();BuildLevelUp();BuildConquest();
    Offline("Carregando o jogo…");
   }

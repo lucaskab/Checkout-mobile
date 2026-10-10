@@ -125,7 +125,7 @@ namespace Checkout {
    if(disc)disc.sprite=DeliveryArt.Disc(AvatarHex(seed));
    if(initials&&initials.text!=Initials(name))initials.text=Initials(name);
   }
-  static Image Star(Transform parent,bool on,float size)=>SpriteImg(parent,"Star",DeliveryArt.Star,K.C(on?Gold:EmptyTone),size,size);
+  static Image Star(Transform parent,bool on,float size)=>SpriteImg(parent,"Star",on?DeliveryArt.StarOn:DeliveryArt.StarOff,Color.white,size,size);
   static void Fit(RectTransform r){var f=r.gameObject.AddComponent<ContentSizeFitter>();f.verticalFit=ContentSizeFitter.FitMode.PreferredSize;}
   // A clipped scroll view whose content the caller lays out.
   static RectTransform ScrollArea(Transform parent,string name,out RectTransform content){
@@ -193,13 +193,13 @@ namespace Checkout {
    for(int i=0;i<streakSegments.Length;i++){var seg=Panel(meter,"Seg",EmptyTone,4);Pref(seg.gameObject,-1,14).flexibleWidth=1;streakSegments[i]=seg;}
    // Rating chip: the star and the number.
    var rate=Chip(headerRect,"Rating",1f);
-   ratingStar=SpriteImg(rate.transform,"Star",DeliveryArt.Star,K.C(Gold),52,52);
+   ratingStar=SpriteImg(rate.transform,"Star",DeliveryArt.StarOn,Color.white,52,52);
    var rr=N.Node("Texts",rate.transform);N.Column(rr.gameObject,2);Pref(rr.gameObject,-1,-1).flexibleWidth=1;
    U.Label(rr,"Kicker",K.Body,18,Muted,TextAlignmentOptions.Left).text="Nota";
    ratingText=U.Label(rr,"Value",K.Headline,30,Ink,TextAlignmentOptions.Left);
    // Motoboys: the delivery truck icon and x/y.
    var motos=Chip(headerRect,"Motos",1f);
-   motoIcon=SpriteImg(motos.transform,"Truck",K.Icon("Icons/delivery-truck"),Color.white,60,60);
+   motoIcon=SpriteImg(motos.transform,"Moto",DeliveryArt.Moto,Color.white,60,60);
    var mt=N.Node("Texts",motos.transform);N.Column(mt.gameObject,2);Pref(mt.gameObject,-1,-1).flexibleWidth=1;
    U.Label(mt,"Kicker",K.Body,18,Muted,TextAlignmentOptions.Left).text="Motoboys ativos";
    motosText=U.Label(mt,"Value",K.Headline,30,Ink,TextAlignmentOptions.Left);
@@ -216,7 +216,7 @@ namespace Checkout {
    lockedNode=N.Node("Locked",host).gameObject;U.Stretch(lockedNode.transform as RectTransform,Vector2.zero,Vector2.one);
    var card=Panel(lockedNode.transform,"Card",Paper,26);U.At(card.rectTransform,new Vector2(.5f,.5f),new Vector2(780,600),Vector2.zero);
    var col=N.Column(card.gameObject,14,new RectOffset(48,48,34,34));col.childAlignment=TextAnchor.MiddleCenter;
-   SpriteImg(card.transform,"Picture",K.Icon("Icons/delivery-truck"),Color.white,160,160);
+   SpriteImg(card.transform,"Picture",DeliveryArt.Moto,Color.white,160,160);
    U.Label(card.transform,"Title",K.Headline,36,Ink,TextAlignmentOptions.Center).text="Delivery da loja";
    lockSub=U.Label(card.transform,"Sub",K.Headline,26,"B5651D",TextAlignmentOptions.Center);
    string[] bullets={"Vizinhos pedem compras online pelo app","Você embala o pedido e o motoboy leva até a porta","Entregas perfeitas dão estrelas, gorjeta e sequência"};
@@ -237,7 +237,7 @@ namespace Checkout {
    pillSub=U.Label(tx,"Sub",K.Body,19,"E9DCC4",TextAlignmentOptions.Left);
    var right=N.Node("Right",pill);N.Column(right.gameObject,6).childAlignment=TextAnchor.MiddleCenter;Pref(right.gameObject,150,-1);
    var stars=N.Node("Stars",right);N.Row(stars.gameObject,3).childAlignment=TextAnchor.MiddleCenter;Pref(stars.gameObject,-1,26);
-   for(int i=0;i<pillStarImgs.Length;i++)pillStarImgs[i]=SpriteImg(stars,"Star",DeliveryArt.Star,K.C(EmptyTone),26,26);
+   for(int i=0;i<pillStarImgs.Length;i++)pillStarImgs[i]=SpriteImg(stars,"Star",DeliveryArt.StarOff,Color.white,26,26);
    pillStars=stars.gameObject;pillStars.SetActive(false);
    pillOpen=JuicyButton.Create(right,"Abrir",Gold,"B5651D",52,22,null,true,Ink);
    pillOpen.Clicked=()=>{if(!pillBusy)return;pillHide=true;ShowTab();};
@@ -251,7 +251,7 @@ namespace Checkout {
    pillTitle.text=n.Title;pillSub.text=n.Sub;
    PaintAvatar(pillDisc,pillInitials,n.Avatar,n.Name);
    pillStars.SetActive(n.Kind==2);
-   for(int i=0;i<pillStarImgs.Length;i++)pillStarImgs[i].color=K.C(i<n.Stars?Gold:EmptyTone);
+   for(int i=0;i<pillStarImgs.Length;i++)DeliveryArt.SetStar(pillStarImgs[i],i<n.Stars);
    if(n.Kind==0)CheckoutDeliverySound.Play(CheckoutDeliverySound.Chime,.5f);
    else if(n.Kind==1)CheckoutDeliverySound.Play(CheckoutDeliverySound.Horn,.45f);
    else CheckoutDeliverySound.Play(CheckoutDeliverySound.Coin,.5f);
@@ -260,7 +260,7 @@ namespace Checkout {
    if(n.Kind==2)for(int i=0;i<n.Stars;i++){
     yield return new WaitForSecondsRealtime(.16f);
     if(pillHide)break;
-    pillStarImgs[i].color=K.C(Gold);
+    DeliveryArt.SetStar(pillStarImgs[i],true);
     CheckoutDeliverySound.Play(CheckoutDeliverySound.Star(i),.4f);
    }
    for(float t=0;t<PillHold&&!pillHide&&!Blocked();t+=Time.unscaledDeltaTime)yield return null;

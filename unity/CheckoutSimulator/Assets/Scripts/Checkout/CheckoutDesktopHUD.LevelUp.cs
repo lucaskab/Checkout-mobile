@@ -31,12 +31,12 @@ namespace Checkout {
    var canvas=canvasGo.AddComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=95;
    var scaler=canvasGo.AddComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;// Matched on the height: the medal, the ribbon and the list always share the same 1000 units of height,
    // however wide the window is (on a short, wide window the list used to cover the ribbon).
-   scaler.referenceResolution=new Vector2(1600,1000);scaler.matchWidthOrHeight=1;
+   CheckoutScreen.Fit(scaler,1,fixedLayout:true);
    canvasGo.AddComponent<GraphicRaycaster>();
-   levelRoot=(RectTransform)canvasGo.transform;
+   levelRoot=CheckoutScreen.SafeArea(canvasGo.transform);
    levelAudio=gameObject.AddComponent<AudioSource>();levelAudio.playOnAwake=false;levelAudio.volume=.5f;levelAudio.pitch=1;
 
-   levelDim=N.Image(levelRoot,"Dim",new Color(.07f,.09f,.17f,.8f),0);levelDim.raycastTarget=true;U.Stretch(levelDim.rectTransform,Vector2.zero,Vector2.one);
+   levelDim=N.Image(levelRoot,"Dim",new Color(.07f,.09f,.17f,.8f),0);levelDim.raycastTarget=true;U.Stretch(levelDim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900));
    levelStage=N.Node("Stage",levelRoot);U.Stretch(levelStage,Vector2.zero,Vector2.one);
 
    // Rays and glow behind the medal.

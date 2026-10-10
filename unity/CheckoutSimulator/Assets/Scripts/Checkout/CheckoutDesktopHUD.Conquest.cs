@@ -28,12 +28,12 @@ namespace Checkout {
   void BuildConquest(){
    var canvasGo=new GameObject("CheckoutConquest",typeof(RectTransform));canvasGo.transform.SetParent(transform,false);
    var canvas=canvasGo.AddComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=96;
-   var scaler=canvasGo.AddComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1600,1000);scaler.matchWidthOrHeight=1;
+   var scaler=canvasGo.AddComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;CheckoutScreen.Fit(scaler,1,fixedLayout:true);
    canvasGo.AddComponent<GraphicRaycaster>();
-   conquestRoot=(RectTransform)canvasGo.transform;
+   conquestRoot=CheckoutScreen.SafeArea(canvasGo.transform);
    conquestAudio=gameObject.AddComponent<AudioSource>();conquestAudio.playOnAwake=false;conquestAudio.volume=.5f;
 
-   conquestDim=N.Image(conquestRoot,"Dim",new Color(.06f,.08f,.15f,.6f),0);conquestDim.raycastTarget=true;U.Stretch(conquestDim.rectTransform,Vector2.zero,Vector2.one);
+   conquestDim=N.Image(conquestRoot,"Dim",new Color(.06f,.08f,.15f,.6f),0);conquestDim.raycastTarget=true;U.Stretch(conquestDim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900));
    conquestStage=N.Node("Stage",conquestRoot);U.Stretch(conquestStage,new Vector2(.5f,.5f),new Vector2(.5f,.5f));conquestStage.sizeDelta=new Vector2(1000,700);
 
    // Rays and glow behind the medal.

@@ -114,6 +114,9 @@ const hudActions: (keyof GameActions)[] = [
 	"upgradeSupplierOrderSlots",
 ];
 
+// Release builds (the testers' build and the iPhone) refuse the dev cheats even if a page still asked for one.
+const devOnly = (action: string) => action.startsWith("dev") || action === "resetGame" || action === "setMarketLevel";
+
 const session = `desktop-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 let revision = 0,
 	ready = false,
@@ -177,7 +180,7 @@ function runHudAction(message: {
 }) {
 	const id = typeof message.id === "string" ? message.id : "invalid";
 	const action = message.action as keyof GameActions;
-	if (!hudActions.includes(action) || !Array.isArray(message.args))
+	if (!hudActions.includes(action) || (!__DEV__ && devOnly(action)) || !Array.isArray(message.args))
 		return send({ kind: "result", id, action, ok: false, reason: "invalid-action" });
 	try {
 		const run = useGameStore.getState()[action] as (...args: unknown[]) => unknown;

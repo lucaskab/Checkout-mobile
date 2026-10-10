@@ -60,8 +60,8 @@ namespace Checkout {
    else if(phase==20)Go(HelpPoint());}
   public void Reserve(){Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);}
   public void CancelVisit(){helpLine.Remove(this);if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;returnedToCar=null;Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}
-  public void BeginFromCar(Customer visit,Vector3 door,System.Action<CheckoutWalker> completed){parkingDoor=door;returnedToCar=completed;customer=visit;phase=9;index=0;wait=0;asked=false;HasPaid=false;Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(true);if(!NavMesh.SamplePosition(door,out var hit,.8f,NavMesh.AllAreas)||!agent.Warp(hit.position))throw new System.InvalidOperationException("Parking door is outside the customer NavMesh");Sync();Go(new Vector3(CheckoutCityTraffic.WalkX,.15f,parkingDoor.z));snapHeading=true;}
-  public void Begin(Customer visit){returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;phase=0;index=0;wait=0;asked=false;gameObject.SetActive(true);var spawn=map.Entrance;NavMesh.SamplePosition(spawn,out var hit,2,NavMesh.AllAreas);agent.Warp(hit.position);transform.rotation=Quaternion.Euler(0,180,0);Sync();NextShelf();snapHeading=true;}
+  public void BeginFromCar(Customer visit,Vector3 door,System.Action<CheckoutWalker> completed){parkingDoor=door;returnedToCar=completed;customer=visit;phase=9;index=0;wait=0;asked=false;HasPaid=false;Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(true);if(!(NavMesh.SamplePosition(door,out var hit,.8f,NavMesh.AllAreas)||NavMesh.SamplePosition(door,out hit,3f,NavMesh.AllAreas))||!agent.Warp(hit.position)){Debug.LogWarning("CHECKOUT_WALKER the parking door is off the NavMesh; the visit is dropped");ForceExit();return;}Sync();Go(new Vector3(CheckoutCityTraffic.WalkX,.15f,parkingDoor.z));snapHeading=true;}
+  public void Begin(Customer visit){returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;phase=0;index=0;wait=0;asked=false;gameObject.SetActive(true);var spawn=map.Entrance;if(!(NavMesh.SamplePosition(spawn,out var hit,2,NavMesh.AllAreas)||NavMesh.SamplePosition(spawn,out hit,6,NavMesh.AllAreas))||!agent.Warp(hit.position)){ForceExit();return;}transform.rotation=Quaternion.Euler(0,180,0);Sync();NextShelf();snapHeading=true;}
   public void RebaseLayout(MarketLayout previous,MarketLayout next){
    if(!gameObject.activeInHierarchy||!agent)return;
    Vector3 Remap(Vector3 p){var original=CheckoutMarketLayout.Unproject(p,previous);return original.x> -9.5f&&original.x<9.5f&&original.z> -10.61f&&original.z<7.5f?CheckoutMarketLayout.Project(original,next):p;}
@@ -71,13 +71,31 @@ namespace Checkout {
   void NextShelf(){
    if(!asked&&index==0){var request=Request;if(request!=null&&request.status=="pending"){asked=true;helpWait=0;helpLine.Add(this);phase=20;Go(HelpPoint());return;}}
    CheckoutShoppingProps.SetVisible(transform,customer.purchases!=null&&customer.purchases.Length>0);if(customer.purchases!=null&&index<customer.purchases.Length){phase=0;Go(map.Approach(customer.purchases[index].shelfId));}else {lane=CheckoutStall.Small&&map.Lanes.lanes.Count>0?map.Lanes.lanes[0]:map.Lanes.Pick();if(lane.places==null&&lane.itemId==null){phase=2;Go(map.Point(new Vector3(-7.2f,.74f,-3.4f)));}else{Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}}}
-  void Update(){if(!agent.isOnNavMesh)return;
+  // Safety net: a customer who is off the NavMesh (the floor was rebuilt under them) or makes no progress is put back
+  // on the way, and as a last resort finishes the step (or leaves) instead of freezing the line forever.
+  float offMesh,stuckFor;Vector3 lastSpot;
+  void ForceExit(){helpLine.Remove(this);Line.Remove(this);if(map&&map.Lanes)map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;wait=0;
+   var completed=returnedToCar;returnedToCar=null;CheckoutShoppingProps.SetVisible(transform,false);if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}
+   Reserved=false;gameObject.SetActive(false);completed?.Invoke(this);}
+  // Stuck far from the spot: hop onto the nearest walkable point by the destination, or skip what can be skipped.
+  void Unstick(){
+   if(phase==0&&customer?.purchases!=null){index++;NextShelf();return;}
+   if(NavMesh.SamplePosition(target,out var hit,2.5f,NavMesh.AllAreas)&&agent.Warp(hit.position)){Sync();Go(target);return;}
+   if(phase==5||phase==13||phase==12||phase==10||phase==7||phase==11||phase==9||phase==6){ForceExit();return;}
+   if(NavMesh.SamplePosition(transform.position,out hit,4f,NavMesh.AllAreas)&&agent.Warp(hit.position)){Sync();Go(target);}}
+  void Update(){
+   if(!agent.isOnNavMesh){
+    offMesh+=Time.deltaTime;if(offMesh<.5f)return;offMesh=0;
+    if(NavMesh.SamplePosition(transform.position,out var back,4f,NavMesh.AllAreas)&&agent.Warp(back.position)){Sync();Go(target);}
+    else ForceExit();
+    return;}
+   offMesh=0;
    UpdateBubble();
    if(phase==30){ // At the register until the basket is rung up (player, cashier) or they give up.
     agent.isStopped=true;tillWait+=Time.deltaTime;transform.rotation=Quaternion.RotateTowards(transform.rotation,facing,Time.deltaTime*240);Sync();
     // Tell the store they are here: the basket becomes ready and their patience starts now (sent again if lost).
     var waiting=bridge.CheckoutFor(customer?.id);if(waiting!=null&&waiting.readyAt>CheckoutBridge.Now&&Time.time>=arrivalPing){arrivalPing=Time.time+3;bridge.Command("checkoutArrived","[\""+customer.id+"\"]");}
-    if(bridge.CheckoutFor(customer?.id)==null||tillWait>300){var result=bridge.CheckoutResultFor(customer?.id);
+    if(bridge.CheckoutFor(customer?.id)==null||tillWait>150){var result=bridge.CheckoutResultFor(customer?.id);
      if(result!=null&&result.status=="left"){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);}
      else if(result!=null&&result.status=="paid"){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),.8f);}
      else{phase=8;wait=map.ScanCustomer(customer,lane);}}
@@ -100,7 +118,14 @@ namespace Checkout {
    var velocity=agent.desiredVelocity;velocity.y=0;if(velocity.sqrMagnitude<.004f){velocity=agent.velocity;velocity.y=0;}
    if(velocity.sqrMagnitude>.004f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-velocity),Time.deltaTime*(Cart?220:420));Sync();
    bool arrived=!agent.pathPending&&((agent.hasPath&&agent.pathStatus==NavMeshPathStatus.PathComplete&&agent.remainingDistance<.25f)||Vector3.Distance(agent.nextPosition,target)<.3f);
-   if(!arrived)return;agent.isStopped=true;
+   if(!arrived){
+    if((transform.position-lastSpot).sqrMagnitude>.0025f){lastSpot=transform.position;stuckFor=0;}else stuckFor+=Time.deltaTime;
+    // Jammed right next to the spot (someone stands on it, a corner of furniture): close enough.
+    if(stuckFor>2.5f&&Vector3.Distance(agent.nextPosition,target)<1.2f)arrived=true;
+    else if(stuckFor>12f){stuckFor=0;Unstick();return;}
+    else if(stuckFor>4f&&!agent.pathPending&&(agent.pathStatus!=NavMeshPathStatus.PathComplete||!agent.hasPath)){stuckFor=2f;Go(target);}
+    if(!arrived)return;}
+   stuckFor=0;agent.isStopped=true;
    if(phase==0){var id=customer.purchases[index].shelfId;var direction=map.Fixture(id)-transform.position;direction.y=0;facing=Quaternion.LookRotation(-direction);phase=1;agent.velocity=Vector3.zero;wait=Mathf.Max(1.5f,motion.Perform(map.Special(id)?"BuyAtSpecialSector":"GetFromShelf"));}
    else if(phase==20){phase=21;agent.velocity=Vector3.zero;browseFor=Random.Range(7f,12f);}
    else if(phase==2){lane=null;Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}

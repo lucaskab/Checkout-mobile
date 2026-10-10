@@ -27,7 +27,7 @@ namespace Checkout {
   void BuildKitchen(){
    var node=N.Node("Kitchen window",root);kitchenWin=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
    var dim=kitchenWin.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.7f);
-   var window=Stretch(N.Node("Window",node),new Vector2(40,40),new Vector2(-40,-16));
+   var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(40,40),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-40,-16));
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("8A5A2B");
    var face=N.Image(window,"Face",K.Paper,28);Stretch(face.rectTransform,new Vector2(4,9),new Vector2(-4,-4));
 

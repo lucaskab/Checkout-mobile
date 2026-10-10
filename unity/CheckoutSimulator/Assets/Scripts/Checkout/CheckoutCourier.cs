@@ -783,7 +783,7 @@ namespace Checkout
             if (Input.GetMouseButton(0) && (Mathf.Abs(Input.mousePosition.x - pressX) > 10 || Mathf.Abs(Input.mousePosition.y - pressY) > 10)) dragged = true;
             if (!Input.GetMouseButtonUp(0) || dragged) return;
             if (CheckoutBuildMode.Open || CheckoutMapEditor.Open) return;
-            if (EventSystem.current && EventSystem.current.IsPointerOverGameObject()) return;
+            if (CheckoutPointer.OverUi) return;
             var cam = CurrentCamera();
             if (!cam) return;
             if (!Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out var hit, 150)) return;

@@ -876,7 +876,7 @@ namespace Checkout
             }
             if (Input.GetMouseButtonDown(0) && pill && !CheckoutBuildMode.Open)
             {
-                if (UnityEngine.EventSystems.EventSystem.current && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return;
+                if (CheckoutPointer.OverUi) return;
                 var cam = Camera.main; if (!cam) return;
                 foreach (var hit in Physics.RaycastAll(cam.ScreenPointToRay(Input.mousePosition), 300))
                     if (Clicked(hit.collider)) { var host = FindAnyObjectByType<CheckoutDesktopHost>(); if (host && !string.IsNullOrEmpty(pillRoute)) host.Route(pillRoute); break; }

@@ -23,7 +23,8 @@ const all: Routes = {
 	...production,
 	...upgrades,
 	...progress,
-	...dev,
+	// The DEV Cheats pages exist only in development (not in the testers' build nor on the iPhone).
+	...(__DEV__ ? dev : {}),
 	...day,
 	...loja,
 	// Game windows (layout "board") for the stock, the depot and the deliveries.

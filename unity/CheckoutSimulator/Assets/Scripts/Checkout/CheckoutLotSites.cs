@@ -153,15 +153,17 @@ namespace Checkout
         void Refresh(Site site)
         {
             string st = site.status;
-            // Only a lot that is still locked shows its area and padlock: once bought it is the player's (the ruin
-            // waits to be cleared, clicking the ground still opens the panel).
+            // A lot that is still locked shows its area and padlock; a bought lot whose ruin waits to be cleared keeps
+            // the open padlock. The padlock is the only thing that opens the lot panel (taps on the ground or through
+            // the UI never do), so every lot with something to do shows one.
             bool locked = st == "venda" || st == "bloqueado";
+            bool badge = locked || st == "comprado";
             if (site.dim) site.dim.SetActive(locked);
             if (site.fill) site.fill.sharedMaterial = AreaMaterial(st, false);
             if (site.dash) site.dash.sharedMaterial = AreaMaterial(st, true);
             if (site.marker)
             {
-                site.marker.gameObject.SetActive(locked);
+                site.marker.gameObject.SetActive(badge);
                 if (site.badge) site.badge.sharedMaterial = AreaMaterial(st, false, true);
             }
             if (st == "limpando" && !site.works) StartClearing(site);
@@ -628,14 +630,15 @@ namespace Checkout
         {
             if ((clock += Time.deltaTime) >= .5f) { clock = 0; if (!CheckoutMapEditor.Open) ClearBlock(); }
             if (!Input.GetMouseButtonDown(0) || !simulation || !simulation.view || CheckoutBuildMode.Open || CheckoutMapEditor.Open) return;
-            if (UnityEngine.EventSystems.EventSystem.current && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return;
+            if (CheckoutPointer.OverUi) return;
             var ray = simulation.view.ScreenPointToRay(Input.mousePosition);
             Site best = null; float near = float.MaxValue;
             foreach (var hit in Physics.RaycastAll(ray, 400))
                 foreach (var site in sites.Values)
                 {
                     if (site.works && site.works.Clicked(hit.collider)) return; // the countdown handles it
-                    if ((site.click && hit.collider == site.click || site.lockClick && hit.collider == site.lockClick) && hit.distance < near) { near = hit.distance; best = site; }
+                    // Only the padlock itself opens the panel.
+                    if (site.lockClick && hit.collider == site.lockClick && hit.distance < near) { near = hit.distance; best = site; }
                 }
             if (best != null) CheckoutLotPopup.Show(this, best.lot);
         }

@@ -52,6 +52,11 @@ namespace Checkout
             return new Vector2((world.x - rect.xMin) / rect.width, (world.z - rect.yMin) / rect.height);
         }
 
+        // While something shows the map (the delivery app's GPS), it asks for it every frame and the map renders every
+        // frame (LateUpdate, after the cars and bikes moved), so it plays like a live view instead of 2 s snapshots.
+        static float mapLiveUntil;
+        public static void KeepMapLive() { mapLiveUntil = Time.unscaledTime + .25f; }
+
         // Renders the map now (it is also rendered every ~2 s by itself).
         public static void RefreshMap()
         {
@@ -140,7 +145,7 @@ namespace Checkout
         {
             float dt = Time.deltaTime;
             mapTimer -= dt;
-            if (mapTimer <= 0f)
+            if (mapTimer <= 0f && Time.unscaledTime >= mapLiveUntil)
             {
                 mapTimer = MapRefreshSeconds;
                 RenderMap();
@@ -156,6 +161,7 @@ namespace Checkout
         // The window is the store front looking across the avenue at the park (CheckoutCityPark), 1.6 m high.
         void LateUpdate()
         {
+            if (Time.unscaledTime < mapLiveUntil) { mapTimer = MapRefreshSeconds; RenderMap(); }
             if (!WindowViewActive || windowCamera == null || map == null) return;
             Vector3 entrance = map.Entrance;
             // A little up and to the side of the door (clear of the lamp posts), so the view clears the parked cars and
@@ -185,7 +191,14 @@ namespace Checkout
             List<KeyValuePair<Light, LightShadows>> shadows = new List<KeyValuePair<Light, LightShadows>>();
             try
             {
-                CheckoutCourier courier = FindAnyObjectByType<CheckoutCourier>();
+                if (cachedCourier == null || lightsTimer <= 0f)
+                {
+                    cachedCourier = FindAnyObjectByType<CheckoutCourier>();
+                    cachedLights = FindObjectsByType<Light>(FindObjectsSortMode.None);
+                    lightsTimer = 2f;
+                }
+                lightsTimer -= Time.unscaledDeltaTime;
+                CheckoutCourier courier = cachedCourier;
                 if (courier != null)
                 {
                     foreach (Transform child in courier.transform)
@@ -198,9 +211,9 @@ namespace Checkout
                         }
                     }
                 }
-                foreach (Light light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+                foreach (Light light in cachedLights)
                 {
-                    if (light.shadows == LightShadows.None) continue;
+                    if (light == null || light.shadows == LightShadows.None) continue;
                     shadows.Add(new KeyValuePair<Light, LightShadows>(light, light.shadows));
                     light.shadows = LightShadows.None;
                 }
@@ -263,6 +276,9 @@ namespace Checkout
 
         CheckoutMap map;
         Camera mapCamera, windowCamera;
+        CheckoutCourier cachedCourier;
+        Light[] cachedLights = new Light[0];
+        float lightsTimer;
         float mapTimer, doorTimer;
         RoadGraph graph;
         string graphKey = "";
