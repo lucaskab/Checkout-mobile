@@ -141,6 +141,7 @@ import {
 	closeMarketDay,
 	createInitialDayState,
 	createSpecialRequest,
+	SPECIAL_REQUESTS_ENABLED,
 	DAY_OFFERS_REVISION,
 	expireSpecialRequests,
 	FIRST_REQUEST_DELAY_MS,
@@ -2989,7 +2990,7 @@ export const useGameStore = create<GameStore>()(
 					satisfaction: customer.satisfaction,
 					units: 0,
 				});
-				const specialRequest = createSpecialRequest(
+				const specialRequest = SPECIAL_REQUESTS_ENABLED && createSpecialRequest(
 					nextDay,
 					{
 						archetype: visit.customer.archetype,

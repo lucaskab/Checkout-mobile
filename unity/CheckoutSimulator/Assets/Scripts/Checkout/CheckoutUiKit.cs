@@ -17,10 +17,11 @@ namespace Checkout {
   public static RectTransform Canvas(Transform parent,string name,int order){
    var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(parent,false);
    var canvas=go.AddComponent<UnityEngine.Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=order;
-   var scaler=go.AddComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1600,1000);scaler.matchWidthOrHeight=.5f;
+   CheckoutScreen.Fit(go.AddComponent<CanvasScaler>());
    go.AddComponent<GraphicRaycaster>();
    if(!UnityEngine.Object.FindAnyObjectByType<EventSystem>()){var events=new GameObject("EventSystem");events.AddComponent<EventSystem>();events.AddComponent<StandaloneInputModule>();}
-   return (RectTransform)go.transform;
+   // The content goes inside the safe area (clear of the iPhone's island and corners); on desktop it is the whole screen.
+   return CheckoutScreen.SafeArea(go.transform);
   }
   public static RectTransform Stretch(RectTransform rect,Vector2 min,Vector2 max,Vector2 offMin=default,Vector2 offMax=default){rect.anchorMin=min;rect.anchorMax=max;rect.offsetMin=offMin;rect.offsetMax=offMax;return rect;}
   // A node anchored at a point with a fixed size (pixels in the 1600x1000 reference).
@@ -32,9 +33,12 @@ namespace Checkout {
   public static CheckoutDesktopButton Button(Transform parent,string label,string variant,Action onClick,float height=56,float font=20){
    var b=CheckoutDesktopButton.Create(parent,height,font,14);b.Apply(new DesktopButton{label=label,variant=variant,enabled=true,icon="",action="",args="[]",route="",after="",ok="",fail=""});b.Clicked=_=>onClick();return b;
   }
+  // A dim layer lives in the safe area (its windows stay clear of the iPhone's island), but its shade is drawn past
+  // the edges of the screen so the whole screen darkens. The layer itself stays the click blocker.
+  public static void Bleed(Image back){var b=N.Image(back.transform,"Bleed",back.color,0);b.raycastTarget=false;b.transform.SetAsFirstSibling();Stretch(b.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900));back.color=new Color(0,0,0,0);}
   // Cream window with a darker edge filling most of the screen; returns the face.
   public static RectTransform Window(RectTransform root,out GameObject dim){
-   var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=new Color(.14f,.09f,.05f,.62f);back.raycastTarget=true;dim=back.gameObject;
+   var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=new Color(.14f,.09f,.05f,.62f);back.raycastTarget=true;dim=back.gameObject;Bleed(back);
    var edge=Box(back.transform,"Edge","D4B482",26,new Vector2(.05f,.07f),new Vector2(.95f,.93f));
    var face=Box(edge.transform,"Face","FFF7EC",24,Vector2.zero,Vector2.one);face.rectTransform.offsetMin=new Vector2(3,8);face.rectTransform.offsetMax=new Vector2(-3,-3);
    return face.rectTransform;
@@ -105,7 +109,7 @@ namespace Checkout {
 
   // Mini-game window in the HUD style: cream card with a wooden title plaque and a textured stage.
   public static RectTransform GameWindow(RectTransform root,string backdrop,out GameObject dim,out TextMeshProUGUI title,out Image backdropImage,Action onClose){
-   var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=new Color(.12f,.08f,.04f,.66f);back.raycastTarget=true;dim=back.gameObject;
+   var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=new Color(.12f,.08f,.04f,.66f);back.raycastTarget=true;dim=back.gameObject;Bleed(back);
    var edge=Box(back.transform,"Edge","B98E55",30,new Vector2(.04f,.05f),new Vector2(.96f,.93f));
    var face=Box(edge.transform,"Face","FFF7EC",28,Vector2.zero,Vector2.one);face.rectTransform.offsetMin=new Vector2(4,10);face.rectTransform.offsetMax=new Vector2(-4,-4);
    // Stage: rounded mask with the rendered backdrop and a soft vignette.

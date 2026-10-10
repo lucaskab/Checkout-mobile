@@ -33,7 +33,7 @@ namespace Checkout {
   void Play(string clip,float pitch=1,float volume=1){var c=U.Sfx(clip);if(!c)return;sound.pitch=pitch;sound.PlayOneShot(c,volume);}
 
   void BuildFab(){
-   var node=CheckoutDesktopCard.Node("ImprevistoButton",root);node.anchorMin=node.anchorMax=new Vector2(0,.5f);node.pivot=new Vector2(0,.5f);node.anchoredPosition=new Vector2(16,-176);node.sizeDelta=new Vector2(150,124);
+   var node=CheckoutDesktopCard.Node("ImprevistoButton",root);node.anchorMin=node.anchorMax=Vector2.zero;node.pivot=Vector2.zero;node.anchoredPosition=new Vector2(16,250);node.sizeDelta=new Vector2(150,124); // stacked above the Construir button (bottom-left), on any screen height
    var edge=node.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(22);edge.type=Image.Type.Sliced;edge.color=K.C("A9651C");
    var face=U.Box(node,"Face","F2B03D",20,Vector2.zero,Vector2.one);face.rectTransform.offsetMin=new Vector2(0,7);
    U.Art(face.transform,"Icon","bucket",new Vector2(.5f,.62f),68);
@@ -50,7 +50,7 @@ namespace Checkout {
   // ------------------------------------------------------------------ world markers
   void Update(){
    var list=bridge.State?.incidents??Array.Empty<IncidentEntry>();
-   fab.SetActive(list.Length>0&&!window.activeSelf&&!(CheckoutCounterGame.Instance&&CheckoutCounterGame.Instance.IsOpen));if(fab.activeSelf)fabText.text=list.Length.ToString();
+   fab.SetActive(list.Length>0&&!window.activeSelf&&!CheckoutDesktopHUD.ShopOpen&&!CheckoutDesktopHUD.BoardOpen&&!(CheckoutCounterGame.Instance&&CheckoutCounterGame.Instance.IsOpen)); // hidden behind any open windowif(fab.activeSelf)fabText.text=list.Length.ToString();
    try{
     foreach(var incident in list)if(!markers.ContainsKey(incident.id))markers[incident.id]=Marker(incident);
     foreach(var id in markers.Keys.ToList())if(list.All(i=>i.id!=id)){var m=markers[id];markers.Remove(id);if(m)StartCoroutine(Vanish(m));}

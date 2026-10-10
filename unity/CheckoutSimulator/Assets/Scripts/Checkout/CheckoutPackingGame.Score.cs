@@ -78,10 +78,9 @@ namespace Checkout {
   IEnumerator SealRoutine(PackScore s,int placed){
    foreach(var b in bags.Where(x=>x.items.Count>0).ToList()){if(!b.node)break;yield return CloseBag(b);}
    Bag sealBag=bags.FirstOrDefault(x=>x.items.Count>0&&x.kind=="kraft")??bags.FirstOrDefault(x=>x.items.Count>0);
-   PlayClip(CheckoutRestockSound.Done,.7f);
+   // No result screen and no jingle: the bags close, the sticker goes on, and the window closes.
    if(sealBag!=null)yield return StickerSlap(sealBag);
-   ShowResult(s,placed);
-   yield return new WaitForSecondsRealtime(s.grade=="S"?6.5f:5.5f);
+   yield return new WaitForSecondsRealtime(.7f);
    Close();
   }
   // The bag folds: the open layers swap for the closed one, with a squash.

@@ -30,7 +30,7 @@ namespace Checkout {
   void BuildShelf(){
    var node=N.Node("Shelf window",root);shelfWin=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
    var dim=shelfWin.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.58f);Clickable(shelfWin,()=>host.Route(""));
-   var window=Stretch(N.Node("Window",node),new Vector2(64,118),new Vector2(-64,-18));
+   var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(64,118),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-64,-18));
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("8A5A2B");
    window.gameObject.AddComponent<Button>().transition=Selectable.Transition.None;
    var face=N.Image(window,"Face",K.Paper,28);Stretch(face.rectTransform,new Vector2(4,9),new Vector2(-4,-4));
@@ -77,6 +77,9 @@ namespace Checkout {
    // Detail: the place picked (or the fixture when none is).
    var detail=N.Image(body,"Detail",K.Cream,22);var dr=detail.rectTransform;dr.anchorMin=Vector2.zero;dr.anchorMax=Vector2.one;dr.offsetMin=new Vector2(1052,12);dr.offsetMax=new Vector2(-12,-4);
    shelfDetail=Stretch(N.Node("Content",detail.transform),new Vector2(16,14),new Vector2(-16,-14));
+   // The detail panel keeps a readable width on the right and the stage takes the rest; the shelf art shrinks to fit
+   // (on desktop this is the old layout: a 790 stage and a 400 panel; on a phone the art is smaller, nothing overlaps).
+   body.gameObject.AddComponent<ShelfFit>().Init(body,stage,dr,shelfArt);
    shelfWin.SetActive(false);
   }
 
@@ -362,5 +365,24 @@ namespace Checkout {
   const float W=.19f;
   public static float X0(int i)=>X[i]-W/2;public static float X1(int i)=>X[i]+W/2;
   public static float Y0(int i)=>i<4?.50f:.14f;public static float Y1(int i)=>i<4?.78f:.42f;
+ }
+ // Lays the shelf window out for its width (see BuildShelf).
+ sealed class ShelfFit:MonoBehaviour {
+  RectTransform body,stage,detail,art;Vector2 last;
+  public void Init(RectTransform body,RectTransform stage,RectTransform detail,RectTransform art){this.body=body;this.stage=stage;this.detail=detail;this.art=art;Fit();}
+  void LateUpdate(){if(body&&body.rect.size!=last)Fit();}
+  void Fit(){
+   if(!body||!stage||!detail||!art)return;last=body.rect.size;
+   float w=last.x,h=last.y;if(w<10||h<10)return;
+   const float railEnd=250;
+   float panel=Mathf.Clamp(w*.28f,300,400);
+   detail.anchorMin=new Vector2(1,0);detail.anchorMax=Vector2.one;detail.offsetMin=new Vector2(-panel-12,12);detail.offsetMax=new Vector2(-12,-4);
+   float stageW=Mathf.Max(200,w-railEnd-panel-24);
+   stage.anchorMin=Vector2.zero;stage.anchorMax=new Vector2(0,1);stage.pivot=new Vector2(0,1);stage.offsetMin=new Vector2(railEnd,12);stage.offsetMax=new Vector2(railEnd+stageW,-4);
+   // Room for the art: below the note bar (48) and above the upgrade buttons (66 + margins).
+   float room=h-16-48-80;
+   float k=Mathf.Clamp(Mathf.Min((stageW-20)/744f,room/496f),.4f,1f);
+   art.localScale=new Vector3(k,k,1);
+  }
  }
 }

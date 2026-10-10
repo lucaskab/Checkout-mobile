@@ -65,10 +65,13 @@ namespace Checkout
             release = CheckoutDesktopHost.IsRelease;
             root = U.Canvas(transform, "CheckoutStartMenu", 300);
             var shade = U.Box(root, "Shade", "0F1830", 0, Vector2.zero, Vector2.one); shade.color = new Color(.06f, .09f, .19f, .8f); shade.raycastTarget = true;
+            U.Stretch(shade.rectTransform, Vector2.zero, Vector2.one, new Vector2(-900, -900), new Vector2(900, 900)); // past the safe area: the whole screen
 
-            var title = U.Label(root, "Title", K.Headline, 92, "E0B040"); U.At(title.rectTransform, new Vector2(.5f, 1), new Vector2(1200, 120), new Vector2(0, -170));
+            // Phones have a short screen: the title sits higher and smaller, the cards below it (see Clear: page scale).
+            bool phone = CheckoutScreen.Handheld;
+            var title = U.Label(root, "Title", K.Headline, phone ? 64 : 92, "E0B040"); U.At(title.rectTransform, new Vector2(.5f, 1), new Vector2(1200, phone ? 84 : 120), new Vector2(0, phone ? -52 : -170));
             title.text = "CHECKOUT";
-            subtitle = U.Label(root, "Subtitle", K.Label, 30, "FFFFFF"); U.At(subtitle.rectTransform, new Vector2(.5f, 1), new Vector2(1200, 50), new Vector2(0, -245));
+            subtitle = U.Label(root, "Subtitle", K.Label, 30, "FFFFFF"); U.At(subtitle.rectTransform, new Vector2(.5f, 1), new Vector2(1200, 50), new Vector2(0, phone ? -104 : -245));
             hint = U.Label(root, "Hint", K.Body, 18, "BFD0E8"); U.At(hint.rectTransform, new Vector2(.5f, 0), new Vector2(1200, 40), new Vector2(0, 60));
             ShowMain();
         }
@@ -124,6 +127,8 @@ namespace Checkout
         {
             if (page) Destroy(page.gameObject);
             page = CheckoutDesktopCard.Node("Page", root); U.Stretch(page, Vector2.zero, Vector2.one);
+            // Phones: the cards a little smaller and lower, clear of the title.
+            if (CheckoutScreen.Handheld) { page.localScale = Vector3.one * .82f; page.anchoredPosition = new Vector2(0, -36); }
         }
 
         void Option(Vector2 offset, float width, string label, string text, string badge, string icon, string variant, Action onClick)

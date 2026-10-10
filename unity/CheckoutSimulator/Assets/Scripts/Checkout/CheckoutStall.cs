@@ -48,15 +48,21 @@ namespace Checkout
             public Rect counter;          // the fixed counter with the register and the clerk's stool
             public Vector2 pay, queueStep; // where the customer pays, and how the line grows from there
             public float floorY;          // top of the floor slab
+            public bool placedCounter;    // no counter in the model: the player places the game's checkout
         }
         static readonly Dictionary<string, ShopPlan> Plans = new Dictionary<string, ShopPlan>
         {
             ["Era4_Spati"] = new ShopPlan { floor = Rect.MinMaxRect(-2.85f, -1.12f, 2.85f, 2.25f), doorMin = .72f, doorMax = 1.62f, counter = Rect.MinMaxRect(1.3f, .0f, 3.03f, 1.4f), pay = new Vector2(2.15f, -.35f), queueStep = new Vector2(-.75f, 0), floorY = .03f },
             ["Era5_Quitanda"] = new ShopPlan { floor = Rect.MinMaxRect(-4.1f, -2.4f, 4.1f, 2.6f), doorMin = -3.45f, doorMax = .55f, counter = Rect.MinMaxRect(1.35f, -1.7f, 3.15f, -.3f), pay = new Vector2(2.25f, -2.0f), queueStep = new Vector2(-.75f, 0), floorY = .06f },
-            ["Era6_Minimercado"] = new ShopPlan { floor = Rect.MinMaxRect(-5.65f, -2.9f, 5.65f, 2.95f), doorMin = -1.2f, doorMax = .2f, counter = Rect.MinMaxRect(2.55f, -2.75f, 3.95f, -.75f), pay = new Vector2(2.25f, -1.75f), queueStep = new Vector2(0, .75f), floorY = .16f },
+            ["Era6_Minimercado"] = new ShopPlan { floor = Rect.MinMaxRect(-5.65f, -2.9f, 5.65f, 2.95f), doorMin = -1.2f, doorMax = .2f, counter = Rect.MinMaxRect(2.55f, -2.75f, 3.95f, -.75f), pay = new Vector2(2.25f, -1.75f), queueStep = new Vector2(0, .75f), floorY = .16f, placedCounter = true },
         };
         /// <summary>The current expansion is a shop with an inside the player furnishes (Späti, quitanda, minimercado).</summary>
         public static bool ShopInside { get; private set; }
+        /// <summary>The shop has no counter of its own (minimercado): the player places the game's checkout in the
+        /// checkout area along the east wall, like in the market building (CheckoutInterior.CheckoutZone).</summary>
+        public static bool PlacedCounter { get; private set; }
+        // Model parts of that shop's old counter (register and stool), hidden in the game.
+        static readonly Dictionary<string, string> CounterParts = new Dictionary<string, string> { ["Era6_Minimercado"] = "ERA6_Counter" };
         /// <summary>Inner floor of the shop (world x/z) where shelves and coolers may stand.</summary>
         public static Rect InteriorFloor { get; private set; }
         /// <summary>The fixed counter of the shop (world x/z): nothing else may stand there.</summary>
@@ -75,8 +81,10 @@ namespace Checkout
         {
             Obstacles.Clear();
             ShopInside = Small && model && Plans.TryGetValue(model.name, out _);
+            PlacedCounter = false;
             if (!ShopInside) { Obstacles.Add(Footprint); return; }
             var plan = Plans[model.name];
+            PlacedCounter = plan.placedCounter;
             var o = model.transform.position; float k = model.transform.localScale.x;
             Vector2 W(float x, float z) => new Vector2(o.x + x * k, o.z + z * k);
             Rect WR(Rect r) { var a = W(r.xMin, r.yMin); var b = W(r.xMax, r.yMax); return Rect.MinMaxRect(a.x, a.y, b.x, b.y); }
@@ -91,6 +99,7 @@ namespace Checkout
             Wall(f.xMax, f.yMin - t, f.xMax + t, f.yMax);               // right
             Wall(f.xMin - t, f.yMin - t, d0.x, f.yMin);                 // front, left of the door
             Wall(d1.x, f.yMin - t, f.xMax + t, f.yMin);                 // front, right of the door
+            if (PlacedCounter) { CounterArea = new Rect(f.xMax, f.yMin, 0, 0); return; } // no counter in the model
             var c = CounterArea; Wall(c.xMin, c.yMin, c.xMax, c.yMax);  // counter
         }
 
@@ -158,7 +167,7 @@ namespace Checkout
             if (works) works.Apply(snapshot);
             bool wasShop = ShopInside;
             ShowModel(small ? ModelFor(era) : null);
-            if (!small) { ShopInside = false; Obstacles.Clear(); }
+            if (!small) { ShopInside = false; PlacedCounter = false; Obstacles.Clear(); }
             // The furniture the player placed stands inside the shop expansions.
             var holder = map.Interior ? map.Interior.Holder : null;
             if (holder && small) { holder.gameObject.SetActive(ShopInside); if (ShopInside) hidden.Remove(holder.gameObject); else if (!hidden.Contains(holder.gameObject)) hidden.Add(holder.gameObject); }
@@ -293,6 +302,13 @@ namespace Checkout
             // like the low walls of the market building.
             foreach (var t in go.GetComponentsInChildren<Transform>(true))
                 if (t.name.StartsWith("CUT_")) t.gameObject.SetActive(false);
+            // A shop where the player places the checkout loses the counter of the model (and its click).
+            if (CounterParts.TryGetValue(name, out var counterPrefix))
+            {
+                foreach (var t in go.GetComponentsInChildren<Transform>(true))
+                    if (t.name.StartsWith(counterPrefix)) t.gameObject.SetActive(false);
+                return go;
+            }
             // Clicking the stall opens the playable checkout, like the register of the market.
             var click = new GameObject("Stall checkout");
             click.transform.SetParent(go.transform, false);

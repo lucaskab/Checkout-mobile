@@ -322,7 +322,6 @@ namespace Checkout {
    PlayClip(CheckoutRestockSound.Tape,.6f);
    clipboard.localScale=new Vector3(.2f,.2f,1);
    yield return U.Scale(clipboard,Vector3.one,.45f,true);
-   yield return TwistCard();
    running=true;lastInput=Time.unscaledTime;
    if(pendingSubst)OpenSubst();
   }

@@ -24,7 +24,7 @@ namespace Checkout {
    var node=N.Node("Shop",root);shop=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
    // Dimmed world behind; clicking it closes the shop.
    var dim=shop.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.58f);Clickable(shop,()=>host.Route(""));
-   var window=Stretch(N.Node("Window",node),new Vector2(64,118),new Vector2(-64,-18));
+   var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(64,118),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-64,-18)); // phones: over the toolbar, the whole safe area
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("B98642");
    window.gameObject.AddComponent<Button>().transition=Selectable.Transition.None; // clicks inside do not close it
    var face=N.Image(window,"Face",K.Paper,28);Stretch(face.rectTransform,new Vector2(4,9),new Vector2(-4,-4));
@@ -45,7 +45,7 @@ namespace Checkout {
    // Body: category rail + content.
    var body=Stretch(N.Node("Body",face.transform),new Vector2(0,0),new Vector2(0,-104));
    var rail=N.Image(body,"Rail",K.C("F3DFC0"),22);var rr=rail.rectTransform;rr.anchorMin=Vector2.zero;rr.anchorMax=new Vector2(0,1);rr.pivot=new Vector2(0,.5f);rr.offsetMin=new Vector2(14,14);rr.offsetMax=new Vector2(270,-6);
-   shopRail=rail.rectTransform;var rl=N.Column(rail.gameObject,8,new RectOffset(10,10,12,12));rl.childForceExpandHeight=false;
+   shopRail=rail.rectTransform;var rl=CheckoutScreen.Handheld?N.Column(rail.gameObject,4,new RectOffset(8,8,8,8)):N.Column(rail.gameObject,8,new RectOffset(10,10,12,12));rl.childForceExpandHeight=false;
 
    var content=Stretch(N.Node("Content",body),new Vector2(286,12),new Vector2(-18,-6));
    N.Column(content.gameObject,8,new RectOffset(0,0,0,0));

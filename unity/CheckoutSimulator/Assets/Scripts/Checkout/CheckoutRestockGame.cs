@@ -102,10 +102,10 @@ namespace Checkout {
    var g=groups[groupIndex];title.text="Repor · "+g.name;
    BuildFixture(g);
    BuildTabs();
-   // First box: a hand shows the swipe across its tape.
+   // First box: a hand shows the tap that opens it.
    if(carts.Count>0&&carts[0].handle!=null){
-    var first=carts[0].handle;float w=carts[0].size*.4f;
-    ShowHint(()=>U.LocalOf(stage,first)+new Vector2(-w,0),()=>U.LocalOf(stage,first)+new Vector2(w,0),false);
+    var first=carts[0].handle;
+    ShowHint(()=>U.LocalOf(stage,first),()=>U.LocalOf(stage,first),true);
    }
   }
   void Close(){
@@ -336,7 +336,7 @@ namespace Checkout {
   readonly Queue<(int pid,int units)> boxQueue=new Queue<(int pid,int units)>();readonly List<Vector2> boxSlots=new List<Vector2>();float boxScale=1;
 
   // A closed carton: rendered box + tape layer + the product on its printed label + a unit count badge.
-  // An invisible handle over the tape takes the swipe that cuts it.
+  // An invisible handle over the box takes the tap (or the swipe along the tape) that opens it.
   Cart BuildBox(int productId,int units,float scale,Vector2 home){
    var d=CartData();
    Vector2 size=cartBoxPx*cartScale*scale;
@@ -356,9 +356,9 @@ namespace Checkout {
    var icon=U.Icon(box,"Product",$"Products/product-{productId:000}",Mid,Vector2.one*ls,label);icon.raycastTarget=false;
    var badge=U.Shape(box,"Count","4A3624",14,Mid,new Vector2(ls*1.05f,ls*.6f),label+new Vector2(bodyW*.36f,ls*.55f));badge.raycastTarget=false;
    var count=U.Label(badge.transform,"Units",K.Headline,ls*.42f,"FFFFFF");U.Stretch(count.rectTransform,Vector2.zero,Vector2.one);count.text="x"+units;
-   // Swipe handle over the tape (from one tape end to the other).
+   // Handle over the tape and most of the box: a tap opens it (small screens), a swipe along the tape still works.
    var tl=P(d?.box?.tapeL);var tr=P(d?.box?.tapeR);
-   var handle=U.Shape(box,"TapeHandle","FFFFFF",0,Mid,new Vector2(Mathf.Abs(tr.x-tl.x)*1.15f,size.y*.4f),(tl+tr)*.5f);
+   var handle=U.Shape(box,"TapeHandle","FFFFFF",0,Mid,new Vector2(Mathf.Max(Mathf.Abs(tr.x-tl.x)*1.15f,bodyW*1.1f),size.y*.62f),(tl+tr)*.5f-new Vector2(0,size.y*.1f));
    handle.color=new Color(1,1,1,0);handle.raycastTarget=true;
    var c=new Cart{productId=productId,units=units,box=box,carton=closed,flap=open,front=front,tape=tape,handle=handle.rectTransform,home=home,size=bodyW,badge=count,
                   icon=icon.rectTransform,badgeRect=badge.rectTransform,tapeL=tl,tapeR=tr,tapeU0=V(d?.box?.tapeL).x,tapeU1=V(d?.box?.tapeR).x};
@@ -679,8 +679,8 @@ namespace Checkout {
    if(view==null||stage==null)return;
    var closed=carts.FirstOrDefault(c=>!c.open&&!c.done);
    if(closed!=null&&closed.handle!=null){
-    var handle=closed.handle;float w=closed.size*.4f;
-    ShowHint(()=>U.LocalOf(stage,handle)+new Vector2(-w,0),()=>U.LocalOf(stage,handle)+new Vector2(w,0),false);
+    var handle=closed.handle;
+    ShowHint(()=>U.LocalOf(stage,handle),()=>U.LocalOf(stage,handle),true);
     return;
    }
    var unit=carts.Where(c=>c.open&&!c.done).SelectMany(c=>c.pile).FirstOrDefault(u=>u.rect!=null);
@@ -754,8 +754,9 @@ namespace Checkout {
   }
  }
 
- // Tape on a cart box: the swipe pulls it off from the end where it started; at 70% the rest comes off.
- public sealed class CheckoutRestockTape:MonoBehaviour,IBeginDragHandler,IDragHandler,IEndDragHandler {
+ // Tape on a cart box: a tap opens the box at once (the tape comes off with the same sound and animation); a swipe
+ // still pulls it off from the end where it started, and at 70% the rest comes off.
+ public sealed class CheckoutRestockTape:MonoBehaviour,IBeginDragHandler,IDragHandler,IEndDragHandler,IPointerClickHandler {
   RectTransform rect;Action<float,int> progress;Action done;bool active;int dir;float peeled;
   public void Init(RectTransform rect,Action<float,int> progress,Action done){this.rect=rect;this.progress=progress;this.done=done;}
   Vector2 Local(PointerEventData e){RectTransformUtility.ScreenPointToLocalPointInRectangle(rect,e.position,e.pressEventCamera,out var p);return p;}
@@ -768,5 +769,7 @@ namespace Checkout {
    if(peeled>=.7f){active=false;var d=done;done=null;d?.Invoke();}
   }
   public void OnEndDrag(PointerEventData e){active=false;}
+  // A click is only sent when no drag started (uGUI), so a half swipe released here does not count as a tap.
+  public void OnPointerClick(PointerEventData e){if(!rect||done==null||peeled>0)return;active=false;var d=done;done=null;d.Invoke();}
  }
 }

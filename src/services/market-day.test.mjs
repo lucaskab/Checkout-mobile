@@ -10,6 +10,7 @@ import {
 	expireSpecialRequests,
 	getContractProgress,
 	getDayGrade,
+	getDayScore,
 	normalizeDayState,
 	recordDayCustomer,
 	resolveSpecialRequest,
@@ -299,4 +300,13 @@ test("old saves without turns keep an open market running as a free day", () => 
 	expect(open.phase).toBe("open");
 	expect(open.contract).toBeNull();
 	expect(normalizeDayState(undefined, 2, false, t0).phase).toBe("planning");
+});
+
+test("special requests are off: their contracts are never offered and the grade ignores them", () => {
+	for (let dayNumber = 1; dayNumber <= 60; dayNumber++)
+		for (const offer of createDayOffers(dayNumber, 8, context))
+			expect(["requests", "no-expired"]).not.toContain(offer.kind);
+	const stats = { requestsServed: 0, requestsPartial: 0, requestsFailed: 0, requestsExpired: 0 };
+	// No contract (0.6) and no customers: only the contract part counts.
+	expect(getDayScore({ contract: null, stats: { ...stats, satisfactionTotal: 0, satisfactionSamples: 0 } })).toBe(33);
 });

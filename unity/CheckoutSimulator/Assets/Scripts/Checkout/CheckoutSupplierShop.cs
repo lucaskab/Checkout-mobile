@@ -68,7 +68,7 @@ namespace Checkout {
   void BuildWindow(){
    // Everything lives under one node, so hiding the window also hides the dim that catches the clicks.
    var holder=N.Node("Shop",root);U.Stretch(holder,Vector2.zero,Vector2.one);window=holder.gameObject;
-   dim=U.Box(holder,"Dim","000000",0,Vector2.zero,Vector2.one);dim.color=new Color(.12f,.08f,.05f,.62f);dim.raycastTarget=true;
+   dim=U.Box(holder,"Dim","000000",0,Vector2.zero,Vector2.one);dim.color=new Color(.12f,.08f,.05f,.62f);dim.raycastTarget=true;U.Stretch(dim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900)); // past the safe area: the whole screen darkens
    // The monitor: a dark rounded bezel around the app's screen.
    var bezel=N.Image(holder,"Bezel",K.C("2B2420"),34);bezel.raycastTarget=true;
    frameRect=U.Stretch(bezel.rectTransform,new Vector2(.035f,.05f),new Vector2(.965f,.95f));

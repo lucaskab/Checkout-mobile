@@ -20,6 +20,7 @@ namespace Checkout
         static string lotId; static Vector3 anchor;
         static CheckoutLotSites owner;
         static Runner runner;
+        static int shownFrame = -1;
 
         class Runner : MonoBehaviour
         {
@@ -28,7 +29,7 @@ namespace Checkout
                 if (!card || !card.gameObject.activeSelf) return;
                 if (Input.GetKeyDown(KeyCode.Escape)) { Hide(); return; }
                 // Click outside the card closes it.
-                if (Input.GetMouseButtonDown(0) && !RectTransformUtility.RectangleContainsScreenPoint(card, Input.mousePosition, null)) { Hide(); return; }
+                if (Input.GetMouseButtonDown(0) && Time.frameCount != shownFrame && !RectTransformUtility.RectangleContainsScreenPoint(card, Input.mousePosition, null)) { Hide(); return; }
                 var cam = Camera.main; if (!cam || !canvas) return;
                 var sp = cam.WorldToScreenPoint(anchor);
                 if (sp.z < 0) { Hide(); return; }
@@ -79,7 +80,7 @@ namespace Checkout
         {
             if (lot == null) return;
             Build();
-            owner = sites; lotId = lot.id;
+            owner = sites; lotId = lot.id; shownFrame = Time.frameCount; // the tap that opened it does not close it
             anchor = new Vector3((lot.x0 + lot.x1) * .5f, 2f, (lot.z0 + lot.z1) * .5f);
             card.gameObject.SetActive(true);
             Fill(lot);

@@ -492,7 +492,7 @@ namespace Checkout {
    readonly RawImage image;readonly Image fallback;readonly string customerId;Transform target;Camera cam;RenderTexture texture;float searchAt;Transform headBone;
    public Portrait(RawImage raw,string id,Image placeholder){image=raw;customerId=id;fallback=placeholder;image.enabled=false;Tick();}
    void Attach(Transform walker){
-    target=walker;texture=new RenderTexture(384,384,24);
+    target=walker;headBone=null;headAbove=-1;texture=new RenderTexture(384,384,24);
     var go=new GameObject("Customer portrait camera");cam=go.AddComponent<Camera>();cam.targetTexture=texture;cam.fieldOfView=30;cam.nearClipPlane=.05f;cam.farClipPlane=80;cam.depth=-20;
     cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=K.C("EAD9BE");
     image.texture=texture;image.enabled=true;if(fallback)fallback.enabled=false;
@@ -502,11 +502,31 @@ namespace Checkout {
      if(cam){UnityEngine.Object.Destroy(cam.gameObject);cam=null;image.enabled=false;if(fallback)fallback.enabled=true;}
      if(Time.unscaledTime<searchAt)return;searchAt=Time.unscaledTime+.5f;var w=FindWalker(customerId);if(w)Attach(w);else return;
     }
-    // Skinned bounds are unreliable off screen, so aim at the head bone (or a child named "head").
-    if(!headBone){var animator=target.GetComponentInChildren<Animator>();if(animator&&animator.isHuman)headBone=animator.GetBoneTransform(HumanBodyBones.Head);if(!headBone)headBone=target.GetComponentsInChildren<Transform>().FirstOrDefault(t=>t.name.ToLowerInvariant().Contains("head"));}
-    var head=headBone?headBone.position:target.position+Vector3.up*1.55f;float h=Mathf.Clamp(head.y-target.position.y,.6f,2.2f);
+    // The rigs' Head joint sits at the NECK and the heads (hair, caps) are big: aiming at the joint showed the chest.
+    // So the height from the joint to the top of the head is measured once on the baked skinned mesh (like
+    // CheckoutRequestBubble.HeadTop) and the camera frames the middle of the head, with a little of the shoulders.
+    if(!headBone)FindHead();
+    Vector3 center;float headSize;
+    if(headBone){headSize=headAbove>0?headAbove:.4f;center=headBone.position+Vector3.up*headSize*.35f;}
+    else{float s=Mathf.Max(.5f,target.lossyScale.y);headSize=.35f*s;center=target.position+Vector3.up*1.7f*s;}
     var face=-target.forward;face.y=0;if(face.sqrMagnitude<.01f)face=Vector3.back;face.Normalize();
-    cam.transform.position=head+face*h*.55f+Vector3.up*h*.02f;cam.transform.LookAt(head-Vector3.up*h*.06f);
+    // FOV 30: the visible height is ~0.54 x distance; about 2.2 head heights fit (the head and the shoulders).
+    float d=headSize*2.2f/.536f;
+    cam.transform.position=center+face*d+Vector3.up*headSize*.08f;cam.transform.LookAt(center);
+   }
+   float headAbove=-1;
+   void FindHead(){
+    var animator=target.GetComponentInChildren<Animator>();if(animator&&animator.isHuman)headBone=animator.GetBoneTransform(HumanBodyBones.Head);
+    if(!headBone)foreach(var t in target.GetComponentsInChildren<Transform>(true))if(t.name=="Head"){headBone=t;break;}
+    if(!headBone)headBone=target.GetComponentsInChildren<Transform>().FirstOrDefault(t=>t.name.ToLowerInvariant()=="head"||t.name.ToLowerInvariant().EndsWith(":head"));
+    if(!headBone)return;
+    SkinnedMeshRenderer body=null;
+    foreach(var r in target.GetComponentsInChildren<SkinnedMeshRenderer>(true))if(r.enabled&&!r.name.EndsWith("_Prop")&&r.sharedMesh&&(!body||r.sharedMesh.vertexCount>body.sharedMesh.vertexCount))body=r;
+    if(!body){headAbove=.4f;return;}
+    var baked=new Mesh();body.BakeMesh(baked,true);float top=float.MinValue;
+    foreach(var v in baked.vertices)top=Mathf.Max(top,body.transform.TransformPoint(v).y);
+    UnityEngine.Object.Destroy(baked);
+    headAbove=top>float.MinValue?Mathf.Clamp(top-headBone.position.y,.2f,.9f):.4f;
    }
    public void Release(){if(cam)UnityEngine.Object.Destroy(cam.gameObject);if(texture){texture.Release();UnityEngine.Object.Destroy(texture);}}
   }

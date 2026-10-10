@@ -28,6 +28,14 @@ namespace Checkout {
   public static Sprite Circle{get{return Bake("circle",p=>Vector2.Distance(p,new Vector2(.5f,.5f))<=.5f);}}
   // Map marker: a round head over a pointed tail (tail at the bottom).
   public static Sprite Pin{get{return Bake("pin",p=>Vector2.Distance(p,new Vector2(.5f,.64f))<=.3f||InTri(p,new Vector2(.5f,.04f),new Vector2(.22f,.6f),new Vector2(.78f,.6f)));}}
+  // Rendered art (Blender, Resources/CheckoutDesktop/Delivery and Icons): glossy star (lit / unlit), the two map pins
+  // and the delivery moto. Each falls back to the flat procedural shape if its texture is missing. Use them untinted.
+  public static Sprite StarOn=>CheckoutDesktopKit.Icon("Delivery/star_on")??Star;
+  public static Sprite StarOff=>CheckoutDesktopKit.Icon("Delivery/star_off")??Star;
+  public static Sprite PinCustomer=>CheckoutDesktopKit.Icon("Delivery/map_pin_red")??Pin;
+  public static Sprite PinStore=>CheckoutDesktopKit.Icon("Delivery/map_pin_teal")??Pin;
+  public static Sprite Moto=>CheckoutDesktopKit.Icon("Icons/delivery-moto")??CheckoutDesktopKit.Icon("Icons/delivery-truck");
+  public static void SetStar(UnityEngine.UI.Image img,bool on){if(!img)return;img.sprite=on?StarOn:StarOff;img.color=Color.white;}
   // Rounded dash for dotted routes (a short horizontal capsule).
   public static Sprite Dash{get{return Bake("dash",p=>DistSeg(p,new Vector2(.2f,.5f),new Vector2(.8f,.5f))<=.3f);}}
 

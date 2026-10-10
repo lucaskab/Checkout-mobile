@@ -6,7 +6,9 @@ using UnityEngine;
 using Debug = UnityEngine.Debug;
 namespace Checkout {
  // Desktop stand-in for the React Native app: spawns desktop/host.ts (the real game store under
- // Node) and exchanges the same bridge messages over stdin/stdout. Mobile builds never create it.
+ // Node) and exchanges the same bridge messages over stdin/stdout. The stand-alone iPhone build
+ // (CHECKOUT_EMBEDDED, Checkout/iPhone menu) runs the same game logic inside the player instead: the
+ // bundle Resources/CheckoutGame/game.txt in JavaScriptCore (Plugins/iOS/CheckoutJS.mm), same messages.
  [DefaultExecutionOrder(-600)]
  public class CheckoutDesktopHost:MonoBehaviour {
   public static CheckoutDesktopHost Active {get;private set;}
@@ -15,7 +17,7 @@ namespace Checkout {
   [Serializable] class Kind{public string kind;}
   [Serializable] class I18nMessage{public string lang;public string[] keys;public string[] values;}
 
-#if UNITY_EDITOR || (UNITY_STANDALONE && !UNITY_IOS && !UNITY_ANDROID)
+#if UNITY_EDITOR || (UNITY_STANDALONE && !UNITY_IOS && !UNITY_ANDROID) || CHECKOUT_EMBEDDED
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
   static void Boot(){
    // QA runs feed a fixed snapshot file and must stay offline.
@@ -37,7 +39,48 @@ namespace Checkout {
    var path=Path.Combine(Application.streamingAssetsPath,name);
    return File.Exists(path)?path:null;
   }
-  public static bool IsRelease=>BundledHost()!=null;
+  public static bool IsRelease=>Embedded||BundledHost()!=null;
+  // The game logic runs inside the player (stand-alone iPhone build).
+#if CHECKOUT_EMBEDDED && UNITY_IOS && !UNITY_EDITOR
+  public static bool Embedded=>true;
+  [System.Runtime.InteropServices.DllImport("__Internal")] [return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.I1)] static extern bool CheckoutJS_Start(byte[] script,int scriptLength,byte[] lang,int langLength,byte[] save,int saveLength);
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutJS_Send(byte[] json,int length);
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutJS_Tick();
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutJS_Flush();
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern IntPtr CheckoutJS_Poll(out int length);
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutJS_Free(IntPtr bytes);
+  static byte[] Utf8(string text)=>System.Text.Encoding.UTF8.GetBytes(text??"");
+  bool embeddedOn;
+  bool StartEmbedded(string save){
+   var game=Resources.Load<TextAsset>("CheckoutGame/game");
+   if(!game){Debug.LogError("CHECKOUT_EMBEDDED Resources/CheckoutGame/game.txt is missing");return false;}
+   var script=game.bytes;var lang=Utf8(CheckoutI18n.Language);var path=Utf8(save);
+   embeddedOn=CheckoutJS_Start(script,script.Length,lang,lang.Length,path,path.Length);
+   if(!embeddedOn)Debug.LogError("CHECKOUT_EMBEDDED the game logic did not start (see the Xcode console)");
+   return embeddedOn;
+  }
+  void PumpEmbedded(){
+   if(!embeddedOn)return;
+   CheckoutJS_Tick();
+   while(true){
+    var bytes=CheckoutJS_Poll(out int length);if(bytes==IntPtr.Zero)break;
+    var buffer=new byte[length];System.Runtime.InteropServices.Marshal.Copy(bytes,buffer,0,length);CheckoutJS_Free(bytes);
+    lines.Enqueue(System.Text.Encoding.UTF8.GetString(buffer));
+   }
+  }
+  bool SendEmbedded(string json){if(!embeddedOn)return false;var bytes=Utf8(json);CheckoutJS_Send(bytes,bytes.Length);return true;}
+  void FlushEmbedded(){if(embeddedOn)CheckoutJS_Flush();}
+#else
+  public static bool Embedded=>false;
+  bool embeddedOn=false;
+  bool StartEmbedded(string save)=>false;
+  void PumpEmbedded(){}
+  bool SendEmbedded(string json)=>false;
+  void FlushEmbedded(){}
+#endif
+  // The app going to the background (or closing) writes the save at once.
+  void OnApplicationPause(bool paused){if(paused)FlushEmbedded();}
+  void OnApplicationQuit(){FlushEmbedded();}
 
   static string Node(){
    foreach(var path in new[]{Environment.GetEnvironmentVariable("CHECKOUT_NODE"),"/opt/homebrew/bin/node","/usr/local/bin/node","/usr/bin/node"})if(!string.IsNullOrEmpty(path)&&File.Exists(path))return path;
@@ -64,6 +107,12 @@ namespace Checkout {
 
   void Awake(){
    bridge=GetComponent<CheckoutBridge>();
+   if(Embedded){
+    // The iPhone keeps its own save in the app's documents.
+    if(!StartEmbedded(Path.Combine(Application.persistentDataPath,"checkout-iphone-save.json"))){Destroy(this);return;}
+    Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
+    return;
+   }
    ProcessStartInfo start;var bundled=BundledHost();
    if(bundled!=null)start=new ProcessStartInfo(bundled,""){WorkingDirectory=Application.persistentDataPath};
    else{
@@ -90,6 +139,7 @@ namespace Checkout {
   }
 
   public bool Send(string json){
+   if(embeddedOn)return SendEmbedded(json);
    if(process==null||process.HasExited)return false;
    try {input.WriteLine(json);return true;}catch(Exception ex){Debug.LogWarning("CHECKOUT_DESKTOP send failed: "+ex.Message);return false;}
   }
@@ -105,6 +155,7 @@ namespace Checkout {
   // The game page stack is shown again (the map editor hides it while editing).
   public CheckoutDesktopHUD Hud=>hud;
   void Update(){
+   PumpEmbedded();
    // Only the newest view matters; snapshots and results are applied in order.
    string latestView=null;
    while(lines.TryDequeue(out var line)){
@@ -120,6 +171,7 @@ namespace Checkout {
   }
 
   void OnDestroy(){
+   FlushEmbedded();
    if(Active==this)Active=null;
    try {input?.Close();}catch {}
    try {if(process!=null&&!process.HasExited&&!process.WaitForExit(500))process.Kill();}catch {}

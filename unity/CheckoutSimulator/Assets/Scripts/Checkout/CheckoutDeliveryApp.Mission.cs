@@ -73,22 +73,24 @@ namespace Checkout {
    v.roadNode=N.Node("Road",v.root);Pref(v.roadNode.gameObject,-1,120);
    var bg=Panel(v.roadNode,"Asphalt","9AA6AE",12);U.Stretch(bg.rectTransform,new Vector2(0,RoadY-.12f),new Vector2(1,RoadY+.12f));
    v.roadFill=Panel(v.roadNode,"Done",Green,12);U.Stretch(v.roadFill.rectTransform,new Vector2(0,RoadY-.12f),new Vector2(RoadStore,RoadY+.12f));
-   // Dashes down the middle of the road, drawn once.
+   // Dashes down the middle of the road (the road paint), drawn once.
    for(int i=0;i<7;i++){
     float x=RoadStore+(RoadDoor-RoadStore)*(i+.5f)/7f;
     var dash=N.Image(v.roadNode,"Dash",K.C("F4EBDD"),0);dash.sprite=DeliveryArt.Dash;U.At(dash.rectTransform,new Vector2(x,RoadY),new Vector2(26,6),Vector2.zero);
    }
-   // Five step nodes with their names under them.
+   // Five step names under the road. The step dots on the road are not drawn (author: no dots on the line).
    v.nodes=new Image[StepNames.Length];v.nodeLabels=new TextMeshProUGUI[StepNames.Length];
    for(int i=0;i<StepNames.Length;i++){
     float x=RoadStore+(RoadDoor-RoadStore)*i/(StepNames.Length-1);
-    var nd=N.Image(v.roadNode,"Node",K.C(EmptyTone),0);nd.sprite=DeliveryArt.Circle;U.At(nd.rectTransform,new Vector2(x,RoadY),new Vector2(30,30),Vector2.zero);v.nodes[i]=nd;
+    var nd=N.Image(v.roadNode,"Node",K.C(EmptyTone),0);nd.sprite=DeliveryArt.Circle;U.At(nd.rectTransform,new Vector2(x,RoadY),new Vector2(30,30),Vector2.zero);nd.enabled=false;v.nodes[i]=nd;
     var lb=U.Label(v.roadNode,"Label",K.Body,18,Muted,TextAlignmentOptions.Center);U.At(lb.rectTransform,new Vector2(x,.02f),new Vector2(120,24),Vector2.zero);lb.text=StepNames[i];v.nodeLabels[i]=lb;
    }
-   // The moto (delivery truck icon), created once; it sits over the road and bobs by its own position.
-   var motoImg=N.Image(v.roadNode,"Moto",Color.white,0);motoImg.sprite=K.Icon("Icons/delivery-truck");motoImg.preserveAspect=true;motoImg.raycastTarget=false;
-   U.At(motoImg.rectTransform,new Vector2(RoadStore,RoadY),new Vector2(64,64),new Vector2(0,30));
+   // The moto (delivery truck icon), created once; it sits steady over the road and only slides along it.
+   var motoImg=N.Image(v.roadNode,"Moto",Color.white,0);motoImg.sprite=DeliveryArt.Moto;motoImg.preserveAspect=true;motoImg.raycastTarget=false;
+   U.At(motoImg.rectTransform,new Vector2(RoadStore,RoadY),new Vector2(78,78),new Vector2(0,34));
    v.moto=motoImg.rectTransform;
+   // The icon art faces left; the moto rides left to right, so it is mirrored to face where it goes.
+   v.moto.localScale=new Vector3(-1,1,1);
    // The one big button of the step: full card width, 70 px.
    v.action=JuicyButton.Create(v.root,"",Blue,"1F6A86",70,24,"Icons/clipboard",false);
    v.action.Clicked=()=>ActionFor(v);
@@ -141,11 +143,9 @@ namespace Checkout {
   }
 
   // ------------------------------------------------------------------ per-frame motion
-  // The moto follows the real progress of its trip (CheckoutCourier) and eases toward it; the bob is by position,
+  // The moto follows the real progress of its trip (CheckoutCourier) and eases toward it (no bob);
   // the current step pulses by scale. Nothing here touches a layout group.
   void AnimateCards(double now,float t){
-   float wave=.5f+.5f*Mathf.Sin(t*5f);
-   float bob=Mathf.Sin(t*6f);
    float ease=1f-Mathf.Exp(-Time.unscaledDeltaTime*5f);
    foreach(var v in actives.Values){
     if(v==null||v.order==null||!v.root)continue;
@@ -160,11 +160,8 @@ namespace Checkout {
     float target=stage==4?Mathf.Lerp(RoadStore,RoadDoor,progress):RoadStore;
     v.motoX=Mathf.Lerp(v.motoX,target,ease);
     v.moto.anchorMin=v.moto.anchorMax=new Vector2(v.motoX,RoadY);
-    float lift=stage==2||stage==4?6f*bob:3f*Mathf.Sin(t*3f);
-    v.moto.anchoredPosition=new Vector2(0,30+lift);
+    v.moto.anchoredPosition=new Vector2(0,34);
     v.roadFill.rectTransform.anchorMax=new Vector2(v.motoX,RoadY+.12f);
-    // The current step pulses.
-    if(stage>=0&&stage<v.nodes.Length)v.nodes[stage].rectTransform.localScale=Vector3.one*(1f+.16f*wave);
    }
   }
   // The trip's progress by time when the courier's own position is not known: 40 s + 25 s per km, ending at deliverAt.

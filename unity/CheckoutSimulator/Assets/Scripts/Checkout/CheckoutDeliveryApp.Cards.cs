@@ -51,7 +51,7 @@ namespace Checkout {
    var view=ScrollArea(right,"ActiveView",out activeContent);
    Pref(view.gameObject,-1,-1).flexibleHeight=1;
    N.Column(activeContent.gameObject,14,new RectOffset(4,8,4,8));Fit(activeContent);
-   activeEmpty=Empty(activeContent,K.Icon("Icons/delivery-truck"),"Aceite um pedido para começar","Monte o pedido, entregue ao motoboy e ganhe estrelas e gorjeta.",330);
+   activeEmpty=Empty(activeContent,DeliveryArt.Moto,"Aceite um pedido para começar","Monte o pedido, entregue ao motoboy e ganhe estrelas e gorjeta.",330);
   }
   void BuildSideColumn(RectTransform row,float weight){
    var side=N.Node("Side",row);N.Column(side.gameObject,10);Pref(side.gameObject,-1,-1).flexibleWidth=weight;
@@ -87,17 +87,16 @@ namespace Checkout {
    offersCount.text=list.Count.ToString(CultureInfo.InvariantCulture);
   }
   // A collectible ticket, 300 px tall, four rows: the customer (avatar, name, bairro and km, countdown ring), the items,
-  // the note (only when there is one), and the buttons (gold payout pill, quiet decline, big accept). A tilted NOVO!
-  // stamp sits in the top-left corner while the ticket is fresh.
+  // the note (only when there is one), and the buttons (gold payout pill, quiet decline, big accept). It stays still
+  // under the pointer.
   OfferView BuildOfferCard(string id){
    var v=new OfferView{id=id};
    v.root=N.Node("Offer",offersContent);v.group=v.root.gameObject.AddComponent<CanvasGroup>();Pref(v.root.gameObject,-1,OfferHeight);
    v.slide=Panel(v.root,"Ticket","FFF7EC",26).rectTransform;U.Stretch(v.slide,Vector2.zero,Vector2.one);
    v.slide.GetComponent<Image>().raycastTarget=true;
    N.Column(v.slide.gameObject,10,new RectOffset(14,14,16,12));
-   v.tilt=v.slide.gameObject.AddComponent<Tilt>();
-   // Row 1: avatar, name and neighbourhood, countdown ring. The left padding leaves room for the stamp.
-   var head=N.Node("Head",v.slide);N.Row(head.gameObject,12,new RectOffset(24,0,0,0)).childAlignment=TextAnchor.MiddleLeft;Pref(head.gameObject,-1,70);
+   // Row 1: avatar, name and neighbourhood, countdown ring.
+   var head=N.Node("Head",v.slide);N.Row(head.gameObject,12,new RectOffset(4,0,0,0)).childAlignment=TextAnchor.MiddleLeft;Pref(head.gameObject,-1,70);
    v.avatarDisc=Avatar(head,"Avatar",70,out v.avatarInitials);
    var tx=N.Node("Texts",head);N.Column(tx.gameObject,0);Pref(tx.gameObject,-1,-1).flexibleWidth=1;
    v.name=U.Label(tx,"Name",K.Headline,24,Ink,TextAlignmentOptions.Left);
@@ -123,14 +122,6 @@ namespace Checkout {
    Pref(v.decline.gameObject,110,-1).flexibleWidth=0;
    v.accept=JuicyButton.Create(btns,"Aceitar",Green,"2C7A40",64,26,"Icons/success",true);v.accept.Clicked=()=>Answer(v,true);
    Pref(v.accept.gameObject,-1,64).minWidth=150;
-   // The NOVO! stamp: 70 px, tilted -12 degrees, in the top-left corner, overlaying the card.
-   v.stickerNode=N.Node("Stamp",v.slide).gameObject;
-   U.At((RectTransform)v.stickerNode.transform,new Vector2(0,1),new Vector2(58,58),new Vector2(32,-16));
-   Overlay(v.stickerNode);
-   v.stickerNode.transform.localRotation=Quaternion.Euler(0,0,-12f);
-   var burst=N.Image(v.stickerNode.transform,"Burst",Color.white,0);burst.sprite=DeliveryArt.Burst("E15533");burst.raycastTarget=false;U.Stretch(burst.rectTransform,Vector2.zero,Vector2.one);
-   var stamp=U.Label(v.stickerNode.transform,"Text",K.Headline,14,"FFFFFF");U.Stretch(stamp.rectTransform,Vector2.zero,Vector2.one);stamp.text="NOVO!";
-   v.stickerBurst=burst;
    v.total=1;
    return v;
   }
@@ -149,8 +140,6 @@ namespace Checkout {
    // Without a note the ticket is shorter (no empty band under the buttons).
    var le=v.root.GetComponent<LayoutElement>();if(le){float h=hasNote?OfferHeight:OfferHeight-48f;le.minHeight=h;le.preferredHeight=h;}
    if(hasNote)v.note.text="\""+o.note+"\"";
-   bool fresh=o.createdAt>0&&now-o.createdAt<45000;
-   v.stickerNode.SetActive(fresh);
    string sig=string.Join(",",(o.items??new DeliveryItem[0]).Where(i=>i!=null).Select(i=>i.productId+"x"+i.quantity).ToArray());
    if(sig!=v.itemSig){v.itemSig=sig;BuildItems(v.items,o.items);}
    v.accept.SetEnabled(!v.answered);v.decline.SetEnabled(!v.answered);

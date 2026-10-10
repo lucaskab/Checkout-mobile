@@ -3301,6 +3301,10 @@ const catalog: Catalog = {
 	"Tempo  <b>{0}</b> · meta {1}  <color=#B03A2E>passou da meta</color>": "Zeit  <b>{0}</b> · Ziel {1}  <color=#B03A2E>Ziel überschritten</color>",
 	"{0}  <b>{1}/{2}</b>  <color=#2E8CAE>(subst.)</color>": "{0}  <b>{1}/{2}</b>  <color=#2E8CAE>(Ers.)</color>",
 	"{0}  <b>{1}/{2}</b>  <color=#B03A2E>-{3}</color>": "{0}  <b>{1}/{2}</b>  <color=#B03A2E>-{3}</color>",
+	// Shelf window buttons (CheckoutDesktopHUD.Shelf.cs)
+	"Trocar": "Tauschen",
+	"Tirar": "Entfernen",
+	"Lucro {0}/un.": "Gewinn {0}/Stk.",
 };
 
 export default catalog;

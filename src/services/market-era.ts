@@ -57,11 +57,15 @@ export function isMarketBuilding(eraId: MarketEraId) {
 }
 
 /**
- * Furniture that must be placed before the market opens. Only the market building has a floor to set up
- * ("Montar loja"); the stalls and small shops of the first expansions open as they are.
+ * Furniture that must be placed before the market opens. The market building has a floor to set up
+ * ("Montar loja"). Of the small shops only the minimercado asks for something: it has no counter of its own,
+ * so its checkout must stand in the checkout area. The other stalls and shops open as they are.
  */
 export function getPiecesToPlaceBeforeOpening(state: { era: GameEraState; interior: InteriorState | undefined }) {
-	return isMarketBuilding(state.era.id) ? getWaitingInteriorPieces(state.interior).length : 0;
+	if (isMarketBuilding(state.era.id)) return getWaitingInteriorPieces(state.interior).length;
+	if (state.era.id === "minimercado")
+		return getWaitingInteriorPieces(state.interior).filter((item) => item.type === "checkout").length;
+	return 0;
 }
 
 /** Wings owned once the market reaches `eraId` (keeps any extra wing already bought). */

@@ -18,7 +18,7 @@ namespace Checkout {
   readonly Queue<Customer> visits=new Queue<Customer>();readonly HashSet<string> seen=new HashSet<string>();readonly List<CheckoutWalker> walkers=new List<CheckoutWalker>();readonly List<string> appearanceBag=new List<string>();string lastAppearance;
   public readonly List<CheckoutWalker> Queue=new List<CheckoutWalker>();
   const int MaxWalkers=27;
-#if UNITY_IOS && !UNITY_EDITOR
+#if UNITY_IOS && !UNITY_EDITOR && !CHECKOUT_EMBEDDED
   [DllImport("__Internal")] static extern void sendMessageToMobileApp(string message);
 #endif
   void Awake(){name="CheckoutBridge";simulation=FindAnyObjectByType<MarketSimulation>();simulation.quietCapture=true;simulation.enabled=false;var qa=simulation.GetComponent<MarketPlaytest>();if(qa)qa.enabled=false;}
@@ -54,7 +54,7 @@ namespace Checkout {
    if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open){var walker=NextAvailableWalker();if(walker){if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(walkers.All(w=>!w.gameObject.activeSelf||Vector3.Distance(w.transform.position,map.Entrance)>1.5f)){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
    if(Input.GetMouseButtonDown(0)){pointerStart=Input.mousePosition;pointerDragged=false;}
    if(Input.touchCount>1||(Input.GetMouseButton(0)&&Vector2.Distance(pointerStart,Input.mousePosition)>10))pointerDragged=true;
-   if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&UnityEngine.EventSystems.EventSystem.current&&!UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()){
+   if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutPointer.OverUi){
     if(Physics.Raycast(simulation.view.ScreenPointToRay(Input.mousePosition),out var hit,150)){var action=hit.collider.GetComponent<CheckoutTarget>();if(action){if(action.panel=="checkout")CheckoutCounterGame.Show(this,action.requestId);
      // Works boards: finish a build inside the market (or the expansion) right now for diamonds.
      else if(action.panel=="finishBuild"&&!string.IsNullOrEmpty(action.requestId))Command("finishInteriorConstructionNow","[\""+action.requestId+"\"]");
@@ -98,7 +98,7 @@ namespace Checkout {
   public static void Emit(string json){
 #if UNITY_ANDROID && !UNITY_EDITOR
    using(var module=new AndroidJavaClass("com.azesmwayreactnativeunity.ReactNativeUnityViewManager"))module.CallStatic("sendMessageToMobileApp",json);
-#elif UNITY_IOS && !UNITY_EDITOR
+#elif UNITY_IOS && !UNITY_EDITOR && !CHECKOUT_EMBEDDED
    sendMessageToMobileApp(json);
 #else
    if(CheckoutDesktopHost.Active&&CheckoutDesktopHost.Active.Send(json))return;

@@ -151,8 +151,8 @@ function createDeliverySnapshot(state: GameState): SimulatorDelivery {
 				order.courier && courier
 					? {
 							id: order.courier.id,
-							name: order.courier.name,
-							color: order.courier.color,
+							name: courier.name,
+							color: courier.color,
 							phrases: courier.phrases,
 						}
 					: null,

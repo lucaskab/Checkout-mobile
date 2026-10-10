@@ -769,7 +769,7 @@ namespace Checkout
 
         // ------------------------------------------------------------------ frame
         bool Typing => EventSystem.current && EventSystem.current.currentSelectedGameObject && EventSystem.current.currentSelectedGameObject.GetComponent<TMP_InputField>();
-        bool OverUi => EventSystem.current && EventSystem.current.IsPointerOverGameObject();
+        bool OverUi => CheckoutPointer.OverUi;
         bool Windows => (paletteDim && paletteDim.activeSelf) || (hiddenDim && hiddenDim.activeSelf);
         float moneyCheck;
 

@@ -17,6 +17,7 @@ const {
 	finishEraConstruction,
 	getEraForExpansions,
 	getOfflineEraIncome,
+	getPiecesToPlaceBeforeOpening,
 	normalizeEraState,
 	recordFinishedTurn,
 	startEraEvolution,
@@ -172,4 +173,21 @@ test("each expansion brings its own missions, locked until the market gets there
 	useGameStore.setState({ era: { ...store().era, id: "banca" } });
 	expect(getMissionStatus(tenda, store())).toBe("claimable");
 	expect(missions.filter((m) => m.id.startsWith("exp-")).length).toBeGreaterThanOrEqual(20);
+});
+
+test("the minimercado opens only once its checkout is placed (its model has no counter)", () => {
+	const interior = (stored) => ({
+		items: [
+			{ id: "checkout:main", type: "checkout", x: 0, z: 0, rot: 0, stored },
+			{ id: "shelf:produce", type: "shelf", x: 0, z: 0, rot: 0, stored: true },
+		],
+		owned: {},
+	});
+	const era = (id) => ({ ...createInitialEraState(), id });
+	expect(getPiecesToPlaceBeforeOpening({ era: era("minimercado"), interior: interior(true) })).toBe(1);
+	expect(getPiecesToPlaceBeforeOpening({ era: era("minimercado"), interior: interior(false) })).toBe(0);
+	// The Späti and the quitanda keep their own counter: nothing to place.
+	expect(getPiecesToPlaceBeforeOpening({ era: era("quitanda"), interior: interior(true) })).toBe(0);
+	// The market building still asks for every stored piece.
+	expect(getPiecesToPlaceBeforeOpening({ era: era("mercadinho"), interior: interior(true) })).toBe(2);
 });
