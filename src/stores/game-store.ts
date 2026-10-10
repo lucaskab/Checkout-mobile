@@ -305,6 +305,15 @@ import {
 } from "@/services/supplier-cart";
 import type { DeliveryItem, DeliveryOrder, DeliveryState } from "@/@types/delivery";
 import {
+	continueOnboarding,
+	createOnboardingState,
+	dismissOnboardingTip as dismissOnboardingTipRule,
+	normalizeOnboardingState,
+	restartOnboarding as restartOnboardingRule,
+	skipOnboarding as skipOnboardingRule,
+	stepOnboarding,
+} from "@/services/onboarding";
+import {
 	advanceDeliveryOrder,
 	applyLateCancelToRating,
 	applyStarsToRating,
@@ -487,6 +496,7 @@ const initialGameState: GameState = {
 	statistics: initialStatistics,
 	celebrations: [],
 	delivery: createInitialDeliveryState(),
+	onboarding: createOnboardingState(),
 };
 
 function getInitialGameState(): GameState {
@@ -573,6 +583,7 @@ function getInitialGameState(): GameState {
 		statistics: { ...initialGameState.statistics },
 		celebrations: [],
 		delivery: createInitialDeliveryState(),
+		onboarding: createOnboardingState(),
 	};
 }
 
@@ -912,6 +923,11 @@ function migrateGameState(persistedState: unknown): GameState {
 		shelfCare: normalizeShelfCare(state.shelfCare),
 		statistics,
 		delivery: normalizeDeliveryState(state.delivery),
+		onboarding: normalizeOnboardingState(state.onboarding, {
+			level: market?.level ?? 1,
+			dayNumber: state.day?.dayNumber ?? 1,
+			served: state.checkout?.served ?? 0,
+		}),
 	};
 }
 
@@ -940,6 +956,31 @@ export const useGameStore = create<GameStore>()(
 			...getInitialGameState(),
 			dismissLevelUp: () => {
 				if (get().market.levelUp) set({ market: { ...get().market, levelUp: null } });
+			},
+			// First-time onboarding (src/services/onboarding.ts): the host calls processOnboarding with the page on screen.
+			processOnboarding: (route = "") => {
+				const update = stepOnboarding(get(), route, Date.now());
+				if (update) set(update);
+				return Boolean(update);
+			},
+			onboardingNext: () => {
+				const update = continueOnboarding(get(), Date.now());
+				if (update) set(update);
+				return Boolean(update);
+			},
+			skipOnboarding: () => {
+				const update = skipOnboardingRule(get());
+				if (update) set(update);
+				return Boolean(update);
+			},
+			restartOnboarding: () => {
+				set(restartOnboardingRule(get(), Date.now()));
+				return true;
+			},
+			dismissOnboardingTip: () => {
+				const update = dismissOnboardingTipRule(get());
+				if (update) set(update);
+				return Boolean(update);
 			},
 			dismissCelebration: (id) => {
 				const list = get().celebrations ?? [];
@@ -4373,6 +4414,7 @@ export const useGameStore = create<GameStore>()(
 				lots,
 				celebrations,
 				delivery,
+				onboarding,
 			}) => ({
 				era,
 				checkout,
@@ -4414,6 +4456,7 @@ export const useGameStore = create<GameStore>()(
 				lots,
 				celebrations,
 				delivery,
+				onboarding,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
 			// 35: employees gained tasks/nextTaskNumber/lastPayroll (staff jobs and per-shift pay).
@@ -4424,7 +4467,8 @@ export const useGameStore = create<GameStore>()(
 			// 42: the supermarket's depot is on lot C2 (was B3).
 			// 43: products, sectors, staff and decor open on a level-by-level ladder (scripts/economy/catalog.py).
 			// 44: the Delivery app (online orders from the minimercado on). Old saves start with no orders.
-			version: 44,
+			// 45: first-time onboarding (src/services/onboarding.ts). Saves that already played skip the guided day.
+			version: 45,
 		},
 	),
 );

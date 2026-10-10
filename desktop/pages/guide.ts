@@ -1,0 +1,34 @@
+import type { GameIconId } from "@/data/game-icon-assets";
+import { onboardingGuide } from "@/data/onboarding";
+import { getNextGoal } from "@/services/onboarding";
+import type { Routes } from ".";
+import { act, card, gameIcon, page } from "../view-kit";
+
+// "Guia" (the "?" button of the top bar): what each part of the screen does, the next objective and a
+// button to play the tutorial again. For players who skipped it or forgot where something is.
+export const routes: Routes = {
+	guia: (state) => {
+		const goal = getNextGoal(
+			{ ...state, onboarding: { ...state.onboarding, status: "done" } },
+			{ lot: gameIcon("key"), coin: gameIcon("coin"), build: gameIcon("construction"), done: gameIcon("success") },
+		);
+		return page("guia", "Guia do mercado", [
+			card("O seu objetivo", {
+				icon: gameIcon("target"),
+				eyebrow: "DONA NEIDE EXPLICA",
+				lines: [
+					"Transforme a mesinha da calçada no maior supermercado da cidade, e depois numa rede!",
+					"O ciclo: abra a loja, atenda no caixa, reponha a vitrine, peça mercadoria ao atacado e suba de nível.",
+					goal.text ? `Agora: ${goal.text} (${goal.detail})` : "",
+				].filter(Boolean),
+				buttons: [
+					act("Rever tutorial", "restartOnboarding", [], { variant: "success", after: "back", ok: "Vamos lá!" }),
+				],
+				tone: "info",
+			}),
+			...onboardingGuide.map((item) =>
+				card(item.title, { icon: gameIcon(item.icon as GameIconId), lines: [item.text] }),
+			),
+		], { icon: gameIcon("clipboard"), subtitle: "Onde fica cada coisa e o que ela faz" });
+	},
+};

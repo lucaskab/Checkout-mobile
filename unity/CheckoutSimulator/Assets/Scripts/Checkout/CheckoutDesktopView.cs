@@ -50,7 +50,15 @@ namespace Checkout {
   public string dayPhase,dayTitle,dayDetail,requestLabel,goalText,goalIcon;public bool goalDone;public float dayProgress;public int requestCount;public bool requestUrgent;
   public DesktopBoost[] boosts;
   public DesktopButton[] tools;public DesktopCard offline;public DesktopPage page;public DesktopLevelUp levelUp;public DesktopCelebration celebration;
+  public DesktopCoach coach;public DesktopGoal goal;
  }
+ // Dona Neide's tutorial / tip card (src/services/onboarding.ts CoachView); key "" = nothing on screen.
+ [Serializable] public class DesktopCoach {
+  public string key,mode,speaker,art,title,text,gameText,target,button,buttonAction,rewardKey,rewardText;
+  public bool canSkip,isTip;public int step,total;public string[] path;
+ }
+ // The next big objective under the top bar (src/services/onboarding.ts GoalView); text "" = none.
+ [Serializable] public class DesktopGoal {public string text,detail,icon,route;public float progress=-1;}
  // Level-up celebration (desktop/level-up.ts); JsonUtility fills a null with an empty object: an empty key means none.
  [Serializable] public class DesktopLevelUpItem {public string icon,title,detail,tag;}
  [Serializable] public class DesktopLevelUpGroup {public string title,hint,icon,tint,button,route;public DesktopLevelUpItem[] items;}

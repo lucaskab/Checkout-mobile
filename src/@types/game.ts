@@ -115,6 +115,7 @@ export type ExperienceProgress = {
 };
 
 import type { GameStatistics } from "./achievement";
+import type { OnboardingState } from "./onboarding";
 import type { CheckoutCounterState } from "./checkout-counter";
 import type {
 	CurrencyPurchaseState,
@@ -212,6 +213,8 @@ export type GameState = {
 	statistics: GameStatistics;
 	/** Conquests still to be celebrated on screen, oldest first. */
 	celebrations?: GameCelebration[];
+	/** First-time tutorial and one-off tips (src/services/onboarding.ts). */
+	onboarding: OnboardingState;
 	/** The Delivery app: online orders waiting, packed and on their way (src/services/delivery.ts). */
 	delivery: DeliveryState;
 };
@@ -325,6 +328,16 @@ export type GameActions = {
 	/** The player closed the level-up celebration. */
 	dismissLevelUp: () => void;
 	dismissCelebration: (id: string) => void;
+	/** Moves the tutorial on when the game shows the step was played (host: every second and on page changes). */
+	processOnboarding: (route?: string) => boolean;
+	/** "Vamos lá" / "Entendi" on a tutorial card. */
+	onboardingNext: () => boolean;
+	/** "Já sei jogar" on the welcome card. */
+	skipOnboarding: () => boolean;
+	/** Guia → "Rever tutorial". */
+	restartOnboarding: () => boolean;
+	/** "Entendi" on a one-off tip. */
+	dismissOnboardingTip: () => boolean;
 	resetGame: () => void;
 	resolveSpecialRequest: (requestId: string, optionId: string) => boolean;
 	/** Opens a turn; from the Späti on it can be a night turn ("noite"). */

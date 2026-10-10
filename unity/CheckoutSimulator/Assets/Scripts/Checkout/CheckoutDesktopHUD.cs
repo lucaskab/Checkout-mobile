@@ -19,7 +19,7 @@ namespace Checkout {
    CheckoutScreen.Fit(canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>());
    canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
    root=CheckoutScreen.SafeArea(canvasGo.transform);
-   BuildTop();BuildBoosts();BuildToolbar();BuildDrawer();BuildShop();BuildShelf();BuildBoard();BuildKitchen();BuildOverlay();BuildLevelUp();BuildConquest();
+   BuildTop();BuildBoosts();BuildToolbar();BuildDrawer();BuildShop();BuildShelf();BuildBoard();BuildKitchen();BuildOverlay();BuildLevelUp();BuildConquest();BuildCoach();
    Offline("Carregando o jogo…");
   }
 
@@ -40,7 +40,7 @@ namespace Checkout {
   public void Apply(string json){
    DesktopView next;try {next=JsonUtility.FromJson<DesktopView>(json);}catch(System.Exception ex){Debug.LogError("CHECKOUT_DESKTOP bad view: "+ex.Message);return;}
    if(next==null||next.kind!="view")return;
-   view=next;ApplyTop(next);ApplyBoosts(next);ApplyToolbar(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyBoard(next);ApplyKitchen(next);ApplyOverlay(next);ApplyConquest(next);ApplyLevelUp(next);
+   view=next;ApplyTop(next);ApplyBoosts(next);ApplyToolbar(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyBoard(next);ApplyKitchen(next);ApplyOverlay(next);ApplyConquest(next);ApplyLevelUp(next);ApplyCoach(next);
    // A window opened: the lot balloon (its own canvas, above the windows) closes.
    if(next.hasPage)CheckoutLotPopup.Hide();
   }
@@ -73,7 +73,7 @@ namespace Checkout {
    // Esc closes the level-up celebration first (UpdateLevelUp), the page only when nothing is over it.
    bool celebrating=LevelUpOpen||ConquestOpen;
    if(Input.GetKeyDown(KeyCode.Escape)&&!celebrating&&view!=null&&view.hasPage)host.Route(view.canBack?"back":"");
-   UpdateToast();UpdateBoosts();UpdateBoard();UpdateLevelUp();UpdateConquest();
+   UpdateToast();UpdateBoosts();UpdateBoard();UpdateLevelUp();UpdateConquest();UpdateCoach();
   }
  }
 }

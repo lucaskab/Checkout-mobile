@@ -18,6 +18,7 @@ import { canClaimDailyLogin } from "@/services/daily-login";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getNextSimulatorUnlocks } from "@/services/simulator-progression";
 import { getStoredInteriorBuilds } from "@/services/interior-construction";
+import { type CoachView, type GoalView, getCoachView, getNextGoal } from "@/services/onboarding";
 import { type LevelUpView, levelUpView } from "./level-up";
 import { type CelebrationView, celebrationView } from "./celebration";
 import { pages } from "./pages";
@@ -78,6 +79,10 @@ export type DesktopView = {
 	levelUp: LevelUpView | null;
 	// Conquest celebration (lot cleared, new expansion, sector or shelf ready: desktop/celebration.ts); null when none.
 	celebration: CelebrationView | null;
+	/** Tutorial / tip card of the guide (src/services/onboarding.ts); key "" = nothing to show. */
+	coach: CoachView;
+	/** The next big objective under the top bar (text "" = none). */
+	goal: GoalView;
 	hasPage: boolean;
 	canBack: boolean;
 	page: Page;
@@ -359,6 +364,13 @@ export function createDesktopView(
 		offline: summary,
 		levelUp: levelUpView(state),
 		celebration: celebrationView(state),
+		coach: getCoachView(state, route, now),
+		goal: getNextGoal(state, {
+			lot: gameIcon("key"),
+			coin: gameIcon("coin"),
+			build: gameIcon("construction"),
+			done: gameIcon("success"),
+		}),
 		hasPage: Boolean(route),
 		canBack: stack.length > 1,
 		page: current,

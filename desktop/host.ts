@@ -68,6 +68,10 @@ const hudActions: (keyof GameActions)[] = [
 	"dismissOfflineSummary",
 	"dismissLevelUp",
 	"dismissCelebration",
+	"onboardingNext",
+	"skipOnboarding",
+	"restartOnboarding",
+	"dismissOnboardingTip",
 	"evolveMarketEra",
 	"upgradeProduct",
 	"claimDailyLogin",
@@ -147,6 +151,8 @@ function navigate(route: string) {
 	else if (route === "back") routes.pop();
 	else if (route.startsWith("~")) routes.splice(-1, 1, route.slice(1));
 	else if (routes.at(-1) !== route) routes.push(route);
+	// Opening a page can finish a tutorial step ("toque no caixote"), so the coach moves on right away.
+	useGameStore.getState().processOnboarding(routes.at(-1) ?? "");
 	view();
 }
 
@@ -254,6 +260,7 @@ setInterval(() => {
 	store().processStoreIncidents();
 	store().processReceiving();
 	store().processDelivery();
+	store().processOnboarding(routes.at(-1) ?? "");
 	store().processEmployeeWork();
 	store().processMarketDay();
 	// Paid expansions open when their works end (the app runs this in ProductionSimulation).
