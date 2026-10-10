@@ -61,8 +61,8 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		id: "mesinha",
 		mode: "spotlight",
 		title: "A sua mesinha",
-		text: "Estes caixotes são a sua vitrine. Toque no caixote de frutas e verduras para ver o que você vende.",
-		target: "world:store:produce|world:store",
+		text: "Estes caixotes são a sua vitrine. Toque em PRATELEIRAS para ver o que você vende.",
+		target: "tool:!store",
 	},
 	{
 		id: "vitrine",
@@ -86,7 +86,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		mode: "spotlight",
 		title: "Seu primeiro dia",
 		text:
-			"Cada dia dura 5 minutos. Hoje é um dia livre. Nos próximos dias você escolhe um contrato: uma meta que dá moedas e XP a mais.",
+			"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque para abrir. No fim da lista também dá para abrir um dia livre.",
 		target: "action:startDay",
 	},
 	{
@@ -117,7 +117,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		mode: "bubble",
 		title: "Fique de olho no estoque",
 		text:
-			"Cada produto tem um limite no depósito. Quando estiver acabando, é hora de pedir mais ao atacado. Produto parado é dinheiro parado!",
+			"Cada produto tem um limite no depósito. Quando estiver acabando, é hora de pedir mais ao atacado. Feche a janela para continuar.",
 		target: "",
 		button: "Entendi",
 	},
@@ -133,7 +133,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		mode: "spotlight",
 		title: "Faça o pedido",
 		text: "Escolha um produto e peça caixas. Essa primeira entrega é expressa, por conta da casa!",
-		gameText: "Escolha um produto, toque em + para pôr caixas no carrinho e depois em COMPRAR.",
+		gameText: "Escolha um produto, toque em + Carrinho e depois em Fazer pedido.",
 		target: "route:@shop|action:placeSupplierCart|action:orderLowStock",
 	},
 	{

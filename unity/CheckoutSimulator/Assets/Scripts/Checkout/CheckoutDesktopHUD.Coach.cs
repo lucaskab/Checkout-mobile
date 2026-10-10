@@ -58,7 +58,8 @@ namespace Checkout {
    coachStep=N.Text(head,"Step",K.Number,14,K.Muted);coachStep.textWrappingMode=TextWrappingModes.NoWrap;coachStep.alignment=TextAlignmentOptions.TopRight;
    coachText=N.Text(body,"Text",K.Body,18,K.Ink);coachText.lineSpacing=4;
    // The road ahead (welcome card only): Mesinha › Tenda › … › Rede.
-   coachPath=N.Node("Path",body);var pathRow=N.Row(coachPath.gameObject,4);pathRow.childAlignment=TextAnchor.MiddleLeft;
+   var pathBox=N.Image(body,"Path",K.C("FBEEDA"),10);N.Column(pathBox.gameObject,0,new RectOffset(10,10,6,6));coachPath=pathBox.rectTransform;
+   coachPathText=N.Text(pathBox.transform,"Stages",K.Label,14,K.Ink);coachPathText.lineSpacing=6;
    var buttons=N.Node("Buttons",body);var br=N.Row(buttons.gameObject,14,new RectOffset(0,0,6,0));br.childAlignment=TextAnchor.MiddleRight;
    var skip=N.Text(buttons,"Skip",K.Label,15,K.Muted);skip.text="Já sei jogar";skip.textWrappingMode=TextWrappingModes.NoWrap;skip.raycastTarget=true;
    U.Tap(skip,()=>CoachAction("skipOnboarding"));coachSkip=skip.gameObject;
@@ -90,9 +91,10 @@ namespace Checkout {
 
   // "Próximo objetivo" under the top bar: what to do next to grow (buy the lot, save coins, evolve…).
   void BuildGoalCard(){
-   var node=N.Node("Goal",root);node.anchorMin=node.anchorMax=node.pivot=new Vector2(0,1);node.anchoredPosition=new Vector2(16,-120);node.sizeDelta=new Vector2(360,70);
+   // Top right, under the wallet: the left edge belongs to the floating CAIXA / REPOR / ENTREGA buttons.
+   var node=N.Node("Goal",root);node.anchorMin=node.anchorMax=node.pivot=new Vector2(1,1);node.anchoredPosition=new Vector2(-16,-120);node.sizeDelta=new Vector2(360,96);
    goalCardEdge=node.gameObject.AddComponent<Image>();goalCardEdge.sprite=K.Rounded(16);goalCardEdge.type=Image.Type.Sliced;goalCardEdge.color=K.Border;
-   Clickable(node.gameObject,()=>{if(!string.IsNullOrEmpty(goalRoute))Press(GoalButton());});
+   Clickable(node.gameObject,GoalPressed);
    var face=N.Image(node,"Face",K.Cream,14);U.Stretch(face.rectTransform,Vector2.zero,Vector2.one,new Vector2(2,5),new Vector2(-2,-2));
    N.Row(face.gameObject,10,new RectOffset(10,12,6,6)).childAlignment=TextAnchor.MiddleLeft;
    goalCardIcon=N.Image(face.transform,"Icon",Color.white,0);goalCardIcon.preserveAspect=true;var il=goalCardIcon.gameObject.AddComponent<LayoutElement>();il.preferredWidth=il.preferredHeight=38;
@@ -103,7 +105,8 @@ namespace Checkout {
    Bar(texts,6,K.C("F2B03D"),out goalCardFill);
    goalCard=node.gameObject;goalCard.SetActive(false);
   }
-  DesktopButton GoalButton()=>new DesktopButton{label="",icon="",variant="secondary",enabled=true,action="",args="[]",route=goalRoute.StartsWith("@")?goalRoute:"!"+goalRoute,after="",ok="",fail=""};
+  // "@lots" shows the block from above (like the HUD's Press); anything else is a page route.
+  void GoalPressed(){if(goalRoute=="@lots"){host.Route("");CheckoutLotView.Show();}else if(goalRoute.Length>0)host.Route("!"+goalRoute);}
 
   void ApplyCoach(DesktopView v){
    // Next objective card.
@@ -132,17 +135,17 @@ namespace Checkout {
    coachButton.transform.parent.gameObject.SetActive(hasButton||coach.canSkip);
    BuildCoachPath(coach.path);
    coachCardWidth.preferredWidth=coach.mode=="modal"?680:540;
-   coachCompactText.text=K.Clean(string.IsNullOrEmpty(coach.gameText)?coach.text:coach.gameText);
   }
-  string coachPathKey;
+  TextMeshProUGUI coachPathText;
+  // The road ahead in one wrapped line: the first stage in green (you are here), the last in gold.
   void BuildCoachPath(string[] path){
-   var pathKey=path==null?"":string.Join(">",path);if(pathKey==coachPathKey)return;coachPathKey=pathKey;
-   for(int i=coachPath.childCount-1;i>=0;i--)Destroy(coachPath.GetChild(i).gameObject);
-   coachPath.gameObject.SetActive(path!=null&&path.Length>0);if(path==null)return;
+   bool on=path!=null&&path.Length>0;coachPath.gameObject.SetActive(on);if(!on)return;
+   var sb=new System.Text.StringBuilder();
    for(int i=0;i<path.Length;i++){
-    var chip=N.Image(coachPath,"Stage",i==0?K.C("5DA637"):i==path.Length-1?K.C("F2B03D"):K.C("EADBC4"),8);N.Row(chip.gameObject,0,new RectOffset(7,7,3,3));
-    var t=N.Text(chip.transform,"Name",K.Label,12,i==0?Color.white:K.Ink);t.text=path[i];t.textWrappingMode=TextWrappingModes.NoWrap;
+    if(i>0)sb.Append(" <color=#C58A1E>›</color> ");
+    sb.Append(i==0?"<color=#427A24>"+path[i]+"</color>":i==path.Length-1?"<color=#B9740F>"+path[i]+"</color>":path[i]);
    }
+   coachPathText.text=sb.ToString();
   }
 
   void CoachAction(string action){if(!string.IsNullOrEmpty(action)){PlayCoach("tap");host.Action(action,"[]","");}}
@@ -166,7 +169,11 @@ namespace Checkout {
    if(coach==null||string.IsNullOrEmpty(coach.key)){HideCoach();return;}
    // Other moments come first: the level-up and conquest celebrations, the offline earnings, loading, building.
    if(LevelUpOpen||ConquestOpen||modal.activeSelf||status.activeSelf||CheckoutBuildMode.Open||CheckoutLotView.Open){HideCoach();return;}
-   if(GameWindowOpen()){HideCoach();coachCompact.gameObject.SetActive(true);return;}
+   // A game window, or a page window with nothing to point at: a note in the corner instead of a card over the window.
+   bool game=GameWindowOpen();
+   if(game||(view!=null&&view.hasPage&&coach.mode=="bubble"&&string.IsNullOrEmpty(coach.target))){
+    HideCoach();coachCompactText.text=K.Clean(game&&!string.IsNullOrEmpty(coach.gameText)?coach.gameText:coach.text);coachCompact.gameObject.SetActive(true);return;
+   }
    coachCompact.gameObject.SetActive(false);
    float pulse=Mathf.Sin(Time.unscaledTime*5f);
    bool modalMode=coach.mode=="modal";
@@ -189,17 +196,18 @@ namespace Checkout {
    for(int i=0;i<4;i++)coachDims[i].gameObject.SetActive(spotlight&&!waiting);
    if(spotlight){
     var h=hole;h.xMin=Mathf.Max(0,h.xMin);h.yMin=Mathf.Max(0,h.yMin);h.xMax=Mathf.Min(size.x,h.xMax);h.yMax=Mathf.Min(size.y,h.yMax);
-    Place(coachDims[0].rectTransform,0,0,size.x,h.yMin);
-    Place(coachDims[1].rectTransform,0,h.yMax,size.x,size.y-h.yMax);
-    Place(coachDims[2].rectTransform,0,h.yMin,h.xMin,h.height);
-    Place(coachDims[3].rectTransform,h.xMax,h.yMin,size.x-h.xMax,h.height);
+    CoachPlace(coachDims[0].rectTransform,0,0,size.x,h.yMin);
+    CoachPlace(coachDims[1].rectTransform,0,h.yMax,size.x,size.y-h.yMax);
+    CoachPlace(coachDims[2].rectTransform,0,h.yMin,h.xMin,h.height);
+    CoachPlace(coachDims[3].rectTransform,h.xMax,h.yMin,size.x-h.xMax,h.height);
    }
    coachRing.gameObject.SetActive(found);coachHand.gameObject.SetActive(found);
    if(found){
     coachRing.anchoredPosition=hole.center;float grow=10+pulse*5;coachRing.sizeDelta=hole.size+new Vector2(grow,grow)*2;
     coachFull.transform.SetAsFirstSibling();coachRing.SetAsLastSibling();
-    // The fingertip taps the middle of the target.
-    coachHand.anchoredPosition=hole.center+new Vector2(10,-10)*(1+Mathf.Max(0,pulse));
+    // The fingertip taps the middle of the target; near the top edge the hand comes from below so it stays on screen.
+    bool nearTop=hole.center.y>size.y*.72f;coachHand.localRotation=Quaternion.Euler(0,0,nearTop?-20:160);
+    coachHand.anchoredPosition=hole.center+new Vector2(10,nearTop?10:-10)*(1+Mathf.Max(0,pulse));
     coachHand.localScale=Vector3.one*(1-.08f*Mathf.Max(0,pulse));coachHand.SetAsLastSibling();
    }
    // The card stands next to the target (above it in the lower half, below it in the upper half), else under the top bar.
@@ -224,15 +232,15 @@ namespace Checkout {
    }
    t.SetPixels32(px);t.Apply();return ringSprite=Sprite.Create(t,new Rect(0,0,n,n),new Vector2(.5f,.5f),100,0,SpriteMeshType.FullRect,new Vector4(r+1,r+1,r+1,r+1));
   }
-  static void Place(RectTransform r,float x,float y,float w,float h){r.anchoredPosition=new Vector2(x,y);r.sizeDelta=new Vector2(Mathf.Max(0,w),Mathf.Max(0,h));}
+  static void CoachPlace(RectTransform r,float x,float y,float w,float h){r.anchoredPosition=new Vector2(x,y);r.sizeDelta=new Vector2(Mathf.Max(0,w),Mathf.Max(0,h));}
 
   // ------------------------------------------------------------------ targets
   bool FindCoachTarget(string spec,out Rect hole){
    hole=default;if(string.IsNullOrEmpty(spec))return false;
-   foreach(var part in spec.Split('|'))if(FindOne(part.Trim(),out hole)){hole=Pad(hole,10);return true;}
+   foreach(var part in spec.Split('|'))if(FindOne(part.Trim(),out hole)){hole=CoachPad(hole,10);return true;}
    return false;
   }
-  static Rect Pad(Rect r,float p)=>new Rect(r.xMin-p,r.yMin-p,r.width+p*2,r.height+p*2);
+  static Rect CoachPad(Rect r,float p)=>new Rect(r.xMin-p,r.yMin-p,r.width+p*2,r.height+p*2);
   bool FindOne(string spec,out Rect hole){
    hole=default;
    if(spec=="market")return Visible(marketButton?(RectTransform)marketButton.transform:null,out hole);
@@ -262,6 +270,13 @@ namespace Checkout {
    var canvas=target.GetComponentInParent<Canvas>();var cam=canvas&&canvas.renderMode!=RenderMode.ScreenSpaceOverlay?canvas.worldCamera:null;
    Vector2 min=new Vector2(float.MaxValue,float.MaxValue),max=new Vector2(float.MinValue,float.MinValue);
    foreach(var c in corners){var s=RectTransformUtility.WorldToScreenPoint(cam,c);min=Vector2.Min(min,s);max=Vector2.Max(max,s);}
+   // Inside a scrolling list only what the viewport shows counts (a button scrolled away is not a target).
+   var center=(min+max)*.5f;
+   if(center.x<0||center.y<0||center.x>Screen.width||center.y>Screen.height)return false;
+   var clip=target.GetComponentInParent<UnityEngine.UI.RectMask2D>();
+   if(clip&&!RectTransformUtility.RectangleContainsScreenPoint(clip.rectTransform,center,cam))return false;
+   var mask=target.GetComponentInParent<UnityEngine.UI.Mask>();
+   if(mask&&!RectTransformUtility.RectangleContainsScreenPoint((RectTransform)mask.transform,center,cam))return false;
    return ScreenRect(min,max,out hole);
   }
   // A clickable thing of the map (CheckoutTarget panel and optional shelf id), projected with the main camera.

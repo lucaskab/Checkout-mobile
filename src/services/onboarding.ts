@@ -116,10 +116,11 @@ export function isStepDone(id: OnboardingStepId, state: GameState, route: Onboar
 		case "objetivo":
 			return false;
 		case "mesinha":
-			return name === "shelf";
+			// "Prateleiras" opens the shelf window of the first fixture ("store"); a fixture's own route is "shelf:<id>".
+			return name === "shelf" || name === "store";
 		case "vitrine":
 			// Closing the shelf window also moves on.
-			return name !== "shelf" && now - o.stepStartedAt > READ_MS;
+			return name !== "shelf" && name !== "store" && now - o.stepStartedAt > READ_MS;
 		case "abrir":
 			return name === "day" || state.market.isOpen;
 		case "dia-livre":
@@ -194,7 +195,7 @@ function tipSolved(id: string, state: GameState, route: OnboardingRoute, now: nu
 		case "equipe":
 			return name === "loja";
 		case "terreno":
-			return name === "loja" || name === "lots";
+			return name === "loja";
 		case "producao":
 			return name === "sectors" || name === "sector";
 		default:
@@ -452,7 +453,7 @@ export function getNextGoal(state: GameState, icons: { lot: string; coin: string
 			detail: `Próxima expansão: ${next.name} · ${state.coins.toLocaleString("pt-BR")} / ${price.toLocaleString("pt-BR")} moedas`,
 			icon: icons.lot,
 			progress: price > 0 ? Math.min(1, state.coins / price) : 1,
-			route: "@lots",
+			route: "loja:terrenos",
 		};
 	}
 	if (missing.length > 0) {
@@ -462,7 +463,7 @@ export function getNextGoal(state: GameState, icons: { lot: string; coin: string
 			detail: `Próxima expansão: ${next.name} · o terreno precisa estar limpo`,
 			icon: icons.lot,
 			progress: -1,
-			route: "@lots",
+			route: "loja:terrenos",
 		};
 	}
 	return {
