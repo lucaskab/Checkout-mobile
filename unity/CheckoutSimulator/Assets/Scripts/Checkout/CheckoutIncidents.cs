@@ -40,7 +40,7 @@ namespace Checkout {
    var label=U.Label(face.transform,"Label",K.Headline,17,"4A3624");U.Stretch(label.rectTransform,Vector2.zero,new Vector2(1,.3f));label.text="CONSERTAR";
    var badge=U.Shape(node,"Badge","E15533",16,new Vector2(1,1),new Vector2(42,36),new Vector2(-6,-6));
    fabText=U.Label(badge.transform,"Count",K.Headline,20,"FFFFFF");U.Stretch(fabText.rectTransform,Vector2.zero,Vector2.one);
-   U.Tap(edge,()=>Open(null));
+   U.Tap(edge,()=>Open(null));CheckoutFabRail.Add(node,3);
    fab=node.gameObject;fab.SetActive(false);
   }
 

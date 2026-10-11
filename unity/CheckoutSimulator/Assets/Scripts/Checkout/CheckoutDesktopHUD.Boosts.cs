@@ -30,7 +30,7 @@ namespace Checkout {
 
    // Chips: a column on the right, under the coins and diamonds (the left side has the REPOR/CONSERTAR buttons).
    boostColumn=N.Node("Boosts",root);boostColumn.anchorMin=boostColumn.anchorMax=boostColumn.pivot=new Vector2(1,1);
-   boostColumn.anchoredPosition=new Vector2(-18,-150);
+   boostColumn.anchoredPosition=Phone?new Vector2(-8,-188):new Vector2(-18,-150);
    var col=N.Column(boostColumn.gameObject,10);col.childForceExpandWidth=false;col.childAlignment=TextAnchor.UpperRight;
    var fit=boostColumn.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();
    fit.horizontalFit=fit.verticalFit=UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;

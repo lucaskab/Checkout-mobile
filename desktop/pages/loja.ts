@@ -156,7 +156,7 @@ function decoracao(state: State, sub: string) {
 			const useDiamonds = !decor.coinPrice;
 			const price = (useDiamonds ? decor.diamondPrice : decor.coinPrice) ?? 0;
 			return card(decor.name, {
-				eyebrow: locked ? `NÍVEL ${decor.requiredLevel}` : zone === "outside" ? "PRAÇA" : "DENTRO DA LOJA",
+				eyebrow: locked ? `NÍVEL ${decor.requiredLevel}` : "", // the zone is the selected chip above
 				icon: decorIcon(decor.id),
 				tone: locked ? "locked" : owned > 0 ? "success" : "",
 				badge: owned > 0 ? `x${owned}` : "",

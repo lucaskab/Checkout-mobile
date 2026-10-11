@@ -57,7 +57,7 @@ namespace Checkout {
    var label=U.Label(face.transform,"Label",K.Headline,20,"FFFFFF");U.Stretch(label.rectTransform,Vector2.zero,new Vector2(1,.3f));label.text="CAIXA";
    var badge=U.Shape(node,"Badge","E15533",16,new Vector2(1,1),new Vector2(42,36),new Vector2(-6,-6));
    fabText=U.Label(badge.transform,"Count",K.Headline,20,"FFFFFF");U.Stretch(fabText.rectTransform,Vector2.zero,Vector2.one);
-   U.Tap(edge,()=>Open(null));
+   U.Tap(edge,()=>Open(null));CheckoutFabRail.Add(node,2);
    fab=node.gameObject;fab.SetActive(false);
   }
 
@@ -128,13 +128,15 @@ namespace Checkout {
    // Step tracker.
    string[] labels={"1  Passar","2  "+(entry.method=="cartao"?"Cartão":"Pagar"),"3  "+(entry.method=="cartao"?"Pronto":"Troco")};
    for(int i=0;i<3;i++){
-    var pill=Keep(U.Shape(stage,"Step "+i,NavyDark,22,Mid,new Vector2(190,54),P(.37f+i*.13f,.93f)));pill.color=new Color(.09f,.14f,.25f,.78f);steps[i]=pill;
+    // Phones (wider stage): narrower pills shifted right and the POS further right, so step 3 is not under the monitor.
+    bool phone=CheckoutScreen.Handheld;
+    var pill=Keep(U.Shape(stage,"Step "+i,NavyDark,22,Mid,new Vector2(phone?170:190,54),P((phone?.40f:.37f)+i*.13f,.93f)));pill.color=new Color(.09f,.14f,.25f,.78f);steps[i]=pill;
     var l=U.Label(pill.transform,"Label",K.Label,20,"FFFFFF");U.Stretch(l.rectTransform,Vector2.zero,Vector2.one);l.text=labels[i];stepLabels[i]=l;
    }
    Step(0);
    // POS monitor: the receipt fills up by itself as items are scanned.
-   var pos=Keep(U.Art(stage,"POS","pos_display",new Vector2(.8f,.74f),330));posScreen=U.Over(pos,"pos_display","screen");
-   var head=U.Label(posScreen,"Head",K.Label,15,"8FA7CF",TextAlignmentOptions.TopLeft);U.Stretch(head.rectTransform,Vector2.zero,Vector2.one,new Vector2(16,8),new Vector2(-16,-8));head.text="MERCADINHO · CAIXA 01";
+   var pos=Keep(U.Art(stage,"POS","pos_display",new Vector2(CheckoutScreen.Handheld?.86f:.8f,.74f),330));posScreen=U.Over(pos,"pos_display","screen");
+   var head=U.Label(posScreen,"Head",K.Label,15,"8FA7CF",TextAlignmentOptions.TopLeft);U.Stretch(head.rectTransform,Vector2.zero,Vector2.one,new Vector2(16,8),new Vector2(-16,-8));head.text="MERCADINHO · CAIXA 01";if(CheckoutScreen.Handheld)head.rectTransform.offsetMax=new Vector2(-64,-8); // clear of the close button
    receipt=CheckoutDesktopCard.Node("Receipt",posScreen);U.Stretch(receipt,new Vector2(0,.36f),new Vector2(1,.86f),new Vector2(16,0),new Vector2(-16,0));
    var column=CheckoutDesktopCard.Column(receipt.gameObject,2);column.childAlignment=TextAnchor.LowerLeft;column.childForceExpandHeight=false;
    var line=U.Box(posScreen,"Rule","E8B04A",0,new Vector2(0,.34f),new Vector2(1,.34f));line.rectTransform.offsetMin=new Vector2(16,-1);line.rectTransform.offsetMax=new Vector2(-16,1);

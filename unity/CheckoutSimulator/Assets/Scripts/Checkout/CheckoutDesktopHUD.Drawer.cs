@@ -28,7 +28,9 @@ namespace Checkout {
   void BuildDrawer(){
    var face=Panel(root,"Drawer",0,0,out var edge,out var faceImage,22);drawer=edge.gameObject;faceImage.color=K.Paper;
    Destroy(drawer.GetComponent<UnityEngine.UI.LayoutElement>());edge.raycastTarget=true;
-   var rect=(RectTransform)drawer.transform;rect.anchorMin=new Vector2(1,0);rect.anchorMax=Vector2.one;rect.pivot=new Vector2(1,.5f);rect.offsetMin=new Vector2(-600,128);rect.offsetMax=new Vector2(-16,-128);
+   var rect=(RectTransform)drawer.transform;rect.anchorMin=new Vector2(1,0);rect.anchorMax=Vector2.one;rect.pivot=new Vector2(1,.5f);// Phones: the drawer runs from under the top bar to the bottom edge (over the end of the toolbar), so its
+   // cards are not cut after one and a half rows.
+   rect.offsetMin=Phone?new Vector2(-560,8):new Vector2(-600,128);rect.offsetMax=Phone?new Vector2(-8,-98):new Vector2(-16,-128);
    N.Column(face.gameObject,10,new RectOffset(14,14,12,10));
    var header=N.Node("Header",face);N.Row(header.gameObject,10);
    backButton=CheckoutDesktopButton.Create(header,46,15,12);backButton.SetWidth(92);backButton.Clicked=Press;
@@ -47,7 +49,7 @@ namespace Checkout {
    bool open=v.hasPage&&(v.page==null||(v.page.layout!="shop"&&v.page.layout!="shelf"&&v.page.layout!="board"&&v.page.layout!="kitchen"));
    drawer.SetActive(open);if(!open){shownPage=null;return;}
    var p=v.page;
-   pageTitle.text=p.title;pageSubtitle.text=p.subtitle;pageSubtitle.gameObject.SetActive(!string.IsNullOrEmpty(p.subtitle));
+   pageTitle.text=p.title;pageSubtitle.text=p.subtitle;pageSubtitle.gameObject.SetActive(!Phone&&!string.IsNullOrEmpty(p.subtitle)); // phones: the title is enough
    var icon=K.Icon(p.icon);pageIcon.sprite=icon;pageIcon.gameObject.SetActive(icon);
    backButton.gameObject.SetActive(v.canBack);
    backButton.Apply(new DesktopButton{label="Voltar",variant="secondary",enabled=true,route="back",action="",args="[]",after="",ok="",fail=""});

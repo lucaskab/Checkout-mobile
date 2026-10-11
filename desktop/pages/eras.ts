@@ -26,7 +26,7 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 	const next = getNextMarketEra(state.era.id);
 	const cards: Card[] = [
 		card(current.name, {
-			eyebrow: `EXPANSÃO ${current.index} · SEU MERCADO`,
+			eyebrow: `EXPANSÃO ${current.index}`, // the green "Atual" ribbon says it is yours
 			icon: gameIcon("market"),
 			tone: "success",
 			badge: "Atual",
@@ -41,7 +41,7 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 		const cost = getMarketExpansionSkipCost(remaining);
 		cards.push(
 			card(target.name, {
-				eyebrow: `EXPANSÃO ${target.index} · EM OBRA`,
+				eyebrow: `EXPANSÃO ${target.index}`,
 				icon: gameIcon("construction"),
 				tone: "warning",
 				badge: formatConstructionCountdown(remaining),
@@ -64,7 +64,7 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 		const affordable = state.coins >= next.coinCost && !lotsMissing;
 		cards.push(
 			card(next.name, {
-				eyebrow: `EXPANSÃO ${next.index} · PRÓXIMA`,
+				eyebrow: `EXPANSÃO ${next.index}`,
 				icon: gameIcon("market"),
 				tone: affordable ? "featured" : "",
 				badge: next.buildDurationMs > 0 ? `obra ${formatBuildDuration(next.buildDurationMs)}` : "na hora",
@@ -93,7 +93,7 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 		for (const era of marketEras.slice((obra ? getMarketEra(obra.eraId) : (next ?? current)).index + 1)) {
 			cards.push(
 				card(era.name, {
-					eyebrow: `EXPANSÃO ${era.index} · MAIS À FRENTE`,
+					eyebrow: `EXPANSÃO ${era.index}`, // the lock art says it is further ahead
 					icon: gameIcon("lock"),
 					tone: "locked",
 					badge: fmt(era.coinCost),

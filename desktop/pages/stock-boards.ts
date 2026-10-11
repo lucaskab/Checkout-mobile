@@ -397,7 +397,6 @@ function stockBoard(state: State, args: string[], aliasOf?: string) {
 				stat(gameIcon("basket"), `${products.length}/${itemCatalog.length}`, "Produtos"),
 				stat(gameIcon("flame"), String(low.length), "Acabando", low.length ? "danger" : "success"),
 				stat(gameIcon("forklift"), String(dock.length), "Na doca", dock.length ? "success" : ""),
-				stat(gameIcon("deliveryTruck"), `${activeOrders(state, now).length}/${state.logistics.supplierOrderSlots}`, "Caminhões"),
 			],
 			meter: meter("Espaço do estoque", used, room, {
 				icon: gameIcon("warehouse"),
@@ -405,7 +404,7 @@ function stockBoard(state: State, args: string[], aliasOf?: string) {
 				tone: share > 0.9 ? "danger" : share > 0.7 ? "warning" : "success",
 			}),
 			footer: [
-				act(orderable > 0 ? `Pedir tudo que está acabando (${orderable})` : "Nada acabando", "orderLowStock", [], {
+				act(orderable > 0 ? `Pedir tudo (${orderable})` : "Nada acabando", "orderLowStock", [], {
 					variant: "coin",
 					icon: gameIcon("deliveryTruck"),
 					enabled: orderable > 0,
@@ -666,23 +665,13 @@ function dockLane(state: State, delivery: State["receiving"]["dock"][number]): B
 	});
 }
 
-function freeLane(index: number, orderable: number): BoardTile {
+function freeLane(index: number, _orderable: number): BoardTile {
 	return tile(`slot${index}`, "Caminhão livre", {
 		group: "CAMINHÕES NA ESTRADA",
 		icon: gameIcon("deliveryTruck"),
-		subtitle: "Parado na doca, esperando um pedido",
 		action: go("Fazer pedido", "@shop", { icon: gameIcon("cart"), variant: "primary" }),
-		actions: [
-			go("Fazer pedido", "@shop", { icon: gameIcon("cart"), variant: "primary" }),
-			...(orderable > 0
-				? [act(`Pedir o que acaba (${orderable})`, "orderLowStock", [], {
-						variant: "coin",
-						icon: gameIcon("deliveryTruck"),
-						ok: "Pedido feito! Um caminhão já saiu com o que está acabando.",
-						fail: "Sem moedas, sem vagas de entrega ou sem espaço no estoque.",
-					})]
-				: []),
-		],
+		// "Pedir tudo" lives once, in the footer of the board (it was here too, per free truck).
+		actions: [go("Fazer pedido", "@shop", { icon: gameIcon("cart"), variant: "primary" })],
 		vehicle: "Game/lane_truck",
 		lane: "free",
 	});
@@ -796,8 +785,8 @@ function suppliersBoard(state: State, args: string[]) {
 			backdrop: active === "estrada" ? "" : "Game/truck_back",
 			style: active === "estrada" ? "road" : "card",
 			columns: active === "estrada" ? 1 : 5,
+			// Trucks in use: the meter below shows it (no "Caminhões" stat on top of it).
 			stats: [
-				stat(gameIcon("deliveryTruck"), `${running.length}/${slots}`, "Caminhões"),
 				stat(gameIcon("ticket"), String(state.logistics.emergencyTokens), "Tickets"),
 				stat(gameIcon("lightning"), boostLeft > 0 ? clock(boostLeft) : "Desligado", "Turbo", boostLeft > 0 ? "success" : ""),
 			],
@@ -807,7 +796,7 @@ function suppliersBoard(state: State, args: string[]) {
 				tone: running.length >= slots ? "warning" : "info",
 			}),
 			footer: [
-				act(orderable > 0 ? `Pedir tudo que está acabando (${orderable})` : "Nada acabando", "orderLowStock", [], {
+				act(orderable > 0 ? `Pedir tudo (${orderable})` : "Nada acabando", "orderLowStock", [], {
 					variant: "coin",
 					icon: gameIcon("deliveryTruck"),
 					enabled: orderable > 0,

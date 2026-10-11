@@ -87,7 +87,7 @@ function missionTile(state: State, mission: (typeof missions)[number]): BoardTil
 		`${fmt(mission.reward.coins)} moedas`,
 		...(mission.reward.items ?? []).map((item) => `${item.quantity}× ${productName(item.productId)}`),
 	];
-	const claim = act(`Resgatar +${fmt(mission.reward.coins)}`, "claimMission", [mission.id], {
+	const claim = act("Resgatar", "claimMission", [mission.id], {
 		variant: "success",
 		icon: gameIcon("coin"),
 		ok: "Recompensa resgatada!",
@@ -121,7 +121,8 @@ function missionTile(state: State, mission: (typeof missions)[number]): BoardTil
 		fillText: `${fmt(shown)} / ${fmt(mission.goal)}`,
 		state: status === "claimable" ? "ready" : status === "locked" ? "locked" : status === "claimed" ? "done" : "",
 		action,
-		detail: mission.description,
+		// The side panel already shows the subtitle (the description): no second copy; the reward is the badge.
+		detail: "",
 		facts: [
 			stat(gameIcon("target"), `${fmt(shown)}/${fmt(mission.goal)}`, "Progresso", status === "claimable" ? "success" : ""),
 			stat(gameIcon("coin"), fmt(mission.reward.coins), "Moedas de prêmio", "gold"),
@@ -270,9 +271,8 @@ function missionsBoard(state: State, args: string[]) {
 			style: active === "presentes" ? "card" : "row",
 			columns: active === "presentes" ? 4 : 1,
 			stats: [
+				// Completed count is the meter below; the level is on the HUD's level card.
 				stat(gameIcon("target"), String(claimable.length), "Prontas", claimable.length ? "success" : ""),
-				stat(gameIcon("success"), `${claimed}/${missions.length}`, "Concluídas"),
-				stat(gameIcon("crown"), `Nv ${state.market.level}`, "Seu nível"),
 			],
 			meter: meter("Jornada do mercado", claimed, missions.length, {
 				icon: gameIcon("trophy"),
@@ -324,9 +324,10 @@ function albumBoard(state: State) {
 			group: ready ? "COMPLETAS · RESGATE O PRÊMIO" : claimed ? "RESGATADAS" : "COLEÇÕES",
 			icon: productIcon(collection.productIds[0]),
 			subtitle: prize,
-			sticker: ready ? "COMPLETA!" : claimed ? "" : `${progress.collected}/${progress.total}`,
+			// Progress shows once, in the bar ("3/10 figurinhas"): no ribbon and badge with the same count.
+			sticker: ready ? "COMPLETA!" : "",
 			tone: ready ? "success" : claimed ? "info" : "gold",
-			badge: `${progress.collected}/${progress.total}`,
+			badge: "",
 			fill: ratio(progress.collected, progress.total),
 			fillText: `${progress.collected}/${progress.total} figurinhas`,
 			state: ready ? "ready" : claimed ? "done" : "",
@@ -417,14 +418,13 @@ function achievementsBoard(state: State, args: string[]) {
 			fill: locked ? 0 : complete ? 1 : ratio(progress - previous, Math.max(1, next - previous)),
 			fillText: complete ? "Máximo!" : `${compact(Math.min(progress, next))} / ${compact(next)}`,
 			state: locked ? "locked" : complete ? "done" : "",
-			detail: `${achievement.description}${achievement.rarity === "legendary" ? " O quinto nível pertence aos gerentes mais dedicados." : ""}`,
+			detail: achievement.rarity === "legendary" ? "O quinto nível pertence aos gerentes mais dedicados." : "", // the description is the subtitle
 			facts: thresholds.map((goal, index) =>
 				stat(gameIcon(index < stars ? "success" : "medal"), compact(goal), `Estrela ${index + 1}`, index < stars ? "success" : index === stars ? "gold" : ""),
 			),
 			lines: [complete ? "Todas as estrelas conquistadas!" : `Próxima estrela: ${fmt(Math.min(progress, next))} de ${fmt(next)}`],
 		});
 	});
-	const share = ratio(totals.stars, totals.totalStars);
 	return page(`achievements:${active}`, "Conquistas", [], {
 		layout: "board",
 		icon: gameIcon("crown"),
@@ -437,7 +437,6 @@ function achievementsBoard(state: State, args: string[]) {
 			stats: [
 				stat(gameIcon("medal"), `${totals.stars}/${totals.totalStars}`, "Estrelas"),
 				stat(gameIcon("crown"), String(totals.achievementsCompleted), "No máximo"),
-				stat(gameIcon("trophy"), `${Math.round(share * 100)}%`, "Completo"),
 			],
 			meter: meter("Salão da fama", totals.stars, totals.totalStars, {
 				icon: gameIcon("crown"),

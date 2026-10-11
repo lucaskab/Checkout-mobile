@@ -91,7 +91,7 @@ export function lotCards(state: State): Card[] {
 			const locked = status === "bloqueado";
 			cards.push(
 				card(lot.label, {
-					eyebrow: locked ? "AINDA LONGE" : "À VENDA",
+					eyebrow: locked ? "" : "À VENDA", // locked plots already show the lock art and why
 					icon: gameIcon(locked ? "lock" : "key"),
 					tone: locked ? "locked" : state.coins >= lot.price ? "featured" : "",
 					badge: fmt(lot.price),

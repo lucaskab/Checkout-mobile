@@ -73,9 +73,10 @@ namespace Checkout {
      Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-12),new Vector2(112,112));
      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-128),new Vector2(-16,38));title.alignment=TextAlignmentOptions.Center;
      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-166),new Vector2(-16,18));subtitle.alignment=TextAlignmentOptions.Center;
-     Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(120,14));
-     Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-204),new Vector2(-24,18));
-     Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,6),new Vector2(-14,44));
+     // Face is 258 tall (tile 268 minus the edge): pips, bar and button stack without touching.
+     Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-181),new Vector2(120,14));
+     Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-197),new Vector2(-24,15));
+     Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,4),new Vector2(-14,40)); // top at 214 from the face top: clear of the bar (ends at 212)
      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-122),new Vector2(96,26));
      Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-8,10),new Vector2(100,26));ribbonRect.localRotation=Quaternion.Euler(0,0,6);
      Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(8,10),new Vector2(48,28));

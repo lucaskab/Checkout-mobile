@@ -10,7 +10,7 @@ namespace Checkout {
   readonly List<GameObject> toolBadges=new List<GameObject>();readonly List<TextMeshProUGUI> toolBadgeTexts=new List<TextMeshProUGUI>();
 
   void BuildToolbar(){
-   toolbar=N.Node("Toolbar",root);toolbar.anchorMin=toolbar.anchorMax=new Vector2(.5f,0);toolbar.pivot=new Vector2(.5f,0);toolbar.anchoredPosition=new Vector2(0,14);
+   toolbar=N.Node("Toolbar",root);toolbar.anchorMin=toolbar.anchorMax=new Vector2(.5f,0);toolbar.pivot=new Vector2(.5f,0);toolbar.anchoredPosition=new Vector2(0,CheckoutScreen.Handheld?6:14);
    var row=N.Row(toolbar.gameObject,8,new RectOffset(10,10,10,10));row.childAlignment=TextAnchor.MiddleCenter;
    var fitter=toolbar.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();fitter.horizontalFit=fitter.verticalFit=UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
    var back=toolbar.gameObject.AddComponent<UnityEngine.UI.Image>();back.sprite=K.Rounded(22);back.type=UnityEngine.UI.Image.Type.Sliced;back.color=new Color(.29f,.21f,.14f,.35f);
@@ -18,12 +18,14 @@ namespace Checkout {
   void ApplyToolbar(DesktopView v){
    var items=v.tools??new DesktopButton[0];
    while(tools.Count<items.Length){
-    var b=CheckoutDesktopButton.Create(toolbar,84,13,16,true);b.SetWidth(94);b.Clicked=ToolPressed;tools.Add(b);
+    var b=CheckoutDesktopButton.Create(toolbar,CheckoutScreen.Handheld?80:84,13,16,true);b.SetWidth(CheckoutScreen.Handheld?108:94);b.Clicked=ToolPressed;tools.Add(b);
     // Small pill in the corner: lock level or claimable count.
     var pill=N.Image(b.transform,"Pill",K.C("F2B03D"),11);var rect=pill.rectTransform;rect.anchorMin=rect.anchorMax=rect.pivot=Vector2.one;rect.anchoredPosition=new Vector2(4,4);rect.sizeDelta=new Vector2(38,22);
     var text=N.Text(pill.transform,"Text",K.Number,12,K.Ink);text.alignment=TextAlignmentOptions.Center;var tr=text.rectTransform;tr.anchorMin=Vector2.zero;tr.anchorMax=Vector2.one;tr.offsetMin=tr.offsetMax=Vector2.zero;
     toolBadges.Add(pill.gameObject);toolBadgeTexts.Add(text);
    }
+   // Phones: the "?" (Guia) sits at the end of the toolbar instead of in the crowded top bar.
+   if(CheckoutScreen.Handheld&&helpButton){if(helpButton.parent!=toolbar)helpButton.SetParent(toolbar,false);helpButton.SetAsLastSibling();}
    for(int i=0;i<tools.Count;i++){
     bool on=i<items.Length;tools[i].gameObject.SetActive(on);if(!on)continue;tools[i].Apply(items[i]);
     string pill=!items[i].enabled?LockLevel(items[i].fail):!string.IsNullOrEmpty(items[i].badge)?items[i].badge:items[i].route=="!missions"&&v.claimableMissions>0?v.claimableMissions.ToString():"";

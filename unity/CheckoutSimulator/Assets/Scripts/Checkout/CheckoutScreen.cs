@@ -14,7 +14,8 @@ namespace Checkout
         public const float HandheldHeight = 680f;
 #if UNITY_EDITOR
         public const string PreviewKey = "Checkout.PreviewPhoneUi";
-        public static bool Handheld => Application.isMobilePlatform || UnityEditor.EditorPrefs.GetBool(PreviewKey, false);
+        // The Device Simulator reports the simulated phone through UnityEngine.Device: it shows the phone layout too.
+        public static bool Handheld => Application.isMobilePlatform || UnityEngine.Device.Application.isMobilePlatform || UnityEditor.EditorPrefs.GetBool(PreviewKey, false);
 #else
         public static bool Handheld => Application.isMobilePlatform || SystemInfo.deviceType == DeviceType.Handheld;
 #endif

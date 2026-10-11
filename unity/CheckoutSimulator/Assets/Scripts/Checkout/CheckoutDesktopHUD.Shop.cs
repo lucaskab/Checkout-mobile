@@ -20,6 +20,10 @@ namespace Checkout {
 
   static RectTransform Stretch(RectTransform r,Vector2 min,Vector2 max){r.anchorMin=Vector2.zero;r.anchorMax=Vector2.one;r.offsetMin=min;r.offsetMax=max;return r;}
 
+  // Phones: shorter header without the tagline, a narrower rail with shorter category buttons (all nine fit),
+  // and smaller cards so four fit in a row.
+  static float ShopRailW=>214;
+
   void BuildShop(){
    var node=N.Node("Shop",root);shop=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
    // Dimmed world behind; clicking it closes the shop.
@@ -30,35 +34,35 @@ namespace Checkout {
    var face=N.Image(window,"Face",K.Paper,28);Stretch(face.rectTransform,new Vector2(4,9),new Vector2(-4,-4));
 
    // Header: navy band, gold title, balances and close.
-   var header=N.Image(face.transform,"Header",ShopNavy,26);var hr=header.rectTransform;hr.anchorMin=new Vector2(0,1);hr.anchorMax=Vector2.one;hr.pivot=new Vector2(.5f,1);hr.offsetMin=new Vector2(0,-98);hr.offsetMax=Vector2.zero;
+   var header=N.Image(face.transform,"Header",ShopNavy,26);var hr=header.rectTransform;hr.anchorMin=new Vector2(0,1);hr.anchorMax=Vector2.one;hr.pivot=new Vector2(.5f,1);hr.offsetMin=new Vector2(0,Phone?-70:-98);hr.offsetMax=Vector2.zero;
    var stripe=N.Image(header.transform,"Gold stripe",ShopGold,3);var sr=stripe.rectTransform;sr.anchorMin=Vector2.zero;sr.anchorMax=new Vector2(1,0);sr.offsetMin=new Vector2(18,4);sr.offsetMax=new Vector2(-18,9);stripe.gameObject.AddComponent<LayoutElement>().ignoreLayout=true;
-   var row=N.Row(header.gameObject,16,new RectOffset(24,18,10,18));row.childAlignment=TextAnchor.MiddleLeft;
-   var logo=N.Image(header.transform,"Logo",Color.white,0);logo.sprite=K.Icon("Icons/market");logo.preserveAspect=true;var ll=logo.gameObject.AddComponent<LayoutElement>();ll.preferredWidth=ll.preferredHeight=66;
+   var row=N.Row(header.gameObject,16,Phone?new RectOffset(16,12,6,14):new RectOffset(24,18,10,18));row.childAlignment=TextAnchor.MiddleLeft;
+   var logo=N.Image(header.transform,"Logo",Color.white,0);logo.sprite=K.Icon("Icons/market");logo.preserveAspect=true;var ll=logo.gameObject.AddComponent<LayoutElement>();ll.preferredWidth=ll.preferredHeight=Phone?46:66;
    var titles=N.Node("Titles",header.transform);N.Column(titles.gameObject,0);titles.gameObject.AddComponent<LayoutElement>().flexibleWidth=1;
-   var title=N.Text(titles,"Title",K.Headline,36,ShopGold);title.text="LOJA DO MERCADO";title.characterSpacing=3;title.textWrappingMode=TextWrappingModes.NoWrap;
-   var tagline=N.Text(titles,"Tagline",K.Body,15,K.C("C9D6EE"));tagline.text="Tudo o que você pode comprar, separado por categoria";
+   var title=N.Text(titles,"Title",K.Headline,Phone?28:36,ShopGold);title.text="LOJA DO MERCADO";title.characterSpacing=3;title.textWrappingMode=TextWrappingModes.NoWrap;
+   var tagline=N.Text(titles,"Tagline",K.Body,15,K.C("C9D6EE"));tagline.text="Tudo o que você pode comprar, separado por categoria";tagline.gameObject.SetActive(!Phone);
    shopCoins=Balance(header.transform,"Icons/coin",null);
    shopDiamonds=Balance(header.transform,"Icons/diamond",()=>host.Route("~loja:moedas"));
    var close=CheckoutDesktopButton.Create(header.transform,54,22,14);close.SetWidth(58);close.Clicked=_=>host.Route("");
    close.Apply(new DesktopButton{label="X",variant="danger",enabled=true,route="",action="",args="[]",after="",ok="",fail="",badge=""});
 
    // Body: category rail + content.
-   var body=Stretch(N.Node("Body",face.transform),new Vector2(0,0),new Vector2(0,-104));
-   var rail=N.Image(body,"Rail",K.C("F3DFC0"),22);var rr=rail.rectTransform;rr.anchorMin=Vector2.zero;rr.anchorMax=new Vector2(0,1);rr.pivot=new Vector2(0,.5f);rr.offsetMin=new Vector2(14,14);rr.offsetMax=new Vector2(270,-6);
+   var body=Stretch(N.Node("Body",face.transform),new Vector2(0,0),new Vector2(0,Phone?-74:-104));
+   var rail=N.Image(body,"Rail",K.C("F3DFC0"),22);var rr=rail.rectTransform;rr.anchorMin=Vector2.zero;rr.anchorMax=new Vector2(0,1);rr.pivot=new Vector2(0,.5f);rr.offsetMin=new Vector2(Phone?10:14,Phone?10:14);rr.offsetMax=new Vector2(Phone?ShopRailW:270,-6);
    shopRail=rail.rectTransform;var rl=CheckoutScreen.Handheld?N.Column(rail.gameObject,4,new RectOffset(8,8,8,8)):N.Column(rail.gameObject,8,new RectOffset(10,10,12,12));rl.childForceExpandHeight=false;
 
-   var content=Stretch(N.Node("Content",body),new Vector2(286,12),new Vector2(-18,-6));
+   var content=Stretch(N.Node("Content",body),new Vector2(Phone?ShopRailW+12:286,12),new Vector2(Phone?-12:-18,-6));
    N.Column(content.gameObject,8,new RectOffset(0,0,0,0));
-   var section=N.Node("Section",content);N.Row(section.gameObject,12);section.gameObject.AddComponent<LayoutElement>().preferredHeight=58;
-   shopSectionIcon=N.Image(section,"Icon",Color.white,0);shopSectionIcon.preserveAspect=true;var il=shopSectionIcon.gameObject.AddComponent<LayoutElement>();il.preferredWidth=il.preferredHeight=48;
+   var section=N.Node("Section",content);N.Row(section.gameObject,12);section.gameObject.AddComponent<LayoutElement>().preferredHeight=Phone?40:58;
+   shopSectionIcon=N.Image(section,"Icon",Color.white,0);shopSectionIcon.preserveAspect=true;var il=shopSectionIcon.gameObject.AddComponent<LayoutElement>();il.preferredWidth=il.preferredHeight=Phone?36:48;
    var texts=N.Node("Texts",section);N.Column(texts.gameObject,0);texts.gameObject.AddComponent<LayoutElement>().flexibleWidth=1;
-   shopSection=N.Text(texts,"Title",K.Headline,28,K.Ink);shopSection.textWrappingMode=TextWrappingModes.NoWrap;
-   shopHint=N.Text(texts,"Hint",K.Body,15,K.Muted);shopHint.textWrappingMode=TextWrappingModes.NoWrap;shopHint.overflowMode=TextOverflowModes.Ellipsis;
+   shopSection=N.Text(texts,"Title",K.Headline,Phone?24:28,K.Ink);shopSection.textWrappingMode=TextWrappingModes.NoWrap;
+   shopHint=N.Text(texts,"Hint",K.Body,15,K.Muted);shopHint.textWrappingMode=TextWrappingModes.NoWrap;shopHint.overflowMode=TextOverflowModes.Ellipsis;shopHint.gameObject.SetActive(!Phone); // phones: the category name is enough
    shopChipScroll=Scroll(content,"Chips",false,out shopChipContent);shopChipBar=shopChipScroll.gameObject;shopChipBar.AddComponent<LayoutElement>().preferredHeight=48;
    shopScroll=Scroll(content,"Tiles",true,out shopGrid);shopScroll.gameObject.AddComponent<LayoutElement>().flexibleHeight=1;
    // The scroll helper sets up a column; the tiles use a grid instead.
    DestroyImmediate(shopGrid.GetComponent<VerticalLayoutGroup>());
-   var grid=shopGrid.gameObject.AddComponent<GridLayoutGroup>();grid.cellSize=new Vector2(290,378);grid.spacing=new Vector2(18,18);grid.padding=new RectOffset(4,12,6,18);
+   var grid=shopGrid.gameObject.AddComponent<GridLayoutGroup>();grid.cellSize=Phone?new Vector2(244,352):new Vector2(290,378);grid.spacing=Phone?new Vector2(12,14):new Vector2(18,18);grid.padding=new RectOffset(4,12,6,18);
    grid.startCorner=GridLayoutGroup.Corner.UpperLeft;grid.childAlignment=TextAnchor.UpperLeft;grid.constraint=GridLayoutGroup.Constraint.Flexible;
    shop.SetActive(false);
   }
@@ -66,7 +70,7 @@ namespace Checkout {
   // Balance pill (coins, diamonds); the diamond one opens the coins & diamonds category.
   TextMeshProUGUI Balance(Transform parent,string icon,System.Action onClick){
    var pill=N.Image(parent,"Balance",ShopNavyLight,20);var row=N.Row(pill.gameObject,8,new RectOffset(10,14,6,6));row.childAlignment=TextAnchor.MiddleLeft;
-   var le=pill.gameObject.AddComponent<LayoutElement>();le.preferredHeight=52;le.minWidth=150;
+   var le=pill.gameObject.AddComponent<LayoutElement>();le.preferredHeight=Phone?44:52;le.minWidth=Phone?118:150;
    var i=N.Image(pill.transform,"Icon",Color.white,0);i.sprite=K.Icon(icon);i.preserveAspect=true;var l=i.gameObject.AddComponent<LayoutElement>();l.preferredWidth=l.preferredHeight=34;
    var text=N.Text(pill.transform,"Value",K.Number,22,Color.white);text.textWrappingMode=TextWrappingModes.NoWrap;
    if(onClick!=null){pill.raycastTarget=true;var plus=N.Image(pill.transform,"Plus",K.C("5DA637"),12);var pl=plus.gameObject.AddComponent<LayoutElement>();pl.preferredWidth=pl.preferredHeight=28;
@@ -84,7 +88,7 @@ namespace Checkout {
    // Category rail.
    var tabs=p.tabs??new DesktopButton[0];
    while(shopTabs.Count<tabs.Length){
-    var b=CheckoutDesktopButton.Create(shopRail,62,17,16);b.Clicked=Press;shopTabs.Add(b);
+    var b=CheckoutDesktopButton.Create(shopRail,Phone?50:62,17,16);b.Clicked=Press;shopTabs.Add(b);
     var label=b.GetComponentInChildren<TextMeshProUGUI>(true);label.alignment=TextAlignmentOptions.Left;label.textWrappingMode=TextWrappingModes.Normal;
     var faceRow=b.transform.Find("Face").GetComponent<HorizontalLayoutGroup>();faceRow.childAlignment=TextAnchor.MiddleLeft;faceRow.padding=new RectOffset(12,10,2,2);faceRow.spacing=10;
     var pill=N.Image(b.transform,"Badge",K.C("E15533"),13);var pr=pill.rectTransform;pr.anchorMin=pr.anchorMax=new Vector2(1,.5f);pr.pivot=new Vector2(1,.5f);pr.anchoredPosition=new Vector2(-10,2);pr.sizeDelta=new Vector2(30,28);
@@ -137,21 +141,21 @@ namespace Checkout {
    t.face=N.Image(root,"Face",K.Cream,20);Anchor(t.face.rectTransform,Vector2.zero,Vector2.one,new Vector2(3,7),new Vector2(-3,-3));
    var f=t.face.rectTransform;
    // Art: tinted panel with a glow and the big picture.
-   t.art=N.Image(f,"Art",K.C("F7E6C8"),18);Anchor(t.art.rectTransform,new Vector2(0,1),Vector2.one,new Vector2(8,-168),new Vector2(-8,-8));
+   t.art=N.Image(f,"Art",K.C("F7E6C8"),18);Anchor(t.art.rectTransform,new Vector2(0,1),Vector2.one,new Vector2(8,CheckoutScreen.Handheld?-126:-168),new Vector2(-8,-8));
    t.glow=N.Image(t.art.transform,"Glow",Color.white,0);t.glow.sprite=Glow();Anchor(t.glow.rectTransform,Vector2.zero,Vector2.one,new Vector2(20,-6),new Vector2(-20,6));
    t.icon=N.Image(t.art.transform,"Icon",Color.white,0);t.icon.preserveAspect=true;Anchor(t.icon.rectTransform,Vector2.zero,Vector2.one,new Vector2(28,10),new Vector2(-28,-10));
    t.lockIcon=N.Image(t.art.transform,"Lock",Color.white,0);t.lockIcon.sprite=K.Icon("Icons/lock");t.lockIcon.preserveAspect=true;var lr=t.lockIcon.rectTransform;lr.anchorMin=lr.anchorMax=new Vector2(1,0);lr.pivot=new Vector2(1,0);lr.anchoredPosition=new Vector2(-8,8);lr.sizeDelta=new Vector2(40,40);
    // Eyebrow (top-left) and ribbon (top-right) over the art.
-   t.eyebrowBack=N.Image(t.art.transform,"Eyebrow",new Color(.11f,.17f,.31f,.85f),10);var er=t.eyebrowBack.rectTransform;er.anchorMin=er.anchorMax=er.pivot=new Vector2(0,1);er.anchoredPosition=new Vector2(8,-8);
+   t.eyebrowBack=N.Image(t.art.transform,"Eyebrow",new Color(.11f,.17f,.31f,.85f),10);var er=t.eyebrowBack.rectTransform;er.anchorMin=er.anchorMax=er.pivot=CheckoutScreen.Handheld?Vector2.zero:new Vector2(0,1);er.anchoredPosition=CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(8,-8); // phones: bottom-left, clear of the price ribbon
    N.Row(t.eyebrowBack.gameObject,0,new RectOffset(9,9,3,3));var ef=t.eyebrowBack.gameObject.AddComponent<ContentSizeFitter>();ef.horizontalFit=ef.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
    t.eyebrow=N.Text(t.eyebrowBack.transform,"Text",K.Label,11,Color.white);t.eyebrow.textWrappingMode=TextWrappingModes.NoWrap;t.eyebrow.characterSpacing=3;
    t.ribbonBack=N.Image(t.art.transform,"Ribbon",CheckoutDesktopHUD.ShopGold,10);var rr=t.ribbonBack.rectTransform;rr.anchorMin=rr.anchorMax=rr.pivot=Vector2.one;rr.anchoredPosition=new Vector2(-8,-8);
    N.Row(t.ribbonBack.gameObject,0,new RectOffset(9,9,3,3));var rf=t.ribbonBack.gameObject.AddComponent<ContentSizeFitter>();rf.horizontalFit=rf.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
    t.ribbon=N.Text(t.ribbonBack.transform,"Text",K.Number,13,K.Ink);t.ribbon.textWrappingMode=TextWrappingModes.NoWrap;
    // Texts.
-   var text=Anchor(N.Node("Texts",f),Vector2.zero,Vector2.one,new Vector2(14,70),new Vector2(-14,-176));
+   var text=Anchor(N.Node("Texts",f),Vector2.zero,Vector2.one,new Vector2(12,70),new Vector2(-12,CheckoutScreen.Handheld?-132:-176));
    var col=N.Column(text.gameObject,3);col.childForceExpandHeight=false;
-   t.title=N.Text(text,"Title",K.Headline,20,K.Ink);t.title.textWrappingMode=TextWrappingModes.NoWrap;t.title.overflowMode=TextOverflowModes.Ellipsis;
+   t.title=N.Text(text,"Title",K.Headline,20,K.Ink);t.title.textWrappingMode=TextWrappingModes.NoWrap;t.title.overflowMode=TextOverflowModes.Ellipsis;t.title.gameObject.AddComponent<LayoutElement>().minHeight=26; // never squeezed out by a long description
    t.subtitle=N.Text(text,"Subtitle",K.Body,13,K.Muted);t.subtitle.overflowMode=TextOverflowModes.Ellipsis;t.subtitle.maxVisibleLines=3;
    t.lines=N.Node("Lines",text);N.Column(t.lines.gameObject,1);
    // Progress + buttons at the bottom.
@@ -171,9 +175,12 @@ namespace Checkout {
    art.color=featured?K.C("FFE2A0"):data.tone=="success"?K.C("D9EFC6"):data.tone=="warning"?K.C("FBE3AE"):data.tone=="info"?K.C("CFE7F1"):locked?K.C("E4DACB"):K.C("F7E6C8");
    glow.color=new Color(1,1,1,locked?.35f:.85f);
    var sprite=K.Icon(data.icon);icon.sprite=sprite;icon.gameObject.SetActive(sprite);icon.color=locked?new Color(.55f,.55f,.55f,.75f):Color.white;
-   lockIcon.gameObject.SetActive(locked&&lockIcon.sprite);
+   lockIcon.gameObject.SetActive(locked&&lockIcon.sprite&&!(data.icon??"").Contains("lock")); // no second lock over a lock picture
    Set(eyebrow,data.eyebrow?.ToUpperInvariant());eyebrowBack.gameObject.SetActive(!string.IsNullOrEmpty(data.eyebrow));
-   Set(ribbon,data.badge);ribbonBack.gameObject.SetActive(!string.IsNullOrEmpty(data.badge));
+   // The price ribbon hides when a button already shows the same price ("300" over a "300" button).
+   bool repeated=false;string badgeText=K.Clean(data.badge);
+   if(!string.IsNullOrEmpty(badgeText))foreach(var a in data.buttons??System.Array.Empty<DesktopButton>())if(K.Clean(a.label??"").Contains(badgeText)){repeated=true;break;}
+   Set(ribbon,repeated?null:data.badge);ribbonBack.gameObject.SetActive(!repeated&&!string.IsNullOrEmpty(data.badge));
    ribbonBack.color=data.tone=="warning"?K.C("E8B54A"):data.tone=="info"?K.C("86C0D6"):data.tone=="success"?K.C("8CC063"):CheckoutDesktopHUD.ShopGold;
    Set(title,data.title);title.color=tone.text;Set(subtitle,data.subtitle);
    var values=data.lines??System.Array.Empty<string>();

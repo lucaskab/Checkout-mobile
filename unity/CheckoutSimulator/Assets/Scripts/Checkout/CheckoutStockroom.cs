@@ -47,7 +47,7 @@ namespace Checkout {
    var l=U.Label(f.transform,"Label",K.Headline,19,"FFFFFF");U.Stretch(l.rectTransform,Vector2.zero,new Vector2(1,.3f));l.text=label;
    var badge=U.Shape(node,"Badge","E15533",16,new Vector2(1,1),new Vector2(42,36),new Vector2(-6,-6));
    count=U.Label(badge.transform,"Count",K.Headline,20,"FFFFFF");U.Stretch(count.rectTransform,Vector2.zero,Vector2.one);
-   U.Tap(e,onTap);node.gameObject.SetActive(false);return node;
+   U.Tap(e,onTap);CheckoutFabRail.Add(node,name=="ReporButton"?0:1);node.gameObject.SetActive(false);return node;
   }
 
   // ------------------------------------------------------------------ common

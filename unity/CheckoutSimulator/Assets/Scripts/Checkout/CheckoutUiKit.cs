@@ -110,10 +110,13 @@ namespace Checkout {
   // Mini-game window in the HUD style: cream card with a wooden title plaque and a textured stage.
   public static RectTransform GameWindow(RectTransform root,string backdrop,out GameObject dim,out TextMeshProUGUI title,out Image backdropImage,Action onClose){
    var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=new Color(.12f,.08f,.04f,.66f);back.raycastTarget=true;dim=back.gameObject;Bleed(back);
-   var edge=Box(back.transform,"Edge","B98E55",30,new Vector2(.04f,.05f),new Vector2(.96f,.93f));
+   // Phones: the window takes the whole safe area and drops the wooden title plaque (it covered the top of the
+   // stage: step bars, the register screen); the close button sits on the corner.
+   bool phone=CheckoutScreen.Handheld;
+   var edge=Box(back.transform,"Edge","B98E55",30,phone?new Vector2(.005f,.01f):new Vector2(.04f,.05f),phone?new Vector2(.995f,.995f):new Vector2(.96f,.93f));
    var face=Box(edge.transform,"Face","FFF7EC",28,Vector2.zero,Vector2.one);face.rectTransform.offsetMin=new Vector2(4,10);face.rectTransform.offsetMax=new Vector2(-4,-4);
    // Stage: rounded mask with the rendered backdrop and a soft vignette.
-   var frame=Box(face.transform,"StageFrame","D4B482",22,Vector2.zero,Vector2.one);frame.rectTransform.offsetMin=new Vector2(16,16);frame.rectTransform.offsetMax=new Vector2(-16,-16);
+   var frame=Box(face.transform,"StageFrame","D4B482",22,Vector2.zero,Vector2.one);frame.rectTransform.offsetMin=phone?new Vector2(8,8):new Vector2(16,16);frame.rectTransform.offsetMax=phone?new Vector2(-8,-8):new Vector2(-16,-16);
    var maskImg=Box(frame.transform,"StageMask","FFFFFF",20,Vector2.zero,Vector2.one);maskImg.rectTransform.offsetMin=new Vector2(5,5);maskImg.rectTransform.offsetMax=new Vector2(-5,-5);
    maskImg.gameObject.AddComponent<Mask>().showMaskGraphic=true;
    backdropImage=Backdrop(maskImg.transform,backdrop);
@@ -124,7 +127,8 @@ namespace Checkout {
    plaque.pixelsPerUnitMultiplier=1.6f;At(plaque.rectTransform,new Vector2(.5f,.93f),new Vector2(640,96));
    title=Label(plaque.transform,"Title",K.Headline,34,"FFFFFF");Stretch(title.rectTransform,Vector2.zero,Vector2.one,new Vector2(30,6),new Vector2(-30,-4));
    title.fontSizeMin=20;title.enableAutoSizing=true;title.fontSizeMax=34;title.outlineWidth=.18f;title.outlineColor=new Color32(110,62,24,255);
-   var close=Button(back.transform,"X","danger",onClose,64,26);At((RectTransform)close.transform,new Vector2(.96f,.93f),new Vector2(72,72),new Vector2(-18,-18));
+   if(phone)plaque.gameObject.SetActive(false);
+   var close=Button(back.transform,"X","danger",onClose,64,26);At((RectTransform)close.transform,phone?new Vector2(.995f,.995f):new Vector2(.96f,.93f),phone?new Vector2(60,60):new Vector2(72,72),phone?new Vector2(-24,-24):new Vector2(-18,-18));
    return stage;
   }
   static readonly Dictionary<string,Sprite> sliced=new Dictionary<string,Sprite>();

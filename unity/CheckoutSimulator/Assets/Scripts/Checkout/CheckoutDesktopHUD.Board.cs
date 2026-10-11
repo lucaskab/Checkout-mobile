@@ -31,6 +31,11 @@ namespace Checkout {
   static Color ToneEdge(string tone)=>tone=="success"?K.C("7DB357"):tone=="warning"?K.C("E0A93C"):tone=="danger"?K.C("D9694A"):tone=="info"?K.C("6FB0CA"):tone=="gold"?K.C("E0A441"):tone=="locked"?K.C("BCAE97"):K.Border;
   static Color ToneStrong(string tone)=>tone=="success"?K.C("4F9A2E"):tone=="warning"?K.C("E8962B"):tone=="danger"?K.C("D8462A"):tone=="info"?K.C("2E8CAE"):tone=="gold"?K.C("E0A021"):tone=="locked"?K.C("8A7560"):K.C("8A5A2B");
 
+  // Phones: shorter header (no subtitle), slimmer meter, no clerk tip bar and a narrower side panel, so the tiles
+  // get the height (one full row instead of a cut one).
+  static float BoardHeaderH=>Phone?70:96;
+  static float BoardDetailW=>Phone?330:424;
+
   // ------------------------------------------------------------------ build
   void BuildBoard(){
    var node=N.Node("Board window",root);boardWin=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
@@ -42,15 +47,15 @@ namespace Checkout {
    boardSound=gameObject.AddComponent<AudioSource>();boardSound.playOnAwake=false;boardSound.volume=.5f;
 
    // Header band: icon, title, the numbers that matter, balances, close.
-   boardHeader=N.Image(face.transform,"Header",K.C("2E8CAE"),26);var hr=boardHeader.rectTransform;hr.anchorMin=new Vector2(0,1);hr.anchorMax=Vector2.one;hr.pivot=new Vector2(.5f,1);hr.offsetMin=new Vector2(0,-96);hr.offsetMax=Vector2.zero;
+   boardHeader=N.Image(face.transform,"Header",K.C("2E8CAE"),26);var hr=boardHeader.rectTransform;hr.anchorMin=new Vector2(0,1);hr.anchorMax=Vector2.one;hr.pivot=new Vector2(.5f,1);hr.offsetMin=new Vector2(0,-BoardHeaderH);hr.offsetMax=Vector2.zero;
    var shine=N.Image(boardHeader.transform,"Shine",new Color(1,1,1,.12f),24);var shr=shine.rectTransform;shr.anchorMin=new Vector2(0,.55f);shr.anchorMax=Vector2.one;shr.offsetMin=new Vector2(6,0);shr.offsetMax=new Vector2(-6,-4);
    shine.gameObject.AddComponent<LayoutElement>().ignoreLayout=true;
-   var row=N.Row(boardHeader.gameObject,12,new RectOffset(18,16,10,14));row.childAlignment=TextAnchor.MiddleLeft;
-   var iconBack=N.Image(boardHeader.transform,"IconBack",new Color(1,1,1,.95f),20);var ib=iconBack.gameObject.AddComponent<LayoutElement>();ib.preferredWidth=ib.preferredHeight=68;
+   var row=N.Row(boardHeader.gameObject,12,Phone?new RectOffset(14,12,6,10):new RectOffset(18,16,10,14));row.childAlignment=TextAnchor.MiddleLeft;
+   var iconBack=N.Image(boardHeader.transform,"IconBack",new Color(1,1,1,.95f),20);var ib=iconBack.gameObject.AddComponent<LayoutElement>();ib.preferredWidth=ib.preferredHeight=Phone?48:68;
    boardIcon=N.Image(iconBack.transform,"Icon",Color.white,0);boardIcon.preserveAspect=true;Stretch(boardIcon.rectTransform,new Vector2(6,6),new Vector2(-6,-6));
    var titles=N.Node("Titles",boardHeader.transform);N.Column(titles.gameObject,0);var tl=titles.gameObject.AddComponent<LayoutElement>();tl.flexibleWidth=1;tl.minWidth=240;
-   boardTitle=N.Text(titles,"Title",K.Headline,34,Color.white);boardTitle.textWrappingMode=TextWrappingModes.NoWrap;boardTitle.characterSpacing=1;
-   boardSubtitle=N.Text(titles,"Subtitle",K.Body,15,new Color(1,1,1,.88f));boardSubtitle.textWrappingMode=TextWrappingModes.NoWrap;boardSubtitle.overflowMode=TextOverflowModes.Ellipsis;
+   boardTitle=N.Text(titles,"Title",K.Headline,Phone?28:34,Color.white);boardTitle.textWrappingMode=TextWrappingModes.NoWrap;boardTitle.characterSpacing=1;
+   boardSubtitle=N.Text(titles,"Subtitle",K.Body,15,new Color(1,1,1,.88f));boardSubtitle.textWrappingMode=TextWrappingModes.NoWrap;boardSubtitle.overflowMode=TextOverflowModes.Ellipsis;boardSubtitle.gameObject.SetActive(!Phone); // the title and tabs say it
    boardStats=N.Node("Stats",boardHeader.transform);var sr=N.Row(boardStats.gameObject,8);sr.childAlignment=TextAnchor.MiddleRight;
    boardCoins=Balance(boardHeader.transform,"Icons/coin",null);
    boardDiamonds=Balance(boardHeader.transform,"Icons/diamond",()=>host.Route("~loja:moedas"));
@@ -58,13 +63,13 @@ namespace Checkout {
    close.Apply(new DesktopButton{label="X",variant="danger",enabled=true,route="",action="",args="[]",after="",ok="",fail="",badge=""});
 
    // Tabs: chunky buttons with red counters.
-   boardTabsRow=N.Node("Tabs",face.transform);var tr=boardTabsRow;tr.anchorMin=new Vector2(0,1);tr.anchorMax=Vector2.one;tr.pivot=new Vector2(.5f,1);tr.offsetMin=new Vector2(16,-154);tr.offsetMax=new Vector2(-16,-102);
+   boardTabsRow=N.Node("Tabs",face.transform);var tr=boardTabsRow;tr.anchorMin=new Vector2(0,1);tr.anchorMax=Vector2.one;tr.pivot=new Vector2(.5f,1);tr.offsetMin=new Vector2(16,-BoardHeaderH-58);tr.offsetMax=new Vector2(-16,-BoardHeaderH-6);
    var trow=N.Row(boardTabsRow.gameObject,10);trow.childControlHeight=true;trow.childForceExpandHeight=true;
 
    // Meter: a long bar with milestones.
    var meter=N.Image(face.transform,"Meter",K.Cream,18);boardMeter=meter.rectTransform;boardMeter.anchorMin=new Vector2(0,1);boardMeter.anchorMax=Vector2.one;boardMeter.pivot=new Vector2(.5f,1);boardMeter.offsetMin=new Vector2(16,-222);boardMeter.offsetMax=new Vector2(-16,-160);
    var mEdge=N.Image(meter.transform,"Edge",K.Border,18);Stretch(mEdge.rectTransform,new Vector2(0,-3),Vector2.zero);mEdge.transform.SetAsFirstSibling();
-   boardMeterIcon=N.Image(meter.transform,"Icon",Color.white,0);boardMeterIcon.preserveAspect=true;var mi=boardMeterIcon.rectTransform;mi.anchorMin=mi.anchorMax=new Vector2(0,.5f);mi.pivot=new Vector2(0,.5f);mi.sizeDelta=new Vector2(46,46);mi.anchoredPosition=new Vector2(12,0);
+   boardMeterIcon=N.Image(meter.transform,"Icon",Color.white,0);boardMeterIcon.preserveAspect=true;var mi=boardMeterIcon.rectTransform;mi.anchorMin=mi.anchorMax=new Vector2(0,.5f);mi.pivot=new Vector2(0,.5f);mi.sizeDelta=Phone?new Vector2(38,38):new Vector2(46,46);mi.anchoredPosition=new Vector2(12,0);
    boardMeterTitle=N.Text(meter.transform,"Title",K.Headline,19,K.Ink);boardMeterTitle.textWrappingMode=TextWrappingModes.NoWrap;var mt=boardMeterTitle.rectTransform;mt.anchorMin=new Vector2(0,.5f);mt.anchorMax=new Vector2(0,1);mt.pivot=new Vector2(0,1);mt.offsetMin=new Vector2(66,0);mt.offsetMax=new Vector2(330,-6);
    boardMeterText=N.Text(meter.transform,"Text",K.Body,14,K.Muted);boardMeterText.textWrappingMode=TextWrappingModes.NoWrap;boardMeterText.overflowMode=TextOverflowModes.Ellipsis;var mx=boardMeterText.rectTransform;mx.anchorMin=new Vector2(0,0);mx.anchorMax=new Vector2(0,.5f);mx.pivot=new Vector2(0,0);mx.offsetMin=new Vector2(66,6);mx.offsetMax=new Vector2(430,0);
    var track=N.Image(meter.transform,"Track",K.C("EADBC4"),11);boardMeterTrack=track.rectTransform;boardMeterTrack.anchorMin=new Vector2(0,.5f);boardMeterTrack.anchorMax=new Vector2(1,.5f);boardMeterTrack.offsetMin=new Vector2(450,-11);boardMeterTrack.offsetMax=new Vector2(-30,11);
@@ -74,7 +79,7 @@ namespace Checkout {
 
    // Body: tiles on the left, the picked tile on the right.
    boardBody=Stretch(N.Node("Body",face.transform),new Vector2(0,0),new Vector2(0,-228));
-   var area=N.Image(boardBody,"Tiles area",K.C("F3E3C8"),22);boardGridArea=area.rectTransform;boardGridArea.anchorMin=Vector2.zero;boardGridArea.anchorMax=Vector2.one;boardGridArea.offsetMin=new Vector2(16,14);boardGridArea.offsetMax=new Vector2(-436,0);
+   var area=N.Image(boardBody,"Tiles area",K.C("F3E3C8"),22);boardGridArea=area.rectTransform;boardGridArea.anchorMin=Vector2.zero;boardGridArea.anchorMax=Vector2.one;boardGridArea.offsetMin=new Vector2(16,14);boardGridArea.offsetMax=new Vector2(-BoardDetailW-12,0);
    boardBackdrop=N.Image(area.transform,"Backdrop",new Color(1,1,1,.22f),0);boardBackdrop.preserveAspect=false;Stretch(boardBackdrop.rectTransform,new Vector2(4,4),new Vector2(-4,-4));
    boardScroll=Scroll(area.transform,"Tiles",true,out boardContent);Stretch((RectTransform)boardScroll.transform,new Vector2(10,124),new Vector2(-6,-8));
    var col=boardContent.GetComponent<VerticalLayoutGroup>();col.spacing=6;col.padding=new RectOffset(8,14,6,16);
@@ -86,7 +91,7 @@ namespace Checkout {
    boardFooter=N.Node("Footer",area.transform);boardFooter.anchorMin=Vector2.zero;boardFooter.anchorMax=new Vector2(1,0);boardFooter.pivot=new Vector2(.5f,0);boardFooter.offsetMin=new Vector2(10,10);boardFooter.offsetMax=new Vector2(-10,64);
    var fr=N.Row(boardFooter.gameObject,10);fr.childControlHeight=true;fr.childForceExpandHeight=true;fr.childForceExpandWidth=true;
 
-   var detail=N.Image(boardBody,"Detail",K.Cream,22);boardDetailPanel=detail.gameObject;var dr=detail.rectTransform;dr.anchorMin=new Vector2(1,0);dr.anchorMax=Vector2.one;dr.pivot=new Vector2(1,.5f);dr.offsetMin=new Vector2(-424,14);dr.offsetMax=new Vector2(-16,0);
+   var detail=N.Image(boardBody,"Detail",K.Cream,22);boardDetailPanel=detail.gameObject;var dr=detail.rectTransform;dr.anchorMin=new Vector2(1,0);dr.anchorMax=Vector2.one;dr.pivot=new Vector2(1,.5f);dr.offsetMin=new Vector2(-BoardDetailW,14);dr.offsetMax=new Vector2(-16,0);
    var dEdge=N.Image(detail.transform,"Edge",K.Border,22);Stretch(dEdge.rectTransform,new Vector2(0,-4),Vector2.zero);dEdge.transform.SetAsFirstSibling();
    boardDetailScroll=Scroll(detail.transform,"Content",true,out boardDetail);Stretch((RectTransform)boardDetailScroll.transform,new Vector2(10,10),new Vector2(-6,-10));
    boardDetailUi=BoardDetailUi.Create(this,boardDetail);
@@ -111,13 +116,13 @@ namespace Checkout {
    bool hasTabs=p.tabs!=null&&p.tabs.Length>0;boardTabsRow.gameObject.SetActive(hasTabs);
    bool hasMeter=b.meter!=null&&b.meter.max>0;boardMeter.gameObject.SetActive(hasMeter);
    // Everything below the header moves up when there are no tabs or no meter.
-   float top=96+(hasTabs?58:0);
-   boardMeter.offsetMin=new Vector2(16,-top-68);boardMeter.offsetMax=new Vector2(-16,-top-6);
-   boardBody.offsetMax=new Vector2(0,-(top+(hasMeter?74:4)));
+   float top=BoardHeaderH+(hasTabs?58:0),meterH=62;
+   boardMeter.offsetMin=new Vector2(16,-top-6-meterH);boardMeter.offsetMax=new Vector2(-16,-top-6);
+   boardBody.offsetMax=new Vector2(0,-(top+(hasMeter?meterH+12:4)));
    if(hasMeter)ApplyBoardMeter(b.meter,fresh);
    // Delivery lanes take the whole width: no side panel.
    bool road=b.style=="road";
-   boardGridArea.offsetMax=new Vector2(road?-16:-436,0);
+   boardGridArea.offsetMax=new Vector2(road?-16:-BoardDetailW-12,0);
    ApplyBoardTiles(b);
    ApplyBoardFooter(b);
    if(fresh){Canvas.ForceUpdateCanvases();boardScroll.verticalNormalizedPosition=1;}
@@ -141,10 +146,15 @@ namespace Checkout {
     var tab=tabs[i];boardTabs[i].Apply(tab);
     var label=boardTabs[i].GetComponentInChildren<TextMeshProUGUI>(true);
     float width=(label?label.GetPreferredValues(K.Clean(tab.label)).x:80)+(string.IsNullOrEmpty(tab.icon)?0:30)+44;
-    boardTabs[i].SetWidth(Mathf.Max(110,width));
+    boardTabs[i].SetWidth(Mathf.Max(Phone?96:110,width));
     bool badge=!string.IsNullOrEmpty(tab.badge);boardTabBadges[i].SetActive(badge);
     if(badge)boardTabBadges[i].GetComponentInChildren<TextMeshProUGUI>().text=tab.badge;
    }
+   // Phones: a row wider than the window (8 trophy categories) shrinks to fit; the labels shrink with it.
+   float room=boardTabsRow.rect.width>100?boardTabsRow.rect.width:1240,total=0;int shown=0;
+   for(int i=0;i<tabs.Length&&i<boardTabs.Count;i++){total+=boardTabs[i].GetComponent<LayoutElement>().preferredWidth;shown++;}
+   total+=Mathf.Max(0,shown-1)*10;
+   if(Phone&&total>room){float k=(room-Mathf.Max(0,shown-1)*10)/(total-Mathf.Max(0,shown-1)*10);for(int i=0;i<shown;i++)boardTabs[i].SetWidth(Mathf.Floor(boardTabs[i].GetComponent<LayoutElement>().preferredWidth*k));}
   }
 
   void ApplyBoardMeter(DesktopMeter m,bool fresh){
@@ -162,7 +172,7 @@ namespace Checkout {
 
   void ApplyBoardTiles(DesktopBoard b){
    var tiles=b.tiles;bool road=b.style=="road";bool rows=b.style=="row"||road;
-   int columns=Mathf.Max(1,b.columns);
+   int columns=Mathf.Max(1,b.columns);if(Phone)columns=Mathf.Min(columns,4); // phones: wider cards, ribbons clear of the badges
    // The window has a fixed size on the 1600×1000 canvas: before its first layout use that width.
    float width=boardGridArea.rect.width>100?boardGridArea.rect.width-40:(road?1440:1020);
    var cell=road?new Vector2(width-10,LaneHeight):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),268);
@@ -210,9 +220,11 @@ namespace Checkout {
    while(boardFooterButtons.Count<buttons.Length){var x=CheckoutDesktopButton.Create(boardFooter,54,18,16);x.Clicked=BoardPress;boardFooterButtons.Add(x);}
    for(int i=0;i<boardFooterButtons.Count;i++){bool on=i<buttons.Length;boardFooterButtons[i].gameObject.SetActive(on);if(on)boardFooterButtons[i].Apply(buttons[i]);}
    boardFooter.gameObject.SetActive(buttons.Length>0);
-   boardTip.text=K.Clean(b.tip);boardTipBar.gameObject.SetActive(!string.IsNullOrEmpty(b.tip));
+   // Phones skip the clerk's tip: the tabs' red counters and the footer buttons already say it.
+   bool tip=!Phone&&!string.IsNullOrEmpty(b.tip);
+   boardTip.text=K.Clean(b.tip);boardTipBar.gameObject.SetActive(tip);
    // Without big buttons or tip the tiles take the room.
-   float bottom=(buttons.Length>0?64:6)+(!string.IsNullOrEmpty(b.tip)?52:0)+6;
+   float bottom=(buttons.Length>0?64:6)+(tip?52:0)+6;
    boardTipBar.offsetMin=new Vector2(10,(buttons.Length>0?70:10));boardTipBar.offsetMax=new Vector2(-10,(buttons.Length>0?116:56));
    ((RectTransform)boardScroll.transform).offsetMin=new Vector2(10,bottom);
   }
@@ -273,12 +285,12 @@ namespace Checkout {
    public static BoardChip Create(Transform parent,bool header){
     var root=N.Node("Stat",parent);var chip=root.gameObject.AddComponent<BoardChip>();chip.header=header;
     chip.back=root.gameObject.AddComponent<Image>();chip.back.sprite=K.Rounded(16);chip.back.type=Image.Type.Sliced;chip.back.color=header?new Color(0,0,0,.22f):K.C("FBEEDA");
-    var le=root.gameObject.AddComponent<LayoutElement>();le.preferredHeight=header?58:60;le.minWidth=header?118:0;
-    var row=N.Row(root.gameObject,8,new RectOffset(10,12,6,6));row.childAlignment=TextAnchor.MiddleLeft;
+    var le=root.gameObject.AddComponent<LayoutElement>();le.preferredHeight=header?(Phone?52:58):60;le.minWidth=header?118:0;
+    var row=N.Row(root.gameObject,8,header&&Phone?new RectOffset(10,12,2,2):new RectOffset(10,12,6,6));row.childAlignment=TextAnchor.MiddleLeft;
     chip.icon=N.Image(root,"Icon",Color.white,0);chip.icon.preserveAspect=true;var il=chip.icon.gameObject.AddComponent<LayoutElement>();il.preferredWidth=il.preferredHeight=header?34:32;
     var texts=N.Node("Texts",root);N.Column(texts.gameObject,-2);
     chip.value=N.Text(texts,"Value",K.Number,header?22:19,header?Color.white:K.Ink);chip.value.textWrappingMode=TextWrappingModes.NoWrap;
-    chip.label=N.Text(texts,"Label",K.Label,header?12:12,header?new Color(1,1,1,.82f):K.Muted);chip.label.textWrappingMode=TextWrappingModes.NoWrap;
+    chip.label=N.Text(texts,"Label",K.Label,header&&Phone?11:12,header?new Color(1,1,1,.82f):K.Muted);chip.label.textWrappingMode=TextWrappingModes.NoWrap;
     return chip;
    }
    public void Apply(DesktopStat s){

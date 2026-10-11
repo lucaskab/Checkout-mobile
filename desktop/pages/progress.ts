@@ -360,7 +360,7 @@ export const routes: Routes = {
 				? 1
 				: ratio(progress - previousGoal, Math.max(1, nextGoal - previousGoal));
 			const lines = [
-				`${"★".repeat(stars)}${"☆".repeat(thresholds.length - stars)}  ${thresholds.map(formatCompactNumber).join(" · ")}`,
+				`Metas: ${thresholds.map(formatCompactNumber).join(" · ")}`, // stars are in the badge (the font has no ★)
 				`${
 					isLocked
 						? "CONQUISTA BLOQUEADA"
@@ -378,7 +378,7 @@ export const routes: Routes = {
 					icon: achievement.targetProductId
 						? productIcon(achievement.targetProductId)
 						: gameIcon(getAchievementIcon(achievement.id)),
-					badge: `★ ${stars}/${thresholds.length}`,
+					badge: `${stars}/${thresholds.length}`,
 					tone: isLocked ? "locked" : isComplete ? "success" : "",
 					lines,
 					progress: isLocked ? 0 : levelProgress,

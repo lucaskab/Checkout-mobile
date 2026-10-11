@@ -10,33 +10,38 @@ namespace Checkout {
   CheckoutDesktopButton marketButton,claimButton;RectTransform helpButton;
 
   TextMeshProUGUI Chip(Transform parent,string icon,System.Action onClick){
-   var face=Panel(parent,"Chip",150,58,out var edge,out _,18);Clickable(edge.gameObject,onClick);
-   N.Row(face.gameObject,8,new RectOffset(10,12,4,4)).childAlignment=TextAnchor.MiddleLeft;
+   var face=Panel(parent,"Chip",Phone?130:150,Phone?38:58,out var edge,out _,18);Clickable(edge.gameObject,onClick);
+   N.Row(face.gameObject,8,Phone?new RectOffset(8,10,0,0):new RectOffset(10,12,4,4)).childAlignment=TextAnchor.MiddleLeft;
    var image=N.Image(face,"Icon",Color.white,0);image.sprite=K.Icon("Icons/"+icon);image.preserveAspect=true;
-   var il=image.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();il.preferredWidth=il.preferredHeight=32;
+   var il=image.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();il.preferredWidth=il.preferredHeight=Phone?26:32;
    var text=N.Text(face,"Value",K.Number,20,K.Ink);text.textWrappingMode=TextWrappingModes.NoWrap;text.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
    return text;
   }
 
+  // Phones: a shorter top bar (cards 78 tall instead of 96) without the secondary lines; "?" moves to the toolbar.
+  static bool Phone=>CheckoutScreen.Handheld;
+  static float CardHeight=>Phone?78:96;
+
   void BuildTop(){
-   var bar=N.Node("TopBar",root);bar.anchorMin=new Vector2(0,1);bar.anchorMax=Vector2.one;bar.pivot=new Vector2(.5f,1);bar.offsetMin=new Vector2(16,-112);bar.offsetMax=new Vector2(-16,-14);
-   var row=N.Row(bar.gameObject,12);row.childAlignment=TextAnchor.UpperLeft;
+   var bar=N.Node("TopBar",root);bar.anchorMin=new Vector2(0,1);bar.anchorMax=Vector2.one;bar.pivot=new Vector2(.5f,1);bar.offsetMin=new Vector2(Phone?8:16,Phone?-92:-112);bar.offsetMax=new Vector2(Phone?-8:-16,Phone?-10:-14);
+   var row=N.Row(bar.gameObject,Phone?10:12);row.childAlignment=TextAnchor.UpperLeft;
 
    // Level + XP + next unlock. Clicking opens the panel of the next unlock, like the app.
-   var level=Panel(bar,"Level",330,96,out var levelEdge,out _);Clickable(levelEdge.gameObject,()=>{if(view!=null)host.Route("!"+view.progressRoute);});
-   N.Column(level.gameObject,4,new RectOffset(14,14,8,8));
+   var level=Panel(bar,"Level",Phone?262:330,CardHeight,out var levelEdge,out _);Clickable(levelEdge.gameObject,()=>{if(view!=null)host.Route("!"+view.progressRoute);});
+   N.Column(level.gameObject,Phone?2:4,Phone?new RectOffset(12,12,5,5):new RectOffset(14,14,8,8));
    var head=N.Node("Head",level);N.Row(head.gameObject,8);
    var crown=N.Image(head,"Crown",Color.white,0);crown.sprite=K.Icon("Icons/crown");crown.preserveAspect=true;var cl=crown.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();cl.preferredWidth=cl.preferredHeight=26;
    levelText=N.Text(head,"Level",K.Headline,20,K.Ink);levelText.textWrappingMode=TextWrappingModes.NoWrap;
    xpText=N.Text(head,"XP",K.Number,14,K.Muted);xpText.alignment=TextAlignmentOptions.Right;xpText.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
    Bar(level,12,K.C("8B5C9E"),out xpFill);
    progressText=N.Text(level,"Next",K.Body,14,K.Muted);progressText.textWrappingMode=TextWrappingModes.NoWrap;progressText.overflowMode=TextOverflowModes.Ellipsis;
+   progressText.gameObject.SetActive(!Phone); // "Novo: ..." teaser: the card already opens the next unlock
 
    BuildDayPanel(bar);
 
    // The day's goal: the contract accepted for the day (its target and progress). Opens the day page.
-   var daily=Panel(bar,"Daily",270,96,out dailyEdge,out _);Clickable(dailyEdge.gameObject,()=>host.Route("!day"));
-   N.Column(daily.gameObject,4,new RectOffset(14,14,8,8));
+   var daily=Panel(bar,"Daily",Phone?280:270,CardHeight,out dailyEdge,out _);Clickable(dailyEdge.gameObject,()=>host.Route("!day"));
+   N.Column(daily.gameObject,Phone?2:4,Phone?new RectOffset(12,12,5,5):new RectOffset(14,14,8,8));
    var dhead=N.Node("Head",daily);N.Row(dhead.gameObject,8);
    goalIcon=N.Image(dhead,"Icon",Color.white,0);goalIcon.sprite=K.Icon("Icons/clipboard");goalIcon.preserveAspect=true;var dl=goalIcon.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();dl.preferredWidth=dl.preferredHeight=24;
    var dtitle=N.Text(dhead,"Title",K.Label,15,K.Ink);dtitle.text="META DO DIA";dtitle.textWrappingMode=TextWrappingModes.NoWrap;
@@ -46,27 +51,27 @@ namespace Checkout {
    claimButton=CheckoutDesktopButton.Create(daily,30,13,10);claimButton.Clicked=Press;claimButton.gameObject.SetActive(false);
 
    // Active event chip, only while an event runs.
-   var ev=Panel(bar,"Event",270,96,out eventEdge,out eventFace);eventPanel=eventEdge.gameObject;
+   var ev=Panel(bar,"Event",Phone?220:270,CardHeight,out eventEdge,out eventFace);eventPanel=eventEdge.gameObject;
    N.Row(ev.gameObject,10,new RectOffset(12,12,8,8));
    eventIcon=N.Image(ev,"Icon",Color.white,0);eventIcon.preserveAspect=true;var el=eventIcon.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();el.preferredWidth=el.preferredHeight=44;
    var etexts=N.Node("Texts",ev);N.Column(etexts.gameObject,1);etexts.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
    var ehead=N.Node("Head",etexts);N.Row(ehead.gameObject,6);
    eventName=N.Text(ehead,"Name",K.Label,15,K.Ink);eventName.textWrappingMode=TextWrappingModes.NoWrap;eventName.overflowMode=TextOverflowModes.Ellipsis;eventName.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
    eventTimer=N.Text(ehead,"Timer",K.Number,15,K.Ink);eventTimer.textWrappingMode=TextWrappingModes.NoWrap;
-   eventEffect=N.Text(etexts,"Effect",K.Body,13,K.Muted);eventEffect.overflowMode=TextOverflowModes.Ellipsis;
+   eventEffect=N.Text(etexts,"Effect",K.Body,13,K.Muted);eventEffect.overflowMode=TextOverflowModes.Ellipsis;eventEffect.gameObject.SetActive(!Phone);
 
    N.Node("Spacer",bar).gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
    // "?" opens the Guia (what each button does, the objective, replay the tutorial).
    var help=Panel(bar,"Help",58,58,out var helpEdge,out _,29);Clickable(helpEdge.gameObject,()=>host.Route("!guia"));helpButton=(RectTransform)helpEdge.transform;
    var mark=N.Text(help,"Mark",K.Headline,30,K.C("2E8CAE"));mark.text="?";mark.alignment=TMPro.TextAlignmentOptions.Center;var mr=mark.rectTransform;mr.anchorMin=Vector2.zero;mr.anchorMax=Vector2.one;mr.offsetMin=mr.offsetMax=Vector2.zero;
-   var wallet=N.Node("Wallet",bar);N.Column(wallet.gameObject,6);wallet.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=0;
+   var wallet=N.Node("Wallet",bar);N.Column(wallet.gameObject,Phone?4:6);wallet.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=0;
    coinsText=Chip(wallet,"coin",()=>host.Route(CheckoutDesktopHost.IsRelease?"!currency":"!dev:moedas")); // the coin cheats only in development
    gemsText=Chip(wallet,"diamond",()=>host.Route("!currency"));
-   marketButton=CheckoutDesktopButton.Create(bar,96,17,18,true);marketButton.SetWidth(132);marketButton.Clicked=Press;
+   marketButton=CheckoutDesktopButton.Create(bar,CardHeight,17,18,true);marketButton.SetWidth(Phone?112:132);marketButton.Clicked=Press;
   }
 
   void ApplyTop(DesktopView v){
-   levelText.text="NÍVEL "+v.level;xpText.text=v.xp+" / "+v.xpGoal+" XP";progressText.text=v.progressLabel;
+   levelText.text="NÍVEL "+v.level;xpText.text=v.xp+"/"+v.xpGoal+(Phone?"":" XP");progressText.text=v.progressLabel;
    xpFill.anchorMax=new Vector2(Mathf.Clamp01(v.xp/(float)Mathf.Max(1,v.xpGoal)),1);
    dailyText.text=v.goalDone?"CUMPRIDA":v.daily;dailyText.color=v.goalDone?K.C("427A24"):K.Muted;
    goalText.text=K.Clean(v.goalText);var gi=K.Icon(v.goalIcon);if(gi)goalIcon.sprite=gi;

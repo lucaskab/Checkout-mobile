@@ -285,7 +285,7 @@ namespace Checkout {
    LayImg(prow,"Coin","Icons/coin",28,28);
    c.price=U.Label(prow,"Value",K.Headline,26,Dark);
    var per=U.Label(prow,"Per",K.Body,13,Muted);per.text="por caixa";
-   c.unit=U.Label(c.lift,"Unit",K.Body,13,Muted);Pref(c.unit.gameObject,-1,20);
+   c.unit=U.Label(c.lift,"Unit",K.Body,13,Muted);Pref(c.unit.gameObject,-1,20);c.unit.enableAutoSizing=true;c.unit.fontSizeMin=10;c.unit.fontSizeMax=13; // shrinks to fit instead of "..."
    c.button=CheckoutDesktopButton.Create(c.lift,44,16,14);
    c.button.Clicked=_=>OnAdd(c);
    return c;

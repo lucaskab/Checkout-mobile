@@ -9,16 +9,17 @@ namespace Checkout {
   TextMeshProUGUI dayTitle,dayDetail,requestTitle,requestText,requestTimer;RectTransform dayFill;UnityEngine.UI.Image dayEdge,requestEdge,requestFace;GameObject requestAlert;
 
   void BuildDayPanel(RectTransform bar){
-   var day=Panel(bar,"Day",300,96,out dayEdge,out _);Clickable(dayEdge.gameObject,()=>host.Route(view!=null&&view.dayPhase=="results"?"!day-result":"!day"));
-   N.Column(day.gameObject,4,new RectOffset(14,14,8,8));
+   var day=Panel(bar,"Day",Phone?230:300,CardHeight,out dayEdge,out _);Clickable(dayEdge.gameObject,()=>host.Route(view!=null&&view.dayPhase=="results"?"!day-result":"!day"));
+   N.Column(day.gameObject,Phone?2:4,Phone?new RectOffset(12,12,5,5):new RectOffset(14,14,8,8));
    var head=N.Node("Head",day);N.Row(head.gameObject,8);
    var icon=N.Image(head,"Icon",Color.white,0);icon.sprite=K.Icon("Icons/clipboard");icon.preserveAspect=true;var il=icon.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();il.preferredWidth=il.preferredHeight=24;
    dayTitle=N.Text(head,"Title",K.Label,15,K.Ink);dayTitle.textWrappingMode=TextWrappingModes.NoWrap;
    Bar(day,12,K.C("2E8CAE"),out dayFill);
    dayDetail=N.Text(day,"Detail",K.Body,13,K.Muted);dayDetail.textWrappingMode=TextWrappingModes.NoWrap;dayDetail.overflowMode=TextOverflowModes.Ellipsis;
+   dayDetail.gameObject.SetActive(!Phone); // "Resultados prontos..." repeats the Resultados button
 
    // Floating alert under the top bar while a customer waits with a request.
-   var alert=N.Node("RequestAlert",root);alert.anchorMin=alert.anchorMax=alert.pivot=new Vector2(.5f,1);alert.anchoredPosition=new Vector2(0,-122);alert.sizeDelta=new Vector2(620,74);
+   var alert=N.Node("RequestAlert",root);alert.anchorMin=alert.anchorMax=alert.pivot=new Vector2(.5f,1);alert.anchoredPosition=new Vector2(0,Phone?-98:-122);alert.sizeDelta=new Vector2(620,74);
    requestEdge=alert.gameObject.AddComponent<UnityEngine.UI.Image>();requestEdge.sprite=K.Rounded(18);requestEdge.type=UnityEngine.UI.Image.Type.Sliced;
    Clickable(alert.gameObject,()=>host.Route("!requests"));
    requestFace=N.Image(alert,"Face",Color.white,16);var face=requestFace.rectTransform;face.anchorMin=Vector2.zero;face.anchorMax=Vector2.one;face.offsetMin=new Vector2(2,5);face.offsetMax=new Vector2(-2,-2);

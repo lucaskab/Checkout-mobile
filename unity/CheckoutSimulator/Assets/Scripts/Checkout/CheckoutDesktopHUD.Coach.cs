@@ -92,7 +92,7 @@ namespace Checkout {
   // "Próximo objetivo" under the top bar: what to do next to grow (buy the lot, save coins, evolve…).
   void BuildGoalCard(){
    // Top right, under the wallet: the left edge belongs to the floating CAIXA / REPOR / ENTREGA buttons.
-   var node=N.Node("Goal",root);node.anchorMin=node.anchorMax=node.pivot=new Vector2(1,1);node.anchoredPosition=new Vector2(-16,-120);node.sizeDelta=new Vector2(360,96);
+   var node=N.Node("Goal",root);node.anchorMin=node.anchorMax=node.pivot=new Vector2(1,1);node.anchoredPosition=Phone?new Vector2(-8,-98):new Vector2(-16,-120);node.sizeDelta=Phone?new Vector2(330,82):new Vector2(360,96);
    goalCardEdge=node.gameObject.AddComponent<Image>();goalCardEdge.sprite=K.Rounded(16);goalCardEdge.type=Image.Type.Sliced;goalCardEdge.color=K.Border;
    Clickable(node.gameObject,GoalPressed);
    var face=N.Image(node,"Face",K.Cream,14);U.Stretch(face.rectTransform,Vector2.zero,Vector2.one,new Vector2(2,5),new Vector2(-2,-2));

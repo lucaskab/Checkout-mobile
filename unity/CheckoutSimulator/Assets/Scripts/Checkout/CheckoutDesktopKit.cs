@@ -12,7 +12,7 @@ namespace Checkout {
    for(int i=0;i<text.Length;i++){
     char c=text[i];
     if(char.IsHighSurrogate(c)&&i+1<text.Length){i++;continue;} // 🪙 💎 🔒 🏗 …
-    if(c=='\uFE0F'||c=='\u23F1'||c=='\u2714'||c=='\u26A0')continue;       // variation selector, ⏱ ✔ ⚠
+    if(c=='\uFE0F'||c=='\u23F1'||c=='\u2714'||c=='\u26A0'||c=='\u2605'||c=='\u2606')continue; // variation selector, ⏱ ✔ ⚠ ★ ☆ (not in the game font: boxes)
     sb.Append(c);
    }
    return sb.ToString().Replace("  "," ").Trim();

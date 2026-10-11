@@ -134,7 +134,7 @@ export function buildCard(state: State, offer: BuildOffer): Card {
 				tone: locked ? "locked" : "",
 				badge: formatBuildDuration(status.durationMs),
 				subtitle: offer.subtitle,
-				lines: locked ? [status.reason] : ["Vai para o inventário: você escolhe onde construir."],
+				lines: locked ? [] : ["Vai para o inventário: você escolhe onde construir."], // locked: the button already says why
 				buttons,
 			});
 		}

@@ -69,14 +69,6 @@ const qualityLabels: Record<ShopItemQuality, string> = {
 	mitico: "Mítico",
 };
 
-const qualityStars: Record<ShopItemQuality, number> = {
-	comum: 1,
-	incomum: 2,
-	raro: 3,
-	epico: 4,
-	lendario: 5,
-	mitico: 6,
-};
 
 function formatPrice(price: number) {
 	if (price >= 1_000_000_000) return `${(price / 1_000_000_000).toFixed(0)}B`;
@@ -117,7 +109,7 @@ export const routes: Routes = {
 		const working = employees.employees.filter((item) => item.isWorking).length;
 
 		const payrollCard = card("Folha de pagamento", {
-			eyebrow: "GESTÃO DE PESSOAS",
+			eyebrow: "", // the Equipe category title says it
 			icon: gameIcon("manager"),
 			badge: `🪙 ${fmt(coins)}`,
 			tone: payroll > coins ? "danger" : "info",
@@ -181,8 +173,9 @@ export const routes: Routes = {
 			}
 
 			return card(definition.name, {
+				// The locked button already says which market is needed: no "A PARTIR DE" eyebrow on top.
 				eyebrow: eraLocked
-					? `A PARTIR DE: ${getMarketEra(definition.requiredEra).name.toLocaleUpperCase("pt-BR")}`
+					? ""
 					: levelLocked
 						? `NÍVEL ${definition.level}`
 						: "DISPONÍVEL",
@@ -315,7 +308,7 @@ export const routes: Routes = {
 
 			const busy = !!build && build.status === "busy";
 			return card(item.name, {
-				eyebrow: isOwned ? "ATIVO" : `${qualityLabels[quality]} ${"★".repeat(qualityStars[quality])}`,
+				eyebrow: isOwned ? "ATIVO" : qualityLabels[quality], // no ★: the game font has no star glyph (drew boxes)
 				icon: gameIcon(getShopItemIcon(item.id)),
 				badge: `Nv ${item.level}`,
 				tone: isOwned
@@ -326,10 +319,9 @@ export const routes: Routes = {
 							? "warning"
 							: "",
 				subtitle: item.description,
+				// Level and price are already the badge and the buy button.
 				lines: [
-					isOwned
-						? "Funcionando no mercado"
-						: `Nível ${item.level} · ${isDiamond ? "💎" : "🪙"} ${formatPrice(price)}`,
+					...(isOwned ? ["Funcionando no mercado"] : []),
 					...(missingRequired && required ? [`Instale antes: ${required.name}`] : []),
 					...(build && !isOwned ? [`Instalação de ${formatBuildDuration(build.durationMs)}${busy ? " · construtores ocupados" : ""}`] : []),
 				],

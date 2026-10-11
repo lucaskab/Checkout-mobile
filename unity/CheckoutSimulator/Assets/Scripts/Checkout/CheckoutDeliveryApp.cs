@@ -214,14 +214,15 @@ namespace Checkout {
   // Locked: the teaser until the market reaches the Minimercado era.
   void BuildLocked(){
    lockedNode=N.Node("Locked",host).gameObject;U.Stretch(lockedNode.transform as RectTransform,Vector2.zero,Vector2.one);
-   var card=Panel(lockedNode.transform,"Card",Paper,26);U.At(card.rectTransform,new Vector2(.5f,.5f),new Vector2(780,600),Vector2.zero);
-   var col=N.Column(card.gameObject,14,new RectOffset(48,48,34,34));col.childAlignment=TextAnchor.MiddleCenter;
-   SpriteImg(card.transform,"Picture",DeliveryArt.Moto,Color.white,160,160);
+   var card=Panel(lockedNode.transform,"Card",Paper,26);bool phone=CheckoutScreen.Handheld; // phones: a short card (picture, title, when it unlocks) that fits under the tabs
+   U.At(card.rectTransform,new Vector2(.5f,.5f),phone?new Vector2(640,330):new Vector2(780,600),phone?new Vector2(0,-30):Vector2.zero);
+   var col=N.Column(card.gameObject,phone?8:14,phone?new RectOffset(32,32,20,20):new RectOffset(48,48,34,34));col.childAlignment=TextAnchor.MiddleCenter;
+   SpriteImg(card.transform,"Picture",DeliveryArt.Moto,Color.white,phone?110:160,phone?110:160);
    U.Label(card.transform,"Title",K.Headline,36,Ink,TextAlignmentOptions.Center).text="Delivery da loja";
    lockSub=U.Label(card.transform,"Sub",K.Headline,26,"B5651D",TextAlignmentOptions.Center);
    string[] bullets={"Vizinhos pedem compras online pelo app","Você embala o pedido e o motoboy leva até a porta","Entregas perfeitas dão estrelas, gorjeta e sequência"};
    foreach(var line in bullets){
-    var item=N.Text(card.transform,"Bullet",K.Body,20,K.C(Ink));item.alignment=TextAlignmentOptions.Center;item.text="•  "+line;Pref(item.gameObject,-1,30);
+    var item=N.Text(card.transform,"Bullet",K.Body,20,K.C(Ink));item.alignment=TextAlignmentOptions.Center;item.text="•  "+line;Pref(item.gameObject,-1,30);item.gameObject.SetActive(!phone);
    }
    lockedNode.SetActive(false);
   }

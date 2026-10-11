@@ -112,11 +112,12 @@ function sectorTile(state: State, sector: ProductionSector, now: number): BoardT
 	if (build.status === "locked")
 		return tile(sector.id, sector.name, {
 			...base,
-			sticker: build.reason.toUpperCase(),
+			// The reason ("Chega com: ...") is the locked button; it was also the ribbon and the bar text.
+			sticker: "",
 			tone: "locked",
 			state: "locked",
 			fill: Math.min(1, state.market.level / Math.max(1, sector.requiredLevel)),
-			fillText: build.reason,
+			fillText: "",
 			action: button(build.reason, { variant: "secondary", enabled: false, icon: gameIcon("lock") }),
 		});
 	return tile(sector.id, sector.name, {
@@ -336,7 +337,6 @@ function sectorBoard(state: State, sectorId: string) {
 			columns: 4,
 			stats: [
 				stat(gameIcon("conveyor"), `${jobs.length}/${sector.slotCount}`, "Linhas"),
-				stat(gameIcon("diamond"), fmt(state.logistics.premiumCurrency), "Diamantes"),
 			],
 			meter: meter("Linhas de produção", jobs.length, sector.slotCount, {
 				icon: gameIcon("conveyor"),
