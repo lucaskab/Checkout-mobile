@@ -54,7 +54,7 @@ def _purge():
                 blk.remove(d)
 
 
-def _true_names(objs):
+def _true_names(objs, outside=None):
     """Blender adds .001-style suffixes when a name is already taken (by another scene's object). The exported file
     must carry the original node and mesh names, or Unity would see new sub-assets and the scene would lose them."""
     for o in objs:
@@ -67,6 +67,8 @@ def _true_names(objs):
             other = block.get(base)
             if other is None or other == item:
                 continue                      # no clash: the suffix is part of the model's own name
+            if outside is not None and base not in outside:
+                continue                      # the clash is inside the model itself (Head_Mesh / Head_Mesh.010): keep
             other.name = base + "_held"
             item.name = base
 
@@ -98,6 +100,11 @@ def _decimate(sc, budget):
     return report
 
 
+# Files made in Blender by our own builders were exported with FBX_SCALE_ALL (the Tripo ones with none): keep each
+# file's own convention or Unity sees it 100x smaller.
+SCALE_ALL = {"MarketWorld", "plaza-cafe", "sector-padaria", "sector-peixaria", "WarehouseLarge"}
+
+
 def _export(sc, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     for o in sc.objects:
@@ -105,7 +112,7 @@ def _export(sc, path):
     bpy.ops.export_scene.fbx(
         filepath=path, use_selection=False, use_active_collection=False,
         object_types={'MESH', 'EMPTY'}, apply_unit_scale=True, global_scale=1.0,
-        apply_scale_options='FBX_SCALE_NONE', axis_forward='-Z', axis_up='Y', bake_space_transform=False,
+        apply_scale_options='FBX_SCALE_ALL' if os.path.splitext(os.path.basename(path))[0] in SCALE_ALL else 'FBX_SCALE_NONE', axis_forward='-Z', axis_up='Y', bake_space_transform=False,
         use_mesh_modifiers=True, mesh_smooth_type='FACE', use_tspace=False, add_leaf_bones=False,
         path_mode='AUTO', embed_textures=False, bake_anim=False,
     )
@@ -166,8 +173,9 @@ def run(files, previews=True):
         src = os.path.join(ASSETS, rel)
         dst = os.path.join(STAGING, rel)
         sc = _clean_scene("MOBILE_LOD")
+        outside = set(bpy.data.objects.keys()) | set(bpy.data.meshes.keys())
         bpy.ops.import_scene.fbx(filepath=src)
-        _true_names(list(sc.objects))
+        _true_names(list(sc.objects), outside)
         rep = _decimate(sc, _budget(rel))
         _export(sc, dst)
         entry = {"meshes": rep, "before": sum(r[1] for r in rep), "after": sum(r[2] for r in rep)}
