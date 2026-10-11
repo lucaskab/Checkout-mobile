@@ -1659,22 +1659,18 @@ def register4_body():
     # Cashier LCD at the back of the deck.
     box((1.7, .3, .42), (-.95, 2.38, 1.92), navy_d, .08, rot=(-12, 0, 0))
     mark('lcd', box((1.5, .05, .28), (-.95, 2.22, 1.94), mat('0E2A1F', .3, emit=.2, coat=.9), .03, rot=(-12, 0, 0)))
-    # Receipt printer on the right: a rounded block with the paper roll showing and the slit on top.
-    box((1.55, 1.5, .62), (1.65, 1.55, 1.78), navy_d, .2)
-    box((1.3, .9, .08), (1.65, 1.75, 2.1), navy, .06)
-    bpy.ops.mesh.primitive_cylinder_add(radius=.34, depth=1.1, location=(1.65, 1.95, 2.02), rotation=(0, R(90), 0), vertices=48)
+    # Receipt printer on the right: a wide rounded block (the paper is as wide as the slit), roll under a smoked lid.
+    box((2.1, 1.6, .66), (1.35, 1.55, 1.8), navy_d, .22)
+    box((1.86, .95, .08), (1.35, 1.75, 2.14), navy, .06)
+    bpy.ops.mesh.primitive_cylinder_add(radius=.36, depth=1.6, location=(1.35, 1.95, 2.05), rotation=(0, R(90), 0), vertices=48)
     finish(bpy.context.object, tex('paper', 'FFFDF7', 'EDE6D6', rough=.7, scale=1, bump=.05, coat=0), 0)
-    box((1.36, .62, .1), (1.65, 1.95, 2.24), mat('2B3D69', .25, coat=.8, alpha=.55, trans=.3), .05)   # smoked lid
-    mark('paper', box((1.0, .07, .05), (1.65, 1.08, 2.1), dark, .02))
-    box((1.12, .06, .04), (1.65, 1.04, 2.13), gold, .015)
+    box((1.86, .66, .1), (1.35, 1.95, 2.28), mat('2B3D69', .25, coat=.8, alpha=.55, trans=.3), .05)   # smoked lid
+    mark('paper', box((1.6, .07, .05), (1.35, 1.0, 2.14), dark, .02))
+    box((1.72, .06, .04), (1.35, .96, 2.17), gold, .015)
     # Customer display on a gold pole, back left.
     bar((-2.05, 2.45, 1.4), (-2.05, 2.45, 2.55), .07, gold)
     box((1.55, .24, .78), (-2.05, 2.4, 2.8), navy_d, .12, rot=(-8, 0, 0))
     mark('display', box((1.33, .05, .58), (-2.05, 2.27, 2.8), mat('0E2A1F', .3, emit=.18, coat=.9), .04, rot=(-8, 0, 0)))
-    # A little brass bell on the shell (the shop's charm).
-    cyl(.24, .06, (1.0, .78, 1.58), gold, v=48, bev=.02)
-    sphere(.2, (1.0, .78, 1.66), gold, scale=(1, 1, .75))
-    sphere(.05, (1.0, .78, 1.83), gold)
     studio(**REG4_CAM)
 
 

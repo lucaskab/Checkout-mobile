@@ -125,24 +125,50 @@ def scan_beep():
 
 
 def cash_register():
-    # Wooden "clack" of the keys, then a warm two-bell "ka-ching" an octave lower than before.
-    clack = lowpass(band(noise(.04), 600, 3000), 2500) * env(int(SR * .04), .001, .01) * .6
-    ring = bell(1046.5, .9, .45, ((1, 1), (2.0, .35), (3.0, .12))) * .8 + bell(1318.5, .9, .4, ((1, 1), (2.0, .3), (3.0, .1))) * .55
-    x = mixat(np.zeros(1), clack, 0)
-    x = mixat(x, clack * .7, .05)
-    x = mixat(x, lowpass(ring, 5000), .1)
-    return reverb(x, .28, .22)
+    # Classic register "ching": the mechanism clunks, then the bell rings bright but rounded (no harsh top end).
+    clunk = lowpass(band(noise(.05), 250, 1800), 1500) * env(int(SR * .05), .001, .015) * .8
+    clunk = mixat(clunk, tone(150, .06, 'sine', 90) * env(int(SR * .06), .001, .02) * .6, 0)
+    ring = bell(2093, 1.3, .55, ((1, 1), (2.4, .28), (3.9, .1), (5.6, .04))) * .75
+    ring = mixat(ring, bell(2637, 1.1, .45, ((1, 1), (2.4, .2), (3.9, .06))) * .35, 0)
+    x = mixat(np.zeros(1), clunk, 0)
+    x = mixat(x, lowpass(ring, 6500), .045)
+    return reverb(x, .3, .2)
 
 
 def drawer_open():
-    # The drawer rolls out on soft rails and stops with a gentle wooden knock.
-    n = int(SR * .3)
-    roll = lowpass(band(noise(.3), 120, 900), 800) * np.linspace(.25, .8, n) * env(n, .02, None, 1, .04)
-    thunk = tone(140, .12, 'sine', 90) * env(int(SR * .12), .002, .04) * 1.2
-    knock = marimba(523.25, .25, .06, .1) * .35
-    x = mixat(roll, thunk, .28)
-    x = mixat(x, knock, .29)
-    return reverb(x, .22, .16)
+    # The drawer springs out: a latch click, rollers rumbling for a moment, coins jingling, a soft stop.
+    latch = lowpass(band(noise(.02), 900, 4000), 3500) * env(int(SR * .02), .0005, .004) * .7
+    n = int(SR * .32)
+    rollers = lowpass(band(noise(.32), 150, 1400), 1200) * (1 + .5 * np.sin(2 * np.pi * 34 * t_(.32))) * env(n, .01, None, 1, .05) * np.linspace(1, .5, n) * .7
+    x = mixat(latch, rollers, .015)
+    r = np.random.default_rng(11)
+    for k in range(5):
+        f = r.uniform(2400, 3400)
+        x = mixat(x, bell(f, .22, .05, ((1, 1), (1.51, .3))) * (.35 - k * .05), .05 + k * .045 + r.uniform(0, .02))
+    stop = tone(120, .1, 'sine', 80) * env(int(SR * .1), .002, .035) * .9
+    x = mixat(x, stop, .32)
+    return reverb(lowpass(x, 6000), .2, .14)
+
+
+def drawer_close():
+    # Pushed shut: a short roll and the latch catching (clack + thump).
+    n = int(SR * .2)
+    roll = lowpass(band(noise(.2), 150, 1300), 1100) * (1 + .4 * np.sin(2 * np.pi * 40 * t_(.2))) * env(n, .01, None, 1, .02) * np.linspace(.4, 1, n) * .6
+    clack = lowpass(band(noise(.03), 800, 4200), 3800) * env(int(SR * .03), .0005, .007)
+    thump = tone(110, .1, 'sine', 70) * env(int(SR * .1), .001, .03)
+    x = mixat(roll, clack, .19)
+    x = mixat(x, thump, .19)
+    return reverb(x, .18, .12)
+
+
+def reg_key():
+    # A register key: plastic click going down, a softer one coming back up.
+    down = lowpass(band(noise(.012), 1200, 5000), 4500) * env(int(SR * .012), .0005, .003)
+    body = tone(220, .03, 'sine', 160) * env(int(SR * .03), .001, .008) * .5
+    up = down * .45
+    x = mixat(down, body, 0)
+    x = mixat(x, up, .055)
+    return x
 
 
 def coin(seed=0):
@@ -185,12 +211,15 @@ def declined():
 
 
 def printer():
-    # Thermal printer feeding paper: a soft, low whirr with gentle ticks (was a hissy buzz).
-    n = int(SR * .45)
-    gate = .55 + .45 * (np.sin(2 * np.pi * 22 * t_(.45)) > .3).astype(float)
-    x = lowpass(band(noise(.45), 300, 1800), 1500) * gate * env(n, .02, None, 1, .06) * .6
-    x += tone(140, .45, 'sine', 120) * .25 * env(n, .03, None, 1, .06)
-    return x
+    # Receipt printer feeding paper: the stepper motor's buzzy whirr in short line-feed bursts, a little paper rustle.
+    sec = .6; n = int(SR * sec); t = t_(sec)
+    motor = np.zeros(n)
+    for h, a in ((1, 1), (2, .5), (3, .3), (4, .15)):
+        motor += a * np.sin(2 * np.pi * 330 * h * t)
+    gate = (np.sin(2 * np.pi * 9 * t) > -.2).astype(float)
+    gate = lowpass(gate, 60)
+    x = lowpass(motor, 2200) * gate * .35 + lowpass(band(noise(sec), 500, 3000), 2500) * gate * .25
+    return reverb(x * env(n, .02, None, 1, .06), .12, .1)
 
 
 # ---------------------------------------------------------------- UI
@@ -341,7 +370,7 @@ SOUNDS = {
     'scan_beep': scan_beep, 'cash_register': cash_register, 'drawer_open': drawer_open,
     'coin_0': lambda: coin(0), 'coin_1': lambda: coin(1), 'coin_2': lambda: coin(2),
     'note_0': lambda: note_rustle(0), 'note_1': lambda: note_rustle(1),
-    'card_slide': card_slide, 'card_ok': approved, 'card_no': declined, 'printer': printer,
+    'drawer_close': drawer_close, 'reg_key': reg_key, 'card_slide': card_slide, 'card_ok': approved, 'card_no': declined, 'printer': printer,
     'pop': pop, 'tap': tap, 'whoosh': whoosh, 'bonk': bonk, 'success': success, 'levelup': levelup, 'conquest': conquest,
     'bubble_0': lambda: bubble(0), 'bubble_1': lambda: bubble(1), 'bubble_2': lambda: bubble(2),
     'scrub_0': lambda: scrub(0), 'scrub_1': lambda: scrub(1), 'scrub_2': lambda: scrub(2),
@@ -357,6 +386,6 @@ if __name__ == '__main__':
     for name, make in SOUNDS.items():
         if only and name not in only:
             continue
-        quiet = name in ('tap',) or name.startswith(('coin_', 'note_'))  # heard many times in a row: softer
+        quiet = name in ('tap', 'reg_key') or name.startswith(('coin_', 'note_'))  # heard many times in a row: softer
         write(out / (name + '.wav'), make(), peak=.55 if name in ('success', 'cash_register', 'bulb_on', 'levelup', 'conquest') else .5 if quiet else .7)
         print('SOUND', name)
