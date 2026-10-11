@@ -50,7 +50,9 @@ namespace MarketDay
             if(actionRemaining>0){actionRemaining-=Time.deltaTime*rate;animationPlayer[current].speed=rate;if(handledItem)handledItem.SetActive(actionRemaining<actionLength*.65f&&actionRemaining>actionLength*.15f);return;}
             if(handledItem)handledItem.SetActive(false);
             float velocity=delta.magnitude/Mathf.Max(Time.deltaTime,.001f);
-            string next=velocity>.06f?(CarryingBasket&&animationPlayer["WalkingWithBasket"]!=null?"WalkingWithBasket":"Walking"):"Idle";
+            // Hysteresis: a tiny shuffle on the spot (avoidance nudges) no longer flips Idle/Walking every frame.
+            bool walking=current!=null&&current.StartsWith("Walking");
+            string next=velocity>(walking?.04f:.15f)?(CarryingBasket&&animationPlayer["WalkingWithBasket"]!=null?"WalkingWithBasket":"Walking"):"Idle";
             if(current!=next){current=next;animationPlayer.CrossFade(next,.18f);}
             if(animationPlayer[next]){
                 if(next.StartsWith("Walking")){

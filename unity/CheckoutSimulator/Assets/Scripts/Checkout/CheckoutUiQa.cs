@@ -31,9 +31,12 @@ namespace Checkout
             "loja:decoracao", "loja:moedas",
         };
 
-        public static void Begin()
+        static bool counterOnly;
+        /// <summary>counter: only the checkout mini-game, played through its phases (scan, pay, change, card).</summary>
+        public static void Begin(bool counter = false)
         {
             if (Running || !Application.isPlaying) return;
+            counterOnly = counter;
             var go = new GameObject("Checkout UI QA");
             DontDestroyOnLoad(go);
             go.AddComponent<CheckoutUiQa>();
@@ -56,13 +59,14 @@ namespace Checkout
             if (Directory.Exists(dir)) foreach (var f in Directory.GetFiles(dir)) File.Delete(f);
             Directory.CreateDirectory(dir);
             float dpi = Screen.dpi > 0 ? Screen.dpi : 460f;
-            report.AppendLine($"Phone UI QA {System.DateTime.Now:yyyy-MM-dd HH:mm}  screen {Screen.width}x{Screen.height}  dpi {dpi:0}  safe {Screen.safeArea}  handheld={CheckoutScreen.Handheld}");
+            report.AppendLine($"Phone UI QA {System.DateTime.Now:yyyy-MM-dd HH:mm}  screen {Screen.width}x{Screen.height}  dpi {dpi:0}  safe {Screen.safeArea}  usable {CheckoutScreen.Usable(Screen.safeArea)}  orientation {Screen.orientation}  handheld={CheckoutScreen.Handheld}");
             report.AppendLine($"Thresholds: text < {MinTextPt} pt, tap target < {MinTapPt} pt (iOS pt, 1 pt = {PxPerPt:0.0} px)");
             // Wait for the game to be running (title screen dismissed by the tester or auto-play).
             float wait = 0;
             while (CheckoutDesktopHost.Active == null && wait < 30) { wait += Time.unscaledDeltaTime; yield return null; }
             yield return new WaitForSecondsRealtime(2f);
 
+            if (counterOnly) { yield return CounterPhases(); Finish(); yield break; }
             foreach (var route in Routes)
             {
                 CloseWindows();
@@ -74,24 +78,45 @@ namespace Checkout
             yield return new WaitForSecondsRealtime(.6f);
 
             // Game windows.
-            yield return Window("counter", () =>
-            {
-                var game = CheckoutCounterGame.Instance;
-                if (!game) return false;
-                var fake = new CheckoutEntry { id = "qa", customerId = "qa", customerName = "Cliente", total = 2350, readyAt = 0, items = new[] { new CheckoutLine { productId = 21, quantity = 2, name = "Produto", unitPrice = 700 }, new CheckoutLine { productId = 1, quantity = 1, name = "Produto", unitPrice = 950 } } };
-                game.OpenPreview(fake);
-                return true;
-            });
+            yield return CounterPhases();
             yield return Window("restock", () => { CheckoutRestockGame.Show(); return CheckoutRestockGame.Instance && CheckoutRestockGame.Instance.IsOpen; });
             yield return Window("receiving", () => { CheckoutReceivingGame.Show(); return CheckoutReceivingGame.Instance && CheckoutReceivingGame.Instance.IsOpen; });
             yield return Window("supplier_shop", () => { CheckoutSupplierShop.Show(); return CheckoutSupplierShop.Instance && CheckoutSupplierShop.Instance.IsOpen; });
             yield return Window("delivery_app", () => { CheckoutSupplierShop.ShowDelivery(); return CheckoutSupplierShop.Instance && CheckoutSupplierShop.Instance.IsOpen; });
-            CloseWindows();
+            Finish();
+        }
 
+        void Finish()
+        {
+            CloseWindows();
             File.WriteAllText(Path.Combine(dir, "report.txt"), report.ToString());
             Debug.Log("CHECKOUT_UI_QA done: " + index + " screens in Logs/ui_qa");
             Running = false;
             Destroy(gameObject);
+        }
+
+        // The checkout played like a player: scan everything, take the cash, give the change; then a card customer.
+        IEnumerator CounterPhases()
+        {
+            var game = CheckoutCounterGame.Instance;
+            if (!game) { report.AppendLine("\n## counter phases: no register in this save"); yield break; }
+            CloseWindows(); CheckoutDesktopHost.Active?.Route("");
+            yield return new WaitForSecondsRealtime(.4f);
+            CheckoutEntry Fake(string method) => new CheckoutEntry { id = "qa", customerId = "qa", customerName = "Dona Neide", method = method, total = 23, cashGiven = 50, readyAt = 0,
+                items = new[] { new CheckoutLine { productId = 21, quantity = 2, name = "Água mineral", unitPrice = 7 }, new CheckoutLine { productId = 1, quantity = 1, name = "Tomate", unitPrice = 9 } } };
+            game.OpenPreview(Fake("dinheiro"));
+            yield return new WaitForSecondsRealtime(1.6f); yield return Shot("counter_1_scan");
+            yield return game.QaScanAll();
+            yield return new WaitForSecondsRealtime(2.2f); yield return Shot("counter_2_pay");
+            game.QaPayAll();
+            yield return new WaitForSecondsRealtime(2.4f); yield return Shot("counter_3_change");
+            game.QaGive(20); yield return new WaitForSecondsRealtime(.8f); yield return Shot("counter_4_change_given");
+            CloseWindows(); yield return new WaitForSecondsRealtime(.4f);
+            game.OpenPreview(Fake("cartao"));
+            yield return new WaitForSecondsRealtime(1.2f);
+            yield return game.QaScanAll();
+            yield return new WaitForSecondsRealtime(2.4f); yield return Shot("counter_5_card");
+            CloseWindows();
         }
 
         IEnumerator Window(string name, System.Func<bool> open)
@@ -129,7 +154,7 @@ namespace Checkout
         {
             float px = PxPerPt;
             var screen = new Rect(0, 0, Screen.width, Screen.height);
-            var safe = Screen.safeArea;
+            var safe = CheckoutScreen.Usable(Screen.safeArea);
             var items = new List<Item>();
             foreach (var canvas in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
             {

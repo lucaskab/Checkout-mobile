@@ -90,7 +90,7 @@ namespace Checkout {
   public IEnumerator QaScanAll(){foreach(var token in tokens.ToList()){while(busy)yield return null;if(token&&tokenItems.TryGetValue(token,out var item))StartCoroutine(Scan(token,item));yield return new WaitForSecondsRealtime(.15f);}while(busy)yield return null;}
   public void QaPayAll()=>PayAll();
   public void QaGive(int value)=>GiveChange(value);
-  void Clear(){foreach(var o in scene)if(o)Destroy(o);scene.Clear();tokenItems.Clear();if(hint)Destroy(hint);machine=null;register=null;tokens.Clear();changePanel=null;bins.Clear();binShade.Clear();customerNotes.Clear();handNotes.Clear();paying=changing=false;}
+  void Clear(){foreach(var o in scene)if(o)Destroy(o);scene.Clear();tokenItems.Clear();if(hint)Destroy(hint);machine=null;register=null;tokens.Clear();changePanel=null;bins.Clear();binShade.Clear();customerNotes.Clear();handNotes.Clear();paying=changing=false;counterCleared=false;}
   T Keep<T>(T c) where T:Component{scene.Add(c.gameObject);return c;}
   // Transparent grab area holding a shadow and the art, so the shadow can sit underneath.
   RectTransform Holder(string name,Vector2 size){var img=Keep(CheckoutDesktopCard.Image(stage,name,new Color(1,1,1,0),0));img.raycastTarget=true;U.At(img.rectTransform,Mid,size);return img.rectTransform;}
@@ -110,6 +110,10 @@ namespace Checkout {
    return face;
   }
 
+  // Phones: the stage is wide and short (about 1290 x 585 against 1430 x 800 on the desktop), so the pieces get
+  // their own spots: customer top-left, dish and change on the left, the register or card machine in the middle,
+  // the POS and the change counter on the right.
+  static bool Phone=>CheckoutScreen.Handheld;
   void BuildScene(){
    Clear();
    // Customer card: live portrait with a patience ring, name, how they pay.
@@ -125,24 +129,16 @@ namespace Checkout {
    var chip=U.Shape(card.transform,"Pay",entry.method=="cartao"?"2E8CAE":"5DA637",16,new Vector2(0,0),new Vector2(190,46),new Vector2(168+95,40));
    U.Icon(chip.transform,"Icon",entry.method=="cartao"?"Game/card_blue":"Game/note_10",new Vector2(0,.5f),new Vector2(44,30),new Vector2(30,0));
    payChip=U.Label(chip.transform,"Label",K.Label,20,"FFFFFF",TextAlignmentOptions.Left);U.Stretch(payChip.rectTransform,Vector2.zero,Vector2.one,new Vector2(58,0),new Vector2(-8,0));payChip.text=entry.method=="cartao"?"Cartão":"Dinheiro";
-   // Step tracker.
-   string[] labels={"1  Passar","2  "+(entry.method=="cartao"?"Cartão":"Pagar"),"3  "+(entry.method=="cartao"?"Pronto":"Troco")};
-   for(int i=0;i<3;i++){
-    // Phones (wider stage): narrower pills shifted right and the POS further right, so step 3 is not under the monitor.
-    bool phone=CheckoutScreen.Handheld;
-    var pill=Keep(U.Shape(stage,"Step "+i,NavyDark,22,Mid,new Vector2(phone?170:190,54),P((phone?.40f:.37f)+i*.13f,.93f)));pill.color=new Color(.09f,.14f,.25f,.78f);steps[i]=pill;
-    var l=U.Label(pill.transform,"Label",K.Label,20,"FFFFFF");U.Stretch(l.rectTransform,Vector2.zero,Vector2.one);l.text=labels[i];stepLabels[i]=l;
-   }
-   Step(0);
+   // No step tracker (Lucas, 11/10: it added nothing and ate the top of the stage); the POS screen says what is next.
    // POS monitor: the receipt fills up by itself as items are scanned.
-   var pos=Keep(U.Art(stage,"POS","pos_display",new Vector2(CheckoutScreen.Handheld?.86f:.8f,.74f),330));posScreen=U.Over(pos,"pos_display","screen");
+   var pos=Keep(U.Art(stage,"POS","pos_display",new Vector2(Phone?.82f:.8f,Phone?.72f:.74f),330));posScreen=U.Over(pos,"pos_display","screen");
    var head=U.Label(posScreen,"Head",K.Label,15,"8FA7CF",TextAlignmentOptions.TopLeft);U.Stretch(head.rectTransform,Vector2.zero,Vector2.one,new Vector2(16,8),new Vector2(-16,-8));head.text="MERCADINHO · CAIXA 01";if(CheckoutScreen.Handheld)head.rectTransform.offsetMax=new Vector2(-64,-8); // clear of the close button
    receipt=CheckoutDesktopCard.Node("Receipt",posScreen);U.Stretch(receipt,new Vector2(0,.36f),new Vector2(1,.86f),new Vector2(16,0),new Vector2(-16,0));
    var column=CheckoutDesktopCard.Column(receipt.gameObject,2);column.childAlignment=TextAnchor.LowerLeft;column.childForceExpandHeight=false;
    var line=U.Box(posScreen,"Rule","E8B04A",0,new Vector2(0,.34f),new Vector2(1,.34f));line.rectTransform.offsetMin=new Vector2(16,-1);line.rectTransform.offsetMax=new Vector2(-16,1);
-   screenCaption=U.Label(posScreen,"Caption",K.Label,18,"E8B04A",TextAlignmentOptions.BottomLeft);U.Stretch(screenCaption.rectTransform,new Vector2(0,0),new Vector2(.5f,.32f),new Vector2(16,10),Vector2.zero);screenCaption.text="SUBTOTAL";
-   screenTotal=U.Label(posScreen,"Total",K.Number,46,"FFFFFF",TextAlignmentOptions.BottomRight);U.Stretch(screenTotal.rectTransform,new Vector2(.3f,0),new Vector2(1,.34f),Vector2.zero,new Vector2(-16,-4));screenTotal.text=Money(0);
-   screenExtra=U.Label(posScreen,"Extra",K.Label,16,"B9C7E0",TextAlignmentOptions.TopLeft);U.Stretch(screenExtra.rectTransform,new Vector2(0,.19f),new Vector2(.6f,.33f),new Vector2(16,0),Vector2.zero);screenExtra.textWrappingMode=TextWrappingModes.Normal;screenExtra.overflowMode=TextOverflowModes.Overflow;screenExtra.fontSize=15;screenExtra.text=entry.items.Length==1?"1 item":entry.items.Length+" itens";
+   screenCaption=U.Label(posScreen,"Caption",K.Label,18,"E8B04A",TextAlignmentOptions.BottomLeft);U.Stretch(screenCaption.rectTransform,new Vector2(0,0),new Vector2(.45f,.2f),new Vector2(16,8),Vector2.zero);screenCaption.text="SUBTOTAL";
+   screenTotal=U.Label(posScreen,"Total",K.Number,46,"FFFFFF",TextAlignmentOptions.BottomRight);U.Stretch(screenTotal.rectTransform,new Vector2(.4f,0),new Vector2(1,.21f),Vector2.zero,new Vector2(-16,2));screenTotal.enableAutoSizing=true;screenTotal.fontSizeMin=26;screenTotal.fontSizeMax=46;screenTotal.text=Money(0);
+   screenExtra=U.Label(posScreen,"Extra",K.Label,16,"B9C7E0",TextAlignmentOptions.TopLeft);U.Stretch(screenExtra.rectTransform,new Vector2(0,.2f),new Vector2(1,.33f),new Vector2(16,0),new Vector2(-16,0));screenExtra.textWrappingMode=TextWrappingModes.NoWrap;screenExtra.overflowMode=TextOverflowModes.Overflow;screenExtra.fontSize=16;screenExtra.enableAutoSizing=true;screenExtra.fontSizeMin=10;screenExtra.fontSizeMax=16; // one line, shrinks to fit (it wrapped onto the caption)screenExtra.text=entry.items.Length==1?"1 item":entry.items.Length+" itens";
    // Belt (the rubber surface keeps running), scanner and bag.
    var belt=Keep(U.Art(stage,"Belt","belt",new Vector2(.4f,.3f),160));beltSurface=U.Over(belt,"belt","surface");
    beltRaw=new GameObject("Rubber",typeof(RectTransform)).AddComponent<RawImage>();beltRaw.transform.SetParent(beltSurface,false);U.Stretch(beltRaw.rectTransform,Vector2.zero,Vector2.one);beltRaw.raycastTarget=false;
@@ -158,6 +154,7 @@ namespace Checkout {
   // Highlights the current step in the tracker.
   void Step(int index){
    for(int i=0;i<3;i++){
+    if(!stepLabels[i])continue;
     if(!steps[i])continue;
     bool on=i==index,done=i<index;
     steps[i].color=on?K.C(Gold):done?new Color(.36f,.65f,.22f,.95f):new Color(.09f,.14f,.25f,.78f);
@@ -237,7 +234,8 @@ namespace Checkout {
   IEnumerator CardStep(int attempt){
    cardTries=attempt;
    if(machine==null){
-    machine=Keep(U.Art(stage,"Machine","card_machine",Mid,380));var home=P(.55f,.42f);machine.rectTransform.anchoredPosition=home-new Vector2(0,800);StartCoroutine(U.Move(machine.rectTransform,home,.45f,true));Play("whoosh",.8f,.6f);
+    ClearCounter();
+    machine=Keep(U.Art(stage,"Machine","card_machine",Mid,Phone?Mathf.Min(470,stage.rect.height*.82f):380));var home=Phone?P(.5f,.47f):P(.55f,.42f);machine.rectTransform.anchoredPosition=home-new Vector2(0,800);StartCoroutine(U.Move(machine.rectTransform,home,.45f,true));Play("whoosh",.8f,.6f);
     machineScreen=U.Over(machine,"card_machine","screen");
     machineFlash=U.Box(machineScreen,"Flash","FFFFFF",6,Vector2.zero,Vector2.one);machineFlash.color=new Color(1,1,1,0);
     machineText=U.Label(machineScreen,"Text",K.Number,28,"1F3B34");U.Stretch(machineText.rectTransform,Vector2.zero,Vector2.one);machineText.text=Money(total);
@@ -290,7 +288,7 @@ namespace Checkout {
     machineIcon.gameObject.SetActive(false);machineFlash.color=new Color(1,1,1,0);led.color=new Color(.3f,.3f,.3f,0);machineText.text=Money(total);busy=false;
     if(cardTries>=1){
      StartCoroutine(U.Move(machine.rectTransform,machine.rectTransform.anchoredPosition-new Vector2(0,800),.35f));yield return new WaitForSecondsRealtime(.35f);machine=null;
-     payChip.text="Dinheiro";stepLabels[1].text="2  Pagar";stepLabels[2].text="3  Troco";screenExtra.text="Vai pagar em dinheiro";
+     payChip.text="Dinheiro";screenExtra.text="Vai pagar em dinheiro";
      StartCoroutine(CashStep());
     }
     else StartCoroutine(CardStep(cardTries+1));
@@ -311,27 +309,35 @@ namespace Checkout {
   readonly List<RectTransform> handNotes=new List<RectTransform>();
   long changeDue,changeGiven,given,received;bool paying,changing;
   RectTransform changePanel;TextMeshProUGUI changeTitle,changeCount,dishLabel;Image changeBar;
-  Vector2 DishCenter=>dish?dish.rectTransform.anchoredPosition:P(.19f,.25f);
+  Vector2 DishCenter=>dish?dish.rectTransform.anchoredPosition:Phone?P(.16f,.42f):P(.19f,.25f);
+  // The belt and the scanner slide away under the counter so the register or the card machine has the middle.
+  bool counterCleared;
+  void ClearCounter(){
+   if(counterCleared)return;counterCleared=true;
+   foreach(var part in new[]{beltSurface?(RectTransform)beltSurface.parent:null,scanner?scanner.rectTransform:null})
+    if(part)StartCoroutine(U.Move(part,part.anchoredPosition-new Vector2(0,700),.35f));
+  }
 
   IEnumerator CashStep(){
    long price=total;given=(long)Math.Round(Math.Max(entry.cashGiven,price));
    changeDue=given-price;changeGiven=0;received=0;paying=true;changing=false;
    customerNotes.Clear();handNotes.Clear();bins.Clear();binShade.Clear();
    // The belt and the scanner make room; the register rises with its drawer open.
-   foreach(var part in new[]{beltSurface?(RectTransform)beltSurface.parent:null,scanner?scanner.rectTransform:null})
-    if(part)StartCoroutine(U.Move(part,part.anchoredPosition-new Vector2(0,700),.35f));
-   register=Keep(U.Art(stage,"Register","register_open",Mid,440));var home=P(.54f,.29f);
+   ClearCounter();
+   // Phones: the bag leaves too (the change counter takes its corner); it comes back to the customer at the end.
+   if(Phone&&bag)StartCoroutine(U.Move(bag.rectTransform,bag.rectTransform.anchoredPosition-new Vector2(0,700),.35f));
+   register=Keep(U.Art(stage,"Register","register_open",Mid,Phone?Mathf.Min(560,stage.rect.height*.9f):440));var home=Phone?P(.5f,.48f):P(.54f,.29f);
    register.rectTransform.anchoredPosition=home-new Vector2(0,760);Play("drawer_open");StartCoroutine(U.Move(register.rectTransform,home,.5f,true));
    var display=U.Over(register,"register_open","display");
-   registerDisplay=U.Label(display,"Text",K.Number,26,"8CFFB0");U.Stretch(registerDisplay.rectTransform,Vector2.zero,Vector2.one,new Vector2(6,2),new Vector2(-6,-2));registerDisplay.text=Money(0);
+   registerDisplay=U.Label(display,"Text",K.Number,26,"8CFFB0");U.Stretch(registerDisplay.rectTransform,Vector2.zero,Vector2.one,new Vector2(6,2),new Vector2(-6,-2));registerDisplay.text=Money(0);registerDisplay.enableAutoSizing=true;registerDisplay.fontSizeMin=12;registerDisplay.fontSizeMax=26; // "TROCO R$ 27" fits the little display
    for(int i=0;i<DrawerValues.Length;i++)bins[DrawerValues[i]]=U.Over(register,"register_open","bin"+i,"Bin "+DrawerValues[i]);
    bins[1]=U.Over(register,"register_open","coins","Bin 1");
    // The customer's dish with the money they pay with.
-   dish=Keep(U.Art(stage,"Dish","change_dish3",Mid,220));dish.rectTransform.anchoredPosition=P(.19f,.25f);
+   dish=Keep(U.Art(stage,"Dish","change_dish3",Mid,Phone?230:220));dish.rectTransform.anchoredPosition=Phone?P(.16f,.42f):P(.19f,.25f);
    U.Tap(dish,PayAll);
-   var badge=Keep(U.Shape(stage,"DishLabel",NavyDark,18,Mid,new Vector2(330,50),P(.19f,.25f)+new Vector2(0,-138)));badge.color=new Color(.09f,.14f,.25f,.92f);
+   var badge=Keep(U.Shape(stage,"DishLabel",NavyDark,18,Mid,new Vector2(330,50),DishCenter+new Vector2(0,-138)));badge.color=new Color(.09f,.14f,.25f,.92f);
    dishLabel=U.Label(badge.transform,"L",K.Label,20,"FFFFFF");U.Stretch(dishLabel.rectTransform,Vector2.zero,Vector2.one,new Vector2(10,0),new Vector2(-10,0));dishLabel.text="Cliente pagou "+Money(given);
-   screenCaption.text="RECEBER";screenTotal.text=Money(given);screenTotal.color=Color.white;screenExtra.text="Total "+Money(price)+"   "+(changeDue>0?"Troco "+Money(changeDue):"Sem troco");
+   screenCaption.text="RECEBER";screenTotal.text=Money(given);screenTotal.color=Color.white;screenExtra.text="Total "+Money(price)+" · "+(changeDue>0?"Troco "+Money(changeDue):"Sem troco");
    StartCoroutine(U.Pop(posScreen,1.06f,.3f));
    yield return new WaitForSecondsRealtime(.5f);
    var notes=Split(given);
@@ -380,7 +386,7 @@ namespace Checkout {
    changing=true;
    screenCaption.text="TROCO";screenTotal.text=Money(changeDue);screenTotal.color=K.C(Gold);StartCoroutine(U.Pop(posScreen,1.08f,.3f));
    dishLabel.text="Toque na gaveta para dar o troco";
-   var face=Card("Change",P(.19f,.56f),new Vector2(330,150));changePanel=(RectTransform)face.transform.parent;
+   var face=Card("Change",Phone?P(.84f,.28f):P(.19f,.56f),new Vector2(330,150));changePanel=(RectTransform)face.transform.parent;
    changeTitle=U.Label(face.transform,"Title",K.Label,20,"B9C7E0",TextAlignmentOptions.Top);U.Stretch(changeTitle.rectTransform,new Vector2(0,.62f),Vector2.one,new Vector2(12,0),new Vector2(-12,-10));changeTitle.text="DÊ O TROCO";
    changeCount=U.Label(face.transform,"Count",K.Headline,38,"FFFFFF");U.Stretch(changeCount.rectTransform,new Vector2(0,.28f),new Vector2(1,.7f));
    var track=U.Box(face.transform,"Track","0B1322",10,new Vector2(0,0),new Vector2(1,0));track.rectTransform.offsetMin=new Vector2(18,18);track.rectTransform.offsetMax=new Vector2(-18,38);

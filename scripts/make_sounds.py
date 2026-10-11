@@ -107,65 +107,81 @@ def write(path, x, peak=.8):
 
 
 # ---------------------------------------------------------------- register
+# Cozy register (Lucas, 11/10: "sons mais agradáveis"): warm wooden/marimba tones in the 400-2000 Hz range instead of
+# the piercing 2.7 kHz square beep and 4 kHz coin bells, soft attacks, paper and coins lowpassed, a little room.
+def marimba(freq, sec, decay=.22, bright=.25):
+    """Struck wooden bar: fundamental plus the marimba's 4x and 10x partials, which die away fast (warm, round)."""
+    t = t_(sec)
+    x = np.sin(2 * np.pi * freq * t) * np.exp(-t / decay)
+    x += bright * np.sin(2 * np.pi * freq * 3.93 * t) * np.exp(-t / (decay * .25))
+    x += bright * .3 * np.sin(2 * np.pi * freq * 9.7 * t) * np.exp(-t / (decay * .08))
+    return x * env(len(t), .003, None, 1, .02)
+
+
 def scan_beep():
-    x = tone(2700, .11, 'square') * .7 + tone(2700, .11) * .5
-    return reverb(x * env(len(x), .004, None, 1, .015), .12, .1)
+    # A soft two-note "bip-bop" chime (B5 then E6), like a friendly scanner, not a smoke alarm.
+    x = mixat(marimba(987.8, .16, .07, .18) * .9, marimba(1318.5, .2, .08, .15), .055)
+    return reverb(lowpass(x, 4500), .12, .12)
 
 
 def cash_register():
-    click = band(noise(.05), 2000, 7000) * env(int(SR * .05), .001, .012)
-    rattle = band(noise(.12), 900, 3500) * env(int(SR * .12), .002, .04) * .5
-    ring = bell(2093, .9, .5) * .9 + bell(2637, .9, .45) * .5
-    x = mixat(np.zeros(1), click, 0)
-    x = mixat(x, rattle, .02)
-    x = mixat(x, ring, .07)
-    return reverb(x, .25, .2)
+    # Wooden "clack" of the keys, then a warm two-bell "ka-ching" an octave lower than before.
+    clack = lowpass(band(noise(.04), 600, 3000), 2500) * env(int(SR * .04), .001, .01) * .6
+    ring = bell(1046.5, .9, .45, ((1, 1), (2.0, .35), (3.0, .12))) * .8 + bell(1318.5, .9, .4, ((1, 1), (2.0, .3), (3.0, .1))) * .55
+    x = mixat(np.zeros(1), clack, 0)
+    x = mixat(x, clack * .7, .05)
+    x = mixat(x, lowpass(ring, 5000), .1)
+    return reverb(x, .28, .22)
 
 
 def drawer_open():
-    n = int(SR * .28)
-    roll = band(noise(.28), 150, 1400) * np.linspace(.3, 1, n) * env(n, .01, None, 1, .03)
-    thunk = tone(110, .09, 'sine', 70) * env(int(SR * .09), .001, .03) * 1.4
-    ting = bell(3136, .5, .25) * .35
-    x = mixat(roll, thunk, .27)
-    x = mixat(x, ting, .29)
-    return reverb(x, .2, .15)
+    # The drawer rolls out on soft rails and stops with a gentle wooden knock.
+    n = int(SR * .3)
+    roll = lowpass(band(noise(.3), 120, 900), 800) * np.linspace(.25, .8, n) * env(n, .02, None, 1, .04)
+    thunk = tone(140, .12, 'sine', 90) * env(int(SR * .12), .002, .04) * 1.2
+    knock = marimba(523.25, .25, .06, .1) * .35
+    x = mixat(roll, thunk, .28)
+    x = mixat(x, knock, .29)
+    return reverb(x, .22, .16)
 
 
 def coin(seed=0):
+    # Coins dropped on a felt tray: two or three small, rounded clinks, nothing above ~4 kHz.
     r = np.random.default_rng(seed)
     x = np.zeros(1)
-    for k, at in enumerate((0, .06 + r.uniform(0, .02), .11 + r.uniform(0, .03))):
-        f = r.uniform(3200, 4600)
-        hit = bell(f, .35, .09, ((1, 1), (1.51, .6), (2.43, .35), (3.1, .2))) * (1 - k * .3)
+    for k, at in enumerate((0, .05 + r.uniform(0, .02), .1 + r.uniform(0, .03))):
+        f = r.uniform(1800, 2500)
+        hit = bell(f, .25, .06, ((1, 1), (1.51, .35), (2.43, .15))) * (1 - k * .35)
         x = mixat(x, hit, at)
-    return reverb(x, .15, .15)
+    return reverb(lowpass(x, 4200), .14, .14)
 
 
 def note_rustle(seed=0):
+    # A banknote laid down: a short, soft paper swish (no hiss).
     r = np.random.default_rng(seed)
-    n = int(SR * .2)
-    flutter = 1 + .6 * np.sin(2 * np.pi * r.uniform(28, 40) * t_(.2))
-    x = band(noise(.2), 1200, 7000) * flutter * env(n, .01, .07)
-    return x
+    n = int(SR * .18)
+    flutter = 1 + .35 * np.sin(2 * np.pi * r.uniform(18, 26) * t_(.18))
+    x = lowpass(band(noise(.18), 500, 3200), 2600) * flutter * env(n, .02, .06)
+    return x * .8
 
 
 def card_slide():
     n = int(SR * .18)
-    x = band(noise(.18), 700, 3200) * env(n, .01, None, 1, .03) * np.linspace(1, .5, n)
-    x = mixat(x, band(noise(.02), 3000, 8000) * env(int(SR * .02), .001, .005), .17)
+    x = lowpass(band(noise(.18), 500, 2400), 2000) * env(n, .015, None, 1, .04) * np.linspace(1, .5, n)
+    x = mixat(x, marimba(660, .08, .02, .05) * .25, .16)
     return x
 
 
 def approved():
-    a = bell(880, .5, .3) * .8; b = bell(1318.5, .8, .4)
-    return reverb(mixat(a, b, .12), .25, .2)
+    # Card approved: a happy marimba third (C6 - E6).
+    a = marimba(1046.5, .45, .18, .2) * .8; b = marimba(1318.5, .6, .22, .2)
+    return reverb(mixat(a, b, .1), .25, .2)
 
 
 def declined():
-    a = tone(330, .16, 'tri') * env(int(SR * .16), .005, .08)
-    b = tone(247, .26, 'tri') * env(int(SR * .26), .005, .12)
-    return reverb(cat(a, b, gap=.03), .15, .12) * .8
+    # Card declined: two soft low notes going down, not a buzzer.
+    a = marimba(392, .3, .12, .12); b = marimba(329.6, .45, .16, .12)
+    return reverb(cat(a, b, gap=.02), .18, .14) * .8
 
 
 def printer():
@@ -183,7 +199,8 @@ def pop():
 
 
 def tap():
-    return band(noise(.02), 1500, 6000) * env(int(SR * .02), .0005, .004) + tone(1800, .02) * .3 * env(int(SR * .02), .0005, .006)
+    # Soft wooden tick (was a bright 6 kHz click).
+    return mixat(lowpass(band(noise(.025), 800, 3000), 2500) * env(int(SR * .025), .001, .005) * .8, marimba(880, .05, .015, .05) * .35, 0)
 
 
 def whoosh():
@@ -333,7 +350,12 @@ SOUNDS = {
 }
 
 if __name__ == '__main__':
+    # python scripts/make_sounds.py <out dir> [name ...]: only the named sounds when names are given.
     out = Path(sys.argv[1] if len(sys.argv) > 1 else 'Sounds'); out.mkdir(parents=True, exist_ok=True)
+    only = set(sys.argv[2:])
     for name, make in SOUNDS.items():
-        write(out / (name + '.wav'), make(), peak=.55 if name in ('success', 'cash_register', 'bulb_on', 'levelup', 'conquest') else .7)
+        if only and name not in only:
+            continue
+        quiet = name in ('tap',) or name.startswith(('coin_', 'note_'))  # heard many times in a row: softer
+        write(out / (name + '.wav'), make(), peak=.55 if name in ('success', 'cash_register', 'bulb_on', 'levelup', 'conquest') else .5 if quiet else .7)
         print('SOUND', name)

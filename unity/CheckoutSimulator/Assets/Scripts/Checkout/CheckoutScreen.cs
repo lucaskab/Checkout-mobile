@@ -29,6 +29,10 @@ namespace Checkout
             else { scaler.referenceResolution = new Vector2(1600, 1000); scaler.matchWidthOrHeight = desktopMatch; }
         }
 
+        /// <summary>The part of the screen the UI uses: the safe area, adjusted for phones in landscape
+        /// (see CheckoutSafeArea.Landscape).</summary>
+        public static Rect Usable(Rect safe) => Handheld && Screen.width > Screen.height ? CheckoutSafeArea.Landscape(safe) : safe;
+
         /// <summary>A full-screen child of the canvas that follows Screen.safeArea; build the UI inside it.</summary>
         public static RectTransform SafeArea(Transform canvas)
         {
@@ -44,12 +48,12 @@ namespace Checkout
     // Keeps its RectTransform on Screen.safeArea (re-applied when the phone turns or the screen size changes).
     public sealed class CheckoutSafeArea : MonoBehaviour
     {
-        Rect applied; Vector2Int size;
+        Rect applied; Vector2Int size; ScreenOrientation turned;
         void OnEnable() => Apply();
-        void Update() { if (Screen.safeArea != applied || size.x != Screen.width || size.y != Screen.height) Apply(); }
+        void Update() { if (Screen.safeArea != applied || size.x != Screen.width || size.y != Screen.height || Screen.orientation != turned) Apply(); } // turning the phone over moves the island
         void Apply()
         {
-            applied = Screen.safeArea; size = new Vector2Int(Screen.width, Screen.height);
+            applied = Screen.safeArea; size = new Vector2Int(Screen.width, Screen.height); turned = Screen.orientation;
             if (Screen.width <= 0 || Screen.height <= 0) return;
             var r = (RectTransform)transform;
             var safe = applied;
@@ -58,9 +62,25 @@ namespace Checkout
             if (CheckoutScreen.Handheld && safe.width >= Screen.width - 1)
                 safe = new Rect(Screen.width * .06f, Screen.height * .045f, Screen.width * .88f, Screen.height * .955f);
 #endif
+            safe = CheckoutScreen.Usable(safe);
             r.anchorMin = new Vector2(safe.xMin / Screen.width, safe.yMin / Screen.height);
             r.anchorMax = new Vector2(safe.xMax / Screen.width, safe.yMax / Screen.height);
             r.offsetMin = r.offsetMax = Vector2.zero;
+        }
+
+        // iPhone in landscape reports the island's inset on BOTH sides and the home bar's at the bottom only, so the
+        // UI sat lower-heavy with an empty strip on the side without the island. Keep the full inset only on the island's
+        // side; the other side and the top and bottom get a small equal margin (still clear of the rounded corners), so
+        // the content is centred vertically and uses the free side.
+        public static Rect Landscape(Rect safe)
+        {
+            float w = Screen.width, h = Screen.height;
+            float left = safe.xMin, right = w - safe.xMax;
+            float side = Mathf.Round(h * .05f), edge = Mathf.Round(h * .03f); // iPhone 13 Pro: 59 and 35 px
+            // Home button / bar on the right (LandscapeLeft) means the island is on the left, and the other way round.
+            bool islandLeft = Screen.orientation != ScreenOrientation.LandscapeRight;
+            if (islandLeft) right = Mathf.Min(right, side); else left = Mathf.Min(left, side);
+            return new Rect(left, edge, w - left - right, h - 2 * edge);
         }
     }
 }

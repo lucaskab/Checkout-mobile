@@ -67,7 +67,15 @@ namespace Checkout {
    Vector3 Remap(Vector3 p){var original=CheckoutMarketLayout.Unproject(p,previous);return original.x> -9.5f&&original.x<9.5f&&original.z> -10.61f&&original.z<7.5f?CheckoutMarketLayout.Project(original,next):p;}
    var position=Remap(transform.position);target=Remap(target);if(NavMesh.SamplePosition(position,out var hit,3,NavMesh.AllAreas)){agent.Warp(hit.position);Go(target);Sync();}
   }
-  void Go(Vector3 destination){if(NavMesh.SamplePosition(destination,out var hit,2,NavMesh.AllAreas))destination=hit.position;target=destination;agent.isStopped=false;agent.SetDestination(destination);}
+  void Go(Vector3 destination){holding=false;if(NavMesh.SamplePosition(destination,out var hit,2,NavMesh.AllAreas))destination=hit.position;target=destination;agent.isStopped=false;agent.SetDestination(destination);}
+  // Standing still (at the till, at a shelf, waiting for help): stay exactly on the spot. A stopped agent still got
+  // nudged every frame by the avoidance of the customers queueing behind, and Sync() followed it, so people at the
+  // register shook in place. A real move (Go, a warp after the layout changed: more than 0.6 m) takes a new spot.
+  bool holding;Vector3 hold;
+  void Hold(){
+   if(!holding||(agent.nextPosition-hold).sqrMagnitude>.36f){holding=true;hold=agent.nextPosition;}
+   agent.velocity=Vector3.zero;agent.nextPosition=hold;Sync();
+  }
   void NextShelf(){
    if(!asked&&index==0){var request=Request;if(request!=null&&request.status=="pending"){asked=true;helpWait=0;helpLine.Add(this);phase=20;Go(HelpPoint());return;}}
    CheckoutShoppingProps.SetVisible(transform,customer.purchases!=null&&customer.purchases.Length>0);if(customer.purchases!=null&&index<customer.purchases.Length){phase=0;Go(map.Approach(customer.purchases[index].shelfId));}else {lane=CheckoutStall.Small&&map.Lanes.lanes.Count>0?map.Lanes.lanes[0]:map.Lanes.Pick();if(lane.places==null&&lane.itemId==null){phase=2;Go(map.Point(new Vector3(-7.2f,.74f,-3.4f)));}else{Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}}}
@@ -92,7 +100,7 @@ namespace Checkout {
    offMesh=0;
    UpdateBubble();
    if(phase==30){ // At the register until the basket is rung up (player, cashier) or they give up.
-    agent.isStopped=true;tillWait+=Time.deltaTime;transform.rotation=Quaternion.RotateTowards(transform.rotation,facing,Time.deltaTime*240);Sync();
+    agent.isStopped=true;tillWait+=Time.deltaTime;transform.rotation=Quaternion.RotateTowards(transform.rotation,facing,Time.deltaTime*240);Hold();
     // Tell the store they are here: the basket becomes ready and their patience starts now (sent again if lost).
     var waiting=bridge.CheckoutFor(customer?.id);if(waiting!=null&&waiting.readyAt>CheckoutBridge.Now&&Time.time>=arrivalPing){arrivalPing=Time.time+3;bridge.Command("checkoutArrived","[\""+customer.id+"\"]");}
     if(bridge.CheckoutFor(customer?.id)==null||tillWait>150){var result=bridge.CheckoutResultFor(customer?.id);
@@ -102,12 +110,12 @@ namespace Checkout {
     return;}
    if(phase==21){ // Waiting for help, facing the camera so the bubble reads well.
     agent.isStopped=true;helpWait+=Time.deltaTime;browseFor-=Time.deltaTime;var look=browseLook-transform.position;look.y=0;
-    if(look.sqrMagnitude>.01f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-look),Time.deltaTime*240);Sync();
+    if(look.sqrMagnitude>.01f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-look),Time.deltaTime*240);Hold();
     if(browseFor<=0&&helpWait<110){phase=20;Go(HelpPoint());snapHeading=true;return;}
     var request=Request;if(request==null||request.status!="pending"||helpWait>120){helpLine.Remove(this);phase=0;NextShelf();snapHeading=true;}
     return;}
    if(wait>0){wait-=Time.deltaTime;agent.isStopped=true;transform.rotation=Quaternion.RotateTowards(transform.rotation,facing,Time.deltaTime*180);if(phase==8&&lane!=null&&lane.kiosk&&!motion.Busy)motion.Perform("GetFromShelf",false); // Scanning their own items.
-   Sync();if(wait<=0){if(phase==1){index++;NextShelf();}else if(phase==8){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),lane!=null&&lane.kiosk?0:map.PaymentDuration);}else if(phase==4){HasPaid=true;Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);}}return;}
+   Hold();if(wait<=0){if(phase==1){index++;NextShelf();}else if(phase==8){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),lane!=null&&lane.kiosk?0:map.PaymentDuration);}else if(phase==4){HasPaid=true;Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);}}return;}
    // Gave up while still in line: the basket stays behind and they walk out.
    if(phase==3&&bridge.CheckoutFor(customer?.id)==null&&bridge.CheckoutResultFor(customer?.id)?.status=="left"){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);return;}
    if(phase==3){var q=Line.IndexOf(this);var position=QueuePosition(q);if((position-target).sqrMagnitude>.05f)Go(position);}
