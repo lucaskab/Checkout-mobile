@@ -1588,6 +1588,136 @@ V3_SPRITES = {'register_open': register_open, 'coin3_1': coin3, 'change_dish3': 
 for _v in NOTE3_ORDER:
     V3_SPRITES[f'note3_{_v}'] = banknote3(_v)
 
+
+# ---------------------------------------------------------------- register v4 (animated: body + sliding drawer)
+# Lucas (11/10): the register looked plain and the coins messy; it should open and close and print the receipt.
+# Two layers rendered with the SAME camera so they line up in the UI:
+#   register4_body   cream-and-navy register: tilted keypad (marks k0..k11, ok, cancel), cashier LCD (lcd), customer
+#                    display on a pole (display), receipt printer with its paper slit (paper), front slot (slot).
+#   register4_drawer the drawer pulled all the way out: six note compartments (bin0..bin5 for 100..2) and a row of
+#                    round coin cups with neat stacks (coins = the R$ 1 cup). Marks front / front_closed give the
+#                    slide distance: the UI keeps the drawer under a mask at the slot's top edge and slides it.
+REG4_CAM = dict(elev=46, yaw=0, width=1000, height=1000, size=6.9, target=(0, .1, 1.05), light=1.1, samples=128)
+COIN4 = [  # value label, outer metal, inner metal (None = plain), radius
+    ('1', ('F6D06A', 'D7A63E'), ('EEF2F3', 'C5CDD0'), .34),
+    ('50', ('EEF2F3', 'BAC4C8'), None, .31),
+    ('25', ('F2C463', 'C9962F'), None, .29),
+    ('10', ('D9925B', 'A8653A'), None, .26),
+]
+
+
+def _coin_stack(x, y, z, r, outer, inner, label, count, seed):
+    import random
+    rnd = random.Random(seed)
+    m_out = tex('brushed', outer[0], outer[1], metal=1, rough=.24, scale=.3)
+    m_in = tex('brushed', inner[0], inner[1], metal=1, rough=.22, scale=.3) if inner else None
+    h = .055
+    for k in range(count):
+        dx, dy = rnd.uniform(-.015, .015), rnd.uniform(-.015, .015)
+        cyl(r, h, (x + dx, y + dy, z + h / 2 + k * h), m_out, v=48, bev=.012)
+    top = z + count * h
+    if m_in:
+        cyl(r * .66, .012, (x, y, top + .004), m_in, v=48, bev=.004)
+    torus(r * .9, .008, (x, y, top + .004), m_out)
+    text(label, (x, y + .01, top + .01), r * .8, mat('8E7A4A' if not inner else '7C868A', .35, .9), rot=(0, 0, 0), extrude=.01, bevel=.003)
+    return top
+
+
+def register4_body():
+    navy = tex('plastic', NAVY, NAVY_D, rough=.36, scale=1.5, bump=.04, coat=.4)
+    navy_d = tex('plastic', NAVY_D, '0F1A30', rough=.4, scale=1.5, bump=.04, coat=.3)
+    cream = tex('plastic', 'FFF4E0', 'F3E3C4', rough=.32, scale=1.2, bump=.02, coat=.55)
+    gold = gold_metal()
+    dark = mat('0B1322', .6)
+    # Plinth with the drawer slot at the front, then a cream shell on top.
+    box((5.4, 2.4, .95), (0, 1.45, .475), navy, .2)
+    mark('slot', box((4.96, .08, .64), (0, .27, .37), dark, .03))
+    box((5.42, .06, .07), (0, .25, .76), gold, .02)
+    box((5.42, .06, .05), (0, .25, .03), gold, .015)
+    box((5.2, 2.2, .62), (0, 1.55, 1.24), cream, .26)
+    box((5.24, .05, .06), (0, .46, 1.03), gold, .02)
+    # Brand plate on the shell front.
+    box((1.7, .06, .34), (0, .43, 1.25), gold, .05)
+    box((1.56, .05, .24), (0, .41, 1.25), navy_d, .04)
+    text('CAIXA', (0, .375, 1.25), .19, mat(GOLD, .3, .7), extrude=.015, bevel=.003)
+    # Keypad deck tilted towards the cashier, set into the shell.
+    tilt = math.tan(R(20))
+    box((2.6, 1.5, .26), (-1.0, 1.45, 1.62), navy_d, .14, rot=(20, 0, 0))
+    deck_z = lambda y, h: 1.62 + .13 + h / 2 + (y - 1.45) * tilt
+    key_m = tex('plastic', 'FAF7F0', 'E8E2D4', rough=.3, scale=1, bump=.02, coat=.6)
+    digits = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '00', ',']
+    for i, d in enumerate(digits):
+        r, c = i // 3, i % 3
+        kx = -1.95 + c * .46; ky = 1.98 - r * .34
+        k = box((.38, .28, .13), (kx, ky, deck_z(ky, .13)), key_m, .06, rot=(20, 0, 0))
+        mark(f'k{i}', k)
+        text(d, (kx, ky - .02, deck_z(ky, .13) + .075), .14 if len(d) < 2 else .11, mat(NAVY, .4), rot=(20, 0, 0), extrude=.006, bevel=0)
+    mark('cancel', box((.5, .28, .14), (-.33, 1.98, deck_z(1.98, .14)), mat(RED, .3, coat=.6), .06, rot=(20, 0, 0)))
+    text('C', (-.33, 1.96, deck_z(1.98, .14) + .08), .15, mat('FFFFFF', .4), rot=(20, 0, 0), extrude=.006, bevel=0)
+    mark('ok', box((.5, .94, .14), (-.33, 1.47, deck_z(1.47, .14)), mat(GREEN, .3, coat=.6), .07, rot=(20, 0, 0)))
+    text('OK', (-.33, 1.45, deck_z(1.47, .14) + .08), .17, mat('FFFFFF', .4), rot=(20, 0, 0), extrude=.006, bevel=0)
+    # Cashier LCD at the back of the deck.
+    box((1.7, .3, .42), (-.95, 2.38, 1.92), navy_d, .08, rot=(-12, 0, 0))
+    mark('lcd', box((1.5, .05, .28), (-.95, 2.22, 1.94), mat('0E2A1F', .3, emit=.2, coat=.9), .03, rot=(-12, 0, 0)))
+    # Receipt printer on the right: a rounded block with the paper roll showing and the slit on top.
+    box((1.55, 1.5, .62), (1.65, 1.55, 1.78), navy_d, .2)
+    box((1.3, .9, .08), (1.65, 1.75, 2.1), navy, .06)
+    bpy.ops.mesh.primitive_cylinder_add(radius=.34, depth=1.1, location=(1.65, 1.95, 2.02), rotation=(0, R(90), 0), vertices=48)
+    finish(bpy.context.object, tex('paper', 'FFFDF7', 'EDE6D6', rough=.7, scale=1, bump=.05, coat=0), 0)
+    box((1.36, .62, .1), (1.65, 1.95, 2.24), mat('2B3D69', .25, coat=.8, alpha=.55, trans=.3), .05)   # smoked lid
+    mark('paper', box((1.0, .07, .05), (1.65, 1.08, 2.1), dark, .02))
+    box((1.12, .06, .04), (1.65, 1.04, 2.13), gold, .015)
+    # Customer display on a gold pole, back left.
+    bar((-2.05, 2.45, 1.4), (-2.05, 2.45, 2.55), .07, gold)
+    box((1.55, .24, .78), (-2.05, 2.4, 2.8), navy_d, .12, rot=(-8, 0, 0))
+    mark('display', box((1.33, .05, .58), (-2.05, 2.27, 2.8), mat('0E2A1F', .3, emit=.18, coat=.9), .04, rot=(-8, 0, 0)))
+    # A little brass bell on the shell (the shop's charm).
+    cyl(.24, .06, (1.0, .78, 1.58), gold, v=48, bev=.02)
+    sphere(.2, (1.0, .78, 1.66), gold, scale=(1, 1, .75))
+    sphere(.05, (1.0, .78, 1.83), gold)
+    studio(**REG4_CAM)
+
+
+def register4_drawer():
+    navy = tex('plastic', NAVY, NAVY_D, rough=.36, scale=1.5, bump=.04, coat=.4)
+    navy_d = tex('plastic', NAVY_D, '0F1A30', rough=.4, scale=1.5, bump=.04, coat=.3)
+    steel = tex('brushed', 'DCE2E4', 'A9B3B6', metal=.85, rough=.28, scale=.4)
+    gold = gold_metal()
+    felt = tex('fabric', '1B2A44', '15213A', rough=.95, scale=6, bump=.08, coat=0)
+    # Tray pulled out of the slot (front of the register at y = .27).
+    box((4.9, 3.0, .6), (0, -1.2, .3), navy_d, .08)
+    box((4.72, 2.84, .06), (0, -1.2, .58), steel, .03)
+    # Front panel with gold trim and handle.
+    mark('front', box((5.0, .32, .74), (0, -2.74, .37), navy, .12))
+    box((5.02, .05, .07), (0, -2.9, .7), gold, .02)
+    box((1.5, .14, .16), (0, -2.94, .4), gold, .06)
+    text('01', (1.85, -2.91, .4), .24, mat(GOLD, .3, .7), extrude=.02, bevel=.004)
+    cyl(.07, .08, (-1.85, -2.92, .44), mat('E9B345', .25, .9), rot=(90, 0, 0))
+    # Where the front panel sits when the drawer is shut (not rendered, only measured).
+    ghost = box((5.0, .32, .74), (0, -2.74 + 2.95, .37), navy, .12); ghost.hide_render = True; mark('front_closed', ghost)
+    # Six note compartments (100 -> 2): felt floor, steel dividers, a stack held by a gold clip, a price tag.
+    bw = .74
+    for i, v in enumerate(NOTE3_ORDER):
+        x = -1.95 + i * .78
+        box((.04, 1.65, .32), (x + bw / 2 + .02, -.5, .74), steel, .01)
+        mark(f'bin{i}', box((bw - .02, 1.6, .04), (x, -.5, .63), felt, .01))
+        top = _note_stack(x, -.52, .67, bw - .1, 1.35, v, 6)
+        bar((x, .2, top + .06), (x, -.35, top + .06), .035, gold)
+        cyl(.07, .1, (x, -.35, top + .06), gold, rot=(90, 0, 0))
+    # Coin row: four round cups, each with a neat stack (R$ 1, 50, 25 and 10 centavos).
+    box((4.6, .66, .05), (0, -2.08, .62), felt, .02)
+    for i, (label, outer, inner, r) in enumerate(COIN4):
+        x = -1.7 + i * 1.13
+        cup = cyl(.46, .1, (x, -2.08, .66), steel, v=64, bev=.03)
+        if i == 0:
+            mark('coins', cup)
+        cyl(.4, .04, (x, -2.08, .7), felt, v=64, bev=.01)
+        _coin_stack(x, -2.08, .7, r, outer, inner, label, 7 - i, seed=i)
+    studio(**REG4_CAM)
+
+
+V4_SPRITES = {'register4_body': register4_body, 'register4_drawer': register4_drawer}
+
 SPRITES = {
     'reg_backdrop': reg_backdrop, 'belt': belt, 'belt_tile': belt_tile, 'scanner_bed': scanner_bed,
     'pos_terminal': pos_terminal, 'card_machine': card_machine,
@@ -1614,6 +1744,7 @@ SPRITES.update(COOLER_SPRITES)
 SPRITES.update(RECEIVING_SPRITES)
 SPRITES.update(V2_SPRITES)
 SPRITES.update(V3_SPRITES)
+SPRITES.update(V4_SPRITES)
 
 
 def main(args):

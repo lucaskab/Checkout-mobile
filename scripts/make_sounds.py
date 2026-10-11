@@ -185,10 +185,11 @@ def declined():
 
 
 def printer():
+    # Thermal printer feeding paper: a soft, low whirr with gentle ticks (was a hissy buzz).
     n = int(SR * .45)
-    gate = (np.sin(2 * np.pi * 26 * t_(.45)) > .2).astype(float)
-    x = band(noise(.45), 1200, 4500) * gate * env(n, .005, None, 1, .04) * .7
-    x += tone(95, .45) * .15 * env(n, .02, None, 1, .05)
+    gate = .55 + .45 * (np.sin(2 * np.pi * 22 * t_(.45)) > .3).astype(float)
+    x = lowpass(band(noise(.45), 300, 1800), 1500) * gate * env(n, .02, None, 1, .06) * .6
+    x += tone(140, .45, 'sine', 120) * .25 * env(n, .03, None, 1, .06)
     return x
 
 

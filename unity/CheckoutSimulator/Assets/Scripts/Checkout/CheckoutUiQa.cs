@@ -107,10 +107,13 @@ namespace Checkout
             game.OpenPreview(Fake("dinheiro"));
             yield return new WaitForSecondsRealtime(1.6f); yield return Shot("counter_1_scan");
             yield return game.QaScanAll();
-            yield return new WaitForSecondsRealtime(2.2f); yield return Shot("counter_2_pay");
+            yield return new WaitForSecondsRealtime(1.3f); yield return Shot("counter_2a_ringing");
+            yield return new WaitForSecondsRealtime(3.0f); yield return Shot("counter_2_pay");
             game.QaPayAll();
             yield return new WaitForSecondsRealtime(2.4f); yield return Shot("counter_3_change");
             game.QaGive(20); yield return new WaitForSecondsRealtime(.8f); yield return Shot("counter_4_change_given");
+            game.QaGive(5); yield return new WaitForSecondsRealtime(.3f); game.QaGive(2);
+            yield return new WaitForSecondsRealtime(1.5f); yield return Shot("counter_4b_receipt");
             CloseWindows(); yield return new WaitForSecondsRealtime(.4f);
             game.OpenPreview(Fake("cartao"));
             yield return new WaitForSecondsRealtime(1.2f);

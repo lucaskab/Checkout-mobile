@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using K = Checkout.CheckoutDesktopKit;
 using U = Checkout.CheckoutUiKit;
+using N = Checkout.CheckoutDesktopCard;
 
 namespace Checkout {
  // The playable register (simulator mode, mobile and desktop). Open it by clicking the register, a
@@ -90,7 +91,7 @@ namespace Checkout {
   public IEnumerator QaScanAll(){foreach(var token in tokens.ToList()){while(busy)yield return null;if(token&&tokenItems.TryGetValue(token,out var item))StartCoroutine(Scan(token,item));yield return new WaitForSecondsRealtime(.15f);}while(busy)yield return null;}
   public void QaPayAll()=>PayAll();
   public void QaGive(int value)=>GiveChange(value);
-  void Clear(){foreach(var o in scene)if(o)Destroy(o);scene.Clear();tokenItems.Clear();if(hint)Destroy(hint);machine=null;register=null;tokens.Clear();changePanel=null;bins.Clear();binShade.Clear();customerNotes.Clear();handNotes.Clear();paying=changing=false;counterCleared=false;}
+  void Clear(){foreach(var o in scene)if(o)Destroy(o);scene.Clear();tokenItems.Clear();if(hint)Destroy(hint);machine=null;register=null;tokens.Clear();changePanel=null;bins.Clear();binShade.Clear();customerNotes.Clear();handNotes.Clear();paying=changing=false;counterCleared=false;receiptDone=false;drawerRect=null;keys.Clear();}
   T Keep<T>(T c) where T:Component{scene.Add(c.gameObject);return c;}
   // Transparent grab area holding a shadow and the art, so the shadow can sit underneath.
   RectTransform Holder(string name,Vector2 size){var img=Keep(CheckoutDesktopCard.Image(stage,name,new Color(1,1,1,0),0));img.raycastTarget=true;U.At(img.rectTransform,Mid,size);return img.rectTransform;}
@@ -326,17 +327,33 @@ namespace Checkout {
    ClearCounter();
    // Phones: the bag leaves too (the change counter takes its corner); it comes back to the customer at the end.
    if(Phone&&bag)StartCoroutine(U.Move(bag.rectTransform,bag.rectTransform.anchoredPosition-new Vector2(0,700),.35f));
-   register=Keep(U.Art(stage,"Register","register_open",Mid,Phone?Mathf.Min(560,stage.rect.height*.9f):440));var home=Phone?P(.5f,.48f):P(.54f,.29f);
-   register.rectTransform.anchoredPosition=home-new Vector2(0,760);Play("drawer_open");StartCoroutine(U.Move(register.rectTransform,home,.5f,true));
-   var display=U.Over(register,"register_open","display");
+   // v4 register (body + a drawer that slides out of its slot) when its art is in; the one-piece v3 otherwise.
+   reg4=U.ArtSprite("register4_body")&&U.ArtSprite("register4_drawer");
+   string bodyArt=reg4?"register4_body":"register_open",drawerArt=reg4?"register4_drawer":"register_open";
+   register=Keep(U.Art(stage,"Register",bodyArt,Mid,Phone?Mathf.Min(reg4?600:560,stage.rect.height*(reg4?.98f:.9f)):(reg4?520:440)));var home=Phone?P(.5f,reg4?.5f:.48f):P(.54f,reg4?.36f:.29f);
+   register.rectTransform.anchoredPosition=home-new Vector2(0,760);Play("whoosh",.8f,.5f);StartCoroutine(U.Move(register.rectTransform,home,.5f,true));
+   Image drawerImage=register;
+   if(reg4){
+    // The drawer lives under a mask whose top is the slot's top edge: shut, only its front panel shows.
+    var slot=U.Mark(bodyArt,"slot");
+    var clip=CheckoutDesktopCard.Node("DrawerClip",register.transform);clip.anchorMin=Vector2.zero;clip.anchorMax=new Vector2(1,slot.yMax);clip.offsetMin=new Vector2(0,-400);clip.offsetMax=Vector2.zero;clip.gameObject.AddComponent<RectMask2D>();
+    drawerImage=N.Image(clip,"Drawer",Color.white,0);drawerImage.sprite=U.ArtSprite(drawerArt);drawerImage.raycastTarget=false;drawerRect=drawerImage.rectTransform;
+    drawerRect.anchorMin=new Vector2(0,0);drawerRect.anchorMax=new Vector2(1,0);drawerRect.pivot=new Vector2(.5f,0);
+    float h=register.rectTransform.rect.height;drawerRect.sizeDelta=new Vector2(0,h);
+    drawerOpenY=400;drawerShutY=drawerOpenY+(U.Mark(drawerArt,"front_closed").yMin-U.Mark(drawerArt,"front").yMin)*h;
+    drawerRect.anchoredPosition=new Vector2(0,drawerShutY);
+    keys.Clear();for(int i=0;i<12;i++)keys.Add(U.Over(register,bodyArt,"k"+i));okKey=U.Over(register,bodyArt,"ok");paperSlot=U.Over(register,bodyArt,"paper");
+   }
+   var display=U.Over(register,bodyArt,"display");
    registerDisplay=U.Label(display,"Text",K.Number,26,"8CFFB0");U.Stretch(registerDisplay.rectTransform,Vector2.zero,Vector2.one,new Vector2(6,2),new Vector2(-6,-2));registerDisplay.text=Money(0);registerDisplay.enableAutoSizing=true;registerDisplay.fontSizeMin=12;registerDisplay.fontSizeMax=26; // "TROCO R$ 27" fits the little display
-   for(int i=0;i<DrawerValues.Length;i++)bins[DrawerValues[i]]=U.Over(register,"register_open","bin"+i,"Bin "+DrawerValues[i]);
-   bins[1]=U.Over(register,"register_open","coins","Bin 1");
+   for(int i=0;i<DrawerValues.Length;i++)bins[DrawerValues[i]]=U.Over(drawerImage,drawerArt,"bin"+i,"Bin "+DrawerValues[i]);
+   bins[1]=U.Over(drawerImage,drawerArt,"coins","Bin 1");
    // The customer's dish with the money they pay with.
    dish=Keep(U.Art(stage,"Dish","change_dish3",Mid,Phone?230:220));dish.rectTransform.anchoredPosition=Phone?P(.16f,.42f):P(.19f,.25f);
    U.Tap(dish,PayAll);
    var badge=Keep(U.Shape(stage,"DishLabel",NavyDark,18,Mid,new Vector2(330,50),DishCenter+new Vector2(0,-138)));badge.color=new Color(.09f,.14f,.25f,.92f);
    dishLabel=U.Label(badge.transform,"L",K.Label,20,"FFFFFF");U.Stretch(dishLabel.rectTransform,Vector2.zero,Vector2.one,new Vector2(10,0),new Vector2(-10,0));dishLabel.text="Cliente pagou "+Money(given);
+   if(reg4){yield return new WaitForSecondsRealtime(.5f);yield return RingUp(price);}else Play("drawer_open");
    screenCaption.text="RECEBER";screenTotal.text=Money(given);screenTotal.color=Color.white;screenExtra.text="Total "+Money(price)+" · "+(changeDue>0?"Troco "+Money(changeDue):"Sem troco");
    StartCoroutine(U.Pop(posScreen,1.06f,.3f));
    yield return new WaitForSecondsRealtime(.5f);
@@ -438,9 +455,99 @@ namespace Checkout {
   IEnumerator BackToDrawer(RectTransform note,int value){yield return Arc(note,BinPoint(value),value<=1?0:90,value<=1?.5f:.42f,.3f,80);if(note)Destroy(note.gameObject);PopBin(value);}
   IEnumerator ChangeDone(){finished=true;changing=false;yield return new WaitForSecondsRealtime(.5f);yield return CloseDrawer();finished=false;yield return Finish();}
   IEnumerator CloseDrawer(){
+   if(reg4&&drawerRect){
+    // The drawer slides home and clicks shut; the register prints the receipt.
+    Play("drawer_open",.85f,.7f);
+    yield return SlideDrawer(drawerOpenY,drawerShutY,.3f,false);
+    Play("bonk",.7f,.5f);StartCoroutine(U.Shake(register.rectTransform,.15f,5));
+    if(registerDisplay)registerDisplay.text="OBRIGADO!";
+    yield return PrintReceipt(At(paperSlot),true);
+    yield break;
+   }
    Play("drawer_open",1.25f,.8f);
    if(register)yield return U.Move(register.rectTransform,register.rectTransform.anchoredPosition-new Vector2(0,760),.32f);
    StartCoroutine(U.Shake(stage,.15f,4));
+  }
+
+  // ------------------------------------------------------------------ v4 register: keys, drawer, receipt
+  bool reg4,receiptDone;RectTransform drawerRect,okKey,paperSlot;float drawerOpenY,drawerShutY;readonly List<RectTransform> keys=new List<RectTransform>();
+  // The cashier types the total (one key per digit), presses OK, the bell rings and the drawer springs open.
+  IEnumerator RingUp(long amount){
+   var digits=amount.ToString();
+   for(int i=0;i<digits.Length;i++){
+    int d=digits[i]-'0';int index=d==0?9:d>=7?d-7:d>=4?d-1:d+5; // keypad rows 7 8 9 / 4 5 6 / 1 2 3 / 0 00 ,
+    yield return PressKey(keys.Count>index?keys[index]:null);
+    if(registerDisplay)registerDisplay.text="R$ "+digits.Substring(0,i+1);
+   }
+   yield return new WaitForSecondsRealtime(.08f);
+   yield return PressKey(okKey,true);
+   Play("cash_register",1,.75f);StartCoroutine(U.Pop(register.transform,1.03f,.25f));
+   if(registerDisplay)registerDisplay.text="TOTAL "+Money(amount);
+   Play("drawer_open",1,.8f);
+   yield return SlideDrawer(drawerShutY,drawerOpenY,.42f,true);
+   StartCoroutine(U.Shake(register.rectTransform,.12f,4));
+  }
+  IEnumerator PressKey(RectTransform key,bool big=false){
+   if(!key)yield break;
+   var shade=U.Box(key,"Press","000000",8,Vector2.zero,Vector2.one);shade.color=new Color(0,0,0,.32f);shade.raycastTarget=false;
+   var glow=U.GlowAt(key,"Glow",new Color(1,.95f,.7f,.55f),Mid,Mathf.Max(key.rect.width,key.rect.height)*1.8f);
+   Play("tap",big?.8f:1f+UnityEngine.Random.Range(-.08f,.08f),big?.9f:.6f);
+   yield return new WaitForSecondsRealtime(big?.14f:.09f);
+   if(shade)Destroy(shade.gameObject);if(glow)StartCoroutine(FlashOut(glow));
+   yield return new WaitForSecondsRealtime(.04f);
+  }
+  IEnumerator SlideDrawer(float from,float to,float seconds,bool overshoot){
+   if(!drawerRect)yield break;
+   for(float t=0;t<1;t+=Time.unscaledDeltaTime/seconds){
+    float e=overshoot?1-Mathf.Pow(1-t,3)+Mathf.Sin(t*Mathf.PI)*.06f:t*t*(3-2*t);
+    if(!drawerRect)yield break;drawerRect.anchoredPosition=new Vector2(0,Mathf.LerpUnclamped(from,to,e));yield return null;
+   }
+   if(drawerRect)drawerRect.anchoredPosition=new Vector2(0,to);
+  }
+
+  // A paper receipt rolls out of the printer line by line (real items, total, how they paid), is torn off and
+  // flies to the customer. Cash: from the register's printer; card: out of the top of the card machine.
+  IEnumerator PrintReceipt(Vector2 from,bool cash){
+   if(receiptDone)yield break;receiptDone=true;
+   float w=Phone?250:270;
+   // Mask: the paper only shows above the printer's slit.
+   var clip=CheckoutDesktopCard.Node("ReceiptClip",stage);clip.anchorMin=clip.anchorMax=Mid;clip.pivot=new Vector2(.5f,0);clip.sizeDelta=new Vector2(w+40,900);clip.anchoredPosition=from;clip.gameObject.AddComponent<RectMask2D>();scene.Add(clip.gameObject);
+   var paper=N.Image(clip,"Receipt",K.C("FFFDF6"),6);var pr=paper.rectTransform;pr.anchorMin=pr.anchorMax=new Vector2(.5f,0);pr.pivot=new Vector2(.5f,1);
+   var col=N.Column(paper.gameObject,1,new RectOffset(14,14,12,14));col.childAlignment=TextAnchor.UpperCenter;
+   var fit=paper.gameObject.AddComponent<ContentSizeFitter>();fit.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
+   pr.sizeDelta=new Vector2(w,0);
+   var shadow=paper.gameObject.AddComponent<Shadow>();shadow.effectColor=new Color(0,0,0,.25f);shadow.effectDistance=new Vector2(3,-3);
+   void Line(string left,string right,float size=15,string color="3A3A3A",bool center=false){
+    var t=U.Label(paper.transform,"Line",K.Number,size,color,center?TextAlignmentOptions.Center:TextAlignmentOptions.Left);t.textWrappingMode=TextWrappingModes.NoWrap;
+    t.text=right==null?left:$"{left}<pos=66%>{right}";t.gameObject.AddComponent<LayoutElement>().preferredHeight=size+6;
+   }
+   Line("MERCADINHO",null,17,"1D2B4F",true);Line("CAIXA 01 · CUPOM",null,12,"8A8A8A",true);Line("- - - - - - - - - - - -",null,12,"B0B0B0",true);
+   foreach(var item in entry.items??Array.Empty<CheckoutLine>())Line($"{item.quantity}x {Short(item.name)}",Money(item.quantity*item.unitPrice),13);
+   Line("- - - - - - - - - - - -",null,12,"B0B0B0",true);
+   Line("TOTAL",Money(total),16,"1D2B4F");
+   if(cash){Line("DINHEIRO",Money(given),13);if(changeDue>0)Line("TROCO",Money(changeDue),13);}else Line("CARTÃO","OK",13);
+   Line("Obrigado, volte sempre!",null,12,"8A8A8A",true);
+   Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(pr);
+   float height=pr.rect.height;pr.anchoredPosition=new Vector2(0,0);
+   // Line feed: the paper comes up in little steps with the printer's whirr.
+   int steps=Mathf.Clamp(Mathf.RoundToInt(height/22),6,14);
+   Play("printer",1,.55f);
+   for(int i=1;i<=steps;i++){
+    float y=height*i/steps;
+    for(float t=0;t<1;t+=Time.unscaledDeltaTime/.05f){if(!pr)yield break;pr.anchoredPosition=new Vector2(0,Mathf.Lerp(height*(i-1)/steps,y,t));yield return null;}
+    if(i%5==0)Play("printer",1.05f,.4f);
+    yield return new WaitForSecondsRealtime(.03f);
+   }
+   yield return new WaitForSecondsRealtime(.35f);
+   // Torn off: out of the mask, a little tilt, then it flies to the customer and shrinks into the bag.
+   Play("note_1",1.2f,.8f);
+   paper.transform.SetParent(stage,true);StartCoroutine(U.Rotate(paper.transform,-8,.15f));
+   yield return new WaitForSecondsRealtime(.18f);
+   var target=portraitRect?At(portraitRect)+new Vector2(60,-40):P(.15f,.8f);
+   StartCoroutine(U.Scale(paper.transform,Vector3.one*.25f,.45f));
+   yield return U.Move(pr,target+new Vector2(0,pr.rect.height*.12f),.45f);
+   if(paper)Destroy(paper.gameObject);
+   Play("pop",1.1f,.5f);
   }
   // Notes and coins that add up to the amount (largest first).
   static List<int> Split(long amount){var notes=new List<int>();foreach(var v in Denominations)while(amount>=v&&notes.Count<12){notes.Add(v);amount-=v;}return notes;}
@@ -452,6 +559,7 @@ namespace Checkout {
   IEnumerator Finish(){
    if(finished&&closeAt>0)yield break;finished=true;StopHint();
    if(!preview)bridge.Command("completeCheckout","[\""+entry.id+"\","+Math.Max(1,charged)+"]");
+   if(machine&&!receiptDone)yield return PrintReceipt(At(machine.rectTransform)+new Vector2(0,machine.rectTransform.rect.height*.5f-6),false);
    Play("success");StartCoroutine(Emote("heart"));
    screenCaption.text="PAGO";screenTotal.text=Money(total);screenTotal.color=K.C(Green);screenExtra.text="Obrigado, volte sempre!";
    // The bag goes to the customer, coins fly to the POS and sparkles pop.
