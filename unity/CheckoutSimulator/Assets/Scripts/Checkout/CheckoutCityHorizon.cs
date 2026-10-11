@@ -19,7 +19,14 @@ namespace Checkout
         // The fog starts a little inside the map's edge and is solid this far out (metres).
         public const float FogStart = -1f, FogEnd = 20f;
         const int RingCells = 5;          // tiles added round the map on every side
-        const float Houses = 22f;         // how far out houses are built (the fog is solid past it)
+        const float Houses = 22f;         // how far out the park trees go (the fog is solid past it)
+        // Only a few houses, in a loose row hugging the map's edge: the city "goes on" into the fog. It used to pack
+        // every block out to 22 m (~180 copies of 150-175k-triangle Tripo houses, ~28M triangles a frame), which
+        // was what made the iPhone lag.
+        const float HouseRow = 8f;        // how far past the edge a house may stand
+        const float HouseGap = 5f;        // free space kept around each one
+        const int HousesPerBlock = 3;     // five blocks round the map: ~15 houses in all
+        const int ParkTrees = 12;
 
         Transform world, root; Rect playable; Camera view;
         TilemapRenderer tilesRenderer; MeshRenderer ring; MaterialPropertyBlock block; Texture atlas; float refresh;
@@ -162,18 +169,24 @@ namespace Checkout
             placed.Clear();
             float x0 = Mathf.Max(block.xMin, playable.xMin - Houses), x1 = Mathf.Min(block.xMax, playable.xMax + Houses);
             float z0 = Mathf.Max(block.yMin, playable.yMin - Houses), z1 = Mathf.Min(block.yMax, playable.yMax + Houses);
+            // Spots along the edge, tried in a shuffled (seeded, so always the same) order: the few houses spread out
+            // along the block instead of piling up in its first corner.
+            var spots = new List<Vector2>();
             for (float z = z0 + .3f; z < z1; z += 1f)
                 for (float x = x0 + .3f; x < x1; x += 1f)
+                    if (Distance(new Vector2(x, z)) <= HouseRow) spots.Add(new Vector2(x, z));
+            for (int i = spots.Count - 1; i > 0; i--) { int j = random.Next(i + 1); (spots[i], spots[j]) = (spots[j], spots[i]); }
+            foreach (var p in spots)
                 {
-                    var p = new Vector2(x, z);
-                    if (Distance(p) > Houses || OnMap(new Rect(p, Vector2.one * .1f)) || placed.Any(q => q.Contains(p))) continue;
+                    if (placed.Count >= HousesPerBlock) return;
+                    if (Distance(p) > HouseRow || OnMap(new Rect(p, Vector2.one * .1f)) || placed.Any(q => q.Contains(p))) continue;
                     // Rows like the map's own in the same block: the side blocks face the local street (east block
                     // west, west block east), the block behind the market faces the avenue side (south).
                     var facing = block.center.x > 20 ? Vector3.left : block.center.x < -20 ? Vector3.right : Vector3.back;
                     var t = houses[random.Next(houses.Count)]; Footprint(t, out var w, out var d);
                     var size = Mathf.Abs(facing.z) > .5f ? new Vector2(w, d) : new Vector2(d, w);
                     var rect = new Rect(p, size);
-                    if (rect.xMax > block.xMax - .2f || rect.yMax > block.yMax - .2f || OnMap(rect) || placed.Any(q => q.Overlaps(Shrink(rect, .1f)))) continue;
+                    if (rect.xMax > block.xMax - .2f || rect.yMax > block.yMax - .2f || OnMap(rect) || placed.Any(q => q.Overlaps(Shrink(rect, -HouseGap)))) continue;
                     Place(t, rect.center, facing); placed.Add(rect); Buildings++;
                 }
         }
@@ -182,7 +195,7 @@ namespace Checkout
         void Park(Rect block)
         {
             if (trees.Count == 0) return;
-            for (int k = 0; k < 60; k++)
+            for (int k = 0; k < ParkTrees; k++)
             {
                 var p = new Vector2(Mathf.Lerp(block.xMin + 1.5f, block.xMax - 1.5f, (float)random.NextDouble()), Mathf.Lerp(playable.yMin - Houses, playable.yMin, (float)random.NextDouble()));
                 if (OnMap(new Rect(p - Vector2.one * 1.5f, Vector2.one * 3))) continue;
@@ -212,6 +225,7 @@ namespace Checkout
                 go.transform.SetPositionAndRotation(m.GetColumn(3), m.rotation); go.transform.localScale = m.lossyScale;
                 go.AddComponent<MeshFilter>().sharedMesh = part.mesh;
                 var mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterials = part.materials;   // lit and shaded like the map's own
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;               // out in the fog: no shadow pass
             }
         }
 
