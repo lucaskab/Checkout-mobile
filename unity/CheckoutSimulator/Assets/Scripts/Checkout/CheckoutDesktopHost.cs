@@ -152,6 +152,13 @@ namespace Checkout {
   }
   static string Quote(string value)=>"\""+(value??"").Replace("\\","\\\\").Replace("\"","\\\"")+"\"";
 
+  // Every message starts with {"kind":"..." (JSON.stringify keeps key order): read it without parsing the whole line
+  // (the snapshot is tens of KB and was parsed twice a second for nothing).
+  const string KindPrefix="{\"kind\":\"";
+  static string KindOf(string line){
+   if(line.StartsWith(KindPrefix,System.StringComparison.Ordinal)){int end=line.IndexOf('"',KindPrefix.Length);if(end>0)return line.Substring(KindPrefix.Length,end-KindPrefix.Length);}
+   return JsonUtility.FromJson<Kind>(line)?.kind;
+  }
   // The game page stack is shown again (the map editor hides it while editing).
   public CheckoutDesktopHUD Hud=>hud;
   void Update(){
@@ -159,7 +166,7 @@ namespace Checkout {
    // Only the newest view matters; snapshots and results are applied in order.
    string latestView=null;
    while(lines.TryDequeue(out var line)){
-    string kind;try {kind=JsonUtility.FromJson<Kind>(line)?.kind;}catch {continue;}
+    string kind;try {kind=KindOf(line);}catch {continue;}
     if(kind=="view")latestView=line;
     else if(kind=="snapshot")bridge.Receive(line);
     else if(kind=="result")hud.Result(line);

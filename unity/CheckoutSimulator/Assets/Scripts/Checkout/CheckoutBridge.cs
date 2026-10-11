@@ -51,7 +51,7 @@ namespace Checkout {
   void Update(){simulation.ExternalCamera();if(State==null){hello+=Time.unscaledDeltaTime;if(hello>1){hello=0;Emit("{\"kind\":\"ready\",\"protocol\":1}");}return;}
    simulation.speed=1;
    // New customers wait outside while the player rearranges the shop in build mode.
-   if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open){var walker=NextAvailableWalker();if(walker){if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(walkers.All(w=>!w.gameObject.activeSelf||Vector3.Distance(w.transform.position,map.Entrance)>1.5f)){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
+   if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open){var walker=NextAvailableWalker();if(walker){if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(WalkersClearOfEntrance()){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
    if(Input.GetMouseButtonDown(0)){pointerStart=Input.mousePosition;pointerDragged=false;}
    if(Input.touchCount>1||(Input.GetMouseButton(0)&&Vector2.Distance(pointerStart,Input.mousePosition)>10))pointerDragged=true;
    if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutPointer.OverUi){
@@ -61,11 +61,15 @@ namespace Checkout {
      else if(action.panel=="finishWorks")Command("finishMarketExpansionNow","[]");else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="windowSale"){var fx=GetComponent<CheckoutEventVisuals>();if(fx)fx.ServeWindow(action.requestId);}else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);}}
    }
   }
-  string AppearanceKey(CheckoutWalker walker){var motion=walker.GetComponent<MarketCharacterAnimator>();var body=motion.animationPlayer.GetComponentsInChildren<SkinnedMeshRenderer>(true).FirstOrDefault(r=>!r.name.EndsWith("_Prop"));return body&&body.sharedMaterial&&body.sharedMaterial.mainTexture?body.sharedMaterial.mainTexture.name:walker.name;}
+  // Scratch lists for the per-frame walker search (filled in place, never reallocated).
+  readonly List<SkinnedMeshRenderer> bodyRenderers=new List<SkinnedMeshRenderer>();readonly List<CheckoutWalker> idleWalkers=new List<CheckoutWalker>();
+  // True when no walker stands at the entrance (a walker counts when it is active and within 1.5 m of it).
+  bool WalkersClearOfEntrance(){foreach(var w in walkers)if(w.gameObject.activeSelf&&!(Vector3.Distance(w.transform.position,map.Entrance)>1.5f))return false;return true;}
+  string AppearanceKey(CheckoutWalker walker){var motion=walker.GetComponent<MarketCharacterAnimator>();bodyRenderers.Clear();motion.animationPlayer.GetComponentsInChildren<SkinnedMeshRenderer>(true,bodyRenderers);SkinnedMeshRenderer body=null;foreach(var r in bodyRenderers)if(!r.name.EndsWith("_Prop")){body=r;break;}return body&&body.sharedMaterial&&body.sharedMaterial.mainTexture?body.sharedMaterial.mainTexture.name:walker.name;}
   CheckoutWalker NextAvailableWalker(){
    // Several pooled actors share the same GLB; randomize appearances, not actor IDs.
-   if(appearanceBag.Count==0){appearanceBag.AddRange(walkers.Select(AppearanceKey).Distinct());for(int i=appearanceBag.Count-1;i>0;i--){int j=UnityEngine.Random.Range(0,i+1);var t=appearanceBag[i];appearanceBag[i]=appearanceBag[j];appearanceBag[j]=t;}if(appearanceBag.Count>1&&appearanceBag[0]==lastAppearance){var t=appearanceBag[0];appearanceBag[0]=appearanceBag[1];appearanceBag[1]=t;}}
-   foreach(var key in appearanceBag){var available=walkers.Where(w=>!w.Reserved&&!w.gameObject.activeSelf&&AppearanceKey(w)==key).ToArray();if(available.Length>0)return available[UnityEngine.Random.Range(0,available.Length)];}return null;
+   if(appearanceBag.Count==0){for(int n=0;n<walkers.Count;n++){var k=AppearanceKey(walkers[n]);if(!appearanceBag.Contains(k))appearanceBag.Add(k);}for(int i=appearanceBag.Count-1;i>0;i--){int j=UnityEngine.Random.Range(0,i+1);var t=appearanceBag[i];appearanceBag[i]=appearanceBag[j];appearanceBag[j]=t;}if(appearanceBag.Count>1&&appearanceBag[0]==lastAppearance){var t=appearanceBag[0];appearanceBag[0]=appearanceBag[1];appearanceBag[1]=t;}}
+   foreach(var key in appearanceBag){idleWalkers.Clear();foreach(var w in walkers)if(!w.Reserved&&!w.gameObject.activeSelf&&AppearanceKey(w)==key)idleWalkers.Add(w);if(idleWalkers.Count>0)return idleWalkers[UnityEngine.Random.Range(0,idleWalkers.Count)];}return null;
   }
   void AppearanceStarted(CheckoutWalker walker){lastAppearance=AppearanceKey(walker);appearanceBag.Remove(lastAppearance);}
   public void OpenPanel(string panel,string shelfId="",string sectorId="",string requestId="")=>Emit(JsonUtility.ToJson(new PanelMessage{kind="panel",panel=panel,shelfId=shelfId,sectorId=sectorId,requestId=requestId}));

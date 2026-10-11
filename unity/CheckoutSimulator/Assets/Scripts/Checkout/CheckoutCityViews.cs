@@ -54,7 +54,9 @@ namespace Checkout
 
         // While something shows the map (the delivery app's GPS), it asks for it every frame and the map renders every
         // frame (LateUpdate, after the cars and bikes moved), so it plays like a live view instead of 2 s snapshots.
-        static float mapLiveUntil;
+        static float mapLiveUntil, mapLiveNext;
+        const float LiveMapInterval = 1f / 12f;
+        float windowNext;
         public static void KeepMapLive() { mapLiveUntil = Time.unscaledTime + .25f; }
 
         // Renders the map now (it is also rendered every ~2 s by itself).
@@ -161,8 +163,16 @@ namespace Checkout
         // The window is the store front looking across the avenue at the park (CheckoutCityPark), 1.6 m high.
         void LateUpdate()
         {
-            if (Time.unscaledTime < mapLiveUntil) { mapTimer = MapRefreshSeconds; RenderMap(); }
+            // Live map: ~12 renders a second instead of every frame (each render draws the whole city a second time).
+            if (Time.unscaledTime < mapLiveUntil && Time.unscaledTime >= mapLiveNext)
+            {
+                mapLiveNext = Time.unscaledTime + LiveMapInterval;
+                mapTimer = MapRefreshSeconds;
+                RenderMap();
+            }
             if (!WindowViewActive || windowCamera == null || map == null) return;
+            if (Time.unscaledTime < windowNext) return; // 20 renders a second is plenty for the view out of the window
+            windowNext = Time.unscaledTime + .05f;
             Vector3 entrance = map.Entrance;
             // A little up and to the side of the door (clear of the lamp posts), so the view clears the parked cars and
             // looks over the avenue into the park.

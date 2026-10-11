@@ -163,6 +163,7 @@ namespace Checkout {
    (CheckoutStockroom.Instance&&CheckoutStockroom.Instance.IsOpen)||(CheckoutPackingGame.Instance&&CheckoutPackingGame.Instance.IsOpen)||
    (CheckoutIncidents.Instance&&CheckoutIncidents.Instance.IsOpen);
 
+  float coachSearchAt;string coachSearchSpec,coachLayoutKey;bool coachFoundCache;Rect coachHoleCache;
   void UpdateCoach(){
    if(coachRoot==null)return;
    if(coachReward.gameObject.activeSelf)coachReward.SetAsLastSibling();
@@ -187,7 +188,11 @@ namespace Checkout {
     return;
    }
    coachCard.localScale=Vector3.one;
-   bool found=FindCoachTarget(coach.target,out var hole);
+   // The target search walks the scene: ~6 times a second is enough (it ran every frame and cost the iPhone).
+   if(Time.unscaledTime>=coachSearchAt||coach.target!=coachSearchSpec){
+    coachSearchAt=Time.unscaledTime+.16f;coachSearchSpec=coach.target;coachFoundCache=FindCoachTarget(coach.target,out coachHoleCache);
+   }
+   bool found=coachFoundCache;var hole=coachHoleCache;
    // Wait a moment for a target that is still appearing (a page opening); after that never lock the screen.
    if(!found){if(coachMissingSince<0)coachMissingSince=Time.unscaledTime;}else coachMissingSince=-1;
    bool spotlight=coach.mode=="spotlight"&&found;
@@ -211,7 +216,7 @@ namespace Checkout {
     coachHand.localScale=Vector3.one*(1-.08f*Mathf.Max(0,pulse));coachHand.SetAsLastSibling();
    }
    // The card stands next to the target (above it in the lower half, below it in the upper half), else under the top bar.
-   LayoutRebuilder.ForceRebuildLayoutImmediate(coachCard);
+   if(coachLayoutKey!=coach.key+coach.text){coachLayoutKey=coach.key+coach.text;LayoutRebuilder.ForceRebuildLayoutImmediate(coachCard);}
    var card=coachCard.rect.size;
    Vector2 at;
    if(found){

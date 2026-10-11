@@ -25,6 +25,7 @@ namespace Checkout {
   CheckoutBridge bridge;RectTransform root,stage,dockFab,restockFab;GameObject window,hint;TextMeshProUGUI title,dockCount,restockCount;Image backdrop;
   AudioSource sound;AudioClip thud,click,ding,buzz,slide;
   readonly List<GameObject> scene=new List<GameObject>();float closeAt;
+  readonly HashSet<string> truckIds=new HashSet<string>();int shownTrucks=-1,shownLow=-1;
 
   public void Initialize(CheckoutBridge owner){
    Instance=this;bridge=owner;
@@ -254,14 +255,17 @@ namespace Checkout {
 
   void Update(){
    var s=bridge.State;
-   int trucks=s?.dock==null?0:s.dock.Select(d=>string.IsNullOrEmpty(d.orderId)?d.id:d.orderId).Distinct().Count(),low=(s?.restockSlots??Array.Empty<RestockSlot>()).Count(x=>x.reserve>0&&x.stock<x.capacity*.35f);
+   // Distinct trucks (one per order, or per box when it has none) and the shelves running low, counted without LINQ.
+   int trucks=0,low=0;
+   if(s?.dock!=null){truckIds.Clear();foreach(var d in s.dock)truckIds.Add(string.IsNullOrEmpty(d.orderId)?d.id:d.orderId);trucks=truckIds.Count;}
+   var slots=s?.restockSlots;if(slots!=null)foreach(var x in slots)if(x.reserve>0&&x.stock<x.capacity*.35f)low++;
    // The shop and shelf windows cover the corner where these buttons float.
    bool free=!IsOpen&&!OtherGameOpen&&!CheckoutDesktopHUD.ShopOpen;
-   dockFab.gameObject.SetActive(free&&trucks>0);if(trucks>0)dockCount.text=trucks.ToString();
+   dockFab.gameObject.SetActive(free&&trucks>0);if(trucks>0&&trucks!=shownTrucks){shownTrucks=trucks;dockCount.text=trucks.ToString();}
    // A working stock clerk refills the shelves on his own, so the manual REPOR mini-game goes away.
-   bool clerk=(s?.employees??Array.Empty<Employee>()).Any(e=>e!=null&&e.isWorking&&e.role=="stock_clerk");
+   bool clerk=false;var employees=s?.employees;if(employees!=null)foreach(var e in employees)if(e!=null&&e.isWorking&&e.role=="stock_clerk"){clerk=true;break;}
    if(clerk)low=0;
-   restockFab.gameObject.SetActive(free&&low>0);if(low>0)restockCount.text=low.ToString();
+   restockFab.gameObject.SetActive(free&&low>0);if(low>0&&low!=shownLow){shownLow=low;restockCount.text=low.ToString();}
    if(dockFab.gameObject.activeSelf)dockFab.localScale=Vector3.one*(1+Mathf.Sin(Time.unscaledTime*4)*.03f);
    if(!IsOpen)return;
    if(closeAt>0&&Time.unscaledTime>closeAt){Close();return;}

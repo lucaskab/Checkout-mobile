@@ -178,13 +178,23 @@ namespace Checkout {
   // the delivery worker unloads it, and once the order is in it drives off again.
   public CheckoutDeliveryTrucks Trucks {get;private set;}
   public CheckoutCityHorizon Horizon {get;private set;}
-  void UpdateSupplierDeliveries(){if(!Trucks)return;var claimed=new HashSet<Transform>();var docked=new HashSet<string>((state.dock??System.Array.Empty<DockEntry>()).Select(d=>d.id));foreach(var order in state.orders.Where(order=>order.status=="em-transporte"||docked.Contains("entrega-"+order.id)).OrderBy(order=>order.createdAt)){var truck=TruckFor(order,claimed);if(!truck)continue;claimed.Add(truck);
-   bool atBay=Trucks.Arrive(truck);
-   if(atBay&&dispatchedDeliveryOrders.Add(order.id))deliveryWorker?.QueueDelivery(truck,Trucks.Home(truck),order.createdAt+order.deliveryDurationMs);
-   DockClick(truck,docked.Contains("entrega-"+order.id)&&atBay);
-  }
+  // Per-frame scratch lists (reused, so the frame allocates nothing here).
+  readonly HashSet<Transform> claimedTrucks=new HashSet<Transform>();readonly List<Order> dueOrders=new List<Order>();
+  void UpdateSupplierDeliveries(){if(!Trucks)return;var claimed=claimedTrucks;claimed.Clear();var dock=state.dock;
+   // The orders on their way or waiting at the dock, oldest first. A stable insertion sort: equal createdAt keep their order (as OrderBy did).
+   dueOrders.Clear();
+   foreach(var order in state.orders)if(order.status=="em-transporte"||DockedFor(dock,order.id)){int at=dueOrders.Count;dueOrders.Add(order);while(at>0&&dueOrders[at-1].createdAt>order.createdAt){dueOrders[at]=dueOrders[at-1];at--;}dueOrders[at]=order;}
+   for(int n=0;n<dueOrders.Count;n++){var order=dueOrders[n];var truck=TruckFor(order,claimed);if(!truck)continue;claimed.Add(truck);
+    bool atBay=Trucks.Arrive(truck);
+    if(atBay&&dispatchedDeliveryOrders.Add(order.id))deliveryWorker?.QueueDelivery(truck,Trucks.Home(truck),order.createdAt+order.deliveryDurationMs);
+    DockClick(truck,DockedFor(dock,order.id)&&atBay);
+   }
    foreach(var truck in Trucks.All){if(claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck)))continue;Trucks.Release(truck);}
   }
+  // Whether a dock entry is "entrega-" + orderId (the old set of joined ids), compared in place: no string per order.
+  static bool DockedFor(DockEntry[] dock,string orderId){if(dock==null)return false;const string prefix="entrega-";string id=orderId??"";
+   foreach(var d in dock)if(d.id!=null&&d.id.Length==prefix.Length+id.Length&&string.CompareOrdinal(d.id,0,prefix,0,prefix.Length)==0&&string.CompareOrdinal(d.id,prefix.Length,id,0,id.Length)==0)return true;
+   return false;}
   // A truck parked with goods still to unload can be clicked to open the unloading mini-game.
   static void DockClick(Transform truck,bool on){
    var click=truck.Find("DockClick");

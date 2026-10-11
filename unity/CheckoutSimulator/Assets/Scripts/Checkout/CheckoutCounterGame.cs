@@ -28,7 +28,7 @@ namespace Checkout {
   CheckoutBridge bridge;RectTransform root,stage,fabRect;GameObject window,fab;
   TextMeshProUGUI title,fabText;Image backdrop;
   AudioSource sound;
-  CheckoutEntry entry;int itemsLeft;long charged,total,subtotal;bool busy,finished;float closeAt;
+  CheckoutEntry entry;int itemsLeft;long charged,total,subtotal;bool busy,finished;float closeAt;int fabCount=-1;
   readonly List<GameObject> scene=new List<GameObject>();GameObject hint;
   // Fixtures
   RectTransform beltSurface,glass,bagMouth,posScreen,receipt,basketRect,portraitRect;
@@ -64,6 +64,8 @@ namespace Checkout {
   // ------------------------------------------------------------------ flow
   CheckoutEntry Find(string id){var list=bridge.State?.checkouts;if(list==null)return null;foreach(var c in list)if(c.id==id)return c;return null;}
   IEnumerable<CheckoutEntry> Ready(){var now=CheckoutBridge.Now;return (bridge.State?.checkouts??Array.Empty<CheckoutEntry>()).Where(c=>c.readyAt<=now&&CheckoutWalker.AtRegister(c.customerId)).OrderBy(c=>c.readyAt);} // only customers standing at the till
+  // The same count as Ready().Count() without the sort or the enumerators (Update runs every frame).
+  int CountReady(){var list=bridge.State?.checkouts;if(list==null)return 0;var now=CheckoutBridge.Now;int n=0;foreach(var c in list)if(c.readyAt<=now&&CheckoutWalker.AtRegister(c.customerId))n++;return n;}
 
   public void Open(string checkoutId){
    var next=string.IsNullOrEmpty(checkoutId)?null:Find(checkoutId);
@@ -453,8 +455,8 @@ namespace Checkout {
   IEnumerator Emote(string kind){if(!portraitRect)yield break;yield return U.Emote(this,stage,kind,At(portraitRect)+new Vector2(90,70),90);}
 
   void Update(){
-   var ready=Ready().Count();
-   fab.SetActive(ready>0&&!IsOpen&&!(CheckoutIncidents.Instance&&CheckoutIncidents.Instance.IsOpen));if(fab.activeSelf){fabText.text=ready.ToString();fabRect.localScale=Vector3.one*(1+Mathf.Sin(Time.unscaledTime*4)*.03f);}
+   int ready=CountReady();
+   fab.SetActive(ready>0&&!IsOpen&&!(CheckoutIncidents.Instance&&CheckoutIncidents.Instance.IsOpen));if(fab.activeSelf){if(ready!=fabCount){fabCount=ready;fabText.text=ready.ToString();}fabRect.localScale=Vector3.one*(1+Mathf.Sin(Time.unscaledTime*4)*.03f);}
    if(!IsOpen)return;
    // Belt keeps running; the laser breathes.
    if(beltRaw){var r=beltSurface.rect;float tiles=r.height>0?r.width/(r.height*4f):4;beltRaw.uvRect=new Rect(-Time.unscaledTime*.35f,0,tiles,1);}
@@ -493,7 +495,7 @@ namespace Checkout {
    public Portrait(RawImage raw,string id,Image placeholder){image=raw;customerId=id;fallback=placeholder;image.enabled=false;Tick();}
    void Attach(Transform walker){
     target=walker;headBone=null;headAbove=-1;texture=new RenderTexture(384,384,24);
-    var go=new GameObject("Customer portrait camera");cam=go.AddComponent<Camera>();cam.targetTexture=texture;cam.fieldOfView=30;cam.nearClipPlane=.05f;cam.farClipPlane=80;cam.depth=-20;
+    var go=new GameObject("Customer portrait camera");cam=go.AddComponent<Camera>();cam.targetTexture=texture;cam.fieldOfView=30;cam.nearClipPlane=.05f;cam.farClipPlane=7;cam.depth=-20;cam.enabled=false;renderAt=0;
     cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=K.C("EAD9BE");
     image.texture=texture;image.enabled=true;if(fallback)fallback.enabled=false;
    }
@@ -513,7 +515,10 @@ namespace Checkout {
     // FOV 30: the visible height is ~0.54 x distance; about 2.2 head heights fit (the head and the shoulders).
     float d=headSize*2.2f/.536f;
     cam.transform.position=center+face*d+Vector3.up*headSize*.08f;cam.transform.LookAt(center);
+    // Rendered by hand ~15 times a second and only as deep as the customer: it drew the whole city every frame.
+    if(Time.unscaledTime>=renderAt){renderAt=Time.unscaledTime+1f/15f;cam.Render();}
    }
+   float renderAt;
    float headAbove=-1;
    void FindHead(){
     var animator=target.GetComponentInChildren<Animator>();if(animator&&animator.isHuman)headBone=animator.GetBoneTransform(HumanBodyBones.Head);

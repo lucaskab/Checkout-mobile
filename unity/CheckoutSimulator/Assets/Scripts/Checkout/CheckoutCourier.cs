@@ -62,6 +62,10 @@ namespace Checkout
         readonly HashSet<string> departed = new HashSet<string>();
         // Preview routes (store curb to customer door) for orders whose bike is not out yet.
         readonly Dictionary<string, List<Vector3>> previews = new Dictionary<string, List<Vector3>>();
+        // Per-frame scratch lists for Update (cleared and refilled, so the frame allocates nothing here).
+        readonly HashSet<string> liveOrders = new HashSet<string>();
+        readonly List<string> goneOrders = new List<string>();
+        readonly List<Bike> stepBikes = new List<Bike>();
         static GameObject riderModel, parkedModel;
         static bool modelsLoaded;
         Vector3 spawnEast, despawnWest;
@@ -155,7 +159,8 @@ namespace Checkout
                 return;
             }
             var orders = bridge.State != null && bridge.State.delivery != null ? bridge.State.delivery.orders : null;
-            var live = new HashSet<string>();
+            liveOrders.Clear();
+            var live = liveOrders;
             if (orders != null)
             {
                 foreach (var order in orders)
@@ -165,13 +170,18 @@ namespace Checkout
                     Sync(order);
                 }
             }
-            var gone = new List<string>();
+            goneOrders.Clear();
+            var gone = goneOrders;
             foreach (var pair in bikes) if (!live.Contains(pair.Key)) gone.Add(pair.Key);
             foreach (var id in gone) { Discard(bikes[id]); bikes.Remove(id); departed.Remove(id); }
 
             float dt = Time.deltaTime;
-            foreach (var bike in new List<Bike>(bikes.Values))
+            // The bikes as they are at the start of this frame (a bike may leave the dictionary while the loop runs).
+            stepBikes.Clear();
+            foreach (var b in bikes.Values) stepBikes.Add(b);
+            for (int i = 0; i < stepBikes.Count; i++)
             {
+                var bike = stepBikes[i];
                 if (!bike.root) continue;
                 if (!bike.root.gameObject.activeSelf && bike.phase != Phase.Waiting) bike.root.gameObject.SetActive(true);
                 if (bike.phase == Phase.Waiting) UpdateWaiting(bike);

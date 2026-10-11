@@ -76,6 +76,8 @@ __pycache__/
 unity/**/ArtSource/*.log
 unity/**/Assets/_Recovery/
 unity/**/Assets/_Recovery.meta
+# Assets moved out of the build (Supermarket > Performance > Move unused assets); restorable from the Editor
+unity/**/_Unused/
 checkout-desktop-save.json.*
 
 # Release builds for testers (scripts/release/build-host.ts, Checkout/Desktop/Build Release for testers)
