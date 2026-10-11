@@ -18,12 +18,12 @@ STAGING = PROJECT + "/ArtSource/mobile_lod"
 ORIGINALS = PROJECT + "/_Unused/originals"
 PREVIEWS = PROJECT + "/Temp/qa/mobile_lod"
 
-DEFAULT_BUDGET = 20000
+DEFAULT_BUDGET = 30000
 # Small props seen many times over (crates, boxes, planters, traffic lights): a lower budget.
 BUDGETS = {
-    "VegetableCrate": 8000, "CardboardBox": 8000, "FlowerPlanter": 8000, "TrafficLight": 10000,
+    "VegetableCrate": 12000, "CardboardBox": 12000, "FlowerPlanter": 12000, "TrafficLight": 14000,
     # One big single mesh (the whole café): a higher budget.
-    "plaza-cafe": 40000,
+    "plaza-cafe": 60000,
 }
 
 
@@ -82,20 +82,54 @@ def _decimate(sc, budget):
         if before <= budget * 1.3:
             report.append((o.name, before, before))
             continue
-        smooth = sum(1 for p in o.data.polygons if p.use_smooth) > len(o.data.polygons) / 2
+        # Polish (Lucas, 11/10: "riscos" on walls and cars): the first pass let the decimator cut across UV island
+        # borders (texture streaks) and re-shaded the faces (lighting lines). Now
+        #  - the UV island borders are protected (a weighted vertex group the collapse avoids), and
+        #  - the original's normals are copied onto the light mesh, so it lights exactly like the full model.
+        source = o.copy()
+        source.data = o.data.copy()
+        sc.collection.objects.link(source)
         for other in sc.objects:
             other.select_set(False)
         bpy.context.view_layer.objects.active = o
         o.select_set(True)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.seams_from_islands(mark_seams=True, mark_sharp=False)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        borders = {v for e in o.data.edges if e.use_seam for v in e.vertices}
+        keep = o.vertex_groups.new(name="MobileLOD_keep")
+        if borders:
+            keep.add(list(borders), 1.0, 'REPLACE')
         m = o.modifiers.new("MobileLOD", 'DECIMATE')
         m.decimate_type = 'COLLAPSE'
         m.ratio = budget / before
         m.use_collapse_triangulate = True
+        m.vertex_group = keep.name
+        m.vertex_group_factor = 100.0
         bpy.ops.object.modifier_apply(modifier=m.name)
-        if smooth:
-            bpy.ops.object.shade_smooth()
-        else:
-            bpy.ops.object.shade_auto_smooth(angle=math.radians(30))
+        if _tris(o) > budget * 1.5:
+            # Models cut into very many UV islands (our own Blender builds) can't come down with every border kept:
+            # start again from the full mesh without the protection (their colours are flat, borders matter less).
+            o.data = source.data.copy()
+            m = o.modifiers.new("MobileLOD", 'DECIMATE')
+            m.decimate_type = 'COLLAPSE'
+            m.ratio = budget / before
+            m.use_collapse_triangulate = True
+            bpy.ops.object.modifier_apply(modifier=m.name)
+        bpy.ops.object.shade_smooth()
+        dt = o.modifiers.new("MobileLOD_normals", 'DATA_TRANSFER')
+        dt.object = source
+        dt.use_loop_data = True
+        dt.data_types_loops = {'CUSTOM_NORMAL'}
+        dt.loop_mapping = 'POLYINTERP_NEAREST'
+        bpy.ops.object.modifier_apply(modifier=dt.name)
+        left = o.vertex_groups.get("MobileLOD_keep")
+        if left is not None:
+            o.vertex_groups.remove(left)
+        for e in o.data.edges:
+            e.use_seam = False
+        bpy.data.objects.remove(source, do_unlink=True)
         report.append((o.name, before, _tris(o)))
     return report
 
@@ -126,6 +160,24 @@ def _render_pair(rel, before_path, after_path, out_png):
         before = set(sc.objects)
         bpy.ops.import_scene.fbx(filepath=path)
         objs[side] = [o for o in sc.objects if o not in before]
+    # The game's own texture (Unity assigns it; the FBX copies outside Assets don't find theirs).
+    stem = os.path.splitext(os.path.basename(rel))[0]
+    tex_path = os.path.join(ASSETS, os.path.dirname(rel), stem + "_BaseColor.png")
+    if os.path.exists(tex_path):
+        mat = bpy.data.materials.get("MOBILE_LOD_TEX_" + stem) or bpy.data.materials.new("MOBILE_LOD_TEX_" + stem)
+        mat.use_nodes = True
+        nt = mat.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
+        bsdf.inputs['Roughness'].default_value = 0.85
+        tex = nt.nodes.get("TEX") or nt.nodes.new('ShaderNodeTexImage')
+        tex.name = "TEX"
+        tex.image = bpy.data.images.load(tex_path, check_existing=True)
+        nt.links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+        for side in objs.values():
+            for o in side:
+                if o.type == 'MESH':
+                    o.data.materials.clear()
+                    o.data.materials.append(mat)
     def bounds(objs):
         pts = [o.matrix_world @ mathutils.Vector(c) for o in objs if o.type == 'MESH' for c in o.bound_box]
         lo = mathutils.Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
@@ -170,7 +222,8 @@ def _render_pair(rel, before_path, after_path, out_png):
 def run(files, previews=True):
     done = {}
     for rel in files:
-        src = os.path.join(ASSETS, rel)
+        # Always from the full original (kept in _Unused/originals once a light version is installed).
+        src = os.path.join(ORIGINALS, rel) if os.path.exists(os.path.join(ORIGINALS, rel)) else os.path.join(ASSETS, rel)
         dst = os.path.join(STAGING, rel)
         sc = _clean_scene("MOBILE_LOD")
         outside = set(bpy.data.objects.keys()) | set(bpy.data.meshes.keys())
