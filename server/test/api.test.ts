@@ -68,12 +68,20 @@ describe("Google ID tokens", () => {
 });
 
 describe("the API", () => {
-	const store = memoryStore();
+	const store = memoryStore(undefined, 0);
 	const identities: Record<string, { sub: string; email: string; name: string }> = {
 		"token-ana": { sub: "g-ana", email: "ana@example.com", name: "Ana" },
 		"token-bia": { sub: "g-bia", email: "bia@example.com", name: "Bia" },
 	};
-	const server = createServer(createApp({ store, verifyGoogle: async (t) => identities[t] ?? null, sessionSecret: SECRET, rateLimit: 1000 }));
+	const server = createServer(
+		createApp({
+			store,
+			verifyGoogle: async (t) => identities[t] ?? null,
+			exchangeCode: async (code, verifier, uri) => (code === "code-ana" && verifier === "v" && uri.startsWith("http://127.0.0.1:") ? "token-ana" : null),
+			sessionSecret: SECRET,
+			rateLimit: 1000,
+		}),
+	);
 	let base = "";
 	before(() => new Promise<void>((done) => server.listen(0, () => ((base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`), done()))));
 	after(() => new Promise<void>((done) => server.close(() => done())));
@@ -101,6 +109,14 @@ describe("the API", () => {
 		assert.equal(first.player.email, "ana@example.com");
 		assert.equal(first.save, null);
 		assert.equal((await signIn("token-ana")).player.id, first.player.id, "same Google account, same player");
+	});
+
+	test("PC/Editor login trades the browser code on the server; only loopback redirects", async () => {
+		const ok = await call("POST", "/v1/auth/google-code", { code: "code-ana", codeVerifier: "v", redirectUri: "http://127.0.0.1:51234/" });
+		assert.equal(ok.status, 200);
+		assert.equal(ok.body.player.email, "ana@example.com");
+		assert.equal((await call("POST", "/v1/auth/google-code", { code: "stolen", codeVerifier: "v", redirectUri: "http://127.0.0.1:1/" })).status, 400);
+		assert.equal((await call("POST", "/v1/auth/google-code", { code: "code-ana", codeVerifier: "v", redirectUri: "https://evil.example/" })).status, 400);
 	});
 
 	test("the save needs a session", async () => {

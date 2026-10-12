@@ -1,10 +1,11 @@
 import { createServer } from "node:http";
 import { createApp } from "./app.ts";
 import { prismaStore } from "./prisma-store.ts";
-import { googleVerifier } from "./tokens.ts";
+import { googleCodeExchange, googleVerifier } from "./tokens.ts";
 
 // Settings (Render › Environment): DATABASE_URL (Prisma Postgres), SESSION_SECRET (Render generates it),
-// GOOGLE_CLIENT_IDS (the game's OAuth client ids, comma-separated: web/server, desktop…).
+// GOOGLE_CLIENT_IDS (the game's OAuth client ids, comma-separated: web/server, desktop…),
+// GOOGLE_DESKTOP_CLIENT_ID + GOOGLE_DESKTOP_CLIENT_SECRET (optional: login from the PC build and the Unity Editor).
 const need = (name: string) => {
 	const value = process.env[name];
 	if (!value) throw new Error(`Missing setting ${name}`);
@@ -19,6 +20,10 @@ const store = prismaStore();
 const app = createApp({
 	store,
 	verifyGoogle: googleVerifier(clientIds),
+	exchangeCode:
+		process.env.GOOGLE_DESKTOP_CLIENT_ID && process.env.GOOGLE_DESKTOP_CLIENT_SECRET
+			? googleCodeExchange(process.env.GOOGLE_DESKTOP_CLIENT_ID, process.env.GOOGLE_DESKTOP_CLIENT_SECRET)
+			: null,
 	sessionSecret,
 	log: (line) => console.log(new Date().toISOString(), line),
 });

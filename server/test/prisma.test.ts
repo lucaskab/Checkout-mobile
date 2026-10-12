@@ -9,7 +9,7 @@ const summary = (diamonds: number) => ({ level: 2, era: "mesinha", coins: 1, dia
 
 describe("Prisma store (Postgres)", { skip: !enabled && "no DATABASE_URL" }, async () => {
 	const { prismaStore } = await import("../src/prisma-store.ts");
-	const store = prismaStore();
+	const store = prismaStore(undefined, 0);
 	after(() => store.close());
 	const sub = `g-${Date.now()}`;
 

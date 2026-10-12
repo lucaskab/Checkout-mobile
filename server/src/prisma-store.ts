@@ -1,5 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
-import { HISTORY_KEPT, type SaveRecord, type SaveSummary } from "./save.ts";
+import { HISTORY_EVERY_MS, HISTORY_KEPT, type SaveRecord, type SaveSummary } from "./save.ts";
 import type { Store } from "./store.ts";
 
 const toRecord = (row: { revision: number; data: string; summary: unknown; deviceId: string; updatedAt: Date }): SaveRecord => ({
@@ -10,9 +10,14 @@ const toRecord = (row: { revision: number; data: string; summary: unknown; devic
 	updatedAt: row.updatedAt,
 });
 
-/** Players and saves in Postgres (Prisma Postgres in production). */
-export function prismaStore(prisma = new PrismaClient()): Store & { close(): Promise<void> } {
-	return {
+/**
+ * Players and saves in Postgres (Prisma Postgres in production). Prisma Postgres bills per operation, so a
+ * normal upload costs two: read the current save, then replace it only if it is still that revision (a
+ * conditional update — two phones uploading at once cannot both win). A restore point adds two more, at most
+ * once an hour.
+ */
+export function prismaStore(prisma = new PrismaClient(), historyEveryMs = HISTORY_EVERY_MS): Store & { close(): Promise<void> } {
+	const store: Store & { close(): Promise<void> } = {
 		close: () => prisma.$disconnect(),
 		async signIn(googleSub, email, name) {
 			const player = await prisma.player.upsert({
@@ -31,37 +36,38 @@ export function prismaStore(prisma = new PrismaClient()): Store & { close(): Pro
 			return save && toRecord(save);
 		},
 		async replaceSave(playerId, upload, accept) {
-			try {
-				return await prisma.$transaction(
-					async (tx) => {
-						// Lock the player's row so two uploads for the same player run one after the other.
-						await tx.$queryRaw`SELECT id FROM players WHERE id = ${playerId} FOR UPDATE`;
-						const row = await tx.cloudSave.findUnique({ where: { playerId } });
-						const current = row && toRecord(row);
-						if (!accept(current)) return { ok: false as const, current };
-						const fields = { data: upload.data, summary: upload.summary as Prisma.InputJsonValue, deviceId: upload.deviceId, updatedAt: new Date() };
-						let saved;
-						if (row) {
-							await tx.saveHistory.create({
-								data: { playerId, revision: row.revision, data: row.data, summary: row.summary as Prisma.InputJsonValue, deviceId: row.deviceId, savedAt: row.updatedAt },
-							});
-							const old = await tx.saveHistory.findMany({ where: { playerId }, orderBy: { savedAt: "desc" }, skip: HISTORY_KEPT, select: { id: true } });
-							if (old.length) await tx.saveHistory.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
-							saved = await tx.cloudSave.update({ where: { playerId }, data: { ...fields, revision: row.revision + 1 } });
-						} else saved = await tx.cloudSave.create({ data: { ...fields, playerId, revision: 1 } });
-						return { ok: true as const, save: toRecord(saved) };
-					},
-					{ timeout: 15_000 },
-				);
-			} catch (error) {
-				// Two first uploads at once: the other one created the save; report it as the current one.
-				if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
-					return { ok: false, current: await this.getSave(playerId) };
-				throw error;
+			const current = await store.getSave(playerId);
+			if (!accept(current)) return { ok: false, current };
+			const updatedAt = new Date();
+			const fields = { data: upload.data, summary: upload.summary as Prisma.InputJsonValue, deviceId: upload.deviceId, updatedAt };
+			if (!current) {
+				try {
+					const created = await prisma.cloudSave.create({ data: { ...fields, playerId, revision: 1 } });
+					return { ok: true, save: toRecord(created) };
+				} catch (error) {
+					// Another phone created the first save at the same moment.
+					if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
+						return { ok: false, current: await store.getSave(playerId) };
+					throw error;
+				}
 			}
+			if (updatedAt.getTime() - current.updatedAt.getTime() >= historyEveryMs) {
+				await prisma.saveHistory.create({
+					data: { playerId, revision: current.revision, data: current.data, summary: current.summary as Prisma.InputJsonValue, deviceId: current.deviceId, savedAt: current.updatedAt },
+				});
+				const old = await prisma.saveHistory.findMany({ where: { playerId }, orderBy: { savedAt: "desc" }, skip: HISTORY_KEPT, select: { id: true } });
+				if (old.length) await prisma.saveHistory.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
+			}
+			const { count } = await prisma.cloudSave.updateMany({
+				where: { playerId, revision: current.revision },
+				data: { ...fields, revision: current.revision + 1 },
+			});
+			if (count === 0) return { ok: false, current: await store.getSave(playerId) };
+			return { ok: true, save: { ...upload, revision: current.revision + 1, updatedAt } };
 		},
 		async deletePlayer(id) {
 			await prisma.player.deleteMany({ where: { id } });
 		},
 	};
+	return store;
 }

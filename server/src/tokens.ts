@@ -86,3 +86,17 @@ async function fetchGoogleKeys() {
 	const maxAge = /max-age=(\d+)/.exec(response.headers.get("cache-control") ?? "")?.[1];
 	return { keys: (await response.json()) as KeySet, maxAgeMs: (maxAge ? Number(maxAge) : 3600) * 1000 };
 }
+
+/** PC/Editor login (OAuth "installed app" with PKCE): Google's token endpoint trades the code for an ID token. */
+export function googleCodeExchange(clientId: string, clientSecret: string) {
+	return async (code: string, codeVerifier: string, redirectUri: string) => {
+		const response = await fetch("https://oauth2.googleapis.com/token", {
+			method: "POST",
+			headers: { "content-type": "application/x-www-form-urlencoded" },
+			body: new URLSearchParams({ code, code_verifier: codeVerifier, redirect_uri: redirectUri, client_id: clientId, client_secret: clientSecret, grant_type: "authorization_code" }),
+		});
+		if (!response.ok) return null;
+		const body = (await response.json()) as { id_token?: unknown };
+		return typeof body.id_token === "string" ? body.id_token : null;
+	};
+}

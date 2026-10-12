@@ -19,5 +19,11 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      # Public ids (not secrets): the game's web client (audience of the phone's Google login) and the PC/Editor client.
       - key: GOOGLE_CLIENT_IDS
+        value: 663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com,663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com
+      - key: GOOGLE_DESKTOP_CLIENT_ID
+        value: 663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com
+      # Pasted by Lucas in Render (secret): the PC/Editor client's secret.
+      - key: GOOGLE_DESKTOP_CLIENT_SECRET
         sync: false

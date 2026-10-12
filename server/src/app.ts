@@ -6,6 +6,8 @@ import { type GoogleVerifier, readSession, signSession } from "./tokens.ts";
 /**
  * The game's API (all JSON):
  * - POST /v1/auth/google  {idToken}                       → {token, player, save: summary | null}
+ * - POST /v1/auth/google-code {code, codeVerifier, redirectUri} → the same (PC/Editor: the browser login's code
+ *   is exchanged here, so the game never carries the desktop client's secret)
  * - GET  /v1/save                                          → {revision, updatedAt, summary, data} | 404
  * - PUT  /v1/save         {baseRevision, data, deviceId, force?} → {revision, updatedAt, summary}
  *                                                           | 409 {error:"conflict", current: {revision, updatedAt, summary, deviceId}}
@@ -16,6 +18,8 @@ import { type GoogleVerifier, readSession, signSession } from "./tokens.ts";
 export type AppOptions = {
 	store: Store;
 	verifyGoogle: GoogleVerifier;
+	/** PC/Editor login: trades the browser login's code for Google's ID token (null when not configured). */
+	exchangeCode?: ((code: string, codeVerifier: string, redirectUri: string) => Promise<string | null>) | null;
 	sessionSecret: string;
 	now?: () => number;
 	/** Requests per minute per address (and per player). */
@@ -90,8 +94,16 @@ export function createApp(options: AppOptions) {
 		const method = req.method ?? "GET";
 		if (path === "/health" || path === "/") return { status: 200, body: { ok: true } };
 
-		if (path === "/v1/auth/google" && method === "POST") {
-			const { idToken } = await readJson(req);
+		if ((path === "/v1/auth/google" || path === "/v1/auth/google-code") && method === "POST") {
+			const body = await readJson(req);
+			let idToken = body.idToken;
+			if (path === "/v1/auth/google-code") {
+				const { code, codeVerifier, redirectUri } = body;
+				if (!options.exchangeCode) throw new HttpError(404, { error: "not-configured" });
+				if (typeof code !== "string" || typeof codeVerifier !== "string" || typeof redirectUri !== "string" || !/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(redirectUri))
+					throw new HttpError(400, { error: "bad-code" });
+				idToken = await options.exchangeCode(code, codeVerifier, redirectUri);
+			}
 			if (typeof idToken !== "string" || idToken.length > 8192) throw new HttpError(400, { error: "missing-token" });
 			const identity = await verifyGoogle(idToken);
 			if (!identity) throw new HttpError(401, { error: "google-refused" });

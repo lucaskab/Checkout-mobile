@@ -6,6 +6,9 @@
  */
 export const MAX_SAVE_BYTES = 2 * 1024 * 1024;
 export const HISTORY_KEPT = 10;
+/** A replaced save becomes a restore point only if it is at least this old (an upload every few minutes
+ * would otherwise fill the history with near-copies and double the database work). */
+export const HISTORY_EVERY_MS = 60 * 60_000;
 
 export type SaveSummary = {
 	level: number;
