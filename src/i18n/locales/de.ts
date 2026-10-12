@@ -3402,6 +3402,13 @@ const catalog: Catalog = {
 	"Já sei jogar": "Ich kann schon spielen",
 	"PRÓXIMO OBJETIVO": "NÄCHSTES ZIEL",
 	"DICA": "TIPP",
+	// Register receipt (Unity checkout game)
+	"Obrigado, volte sempre!": "Danke, bis bald!",
+	"Obrigado!": "Danke!",
+	"Muito!": "Zu viel!",
+	"Pagou certinho!": "Passend bezahlt!",
+	"Troco certo!": "Genau richtig!",
+	"Cupom": "Beleg",
 };
 
 export default catalog;

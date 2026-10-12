@@ -75,7 +75,7 @@ namespace Checkout {
    if(next==null){if(bridge)bridge.OpenPanel("team");return;} // Nobody waiting: the register opens the team page as before.
    entry=next;charged=0;subtotal=0;busy=false;finished=false;closeAt=0;
    total=(long)Math.Round(entry.total);
-   title.text="Caixa · "+entry.customerName;
+   title.text=CheckoutI18n.F("Caixa · {0}",entry.customerName);
    window.SetActive(true);window.transform.SetAsLastSibling();Canvas.ForceUpdateCanvases();
    StopAllCoroutines();BuildScene();StartCoroutine(Intro());
   }
@@ -85,7 +85,7 @@ namespace Checkout {
   bool preview;readonly Dictionary<RectTransform,CheckoutLine> tokenItems=new Dictionary<RectTransform,CheckoutLine>();
   public void OpenPreview(CheckoutEntry fake){
    entry=fake;preview=true;charged=0;subtotal=0;busy=false;finished=false;closeAt=0;total=(long)Math.Round(fake.total);
-   title.text="Caixa · "+fake.customerName;window.SetActive(true);window.transform.SetAsLastSibling();Canvas.ForceUpdateCanvases();
+   title.text=CheckoutI18n.F("Caixa · {0}",fake.customerName);window.SetActive(true);window.transform.SetAsLastSibling();Canvas.ForceUpdateCanvases();
    StopAllCoroutines();BuildScene();StartCoroutine(Intro());
   }
   public IEnumerator QaScanAll(){foreach(var token in tokens.ToList()){while(busy)yield return null;if(token&&tokenItems.TryGetValue(token,out var item))StartCoroutine(Scan(token,item));yield return new WaitForSecondsRealtime(.15f);}while(busy)yield return null;}
@@ -129,15 +129,15 @@ namespace Checkout {
    var name=U.Label(card.transform,"Name",K.Headline,32,"FFFFFF",TextAlignmentOptions.Left);U.Stretch(name.rectTransform,new Vector2(0,.5f),new Vector2(1,1),new Vector2(168,0),new Vector2(-16,-12));name.text=entry.customerName;
    var chip=U.Shape(card.transform,"Pay",entry.method=="cartao"?"2E8CAE":"5DA637",16,new Vector2(0,0),new Vector2(190,46),new Vector2(168+95,40));
    U.Icon(chip.transform,"Icon",entry.method=="cartao"?"Game/card_blue":"Game/note_10",new Vector2(0,.5f),new Vector2(44,30),new Vector2(30,0));
-   payChip=U.Label(chip.transform,"Label",K.Label,20,"FFFFFF",TextAlignmentOptions.Left);U.Stretch(payChip.rectTransform,Vector2.zero,Vector2.one,new Vector2(58,0),new Vector2(-8,0));payChip.text=entry.method=="cartao"?"Cartão":"Dinheiro";
+   payChip=U.Label(chip.transform,"Label",K.Label,20,"FFFFFF",TextAlignmentOptions.Left);U.Stretch(payChip.rectTransform,Vector2.zero,Vector2.one,new Vector2(58,0),new Vector2(-8,0));payChip.text=CheckoutI18n.T(entry.method=="cartao"?"Cartão":"Dinheiro");
    // No step tracker (Lucas, 11/10: it added nothing and ate the top of the stage); the POS screen says what is next.
    // POS monitor: the receipt fills up by itself as items are scanned.
    var pos=Keep(U.Art(stage,"POS","pos_display",new Vector2(Phone?.82f:.8f,Phone?.72f:.74f),330));posScreen=U.Over(pos,"pos_display","screen");
-   var head=U.Label(posScreen,"Head",K.Label,15,"8FA7CF",TextAlignmentOptions.TopLeft);U.Stretch(head.rectTransform,Vector2.zero,Vector2.one,new Vector2(16,8),new Vector2(-16,-8));head.text="MERCADINHO · CAIXA 01";if(CheckoutScreen.Handheld)head.rectTransform.offsetMax=new Vector2(-64,-8); // clear of the close button
+   var head=U.Label(posScreen,"Head",K.Label,15,"8FA7CF",TextAlignmentOptions.TopLeft);U.Stretch(head.rectTransform,Vector2.zero,Vector2.one,new Vector2(16,8),new Vector2(-16,-8));head.text=CheckoutI18n.T("MERCADINHO")+" · "+CheckoutI18n.T("CAIXA")+" 01";if(CheckoutScreen.Handheld)head.rectTransform.offsetMax=new Vector2(-64,-8); // clear of the close button
    receipt=CheckoutDesktopCard.Node("Receipt",posScreen);U.Stretch(receipt,new Vector2(0,.36f),new Vector2(1,.86f),new Vector2(16,0),new Vector2(-16,0));
    var column=CheckoutDesktopCard.Column(receipt.gameObject,2);column.childAlignment=TextAnchor.LowerLeft;column.childForceExpandHeight=false;
    var line=U.Box(posScreen,"Rule","E8B04A",0,new Vector2(0,.34f),new Vector2(1,.34f));line.rectTransform.offsetMin=new Vector2(16,-1);line.rectTransform.offsetMax=new Vector2(-16,1);
-   screenCaption=U.Label(posScreen,"Caption",K.Label,18,"E8B04A",TextAlignmentOptions.BottomLeft);U.Stretch(screenCaption.rectTransform,new Vector2(0,0),new Vector2(.45f,.2f),new Vector2(16,8),Vector2.zero);screenCaption.text="SUBTOTAL";
+   screenCaption=U.Label(posScreen,"Caption",K.Label,18,"E8B04A",TextAlignmentOptions.BottomLeft);U.Stretch(screenCaption.rectTransform,new Vector2(0,0),new Vector2(.45f,.2f),new Vector2(16,8),Vector2.zero);screenCaption.text=CheckoutI18n.T("SUBTOTAL");
    screenTotal=U.Label(posScreen,"Total",K.Number,46,"FFFFFF",TextAlignmentOptions.BottomRight);U.Stretch(screenTotal.rectTransform,new Vector2(.4f,0),new Vector2(1,.21f),Vector2.zero,new Vector2(-16,2));screenTotal.enableAutoSizing=true;screenTotal.fontSizeMin=26;screenTotal.fontSizeMax=46;screenTotal.text=Money(0);
    screenExtra=U.Label(posScreen,"Extra",K.Label,16,"B9C7E0",TextAlignmentOptions.TopLeft);U.Stretch(screenExtra.rectTransform,new Vector2(0,.2f),new Vector2(1,.33f),new Vector2(16,0),new Vector2(-16,0));screenExtra.textWrappingMode=TextWrappingModes.NoWrap;screenExtra.overflowMode=TextOverflowModes.Overflow;screenExtra.fontSize=16;screenExtra.enableAutoSizing=true;screenExtra.fontSizeMin=10;screenExtra.fontSizeMax=16; // one line, shrinks to fit (it wrapped onto the caption)screenExtra.text=entry.items.Length==1?"1 item":entry.items.Length+" itens";
    // Belt (the rubber surface keeps running), scanner and bag.
@@ -147,7 +147,7 @@ namespace Checkout {
    scanner=Keep(U.Art(stage,"Scanner","scanner_bed",new Vector2(.72f,.3f),200));glass=U.Over(scanner,"scanner_bed","glass");
    laserGlow=U.GlowAt(glass,"LaserGlow",new Color(1,.25f,.2f,.55f),Mid,10);laserGlow.rectTransform.anchorMin=new Vector2(0,.5f);laserGlow.rectTransform.anchorMax=new Vector2(1,.5f);laserGlow.rectTransform.sizeDelta=new Vector2(40,70);
    laser=U.Shape(glass,"Laser","FF4A3A",2,Mid,new Vector2(10,5));laser.rectTransform.anchorMin=new Vector2(.03f,.5f);laser.rectTransform.anchorMax=new Vector2(.97f,.5f);laser.rectTransform.sizeDelta=new Vector2(0,5);
-   var scanTag=U.Shape(scanner.transform,"Tag",NavyDark,12,new Vector2(.5f,0),new Vector2(130,34),new Vector2(0,-8));var st=U.Label(scanTag.transform,"L",K.Label,16,"FFFFFF");U.Stretch(st.rectTransform,Vector2.zero,Vector2.one);st.text="LEITOR";
+   var scanTag=U.Shape(scanner.transform,"Tag",NavyDark,12,new Vector2(.5f,0),new Vector2(130,34),new Vector2(0,-8));var st=U.Label(scanTag.transform,"L",K.Label,16,"FFFFFF");U.Stretch(st.rectTransform,Vector2.zero,Vector2.one);st.text=CheckoutI18n.T("LEITOR");
    bag=Keep(U.Art(stage,"Bag","shopping_bag",new Vector2(.9f,.33f),230));bagMouth=U.Over(bag,"shopping_bag","mouth");
    basketRect=Keep(U.Icon(stage,"Basket","Icons/basket",new Vector2(.08f,.3f),new Vector2(170,170))).rectTransform;
   }
@@ -199,7 +199,7 @@ namespace Checkout {
    yield return U.Move(token,g+new Vector2(60,10),.2f);
    laser.color=K.C("FF4A3A");laserGlow.color=new Color(1,.25f,.2f,.55f);
    double price=item.quantity*item.unitPrice;subtotal+=(long)Math.Round(price);
-   AddLine($"{item.quantity}x {Short(item.name)}",Money(price));
+   AddLine($"{item.quantity}x {Short(CheckoutI18n.T(item.name))}",Money(price)); // composed lines are not caught by the auto translator: translate the name
    screenTotal.text=Money(subtotal);StartCoroutine(U.Pop(screenTotal.transform,1.1f,.2f));
    // Arc into the bag.
    var from=token.anchoredPosition;var to=At(bagMouth);
@@ -222,7 +222,7 @@ namespace Checkout {
   IEnumerator Totals(){
    charged=total;
    screenCaption.text="TOTAL";screenTotal.text=Money(total);screenTotal.color=K.C(Gold);StartCoroutine(U.Pop(posScreen,1.06f,.3f));
-   screenExtra.text=entry.method=="cartao"?"Pagamento no cartão":"Pagamento em dinheiro";
+   screenExtra.text=CheckoutI18n.T(entry.method=="cartao"?"Pagamento no cartão":"Pagamento em dinheiro");
    Play("cash_register",1,.7f);StartCoroutine(Emote("heart"));
    yield return new WaitForSecondsRealtime(.7f);
    Step(1);
@@ -272,7 +272,7 @@ namespace Checkout {
    machineText.text="";machineIcon.gameObject.SetActive(true);machineIcon.rectTransform.localScale=Vector3.zero;StartCoroutine(U.Scale(machineIcon.rectTransform,Vector3.one,.3f,true));
    if(approved){
     machineIcon.sprite=K.Icon("Icons/success");machineFlash.color=new Color(.55f,.95f,.5f,.9f);led.color=new Color(.35f,1,.35f,1);Play("card_ok");StartCoroutine(U.Pop(machine.rectTransform,1.06f,.3f));
-    screenExtra.text="Cartão aprovado";
+    screenExtra.text=CheckoutI18n.T("Cartão aprovado");
     yield return new WaitForSecondsRealtime(.35f);
     Play("card_slide",1.3f,.6f);yield return U.Move(card,outside+new Vector2(0,20),.22f);
     card.SetParent(stage,true);StartCoroutine(U.Rotate(card,-10,.3f));StartCoroutine(U.Move(card,P(.12f,.7f),.45f));StartCoroutine(U.Scale(card,Vector3.one*.4f,.45f));
@@ -281,7 +281,7 @@ namespace Checkout {
    }
    else{
     machineIcon.sprite=K.Icon("Icons/warning");machineFlash.color=new Color(1,.4f,.3f,.9f);led.color=new Color(1,.25f,.2f,1);Play("card_no");StartCoroutine(U.Shake(machine.rectTransform,.5f,12));
-    screenExtra.text="Cartão recusado";
+    screenExtra.text=CheckoutI18n.T("Cartão recusado");
     yield return new WaitForSecondsRealtime(.25f);
     yield return U.Move(card,outside+new Vector2(0,60),.18f);Play("card_slide",1.4f,.5f);
     card.SetParent(stage,true);StartCoroutine(Emote("sweat"));
@@ -343,6 +343,8 @@ namespace Checkout {
     drawerOpenY=400;drawerShutY=drawerOpenY+(U.Mark(drawerArt,"front_closed").yMin-U.Mark(drawerArt,"front").yMin)*h;
     drawerRect.anchoredPosition=new Vector2(0,drawerShutY);
     keys.Clear();for(int i=0;i<12;i++)keys.Add(U.Over(register,bodyArt,"k"+i));okKey=U.Over(register,bodyArt,"ok");paperSlot=U.Over(register,bodyArt,"paper");
+    // The brand plate's word is drawn here so it follows the player's language.
+    if(U.Mark(bodyArt,"plate").width>0){var plate=U.Label(U.Over(register,bodyArt,"plate"),"Word",K.Headline,22,Gold);U.Stretch(plate.rectTransform,Vector2.zero,Vector2.one);plate.text=CheckoutI18n.T("CAIXA");plate.enableAutoSizing=true;plate.fontSizeMin=8;plate.fontSizeMax=22;}
    }
    var display=U.Over(register,bodyArt,"display");
    registerDisplay=U.Label(display,"Text",K.Number,26,"8CFFB0");U.Stretch(registerDisplay.rectTransform,Vector2.zero,Vector2.one,new Vector2(6,2),new Vector2(-6,-2));registerDisplay.text=Money(0);registerDisplay.enableAutoSizing=true;registerDisplay.fontSizeMin=12;registerDisplay.fontSizeMax=26; // "TROCO R$ 27" fits the little display
@@ -350,11 +352,13 @@ namespace Checkout {
    bins[1]=U.Over(drawerImage,drawerArt,"coins","Bin 1");
    // The customer's dish with the money they pay with.
    dish=Keep(U.Art(stage,"Dish","change_dish3",Mid,Phone?230:220));dish.rectTransform.anchoredPosition=Phone?P(.16f,.42f):P(.19f,.25f);
+   // "TROCO" on the mat, in the player's language (the art leaves the spot blank).
+   if(U.Mark("change_dish3","label").width>0){var word=U.Label(U.Over(dish,"change_dish3","label"),"Word",K.Headline,24,Gold);U.Stretch(word.rectTransform,Vector2.zero,Vector2.one);word.text=CheckoutI18n.T("TROCO");word.enableAutoSizing=true;word.fontSizeMin=8;word.fontSizeMax=24;}
    U.Tap(dish,PayAll);
    var badge=Keep(U.Shape(stage,"DishLabel",NavyDark,18,Mid,new Vector2(330,50),DishCenter+new Vector2(0,-138)));badge.color=new Color(.09f,.14f,.25f,.92f);
-   dishLabel=U.Label(badge.transform,"L",K.Label,20,"FFFFFF");U.Stretch(dishLabel.rectTransform,Vector2.zero,Vector2.one,new Vector2(10,0),new Vector2(-10,0));dishLabel.text="Cliente pagou "+Money(given);
+   dishLabel=U.Label(badge.transform,"L",K.Label,20,"FFFFFF");U.Stretch(dishLabel.rectTransform,Vector2.zero,Vector2.one,new Vector2(10,0),new Vector2(-10,0));dishLabel.text=CheckoutI18n.F("Cliente pagou {0}",Money(given));
    if(reg4){yield return new WaitForSecondsRealtime(.5f);yield return RingUp(price);}else Play("drawer_open");
-   screenCaption.text="RECEBER";screenTotal.text=Money(given);screenTotal.color=Color.white;screenExtra.text="Total "+Money(price)+" · "+(changeDue>0?"Troco "+Money(changeDue):"Sem troco");
+   screenCaption.text=CheckoutI18n.T("RECEBER");screenTotal.text=Money(given);screenTotal.color=Color.white;screenExtra.text=CheckoutI18n.T("Total")+" "+Money(price)+" · "+(changeDue>0?CheckoutI18n.T("Troco")+" "+Money(changeDue):CheckoutI18n.T("Sem troco"));
    StartCoroutine(U.Pop(posScreen,1.06f,.3f));
    yield return new WaitForSecondsRealtime(.5f);
    var notes=Split(given);
@@ -386,7 +390,7 @@ namespace Checkout {
    if(!last)yield break;
    paying=false;
    yield return new WaitForSecondsRealtime(.3f);
-   if(changeDue<=0){dishLabel.text="Pagou certinho!";registerDisplay.text="OK";Step(2);yield return CloseDrawer();yield return Finish();}
+   if(changeDue<=0){dishLabel.text=CheckoutI18n.T("Pagou certinho!");registerDisplay.text="OK";Step(2);yield return CloseDrawer();yield return Finish();}
    else{Step(2);BuildChange();StartCoroutine(Emote("question"));}
   }
   // A thrown curve with a turn and a change of size (money flying between the dish and the drawer).
@@ -402,9 +406,9 @@ namespace Checkout {
   void BuildChange(){
    changing=true;
    screenCaption.text="TROCO";screenTotal.text=Money(changeDue);screenTotal.color=K.C(Gold);StartCoroutine(U.Pop(posScreen,1.08f,.3f));
-   dishLabel.text="Toque na gaveta para dar o troco";
+   dishLabel.text=CheckoutI18n.T("Toque na gaveta para dar o troco");
    var face=Card("Change",Phone?P(.84f,.28f):P(.19f,.56f),new Vector2(330,150));changePanel=(RectTransform)face.transform.parent;
-   changeTitle=U.Label(face.transform,"Title",K.Label,20,"B9C7E0",TextAlignmentOptions.Top);U.Stretch(changeTitle.rectTransform,new Vector2(0,.62f),Vector2.one,new Vector2(12,0),new Vector2(-12,-10));changeTitle.text="DÊ O TROCO";
+   changeTitle=U.Label(face.transform,"Title",K.Label,20,"B9C7E0",TextAlignmentOptions.Top);U.Stretch(changeTitle.rectTransform,new Vector2(0,.62f),Vector2.one,new Vector2(12,0),new Vector2(-12,-10));changeTitle.text=CheckoutI18n.T("DÊ O TROCO");
    changeCount=U.Label(face.transform,"Count",K.Headline,38,"FFFFFF");U.Stretch(changeCount.rectTransform,new Vector2(0,.28f),new Vector2(1,.7f));
    var track=U.Box(face.transform,"Track","0B1322",10,new Vector2(0,0),new Vector2(1,0));track.rectTransform.offsetMin=new Vector2(18,18);track.rectTransform.offsetMax=new Vector2(-18,38);
    changeBar=U.Box(track.transform,"Fill",Gold,10,Vector2.zero,new Vector2(0,1));
@@ -420,18 +424,18 @@ namespace Checkout {
   int NextChangeValue(){foreach(var v in Denominations)if(v<=ChangeLeft)return v;return 1;}
   void UpdateChange(){
    if(!changeCount)return;
-   changeCount.text=Money(changeGiven)+" <size=70%><color=#B9C7E0>de "+Money(changeDue)+"</color></size>";
+   changeCount.text=Money(changeGiven)+" <size=70%><color=#B9C7E0>/ "+Money(changeDue)+"</color></size>"; // "/" reads the same in every language
    float k=changeDue>0?Mathf.Clamp01((float)changeGiven/changeDue):1;
    changeBar.rectTransform.anchorMax=new Vector2(k,1);changeBar.color=k>=1?K.C(Green):K.C(Gold);
    foreach(var pair in binShade)if(pair.Value)pair.Value.color=new Color(.05f,.08f,.15f,pair.Key>ChangeLeft&&ChangeLeft>0?.62f:0);
-   if(registerDisplay)registerDisplay.text=ChangeLeft>0?"TROCO "+Money(ChangeLeft):"OK";
+   if(registerDisplay)registerDisplay.text=ChangeLeft>0?CheckoutI18n.T("TROCO")+" "+Money(ChangeLeft):"OK";
   }
   void GiveChange(int value){
    if(!changing||finished)return;StopHint();
    if(value>ChangeLeft){
     // Too much: the drawer keeps it.
     Play("bonk",1.1f);StartCoroutine(Emote("sweat"));
-    changeTitle.text="MUITO! FALTA "+Money(ChangeLeft);StartCoroutine(U.Shake(changePanel,.3f,10));
+    changeTitle.text=CheckoutI18n.T("MUITO!")+" "+CheckoutI18n.F("FALTA {0}",Money(ChangeLeft));StartCoroutine(U.Shake(changePanel,.3f,10));
     if(bins.TryGetValue(value,out var b)&&b)StartCoroutine(U.Shake(b,.25f,6));
     return;
    }
@@ -441,8 +445,8 @@ namespace Checkout {
    StartCoroutine(Arc(note,spot,UnityEngine.Random.Range(-15,15),value<=1?.55f:.72f,.34f,110));
    changeGiven+=value;handNotes.Add(note);Play(value<=1?"coin_"+handNotes.Count%3:"note_"+handNotes.Count%2);
    var n=note;U.Tap(note.GetComponent<Image>(),()=>TakeBack(n,value));
-   if(changeGiven==changeDue){UpdateChange();StartCoroutine(U.Pop(changePanel,1.08f,.3f));changeTitle.text="TROCO CERTO!";StartCoroutine(Emote("heart"));StartCoroutine(ChangeDone());}
-   else{changeTitle.text="FALTA "+Money(ChangeLeft);StartCoroutine(U.Pop(changeCount.transform,1.12f,.2f));UpdateChange();}
+   if(changeGiven==changeDue){UpdateChange();StartCoroutine(U.Pop(changePanel,1.08f,.3f));changeTitle.text=CheckoutI18n.T("TROCO CERTO!");StartCoroutine(Emote("heart"));StartCoroutine(ChangeDone());}
+   else{changeTitle.text=CheckoutI18n.F("FALTA {0}",Money(ChangeLeft));StartCoroutine(U.Pop(changeCount.transform,1.12f,.2f));UpdateChange();}
   }
   // A note on the dish goes back into the drawer.
   void TakeBack(RectTransform note,int value){
@@ -450,16 +454,16 @@ namespace Checkout {
    handNotes.Remove(note);changeGiven-=value;Play("tap",1.1f);
    var button=note.GetComponent<UnityEngine.UI.Button>();if(button)button.interactable=false;
    StartCoroutine(BackToDrawer(note,value));
-   changeTitle.text="FALTA "+Money(ChangeLeft);UpdateChange();
+   changeTitle.text=CheckoutI18n.F("FALTA {0}",Money(ChangeLeft));UpdateChange();
   }
   IEnumerator BackToDrawer(RectTransform note,int value){yield return Arc(note,BinPoint(value),value<=1?0:90,value<=1?.5f:.42f,.3f,80);if(note)Destroy(note.gameObject);PopBin(value);}
-  IEnumerator ChangeDone(){finished=true;changing=false;yield return new WaitForSecondsRealtime(.5f);yield return CloseDrawer();finished=false;yield return Finish();}
+  IEnumerator ChangeDone(){finished=true;changing=false;if(dishLabel)dishLabel.text=CheckoutI18n.T("Troco certo!");yield return new WaitForSecondsRealtime(.5f);yield return CloseDrawer();finished=false;yield return Finish();}
   IEnumerator CloseDrawer(){
    if(reg4&&drawerRect){
     // The drawer slides home and clicks shut; the register prints the receipt.
     Play("drawer_close",1,.8f);
     yield return SlideDrawer(drawerOpenY,drawerShutY,.3f,false);StartCoroutine(U.Shake(register.rectTransform,.15f,5));
-    if(registerDisplay)registerDisplay.text="OBRIGADO!";
+    if(registerDisplay)registerDisplay.text=CheckoutI18n.T("OBRIGADO!");
     yield return PrintReceipt(At(paperSlot),paperSlot.rect.width,true);
     yield break;
    }
@@ -481,7 +485,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(.08f);
    yield return PressKey(okKey,true);
    Play("cash_register",1,.75f);StartCoroutine(U.Pop(register.transform,1.03f,.25f));
-   if(registerDisplay)registerDisplay.text="TOTAL "+Money(amount);
+   if(registerDisplay)registerDisplay.text=CheckoutI18n.T("TOTAL")+" "+Money(amount);
    Play("drawer_open",1,.8f);
    yield return SlideDrawer(drawerShutY,drawerOpenY,.42f,true);
    StartCoroutine(U.Shake(register.rectTransform,.12f,4));
@@ -518,10 +522,11 @@ namespace Checkout {
    var shadow=paper.gameObject.AddComponent<Shadow>();shadow.effectColor=new Color(0,0,0,.25f);shadow.effectDistance=new Vector2(3,-3);
    void Line(string left,string right,float size=15,string color="3A3A3A",bool center=false){
     var t=U.Label(paper.transform,"Line",K.Number,size,color,center?TextAlignmentOptions.Center:TextAlignmentOptions.Left);t.textWrappingMode=TextWrappingModes.NoWrap;
-    t.text=right==null?left:$"{left}<pos=66%>{right}";t.gameObject.AddComponent<LayoutElement>().preferredHeight=size+6;
+    // Rich text with <pos> is not caught by the auto translator: translate the label here (names, TOTAL, TROCO...).
+    left=CheckoutI18n.T(left);t.text=right==null?left:$"{left}<pos=66%>{right}";t.gameObject.AddComponent<LayoutElement>().preferredHeight=size+6;
    }
-   Line("MERCADINHO",null,17,"1D2B4F",true);Line("CAIXA 01 · CUPOM",null,12,"8A8A8A",true);Line("- - - - - - - - - - - -",null,12,"B0B0B0",true);
-   foreach(var item in entry.items??Array.Empty<CheckoutLine>())Line($"{item.quantity}x {Short(item.name)}",Money(item.quantity*item.unitPrice),13);
+   Line("MERCADINHO",null,17,"1D2B4F",true);Line(CheckoutI18n.T("CAIXA")+" 01 · "+CheckoutI18n.T("CUPOM"),null,12,"8A8A8A",true);Line("- - - - - - - - - - - -",null,12,"B0B0B0",true);
+   foreach(var item in entry.items??Array.Empty<CheckoutLine>())Line($"{item.quantity}x {Short(CheckoutI18n.T(item.name))}",Money(item.quantity*item.unitPrice),13);
    Line("- - - - - - - - - - - -",null,12,"B0B0B0",true);
    Line("TOTAL",Money(total),16,"1D2B4F");
    if(cash){Line("DINHEIRO",Money(given),13);if(changeDue>0)Line("TROCO",Money(changeDue),13);}else Line("CARTÃO","OK",13);
@@ -565,7 +570,7 @@ namespace Checkout {
    if(!preview)bridge.Command("completeCheckout","[\""+entry.id+"\","+Math.Max(1,charged)+"]");
    if(machine&&!receiptDone)yield return PrintReceipt(At(machine.rectTransform)+new Vector2(0,machine.rectTransform.rect.height*.5f-6),machine.rectTransform.rect.width*.5f,false);
    Play("success");StartCoroutine(Emote("heart"));
-   screenCaption.text="PAGO";screenTotal.text=Money(total);screenTotal.color=K.C(Green);screenExtra.text="Obrigado, volte sempre!";
+   screenCaption.text=CheckoutI18n.T("PAGO");screenTotal.text=Money(total);screenTotal.color=K.C(Green);screenExtra.text=CheckoutI18n.T("Obrigado, volte sempre!");
    // The bag goes to the customer, coins fly to the POS and sparkles pop.
    StartCoroutine(U.Move(bag.rectTransform,At(portraitRect)+new Vector2(90,-140),.6f));StartCoroutine(U.Scale(bag.rectTransform,Vector3.one*.55f,.6f));
    U.Sparkles(this,stage,At(posScreen),10,180);

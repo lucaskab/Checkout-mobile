@@ -399,7 +399,6 @@ def pos_terminal():
     box((2.4, .22, 1.5), (0, .1, 1.35), body, .12)
     box((2.2, .05, 1.3), (0, -.02, 1.35), mat('20292C', .2), .04)
     mark('screen', box((2.0, .04, 1.08), (0, -.05, 1.39), mat('BFE3B3', .25, emit=.6, coat=.8), .03))
-    text('CAIXA 01', (0, -.05, 2.04), .14, mat('E9F5E5', .3, emit=.8), extrude=.005, bevel=0)
     box((2.3, .3, .14), (0, .05, 2.13), mat(TEAL, .35), .06)
     studio(elev=6, yaw=0, width=640, height=512)
 
@@ -429,7 +428,7 @@ def credit_card(color, color2, name):
         for zz in (.64, .72):
             box((.3, .01, .01), (-.52, -.047, zz), mat('A87A24', .3, .8), 0)
         text('4821  0093  7710  2256', (-.05, -.035, .38), .1, mat('FFFFFF', .3, coat=.4), extrude=.006, bevel=.002)
-        text('CLIENTE', (-.55, -.035, .18), .07, mat('FFFFFF', .3), extrude=.004, bevel=0, align='LEFT')
+        box((.46, .012, .045), (-.4, -.035, .2), mat('FFFFFF', .3), .02)   # name line, no word: the game has 5 languages
         cyl(.13, .02, (.62, -.035, .2), mat('F2B03D', .3, .3), rot=(90, 0, 0))
         cyl(.13, .02, (.48, -.04, .2), mat('E15533', .3), rot=(90, 0, 0))
         for i in range(3):
@@ -1580,7 +1579,7 @@ def change_dish3():
             x, y = c * .135 + (r % 2) * .067, r * .12
             if x * x + y * y < .92 ** 2 and not (-.55 < x < .55 and -.85 < y < -.5):
                 cyl(.035, .04, (x, y, .21), nub, v=12, bev=.01)
-    text('TROCO', (0, -.68, .22), .26, mat(GOLD, .3, .7), rot=(0, 0, 0), extrude=.02, bevel=.004)
+    mark('label', box((1.1, .34, .01), (0, -.68, .2), mat('C8392E', .75, coat=.1), .005))   # the word (TROCO) is drawn by the game, translated
     studio(elev=58, yaw=0, width=440, height=340, size=2.9, target=(0, 0, .1))
 
 
@@ -1638,8 +1637,7 @@ def register4_body():
     box((5.24, .05, .06), (0, .46, 1.03), gold, .02)
     # Brand plate on the shell front.
     box((1.7, .06, .34), (0, .43, 1.25), gold, .05)
-    box((1.56, .05, .24), (0, .41, 1.25), navy_d, .04)
-    text('CAIXA', (0, .375, 1.25), .19, mat(GOLD, .3, .7), extrude=.015, bevel=.003)
+    mark('plate', box((1.56, .05, .24), (0, .41, 1.25), navy_d, .04))   # the word is drawn by the game, translated
     # Keypad deck tilted towards the cashier, set into the shell.
     tilt = math.tan(R(20))
     box((2.6, 1.5, .26), (-1.0, 1.45, 1.62), navy_d, .14, rot=(20, 0, 0))
