@@ -278,8 +278,13 @@ namespace Checkout {
    string redirect="http://127.0.0.1:"+port+"/";
    var listener=new System.Net.HttpListener();listener.Prefixes.Add(redirect);
    try{listener.Start();}catch(Exception ex){failed(CheckoutI18n.T("Não deu para entrar com o Google.")+" ("+ex.Message+")");yield break;}
-   Application.OpenURL("https://accounts.google.com/o/oauth2/v2/auth?client_id="+DesktopClientId+"&redirect_uri="+Uri.EscapeDataString(redirect)
-    +"&response_type=code&scope="+Uri.EscapeDataString("openid email profile")+"&code_challenge="+challenge+"&code_challenge_method=S256&state="+state+"&prompt=select_account");
+   var url="https://accounts.google.com/o/oauth2/v2/auth?client_id="+DesktopClientId+"&redirect_uri="+Uri.EscapeDataString(redirect)
+    +"&response_type=code&scope="+Uri.EscapeDataString("openid email profile")+"&code_challenge="+challenge+"&code_challenge_method=S256&state="+state+"&prompt=select_account";
+#if UNITY_EDITOR
+   // QA: the login page's address, so the login can also be finished from another browser on this computer.
+   try{System.IO.File.WriteAllText(System.IO.Path.Combine(Application.dataPath,"..","Temp","checkout-login-url.txt"),url);}catch{}
+#endif
+   Application.OpenURL(url);
    Debug.Log("CHECKOUT_CLOUD waiting for the browser on "+redirect);
    var pending=listener.GetContextAsync();float until=Time.unscaledTime+300f;
    while(!pending.IsCompleted&&Time.unscaledTime<until)yield return null;
