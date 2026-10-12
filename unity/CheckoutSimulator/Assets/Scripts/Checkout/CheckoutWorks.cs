@@ -155,7 +155,8 @@ namespace Checkout
 
         class Worker
         {
-            public Transform body, handL, handR, upperL, upperR, foreR, tool, prop, ride;
+            public Transform body, handL, handR, upperL, upperR, foreR, tool, prop, ride, toolHand, otherHand;
+            public float blow;          // last cycle position of the Sledge clip (dust at the blow)
             public Animation anim; public string clip;
             public Tool use; public Vector3 a, b, look; public string carry;
             public int phase; public float clock, wait, speed = 1, yaw, seed; public bool carrier, foreman;
@@ -249,6 +250,8 @@ namespace Checkout
                 r.enabled = true;
                 if (r is SkinnedMeshRenderer skin && crew != null && crew.Length > 0 && crew[variant % crew.Length]) skin.sharedMaterial = crew[variant % crew.Length];
             }
+            // The construction crew (man / woman, CheckoutCrew) replaces the delivery worker's look.
+            bool crewLook = CheckoutCrew.Dress(clone, variant);
             clone.transform.SetParent(transform, false);
             Destroy(holder);
             clone.transform.SetPositionAndRotation(a, Quaternion.LookRotation(CheckoutWorksKit.Flat(look - a)));
@@ -260,9 +263,10 @@ namespace Checkout
                 handL = B("Hand_L"), handR = B("Hand_R"), upperL = B("UpperArm_L"), upperR = B("UpperArm_R"), foreR = B("Forearm_R"),
                 wait = variant * .6f, speed = .85f + variant % 3 * .12f, clock = variant * 1.37f, seed = UnityEngine.Random.value * 7f,
             };
+            CheckoutCrew.Hands(w.body, w.handL, w.handR, out w.toolHand, out w.otherHand);
             var head = B("Head");
             var hatKit = art && art.kit ? art.kit.Find("Hard hat") : null;
-            if (head && hatKit)
+            if (head && hatKit && !crewLook)          // the crew models wear their own helmets
             {
                 var hat = Instantiate(hatKit.gameObject).transform; hat.gameObject.SetActive(true);
                 hat.localScale = Vector3.one * .56f;
@@ -314,6 +318,13 @@ namespace Checkout
             var w = NewWorker(basket.position, look, 2); if (w == null) return;
             w.ride = basket; w.use = tool;
             if (ToolModels.TryGetValue(tool, out var model)) { w.tool = CheckoutWorksKit.Spawn(model, transform, basket.position, Vector3.forward); var m = w.tool.Find("Model"); if (m) m.localPosition = Vector3.zero; }
+        }
+
+        static string ToolClip(Worker w)
+        {
+            if (w.anim && w.use == Tool.Hammer && w.anim["Hammer"]) return "Hammer";
+            if (w.anim && w.use == Tool.Sledge && w.anim["Sledge"]) return "Sledge";
+            return "Idle";
         }
 
         void Play(Worker w, string clip)
@@ -372,8 +383,11 @@ namespace Checkout
                     else if (Walk(w, w.phase == 1 ? w.b : w.a, dt, false)) { w.phase = w.phase == 1 ? 2 : 0; w.clock = 0; }
                     continue;
                 }
-                // Tool work: stand at the spot and face the work.
-                Play(w, "Idle");
+                // Tool work: stand at the spot and face the work. Hammer and sledgehammer have their own clips
+                // (arms on the tool, both hands on the sledge's handle); the other tools swing the arms over Idle.
+                var work = ToolClip(w);
+                Play(w, work);
+                if (work != "Idle" && w.anim && w.anim[work]) w.anim[work].speed = w.speed;
                 Face(w, w.look, dt);
             }
         }
@@ -392,6 +406,11 @@ namespace Checkout
                 }
                 if (w.use == Tool.None || w.carrier || w.foreman) continue;
                 var right = w.body.right; var fwd = w.body.forward;
+                if ((w.clip == "Hammer" || w.clip == "Sledge") && w.toolHand)
+                {
+                    HoldTool(w, right, fwd);
+                    continue;
+                }
                 float s = w.clock * w.speed + w.seed;
                 float raiseR = 0, raiseL = 0; float twist = 0; bool both = false;
                 switch (w.use)
@@ -427,6 +446,41 @@ namespace Checkout
                 w.tool.position = hand;
                 w.tool.rotation = Quaternion.LookRotation(Vector3.Cross(right, up).sqrMagnitude > .01f ? Vector3.Cross(right, up) : fwd, up);
             }
+        }
+
+        // The tool of the Hammer / Sledge clips (ArtSource/NPCs/build_npcs.py places it the same way in its previews):
+        // the hammer's handle leaves the fist across the forearm, pointing ahead of the swing; the sledgehammer's handle
+        // runs through both hands. Dust flies at the sledgehammer's blow.
+        void HoldTool(Worker w, Vector3 right, Vector3 fwd)
+        {
+            var fore = w.toolHand.parent;
+            var d = fore ? (w.toolHand.position - fore.position) : -w.body.up;
+            float forearm = d.magnitude; d = d.sqrMagnitude > 1e-6f ? d.normalized : -w.body.up;
+            Vector3 up, at;
+            if (w.clip == "Sledge" && w.otherHand)
+            {
+                up = (w.otherHand.position - w.toolHand.position);
+                up = up.sqrMagnitude > 1e-6f ? up.normalized : Vector3.up;
+                at = (w.toolHand.position + w.otherHand.position) * .5f;
+                var st = w.anim ? w.anim["Sledge"] : null;
+                if (st)
+                {
+                    float c = Mathf.Repeat(st.normalizedTime, 1);
+                    if (w.blow < .70f && c >= .70f) Burst(w.body.position + fwd * 1.25f, 4);
+                    w.blow = c;
+                }
+            }
+            else
+            {
+                float df = Vector3.Dot(d, fwd), du = Vector3.Dot(d, Vector3.up);
+                up = fwd * -du + Vector3.up * df;
+                up = up.sqrMagnitude > 1e-6f ? up.normalized : Vector3.up;
+                at = w.toolHand.position + d * forearm * .17f;
+            }
+            if (!w.tool) return;
+            w.tool.position = at;
+            var ahead = Vector3.Cross(right, up);
+            w.tool.rotation = Quaternion.LookRotation(ahead.sqrMagnitude > .01f ? ahead : fwd, up);
         }
 
         void EmitChips(Worker w, Vector3 fwd, float s)

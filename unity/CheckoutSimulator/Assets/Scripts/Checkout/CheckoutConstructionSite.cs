@@ -473,6 +473,7 @@ namespace Checkout
                 r.enabled = true;
                 if (r is SkinnedMeshRenderer skin && crew != null && crew.Length > 0 && crew[variant % crew.Length]) skin.sharedMaterial = crew[variant % crew.Length];
             }
+            bool crewLook = CheckoutCrew.Dress(clone, variant);     // the construction crew (man / woman)
             clone.transform.SetParent(parent, false);
             Destroy(holder);
             clone.transform.SetPositionAndRotation(a, Quaternion.LookRotation(Horizontal(b - a) > .1f ? new Vector3(b.x - a.x, 0, b.z - a.z) : Vector3.forward));
@@ -485,7 +486,7 @@ namespace Checkout
                 handL = bones.FirstOrDefault(x => x.name == "Hand_L"), handR = bones.FirstOrDefault(x => x.name == "Hand_R"),
                 wait = variant * .7f
             };
-            if (head && kit && kit.Find("Hard hat"))
+            if (head && kit && kit.Find("Hard hat") && !crewLook)
             {
                 var hat = Kit("Hard hat", Vector3.zero, clone.transform.rotation, head);
                 hat.SetParent(null, false);

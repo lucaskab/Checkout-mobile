@@ -27,7 +27,7 @@ namespace Checkout {
   const float CrossFrom = -3.3f, CrossTo = -.2f;
   const float WestZoneFrom = -9.6f, WestZoneTo = -3.5f, EastZoneFrom = .2f;
   const float West = 180, East = 0;
-  static readonly string[] Shoppers = { "Customer_07", "Customer_06", "Customer_09", "Customer_08", "Customer_01", "Customer_05", "Customer_03", "Customer_04" };
+  static readonly string[] Shoppers = { "Customer_07", "Customer_03", "Customer_06", "Customer_02", "Customer_09", "Customer_04", "Customer_08", "Customer_01", "Customer_05" };
 
   readonly Dictionary<string, Vector2> curbBlocks = new Dictionary<string, Vector2>();
   readonly Dictionary<string, Vector3> focus = new Dictionary<string, Vector3>();
@@ -116,7 +116,11 @@ namespace Checkout {
   Transform Prop(string model, Vector3 p, float yaw = 0, float scale = 1) => art.Prop2(root, model, p, yaw, scale);
   Transform Rig(string rig, Vector3 p, float yaw = 0, string clip = null, float scale = 1) => art.Rig(root, rig, p, yaw, scale, clip);
   CheckoutEventActor Person(string who, Vector3 p, Vector3 face, string move = null, float scale = 1, bool shown = true, float offset = -1) {
-   var h = who.StartsWith("#") && cast != null && cast.Count > 0 ? art.Actor(root, cast[int.Parse(who.Substring(1)) % cast.Count], p, 0, "Idle", 1, move, offset) : art.Actor(root, who, p, 0, "Idle", 1, move, offset);
+   // "@crew0" / "@crew1": one of the construction crew (CheckoutCrew), for everyone working on a site or a pole.
+   var crew = who.StartsWith("@crew") ? CheckoutCrew.Template(int.Parse(who.Substring(5))) : null;
+   if (who.StartsWith("@crew") && !crew) who = "Worker_Delivery";
+   var h = crew ? art.Actor(root, crew, p, 0, "Idle", 1, move, offset)
+    : who.StartsWith("#") && cast != null && cast.Count > 0 ? art.Actor(root, cast[int.Parse(who.Substring(1)) % cast.Count], p, 0, "Idle", 1, move, offset) : art.Actor(root, who, p, 0, "Idle", 1, move, offset);
    h.localScale = Vector3.one * scale;
    var a = CheckoutEventActor.Of(h); a.Face(face); if (!shown) a.Show(false);
    return a;
@@ -510,8 +514,8 @@ namespace Checkout {
    BlockCurb(EastZoneFrom - .2f, pit + 12.6f); Focus(Road(pit + 3f, -13.4f));
    float sx = pit + 12.2f;
    if (Place(ref sx, .5f, .5f, -11.0f, -10.4f, 4f)) Prop("Obras_DetourSign", On(sx, -10.75f), 0);
-   Person(Next(), Road(pit - 1.6f, CurbEdge - .25f), Dir(1, -.4f), "Clipboard");
-   Person(Next(), Road(pit + 1.9f, LaneW - 1.05f), Dir(-1, .3f));
+   Person("@crew1", Road(pit - 1.6f, CurbEdge - .25f), Dir(1, -.4f), "Clipboard");
+   Person("@crew0", Road(pit + 1.9f, LaneW - 1.05f), Dir(-1, .3f));
   }
 
   // ================================================================ engarrafamento
@@ -652,7 +656,7 @@ namespace Checkout {
    Fx2(pole, "Maquininha_CtoLed", new Vector3(.11f, 4.52f, -.5f), "blink");
    Prop("Maquininha_Ladder", On(px, -11.0f), 0);
    // standing on the ladder ~2.1 m up, leaning in to the box
-   var tech = Person(WorkerOr("Worker_Delivery", "Customer_07"), new Vector3(px, On(px, -11f).y + 2.1f, -10.55f), North, "WorkOverhead");
+   var tech = Person("@crew0", new Vector3(px, On(px, -11f).y + 2.1f, -10.55f), North, "WorkOverhead");
    Prop("Maquininha_CableReel", On(px + 1.3f, -10.7f), 0);
    Person(Next(), On(vx + van.BackOffset - .4f, CurbEdge + .25f), Dir(-.4f, 1), "Clipboard");
    var sign = doorW + (small ? new Vector3(.55f, 1.35f, -.35f) : new Vector3(.3f, 1.95f, -.12f));
@@ -723,7 +727,7 @@ namespace Checkout {
    var pole = Prop("Energia_UtilityPole", On(px, pz), 0); Focus(On(px - 1f, -11f));
    Fx2(pole, "Energia_Spark", new Vector3(.1f, 6.0f, -.95f), "flicker");
    Fx2(pole, "Energia_Smoke", new Vector3(-.2f, 6.5f, -.7f), "rise");
-   var lineman = Person(WorkerOr("Worker_Delivery", "Customer_09"), s, North, "WorkOverhead");
+   var lineman = Person("@crew0", s, North, "WorkOverhead");
    if (seat) Ride(lineman.transform, seat, Vector3.zero);
    Person(Next(), On(px - 1.2f, FootMid - .6f), Dir(.5f, .4f), "Clipboard");
    for (int i = 0; i < 3; i++) art.Cone(root, Road(tx + truck.BackOffset + .9f + i * .7f, LaneW - 1.3f + i * .7f));

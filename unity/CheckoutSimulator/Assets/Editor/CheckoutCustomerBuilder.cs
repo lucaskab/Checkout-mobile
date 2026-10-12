@@ -56,7 +56,9 @@ public static class CheckoutCustomerBuilder {
  static void EnsureAddedCustomers(Transform world){
   for(int i=0;i<AddedCustomers.GetLength(0);i++){string name=AddedCustomers[i,0],sourceName=AddedCustomers[i,1];if(world.Find(name))continue;var source=world.Find(sourceName);if(!source)throw new Exception("Missing customer rig source: "+sourceName);var actor=UnityEngine.Object.Instantiate(source.gameObject,world).transform;actor.name=name;actor.SetPositionAndRotation(source.position,source.rotation);}
  }
- static string Appearance(string name)=>name=="Customer_06"||name=="Customer_07"||name=="Customer_08"||name=="Customer_09"?name:"CustomerChild";
+ // Customer_02..04 wore the same child as 01 and 05 until 12/10; they are now the plaid shirt guy, the elderly man and
+ // the girl in the green cardigan (ArtSource/NPCs/build_npcs.py), so the market shows 8 different looks.
+ static string Appearance(string name)=>name=="Customer_06"||name=="Customer_07"||name=="Customer_08"||name=="Customer_09"?name:name=="Customer_02"?"Customer_Plaid":name=="Customer_03"?"Customer_Elder":name=="Customer_04"?"Customer_Jacket":"CustomerChild";
  static string RigSource(string name)=>name=="Customer_06"?"Customer_01":name=="Customer_07"?"Customer_02":name=="Customer_08"?"Customer_03":name=="Customer_09"?"Customer_04":name;
  public static void CapturePoses(){
   Validate();

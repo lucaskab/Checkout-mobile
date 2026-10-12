@@ -606,6 +606,7 @@ namespace Checkout
                 bike.riding.transform.localRotation = Quaternion.identity;
                 bike.wheels = FindWheels(bike.riding.transform);
                 TintPaint(bike.riding, bike.color);
+                SeatRider(bike.riding);
             }
             else BuildFallback(bike);
             if (parkedModel)
@@ -640,6 +641,20 @@ namespace Checkout
             bike.audio.playOnAwake = false; bike.audio.spatialBlend = 1f;
             bike.audio.minDistance = 4f; bike.audio.maxDistance = 40f; bike.audio.dopplerLevel = 0f;
             BuildBubble(bike);
+        }
+
+        // The motoboy on the seat (Lucas 12/10): delivery_rider.fbx, built by ArtSource/NPCs/build_motoboy_ride.py in the
+        // bike's own frame, replaces the rider modelled into delivery_bike_riding (its courier and helmet meshes are hidden).
+        static GameObject riderMesh; static bool riderLoaded;
+        static void SeatRider(GameObject riding)
+        {
+            if (!riderLoaded) { riderLoaded = true; riderMesh = Resources.Load<GameObject>("CheckoutDelivery/delivery_rider"); }
+            if (!riderMesh) return;
+            foreach (var r in riding.GetComponentsInChildren<Renderer>(true))
+                if (r.name.StartsWith("fx_riding_DK_courier") || r.name.StartsWith("fx_riding_DK_helm")) r.enabled = false;
+            var rider = Instantiate(riderMesh, riding.transform, false);
+            rider.name = "Rider";
+            rider.transform.localPosition = Vector3.zero; rider.transform.localRotation = Quaternion.identity; rider.transform.localScale = Vector3.one;
         }
 
         void ShowParkedModel(Bike bike, bool parked)

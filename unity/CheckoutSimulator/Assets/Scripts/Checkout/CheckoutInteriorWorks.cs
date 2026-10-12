@@ -208,6 +208,7 @@ namespace Checkout
                 r.enabled = true; r.forceRenderingOff = false;
                 if (r is SkinnedMeshRenderer skin && crew != null && crew.Length > 0 && crew[variant % crew.Length]) skin.sharedMaterial = crew[variant % crew.Length];
             }
+            bool crewLook = CheckoutCrew.Dress(clone, variant);     // the construction crew (man / woman)
             clone.transform.SetParent(works, false);
             Destroy(holder);
             clone.transform.localPosition = a;
@@ -222,7 +223,7 @@ namespace Checkout
                 clock = variant * .8f,
             };
             var head = bones.FirstOrDefault(x => x.name == "Head");
-            var hat = head ? Kit("Hard hat", works, Vector3.zero, 0) : null;
+            var hat = head && !crewLook ? Kit("Hard hat", works, Vector3.zero, 0) : null;   // the crew models wear their own helmets
             if (hat)
             {
                 hat.localScale = Vector3.one * .56f;
