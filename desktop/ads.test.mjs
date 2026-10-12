@@ -82,3 +82,19 @@ describe("rewarded videos on the host", () => {
 		expect(adCard().buttons[0].enabled).toBe(false);
 	});
 });
+
+describe("ads consent (GDPR)", () => {
+	test("the privacy button shows only where Google asks for it and reopens the form", () => {
+		const labels = () => adCard().buttons.map((b) => b.action);
+		expect(labels()).not.toContain("openAdPrivacy");
+		expect(adsHost.requestAdPrivacy().ok).toBe(false);
+		adsHost.applyAdsMessage({ kind: "ad", status: "ready", privacy: true });
+		expect(labels()).toContain("openAdPrivacy");
+		expect(adsHost.requestAdPrivacy()).toEqual({ ok: true, message: { kind: "ad-privacy" } });
+		// Status messages without the field keep it.
+		adsHost.applyAdsMessage({ kind: "ad", status: "loading" });
+		expect(labels()).toContain("openAdPrivacy");
+		adsHost.applyAdsMessage({ kind: "ad", status: "ready", privacy: false });
+		expect(labels()).not.toContain("openAdPrivacy");
+	});
+});

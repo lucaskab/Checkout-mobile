@@ -17,7 +17,7 @@ import {
 	noteGrantedPack,
 	requestPackPurchase,
 } from "./iap.ts";
-import { type AdsUnityMessage, applyAdsMessage, noteAdReward, requestRewardedAd, takePendingAd } from "./ads.ts";
+import { type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
 // timers as src/app/_layout.tsx and speaks the Unity bridge protocol over stdin/stdout.
@@ -225,6 +225,13 @@ function runHudAction(message: {
 		if (request.ok) send(request.message);
 		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "" : t(request.reason) });
 		view();
+		return;
+	}
+	// "Privacidade dos anúncios": Unity reopens Google's consent form (GDPR).
+	if (message.action === "openAdPrivacy") {
+		const request = requestAdPrivacy();
+		if (request.ok) send(request.message);
+		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "" : t(request.reason) });
 		return;
 	}
 	// Unity: that video was watched to the end. Only the one the host asked for pays (once).

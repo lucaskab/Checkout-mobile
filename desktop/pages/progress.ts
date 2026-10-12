@@ -214,6 +214,10 @@ function adCard(state: State, missing: number): Card {
 				enabled: offer.available && !waiting && adsStore.status !== "unavailable",
 				ok: "",
 			}),
+			// GDPR: where Google's consent tool asks for it, the player can change their ads choice at any time.
+			...(adsStore.privacyOptions
+				? [act("Privacidade dos anúncios", "openAdPrivacy", [], { variant: "secondary", ok: "" })]
+				: []),
 		],
 	});
 }

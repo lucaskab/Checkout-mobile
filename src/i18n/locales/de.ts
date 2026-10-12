@@ -3447,6 +3447,8 @@ const catalog: Catalog = {
 	"Cresce com a sua expansão": "Wächst mit deiner Erweiterung",
 	"Aguardando…": "Warte…",
 	// Rewarded videos (Lucas 12/10).
+	"Privacidade dos anúncios": "Werbe-Datenschutz",
+	"Nada para ajustar neste aparelho.": "Auf diesem Gerät gibt es nichts zu ändern.",
 	"Diamantes grátis": "Gratis-Diamanten",
 	"VÍDEO": "VIDEO",
 	"Assista um vídeo curto e ganhe diamantes · hoje: {0} de {1}": "Sieh dir ein kurzes Video an und erhalte Diamanten · heute: {0} von {1}",

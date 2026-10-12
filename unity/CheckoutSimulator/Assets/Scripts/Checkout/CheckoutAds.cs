@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 #if CHECKOUT_ADMOB
 using GoogleMobileAds.Api;
+using GoogleMobileAds.Ump.Api;
 #endif
 
 namespace Checkout {
@@ -25,7 +26,7 @@ namespace Checkout {
   string showingId;bool earned;
 
   [Serializable] class ShowMessage{public string id;}
-  [Serializable] class StatusMessage{public string kind="ad",status="",@event="",id="";}
+  [Serializable] class StatusMessage{public string kind="ad",status="",@event="",id="";public bool privacy;}
 
   public static void Attach(CheckoutDesktopHost owner){
    if(Active||!owner)return;
@@ -33,7 +34,7 @@ namespace Checkout {
    ads.Begin();
   }
 
-  void Report(string status,string evt="",string id="")=>host.Send(JsonUtility.ToJson(new StatusMessage{status=status,@event=evt,id=id??""}));
+  void Report(string status,string evt="",string id="")=>host.Send(JsonUtility.ToJson(new StatusMessage{status=status,@event=evt,id=id??"",privacy=PrivacyRequired}));
 
   /// <summary>Host line <c>ad-show</c>: play a video for this id.</summary>
   public void Show(string json){
@@ -55,20 +56,40 @@ namespace Checkout {
   void OnDestroy(){if(Active==this)Active=null;}
 
 #if CHECKOUT_ADMOB && (UNITY_IOS || UNITY_ANDROID) && !UNITY_EDITOR
-  // Google's test units until the real ones exist in AdMob (Assets › Google Mobile Ads › Settings holds the app id).
+  // The game's rewarded unit in AdMob (app id: Assets › Google Mobile Ads › Settings). Development builds keep Google's
+  // test unit: real ads clicked by the developer count as invalid traffic and can get the AdMob account suspended.
 #if UNITY_IOS
-  const string Unit="ca-app-pub-3940256099942544/1712485313";
+  const string Unit="ca-app-pub-3940256099942544/1712485313"; // TODO: the iOS app's own unit once it exists in AdMob
 #else
-  const string Unit="ca-app-pub-3940256099942544/5224354917";
+  static string Unit=>Debug.isDebugBuild?"ca-app-pub-3940256099942544/5224354917":"ca-app-pub-6635161191872845/4528327896";
 #endif
-  RewardedAd ad;bool loading;
+  RewardedAd ad;bool loading,started;
   bool Ready=>ad!=null&&ad.CanShowAd();
+  static bool PrivacyRequired=>ConsentInformation.PrivacyOptionsRequirementStatus==PrivacyOptionsRequirementStatus.Required;
   void Begin(){
    Report("loading");
+   // Last session's answer may already allow ads: start right away while the consent info refreshes.
+   if(ConsentInformation.CanRequestAds())StartAds();
+   ConsentInformation.Update(new ConsentRequestParameters(),updateError=>main.Enqueue(()=>{
+    if(updateError!=null)Debug.LogWarning("CHECKOUT_ADS consent info: "+updateError.Message);
+    ConsentForm.LoadAndShowConsentFormIfRequired(formError=>main.Enqueue(()=>{
+     if(formError!=null)Debug.LogWarning("CHECKOUT_ADS consent form: "+formError.Message);
+     if(ConsentInformation.CanRequestAds())StartAds();else Report("unavailable");
+    }));
+   }));
+  }
+  void StartAds(){
+   if(started){Report(Ready?"ready":"loading");return;}
+   started=true;
    MobileAds.Initialize(_=>main.Enqueue(Load));
   }
+  /// <summary>Host line <c>ad-privacy</c>: Google's form to change the ads consent.</summary>
+  public void ShowPrivacy()=>ConsentForm.ShowPrivacyOptionsForm(error=>main.Enqueue(()=>{
+   if(error!=null)Debug.LogWarning("CHECKOUT_ADS privacy form: "+error.Message);
+   if(ConsentInformation.CanRequestAds())StartAds();else Report("unavailable");
+  }));
   void Load(){
-   if(loading||Ready)return;loading=true;
+   if(!started||loading||Ready)return;loading=true;
    RewardedAd.Load(Unit,new AdRequest(),(loaded,error)=>main.Enqueue(()=>{
     loading=false;
     if(error!=null||loaded==null){Debug.LogWarning("CHECKOUT_ADS no video: "+error?.GetMessage());Report("unavailable");Invoke(nameof(Load),60);return;}
@@ -87,6 +108,8 @@ namespace Checkout {
 #else
   // Editor: a test video. Elsewhere (desktop builds, phones without the AdMob plugin): none.
   bool Ready=>Application.isEditor;
+  static bool PrivacyRequired=>false;
+  public void ShowPrivacy(){}
   void Begin(){Report(Ready?"ready":"unavailable");}
   void Load(){}
   bool ShowVideo(){if(!Ready)return false;TestVideo();return true;}

@@ -7,7 +7,9 @@ import { getRewardedAdOffer } from "@/services/rewarded-ads";
  * - asks Unity to show one (`ad-show` with a fresh id) when the player presses "Assistir vídeo";
  * - credits it (claimRewardedAd) only when Unity reports that same id was watched to the end — a video it did not
  *   ask for, or the same one twice, gives nothing;
- * - keeps what Unity tells about the videos (ready, loading, none available) and the last result for the pages.
+ * - keeps what Unity tells about the videos (ready, loading, none available) and the last result for the pages;
+ * - shows "Privacidade dos anúncios" when Google's consent tool says the player must be able to change their choice
+ *   (GDPR: Europe, UK, Switzerland) and asks Unity to open that form (`ad-privacy`).
  */
 export type AdsStatus = "starting" | "ready" | "loading" | "unavailable";
 export type AdEvent = { kind: "rewarded" | "closed" | "failed"; at: number; diamonds: number };
@@ -18,6 +20,8 @@ export const adsStore = {
 	pendingId: "",
 	pendingAt: 0,
 	last: null as AdEvent | null,
+	/** The player must be able to reopen the ads consent form (Unity reports it after asking Google). */
+	privacyOptions: false,
 };
 
 let sequence = 0;
@@ -49,11 +53,12 @@ export function takePendingAd(id: unknown) {
 	return true;
 }
 
-export type AdsUnityMessage = { kind: "ad"; status?: unknown; event?: unknown; id?: unknown };
+export type AdsUnityMessage = { kind: "ad"; status?: unknown; event?: unknown; id?: unknown; privacy?: unknown };
 
 export function applyAdsMessage(message: AdsUnityMessage, now = Date.now()) {
 	if (message.status === "ready" || message.status === "loading" || message.status === "unavailable")
 		adsStore.status = message.status;
+	if (typeof message.privacy === "boolean") adsStore.privacyOptions = message.privacy;
 	if ((message.event === "closed" || message.event === "failed") && message.id === adsStore.pendingId) {
 		adsStore.pendingId = "";
 		adsStore.last = { kind: message.event, at: now, diamonds: 0 };
@@ -62,6 +67,12 @@ export function applyAdsMessage(message: AdsUnityMessage, now = Date.now()) {
 
 export function noteAdReward(diamonds: number | null, now = Date.now()) {
 	if (diamonds && diamonds > 0) adsStore.last = { kind: "rewarded", at: now, diamonds };
+}
+
+/** "Privacidade dos anúncios": the message for Unity to reopen the consent form (only when Google asks for it). */
+export function requestAdPrivacy(): { ok: true; message: { kind: "ad-privacy" } } | { ok: false; reason: string } {
+	if (!adsStore.privacyOptions) return { ok: false, reason: "Nada para ajustar neste aparelho." };
+	return { ok: true, message: { kind: "ad-privacy" } };
 }
 
 /** The last result while it is worth showing (a few seconds). */
@@ -74,4 +85,5 @@ export function resetAdsStore() {
 	adsStore.pendingId = "";
 	adsStore.pendingAt = 0;
 	adsStore.last = null;
+	adsStore.privacyOptions = false;
 }

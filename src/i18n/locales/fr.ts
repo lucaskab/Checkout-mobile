@@ -3440,6 +3440,8 @@ const catalog: Catalog = {
 	"Cresce com a sua expansão": "Grandit avec votre expansion",
 	"Aguardando…": "En attente…",
 	// Rewarded videos (Lucas 12/10).
+	"Privacidade dos anúncios": "Confidentialité des annonces",
+	"Nada para ajustar neste aparelho.": "Rien à modifier sur cet appareil.",
 	"Diamantes grátis": "Diamants gratuits",
 	"VÍDEO": "VIDÉO",
 	"Assista um vídeo curto e ganhe diamantes · hoje: {0} de {1}": "Regardez une courte vidéo et gagnez des diamants · aujourd'hui : {0} sur {1}",

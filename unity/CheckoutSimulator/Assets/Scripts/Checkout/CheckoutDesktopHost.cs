@@ -188,6 +188,7 @@ namespace Checkout {
     else if(kind=="iap-catalog")CheckoutIap.Active?.Catalog(line);
     else if(kind=="purchase")CheckoutIap.Active?.Purchase(line);
     else if(kind=="ad-show")CheckoutAds.Active?.Show(line);
+    else if(kind=="ad-privacy")CheckoutAds.Active?.ShowPrivacy();
    }
    if(latestView!=null)hud.Apply(latestView);
    if(process!=null&&process.HasExited&&Active==this){Active=null;hud.Offline(CheckoutI18n.T(IsRelease?"O jogo parou de responder. Feche e abra de novo.":"O processo do jogo (node) parou. Veja o Console."));}

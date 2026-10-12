@@ -3312,6 +3312,8 @@ const catalog: Catalog = {
 	"Aguardando…": "Esperando…",
 	"{0} diamantes": "{0} diamantes",
 	// Rewarded videos (Lucas 12/10).
+	"Privacidade dos anúncios": "Privacidad de los anuncios",
+	"Nada para ajustar neste aparelho.": "Nada que ajustar en este dispositivo.",
 	"Diamantes grátis": "Diamantes gratis",
 	"VÍDEO": "VÍDEO",
 	"Assista um vídeo curto e ganhe diamantes · hoje: {0} de {1}": "Mira un video corto y gana diamantes · hoy: {0} de {1}",
