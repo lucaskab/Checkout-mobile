@@ -2,7 +2,8 @@ import type { GameIconId } from "@/data/game-icon-assets";
 import { onboardingGuide } from "@/data/onboarding";
 import { getNextGoal } from "@/services/onboarding";
 import type { Routes } from ".";
-import { act, card, gameIcon, page } from "../view-kit";
+import { act, card, gameIcon, go, page } from "../view-kit";
+import { accountStatusLine } from "./account";
 
 // "Guia" (the "?" button of the top bar): what each part of the screen does, the next objective and a
 // button to play the tutorial again. For players who skipped it or forgot where something is.
@@ -13,6 +14,13 @@ export const routes: Routes = {
 			{ lot: gameIcon("key"), coin: gameIcon("coin"), build: gameIcon("construction"), done: gameIcon("success") },
 		);
 		return page("guia", "Guia do mercado", [
+			// Lucas 12/10: the progress follows the player to a new phone.
+			card("Conta e nuvem", {
+				icon: gameIcon("smartphone"),
+				eyebrow: "SEU PROGRESSO",
+				lines: [accountStatusLine()],
+				buttons: [go("Abrir", "conta", { icon: gameIcon("key") })],
+			}),
 			card("O seu objetivo", {
 				icon: gameIcon("target"),
 				eyebrow: "DONA NEIDE EXPLICA",

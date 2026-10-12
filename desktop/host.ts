@@ -17,6 +17,15 @@ import {
 	noteGrantedPack,
 	requestPackPurchase,
 } from "./iap.ts";
+import {
+	applyCloudMessage,
+	cloudActions,
+	cloudStore,
+	type CloudUnityMessage,
+	exportSave,
+	importSave,
+	requestCloudAction,
+} from "./cloud.ts";
 import { type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
@@ -211,6 +220,20 @@ function runHudAction(message: {
 	after?: unknown;
 }) {
 	const id = typeof message.id === "string" ? message.id : "invalid";
+	// "Conta e nuvem" buttons: Unity signs in with Google and talks to the save server (CheckoutCloud.cs).
+	if (typeof message.action === "string" && cloudActions.includes(message.action)) {
+		const request = requestCloudAction(message.action, Array.isArray(message.args) ? message.args : []);
+		if (request.ok) send(request.message);
+		send({
+			kind: "result",
+			id,
+			action: message.action,
+			ok: request.ok,
+			reason: request.ok ? "" : t(request.reason),
+		});
+		view();
+		return;
+	}
 	// "Comprar" in the diamond store: Unity opens the App Store / Google Play sheet (CheckoutIap.cs).
 	if (message.action === "buyCurrencyPack") {
 		const request = requestPackPurchase(useGameStore.getState(), Array.isArray(message.args) ? message.args[0] : "");
@@ -308,6 +331,23 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		// The world's "Acelerar" boards too: too few diamonds opens the store.
 		openStoreOnShortfall();
 		snapshot();
+	} else if (message.kind === "cloud") {
+		const before = cloudStore.status;
+		applyCloudMessage(message as CloudUnityMessage);
+		// Two phones went separate ways: the choice opens by itself (once).
+		if (cloudStore.status === "conflict" && before !== "conflict") navigate("!conta");
+		else view();
+	} else if (message.kind === "cloud-export") {
+		send({ kind: "cloud-save", id: message.id ?? "", ...exportSave() });
+	} else if (message.kind === "cloud-import") {
+		importSave(message.data).then(
+			(ok) => {
+				send({ kind: "cloud-imported", id: message.id ?? "", ok });
+				snapshot();
+				view();
+			},
+			() => send({ kind: "cloud-imported", id: message.id ?? "", ok: false }),
+		);
 	} else if (message.kind === "ad") {
 		applyAdsMessage(message as AdsUnityMessage);
 		view();

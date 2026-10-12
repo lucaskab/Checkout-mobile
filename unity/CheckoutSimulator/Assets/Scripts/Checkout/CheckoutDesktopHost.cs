@@ -114,7 +114,7 @@ namespace Checkout {
     // The iPhone keeps its own save in the app's documents.
     if(!StartEmbedded(Path.Combine(Application.persistentDataPath,"checkout-iphone-save.json"))){Destroy(this);return;}
     Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
-    CheckoutIap.Attach(this);CheckoutAds.Attach(this);
+    CheckoutIap.Attach(this);CheckoutAds.Attach(this);CheckoutCloud.Attach(this);
     return;
    }
    ProcessStartInfo start;var bundled=BundledHost();
@@ -141,6 +141,8 @@ namespace Checkout {
    Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
    // Real-money packs: Unity IAP (the Editor's fake store here; no store in desktop builds, the shop says so).
    if(!CheckoutStartMenu.EditMode){CheckoutIap.Attach(this);CheckoutAds.Attach(this);} // + rewarded videos (CheckoutAds)
+   // Cloud saves (Google login): the real game only, never the editor's sandbox or a QA copy.
+   if(!CheckoutStartMenu.EditMode&&!CheckoutStartMenu.QaMode)CheckoutCloud.Attach(this);
    if(CheckoutStartMenu.EditMode)gameObject.AddComponent<CheckoutMapEditor>().Initialize(this);
   }
 
@@ -189,6 +191,7 @@ namespace Checkout {
     else if(kind=="purchase")CheckoutIap.Active?.Purchase(line);
     else if(kind=="ad-show")CheckoutAds.Active?.Show(line);
     else if(kind=="ad-privacy")CheckoutAds.Active?.ShowPrivacy();
+    else if(kind!=null&&kind.StartsWith("cloud-",System.StringComparison.Ordinal))CheckoutCloud.Active?.OnHost(kind,line);
    }
    if(latestView!=null)hud.Apply(latestView);
    if(process!=null&&process.HasExited&&Active==this){Active=null;hud.Offline(CheckoutI18n.T(IsRelease?"O jogo parou de responder. Feche e abra de novo.":"O processo do jogo (node) parou. Veja o Console."));}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Entrar com Google" on Android (Plugins/Android/CheckoutGoogleSignIn.java): Credential Manager + Google ID.
+     Resolved by the External Dependency Manager (installed with Google Mobile Ads). -->
+<dependencies>
+  <androidPackages>
+    <androidPackage spec="androidx.credentials:credentials:1.5.0" />
+    <androidPackage spec="androidx.credentials:credentials-play-services-auth:1.5.0" />
+    <androidPackage spec="com.google.android.libraries.identity.googleid:googleid:1.1.1" />
+  </androidPackages>
+</dependencies>

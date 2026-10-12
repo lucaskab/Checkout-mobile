@@ -44,6 +44,8 @@ namespace Checkout {
   }
   public void Offline(string message){status.SetActive(true);statusText.text=message;}
 
+  /// <summary>A toast from outside the HUD (cloud saves, CheckoutCloud).</summary>
+  public void Notify(string message,bool ok)=>Toast(message,ok);
   void Toast(string message,bool ok){
    if(string.IsNullOrEmpty(message))return;
    var style=K.Variant(ok?"success":"danger",true,false);toastEdge.color=style.edge;toastFace.color=style.face;toastText.color=style.text;

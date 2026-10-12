@@ -13,6 +13,7 @@ import { routes as productionBoards } from "./production-boards";
 import { routes as suppliers } from "./suppliers";
 import { routes as upgrades } from "./upgrades";
 import { routes as guide } from "./guide";
+import { routes as account } from "./account";
 
 export type Routes = Record<string, (state: State, args: string[]) => Page>;
 
@@ -34,6 +35,7 @@ const all: Routes = {
 	...productionBoards,
 	...kitchen,
 	...guide,
+	...account,
 	// Everything that is bought lives in the shop now: the old pages open their shop category.
 	team: (state) => shopPage(state, ["equipe"]),
 	shop: (state, [category]) => shopPage(state, ["melhorias", category ?? ""]),
