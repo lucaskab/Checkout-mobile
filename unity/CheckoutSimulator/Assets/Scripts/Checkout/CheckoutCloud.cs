@@ -251,9 +251,11 @@ namespace Checkout {
    } else {
     CodeLogin code=null;string error=null;
     yield return DesktopLogin(c=>code=c,e=>error=e);
-    if(code==null){Report("signed-out",error??"");yield break;}
+    if(code==null){Debug.Log("CHECKOUT_CLOUD browser login ended without a code: "+error);Report("signed-out",error??"");yield break;}
+    Debug.Log("CHECKOUT_CLOUD browser login ok, asking the server ("+Server+")");
     yield return Call("POST","/v1/auth/google-code",JsonUtility.ToJson(code),x=>r=x);
    }
+   Debug.Log("CHECKOUT_CLOUD login reply "+r.code+" "+(r.text.Length>200?r.text.Substring(0,200):r.text));
    if(r.network||r.code>=500){Report("signed-out","Sem conexão com o servidor. Tente de novo.");yield break;}
    if(r.code!=200){Report("signed-out",CheckoutI18n.T("O Google não confirmou o login ({0}).").Replace("{0}",r.code.ToString()));yield break;}
    var auth=JsonUtility.FromJson<AuthReply>(r.text);
@@ -278,10 +280,12 @@ namespace Checkout {
    try{listener.Start();}catch(Exception ex){failed(CheckoutI18n.T("Não deu para entrar com o Google.")+" ("+ex.Message+")");yield break;}
    Application.OpenURL("https://accounts.google.com/o/oauth2/v2/auth?client_id="+DesktopClientId+"&redirect_uri="+Uri.EscapeDataString(redirect)
     +"&response_type=code&scope="+Uri.EscapeDataString("openid email profile")+"&code_challenge="+challenge+"&code_challenge_method=S256&state="+state+"&prompt=select_account");
+   Debug.Log("CHECKOUT_CLOUD waiting for the browser on "+redirect);
    var pending=listener.GetContextAsync();float until=Time.unscaledTime+300f;
    while(!pending.IsCompleted&&Time.unscaledTime<until)yield return null;
    if(!pending.IsCompleted||pending.IsFaulted){try{listener.Stop();}catch{}failed("O login demorou demais.");yield break;}
    var context=pending.Result;var query=context.Request.QueryString;
+   Debug.Log("CHECKOUT_CLOUD browser came back: "+context.Request.Url.AbsolutePath+" code="+(!string.IsNullOrEmpty(query["code"]))+" state ok="+(query["state"]==state)+" error="+query["error"]);
    bool ok=query["state"]==state&&!string.IsNullOrEmpty(query["code"]);
    var page=Encoding.UTF8.GetBytes("<html><meta charset='utf-8'><body style='font-family:sans-serif;text-align:center;padding:60px'><h2>"
     +(ok?"Pronto! Pode voltar ao jogo.":"Login cancelado.")+"</h2></body></html>");

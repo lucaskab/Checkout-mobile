@@ -9,7 +9,7 @@ export function accountStatusLine(now = Date.now()) {
 		case "unavailable":
 			return "Salvar na nuvem não está disponível nesta versão.";
 		case "signed-out":
-			return "Progresso salvo só neste aparelho.";
+			return cloudStore.error || "Progresso salvo só neste aparelho.";
 		case "signing-in":
 			return "Entrando com o Google…";
 		case "syncing":

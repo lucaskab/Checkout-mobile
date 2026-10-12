@@ -114,6 +114,7 @@ export function applyCloudMessage(message: CloudUnityMessage) {
 			? { cloud: conflict.cloud as SaveSummary, cloudAt: num(conflict.cloudAt), cloudDevice: String(conflict.cloudDevice ?? ""), otherAccount: conflict.otherAccount === true }
 			: null;
 	if (cloudStore.status === "signed-out") {
+		// The error (a refused login) stays on the page until the next try.
 		cloudStore.email = cloudStore.name = "";
 		cloudStore.lastSyncAt = 0;
 	}

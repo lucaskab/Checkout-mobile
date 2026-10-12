@@ -112,7 +112,10 @@ export function createApp(options: AppOptions) {
 			} catch {
 				throw new HttpError(503, { error: "google-unavailable" });
 			}
-			if (!identity) throw new HttpError(401, { error: "google-refused" });
+			if (!identity) {
+				log(`login refused (${path})`);
+				throw new HttpError(401, { error: "google-refused" });
+			}
 			const player = await store.signIn(identity.sub, identity.email ?? null, identity.name ?? null);
 			const save = await store.getSave(player.id);
 			log(`sign-in ${player.id}`);

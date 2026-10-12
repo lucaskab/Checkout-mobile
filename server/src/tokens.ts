@@ -106,7 +106,10 @@ export function googleCodeExchange(clientId: string, clientSecret: string) {
 			headers: { "content-type": "application/x-www-form-urlencoded" },
 			body: new URLSearchParams({ code, code_verifier: codeVerifier, redirect_uri: redirectUri, client_id: clientId, client_secret: clientSecret, grant_type: "authorization_code" }),
 		});
-		if (!response.ok) return null;
+		if (!response.ok) {
+			console.log(new Date().toISOString(), `google-code refused: ${response.status} ${(await response.text()).slice(0, 300)}`);
+			return null;
+		}
 		const body = (await response.json()) as { id_token?: unknown };
 		return typeof body.id_token === "string" ? body.id_token : null;
 	};
