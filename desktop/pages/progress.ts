@@ -7,7 +7,7 @@ import {
 	getCurrencyPackCoins,
 	isCurrencyPackAvailable,
 } from "@/data/currency-packs";
-import { getPackPrice, iapStore } from "../iap";
+import { getPackEvent, getPackPrice, iapStore } from "../iap";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
@@ -426,9 +426,6 @@ export const routes: Routes = {
 					lines: [`Você tem ${fmt(diamonds)} diamantes.`],
 				}),
 			);
-		const notice = iapStore.notice;
-		if (notice && Date.now() - notice.at < 60_000)
-			cards.push(card(notice.text, { icon: gameIcon(notice.ok ? "gift" : "diamond"), tone: notice.ok ? "gold" : "danger" }));
 		if (iapStore.status === "unavailable")
 			cards.push(
 				card("Loja indisponível", {
@@ -452,26 +449,27 @@ export const routes: Routes = {
 					coins > 0 ? `${fmt(coins)} moedas` : "",
 					pack.diamonds > 0 ? `${fmt(pack.diamonds)} diamantes` : "",
 				].filter(Boolean);
+				// Just the price on the button (Lucas 12/10), in the player's currency.
 				const price = getPackPrice(pack.productId);
 				const busy = iapStore.busyProductId === pack.productId;
-				const buttons = [
-					act(busy ? "Aguardando a loja…" : `Comprar · ${price}`, "buyCurrencyPack", [pack.id], {
-						variant: pack.category === "coins" ? "coin" : pack.category === "diamonds" ? "gem" : "primary",
-						enabled: !busy,
-						ok: "Abrindo a loja…",
-					}),
-				];
-				// Dev builds: credit without paying, to test the economy (refused in release: desktop/host.ts devOnly).
-				if (__DEV__)
-					buttons.push(
-						act("Creditar (teste)", "grantCurrencyPurchase", [
-							{ coins, diamonds: pack.diamonds, transactionId: `dev-${Date.now()}-${pack.id}` },
-						], { variant: "secondary", ok: `${pack.name} foi creditado (teste).` }),
-					);
+				// What just happened to this pack's purchase shows on its own card.
+				const event = getPackEvent(pack.productId);
+				const status = busy && !event ? "Aguardando a loja…" : (event?.text ?? "");
+				const tone = event?.kind === "bought"
+					? "success"
+					: event?.kind === "cancelled" || event?.kind === "failed"
+						? "danger"
+						: busy
+							? "warning"
+							: pack.id === recommended
+								? "featured"
+								: pack.category === "bundle"
+									? "info"
+									: "";
 				cards.push(
 					card(pack.name, {
 						eyebrow: section.title.toUpperCase(),
-						subtitle: pack.id === recommended ? "Recomendado para o que falta" : pack.badge,
+						subtitle: rewards.join(" + "),
 						icon: gameIcon(
 							pack.category === "bundle"
 								? "gift"
@@ -479,13 +477,16 @@ export const routes: Routes = {
 									? "coin"
 									: "diamond",
 						),
-						badge: price,
-						tone: pack.id === recommended ? "featured" : pack.category === "bundle" ? "info" : "",
-						lines: [
-							rewards.join(" + "),
-							...(pack.coinTurns ? ["As moedas crescem com a sua expansão."] : []),
+						badge: pack.id === recommended ? "Recomendado" : pack.badge,
+						tone,
+						lines: status ? [status] : pack.coinTurns ? ["Cresce com a sua expansão"] : [],
+						buttons: [
+							act(busy ? "Aguardando…" : price, "buyCurrencyPack", [pack.id], {
+								variant: pack.category === "coins" ? "coin" : pack.category === "diamonds" ? "gem" : "primary",
+								enabled: !busy,
+								ok: "Abrindo a loja…",
+							}),
 						],
-						buttons,
 					}),
 				);
 			}

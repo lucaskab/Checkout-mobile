@@ -1,4 +1,4 @@
-import { currencyPacks, getCurrencyPack, isCurrencyPackAvailable } from "@/data/currency-packs";
+import { currencyPacks, getCurrencyPack, getRegionalPrice, isCurrencyPackAvailable } from "@/data/currency-packs";
 import type { GameStore } from "@/@types/game";
 
 /**
@@ -22,7 +22,22 @@ export const iapStore = {
 	busyProductId: "",
 	/** The last thing that happened (shown at the top of the diamond store). */
 	notice: null as IapNotice | null,
+	/** The device's country ("BR", "US", "DE"…): the currency of the prices until the store answers. */
+	region: "",
+	/** What just happened to each pack's purchase, shown on its own card (cancelled, failed, waiting, bought). */
+	packEvents: {} as Record<string, PackEvent>,
 };
+
+export type PackEventKind = "cancelled" | "failed" | "deferred" | "bought";
+export type PackEvent = { kind: PackEventKind; at: number; text: string };
+/** How long the card keeps showing it. */
+const PACK_EVENT_MS: Record<PackEventKind, number> = { cancelled: 8_000, failed: 10_000, deferred: 10 * 60_000, bought: 12_000 };
+
+/** The latest event of a pack, while it is still worth showing. */
+export function getPackEvent(productId: string, now = Date.now()) {
+	const event = iapStore.packEvents[productId];
+	return event && now - event.at < PACK_EVENT_MS[event.kind] ? event : null;
+}
 
 export type IapCatalogMessage = {
 	kind: "iap-catalog";
@@ -45,10 +60,12 @@ export type IapUnityMessage = {
 	productId?: unknown;
 	event?: unknown;
 	message?: unknown;
+	region?: unknown;
 };
 
 export function applyIapMessage(message: IapUnityMessage, now = Date.now()) {
 	if (message.status === "ready" || message.status === "unavailable") iapStore.status = message.status;
+	if (typeof message.region === "string" && message.region) iapStore.region = message.region;
 	// Prices come as two parallel arrays (Unity's JsonUtility has no dictionaries).
 	// (Unity's JsonUtility writes empty arrays on the event messages: only a list with prices replaces them.)
 	if (Array.isArray(message.productIds) && Array.isArray(message.prices) && message.prices.length > 0) {
@@ -63,24 +80,18 @@ export function applyIapMessage(message: IapUnityMessage, now = Date.now()) {
 	switch (message.event) {
 		case "cancelled":
 			iapStore.busyProductId = "";
-			iapStore.notice = { text: "Compra cancelada.", ok: false, at: now };
+			if (productId) iapStore.packEvents[productId] = { kind: "cancelled", at: now, text: "Compra cancelada" };
 			break;
 		case "failed":
 			iapStore.busyProductId = "";
-			iapStore.notice = {
-				text: "A compra não foi concluída. Nada foi cobrado.",
-				ok: false,
-				at: now,
-			};
+			if (productId)
+				iapStore.packEvents[productId] = { kind: "failed", at: now, text: "Não concluída · nada foi cobrado" };
 			break;
 		case "deferred":
 			// Waiting for a parent's approval: no second order meanwhile (the welcome combo could be paid twice).
 			iapStore.busyProductId = productId || iapStore.busyProductId;
-			iapStore.notice = {
-				text: "Compra aguardando aprovação. Os diamantes chegam assim que ela for aprovada.",
-				ok: true,
-				at: now,
-			};
+			if (productId)
+				iapStore.packEvents[productId] = { kind: "deferred", at: now, text: "Aguardando aprovação" };
 			break;
 		case "started":
 			iapStore.busyProductId = productId;
@@ -88,9 +99,11 @@ export function applyIapMessage(message: IapUnityMessage, now = Date.now()) {
 	}
 }
 
-/** The price shown on a pack: the store's own (local currency) once Unity has it, the catalog's until then. */
+/** The price shown on a pack: the store's own (local currency) once Unity has it, the region's table until then. */
 export function getPackPrice(productId: string) {
-	return iapStore.prices[productId] ?? getCurrencyPack(productId)?.fallbackPrice ?? "";
+	if (iapStore.prices[productId]) return iapStore.prices[productId];
+	const pack = getCurrencyPack(productId);
+	return pack ? getRegionalPrice(pack, iapStore.region) : "";
 }
 
 export type BuyPackResult =
@@ -117,9 +130,19 @@ export function requestPackPurchase(state: GameStore, packId: unknown): BuyPackR
 }
 
 /** After the pack was credited (grantCurrencyPack): the notice at the top of the store. */
-export function noteGrantedPack(grant: { coins: number; diamonds: number } | null, now = Date.now()) {
+export function noteGrantedPack(
+	grant: { packId?: string; coins: number; diamonds: number } | null,
+	now = Date.now(),
+) {
 	iapStore.busyProductId = "";
 	if (!grant) return;
+	const pack = grant.packId ? getCurrencyPack(grant.packId) : undefined;
+	if (pack)
+		iapStore.packEvents[pack.productId] = {
+			kind: "bought",
+			at: now,
+			text: grant.diamonds > 0 ? `Comprado! +${grant.diamonds.toLocaleString("pt-BR")} diamantes` : `Comprado! +${grant.coins.toLocaleString("pt-BR")} moedas`,
+		};
 	const parts = [
 		grant.diamonds > 0 ? `+${grant.diamonds.toLocaleString("pt-BR")} diamantes` : "",
 		grant.coins > 0 ? `+${grant.coins.toLocaleString("pt-BR")} moedas` : "",
@@ -133,4 +156,6 @@ export function resetIapStore() {
 	iapStore.prices = {};
 	iapStore.busyProductId = "";
 	iapStore.notice = null;
+	iapStore.region = "";
+	iapStore.packEvents = {};
 }

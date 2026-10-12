@@ -27,7 +27,8 @@ mock.module("@/storage/mmkv", () => ({
 const { useGameStore } = await import("../src/stores/game-store.ts");
 const { pages } = await import("./pages/index.ts");
 const iap = await import("./iap.ts");
-const { currencyPacks, getCurrencyPack } = await import("../src/data/currency-packs.ts");
+const currencyPacksModule = await import("../src/data/currency-packs.ts");
+const { currencyPacks, getCurrencyPack } = currencyPacksModule;
 
 const initial = JSON.stringify(useGameStore.getState());
 beforeEach(() => {
@@ -69,40 +70,74 @@ describe("the host side of a purchase", () => {
 		expect(iap.requestPackPurchase(store(), "bundle-starter")).toEqual({ ok: false, reason: "Esta oferta já foi comprada." });
 	});
 
-	test("the store's local prices replace the catalog's, and event messages keep them", () => {
+	test("prices follow the player's country until the store answers with its own (Brazil cheaper)", () => {
 		const id = getCurrencyPack("diamonds-pouch").productId;
-		expect(iap.getPackPrice(id)).toBe("€ 4,99");
+		expect(iap.getPackPrice(id)).toBe("4,99 €");
+		iap.applyIapMessage({ kind: "iap", status: "", region: "US" });
+		expect(iap.getPackPrice(id)).toBe("$4.99");
+		iap.applyIapMessage({ kind: "iap", status: "", region: "BR" });
+		expect(iap.getPackPrice(id)).toBe("R$ 16,90");
+		iap.applyIapMessage({ kind: "iap", status: "", region: "DE" });
+		expect(iap.getPackPrice(id)).toBe("4,99 €");
+		// The store's own price wins, and event messages (empty lists) keep it.
 		iap.applyIapMessage({ kind: "iap", status: "ready", productIds: [id], prices: ["R$ 24,90"] });
 		expect(iap.getPackPrice(id)).toBe("R$ 24,90");
-		// Unity's JsonUtility writes empty lists on event messages.
 		iap.applyIapMessage({ kind: "iap", status: "", event: "failed", productId: id, productIds: [], prices: [] });
 		expect(iap.getPackPrice(id)).toBe("R$ 24,90");
 		expect(iap.iapStore.status).toBe("ready");
-		expect(iap.iapStore.notice?.ok).toBe(false);
 	});
 
-	test("a credited purchase leaves a thank-you notice", () => {
-		iap.iapStore.busyProductId = "x";
-		iap.noteGrantedPack({ coins: 0, diamonds: 220 });
-		expect(iap.iapStore.busyProductId).toBe("");
-		expect(iap.iapStore.notice?.text).toContain("+220 diamantes");
+	test("Brazil's prices are below the euro prices converted at any realistic rate", () => {
+		const { REGIONAL_PRICES } = currencyPacksModule;
+		const value = (text) => Number(text.replace(/[^\d,.]/g, "").replace(",", "."));
+		REGIONAL_PRICES.BRL.forEach((brl, i) => {
+			const eur = value(REGIONAL_PRICES.EUR[i]);
+			// 1 € ≈ 6 R$: Brazil pays well under half of that.
+			expect(value(brl)).toBeLessThan(eur * 6 * 0.6);
+			expect(value(brl)).toBeGreaterThan(eur * 6 * 0.4);
+		});
+	});
+
+	test("each pack's card shows what happened to its purchase (cancelled, bought)", () => {
+		iap.applyIapMessage({ kind: "iap", status: "ready" });
+		const id = getCurrencyPack("diamonds-pouch").productId;
+		expect(iap.requestPackPurchase(store(), "diamonds-pouch").ok).toBe(true);
+		let card = pages(store(), "currency:diamonds").cards.find((c) => c.title === getCurrencyPack("diamonds-pouch").name);
+		expect(card.lines).toEqual(["Aguardando a loja…"]);
+		expect(card.tone).toBe("warning");
+		expect(card.buttons[0].enabled).toBe(false);
+		iap.applyIapMessage({ kind: "iap", event: "cancelled", productId: id });
+		card = pages(store(), "currency:diamonds").cards.find((c) => c.title === getCurrencyPack("diamonds-pouch").name);
+		expect(card.lines).toEqual(["Compra cancelada"]);
+		expect(card.tone).toBe("danger");
+		expect(card.buttons[0].enabled).toBe(true);
+		// Some seconds later the card is back to normal.
+		expect(iap.getPackEvent(id, Date.now() + 60_000)).toBe(null);
+		const grant = store().grantCurrencyPack(id, "tx-2");
+		iap.noteGrantedPack(grant);
+		card = pages(store(), "currency:diamonds").cards.find((c) => c.title === getCurrencyPack("diamonds-pouch").name);
+		expect(card.lines[0]).toContain("Comprado! +220 diamantes");
+		expect(card.tone).toBe("success");
 	});
 });
 
 describe("the diamond store page", () => {
-	test("each pack has a Comprar button that buys it (no free credit outside dev)", () => {
+	test("each pack has one button that shows just its price and buys it (no free credit button)", () => {
+		iap.applyIapMessage({ kind: "iap", status: "", region: "BR" });
 		const page = pages(store(), "currency:diamonds");
 		const all = buttons(page);
 		expect(all.some((b) => b.action === "grantCurrencyPurchase")).toBe(false);
 		const buy = all.filter((b) => b.action === "buyCurrencyPack");
 		expect(buy.length).toBe(currencyPacks.filter((p) => p.category === "diamonds").length);
+		expect(all.length).toBe(buy.length);
 		expect(JSON.parse(buy[0].args)[0]).toBe("diamonds-handful");
+		expect(buy[0].label).toBe("R$ 6,90");
 	});
 
 	test("opened for a shortfall it says how many are missing and recommends the pack that covers it", () => {
 		const page = pages(store(), "currency:diamonds:150");
 		expect(page.cards.some((c) => c.title === "Faltam 150 diamantes")).toBe(true);
-		const recommended = page.cards.find((c) => c.subtitle === "Recomendado para o que falta");
+		const recommended = page.cards.find((c) => c.badge === "Recomendado");
 		expect(recommended?.title).toBe(getCurrencyPack("diamonds-pouch").name);
 	});
 
@@ -112,7 +147,7 @@ describe("the diamond store page", () => {
 		const page = pages(store(), "currency:all");
 		expect(page.cards.some((c) => c.title === getCurrencyPack("bundle-starter").name)).toBe(false);
 		const sack = page.cards.find((c) => c.title === getCurrencyPack("coins-sack").name);
-		expect(sack.lines[0]).toMatch(/milh|\d{3}\.\d{3}/);
+		expect(sack.subtitle).toMatch(/\d{3}\.\d{3} moedas/);
 	});
 });
 

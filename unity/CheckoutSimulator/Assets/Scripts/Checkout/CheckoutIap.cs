@@ -43,6 +43,7 @@ namespace Checkout {
   /// <summary>Host line <c>iap-catalog</c>: the packs to sell.</summary>
   public void Catalog(string json){
    bool changed=flow.ReadCatalog(json);
+   flow.ReportRegion();
    if(!StoreSupported){flow.ReportStatus(false,null,null,"no store on this platform");return;}
    if(!connected){Connect();return;}
    if(changed)Fetch();else ReportPrices();
@@ -114,7 +115,8 @@ namespace Checkout {
    var ids=new List<string>();var prices=new List<string>();
    foreach(var product in store.GetProducts()){
     if(product==null||!product.availableToPurchase)continue;
-    ids.Add(product.definition.id);prices.Add(product.metadata.localizedPriceString??"");
+    // The Editor's fake store prices everything "$0.01": the game's regional table shows instead.
+    ids.Add(product.definition.id);prices.Add(Application.isEditor?"":product.metadata.localizedPriceString??"");
    }
    flow.ReportStatus(ids.Count>0,ids,prices,ids.Count>0?"":"no products in the store");
   }

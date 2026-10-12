@@ -3431,6 +3431,14 @@ const catalog: Catalog = {
 	"Entrega agora · {0}": "Livrer maintenant · {0}",
 	"Sem espaço no estoque agora.": "Pas de place dans la réserve pour le moment.",
 	"Sem espaço no depósito agora.": "Pas de place dans le dépôt pour le moment.",
+	"Compra cancelada": "Achat annulé",
+	"Não concluída · nada foi cobrado": "Non terminé · rien n'a été facturé",
+	"Aguardando aprovação": "En attente d'approbation",
+	"Comprado! +{0} diamantes": "Acheté ! +{0} diamants",
+	"Comprado! +{0} moedas": "Acheté ! +{0} pièces",
+	"Recomendado": "Recommandé",
+	"Cresce com a sua expansão": "Grandit avec votre expansion",
+	"Aguardando…": "En attente…",
 };
 
 export default catalog;

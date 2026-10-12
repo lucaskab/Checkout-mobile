@@ -112,6 +112,12 @@ namespace Checkout {
    var cardData=p.cards??new DesktopCard[0];
    while(shopTiles.Count<cardData.Length){var t=CheckoutShopTile.Create(shopGrid);t.Clicked=Press;shopTiles.Add(t);}
    for(int i=0;i<shopTiles.Count;i++){bool show=i<cardData.Length;shopTiles[i].gameObject.SetActive(show);if(show)shopTiles[i].Apply(cardData[i]);}
+   // The tiles are as tall as the page's longest text needs (Lucas 12/10: short cards — the diamond packs — had a big
+   // empty gap between their text and the button at the bottom).
+   var grid=shopGrid.GetComponent<GridLayoutGroup>();float full=Phone?352:378,need=0;
+   for(int i=0;i<cardData.Length&&i<shopTiles.Count;i++)need=Mathf.Max(need,shopTiles[i].NeededHeight());
+   float height=Mathf.Clamp(Mathf.Ceil(need),Phone?250:270,full);
+   if(Mathf.Abs(grid.cellSize.y-height)>.5f)grid.cellSize=new Vector2(grid.cellSize.x,height);
    string key=p.route??"";
    if(key!=shopShown){shopShown=key;Canvas.ForceUpdateCanvases();shopScroll.verticalNormalizedPosition=1;shopChipScroll.horizontalNormalizedPosition=0;}
   }
@@ -120,7 +126,7 @@ namespace Checkout {
  // One product tile of the shop grid: big art on a soft glow, ribbon, name, description, price buttons.
  public class CheckoutShopTile:MonoBehaviour {
   Image edge,face,art,glow,icon,ribbonBack,eyebrowBack,lockIcon,fill;TextMeshProUGUI ribbon,eyebrow,title,subtitle;
-  RectTransform lines,buttons,fillRect;GameObject progress;
+  RectTransform lines,buttons,fillRect,texts;GameObject progress;
   readonly List<TextMeshProUGUI> linePool=new List<TextMeshProUGUI>();readonly List<CheckoutDesktopButton> buttonPool=new List<CheckoutDesktopButton>();
   public System.Action<CheckoutDesktopButton> Clicked;
   static Sprite glowSprite;
@@ -153,7 +159,7 @@ namespace Checkout {
    N.Row(t.ribbonBack.gameObject,0,new RectOffset(9,9,3,3));var rf=t.ribbonBack.gameObject.AddComponent<ContentSizeFitter>();rf.horizontalFit=rf.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
    t.ribbon=N.Text(t.ribbonBack.transform,"Text",K.Number,13,K.Ink);t.ribbon.textWrappingMode=TextWrappingModes.NoWrap;
    // Texts.
-   var text=Anchor(N.Node("Texts",f),Vector2.zero,Vector2.one,new Vector2(12,70),new Vector2(-12,CheckoutScreen.Handheld?-132:-176));
+   var text=Anchor(N.Node("Texts",f),Vector2.zero,Vector2.one,new Vector2(12,70),new Vector2(-12,CheckoutScreen.Handheld?-132:-176));t.texts=text;
    var col=N.Column(text.gameObject,3);col.childForceExpandHeight=false;
    t.title=N.Text(text,"Title",K.Headline,20,K.Ink);t.title.textWrappingMode=TextWrappingModes.NoWrap;t.title.overflowMode=TextOverflowModes.Ellipsis;t.title.gameObject.AddComponent<LayoutElement>().minHeight=26; // never squeezed out by a long description
    t.subtitle=N.Text(text,"Subtitle",K.Body,13,K.Muted);t.subtitle.overflowMode=TextOverflowModes.Ellipsis;t.subtitle.maxVisibleLines=3;
@@ -163,6 +169,13 @@ namespace Checkout {
    t.fill=N.Image(track.transform,"Fill",K.C("5DA637"),5);t.fillRect=t.fill.rectTransform;t.fillRect.anchorMin=Vector2.zero;t.fillRect.offsetMin=t.fillRect.offsetMax=Vector2.zero;
    t.buttons=Anchor(N.Node("Buttons",f),Vector2.zero,new Vector2(1,0),new Vector2(12,10),new Vector2(-12,58));var br=N.Row(t.buttons.gameObject,8);br.childForceExpandWidth=true;br.childControlHeight=true;br.childForceExpandHeight=true;
    return t;
+  }
+
+  /// <summary>Height the tile needs: the art, its texts at their natural height, the progress bar and the buttons.</summary>
+  public float NeededHeight(){
+   LayoutRebuilder.ForceRebuildLayoutImmediate(texts);
+   float art=CheckoutScreen.Handheld?132:176;
+   return art+LayoutUtility.GetPreferredHeight(texts)+(progress.activeSelf?16:0)+70+8;
   }
 
   static void Set(TextMeshProUGUI text,string value){value=K.Clean(value);bool has=!string.IsNullOrEmpty(value);text.gameObject.SetActive(has);if(has&&text.text!=value)text.text=value;}

@@ -3418,6 +3418,14 @@ const catalog: Catalog = {
 	"Entrega agora · {0}": "Deliver now · {0}",
 	"Sem espaço no estoque agora.": "No room in the stockroom right now.",
 	"Sem espaço no depósito agora.": "No room in the depot right now.",
+	"Compra cancelada": "Purchase cancelled",
+	"Não concluída · nada foi cobrado": "Not completed · you were not charged",
+	"Aguardando aprovação": "Waiting for approval",
+	"Comprado! +{0} diamantes": "Bought! +{0} diamonds",
+	"Comprado! +{0} moedas": "Bought! +{0} coins",
+	"Recomendado": "Recommended",
+	"Cresce com a sua expansão": "Grows with your expansion",
+	"Aguardando…": "Waiting…",
 };
 
 export default catalog;

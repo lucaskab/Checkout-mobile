@@ -16,7 +16,15 @@ namespace Checkout {
  public class CheckoutIapFlow {
   [Serializable] public class CatalogEntry{public string productId,packId;}
   [Serializable] class CatalogMessage{public string kind;public CatalogEntry[] products;}
-  [Serializable] class StatusMessage{public string kind="iap",status="",@event="",productId="",message="";public string[] productIds,prices;}
+  [Serializable] class StatusMessage{public string kind="iap",status="",@event="",productId="",message="",region="";public string[] productIds,prices;}
+
+  /// <summary>The device's country ("BR", "US", "DE"…): the game shows prices in its currency until the store
+  /// answers with its own (src/data/currency-packs.ts REGIONAL_PRICES).</summary>
+  public static string Region(){
+   try {var r=System.Globalization.RegionInfo.CurrentRegion;if(r!=null&&r.TwoLetterISORegionName.Length==2&&r.TwoLetterISORegionName!="IV")return r.TwoLetterISORegionName.ToUpperInvariant();}catch {}
+   try {var name=System.Globalization.CultureInfo.CurrentCulture.Name;int dash=name.LastIndexOf('-');if(dash>0&&name.Length-dash==3)return name.Substring(dash+1).ToUpperInvariant();}catch {}
+   return "";
+  }
 
   /// <summary>Sends a HUD action to the host and calls back with (ok, reason) when the host answers.</summary>
   public delegate void ActionSender(string action,string argsJson,Action<bool,string> answered);
@@ -67,10 +75,12 @@ namespace Checkout {
 
   /// <summary>Store ready or not, with the local prices of the products it knows.</summary>
   public void ReportStatus(bool ready,IList<string> productIds=null,IList<string> prices=null,string message=""){
-   var m=new StatusMessage{status=ready?"ready":"unavailable",message=message??""};
+   var m=new StatusMessage{status=ready?"ready":"unavailable",message=message??"",region=Region()};
    if(productIds!=null&&prices!=null&&productIds.Count==prices.Count){m.productIds=new string[productIds.Count];m.prices=new string[prices.Count];productIds.CopyTo(m.productIds,0);prices.CopyTo(m.prices,0);}
    sendRaw(JsonUtility.ToJson(m));
   }
+  /// <summary>The device's country alone (sent first, so the prices show in the right currency at once).</summary>
+  public void ReportRegion()=>sendRaw(JsonUtility.ToJson(new StatusMessage{region=Region()}));
   /// <summary>Something happened to the purchase the player started: started, cancelled, failed, deferred.</summary>
   public void ReportEvent(string evt,string productId,string message=""){
    sendRaw(JsonUtility.ToJson(new StatusMessage{@event=evt,productId=productId??"",message=message??""}));

@@ -247,6 +247,40 @@ export function getCurrencyPackCoins(pack: CurrencyPack, eraId: MarketEraId | un
 	return roundPrice(Math.max(500, pack.coinTurns * profit));
 }
 
+/**
+ * Prices by region (Lucas 12/10): euros in Europe, dollars in the US, reais in Brazil — not a straight conversion.
+ * Brazil is priced for its purchasing power (about 45 % below the euro price converted), the UK a little under the
+ * euro. The App Store / Google Play charge what is set per country in App Store Connect / Play Console (these
+ * tables are what to enter there); the game shows the store's own price as soon as the store answers, and these
+ * only until then (or on a device with no store). Index = price point of the pack (fallbackPrice).
+ */
+export type PriceCurrency = "EUR" | "USD" | "BRL" | "GBP";
+const PRICE_POINTS = ["1,99", "4,99", "9,99", "19,99", "39,99", "79,99"];
+export const REGIONAL_PRICES: Record<PriceCurrency, readonly string[]> = {
+	EUR: ["1,99 €", "4,99 €", "9,99 €", "19,99 €", "39,99 €", "79,99 €"],
+	USD: ["$1.99", "$4.99", "$9.99", "$19.99", "$39.99", "$79.99"],
+	BRL: ["R$ 6,90", "R$ 16,90", "R$ 32,90", "R$ 64,90", "R$ 124,90", "R$ 249,90"],
+	GBP: ["£1.79", "£4.49", "£8.99", "£17.99", "£34.99", "£69.99"],
+};
+const EURO_COUNTRIES = new Set(
+	"AT BE CY DE EE ES FI FR GR HR IE IT LT LU LV MT NL PT SI SK AD MC SM VA ME XK".split(" "),
+);
+
+/** The currency the game shows for a country (ISO code of the device's region, e.g. "BR"). */
+export function getPriceCurrency(region: string | undefined): PriceCurrency {
+	const code = (region ?? "").toUpperCase();
+	if (code === "BR") return "BRL";
+	if (code === "GB") return "GBP";
+	if (EURO_COUNTRIES.has(code)) return "EUR";
+	return code === "US" || code ? "USD" : "EUR";
+}
+
+/** The pack's price in the region's currency ("R$ 16,90"), before the store's own price is known. */
+export function getRegionalPrice(pack: CurrencyPack, region: string | undefined) {
+	const point = PRICE_POINTS.indexOf(pack.fallbackPrice.replace("€", "").trim());
+	return REGIONAL_PRICES[getPriceCurrency(region)][point] ?? pack.fallbackPrice;
+}
+
 /** Whether the player may still buy `pack` (the welcome combo only once). */
 export function isCurrencyPackAvailable(pack: CurrencyPack, purchasedPackIds: readonly string[] | undefined) {
 	return !pack.oncePerPlayer || !(purchasedPackIds ?? []).includes(pack.id);
