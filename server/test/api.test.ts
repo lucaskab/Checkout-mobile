@@ -65,10 +65,23 @@ describe("Google ID tokens", () => {
 		assert.equal(await verify(`${h}.${other}.${s}`), null);
 		assert.equal(await verify("not.a.token"), null);
 	});
+
+	test("an unknown key id refetches Google's keys at most once a minute", async () => {
+		const before = fetches;
+		for (let i = 0; i < 5; i++) await verify(make(good, `forged-${i}`));
+		assert.ok(fetches - before <= 1);
+	});
+
+	test("Google's keys out of reach is an error, not a refusal", async () => {
+		const down = googleVerifier(["web-client"], async () => {
+			throw new Error("offline");
+		});
+		await assert.rejects(down(make(good)));
+	});
 });
 
 describe("the API", () => {
-	const store = memoryStore(undefined, 0);
+	const store = memoryStore(undefined, 60 * 60_000);
 	const identities: Record<string, { sub: string; email: string; name: string }> = {
 		"token-ana": { sub: "g-ana", email: "ana@example.com", name: "Ana" },
 		"token-bia": { sub: "g-bia", email: "bia@example.com", name: "Bia" },
@@ -146,11 +159,17 @@ describe("the API", () => {
 		assert.equal(stale.body.current.revision, 2);
 		assert.equal(stale.body.current.summary.diamonds, 70);
 		assert.equal(stale.body.current.deviceId, "phone-b");
-		// The player chooses phone A's progress: forced upload; the replaced one stays in the history.
-		const forced = await call("PUT", "/v1/save", { baseRevision: 1, data: game(55), deviceId: "phone-a", force: true }, token);
-		assert.equal(forced.body.revision, 3);
+		// The player chooses phone A's progress over the revision 2 they were shown…
+		// …but phone B uploaded again meanwhile: the choice must be asked again with the newer progress.
+		assert.equal((await call("PUT", "/v1/save", { baseRevision: 2, data: game(90), deviceId: "phone-b" }, b.token)).body.revision, 3);
+		const staleForce = await call("PUT", "/v1/save", { baseRevision: 2, data: game(55), deviceId: "phone-a", force: true }, token);
+		assert.equal(staleForce.status, 409);
+		assert.equal(staleForce.body.current.summary.diamonds, 90);
+		// Shown revision 3, the player still picks phone A: it replaces it, and the replaced one is kept.
+		const forced = await call("PUT", "/v1/save", { baseRevision: 3, data: game(55), deviceId: "phone-a", force: true }, token);
+		assert.equal(forced.body.revision, 4);
 		const player = (await signIn("token-bia")).player.id;
-		assert.deepEqual(store.history.get(player)?.map((s) => s.summary.diamonds), [70, 50]);
+		assert.equal(store.history.get(player)?.[0].summary.diamonds, 90);
 	});
 
 	test("bad uploads are refused", async () => {
@@ -167,6 +186,14 @@ describe("the API", () => {
 		assert.equal((await call("GET", "/v1/save", undefined, token)).status, 401);
 		const again = await signIn("token-ana");
 		assert.equal(again.save, null, "a new login starts clean");
+	});
+
+	test("Google unreachable during login → 503", async () => {
+		const down = createServer(createApp({ store, verifyGoogle: async () => { throw new Error("offline"); }, sessionSecret: SECRET, rateLimit: 1000 }));
+		await new Promise<void>((done) => down.listen(0, () => done()));
+		const response = await fetch(`http://127.0.0.1:${(down.address() as AddressInfo).port}/v1/auth/google`, { method: "POST", body: JSON.stringify({ idToken: "x" }) });
+		await new Promise<void>((done) => down.close(() => done()));
+		assert.equal(response.status, 503);
 	});
 
 	test("too many requests from one address slow down", async () => {

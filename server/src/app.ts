@@ -49,7 +49,8 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 	let size = 0;
 	for await (const chunk of req) {
 		size += (chunk as Buffer).length;
-		if (size > MAX_SAVE_BYTES + 64 * 1024) throw new HttpError(413, { error: "too-large" });
+		// The save travels as a JSON string (quotes escaped): room for twice its size; readSave enforces the real limit.
+		if (size > MAX_SAVE_BYTES * 2 + 64 * 1024) throw new HttpError(413, { error: "too-large" });
 		chunks.push(chunk as Buffer);
 	}
 	try {
@@ -105,7 +106,12 @@ export function createApp(options: AppOptions) {
 				idToken = await options.exchangeCode(code, codeVerifier, redirectUri);
 			}
 			if (typeof idToken !== "string" || idToken.length > 8192) throw new HttpError(400, { error: "missing-token" });
-			const identity = await verifyGoogle(idToken);
+			let identity;
+			try {
+				identity = await verifyGoogle(idToken);
+			} catch {
+				throw new HttpError(503, { error: "google-unavailable" });
+			}
 			if (!identity) throw new HttpError(401, { error: "google-refused" });
 			const player = await store.signIn(identity.sub, identity.email ?? null, identity.name ?? null);
 			const save = await store.getSave(player.id);
@@ -136,7 +142,9 @@ export function createApp(options: AppOptions) {
 			const deviceId = typeof body.deviceId === "string" ? body.deviceId.slice(0, 100) : "";
 			if (baseRevision < 0 || !deviceId) throw new HttpError(400, { error: "bad-upload" });
 			const upload = { baseRevision, data: body.data as string, deviceId, force: body.force === true };
-			const result = await store.replaceSave(player.id, { data: upload.data, summary, deviceId }, (current) => canReplace(current, upload));
+			const result = await store.replaceSave(player.id, { data: upload.data, summary, deviceId, keepReplaced: upload.force }, (current) =>
+				canReplace(current, upload),
+			);
 			if (!result.ok)
 				throw new HttpError(409, { error: "conflict", current: result.current ? describe(result.current) : null });
 			return { status: 200, body: describe(result.save) };
@@ -156,7 +164,8 @@ export function createApp(options: AppOptions) {
 		let status = 500;
 		let body: unknown = { error: "server" };
 		try {
-			const address = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0].trim() || req.socket.remoteAddress || "";
+			// Render's proxy appends the real address last (anything before it was sent by the client).
+			const address = (req.headers["x-forwarded-for"] as string | undefined)?.split(",").at(-1)?.trim() || req.socket.remoteAddress || "";
 			if (!allow(`ip:${address}`)) throw new HttpError(429, { error: "slow-down" });
 			({ status, body } = await route(req));
 		} catch (error) {

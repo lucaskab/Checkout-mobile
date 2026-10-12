@@ -43,6 +43,12 @@ describe("Prisma store (Postgres)", { skip: !enabled && "no DATABASE_URL" }, asy
 		const { PrismaClient } = await import("@prisma/client");
 		const prisma = new PrismaClient();
 		assert.equal(await prisma.saveHistory.count({ where: { playerId: player.id } }), 10);
+		// A forced replace keeps the replaced save even when it is recent.
+		const keepStore = prismaStore(prisma, 60 * 60_000);
+		const before = await prisma.saveHistory.count({ where: { playerId: player.id } });
+		const forced = await keepStore.replaceSave(player.id, { data: save(300), summary: summary(300), deviceId: "a", keepReplaced: true }, at(14));
+		assert.ok(forced.ok);
+		assert.equal(await prisma.saveHistory.count({ where: { playerId: player.id } }), Math.min(10, before + 1));
 		await store.deletePlayer(player.id);
 		assert.equal(await store.getSave(player.id), null);
 		assert.equal(await prisma.saveHistory.count({ where: { playerId: player.id } }), 0);

@@ -44,22 +44,32 @@ export function googleVerifier(
 	fetchKeys: () => Promise<{ keys: KeySet; maxAgeMs: number }> = fetchGoogleKeys,
 	clock = () => Date.now(),
 ): GoogleVerifier {
-	let cache: { keys: KeySet; until: number } | null = null;
+	let cache: { keys: KeySet; until: number; fetchedAt: number } | null = null;
+	// Google rotates keys: an unknown key id fetches them again, but at most once a minute (forged ids must not
+	// turn every request into a call to Google).
 	const keysFor = async (kid: string) => {
-		if (!cache || cache.until < clock() || !cache.keys.keys.some((k) => k.kid === kid)) {
+		const now = clock();
+		const known = cache?.keys.keys.some((k) => k.kid === kid);
+		if (!cache || cache.until < now || (!known && now - cache.fetchedAt >= 60_000)) {
 			const fresh = await fetchKeys();
-			cache = { keys: fresh.keys, until: clock() + fresh.maxAgeMs };
+			cache = { keys: fresh.keys, until: now + fresh.maxAgeMs, fetchedAt: now };
 		}
 		return cache.keys.keys.find((k) => k.kid === kid) ?? null;
 	};
 	return async (idToken) => {
 		const parts = idToken.split(".");
 		if (parts.length !== 3) return null;
+		let header: { alg?: unknown; kid?: unknown };
 		try {
-			const header = JSON.parse(fromB64url(parts[0]).toString("utf8"));
-			if (header.alg !== "RS256" || typeof header.kid !== "string") return null;
-			const jwk = await keysFor(header.kid);
-			if (!jwk) return null;
+			header = JSON.parse(fromB64url(parts[0]).toString("utf8"));
+		} catch {
+			return null;
+		}
+		if (header.alg !== "RS256" || typeof header.kid !== "string") return null;
+		// Google's keys out of reach: an error (503), not "Google refused".
+		const jwk = await keysFor(header.kid);
+		if (!jwk) return null;
+		try {
 			const key = createPublicKey({ key: jwk as any, format: "jwk" });
 			if (!verifySignature("RSA-SHA256", Buffer.from(`${parts[0]}.${parts[1]}`), key, fromB64url(parts[2]))) return null;
 			const claims = JSON.parse(fromB64url(parts[1]).toString("utf8"));
@@ -81,7 +91,7 @@ export function googleVerifier(
 }
 
 async function fetchGoogleKeys() {
-	const response = await fetch("https://www.googleapis.com/oauth2/v3/certs");
+	const response = await fetch("https://www.googleapis.com/oauth2/v3/certs", { signal: AbortSignal.timeout(5000) });
 	if (!response.ok) throw new Error(`Google keys: HTTP ${response.status}`);
 	const maxAge = /max-age=(\d+)/.exec(response.headers.get("cache-control") ?? "")?.[1];
 	return { keys: (await response.json()) as KeySet, maxAgeMs: (maxAge ? Number(maxAge) : 3600) * 1000 };
@@ -91,6 +101,7 @@ async function fetchGoogleKeys() {
 export function googleCodeExchange(clientId: string, clientSecret: string) {
 	return async (code: string, codeVerifier: string, redirectUri: string) => {
 		const response = await fetch("https://oauth2.googleapis.com/token", {
+			signal: AbortSignal.timeout(10_000),
 			method: "POST",
 			headers: { "content-type": "application/x-www-form-urlencoded" },
 			body: new URLSearchParams({ code, code_verifier: codeVerifier, redirect_uri: redirectUri, client_id: clientId, client_secret: clientSecret, grant_type: "authorization_code" }),

@@ -14,7 +14,7 @@ export interface Store {
 	 */
 	replaceSave(
 		playerId: string,
-		upload: { data: string; summary: SaveSummary; deviceId: string },
+		upload: { data: string; summary: SaveSummary; deviceId: string; keepReplaced?: boolean },
 		accept: (current: SaveRecord | null) => boolean,
 	): Promise<{ ok: true; save: SaveRecord } | { ok: false; current: SaveRecord | null }>;
 	deletePlayer(id: string): Promise<void>;
@@ -46,9 +46,9 @@ export function memoryStore(clock = () => new Date(), historyEveryMs = HISTORY_E
 		async replaceSave(playerId, upload, accept) {
 			const current = saves.get(playerId) ?? null;
 			if (!accept(current)) return { ok: false, current };
-			if (current && clock().getTime() - current.updatedAt.getTime() >= historyEveryMs)
+			if (current && (upload.keepReplaced || clock().getTime() - current.updatedAt.getTime() >= historyEveryMs))
 				history.set(playerId, [current, ...(history.get(playerId) ?? [])].slice(0, HISTORY_KEPT));
-			const save: SaveRecord = { ...upload, revision: (current?.revision ?? 0) + 1, updatedAt: clock() };
+			const save: SaveRecord = { data: upload.data, summary: upload.summary, deviceId: upload.deviceId, revision: (current?.revision ?? 0) + 1, updatedAt: clock() };
 			saves.set(playerId, save);
 			return { ok: true, save: { ...save } };
 		},

@@ -42,7 +42,9 @@ export const routes: Routes = {
 					icon: gameIcon("warning"),
 					tone: "warning",
 					lines: [
-						"Este aparelho e a sua conta têm progressos diferentes (você jogou em outro aparelho).",
+						cloudStore.conflict.otherAccount
+							? "O progresso deste aparelho é de outra conta Google. Esta conta já tem um progresso na nuvem."
+							: "Este aparelho e a sua conta têm progressos diferentes (você jogou em outro aparelho).",
 						"O que você não escolher é substituído. Por segurança, o servidor guarda cópias recentes.",
 					],
 				}),

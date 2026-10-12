@@ -69,8 +69,13 @@ describe("the save goes to the cloud and comes back", () => {
 		expect(store().coins).toBe(4242);
 	});
 
-	test("a new game is fresh (a new phone takes the cloud's progress without asking)", () => {
+	test("a new game is fresh (a new phone takes the cloud's progress without asking) — unless something was bought", () => {
 		expect(cloud.exportSave().fresh).toBe(true);
+		useGameStore.setState({ currencyPurchases: { ...store().currencyPurchases, processedTransactionIds: ["tx-1"] } });
+		expect(cloud.exportSave().fresh).toBe(false);
+		useGameStore.setState(JSON.parse(initial));
+		useGameStore.setState({ logistics: { ...store().logistics, premiumCurrency: 230 } });
+		expect(cloud.exportSave().fresh).toBe(false);
 	});
 });
 
@@ -122,6 +127,9 @@ describe("the Conta page", () => {
 		expect(JSON.parse(cloudCard.buttons[0].args)).toEqual(["cloud"]);
 		expect(cloud.requestCloudAction("cloudResolve", ["device"]).message).toEqual({ kind: "cloud-resolve", keep: "device" });
 		expect(cloud.requestCloudAction("cloudResolve", ["other"]).ok).toBe(false);
+		// Another Google account's progress on this device: said so.
+		cloud.applyCloudMessage({ kind: "cloud", status: "conflict", conflict: { cloud: { level: 2, era: "", coins: 1, diamonds: 1, day: 2, version: 45 }, otherAccount: true } });
+		expect(pages(store(), "conta").cards[0].lines[0]).toContain("outra conta Google");
 	});
 
 	test("the Guia shows where the progress is saved and opens the Conta page", () => {

@@ -24,7 +24,7 @@ export const cloudStore = {
 	lastSyncAt: 0,
 	error: "",
 	/** Both versions of the progress, when they went separate ways (two phones). */
-	conflict: null as null | { cloud: SaveSummary; cloudAt: number; cloudDevice: string },
+	conflict: null as null | { cloud: SaveSummary; cloudAt: number; cloudDevice: string; otherAccount: boolean },
 	/** "Apagar conta" asks twice: the second press must come before this time. */
 	confirmDeleteUntil: 0,
 };
@@ -44,8 +44,13 @@ export function summarize(state: Partial<GameStore> | Record<string, any>, versi
 	};
 }
 
-/** A game that was never really played (a new phone): the cloud progress replaces it without asking. */
-export const isFreshGame = (summary: SaveSummary) => summary.level <= 1 && summary.day <= 1;
+/**
+ * A game that was never really played (a new phone): the cloud progress replaces it without asking. Anything bought
+ * (a diamond pack, more diamonds than the 10 a new game starts with) makes it a real game, so the player is asked.
+ */
+export function isFreshGame(summary: SaveSummary, purchases = 0) {
+	return summary.level <= 1 && summary.day <= 1 && summary.diamonds <= 10 && purchases === 0;
+}
 
 /** The save exactly as the store persists it, and what it holds. */
 export function exportSave() {
@@ -54,7 +59,8 @@ export function exportSave() {
 	const version = options.version ?? 0;
 	const persisted = options.partialize ? options.partialize(state) : state;
 	const summary = summarize(state, version);
-	return { data: JSON.stringify({ state: persisted, version }), summary, fresh: isFreshGame(summary) };
+	const purchases = (state.currencyPurchases?.processedTransactionIds?.length ?? 0) + (state.currencyPurchases?.purchasedPackIds?.length ?? 0);
+	return { data: JSON.stringify({ state: persisted, version }), summary, fresh: isFreshGame(summary, purchases) };
 }
 
 /** Replaces this device's progress with `data` (a cloud save). Older save versions are migrated on the way in. */
@@ -69,8 +75,16 @@ export async function importSave(data: unknown) {
 	if (!parsed || typeof parsed.state !== "object" || parsed.state === null || Array.isArray(parsed.state)) return false;
 	const options = useGameStore.persist.getOptions();
 	if (!options.storage || !options.name) return false;
-	await options.storage.setItem(options.name, { state: parsed.state, version: num(parsed.version) } as never);
-	await useGameStore.persist.rehydrate();
+	const previous = await options.storage.getItem(options.name);
+	try {
+		await options.storage.setItem(options.name, { state: parsed.state, version: num(parsed.version) } as never);
+		await useGameStore.persist.rehydrate();
+	} catch (error) {
+		// Never leave the device half-replaced: put this device's save back.
+		if (previous) await options.storage.setItem(options.name, previous);
+		console.error(`CHECKOUT_CLOUD import failed: ${error}`);
+		return false;
+	}
 	// The other phone was closed since its last upload: the market catches up like after any pause.
 	useGameStore.getState().processSessionResume();
 	return true;
@@ -94,10 +108,10 @@ export function applyCloudMessage(message: CloudUnityMessage) {
 	if (typeof message.name === "string") cloudStore.name = message.name;
 	if (typeof message.lastSyncAt === "number") cloudStore.lastSyncAt = message.lastSyncAt;
 	cloudStore.error = typeof message.error === "string" ? message.error : "";
-	const conflict = message.conflict as { cloud?: unknown; cloudAt?: unknown; cloudDevice?: unknown } | undefined;
+	const conflict = message.conflict as { cloud?: unknown; cloudAt?: unknown; cloudDevice?: unknown; otherAccount?: unknown } | undefined;
 	cloudStore.conflict =
 		cloudStore.status === "conflict" && conflict && typeof conflict.cloud === "object" && conflict.cloud
-			? { cloud: conflict.cloud as SaveSummary, cloudAt: num(conflict.cloudAt), cloudDevice: String(conflict.cloudDevice ?? "") }
+			? { cloud: conflict.cloud as SaveSummary, cloudAt: num(conflict.cloudAt), cloudDevice: String(conflict.cloudDevice ?? ""), otherAccount: conflict.otherAccount === true }
 			: null;
 	if (cloudStore.status === "signed-out") {
 		cloudStore.email = cloudStore.name = "";

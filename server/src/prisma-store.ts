@@ -51,19 +51,20 @@ export function prismaStore(prisma = new PrismaClient(), historyEveryMs = HISTOR
 					throw error;
 				}
 			}
-			if (updatedAt.getTime() - current.updatedAt.getTime() >= historyEveryMs) {
+			const { count } = await prisma.cloudSave.updateMany({
+				where: { playerId, revision: current.revision },
+				data: { ...fields, revision: current.revision + 1 },
+			});
+			if (count === 0) return { ok: false, current: await store.getSave(playerId) };
+			// The replaced save becomes a restore point (after the update won, so a losing upload leaves no copy).
+			if (upload.keepReplaced || updatedAt.getTime() - current.updatedAt.getTime() >= historyEveryMs) {
 				await prisma.saveHistory.create({
 					data: { playerId, revision: current.revision, data: current.data, summary: current.summary as Prisma.InputJsonValue, deviceId: current.deviceId, savedAt: current.updatedAt },
 				});
 				const old = await prisma.saveHistory.findMany({ where: { playerId }, orderBy: { savedAt: "desc" }, skip: HISTORY_KEPT, select: { id: true } });
 				if (old.length) await prisma.saveHistory.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
 			}
-			const { count } = await prisma.cloudSave.updateMany({
-				where: { playerId, revision: current.revision },
-				data: { ...fields, revision: current.revision + 1 },
-			});
-			if (count === 0) return { ok: false, current: await store.getSave(playerId) };
-			return { ok: true, save: { ...upload, revision: current.revision + 1, updatedAt } };
+			return { ok: true, save: { data: upload.data, summary: upload.summary, deviceId: upload.deviceId, revision: current.revision + 1, updatedAt } };
 		},
 		async deletePlayer(id) {
 			await prisma.player.deleteMany({ where: { id } });

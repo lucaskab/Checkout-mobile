@@ -32,7 +32,9 @@ namespace Checkout {
 
   CheckoutDesktopHost host;
   string token,playerId,email,playerName,deviceId,lastHash;int revision;long lastSyncAt;
-  string status="unavailable";bool busy;float nextUpload=float.MaxValue;
+  // What the progress held at the last sync (level, day, diamonds), and which account it belongs to.
+  Summary synced;string owner;
+  string status="unavailable";bool busy,uploadWaiting;float nextUpload=float.MaxValue;
   CloudSave conflictCloud;
   readonly Dictionary<string,Action<string>> waiting=new Dictionary<string,Action<string>>();int sequence;
 
@@ -48,7 +50,7 @@ namespace Checkout {
   [Serializable] class Exported{public string id;public string data;public Summary summary;public bool fresh;}
   [Serializable] class Imported{public string id;public bool ok;}
   [Serializable] class Resolve{public string keep;}
-  [Serializable] class Conflict{public Summary cloud;public long cloudAt;public string cloudDevice;}
+  [Serializable] class Conflict{public Summary cloud;public long cloudAt;public string cloudDevice;public bool otherAccount;}
   [Serializable] class Status{public string kind="cloud";public string status;public string email;public string name;public long lastSyncAt;public string error;public Conflict conflict;}
 
   public static void Attach(CheckoutDesktopHost owner){
@@ -62,24 +64,29 @@ namespace Checkout {
   IEnumerator Start(){
    token=PlayerPrefs.GetString("checkout.cloud.token","");playerId=PlayerPrefs.GetString("checkout.cloud.player","");
    email=PlayerPrefs.GetString("checkout.cloud.email","");playerName=PlayerPrefs.GetString("checkout.cloud.name","");
-   deviceId=PlayerPrefs.GetString("checkout.cloud.device","");
+   deviceId=PlayerPrefs.GetString("checkout.cloud.device","");owner=PlayerPrefs.GetString("checkout.cloud.owner","");
    if(string.IsNullOrEmpty(deviceId)){deviceId=SystemInfo.deviceModel+"-"+Guid.NewGuid().ToString("N").Substring(0,8);PlayerPrefs.SetString("checkout.cloud.device",deviceId);PlayerPrefs.Save();}
    LoadPlayerState();
    // Let the host start and load the save first.
    yield return new WaitForSecondsRealtime(2f);
    if(!SignInSupported){Report("unavailable");yield break;}
    if(string.IsNullOrEmpty(token)){Report("signed-out");yield break;}
-   yield return Reconcile();
+   yield return Run(Reconcile());
   }
   void LoadPlayerState(){
    revision=string.IsNullOrEmpty(playerId)?0:PlayerPrefs.GetInt("checkout.cloud.rev."+playerId,0);
    lastHash=string.IsNullOrEmpty(playerId)?"":PlayerPrefs.GetString("checkout.cloud.hash."+playerId,"");
    lastSyncAt=string.IsNullOrEmpty(playerId)?0:long.TryParse(PlayerPrefs.GetString("checkout.cloud.at."+playerId,"0"),out var at)?at:0;
+   var json=string.IsNullOrEmpty(playerId)?"":PlayerPrefs.GetString("checkout.cloud.summary."+playerId,"");
+   synced=string.IsNullOrEmpty(json)?null:JsonUtility.FromJson<Summary>(json);
   }
   void SavePlayerState(){
    if(string.IsNullOrEmpty(playerId))return;
    PlayerPrefs.SetInt("checkout.cloud.rev."+playerId,revision);PlayerPrefs.SetString("checkout.cloud.hash."+playerId,lastHash??"");
-   PlayerPrefs.SetString("checkout.cloud.at."+playerId,lastSyncAt.ToString());PlayerPrefs.Save();
+   PlayerPrefs.SetString("checkout.cloud.at."+playerId,lastSyncAt.ToString());
+   if(synced!=null)PlayerPrefs.SetString("checkout.cloud.summary."+playerId,JsonUtility.ToJson(synced));
+   // The progress on this device now belongs to this account.
+   owner=playerId;PlayerPrefs.SetString("checkout.cloud.owner",owner);PlayerPrefs.Save();
   }
   bool SignedIn=>!string.IsNullOrEmpty(token);
 
@@ -89,11 +96,15 @@ namespace Checkout {
   }
 
   void Update(){
-   if(!SignedIn||busy||status=="conflict"||Time.unscaledTime<nextUpload)return;
-   nextUpload=Time.unscaledTime+UploadEvery;StartCoroutine(Run(UploadSave(false)));
+   if(!SignedIn||busy||status=="conflict")return;
+   if(!uploadWaiting&&Time.unscaledTime<nextUpload)return;
+   uploadWaiting=false;nextUpload=Time.unscaledTime+UploadEvery;StartCoroutine(Run(UploadSave(false)));
   }
-  // Leaving the game (phone home button, closing the window): send what changed now.
-  void OnApplicationPause(bool paused){if(paused&&SignedIn&&!busy&&status!="conflict")StartCoroutine(Run(UploadSave(false)));}
+  // Leaving the game (phone home button, closing the window): send what changed now (or right after the current call).
+  void OnApplicationPause(bool paused){
+   if(!paused||!SignedIn||status=="conflict")return;
+   if(busy)uploadWaiting=true;else StartCoroutine(Run(UploadSave(false)));
+  }
   void OnApplicationFocus(bool focused){if(!focused)OnApplicationPause(true);}
   void OnDestroy(){if(Active==this)Active=null;}
 
@@ -160,16 +171,22 @@ namespace Checkout {
    if(cloud.revision==revision){lastSyncAt=Math.Max(lastSyncAt,ParseTime(cloud.updatedAt));SavePlayerState();Report("synced");nextUpload=Time.unscaledTime+30f;yield break;}
    Exported local=null;yield return ExportSave(x=>local=x);
    if(local==null){Report("error","O jogo não respondeu.");yield break;}
-   // A new phone (nothing played yet) takes the cloud's progress; otherwise the player chooses.
-   if(local.fresh){yield return Apply(cloud);yield break;}
+   // A new phone (nothing played yet) takes the cloud's progress; so does a device of this account that only fell
+   // behind (nothing played here since its last sync: same level, day and diamonds). Otherwise the player chooses.
+   bool sameAccount=string.IsNullOrEmpty(owner)||owner==playerId;
+   bool unchanged=sameAccount&&revision>0&&synced!=null&&local.summary!=null&&local.summary.level==synced.level&&local.summary.day==synced.day&&Math.Abs(local.summary.diamonds-synced.diamonds)<.5;
+   if(local.fresh||unchanged){yield return Apply(cloud);yield break;}
+   ShowConflict(cloud);
+  }
+  void ShowConflict(CloudSave cloud){
    conflictCloud=cloud;
-   Report("conflict","",new Conflict{cloud=cloud.summary,cloudAt=ParseTime(cloud.updatedAt),cloudDevice=cloud.deviceId});
+   Report("conflict","",new Conflict{cloud=cloud.summary,cloudAt=ParseTime(cloud.updatedAt),cloudDevice=cloud.deviceId,otherAccount=!string.IsNullOrEmpty(owner)&&owner!=playerId});
   }
   IEnumerator Apply(CloudSave cloud){
    bool ok=false;yield return ImportSave(cloud.data,x=>ok=x);
    if(!ok){Report("error","Não deu para carregar o progresso da nuvem.");yield break;}
    revision=cloud.revision;lastSyncAt=ParseTime(cloud.updatedAt);
-   Exported now=null;yield return ExportSave(x=>now=x);lastHash=now!=null?Hash(now.data):"";
+   Exported now=null;yield return ExportSave(x=>now=x);lastHash=now!=null?Hash(now.data):"";synced=now?.summary??cloud.summary;
    SavePlayerState();conflictCloud=null;Report("synced");nextUpload=Time.unscaledTime+UploadEvery;
    host.Hud?.Notify(CheckoutI18n.T("Progresso da nuvem carregado!"),true);
   }
@@ -192,19 +209,21 @@ namespace Checkout {
    if(r.code==409){
     var reply=JsonUtility.FromJson<ConflictReply>(r.text);conflictCloud=reply?.current;
     if(conflictCloud==null||conflictCloud.revision==0){revision=0;Report("error","Tente de novo.");yield break;}
-    Report("conflict","",new Conflict{cloud=conflictCloud.summary,cloudAt=ParseTime(conflictCloud.updatedAt),cloudDevice=conflictCloud.deviceId});yield break;
+    ShowConflict(conflictCloud);yield break;
    }
    if(Trouble(r))yield break;
    if(r.code!=200){Report("error",CheckoutI18n.T("O servidor recusou o envio ({0}).").Replace("{0}",r.code.ToString()));yield break;}
    var saved=JsonUtility.FromJson<CloudSave>(r.text);
-   revision=saved.revision;lastHash=hash;lastSyncAt=ParseTime(saved.updatedAt);if(lastSyncAt==0)lastSyncAt=Now();
+   revision=saved.revision;lastHash=hash;synced=local.summary;lastSyncAt=ParseTime(saved.updatedAt);if(lastSyncAt==0)lastSyncAt=Now();
    conflictCloud=null;SavePlayerState();Report("synced");nextUpload=Time.unscaledTime+UploadEvery;
   }
   IEnumerator DeleteAccount(){
    Report("syncing");
    Reply r=null;yield return Call("DELETE","/v1/account",null,x=>r=x);
    if(r.code!=204&&r.code!=401){if(!Trouble(r))Report("error","Não deu para apagar a conta agora.");yield break;}
-   if(!string.IsNullOrEmpty(playerId)){PlayerPrefs.DeleteKey("checkout.cloud.rev."+playerId);PlayerPrefs.DeleteKey("checkout.cloud.hash."+playerId);PlayerPrefs.DeleteKey("checkout.cloud.at."+playerId);}
+   if(!string.IsNullOrEmpty(playerId)){foreach(var key in new[]{"rev.","hash.","at.","summary."})PlayerPrefs.DeleteKey("checkout.cloud."+key+playerId);}
+   // The progress stays on this device but no longer belongs to an account.
+   if(owner==playerId){owner="";PlayerPrefs.DeleteKey("checkout.cloud.owner");}
    SignOut();host.Hud?.Notify(CheckoutI18n.T("Conta apagada."),true);
   }
   void SignOut(){
@@ -244,6 +263,7 @@ namespace Checkout {
    LoadPlayerState();
    yield return Reconcile();
   }
+
   // Called by CheckoutGoogleSignIn.java (UnitySendMessage).
   public void OnGoogleIdToken(string value){idToken=value;signInDone=true;}
   public void OnGoogleSignInFailed(string reason){signInError=reason;signInDone=true;Debug.Log("CHECKOUT_CLOUD Google sign-in: "+reason);}

@@ -57,7 +57,8 @@ export type UploadRequest = {
 	baseRevision: number;
 	data: string;
 	deviceId: string;
-	/** The player chose to replace the cloud progress with this device's (after a conflict). */
+	/** The player chose to replace the cloud progress with this device's (after a conflict): `baseRevision` is then
+	 * the cloud revision they were shown, and the replaced save is always kept as a restore point. */
 	force?: boolean;
 };
 
@@ -66,6 +67,7 @@ export type UploadRequest = {
  * last synced) gets a conflict instead, so one phone never silently erases what the other one played.
  */
 export function canReplace(current: SaveRecord | null, upload: UploadRequest) {
-	if (upload.force) return true;
+	// A forced upload (the player chose this device's progress) still names the cloud revision the player was shown:
+	// if yet another phone uploaded since, the choice is asked again with the newer progress.
 	return (current?.revision ?? 0) === upload.baseRevision;
 }

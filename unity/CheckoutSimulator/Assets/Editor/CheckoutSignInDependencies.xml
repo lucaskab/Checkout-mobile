@@ -6,5 +6,6 @@
     <androidPackage spec="androidx.credentials:credentials:1.5.0" />
     <androidPackage spec="androidx.credentials:credentials-play-services-auth:1.5.0" />
     <androidPackage spec="com.google.android.libraries.identity.googleid:googleid:1.1.1" />
+    <androidPackage spec="androidx.core:core:1.13.1" />
   </androidPackages>
 </dependencies>

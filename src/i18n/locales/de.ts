@@ -3519,6 +3519,7 @@ const catalog: Catalog = {
 	"O servidor recusou o envio ({0}).": "Der Server hat das Hochladen abgelehnt ({0}).",
 	"O login demorou demais.": "Die Anmeldung hat zu lange gedauert.",
 	"Pronto! Pode voltar ao jogo.": "Fertig! Du kannst zum Spiel zurück.",
+	"O progresso deste aparelho é de outra conta Google. Esta conta já tem um progresso na nuvem.": "Der Fortschritt dieses Geräts gehört zu einem anderen Google-Konto. Dieses Konto hat schon Fortschritt in der Cloud.",
 	"Diamantes grátis": "Gratis-Diamanten",
 	"VÍDEO": "VIDEO",
 	"Assista um vídeo curto e ganhe diamantes · hoje: {0} de {1}": "Sieh dir ein kurzes Video an und erhalte Diamanten · heute: {0} von {1}",

@@ -13,7 +13,7 @@ import androidx.credentials.exceptions.GetCredentialException;
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 import com.unity3d.player.UnityPlayer;
-import java.util.concurrent.Executors;
+import androidx.core.content.ContextCompat;
 
 /**
  * "Entrar com Google" on Android (CheckoutCloud.cs): Android's Credential Manager shows the Google account sheet and
@@ -34,7 +34,7 @@ public final class CheckoutGoogleSignIn {
                             activity,
                             request,
                             new CancellationSignal(),
-                            Executors.newSingleThreadExecutor(),
+                            ContextCompat.getMainExecutor(activity),
                             new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
                                 @Override
                                 public void onResult(GetCredentialResponse response) {
