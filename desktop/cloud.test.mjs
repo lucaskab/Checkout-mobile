@@ -63,6 +63,28 @@ describe("the save goes to the cloud and comes back", () => {
 		expect(store().market.level).toBe(12);
 	});
 
+	test("the save holds everything the player has (a new phone continues exactly where the old one was)", () => {
+		const saved = Object.keys(JSON.parse(cloud.exportSave().data).state);
+		const data = Object.entries(store())
+			.filter(([, value]) => typeof value !== "function")
+			.map(([key]) => key);
+		// Left out on purpose: a store page waiting to open (not progress).
+		const transient = ["diamondShortfall"];
+		expect(data.filter((key) => !saved.includes(key) && !transient.includes(key))).toEqual([]);
+	});
+
+	test("trucks waiting at the dock survive a reload (they were lost before 12/10)", async () => {
+		globalThis.__DEV__ = true;
+		expect(store().devArriveDelivery(1, 30)).toBe(true);
+		globalThis.__DEV__ = false;
+		const dock = store().receiving.dock.length;
+		expect(dock).toBeGreaterThan(0);
+		const data = cloud.exportSave().data;
+		useGameStore.setState({ receiving: { ...store().receiving, dock: [] } });
+		expect(await cloud.importSave(data)).toBe(true);
+		expect(store().receiving.dock.length).toBe(dock);
+	});
+
 	test("import refuses what is not a save and keeps the progress", async () => {
 		useGameStore.setState({ coins: 4242 });
 		for (const bad of ["", "{", "[]", JSON.stringify({ version: 1 }), 42]) expect(await cloud.importSave(bad)).toBe(false);

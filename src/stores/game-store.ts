@@ -4426,6 +4426,8 @@ export const useGameStore = create<GameStore>()(
 				return migrateGameState(migrated);
 			},
 			name: "checkout.game",
+			// Everything the player built or owns is saved (and goes to the cloud, desktop/cloud.ts). Only diamondShortfall
+			// (a store page to open, Lucas 12/10) is left out on purpose — see desktop/cloud.test.mjs.
 			partialize: ({
 				era,
 				checkout,
@@ -4437,6 +4439,7 @@ export const useGameStore = create<GameStore>()(
 				events,
 				incidents,
 				inventory,
+				receiving,
 				inventoryLots,
 				inventoryCapacityLevels,
 				logistics,
@@ -4480,6 +4483,7 @@ export const useGameStore = create<GameStore>()(
 				events,
 				incidents,
 				inventory,
+				receiving,
 				inventoryLots,
 				inventoryCapacityLevels,
 				logistics,
