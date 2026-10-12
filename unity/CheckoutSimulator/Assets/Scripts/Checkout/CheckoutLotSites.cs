@@ -98,6 +98,18 @@ namespace Checkout
 
         public LotRect Lot(string id) => sites.TryGetValue(id, out var s) ? s.lot : null;
 
+        /// <summary>QA (Checkout/QA/Capture lot clearing): a lot of the given ruin being cleared at `origin` (far from the
+        /// map), the same scene the game builds, running over `seconds`. Returns its root (destroy it when done).</summary>
+        public GameObject PreviewClearing(string ruin, Vector3 origin, float seconds)
+        {
+            float w = 12f, d = 12f;
+            foreach (var k in known.Values) { w = Mathf.Abs(k.x1 - k.x0); d = Mathf.Abs(k.z1 - k.z0); break; }
+            double now = CheckoutConstructionSite.Now;
+            var lot = new LotRect { id = "qa-" + ruin, ruin = ruin, status = "limpando", x0 = origin.x - w / 2, x1 = origin.x + w / 2, z0 = origin.z - d / 2, z1 = origin.z + d / 2, clearStartedAt = now, clearEndsAt = now + seconds * 1000.0 };
+            var site = Build(lot, "qa");
+            return site.root;
+        }
+
         /// <summary>The lot is the player's: dust, light and confetti over it (the camera flies there when it may).
         /// Returns how long the show takes before the celebration card comes up.</summary>
         public float CelebrateLot(string id, bool moveCamera)
@@ -420,45 +432,58 @@ namespace Checkout
             s.transform.SetParent(site.root.transform, false);
             site.works = s;
             float cx = (lot.x0 + lot.x1) * .5f, z0 = lot.z0, ld = lot.z1 - lot.z0;
-            // The crew works from the front strip of the lot: the ruin is pushed to the back and comes down
-            // (lower and lower) with the countdown.
-            var ruin = site.ruin; var basePos = new Vector3(cx, .02f, z0 + ld * .5f + .25f + ld * .11f);
-            s.OnProgress(p =>
-            {
-                if (!ruin) return;
-                ruin.position = basePos;
-                float k = Mathf.Lerp(1f, .12f, Mathf.SmoothStep(0, 1, p));
-                ruin.localScale = new Vector3(.76f, .76f * k, .76f);
-            });
+            // The crew works from the front strip of the lot: the ruin is pushed to the back and comes down piece by
+            // piece with the countdown (CheckoutRuinDemolition: the pieces break off on the blows, fall and pile up in
+            // front; the haulers take the heaps to the skip, which fills up for real: CheckoutSkipLoad).
+            var ruin = site.ruin;
+            if (ruin) { ruin.position = new Vector3(cx, .02f, z0 + ld * .5f + .25f + ld * .11f); ruin.localScale = Vector3.one * .76f; }
+            bool loose = lot.ruin == "mato" || lot.ruin == "entulho" || lot.ruin == "patio";
+            var demo = s.gameObject.AddComponent<CheckoutRuinDemolition>();
+            demo.Begin(s, ruin, Vector3.back, loose ? CheckoutRuinDemolition.Style.Cut : CheckoutRuinDemolition.Style.Smash);
+            s.OnProgress(demo.SetProgress);
             Vector3 P(float u, float v) => new Vector3(cx + u, .13f, z0 + v);
+            // A hauler between the rubble heaps and the skip: he stands beside the skip on the ruin's side.
+            int haulers = 0;
+            void Haul(CheckoutSkipLoad load, int variant)
+            {
+                if (load == null || demo.Heaps.Count == 0) { return; }
+                var toRuin = CheckoutWorksKit.Flat((ruin ? ruin.position : P(0, 5)) - load.Position);
+                // Each hauler has his own heap and his own spot at the skip.
+                var along = Vector3.Cross(Vector3.up, toRuin) * (haulers % 2 == 0 ? -.45f : .45f);
+                var stand = load.Position + toRuin * load.Radius + along; stand.y = .13f;
+                s.Hauler(demo.LoadPointFor(haulers), demo.HeapNear, demo.Take, stand, load.Centre + along * .5f, load.Receive, "Prop_Rubble", variant);
+                haulers++;
+            }
             Vector3 E = Vector3.right, W = Vector3.left, N = Vector3.forward;
             var front = P(0, 4.6f); // the ruin's face
             switch (lot.ruin)
             {
                 case "casa":
                 {
-                    var skip = s.Prop("Works_Dumpster", P(3.4f, 1.6f), E); Fill(s, skip);
+                    var skip = s.Prop("Works_Dumpster", P(3.4f, 1.6f), E); var load = Fill(s, skip);
                     s.ToolWorker(P(-2.2f, 3.7f), P(-2.2f, 5f), Tool.Sledge, 0);
                     s.ToolWorker(P(.6f, 3.7f), P(.6f, 5f), Tool.Sledge, 1);
-                    s.Carrier(P(-.8f, 3.5f), P(3.4f, 3.0f), "Prop_Rubble", 2);
+                    Haul(load, 2);
+                    Haul(load, 5);
                     s.Foreman(P(-4.4f, 1.2f), P(-4.4f, 3f), front, 3);
                     break;
                 }
                 case "loja":
                 {
                     s.Prop("Works_Pickup", P(2.6f, 1.5f), E);
-                    var skip = s.Prop("Works_Dumpster", P(-3.4f, 1.6f), E); Fill(s, skip);
-                    s.ToolWorker(P(-1.2f, 3.8f), P(-1.2f, 5f), Tool.Crowbar, 0);
+                    var skip = s.Prop("Works_Dumpster", P(-3.4f, 1.6f), E); var load = Fill(s, skip);
+                    s.ToolWorker(P(-1.2f, 3.8f), P(-1.2f, 5f), Tool.Sledge, 0);
                     s.Carrier(P(.6f, 3.6f), P(.6f, 2.9f), "Prop_Box", 1);
-                    s.Carrier(P(-.4f, 3.6f), P(-3.4f, 3.0f), "Prop_Rubble", 2);
+                    Haul(load, 2);
                     s.Foreman(P(4.6f, 3.4f), P(4.6f, .8f), front, 3);
                     break;
                 }
                 case "sobrado":
                 {
-                    var skip = s.Prop("Works_Dumpster", P(3.6f, 1.5f), E); Fill(s, skip);
+                    var skip = s.Prop("Works_Dumpster", P(3.6f, 1.5f), E); var load = Fill(s, skip);
                     s.Excavator("Works_Excavator", P(-2.2f, 1.8f), E, P(-1.8f, 5.2f), P(3.6f, 1.5f), true);
                     s.ToolWorker(P(1.6f, 3.8f), P(1.6f, 5f), Tool.Sledge, 0);
+                    Haul(load, 2);
                     s.Foreman(P(-5f, .6f), P(-5f, 3.2f), front, 3);
                     break;
                 }
@@ -496,9 +521,10 @@ namespace Checkout
                 }
                 case "garagem":
                 {
-                    var skip = s.Prop("Works_Dumpster", P(3.4f, 1.6f), E); Fill(s, skip);
+                    var skip = s.Prop("Works_Dumpster", P(3.4f, 1.6f), E); var load = Fill(s, skip);
                     s.Excavator("Works_MiniExcavator", P(-2.4f, 2.0f), E, P(-2.2f, 5.0f), P(3.4f, 1.6f), true);
                     s.ToolWorker(P(.9f, 3.8f), P(.9f, 5f), Tool.Sledge, 0);
+                    Haul(load, 2);
                     s.Foreman(P(-4.9f, .7f), P(-.6f, .7f), front, 3);
                     break;
                 }
@@ -524,8 +550,9 @@ namespace Checkout
                 case "armazem":
                 {
                     s.WreckingCrane(P(-2.4f, 1.9f), E, P(-1.0f, 6.2f) + Vector3.up * 3f);
-                    var skip = s.Prop("Works_Dumpster", P(3.9f, 1.4f), E); Fill(s, skip);
+                    var skip = s.Prop("Works_Dumpster", P(3.9f, 1.4f), E); var load = Fill(s, skip);
                     s.ToolWorker(P(2.6f, 3.6f), P(2.6f, 5f), Tool.Shovel, 0);
+                    Haul(load, 2);
                     s.Foreman(P(4.9f, 3.6f), P(4.9f, 2.6f), front, 3);
                     break;
                 }
@@ -554,12 +581,8 @@ namespace Checkout
             s.Countdown(new Vector3(cx, Mathf.Max(4.5f, site.top * .8f + 2f), z0 + ld * .5f), "LIMPANDO", "~loja:terrenos");
         }
 
-        // The skip fills up as the works go on.
-        static void Fill(CheckoutWorksScene s, Transform skip)
-        {
-            var fill = CheckoutWorksKit.FindPart(skip, "Fill");
-            if (fill) s.Grow(fill, 0, .95f, false);
-        }
+        // The skip fills up as the works go on: every load tipped in stays (CheckoutSkipLoad).
+        static CheckoutSkipLoad Fill(CheckoutWorksScene s, Transform skip) => CheckoutSkipLoad.Attach(s, skip);
 
         // An old car for the workshop: a copy of one of the city's parked cars.
         Transform OldCar(Vector3 at)

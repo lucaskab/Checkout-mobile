@@ -564,6 +564,45 @@ def sledge_pose(r, t):
     return p
 
 
+def dump_pose(r, t):
+    """At the skip: lift the load over the rim and tip it in (released at 50%), then let the arms down."""
+    sz = r.shoulder[1].z
+    carry = lambda s: box_carry(r, s)
+    over = lambda s: V(s * .22, -.60, sz + .04)
+    tip = lambda s: V(s * .20, -.74, sz - .16)
+    p = Pose(r)
+    for s in (1, -1):
+        if t < .38:
+            a = ss(0, .38, t); hand = carry(s).lerp(over(s), a); bend = -20 + 10 * a
+        elif t < .55:
+            a = ss(.38, .55, t); hand = over(s).lerp(tip(s), a); bend = -10 + 45 * a
+        else:
+            a = ss(.55, 1, t); hand = tip(s).lerp(r.hang[s], a); bend = 35 * (1 - a)
+        p.hand(s, hand, pole=V(s * 1, .3, -.8), bend=bend)
+    lean = -5 * ss(0, .38, t) if t < .38 else (-5 + 23 * ss(.38, .55, t) if t < .55 else 18 * (1 - ss(.55, 1, t)))
+    p.torso(lean=lean, lift=-.01).head(nod=8 * ss(.3, .55, t) * (1 - ss(.6, 1, t)))
+    return p
+
+
+def point_pose(r, t):
+    """The foreman directs: the right arm points at the works, the clipboard held at the chest."""
+    sz = r.shoulder[1].z
+    p = Pose(r).torso(turn=5 * math.sin(TAU * t)).head(nod=-3 + 3 * math.sin(TAU * t * 2))
+    p.hand(TOOL, V(TOOL * .30, -.66, sz + .06 + .04 * math.sin(TAU * t * 2)), pole=V(TOOL * 1, .2, -.6), bend=-5)
+    p.hand(-TOOL, V(-TOOL * .17, -.30, sz - .42), pole=V(-TOOL * 1, .4, -1), bend=-30)
+    return p
+
+
+def clipboard_pose(r, t):
+    """The foreman writes on his clipboard (board at the chest, the right hand scribbling), head down."""
+    sz = r.shoulder[1].z
+    p = Pose(r).torso(lean=4).head(nod=16 + 2 * math.sin(TAU * t))
+    p.hand(-TOOL, V(-TOOL * .13, -.33, sz - .42), pole=V(-TOOL * 1, .4, -1), bend=-30)
+    w = TAU * t * 3
+    p.hand(TOOL, V(TOOL * (.03 + .03 * math.cos(w)), -.37, sz - .38 + .015 * math.sin(2 * w)), pole=V(TOOL * 1, .4, -1), bend=-20)
+    return p
+
+
 CREW_CLIPS = [
     ("Idle", 60, lambda r, t: idle_pose(r, t)),
     ("Walking", 30, lambda r, t: walk_pose(r, t)),
@@ -573,8 +612,11 @@ CREW_CLIPS = [
     ("PutDown", 66, putdown_pose),
     ("Hammer", 36, hammer_pose),
     ("Sledge", 54, sledge_pose),
+    ("Dump", 42, dump_pose),
+    ("Point", 60, point_pose),
+    ("Clipboard", 90, clipboard_pose),
 ]
-LOOPS = {"Idle", "Walking", "CarryIdle", "CarryWalking", "Hammer", "Sledge"}
+LOOPS = {"Idle", "Walking", "CarryIdle", "CarryWalking", "Hammer", "Sledge", "Point", "Clipboard"}
 
 
 def author_crew(rig, prefix, hip_half):
@@ -834,7 +876,8 @@ def main():
                   ("walk", acts[1].name, .75, 90, 3.2), ("carry", acts[3].name, .3, 50, 3.2), ("pickup", acts[4].name, .45, 70, 3.2),
                   ("hammer up", acts[6].name, .55, -60, 3.4), ("hammer hit", acts[6].name, .72, -60, 3.4),
                   ("sledge up", acts[7].name, .5, 70, 3.8), ("sledge mid", acts[7].name, .62, 90, 3.8), ("sledge hit", acts[7].name, .74, 70, 3.8),
-                  ("arm up (back)", acts[7].name, .5, 160, 3.8)]
+                  ("arm up (back)", acts[7].name, .5, 160, 3.8), ("dump lift", acts[8].name, .4, 60, 3.2),
+                  ("dump tip", acts[8].name, .52, 60, 3.2), ("point", acts[9].name, .25, 30, 3.2), ("clipboard", acts[10].name, .3, 25, 3.2)]
     else:
         props = keep_props(others, out_name)
         body = bind(mesh, rig, out_name)

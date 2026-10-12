@@ -10,7 +10,7 @@ public class CheckoutCrewImport : AssetPostprocessor
 {
     const string Crew = "Assets/Resources/CheckoutCrew/";
     const string Rider = "Assets/Resources/CheckoutDelivery/delivery_rider";
-    static readonly string[] Loops = { "Idle", "Walking", "CarryIdle", "CarryWalking", "Hammer", "Sledge" };
+    static readonly string[] Loops = { "Idle", "Walking", "CarryIdle", "CarryWalking", "Hammer", "Sledge", "Point", "Clipboard" };
 
     void OnPreprocessModel()
     {

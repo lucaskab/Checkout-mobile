@@ -157,6 +157,9 @@ namespace Checkout
         {
             public Transform body, handL, handR, upperL, upperR, foreR, tool, prop, ride, toolHand, otherHand;
             public float blow;          // last cycle position of the Sledge clip (dust at the blow)
+            // Hauler (lot clearing): loads from the rubble heaps (source), tips the load into the skip (dumped).
+            public Func<Vector3> source; public Func<Vector3, Vector3> heapAt; public Action<Vector3> picked; public Action<Transform> dumped; public Vector3 dumpLook, loadedAt;
+            public Transform board;      // the foreman's clipboard
             public Animation anim; public string clip;
             public Tool use; public Vector3 a, b, look; public string carry;
             public int phase; public float clock, wait, speed = 1, yaw, seed; public bool carrier, foreman;
@@ -205,6 +208,11 @@ namespace Checkout
         }
 
         public void OnProgress(Action<float> step) => progressItems.Add(step);
+
+        /// <summary>A blow on the work (a sledgehammer or hammer landing, an excavator's bucket or the wrecking ball
+        /// hitting): CheckoutRuinDemolition breaks the next piece of the ruin on it.</summary>
+        public event Action<Vector3> Blow;
+        public void Hit(Vector3 at) => Blow?.Invoke(at);
 
         /// <summary>Walls of a small building rising with the works (brick or block, with a door gap in front).</summary>
         public Transform Walls(Vector3 centre, Vector2 size, float height, Color colour, float from, float to, float door = 1.2f)
@@ -305,11 +313,48 @@ namespace Checkout
             }
         }
 
+        /// <summary>A hauler clearing a lot: takes loads of rubble from wherever `source` says (the fullest heap),
+        /// carries them to `dumpAt` beside the skip and tips them over the rim towards `dumpLook` (`dumped` gets the
+        /// load: CheckoutSkipLoad keeps it in the skip). `picked` is told where a load was taken.</summary>
+        public void Hauler(Func<Vector3> source, Func<Vector3, Vector3> heapAt, Action<Vector3> picked, Vector3 dumpAt, Vector3 dumpLook, Action<Transform> dumped, string prop, int variant)
+        {
+            var from = source();
+            var w = NewWorker(from, dumpAt, variant); if (w == null) return;
+            w.carrier = true; w.a = from; w.b = dumpAt; w.carry = prop;
+            w.source = source; w.heapAt = heapAt; w.picked = picked; w.dumped = dumped; w.dumpLook = dumpLook;
+            if (!string.IsNullOrEmpty(prop))
+            {
+                w.prop = CheckoutWorksKit.Spawn(prop, transform, from, Vector3.forward);
+                var m = w.prop.Find("Model"); if (m) m.localPosition = Vector3.zero;
+                w.prop.gameObject.SetActive(false);
+            }
+        }
+
         /// <summary>The foreman: walks a little, looks at the works, checks the plans.</summary>
         public void Foreman(Vector3 a, Vector3 b, Vector3 look, int variant = 1)
         {
             var w = NewWorker(a, look, variant); if (w == null) return;
             w.foreman = true; w.a = a; w.b = b; w.look = look;
+            // His clipboard: a board with a sheet, held in the other hand (CheckoutWorksScene.LateUpdate).
+            if (w.anim && w.anim["Clipboard"] && w.otherHand)
+            {
+                float forearm = w.otherHand.parent ? Vector3.Distance(w.otherHand.position, w.otherHand.parent.position) : .2f;
+                var board = GameObject.CreatePrimitive(PrimitiveType.Cube); board.name = "Clipboard"; Destroy(board.GetComponent<Collider>());
+                board.transform.SetParent(transform, false); board.transform.localScale = new Vector3(.62f, .82f, .05f) * forearm;
+                board.GetComponent<Renderer>().sharedMaterial = BoardMaterial(new Color(.55f, .38f, .22f));
+                var sheet = GameObject.CreatePrimitive(PrimitiveType.Cube); sheet.name = "Sheet"; Destroy(sheet.GetComponent<Collider>());
+                sheet.transform.SetParent(board.transform, false); sheet.transform.localPosition = new Vector3(0, -.04f, -.6f); sheet.transform.localScale = new Vector3(.86f, .84f, .3f);
+                sheet.GetComponent<Renderer>().sharedMaterial = BoardMaterial(new Color(.97f, .96f, .92f));
+                w.board = board.transform;
+            }
+        }
+
+        static readonly Dictionary<Color, Material> boardMats = new Dictionary<Color, Material>();
+        static Material BoardMaterial(Color c)
+        {
+            if (boardMats.TryGetValue(c, out var m) && m) return m;
+            m = new Material(Shader.Find("Standard")) { color = c }; m.SetFloat("_Glossiness", .1f);
+            return boardMats[c] = m;
         }
 
         /// <summary>A worker standing in a moving basket (aerial platform), working with a tool.</summary>
@@ -319,6 +364,8 @@ namespace Checkout
             w.ride = basket; w.use = tool;
             if (ToolModels.TryGetValue(tool, out var model)) { w.tool = CheckoutWorksKit.Spawn(model, transform, basket.position, Vector3.forward); var m = w.tool.Find("Model"); if (m) m.localPosition = Vector3.zero; }
         }
+
+        static bool Dumps(Worker w) => w.dumped != null && w.anim && w.anim["Dump"];
 
         static string ToolClip(Worker w)
         {
@@ -362,25 +409,51 @@ namespace Checkout
                 if (w.carrier)
                 {
                     bool loaded = w.prop && w.prop.gameObject.activeSelf;
-                    if (w.phase == 0 && Walk(w, w.a, dt, false)) { w.phase = 1; w.clock = 0; Play(w, "Pickup"); }
+                    if (w.phase == 0)
+                    {
+                        if (w.source != null) w.a = w.source();        // the fullest heap, wherever it is now
+                        if (Walk(w, w.a, dt, false)) { w.phase = 1; w.clock = 0; w.loadedAt = w.a; Play(w, "Pickup"); }
+                    }
                     else if (w.phase == 1)
                     {
-                        if (w.clock > Length(w, "Pickup") * .55f && w.prop) w.prop.gameObject.SetActive(true);
+                        if (w.heapAt != null) Face(w, w.heapAt(w.loadedAt), dt);
+                        if (w.clock > Length(w, "Pickup") * .55f && w.prop && !w.prop.gameObject.activeSelf)
+                        { w.prop.gameObject.SetActive(true); w.picked?.Invoke(w.loadedAt); }
                         if (w.clock > Length(w, "Pickup")) { w.phase = 2; w.clock = 0; }
                     }
-                    else if (w.phase == 2 && Walk(w, w.b, dt, true)) { w.phase = 3; w.clock = 0; Play(w, "PutDown"); }
+                    else if (w.phase == 2 && Walk(w, w.b, dt, true)) { w.phase = 3; w.clock = 0; Play(w, Dumps(w) ? "Dump" : "PutDown"); }
                     else if (w.phase == 3)
                     {
-                        if (w.clock > Length(w, "PutDown") * .65f && w.prop) w.prop.gameObject.SetActive(false);
-                        if (w.clock > Length(w, "PutDown")) { w.phase = 0; w.clock = 0; w.wait = .4f; }
+                        // At the skip he lifts the load over the rim and tips it in; elsewhere he sets it down.
+                        bool dump = Dumps(w); string clip = dump ? "Dump" : "PutDown";
+                        if (dump) Face(w, w.dumpLook, dt);
+                        if (w.clock > Length(w, clip) * (dump ? .5f : .65f) && w.prop && w.prop.gameObject.activeSelf)
+                        {
+                            if (w.dumped != null) { var load = Instantiate(w.prop.gameObject, transform); load.transform.SetPositionAndRotation(w.prop.position, w.prop.rotation); w.dumped(load.transform); }
+                            w.prop.gameObject.SetActive(false);
+                        }
+                        if (w.clock > Length(w, clip)) { w.phase = 0; w.clock = 0; w.wait = .4f; }
                     }
                     continue;
                 }
                 if (w.foreman)
                 {
-                    // Looks at the works, walks to the other end, looks again, walks back.
-                    if (w.phase == 0 || w.phase == 2) { Play(w, "Idle"); Face(w, w.look, dt); if (w.clock > 4.5f) { w.phase++; w.clock = 0; } }
-                    else if (Walk(w, w.phase == 1 ? w.b : w.a, dt, false)) { w.phase = w.phase == 1 ? 2 : 0; w.clock = 0; }
+                    // Directs the works: points at what comes next, writes it on his clipboard, walks to the other end
+                    // and does it again (Lucas 12/10: he only stood there watching).
+                    bool hasMoves = w.anim && w.anim["Point"] && w.anim["Clipboard"];
+                    if (w.phase == 0 || w.phase == 3)
+                    {
+                        Face(w, w.look, dt);
+                        if (!hasMoves) { Play(w, "Idle"); if (w.clock > 4.5f) { w.phase = w.phase == 0 ? 1 : 4; w.clock = 0; } }
+                        else if (w.clock < 2.6f) Play(w, "Point");
+                        else if (w.clock < 7.2f) Play(w, "Clipboard");
+                        else { w.phase = w.phase == 0 ? 1 : 4; w.clock = 0; }
+                    }
+                    else if (w.phase == 1 || w.phase == 4)
+                    {
+                        if (Walk(w, w.phase == 1 ? w.b : w.a, dt, false)) { w.phase = w.phase == 1 ? 3 : 0; w.clock = 0; }
+                    }
+                    else { w.phase = 0; w.clock = 0; }
                     continue;
                 }
                 // Tool work: stand at the spot and face the work. Hammer and sledgehammer have their own clips
@@ -404,6 +477,7 @@ namespace Checkout
                     w.prop.position = (w.handL.position + w.handR.position) * .5f + Vector3.down * .3f + w.body.forward * .15f;
                     w.prop.rotation = Quaternion.LookRotation(w.body.right, Vector3.up);
                 }
+                if (w.board && w.otherHand) HoldBoard(w);
                 if (w.use == Tool.None || w.carrier || w.foreman) continue;
                 var right = w.body.right; var fwd = w.body.forward;
                 if ((w.clip == "Hammer" || w.clip == "Sledge") && w.toolHand)
@@ -466,12 +540,19 @@ namespace Checkout
                 if (st)
                 {
                     float c = Mathf.Repeat(st.normalizedTime, 1);
-                    if (w.blow < .70f && c >= .70f) Burst(w.body.position + fwd * 1.25f, 4);
+                    if (w.blow < .70f && c >= .70f) { var hitAt = w.body.position + fwd * 1.25f; Burst(hitAt, 4); Hit(hitAt); }
                     w.blow = c;
                 }
             }
             else
             {
+                var st = w.anim ? w.anim["Hammer"] : null;
+                if (st)
+                {
+                    float c = Mathf.Repeat(st.normalizedTime, 1);
+                    if (w.blow < .70f && c >= .70f) Hit(w.toolHand.position + fwd * .3f);
+                    w.blow = c;
+                }
                 float df = Vector3.Dot(d, fwd), du = Vector3.Dot(d, Vector3.up);
                 up = fwd * -du + Vector3.up * df;
                 up = up.sqrMagnitude > 1e-6f ? up.normalized : Vector3.up;
@@ -481,6 +562,17 @@ namespace Checkout
             w.tool.position = at;
             var ahead = Vector3.Cross(right, up);
             w.tool.rotation = Quaternion.LookRotation(ahead.sqrMagnitude > .01f ? ahead : fwd, up);
+        }
+
+        // The clipboard in the foreman's other hand, its sheet turned up to his face.
+        void HoldBoard(Worker w)
+        {
+            var hand = w.otherHand; var fwd = w.body.forward;
+            var fore = hand.parent ? hand.position - hand.parent.position : -w.body.up;
+            float forearm = fore.magnitude; fore = fore.sqrMagnitude > 1e-6f ? fore.normalized : -w.body.up;
+            var face = (Vector3.up * .8f - fwd * .6f).normalized;           // the sheet looks up and back at him
+            w.board.position = hand.position + fore * forearm * .22f + fwd * forearm * .12f;
+            w.board.rotation = Quaternion.LookRotation(-face, fwd);
         }
 
         void EmitChips(Worker w, Vector3 fwd, float s)
@@ -567,7 +659,7 @@ namespace Checkout
                 else if (c < 6f) { yaw = Smooth(digYaw, dumpYaw, (c - 4.5f) / 1.5f); b = -18; a = 25; k = -40; }
                 else if (c < 7.2f) { yaw = dumpYaw; b = -18; a = Smooth(25, -10, (c - 6f) / 1.2f); k = Smooth(-40, 45, (c - 6f) / 1.2f); }
                 else { yaw = dumpYaw; b = Smooth(-18, -10, (c - 7.2f) / 1.8f); a = Smooth(-10, -20, (c - 7.2f) / 1.8f); k = Smooth(45, 30, (c - 7.2f) / 1.8f); }
-                if (Mathf.Abs(c - 3.4f) < dt) s.Burst(dig, demolish ? 10 : 4);
+                if (Mathf.Abs(c - 3.4f) < dt) { s.Burst(dig, demolish ? 10 : 4); if (demolish) s.Hit(dig); }
                 if (Mathf.Abs(c - 6.9f) < dt) s.Burst(dump, 5);
                 cab.Reset(); boom.Reset(); arm.Reset(); bucket.Reset();
                 cab.Turn(yaw, Vector3.up);
@@ -646,7 +738,7 @@ namespace Checkout
 
         class Wrecker : Machine
         {
-            readonly Pose cab; readonly Transform tip, ball, cable; readonly Vector3 target; readonly float yaw;
+            readonly Pose cab; readonly Transform tip, ball, cable; readonly Vector3 target; readonly float yaw; bool hit;
             public Wrecker(CheckoutWorksScene s, Transform r, Vector3 target)
             {
                 root = r; this.target = target;
@@ -667,7 +759,8 @@ namespace Checkout
                 float angle = Mathf.Lerp(-20, 38, (swing + 1) * .5f) * Mathf.Deg2Rad;
                 var p = tip.position + towards * Mathf.Sin(angle) * length + Vector3.down * Mathf.Cos(angle) * length;
                 ball.position = p;
-                if (swing > .985f && Mathf.Repeat(clock, 5.7f) > .2f) s.Burst(p + towards * .6f, 3);
+                if (swing > .985f && Mathf.Repeat(clock, 5.7f) > .2f) { s.Burst(p + towards * .6f, 3); if (!hit) { hit = true; s.Hit(p + towards * .6f); } }
+                if (swing < .9f) hit = false;
                 s.Stretch(cable, tip.position, p + Vector3.up * .5f);
             }
         }
