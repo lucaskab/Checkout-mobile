@@ -154,7 +154,8 @@ function buildContract(
 		reward: {
 			coins: Math.round((getContractCoins(level) * multiplier) / 5) * 5,
 			experience: Math.round(getContractExperience(level) * multiplier),
-			diamonds: definition.difficulty === 3 ? 1 : 0,
+			// No diamonds from contracts (Lucas 12/10): diamonds come from the store, so playing hard pays in coins and XP.
+			diamonds: 0,
 		},
 	};
 }
@@ -862,7 +863,7 @@ export function closeMarketDay(
 	const bonus: DayReward = {
 		// The day's bonus is sized for a 10-minute turn: a shorter turn earns its share.
 		coins: Math.max(5, Math.round(((30 + level * 12) * TURN_SHARE * gradeMultiplier[grade]) / 5) * 5),
-		diamonds: grade === "S" ? 1 : 0,
+		diamonds: 0, // the grade pays coins and XP only (diamonds are the store's currency)
 		experience: Math.max(1, Math.round((10 + level * 4) * TURN_SHARE * gradeMultiplier[grade])),
 	};
 	const stats = settled.stats;

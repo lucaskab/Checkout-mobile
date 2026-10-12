@@ -59,7 +59,7 @@ export function lotCards(state: State): Card[] {
 						act(`Acelerar · ${cost}`, "finishLotClearingNow", [], {
 							variant: "gem",
 							icon: gameIcon("diamond"),
-							enabled: state.logistics.premiumCurrency >= cost,
+							enabled: true, // too few diamonds opens the diamond store
 							ok: `${lot.label} limpo!`,
 							fail: "Diamantes insuficientes",
 						}),

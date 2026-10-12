@@ -8,8 +8,15 @@ import { getUnlockedSimulatorSectorId } from "@/services/simulator-sector-select
 import { getRecentEventOutcome } from "@/services/game-events";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
 import { useGameStore } from "@/stores/game-store";
-import { getCatalog, getLanguage, localizeSnapshot, localizeView, setLanguage } from "@/i18n";
+import { getCatalog, getLanguage, localizeSnapshot, localizeView, setLanguage, t } from "@/i18n";
 import { createDesktopView } from "./view.ts";
+import {
+	applyIapMessage,
+	createIapCatalogMessage,
+	type IapUnityMessage,
+	noteGrantedPack,
+	requestPackPurchase,
+} from "./iap.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
 // timers as src/app/_layout.tsx and speaks the Unity bridge protocol over stdin/stdout.
@@ -87,6 +94,8 @@ const hudActions: (keyof GameActions)[] = [
 	"finishProductionNow",
 	"fixIncident",
 	"grantCurrencyPurchase",
+	"grantCurrencyPack",
+	"dismissDiamondShortfall",
 	"hireEmployee",
 	"placeSupplierOrder",
 	"placeSupplierCart",
@@ -119,7 +128,10 @@ const hudActions: (keyof GameActions)[] = [
 ];
 
 // Release builds (the testers' build and the iPhone) refuse the dev cheats even if a page still asked for one.
-const devOnly = (action: string) => action.startsWith("dev") || action === "resetGame" || action === "setMarketLevel";
+// grantCurrencyPurchase credits any amount with no store: only the dev build's test buttons may use it. Real
+// purchases go through grantCurrencyPack, which Unity sends when the App Store / Google Play reports a payment.
+const devOnly = (action: string) =>
+	action.startsWith("dev") || action === "resetGame" || action === "setMarketLevel" || action === "grantCurrencyPurchase";
 
 const session = `desktop-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 let revision = 0,
@@ -178,6 +190,19 @@ function openPanel(panel: SimulatorPanel, shelfId?: string, sectorId?: string) {
 	else navigate(panel);
 }
 
+// Too few diamonds for what the player pressed (any speed-up or diamond price): the diamond store opens on top of
+// the page, saying how many are missing (Lucas 12/10). Closing it goes back to where the player was.
+function openStoreOnShortfall() {
+	const shortfall = useGameStore.getState().diamondShortfall;
+	if (!shortfall) return false;
+	useGameStore.getState().dismissDiamondShortfall();
+	const route = `currency:diamonds:${Math.max(1, shortfall.missing)}`;
+	if (routes.at(-1)?.startsWith("currency")) routes.splice(-1, 1, route);
+	else routes.push(route);
+	view();
+	return true;
+}
+
 function runHudAction(message: {
 	id?: unknown;
 	action?: unknown;
@@ -185,20 +210,36 @@ function runHudAction(message: {
 	after?: unknown;
 }) {
 	const id = typeof message.id === "string" ? message.id : "invalid";
+	// "Comprar" in the diamond store: Unity opens the App Store / Google Play sheet (CheckoutIap.cs).
+	if (message.action === "buyCurrencyPack") {
+		const request = requestPackPurchase(useGameStore.getState(), Array.isArray(message.args) ? message.args[0] : "");
+		if (request.ok) send(request.message);
+		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "" : t(request.reason) });
+		view();
+		return;
+	}
 	const action = message.action as keyof GameActions;
 	if (!hudActions.includes(action) || (!__DEV__ && devOnly(action)) || !Array.isArray(message.args))
 		return send({ kind: "result", id, action, ok: false, reason: "invalid-action" });
 	try {
 		const run = useGameStore.getState()[action] as (...args: unknown[]) => unknown;
-		const ok = run(...message.args) !== false;
-		send({ kind: "result", id, action, ok, reason: ok ? "" : "game-rule-rejected" });
+		const value = run(...message.args);
+		const ok = value !== false && value !== null;
+		if (action === "grantCurrencyPack") noteGrantedPack(value as { coins: number; diamonds: number } | null);
+		const short = !ok ? useGameStore.getState().diamondShortfall : null;
+		const reason = ok
+			? ""
+			: short
+				? t(short.missing === 1 ? "Falta 1 diamante." : `Faltam ${short.missing} diamantes.`)
+				: "game-rule-rejected";
+		send({ kind: "result", id, action, ok, reason });
 		if (ok && message.after === "back") routes.pop();
 		// "!route" / "~route": the action then opens a page (the level-up celebration's group buttons).
 		else if (ok && typeof message.after === "string" && /^[!~]/.test(message.after)) navigate(message.after);
 	} catch (error) {
 		send({ kind: "result", id, action, ok: false, reason: String(error) });
 	}
-	view();
+	if (!openStoreOnShortfall()) view();
 	snapshot();
 }
 
@@ -214,6 +255,8 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		// Unity's own texts (counter game, map popups, HUD labels) use the same catalog.
 		const catalog = getCatalog();
 		send({ kind: "i18n", lang: getLanguage(), keys: Object.keys(catalog), values: Object.values(catalog) });
+		// The packs Unity asks the App Store / Google Play for (CheckoutIap.cs).
+		send(createIapCatalogMessage());
 		snapshot();
 		view();
 	} else if (message.kind === "panel" && message.panel === "requests") {
@@ -236,7 +279,12 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		);
 	else if (message.kind === "command") {
 		send(command(message));
+		// The world's "Acelerar" boards too: too few diamonds opens the store.
+		openStoreOnShortfall();
 		snapshot();
+	} else if (message.kind === "iap") {
+		applyIapMessage(message as IapUnityMessage);
+		view();
 	} else if (message.kind === "hud") runHudAction(message);
 	else if (message.kind === "route" && typeof message.route === "string")
 		navigate(message.route);
@@ -273,6 +321,7 @@ setInterval(() => {
 // When a day ends (timer or button) its results open on their own, like the app's sheet.
 let dayPhase = store().day.phase;
 setInterval(() => {
+	openStoreOnShortfall();
 	const phase = store().day.phase;
 	if (phase !== dayPhase && phase === "results") navigate("!day-result");
 	dayPhase = phase;

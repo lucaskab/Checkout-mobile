@@ -54,7 +54,7 @@ export function isBuiltShopItem(itemId: string) {
 	return Object.hasOwn(shopItemBuildDurations, itemId);
 }
 
-/** Diamonds to finish a build right now: the same rule as the expansions (1 per 10 minutes left). */
+/** Diamonds to finish a build right now: the game's one speed-up price (src/data/diamond-skip.ts). */
 export function getInteriorSkipCost(remainingMs: number) {
 	return getMarketExpansionSkipCost(remainingMs);
 }

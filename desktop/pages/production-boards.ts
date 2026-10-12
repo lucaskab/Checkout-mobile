@@ -191,7 +191,7 @@ function lineTile(state: State, sector: ProductionSector, index: number, job: Pr
 	const finish = act(`Terminar já · ${cost}`, "finishProductionNow", [job.id], {
 		variant: "gem",
 		icon: gameIcon("diamond"),
-		enabled: state.logistics.premiumCurrency >= cost,
+		enabled: true, // too few diamonds opens the diamond store
 		ok: `${productName(job.outputProductId)} pronto!`,
 		fail: "Diamantes insuficientes.",
 	});

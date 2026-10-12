@@ -421,7 +421,8 @@ test("expansions take real time to build and diamonds can finish them early", ()
 		expect.objectContaining({ expansionId: "service-wing" }),
 	);
 	expect(snapshot().construction.targetLayout.stage).toBe(1);
-	expect(snapshot().construction.skipCost).toBe(12);
+	// 2 h left: the game's speed-up price (src/data/diamond-skip.ts) — 17 diamonds.
+	expect(snapshot().construction.skipCost).toBe(17);
 	expect(
 		snapshot().expansionStates.find((e) => e.id === "service-wing").building,
 	).toBe(true);
@@ -429,11 +430,13 @@ test("expansions take real time to build and diamonds can finish them early", ()
 	expect(store().unlockMarketExpansion("fresh-wing")).toBe(false);
 	expect(store().processMarketExpansionConstruction(works.endsAt - 1)).toBe(false);
 	expect(store().finishMarketExpansionNow()).toBe(false);
+	// Too few diamonds: the shortfall is left for the HUD to open the diamond store.
+	expect(store().diamondShortfall).toEqual(expect.objectContaining({ needed: 17, missing: 17 }));
 	useGameStore.setState({
 		logistics: { ...store().logistics, premiumCurrency: 20 },
 	});
 	expect(store().finishMarketExpansionNow()).toBe(true);
-	expect(store().logistics.premiumCurrency).toBe(8);
+	expect(store().logistics.premiumCurrency).toBe(3);
 	expect(store().marketExpansionConstruction).toBe(null);
 	expect(snapshot().layout.stage).toBe(1);
 	expect(snapshot().construction).toBe(null);

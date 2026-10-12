@@ -38,6 +38,9 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	finishProductionNow: [text],
 	finishMarketExpansionNow: [],
 	finishInteriorConstructionNow: [text],
+	// Every timer can be finished now with diamonds from the world's boards too (src/data/diamond-skip.ts).
+	finishLotClearingNow: [],
+	finishMarketEraNow: [],
 	buildSector: [
 		(v) =>
 			[

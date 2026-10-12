@@ -9,6 +9,7 @@ import {
 	formatSupplierDeliveryTime,
 	getOrderProgress,
 	getOrderRemainingTime,
+	getOrderSkipCost,
 	getSupplierOrderStatus,
 } from "@/services/logistics";
 import { getProductionEconomy } from "@/services/production";
@@ -98,22 +99,12 @@ function orderCard(state: State, order: SupplierOrder, now: number, header: stri
 	const buttons = waiting
 		? []
 		: [
-				act(tokens > 0 ? "Entrega agora" : "Entrega agora · 5", "deliverOrderInstantly", [order.id], {
+				act(tokens > 0 ? "Entrega agora" : `Entrega agora · ${getOrderSkipCost(order, now)}`, "deliverOrderInstantly", [order.id], {
 					variant: tokens > 0 ? "success" : "gem",
 					icon: gameIcon(tokens > 0 ? "ticket" : "diamond"),
 					ok: "Pedido entregue no depósito!",
-					fail: "Sem diamantes/tickets ou sem espaço no depósito.",
+					fail: "Sem espaço no depósito agora.",
 				}),
-				...(status === "em-transporte"
-					? [
-							act("Finalizar por 2", "completeOrderFinalStage", [order.id], {
-								variant: "gem",
-								icon: gameIcon("diamond"),
-								ok: "Pedido entregue no depósito!",
-								fail: "Não foi possível finalizar (diamantes, etapa ou espaço).",
-							}),
-						]
-					: []),
 			];
 	return card(orderTitle(order), {
 		eyebrow: header,
@@ -320,7 +311,7 @@ export const routes: Routes = {
 					act("Ativar · 3", "activateLogisticsBoost", [], {
 						variant: "gem",
 						icon: gameIcon("diamond"),
-						enabled: logistics.premiumCurrency >= 3,
+						enabled: true,
 						ok: "Turbo ativado. Novos pedidos chegam 30% mais rápido por 15 minutos.",
 						fail: "Você precisa de 3 diamantes para ativar o turbo.",
 					}),
@@ -346,8 +337,7 @@ export const routes: Routes = {
 							act(next.diamondCost.toString(), "upgradeSupplierOrderSlots", ["diamonds"], {
 								variant: "gem",
 								icon: gameIcon("diamond"),
-								enabled:
-									level >= next.playerLevel && logistics.premiumCurrency >= next.diamondCost,
+								enabled: level >= next.playerLevel,
 								ok: `Agora você pode manter ${next.slots} pedidos ativos.`,
 								fail: upgradeFail("diamonds"),
 							}),

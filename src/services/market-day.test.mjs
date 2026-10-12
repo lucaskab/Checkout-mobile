@@ -87,7 +87,9 @@ test("offers one easy, one medium and one hard contract every day", () => {
 		expect(offer.target).toBeGreaterThan(0);
 		expect(offer.reward.coins).toBeGreaterThan(0);
 	}
-	expect(offers[2].reward.diamonds).toBe(1);
+	// Diamonds are the store's currency: no contract pays them, the hard one pays more coins instead.
+	for (const offer of offers) expect(offer.reward.diamonds).toBe(0);
+	expect(offers[2].reward.coins).toBeGreaterThan(offers[0].reward.coins);
 });
 
 test("a day runs for five minutes and only opens from planning", () => {
@@ -283,6 +285,18 @@ test("closing expires pending requests and the next day starts fresh", () => {
 	expect(next.requests).toEqual([]);
 	expect(next.loyalty).toBe(closed.loyalty);
 	expect(advanceMarketDay(next, 3, context)).toBeNull();
+});
+
+test("the best day (hard contract done, top grade) pays coins and XP, never diamonds (Lucas 12/10)", () => {
+	let day = openDay(2);
+	day = { ...day, contract: { ...day.offers[2], kind: "customers", target: 2 } };
+	for (let index = 0; index < 12; index++)
+		day = recordDayCustomer(day, { revenue: 60, profit: 30, units: 3, satisfaction: 100, categories: {} });
+	const closed = closeMarketDay(day, t0 + DAY_DURATION_MS, 3);
+	expect(closed.result.contractCompleted).toBe(true);
+	expect(closed.result.total.diamonds).toBe(0);
+	expect(closed.result.bonus.diamonds).toBe(0);
+	expect(closed.result.total.coins).toBeGreaterThan(0);
 });
 
 test("grades cover the whole score range", () => {

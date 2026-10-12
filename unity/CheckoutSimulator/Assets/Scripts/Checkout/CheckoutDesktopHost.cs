@@ -80,6 +80,9 @@ namespace Checkout {
 #endif
   // The app going to the background (or closing) writes the save at once.
   void OnApplicationPause(bool paused){if(paused)FlushEmbedded();}
+  /// <summary>Writes the save now (the iPhone's embedded game; the desktop host saves on its own) — before a
+  /// purchase is confirmed to the store (CheckoutIap).</summary>
+  public void Flush()=>FlushEmbedded();
   void OnApplicationQuit(){FlushEmbedded();}
 
   static string Node(){
@@ -111,6 +114,7 @@ namespace Checkout {
     // The iPhone keeps its own save in the app's documents.
     if(!StartEmbedded(Path.Combine(Application.persistentDataPath,"checkout-iphone-save.json"))){Destroy(this);return;}
     Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
+    CheckoutIap.Attach(this);
     return;
    }
    ProcessStartInfo start;var bundled=BundledHost();
@@ -135,6 +139,8 @@ namespace Checkout {
    process.ErrorDataReceived+=(_,e)=>{if(!string.IsNullOrEmpty(e.Data))Debug.Log("CHECKOUT_HOST "+e.Data);};
    process.BeginOutputReadLine();process.BeginErrorReadLine();
    Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
+   // Real-money packs: Unity IAP (the Editor's fake store here; no store in desktop builds, the shop says so).
+   if(!CheckoutStartMenu.EditMode)CheckoutIap.Attach(this);
    if(CheckoutStartMenu.EditMode)gameObject.AddComponent<CheckoutMapEditor>().Initialize(this);
   }
 
@@ -145,6 +151,13 @@ namespace Checkout {
   }
   public void Route(string route)=>Send("{\"kind\":\"route\",\"route\":"+Quote(route)+"}");
   int sequence;
+  /// <summary>A store action whose answer goes to <paramref name="answered"/> (ok, reason) instead of a toast.</summary>
+  public string Action(string action,string args,string after,System.Action<bool,string> answered){
+   // Registered before sending: the embedded game may answer within the same call.
+   string id="hud-"+(sequence+1);
+   if(answered!=null&&hud)hud.Answers[id]=answered;
+   return Action(action,args,after);
+  }
   public string Action(string action,string args,string after){
    string id="hud-"+(++sequence);
    Send("{\"kind\":\"hud\",\"id\":\""+id+"\",\"action\":"+Quote(action)+",\"args\":"+(string.IsNullOrEmpty(args)?"[]":args)+",\"after\":"+Quote(after??"")+"}");
@@ -172,6 +185,8 @@ namespace Checkout {
     else if(kind=="result")hud.Result(line);
     else if(kind=="receipt")bridge.Receipt(line); // retries stale commands, logs other rejections
     else if(kind=="i18n"){var m=JsonUtility.FromJson<I18nMessage>(line);if(m!=null)CheckoutI18n.Load(m.lang,m.keys,m.values);}
+    else if(kind=="iap-catalog")CheckoutIap.Active?.Catalog(line);
+    else if(kind=="purchase")CheckoutIap.Active?.Purchase(line);
    }
    if(latestView!=null)hud.Apply(latestView);
    if(process!=null&&process.HasExited&&Active==this){Active=null;hud.Offline(CheckoutI18n.T(IsRelease?"O jogo parou de responder. Feche e abra de novo.":"O processo do jogo (node) parou. Veja o Console."));}

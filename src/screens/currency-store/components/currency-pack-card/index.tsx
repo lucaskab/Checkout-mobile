@@ -4,6 +4,8 @@ import type { CurrencyPack } from "@/@types/currency-purchase";
 import { GameButton, type GameButtonVariant } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
+import { getCurrencyPackCoins } from "@/data/currency-packs";
+import { useGameStore } from "@/stores/game-store";
 
 type CurrencyPackCardProps = {
 	canPurchase: boolean;
@@ -26,6 +28,9 @@ export function CurrencyPackCard({
 			: pack.category === "diamonds"
 				? "gem"
 				: "primary";
+	// Coin packs follow the player's expansion (src/data/currency-packs.ts).
+	const eraId = useGameStore((state) => state.era?.id);
+	const coins = getCurrencyPackCoins(pack, eraId);
 
 	return (
 		<View style={[styles.card, styles.cardCategory(pack.category)]}>
@@ -50,11 +55,11 @@ export function CurrencyPackCard({
 			</View>
 
 			<View style={styles.rewardRow}>
-				{pack.coins > 0 && (
+				{coins > 0 && (
 					<View style={styles.rewardPill}>
 						<GameIcon icon="coin" style={styles.rewardEmoji} />
 						<Text style={styles.rewardValue}>
-							{pack.coins.toLocaleString("pt-BR")}
+							{coins.toLocaleString("pt-BR")}
 						</Text>
 					</View>
 				)}

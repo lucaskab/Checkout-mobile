@@ -78,9 +78,14 @@ export function useSimulator(
 			() => useGameStore.getState(),
 			() => revision,
 		);
-		const unsubscribe = useGameStore.subscribe(() => {
+		const unsubscribe = useGameStore.subscribe((state) => {
 			revision++;
 			dirty = true;
+			// Too few diamonds for a speed-up pressed in the world: open the diamond store (Lucas 12/10).
+			if (state.diamondShortfall) {
+				state.dismissDiamondShortfall();
+				setPanel("currency");
+			}
 		});
 		const receive = (raw: string) => {
 			try {

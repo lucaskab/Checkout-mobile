@@ -118,6 +118,7 @@ import type { GameStatistics } from "./achievement";
 import type { OnboardingState } from "./onboarding";
 import type { CheckoutCounterState } from "./checkout-counter";
 import type {
+	CurrencyPackGrant,
 	CurrencyPurchaseState,
 	GrantCurrencyPurchaseInput,
 } from "./currency-purchase";
@@ -188,6 +189,11 @@ export type GameState = {
 	logistics: LogisticsState;
 	market: GameMarketState;
 	offlineSummary: OfflineRewardSummary | null;
+	/**
+	 * The last time the player tried to spend more diamonds than they have (not saved): the HUD / app opens the
+	 * diamond store on it and clears it (dismissDiamondShortfall).
+	 */
+	diamondShortfall?: { needed: number; missing: number; at: number } | null;
 	lastSessionAt: number;
 	unlockedMarketExpansionIds: MarketExpansionId[];
 	/** The paid expansion still being built (it joins the market when it finishes). */
@@ -289,6 +295,13 @@ export type GameActions = {
 	serveWindowSale: (requestId: string) => boolean;
 	hireEmployee: (role: EmployeeRole) => boolean;
 	grantCurrencyPurchase: (input: GrantCurrencyPurchaseInput) => boolean;
+	/**
+	 * A store purchase of `packIdOrProductId` (transaction `transactionId`, once): credits the pack as the catalog
+	 * prices it for the player now (src/data/currency-packs.ts). Null if refused (unknown pack or a transaction already
+	 * credited). A paid transaction is always credited, even a second welcome combo (the buy button checks that).
+	 */
+	grantCurrencyPack: (packIdOrProductId: string, transactionId: string) => CurrencyPackGrant | null;
+	dismissDiamondShortfall: () => void;
 	placeSupplierOrder: (input: PlaceSupplierOrderInput) => boolean;
 	/** The shop's cart: one truck (one slot) carrying several products, each in boxes (src/services/supplier-cart.ts). */
 	placeSupplierCart: (input: PlaceSupplierCartInput) => boolean;

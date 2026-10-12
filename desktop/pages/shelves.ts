@@ -306,7 +306,7 @@ function shelfPage(state: State, [shelfId = ""]: string[]) {
 						{
 							variant: "gem",
 							icon: gameIcon("diamond"),
-							enabled: levelOk && state.logistics.premiumCurrency >= upgrade.diamondCost,
+							enabled: levelOk,
 							...messages,
 						},
 					),

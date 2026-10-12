@@ -10,7 +10,11 @@ import type { EmbeddedNavigationProps } from "@/@types/embedded-navigation";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
-import { currencyPackSections, currencyPacks } from "@/data/currency-packs";
+import {
+	currencyPackSections,
+	currencyPacks,
+	isCurrencyPackAvailable,
+} from "@/data/currency-packs";
 import { getCurrencySectionIcon } from "@/data/game-icon-assets";
 import { useGameStore } from "@/stores/game-store";
 import { CurrencyPackCard } from "./components/currency-pack-card";
@@ -34,6 +38,11 @@ const listItems: CurrencyStoreListItem[] = currencyPackSections.flatMap(
 export function CurrencyStoreScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	const coins = useGameStore((state) => state.coins);
 	const diamonds = useGameStore((state) => state.logistics.premiumCurrency);
+	// The welcome combo disappears once bought.
+	const purchasedPackIds = useGameStore((state) => state.currencyPurchases.purchasedPackIds);
+	const visibleItems = listItems.filter(
+		(item) => item.type !== "pack" || isCurrencyPackAvailable(item.pack, purchasedPackIds),
+	);
 	const {
 		availableProductCount,
 		feedback,
@@ -81,7 +90,7 @@ export function CurrencyStoreScreen({ onBack }: EmbeddedNavigationProps = {}) {
 	return (
 		<LegendList
 			contentContainerStyle={styles.content}
-			data={listItems}
+			data={visibleItems}
 			estimatedItemSize={170}
 			extraData={{
 				feedback,

@@ -135,7 +135,11 @@ namespace Checkout
                     Badge("LIMPANDO", "EAF6DF", "427A24");
                     double left = lot.clearEndsAt - CheckoutConstructionSite.Now;
                     status.text = "A equipe está trabalhando: falta " + CheckoutConstructionSite.Countdown(left) + ".";
-                    Button("Acelerar · " + lot.skipCost + " diamantes", "gem", gems >= lot.skipCost && lot.skipCost > 0); act = "finishLotClearingNow"; actArgs = new string[0];
+                    // Live price (it drops as the clearing runs down). Always pressable: too few diamonds opens the
+                    // diamond store (desktop/host.ts).
+                    int skip = CheckoutSkipPrice.Cost(left);
+                    Button("Acelerar · " + skip + " diamantes", "gem", skip > 0); act = "finishLotClearingNow"; actArgs = new string[0];
+                    if (gems < skip) note.text = "Faltam " + (skip - (int)gems) + " diamantes";
                     break;
                 default:
                     Hide(); break;

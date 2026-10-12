@@ -661,7 +661,8 @@ namespace Checkout
             if (speedUp)
             {
                 speedUp.gameObject.SetActive(remaining > 0);
-                int cost = remaining <= 0 ? 0 : Mathf.Max(1, Mathf.CeilToInt((float)(remaining / 600000.0)));
+                // The game's one speed-up price, live (it drops as the works run down): CheckoutSkipPrice.
+                int cost = CheckoutSkipPrice.Cost(remaining);
                 if (speedUpText) speedUpText.text = "ACELERAR  " + cost;
             }
             float progress = Progress;

@@ -1,7 +1,13 @@
 import type { AchievementCategory, AchievementRarity } from "@/@types/achievement";
 import type { MissionCategory } from "@/@types/mission";
 import { achievementRarityOrder, achievements } from "@/data/achievements";
-import { currencyPackSections, currencyPacks } from "@/data/currency-packs";
+import {
+	currencyPackSections,
+	currencyPacks,
+	getCurrencyPackCoins,
+	isCurrencyPackAvailable,
+} from "@/data/currency-packs";
+import { getPackPrice, iapStore } from "../iap";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
@@ -393,32 +399,79 @@ export const routes: Routes = {
 			),
 		});
 	},
-	// No App Store / Google Play on desktop: each pack credits directly with the
-	// same input the RN store hook passes after a successful purchase.
-	currency: (state, [arg]) => {
+	// The diamond store (Lucas 12/10): real-money packs bought through the App Store / Google Play (Unity IAP,
+	// CheckoutIap.cs). "currency:<filter>:<missing>" opens it after the player tried to spend diamonds they do not
+	// have, saying how many are missing and pointing at the smallest pack that covers it.
+	currency: (state, [arg, missingArg]) => {
 		const filter = currencyPackSections.some((s) => s.category === arg) ? arg : "all";
+		const missing = Math.max(0, Number.parseInt(missingArg ?? "", 10) || 0);
+		const diamonds = state.logistics.premiumCurrency;
+		const purchased = state.currencyPurchases.purchasedPackIds;
 		const cards: Card[] = [
 			card("Banco do Mercado", {
 				subtitle: "Reforce o caixa e acelere as próximas melhorias.",
 				icon: gameIcon("bank"),
 				lines: [
 					`Moedas atuais: ${fmt(state.coins)}`,
-					`Diamantes atuais: ${fmt(state.logistics.premiumCurrency)}`,
-					"Desktop: compras creditadas sem loja (teste).",
+					`Diamantes atuais: ${fmt(diamonds)}`,
 				],
 			}),
 		];
+		if (missing > 0)
+			cards.push(
+				card(missing === 1 ? "Falta 1 diamante" : `Faltam ${fmt(missing)} diamantes`, {
+					subtitle: "Diamantes terminam qualquer obra, produção ou entrega na hora. Escolha um pacote:",
+					icon: gameIcon("diamond"),
+					tone: "featured",
+					lines: [`Você tem ${fmt(diamonds)} diamantes.`],
+				}),
+			);
+		const notice = iapStore.notice;
+		if (notice && Date.now() - notice.at < 60_000)
+			cards.push(card(notice.text, { icon: gameIcon(notice.ok ? "gift" : "diamond"), tone: notice.ok ? "gold" : "danger" }));
+		if (iapStore.status === "unavailable")
+			cards.push(
+				card("Loja indisponível", {
+					subtitle: "As compras não estão disponíveis neste aparelho agora (sem conexão com a App Store / Google Play).",
+					icon: gameIcon("bank"),
+					tone: "locked",
+				}),
+			);
+		// The smallest diamond pack that covers what is missing.
+		const recommended = missing
+			? currencyPacks
+					.filter((p) => p.category === "diamonds" && p.diamonds >= missing)
+					.sort((x, y) => x.diamonds - y.diamonds)[0]?.id
+			: undefined;
 		for (const section of currencyPackSections) {
 			if (filter !== "all" && section.category !== filter) continue;
 			for (const pack of currencyPacks.filter((p) => p.category === section.category)) {
+				if (!isCurrencyPackAvailable(pack, purchased)) continue;
+				const coins = getCurrencyPackCoins(pack, state.era.id);
 				const rewards = [
-					pack.coins > 0 ? `${fmt(pack.coins)} moedas` : "",
+					coins > 0 ? `${fmt(coins)} moedas` : "",
 					pack.diamonds > 0 ? `${fmt(pack.diamonds)} diamantes` : "",
 				].filter(Boolean);
+				const price = getPackPrice(pack.productId);
+				const busy = iapStore.busyProductId === pack.productId;
+				const buttons = [
+					act(busy ? "Aguardando a loja…" : `Comprar · ${price}`, "buyCurrencyPack", [pack.id], {
+						variant: pack.category === "coins" ? "coin" : pack.category === "diamonds" ? "gem" : "primary",
+						enabled: !busy,
+						ok: "Abrindo a loja…",
+					}),
+				];
+				// Dev builds: credit without paying, to test the economy (refused in release: desktop/host.ts devOnly).
+				if (__DEV__)
+					buttons.push(
+						act("Creditar (teste)", "grantCurrencyPurchase", [
+							{ coins, diamonds: pack.diamonds, transactionId: `dev-${Date.now()}-${pack.id}` },
+						], { variant: "secondary", ok: `${pack.name} foi creditado (teste).` }),
+					);
 				cards.push(
 					card(pack.name, {
 						eyebrow: section.title.toUpperCase(),
-						subtitle: pack.badge,
+						subtitle: pack.id === recommended ? "Recomendado para o que falta" : pack.badge,
 						icon: gameIcon(
 							pack.category === "bundle"
 								? "gift"
@@ -426,32 +479,13 @@ export const routes: Routes = {
 									? "coin"
 									: "diamond",
 						),
-						badge: pack.fallbackPrice,
-						tone: pack.category === "bundle" ? "info" : "",
-						lines: [rewards.join(" + ")],
-						buttons: [
-							act(
-								`Comprar · ${pack.fallbackPrice}`,
-								"grantCurrencyPurchase",
-								[
-									{
-										coins: pack.coins,
-										diamonds: pack.diamonds,
-										transactionId: `desktop-${Date.now()}-${pack.id}`,
-									},
-								],
-								{
-									variant:
-										pack.category === "coins"
-											? "coin"
-											: pack.category === "diamonds"
-												? "gem"
-												: "primary",
-									ok: `${pack.name} foi creditado na sua conta.`,
-									fail: "Esta compra já havia sido creditada.",
-								},
-							),
+						badge: price,
+						tone: pack.id === recommended ? "featured" : pack.category === "bundle" ? "info" : "",
+						lines: [
+							rewards.join(" + "),
+							...(pack.coinTurns ? ["As moedas crescem com a sua expansão."] : []),
 						],
+						buttons,
 					}),
 				);
 			}

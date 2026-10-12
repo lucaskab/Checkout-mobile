@@ -1,3 +1,4 @@
+import { getSkipDiamondCost } from "@/data/diamond-skip";
 import type {
 	MarketExpansionConstruction,
 	MarketExpansionDefinition,
@@ -96,9 +97,9 @@ export function normalizeMarketExpansionIds(
 	);
 }
 
-/** Diamonds to finish a construction right now: 1 per started 10 minutes still left. */
+/** Diamonds to finish a construction right now: the game's one speed-up price (falls as the works run down). */
 export function getMarketExpansionSkipCost(remainingMs: number) {
-	return remainingMs <= 0 ? 0 : Math.max(1, Math.ceil(remainingMs / 600_000));
+	return getSkipDiamondCost(remainingMs);
 }
 
 export function formatBuildDuration(ms: number) {

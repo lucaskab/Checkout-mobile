@@ -17,7 +17,7 @@ import { getNextSupplierOrderSlotUpgrade } from "@/data/supplier-capacity";
 import { getOrderBoxes, getOrderLines } from "@/services/supplier-cart";
 import { getEarliestInventoryExpiry } from "@/services/inventory-lots";
 import { describeProductLock } from "@/services/level-unlocks";
-import { getOrderProgress, getSupplierOrderStatus } from "@/services/logistics";
+import { getOrderProgress, getOrderSkipCost, getSupplierOrderStatus } from "@/services/logistics";
 import { getProductLevel, getProductUpgradeCost } from "@/services/product-levels";
 import {
 	getMaxShelfOrderBoxes,
@@ -595,21 +595,16 @@ function orderLane(state: State, order: SupplierOrder, now: number): BoardTile {
 	const status = getSupplierOrderStatus(order, now);
 	const [label, tone, detail] = statusLabel[status] ?? statusLabel.enviado;
 	const tokens = state.logistics.emergencyTokens;
-	const rush = act(tokens > 0 ? "Chegar já · ticket" : "Chegar já · 5", "deliverOrderInstantly", [order.id], {
+	// "Chegar já": an emergency ticket, or diamonds for the time the truck still has to go (the price falls as it
+	// gets closer: src/data/diamond-skip.ts).
+	const cost = getOrderSkipCost(order, now);
+	const rush = act(tokens > 0 ? "Chegar já · ticket" : `Chegar já · ${cost}`, "deliverOrderInstantly", [order.id], {
 		variant: tokens > 0 ? "success" : "gem",
 		icon: gameIcon(tokens > 0 ? "ticket" : "diamond"),
 		ok: "Vruum! O caminhão chegou na doca!",
-		fail: "Sem diamantes/tickets ou sem espaço no estoque.",
+		fail: "Sem espaço no estoque agora.",
 	});
-	const finish =
-		status === "em-transporte"
-			? act("Finalizar · 2", "completeOrderFinalStage", [order.id], {
-					variant: "gem",
-					icon: gameIcon("diamond"),
-					ok: "O caminhão chegou na doca!",
-					fail: "Não foi possível finalizar agora.",
-				})
-			: null;
+	const finish: Button | null = null;
 	const contents = orderContents(order);
 	return tile(`o${order.id}`, orderTitle(order), {
 		group: "CAMINHÕES NA ESTRADA",
@@ -692,7 +687,7 @@ function lockedLane(state: State): BoardTile | null {
 	const gems = act(`Liberar · ${next.diamondCost}`, "upgradeSupplierOrderSlots", ["diamonds"], {
 		variant: "gem",
 		icon: gameIcon("diamond"),
-		enabled: levelOk && state.logistics.premiumCurrency >= next.diamondCost,
+		enabled: levelOk,
 		ok: `Agora você tem ${next.slots} caminhões!`,
 		fail: levelOk ? "Diamantes insuficientes." : fail,
 	});
@@ -737,7 +732,7 @@ function suppliersBoard(state: State, args: string[]) {
 		const turbo = act("Ativar turbo · 3", "activateLogisticsBoost", [], {
 			variant: "gem",
 			icon: gameIcon("diamond"),
-			enabled: state.logistics.premiumCurrency >= 3 && boostLeft <= 0,
+			enabled: boostLeft <= 0,
 			ok: "Turbo ligado: pedidos novos chegam 30% mais rápido por 15 minutos!",
 			fail: boostLeft > 0 ? "O turbo já está ligado." : "Você precisa de 3 diamantes.",
 		});

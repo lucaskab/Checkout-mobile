@@ -3,13 +3,15 @@ import type {
 	ProductionJob,
 	ProductionRecipe,
 } from "@/@types/production";
+import { getSkipDiamondCost } from "@/data/diamond-skip";
 import { itemCatalog } from "@/data/market-products";
 import { productionRecipes } from "@/data/production-sectors";
 
 const SUPPLIER_PRODUCTION_MARKUP = 1.25;
 
+/** Diamonds to finish a production job right now (the game's one speed-up price; at least 1 while it runs). */
 export function getProductionDiamondCost(remainingMs: number) {
-	return Math.max(1, Math.ceil(Math.max(remainingMs, 0) / 60_000));
+	return Math.max(1, getSkipDiamondCost(remainingMs));
 }
 
 export function getProductionProgress(job: ProductionJob, now: number) {

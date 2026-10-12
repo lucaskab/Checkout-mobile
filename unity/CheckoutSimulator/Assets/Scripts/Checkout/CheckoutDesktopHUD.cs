@@ -10,6 +10,8 @@ namespace Checkout {
   CheckoutDesktopHost host;RectTransform root;DesktopView view;
   readonly Dictionary<string,DesktopButton> pending=new Dictionary<string,DesktopButton>();
   public readonly HashSet<string> Silent=new HashSet<string>();
+  // Actions answered in code instead of a toast (CheckoutIap: a purchase is confirmed to the store on the answer).
+  public readonly Dictionary<string,System.Action<bool,string>> Answers=new Dictionary<string,System.Action<bool,string>>();
 
   public void Initialize(CheckoutDesktopHost owner){
    host=owner;
@@ -48,6 +50,7 @@ namespace Checkout {
    var result=JsonUtility.FromJson<DesktopResult>(json);if(result==null)return;
    // Actions sent by the map editor for its sandbox (unlocks, money top-ups) finish without toasts.
    if(Silent.Remove(result.id??""))return;
+   if(Answers.TryGetValue(result.id??"",out var answer)){Answers.Remove(result.id);answer(result.ok,result.reason);return;}
    pending.TryGetValue(result.id??"",out var source);pending.Remove(result.id??"");
    BoardFeedback(result.ok);
    if(result.ok)Toast(string.IsNullOrEmpty(source?.ok)?"Feito!":source.ok,true);

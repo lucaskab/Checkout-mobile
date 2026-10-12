@@ -55,7 +55,7 @@ export function buildCard(state: State, offer: BuildOffer): Card {
 					act(`${label} · ${status.skipCost}`, "finishInteriorConstructionNow", [status.construction.id], {
 						variant: "gem",
 						icon: gameIcon("diamond"),
-						enabled: diamonds >= status.skipCost,
+						enabled: true, // too few diamonds opens the diamond store (desktop/host.ts)
 						ok: `${offer.title} pronto!`,
 						fail: "Diamantes insuficientes",
 					}),
@@ -123,7 +123,7 @@ export function buildCard(state: State, offer: BuildOffer): Card {
 					act(fmt(offer.diamonds.price), offer.diamonds.action, offer.diamonds.args, {
 						variant: "gem",
 						icon: gameIcon("diamond"),
-						enabled: diamonds >= offer.diamonds.price,
+						enabled: true,
 						ok: bought,
 						fail: "Diamantes insuficientes",
 					}),

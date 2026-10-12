@@ -236,7 +236,8 @@ export const routes: Routes = {
 			const consumableAmount = consumableAmounts[item.id] ?? 0;
 			const isDiamond = Boolean(item.diamondPrice);
 			const price = item.diamondPrice ?? item.coinPrice ?? 0;
-			const canAfford = isDiamond ? diamonds >= price : coins >= price;
+			// Diamond prices stay pressable: too few diamonds opens the diamond store (desktop/host.ts).
+			const canAfford = isDiamond || coins >= price;
 			const quality = getItemQuality(item);
 			const isLegendary = quality === "lendario" || quality === "mitico";
 			const label = isOwned
@@ -262,7 +263,7 @@ export const routes: Routes = {
 						act(`Acelerar · 💎 ${build.skipCost}`, "finishInteriorConstructionNow", [build.construction.id], {
 							variant: "gem",
 							icon: gameIcon("diamond"),
-							enabled: diamonds >= build.skipCost,
+							enabled: true,
 							ok: `${item.name} pronto!`,
 							fail: "Diamantes insuficientes",
 						}),
@@ -385,7 +386,7 @@ export const routes: Routes = {
 			const levelLocked =
 				level < expansion.requiredLevel || missing.length > 0;
 			const hasCoins = coins >= expansion.coinCost;
-			const hasDiamonds = diamonds >= expansion.diamondCost;
+			const hasDiamonds = true; // too few diamonds opens the diamond store
 
 			if (underConstruction) {
 				return card(expansion.name, {
@@ -409,7 +410,7 @@ export const routes: Routes = {
 										{
 											variant: "gem",
 											icon: gameIcon("diamond"),
-											enabled: diamonds >= skipCost,
+											enabled: true,
 											ok: `${expansion.name} concluída`,
 											fail: "Diamantes insuficientes",
 										},

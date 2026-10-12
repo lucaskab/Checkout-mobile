@@ -58,6 +58,7 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "economia": "bun scripts/economy-robot.ts",
+		"test": "bun test src desktop",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "ios:device": "expo run:ios --device \"Iphone de Lucas\"",

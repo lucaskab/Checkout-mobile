@@ -165,7 +165,7 @@ function decoracao(state: State, sub: string) {
 					act(locked ? `Nível ${decor.requiredLevel}` : fmt(price), "purchaseDecor", [decor.id, useDiamonds ? "diamonds" : "coins"], {
 						variant: useDiamonds ? "gem" : "coin",
 						icon: locked ? "" : gameIcon(useDiamonds ? "diamond" : "coin"),
-						enabled: !locked && (useDiamonds ? diamonds >= price : coins >= price),
+						enabled: !locked && (useDiamonds || coins >= price),
 						ok: `${decor.name} comprado! Coloque no modo construir.`,
 						fail: locked ? `Nível ${decor.requiredLevel}` : useDiamonds ? "Diamantes insuficientes" : "Moedas insuficientes",
 					}),
@@ -227,7 +227,7 @@ function destaques(state: State) {
 }
 
 // ------------------------------------------------------------------ the page
-function content(state: State, tab: string, sub: string): { cards: Card[]; chips: Button[] } {
+function content(state: State, tab: string, sub: string, extra = ""): { cards: Card[]; chips: Button[] } {
 	switch (tab) {
 		case "moveis":
 			return moveis(state, sub);
@@ -254,7 +254,7 @@ function content(state: State, tab: string, sub: string): { cards: Card[]; chips
 		case "decoracao":
 			return decoracao(state, sub);
 		case "moedas": {
-			const currency = progress.currency(state, [sub || "all"]);
+			const currency = progress.currency(state, [sub || "all", extra]);
 			return {
 				cards: currency.cards.slice(1),
 				chips: currency.chips.map((c) => ({ ...c, route: c.route.replace("~currency:", "~loja:moedas:") })),
@@ -265,9 +265,9 @@ function content(state: State, tab: string, sub: string): { cards: Card[]; chips
 	}
 }
 
-export function shopPage(state: State, [tabArg, sub = ""]: string[]) {
+export function shopPage(state: State, [tabArg, sub = "", extra = ""]: string[]) {
 	const tab = tabs.find((t) => t.id === tabArg) ?? tabs[0];
-	const { cards, chips } = content(state, tab.id, sub === "all" ? "" : sub);
+	const { cards, chips } = content(state, tab.id, sub === "all" ? "" : sub, extra);
 	const stored = getStoredInteriorBuilds(state).length;
 	return page(`loja:${tab.id}${sub ? `:${sub}` : ""}`, tab.label, cards, {
 		subtitle: tab.hint,

@@ -160,7 +160,8 @@ function slotCard(
 	}
 	const progress = getProductionProgress(job, now);
 	const diamondCost = getProductionDiamondCost(job.endsAt - now);
-	const canAfford = state.logistics.premiumCurrency >= diamondCost;
+	// Always pressable: too few diamonds opens the diamond store (desktop/host.ts).
+	const canAfford = true;
 	return card(productName(job.outputProductId), {
 		eyebrow: `SLOT ${slotIndex + 1}`,
 		icon: productIcon(job.outputProductId),

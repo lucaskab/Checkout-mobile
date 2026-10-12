@@ -38,7 +38,8 @@ const all: Routes = {
 	team: (state) => shopPage(state, ["equipe"]),
 	shop: (state, [category]) => shopPage(state, ["melhorias", category ?? ""]),
 	expansions: (state) => shopPage(state, ["expansoes"]),
-	currency: (state, [filter]) => shopPage(state, ["moedas", filter ?? ""]),
+	// "currency:<filter>:<missing diamonds>" (desktop/host.ts opens it when the player is short of diamonds).
+	currency: (state, [filter, missing]) => shopPage(state, ["moedas", filter ?? "", missing ?? ""]),
 };
 
 export function pages(state: State, route: string): Page {

@@ -25,6 +25,8 @@ export type SimulatorAction = Exclude<
 	| `process${string}`
 	| "resetGame"
 	| "grantCurrencyPurchase"
+	| "grantCurrencyPack"
+	| "dismissDiamondShortfall"
 	| "unlockProduct"
 	| "setMarketLevel"
 	| "dismissOfflineSummary"

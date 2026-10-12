@@ -194,7 +194,9 @@ import {
 	reconcileInventoryLots,
 	takeInventoryLots,
 } from "@/services/inventory-lots";
-import { getSupplierOrderStatus } from "@/services/logistics";
+import { getOrderSkipCost, getSupplierOrderStatus } from "@/services/logistics";
+import { getSkipDiamondCost } from "@/data/diamond-skip";
+import { getCurrencyPack, getCurrencyPackCoins } from "@/data/currency-packs";
 import { getMissionProgress } from "@/services/missions";
 import { getProductionDiamondCost } from "@/services/production";
 import {
@@ -952,6 +954,15 @@ export const useGameStore = create<GameStore>()(
 						},
 					});
 			}) as typeof rawSet;
+			// Spending diamonds: when the player has too few, the HUD opens the diamond store (Lucas 12/10) — the
+			// shortfall is left here (not saved) for the host / app to react to (desktop/host.ts, use-simulator.ts).
+			const enoughDiamonds = (needed: number) => {
+				const have = get().logistics.premiumCurrency;
+				if (have >= needed) return true;
+				rawSet({ diamondShortfall: { needed, missing: needed - have, at: Date.now() } });
+				return false;
+			};
+
 			return {
 			...getInitialGameState(),
 			dismissLevelUp: () => {
@@ -1083,7 +1094,7 @@ export const useGameStore = create<GameStore>()(
 			activateLogisticsBoost: () => {
 				const { logistics } = get();
 
-				if (logistics.premiumCurrency < 3) {
+				if (!enoughDiamonds(3)) {
 					return false;
 				}
 
@@ -1109,8 +1120,7 @@ export const useGameStore = create<GameStore>()(
 
 				if (
 					(currency === "coins" && coins < nextUpgrade.coinCost) ||
-					(currency === "diamonds" &&
-						logistics.premiumCurrency < nextUpgrade.diamondCost)
+					(currency === "diamonds" && !enoughDiamonds(nextUpgrade.diamondCost))
 				) {
 					return false;
 				}
@@ -1129,18 +1139,15 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
-			// "Finalizar": a truck past half its trip parks at the dock now (every product of the order).
+			// "Finalizar": the truck parks at the dock now, paid in diamonds for the time it still had to go (the same
+			// price as every other speed-up, src/data/diamond-skip.ts).
 			completeOrderFinalStage: (orderId) => {
 				const { logistics, statistics } = get();
 				const order = logistics.orders.find((item) => item.id === orderId);
 				const now = Date.now();
+				const cost = order ? getOrderSkipCost(order, now) : 0;
 
-				if (
-					!order ||
-					order.status === "entregue" ||
-					logistics.premiumCurrency < 2 ||
-					now < order.createdAt + order.deliveryDurationMs / 2
-				) {
+				if (!order || order.status === "entregue" || cost <= 0 || !enoughDiamonds(cost)) {
 					return false;
 				}
 
@@ -1152,7 +1159,7 @@ export const useGameStore = create<GameStore>()(
 								? { ...item, createdAt: now - item.deliveryDurationMs }
 								: item,
 						),
-						premiumCurrency: logistics.premiumCurrency - 2,
+						premiumCurrency: logistics.premiumCurrency - cost,
 					},
 					statistics: {
 						...statistics,
@@ -1230,10 +1237,11 @@ export const useGameStore = create<GameStore>()(
 					return false;
 				}
 
+				// An emergency token first; otherwise diamonds for the time the truck still had to go.
 				const canUseToken = logistics.emergencyTokens > 0;
-				const canUseCurrency = logistics.premiumCurrency >= 5;
+				const cost = getOrderSkipCost(order, now);
 
-				if (!canUseToken && !canUseCurrency) {
+				if (cost <= 0 || (!canUseToken && !enoughDiamonds(cost))) {
 					return false;
 				}
 
@@ -1250,7 +1258,7 @@ export const useGameStore = create<GameStore>()(
 						),
 						premiumCurrency: canUseToken
 							? logistics.premiumCurrency
-							: logistics.premiumCurrency - 5,
+							: logistics.premiumCurrency - cost,
 					},
 					statistics: {
 						...statistics,
@@ -1422,8 +1430,8 @@ export const useGameStore = create<GameStore>()(
 			finishMarketEraNow: () => {
 				const { era, logistics } = get();
 				if (!era.construction) return false;
-				const cost = getMarketExpansionSkipCost(era.construction.endsAt - Date.now());
-				if (logistics.premiumCurrency < cost) return false;
+				const cost = getSkipDiamondCost(era.construction.endsAt - Date.now());
+				if (!enoughDiamonds(cost)) return false;
 				set({
 					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - cost },
 				});
@@ -1448,8 +1456,8 @@ export const useGameStore = create<GameStore>()(
 			finishLotClearingNow: () => {
 				const lots = get().lots;
 				if (!lots?.clearing) return false;
-				const cost = getMarketExpansionSkipCost(lots.clearing.endsAt - Date.now());
-				if (get().logistics.premiumCurrency < cost) return false;
+				const cost = getSkipDiamondCost(lots.clearing.endsAt - Date.now());
+				if (!enoughDiamonds(cost)) return false;
 				set({
 					logistics: { ...get().logistics, premiumCurrency: get().logistics.premiumCurrency - cost },
 				});
@@ -1640,13 +1648,13 @@ export const useGameStore = create<GameStore>()(
 				const diamondCost = getProductionDiamondCost(job.endsAt - Date.now());
 
 				if (
-					logistics.premiumCurrency < diamondCost ||
 					!canAddToInventory(
 						job.outputProductId,
 						job.outputQuantity,
 						inventory,
 						inventoryCapacityLevels,
-					)
+					) ||
+					!enoughDiamonds(diamondCost)
 				) {
 					return false;
 				}
@@ -1723,6 +1731,41 @@ export const useGameStore = create<GameStore>()(
 				});
 
 				return true;
+			},
+			dismissDiamondShortfall: () => {
+				if (get().diamondShortfall) rawSet({ diamondShortfall: null });
+			},
+			grantCurrencyPack: (packIdOrProductId, transactionId) => {
+				const state = get();
+				const pack = getCurrencyPack(packIdOrProductId);
+				// A paid transaction is always credited (once): the welcome combo's "only once" is checked before the
+				// store sheet opens (desktop/iap.ts requestPackPurchase), never after the player has paid.
+				if (
+					!pack ||
+					!transactionId ||
+					state.currencyPurchases.processedTransactionIds.includes(transactionId)
+				) {
+					return null;
+				}
+				const coins = getCurrencyPackCoins(pack, state.era?.id);
+				const diamonds = pack.diamonds;
+				set((current) => ({
+					coins: current.coins + coins,
+					currencyPurchases: {
+						processedTransactionIds: [
+							...current.currencyPurchases.processedTransactionIds.slice(-199),
+							transactionId,
+						],
+						purchasedPackIds: [...(current.currencyPurchases.purchasedPackIds ?? []).slice(-499), pack.id],
+					},
+					logistics: {
+						...current.logistics,
+						premiumCurrency: current.logistics.premiumCurrency + diamonds,
+					},
+					// Whatever the player was short of is sorted: no store popping up again.
+					diamondShortfall: null,
+				}));
+				return { packId: pack.id, coins, diamonds };
 			},
 			grantCurrencyPurchase: ({ coins, diamonds, transactionId }) => {
 				const { currencyPurchases, logistics } = get();
@@ -1841,8 +1884,7 @@ export const useGameStore = create<GameStore>()(
 					(currency === "coins" &&
 						(!item.coinPrice || coins < item.coinPrice)) ||
 					(currency === "diamonds" &&
-						(!item.diamondPrice ||
-							logistics.premiumCurrency < item.diamondPrice))
+						(!item.diamondPrice || !enoughDiamonds(item.diamondPrice)))
 				) {
 					return false;
 				}
@@ -4016,8 +4058,7 @@ export const useGameStore = create<GameStore>()(
 					// The sector needs the market wing that has room for it.
 					!layout.sectorIds.includes(sector.id) ||
 					(currency === "coins" && state.coins < plan.coinCost) ||
-					(currency === "diamonds" &&
-						state.logistics.premiumCurrency < diamondCost)
+					(currency === "diamonds" && !enoughDiamonds(diamondCost))
 				) {
 					return false;
 				}
@@ -4085,7 +4126,7 @@ export const useGameStore = create<GameStore>()(
 				const diamondCost = getInteriorSkipCost(
 					item.startedAt > now ? constructionDuration(item) : item.endsAt - now,
 				);
-				if (logistics.premiumCurrency < diamondCost) return false;
+				if (!enoughDiamonds(diamondCost)) return false;
 				set({
 					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - diamondCost },
 					interiorConstructions: interiorConstructions.map((entry) =>
@@ -4153,8 +4194,7 @@ export const useGameStore = create<GameStore>()(
 					).length > 0 ||
 					market.level < expansion.requiredLevel ||
 					(currency === "coins" && coins < expansion.coinCost) ||
-					(currency === "diamonds" &&
-						logistics.premiumCurrency < expansion.diamondCost)
+					(currency === "diamonds" && !enoughDiamonds(expansion.diamondCost))
 				) {
 					return false;
 				}
@@ -4226,7 +4266,7 @@ export const useGameStore = create<GameStore>()(
 				const useDiamonds = currency === "diamonds" || !decor.coinPrice;
 				const price = useDiamonds ? decor.diamondPrice : decor.coinPrice;
 				if (!price) return false;
-				if (useDiamonds ? logistics.premiumCurrency < price : coins < price) return false;
+				if (useDiamonds ? !enoughDiamonds(price) : coins < price) return false;
 				if ((interior.owned[decorId] ?? 0) >= 99) return false;
 				set({
 					coins: useDiamonds ? coins : coins - price,
@@ -4248,7 +4288,7 @@ export const useGameStore = create<GameStore>()(
 				const diamondCost = getMarketExpansionSkipCost(
 					marketExpansionConstruction.endsAt - Date.now(),
 				);
-				if (logistics.premiumCurrency < diamondCost) {
+				if (!enoughDiamonds(diamondCost)) {
 					return false;
 				}
 				set({
@@ -4313,8 +4353,7 @@ export const useGameStore = create<GameStore>()(
 
 				if (
 					(currency === "coins" && coins < nextUpgrade.coinCost) ||
-					(currency === "diamonds" &&
-						logistics.premiumCurrency < nextUpgrade.diamondCost)
+					(currency === "diamonds" && !enoughDiamonds(nextUpgrade.diamondCost))
 				) {
 					return false;
 				}

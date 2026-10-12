@@ -52,7 +52,7 @@ export function eraCards(state: State, { roadmap = true } = {}): Card[] {
 					act(`Acelerar · ${cost}`, "finishMarketEraNow", [], {
 						variant: "gem",
 						icon: gameIcon("diamond"),
-						enabled: state.logistics.premiumCurrency >= cost,
+						enabled: true, // too few diamonds opens the diamond store
 						ok: `${target.name} pronto!`,
 						fail: "Diamantes insuficientes",
 					}),

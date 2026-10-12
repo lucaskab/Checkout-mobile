@@ -19,8 +19,8 @@ type PurchaseFeedback = {
 };
 
 export function useCurrencyStore() {
-	const grantCurrencyPurchase = useGameStore(
-		(state) => state.grantCurrencyPurchase,
+	const grantCurrencyPack = useGameStore(
+		(state) => state.grantCurrencyPack,
 	);
 	const purchaseInFlight = useRef(false);
 	const [feedback, setFeedback] = useState<PurchaseFeedback | null>(null);
@@ -78,15 +78,15 @@ export function useCurrencyStore() {
 				throw new Error("Purchased product is not in the currency catalog.");
 			}
 
-			const wasCredited = grantCurrencyPurchase({
-				coins: purchasedPack.coins,
-				diamonds: purchasedPack.diamonds,
-				transactionId: result.transaction.transactionIdentifier,
-			});
+			// The pack is credited as the catalog prices it for the player now (coins grow with the expansion).
+			const grant = grantCurrencyPack(
+				purchasedPack.productId,
+				result.transaction.transactionIdentifier,
+			);
 
 			setFeedback({
 				kind: "success",
-				message: wasCredited
+				message: grant
 					? `${purchasedPack.name} foi creditado na sua conta.`
 					: "Esta compra já havia sido creditada.",
 			});

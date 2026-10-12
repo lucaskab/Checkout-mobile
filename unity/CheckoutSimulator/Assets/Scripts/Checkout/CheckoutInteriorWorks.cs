@@ -314,7 +314,7 @@ namespace Checkout
             if (caption) caption.text = ((waitingTurn ? "NA FILA · " : "OBRA · ") + title).ToUpperInvariant();
             string label = waitingTurn ? "COMEÇA EM " + CheckoutConstructionSite.Countdown(startedAt - Now) : remaining > 0 ? CheckoutConstructionSite.Countdown(remaining) : "FINALIZANDO...";
             if (countdown) { countdown.text = label; countdownShadow.text = label; }
-            int cost = remaining <= 0 ? 0 : waitingTurn ? skipCost : Mathf.Max(1, Mathf.CeilToInt((float)(remaining / 600000.0)));
+            int cost = remaining <= 0 ? 0 : waitingTurn ? skipCost : CheckoutSkipPrice.Cost(remaining);
             if (speedUp) speedUp.gameObject.SetActive(remaining > 0);
             if (speedUpText) speedUpText.text = "ACELERAR  " + cost;
             if (progressFill)

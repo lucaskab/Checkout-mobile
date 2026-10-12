@@ -1,3 +1,4 @@
+import { getSkipDiamondCost } from "@/data/diamond-skip";
 import type {
 	LogisticsState,
 	SupplierOrder,
@@ -91,6 +92,12 @@ export function getOrderRemainingTime(order: SupplierOrder, now = Date.now()) {
 	const seconds = Math.ceil((remaining % minuteInMilliseconds) / 1000);
 
 	return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+/** Diamonds to bring the truck to the dock now: the game's one speed-up price for the time it still has to go. */
+export function getOrderSkipCost(order: SupplierOrder, now = Date.now()) {
+	if (order.deliveredAt) return 0;
+	return getSkipDiamondCost(order.createdAt + order.deliveryDurationMs - now);
 }
 
 export function getOrderProgress(order: SupplierOrder, now = Date.now()) {

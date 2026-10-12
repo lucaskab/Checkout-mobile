@@ -2,14 +2,23 @@ import type {
 	CurrencyPack,
 	CurrencyPackCategory,
 } from "@/@types/currency-purchase";
+import type { MarketEraId } from "@/@types/economy";
+import { roundPrice } from "@/data/economy";
 
-// Coin tiers follow the upgrade curve from thousands to millions. Diamond tiers
-// cover consumables (50-150) through permanent premium items (500-3,000).
+// Balance (Lucas 12/10, "the economy has to make the player want to buy"):
+// - Diamonds are bought, not farmed: ~38 → 60 diamonds per euro from the smallest to the biggest pack, so bigger packs
+//   are better value. One speed-up price for the whole game (src/data/diamond-skip.ts): 1 h ≈ 10, 1 day ≈ 150.
+// - Coins follow the player: a coin pack holds `coinTurns` 10-minute turns of profit of the player's CURRENT expansion
+//   (getCurrencyPackCoins), so a pack skips the same effort at the sidewalk table and at the chain (a fixed 20 million
+//   used to skip the whole game; 5 000 at the end was nothing). `coins` is the amount at the first expansion.
+// - Combos are ~1.3× the value of buying their diamonds and coins apart. The welcome combo is a one-time offer.
 export const currencyPacks: CurrencyPack[] = [
 	{
-		badge: "Começo rápido",
+		badge: "Oferta de boas-vindas",
 		category: "bundle",
-		coins: 10_000,
+		coins: 6_000,
+		coinTurns: 40,
+		oncePerPlayer: true,
 		diamonds: 200,
 		fallbackPrice: "€ 4,99",
 		id: "bundle-starter",
@@ -20,8 +29,9 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Mais popular",
 		category: "bundle",
-		coins: 60_000,
-		diamonds: 450,
+		coins: 9_000,
+		coinTurns: 60,
+		diamonds: 300,
 		fallbackPrice: "€ 9,99",
 		id: "bundle-growing",
 		name: "Combo Mercado",
@@ -31,8 +41,9 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Ótimo valor",
 		category: "bundle",
-		coins: 600_000,
-		diamonds: 1_000,
+		coins: 20_000,
+		coinTurns: 130,
+		diamonds: 650,
 		fallbackPrice: "€ 19,99",
 		id: "bundle-supermarket",
 		name: "Combo Supermercado",
@@ -42,8 +53,9 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Magnata",
 		category: "bundle",
-		coins: 7_000_000,
-		diamonds: 2_200,
+		coins: 44_000,
+		coinTurns: 280,
+		diamonds: 1_400,
 		fallbackPrice: "€ 39,99",
 		id: "bundle-tycoon",
 		name: "Combo Magnata",
@@ -53,8 +65,9 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Melhor valor",
 		category: "bundle",
-		coins: 80_000_000,
-		diamonds: 5_000,
+		coins: 95_000,
+		coinTurns: 600,
+		diamonds: 3_000,
 		fallbackPrice: "€ 79,99",
 		id: "bundle-empire",
 		name: "Combo Império",
@@ -64,7 +77,8 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Essencial",
 		category: "coins",
-		coins: 5_000,
+		coins: 1_900,
+		coinTurns: 12,
 		diamonds: 0,
 		fallbackPrice: "€ 1,99",
 		id: "coins-pouch",
@@ -75,7 +89,8 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Popular",
 		category: "coins",
-		coins: 25_000,
+		coins: 5_500,
+		coinTurns: 35,
 		diamonds: 0,
 		fallbackPrice: "€ 4,99",
 		id: "coins-sack",
@@ -86,7 +101,8 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Bom negócio",
 		category: "coins",
-		coins: 150_000,
+		coins: 12_600,
+		coinTurns: 80,
 		diamonds: 0,
 		fallbackPrice: "€ 9,99",
 		id: "coins-chest",
@@ -97,7 +113,8 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Grande estoque",
 		category: "coins",
-		coins: 1_500_000,
+		coins: 28_000,
+		coinTurns: 180,
 		diamonds: 0,
 		fallbackPrice: "€ 19,99",
 		id: "coins-vault",
@@ -108,7 +125,8 @@ export const currencyPacks: CurrencyPack[] = [
 	{
 		badge: "Reserva máxima",
 		category: "coins",
-		coins: 20_000_000,
+		coins: 63_000,
+		coinTurns: 400,
 		diamonds: 0,
 		fallbackPrice: "€ 39,99",
 		id: "coins-reserve",
@@ -201,5 +219,35 @@ export const currencyPackSections: {
 export const currencyProductIds = currencyPacks.map((pack) => pack.productId);
 
 export function getCurrencyPack(productId: string) {
-	return currencyPacks.find((pack) => pack.productId === productId);
+	return currencyPacks.find((pack) => pack.productId === productId || pack.id === productId);
+}
+
+/**
+ * Average profit of a regular player in one 10-minute turn, per expansion (scripts/economy-robot.ts, project doc
+ * economia-produtos). Sizes the coin packs.
+ */
+export const ERA_TURN_PROFIT: Record<MarketEraId, number> = {
+	mesinha: 158,
+	tenda: 539,
+	banca: 856,
+	conteiner: 1_078,
+	spati: 1_579,
+	quitanda: 2_707,
+	minimercado: 3_858,
+	mercadinho: 6_151,
+	supermercado: 10_913,
+	hipermercado: 22_589,
+	rede: 36_637,
+};
+
+/** Coins a pack gives a player at `eraId` (round, friendly numbers). */
+export function getCurrencyPackCoins(pack: CurrencyPack, eraId: MarketEraId | undefined) {
+	if (!pack.coinTurns) return pack.coins;
+	const profit = ERA_TURN_PROFIT[eraId ?? "mesinha"] ?? ERA_TURN_PROFIT.mesinha;
+	return roundPrice(Math.max(500, pack.coinTurns * profit));
+}
+
+/** Whether the player may still buy `pack` (the welcome combo only once). */
+export function isCurrencyPackAvailable(pack: CurrencyPack, purchasedPackIds: readonly string[] | undefined) {
+	return !pack.oncePerPlayer || !(purchasedPackIds ?? []).includes(pack.id);
 }
