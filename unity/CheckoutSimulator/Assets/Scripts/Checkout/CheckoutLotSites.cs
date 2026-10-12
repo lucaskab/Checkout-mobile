@@ -461,8 +461,8 @@ namespace Checkout
                 case "casa":
                 {
                     var skip = s.Prop("Works_Dumpster", P(3.4f, 1.6f), E); var load = Fill(s, skip);
-                    s.ToolWorker(P(-2.2f, 3.7f), P(-2.2f, 5f), Tool.Sledge, 0);
-                    s.ToolWorker(P(.6f, 3.7f), P(.6f, 5f), Tool.Sledge, 1);
+                    s.ToolWorker(P(-.85f, 3.7f), P(-.85f, 5f), Tool.Sledge, 0, .8f);     // each works his half of the front, moving along it
+                    s.ToolWorker(P(.85f, 3.7f), P(.85f, 5f), Tool.Sledge, 1, .8f);
                     Haul(load, 2);
                     Haul(load, 5);
                     s.Foreman(P(-4.4f, 1.2f), P(-4.4f, 3f), front, 3);
@@ -472,7 +472,7 @@ namespace Checkout
                 {
                     s.Prop("Works_Pickup", P(2.6f, 1.5f), E);
                     var skip = s.Prop("Works_Dumpster", P(-3.4f, 1.6f), E); var load = Fill(s, skip);
-                    s.ToolWorker(P(-1.2f, 3.8f), P(-1.2f, 5f), Tool.Sledge, 0);
+                    s.ToolWorker(P(-1.2f, 3.8f), P(-1.2f, 5f), Tool.Sledge, 0, 1.1f);
                     s.Carrier(P(.6f, 3.6f), P(.6f, 2.9f), "Prop_Box", 1);
                     Haul(load, 2);
                     s.Foreman(P(4.6f, 3.4f), P(4.6f, .8f), front, 3);
@@ -482,7 +482,7 @@ namespace Checkout
                 {
                     var skip = s.Prop("Works_Dumpster", P(3.6f, 1.5f), E); var load = Fill(s, skip);
                     s.Excavator("Works_Excavator", P(-2.2f, 1.8f), E, P(-1.8f, 5.2f), P(3.6f, 1.5f), true);
-                    s.ToolWorker(P(1.6f, 3.8f), P(1.6f, 5f), Tool.Sledge, 0);
+                    s.ToolWorker(P(1.6f, 3.8f), P(1.6f, 5f), Tool.Sledge, 0, 1.1f);
                     Haul(load, 2);
                     s.Foreman(P(-5f, .6f), P(-5f, 3.2f), front, 3);
                     break;
@@ -523,7 +523,7 @@ namespace Checkout
                 {
                     var skip = s.Prop("Works_Dumpster", P(3.4f, 1.6f), E); var load = Fill(s, skip);
                     s.Excavator("Works_MiniExcavator", P(-2.4f, 2.0f), E, P(-2.2f, 5.0f), P(3.4f, 1.6f), true);
-                    s.ToolWorker(P(.9f, 3.8f), P(.9f, 5f), Tool.Sledge, 0);
+                    s.ToolWorker(P(.9f, 3.8f), P(.9f, 5f), Tool.Sledge, 0, 1.1f);
                     Haul(load, 2);
                     s.Foreman(P(-4.9f, .7f), P(-.6f, .7f), front, 3);
                     break;
@@ -560,7 +560,7 @@ namespace Checkout
                 {
                     // The wrecking ball takes the chimney and the saw-tooth roof down.
                     s.WreckingCrane(P(-2.0f, 1.9f), E, P(1.0f, 6.8f) + Vector3.up * 4f);
-                    s.ToolWorker(P(3.4f, 3.8f), P(3.4f, 5f), Tool.Sledge, 0);
+                    s.ToolWorker(P(3.4f, 3.8f), P(3.4f, 5f), Tool.Sledge, 0, 1.1f);
                     s.Prop("Prop_DebrisPile", P(4.0f, 1.4f), E);
                     s.Foreman(P(4.9f, .6f), P(1.6f, .6f), front, 3);
                     break;

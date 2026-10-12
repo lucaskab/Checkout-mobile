@@ -160,6 +160,9 @@ namespace Checkout
             // Hauler (lot clearing): loads from the rubble heaps (source), tips the load into the skip (dumped).
             public Func<Vector3> source; public Func<Vector3, Vector3> heapAt; public Action<Vector3> picked; public Action<Transform> dumped; public Vector3 dumpLook, loadedAt;
             public Transform board;      // the foreman's clipboard
+            // Roaming tool work (lot clearing, Lucas 12/10: the sledgehammers stayed on one spot): after a few blows he
+            // shoulders the tool and walks along the face to another part of the ruin.
+            public bool roams, moving; public Vector3 home, side, lookAhead; public float range, toolLen; public int blowsLeft;
             public Animation anim; public string clip;
             public Tool use; public Vector3 a, b, look; public string carry;
             public int phase; public float clock, wait, speed = 1, yaw, seed; public bool carrier, foreman;
@@ -213,6 +216,10 @@ namespace Checkout
         /// hitting): CheckoutRuinDemolition breaks the next piece of the ruin on it.</summary>
         public event Action<Vector3> Blow;
         public void Hit(Vector3 at) => Blow?.Invoke(at);
+
+        /// <summary>Where on the work a roaming worker should go next, given where he is (CheckoutRuinDemolition: a
+        /// part of the ruin still standing that comes down soon). Null: anywhere in his range.</summary>
+        public Func<Vector3, Vector3> WorkAt;
 
         /// <summary>Walls of a small building rising with the works (brick or block, with a door gap in front).</summary>
         public Transform Walls(Vector3 centre, Vector2 size, float height, Color colour, float from, float to, float door = 1.2f)
@@ -288,7 +295,9 @@ namespace Checkout
         }
 
         /// <summary>A worker using a tool at `spot`, facing `look` (hammering, sawing, digging, trimming...).</summary>
-        public void ToolWorker(Vector3 spot, Vector3 look, Tool tool, int variant = 0)
+        /// <summary>`roam` (sledgehammer / hammer): he moves along the face of the work, up to `roam` metres either
+        /// side of `spot`, every few blows.</summary>
+        public void ToolWorker(Vector3 spot, Vector3 look, Tool tool, int variant = 0, float roam = 0)
         {
             var w = NewWorker(spot, look, variant); if (w == null) return;
             w.use = tool;
@@ -297,7 +306,48 @@ namespace Checkout
                 w.tool = CheckoutWorksKit.Spawn(model, transform, spot, Vector3.forward);
                 // The tool's handle sits in the hand: drop the holder's ground snap.
                 var m = w.tool.Find("Model"); if (m) m.localPosition = Vector3.zero;
+                var tb = CheckoutWorksKit.Bounds(w.tool.gameObject);
+                w.toolLen = Mathf.Max(.2f, Mathf.Max(tb.size.x, Mathf.Max(tb.size.y, tb.size.z)));
             }
+            if (roam > 0 && (tool == Tool.Sledge || tool == Tool.Hammer))
+            {
+                w.roams = true; w.home = spot; w.range = roam; w.lookAhead = CheckoutWorksKit.Flat(look - spot) * Vector3.Distance(Flat2(look), Flat2(spot));
+                w.side = Vector3.Cross(Vector3.up, CheckoutWorksKit.Flat(look - spot));
+                w.blowsLeft = 2 + variant % 3;
+            }
+        }
+
+        static Vector3 Flat2(Vector3 v) => new Vector3(v.x, 0, v.z);
+
+        // The next spot of a roaming worker: along the face, towards what still stands, clear of the others.
+        void Relocate(Worker w)
+        {
+            float now = Vector3.Dot(w.a - w.home, w.side);
+            Vector3 best = w.a; float bestScore = float.MinValue;
+            float aim = now;
+            if (WorkAt != null) aim = Vector3.Dot(WorkAt(w.a) - w.home, w.side);
+            for (int i = 0; i < 8; i++)
+            {
+                float t = Mathf.Clamp(aim + UnityEngine.Random.Range(-.6f, .6f), -w.range, w.range);
+                if (Mathf.Abs(t - now) < .7f)
+                {
+                    float dir = t >= now ? 1 : -1;
+                    if (Mathf.Abs(now + dir * .9f) > w.range) dir = -dir;      // no room that way: the other way
+                    t = Mathf.Clamp(now + dir * .9f, -w.range, w.range);
+                }
+                var at = w.home + w.side * t;
+                float clear = float.MaxValue;
+                foreach (var o in workers)
+                {
+                    if (o == w || !o.body || o.foreman) continue;
+                    // The others with tools (where they are and where they are going) and the haulers at their heaps.
+                    clear = Mathf.Min(clear, Vector3.Distance(Flat2(o.body.position), Flat2(at)));
+                    clear = Mathf.Min(clear, Vector3.Distance(Flat2(o.a), Flat2(at)));
+                }
+                float score = Mathf.Min(clear, 1.4f) * 3f - Mathf.Abs(t - aim) - (Mathf.Abs(t - now) < .5f ? 5 : 0);
+                if (score > bestScore) { bestScore = score; best = at; }
+            }
+            w.a = best; w.look = best + w.lookAhead; w.moving = true;
         }
 
         /// <summary>A worker carrying `prop` from `from` to `to` and walking back, over and over.</summary>
@@ -458,6 +508,16 @@ namespace Checkout
                 }
                 // Tool work: stand at the spot and face the work. Hammer and sledgehammer have their own clips
                 // (arms on the tool, both hands on the sledge's handle); the other tools swing the arms over Idle.
+                if (w.roams)
+                {
+                    if (w.moving)
+                    {
+                        if (Walk(w, w.a, dt, false)) { w.moving = false; w.blowsLeft = UnityEngine.Random.Range(3, 6); w.blow = 0; w.clip = null; }
+                        continue;
+                    }
+                    var cur = w.anim && w.clip != null && w.anim[w.clip] ? w.anim[w.clip] : null;
+                    if (w.blowsLeft <= 0 && (cur == null || Mathf.Repeat(cur.normalizedTime, 1) > .9f)) { Relocate(w); continue; }
+                }
                 var work = ToolClip(w);
                 Play(w, work);
                 if (work != "Idle" && w.anim && w.anim[work]) w.anim[work].speed = w.speed;
@@ -480,6 +540,7 @@ namespace Checkout
                 if (w.board && w.otherHand) HoldBoard(w);
                 if (w.use == Tool.None || w.carrier || w.foreman) continue;
                 var right = w.body.right; var fwd = w.body.forward;
+                if (w.moving) { CarryTool(w, right, fwd); continue; }
                 if ((w.clip == "Hammer" || w.clip == "Sledge") && w.toolHand)
                 {
                     HoldTool(w, right, fwd);
@@ -540,7 +601,7 @@ namespace Checkout
                 if (st)
                 {
                     float c = Mathf.Repeat(st.normalizedTime, 1);
-                    if (w.blow < .70f && c >= .70f) { var hitAt = w.body.position + fwd * 1.25f; Burst(hitAt, 4); Hit(hitAt); }
+                    if (w.blow < .70f && c >= .70f) { var hitAt = w.body.position + fwd * 1.25f; Burst(hitAt, 4); Hit(hitAt); w.blowsLeft--; }
                     w.blow = c;
                 }
             }
@@ -550,7 +611,7 @@ namespace Checkout
                 if (st)
                 {
                     float c = Mathf.Repeat(st.normalizedTime, 1);
-                    if (w.blow < .70f && c >= .70f) Hit(w.toolHand.position + fwd * .3f);
+                    if (w.blow < .70f && c >= .70f) { Hit(w.toolHand.position + fwd * .3f); w.blowsLeft--; }
                     w.blow = c;
                 }
                 float df = Vector3.Dot(d, fwd), du = Vector3.Dot(d, Vector3.up);
@@ -559,6 +620,31 @@ namespace Checkout
                 at = w.toolHand.position + d * forearm * .17f;
             }
             if (!w.tool) return;
+            w.tool.position = at;
+            var ahead = Vector3.Cross(right, up);
+            w.tool.rotation = Quaternion.LookRotation(ahead.sqrMagnitude > .01f ? ahead : fwd, up);
+        }
+
+        // Walking to the next spot: the hammer hangs from the fist, the sledgehammer is carried low by the handle with
+        // its head forward (the tool's +up runs from the handle's end to the head).
+        void CarryTool(Worker w, Vector3 right, Vector3 fwd)
+        {
+            if (!w.tool || !w.toolHand) return;
+            Vector3 up, at;
+            if (w.use == Tool.Sledge)
+            {
+                up = (fwd * .86f + Vector3.down * .5f).normalized;
+                at = w.toolHand.position - up * w.toolLen * .32f;
+            }
+            else
+            {
+                var fore = w.toolHand.parent;
+                var d = fore ? (w.toolHand.position - fore.position) : Vector3.down;
+                float forearm = d.magnitude; d = d.sqrMagnitude > 1e-6f ? d.normalized : Vector3.down;
+                float df = Vector3.Dot(d, fwd), du = Vector3.Dot(d, Vector3.up);
+                up = fwd * -du + Vector3.up * df; up = up.sqrMagnitude > 1e-6f ? up.normalized : fwd;
+                at = w.toolHand.position + d * forearm * .17f;
+            }
             w.tool.position = at;
             var ahead = Vector3.Cross(right, up);
             w.tool.rotation = Quaternion.LookRotation(ahead.sqrMagnitude > .01f ? ahead : fwd, up);
