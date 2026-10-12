@@ -8,6 +8,8 @@ import {
 	isCurrencyPackAvailable,
 } from "@/data/currency-packs";
 import { getPackEvent, getPackPrice, iapStore } from "../iap";
+import { adsStore, getLastAdEvent } from "../ads";
+import { AD_DAILY_CAP, formatAdWait, getRewardedAdOffer } from "@/services/rewarded-ads";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
@@ -177,6 +179,42 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 					),
 				]
 			: [],
+	});
+}
+
+// "Diamantes grátis": watch a short video for a few diamonds (max AD_DAILY_CAP a day, a few minutes apart).
+function adCard(state: State, missing: number): Card {
+	const offer = getRewardedAdOffer(state.rewardedAds);
+	const last = getLastAdEvent();
+	const waiting = !!adsStore.pendingId;
+	const status = last?.kind === "rewarded"
+		? `Você ganhou +${last.diamonds} diamantes!`
+		: last?.kind === "failed"
+			? "O vídeo não carregou. Tente de novo."
+			: last?.kind === "closed"
+				? "Vídeo fechado antes do fim · sem prêmio"
+				: waiting
+					? "Abrindo o vídeo…"
+					: "";
+	const label = offer.available
+		? `Assistir · +${offer.reward}`
+		: offer.reason === "daily-cap"
+			? "Volte amanhã"
+			: `Próximo em ${formatAdWait(offer.waitMs)}`;
+	return card("Diamantes grátis", {
+		eyebrow: "VÍDEO",
+		subtitle: `Assista um vídeo curto e ganhe diamantes · hoje: ${offer.watchedToday} de ${AD_DAILY_CAP}`,
+		icon: gameIcon("television"),
+		badge: missing > 0 && offer.available ? "Grátis" : "",
+		tone: last?.kind === "rewarded" ? "success" : last && last.kind !== "rewarded" ? "danger" : waiting ? "warning" : "info",
+		lines: status ? [status] : [offer.watchedToday + 1 >= AD_DAILY_CAP && offer.available ? "O último do dia vale mais!" : "Some os diamantes e acelere o que quiser"],
+		buttons: [
+			act(waiting ? "Aguardando…" : label, "watchRewardedAd", [], {
+				variant: "gem",
+				enabled: offer.available && !waiting && adsStore.status !== "unavailable",
+				ok: "",
+			}),
+		],
 	});
 }
 
@@ -426,6 +464,8 @@ export const routes: Routes = {
 					lines: [`Você tem ${fmt(diamonds)} diamantes.`],
 				}),
 			);
+		// Free diamonds for a rewarded video (src/services/rewarded-ads.ts): by choice, a few a day.
+		if (filter === "all" || filter === "diamonds") cards.push(adCard(state, missing));
 		if (iapStore.status === "unavailable")
 			cards.push(
 				card("Loja indisponível", {

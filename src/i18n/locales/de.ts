@@ -3446,6 +3446,24 @@ const catalog: Catalog = {
 	"Recomendado": "Empfohlen",
 	"Cresce com a sua expansão": "Wächst mit deiner Erweiterung",
 	"Aguardando…": "Warte…",
+	// Rewarded videos (Lucas 12/10).
+	"Diamantes grátis": "Gratis-Diamanten",
+	"VÍDEO": "VIDEO",
+	"Assista um vídeo curto e ganhe diamantes · hoje: {0} de {1}": "Sieh dir ein kurzes Video an und erhalte Diamanten · heute: {0} von {1}",
+	"Grátis": "Gratis",
+	"Você ganhou +{0} diamantes!": "Du hast +{0} Diamanten erhalten!",
+	"O vídeo não carregou. Tente de novo.": "Das Video wurde nicht geladen. Versuche es noch einmal.",
+	"Vídeo fechado antes do fim · sem prêmio": "Video vor dem Ende geschlossen · keine Belohnung",
+	"Abrindo o vídeo…": "Video wird geöffnet…",
+	"Assistir · +{0}": "Ansehen · +{0}",
+	"Volte amanhã": "Komm morgen wieder",
+	"Próximo em {0}": "Nächstes in {0}",
+	"O último do dia vale mais!": "Das letzte des Tages ist mehr wert!",
+	"Some os diamantes e acelere o que quiser": "Sammle Diamanten und beschleunige, was du willst",
+	"Você já assistiu os vídeos de hoje. Volte amanhã!": "Du hast die Videos von heute gesehen. Komm morgen wieder!",
+	"Espere um pouco para o próximo vídeo.": "Warte kurz auf das nächste Video.",
+	"Nenhum vídeo disponível agora. Tente mais tarde.": "Gerade ist kein Video verfügbar. Versuche es später.",
+	"O vídeo já está abrindo.": "Das Video wird schon geöffnet.",
 };
 
 export default catalog;

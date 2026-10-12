@@ -17,6 +17,7 @@ import {
 	noteGrantedPack,
 	requestPackPurchase,
 } from "./iap.ts";
+import { type AdsUnityMessage, applyAdsMessage, noteAdReward, requestRewardedAd, takePendingAd } from "./ads.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
 // timers as src/app/_layout.tsx and speaks the Unity bridge protocol over stdin/stdout.
@@ -218,6 +219,24 @@ function runHudAction(message: {
 		view();
 		return;
 	}
+	// "Assistir vídeo": Unity plays a rewarded video (CheckoutAds.cs) for the id the host hands out.
+	if (message.action === "watchRewardedAd") {
+		const request = requestRewardedAd(useGameStore.getState());
+		if (request.ok) send(request.message);
+		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "" : t(request.reason) });
+		view();
+		return;
+	}
+	// Unity: that video was watched to the end. Only the one the host asked for pays (once).
+	if (message.action === "claimRewardedAd") {
+		const adId = Array.isArray(message.args) ? message.args[0] : "";
+		const diamonds = takePendingAd(adId) ? useGameStore.getState().claimRewardedAd(String(adId)) : null;
+		noteAdReward(diamonds);
+		send({ kind: "result", id, action: message.action, ok: !!diamonds, reason: diamonds ? "" : "not-requested" });
+		view();
+		snapshot();
+		return;
+	}
 	const action = message.action as keyof GameActions;
 	if (!hudActions.includes(action) || (!__DEV__ && devOnly(action)) || !Array.isArray(message.args))
 		return send({ kind: "result", id, action, ok: false, reason: "invalid-action" });
@@ -282,6 +301,9 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		// The world's "Acelerar" boards too: too few diamonds opens the store.
 		openStoreOnShortfall();
 		snapshot();
+	} else if (message.kind === "ad") {
+		applyAdsMessage(message as AdsUnityMessage);
+		view();
 	} else if (message.kind === "iap") {
 		applyIapMessage(message as IapUnityMessage);
 		view();

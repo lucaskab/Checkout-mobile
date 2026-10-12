@@ -27,6 +27,7 @@ export type SimulatorAction = Exclude<
 	| "grantCurrencyPurchase"
 	| "grantCurrencyPack"
 	| "dismissDiamondShortfall"
+	| "claimRewardedAd"
 	| "unlockProduct"
 	| "setMarketLevel"
 	| "dismissOfflineSummary"

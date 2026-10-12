@@ -116,6 +116,7 @@ export type ExperienceProgress = {
 
 import type { GameStatistics } from "./achievement";
 import type { OnboardingState } from "./onboarding";
+import type { RewardedAdsState } from "@/services/rewarded-ads";
 import type { CheckoutCounterState } from "./checkout-counter";
 import type {
 	CurrencyPackGrant,
@@ -189,6 +190,8 @@ export type GameState = {
 	logistics: LogisticsState;
 	market: GameMarketState;
 	offlineSummary: OfflineRewardSummary | null;
+	/** Rewarded videos watched (daily count and cap: src/services/rewarded-ads.ts). */
+	rewardedAds: RewardedAdsState;
 	/**
 	 * The last time the player tried to spend more diamonds than they have (not saved): the HUD / app opens the
 	 * diamond store on it and clears it (dismissDiamondShortfall).
@@ -302,6 +305,8 @@ export type GameActions = {
 	 */
 	grantCurrencyPack: (packIdOrProductId: string, transactionId: string) => CurrencyPackGrant | null;
 	dismissDiamondShortfall: () => void;
+	/** A rewarded video watched to the end: its diamonds (null if refused: daily cap, too soon, repeated id). */
+	claimRewardedAd: (adId: string) => number | null;
 	placeSupplierOrder: (input: PlaceSupplierOrderInput) => boolean;
 	/** The shop's cart: one truck (one slot) carrying several products, each in boxes (src/services/supplier-cart.ts). */
 	placeSupplierCart: (input: PlaceSupplierCartInput) => boolean;

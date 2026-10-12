@@ -196,6 +196,7 @@ import {
 } from "@/services/inventory-lots";
 import { getOrderSkipCost, getSupplierOrderStatus } from "@/services/logistics";
 import { getSkipDiamondCost } from "@/data/diamond-skip";
+import { createRewardedAdsState, normalizeRewardedAdsState, rewardAd } from "@/services/rewarded-ads";
 import { getCurrencyPack, getCurrencyPackCoins } from "@/data/currency-packs";
 import { getMissionProgress } from "@/services/missions";
 import { getProductionDiamondCost } from "@/services/production";
@@ -459,6 +460,7 @@ const initialGameState: GameState = {
 	era: createInitialEraState(),
 	productLevels: {},
 	dailyLogin: createDailyLoginState(),
+	rewardedAds: createRewardedAdsState(),
 	albumClaimedIds: [],
 	weeklyEvent: createWeeklyEventState(),
 	lots: createLotsState(),
@@ -506,6 +508,7 @@ function getInitialGameState(): GameState {
 		era: createInitialEraState(),
 		productLevels: {},
 		dailyLogin: createDailyLoginState(),
+		rewardedAds: createRewardedAdsState(),
 		albumClaimedIds: [],
 		weeklyEvent: createWeeklyEventState(),
 		lots: createLotsState(),
@@ -831,6 +834,7 @@ function migrateGameState(persistedState: unknown): GameState {
 		),
 		productLevels: normalizeProductLevels(state.productLevels),
 		dailyLogin: normalizeDailyLoginState(state.dailyLogin),
+		rewardedAds: normalizeRewardedAdsState(state.rewardedAds),
 		weeklyEvent: normalizeWeeklyEventState(state.weeklyEvent),
 		// Saves from before the land get the lots their expansion already stands on.
 		lots: normalizeLotsState(
@@ -1731,6 +1735,16 @@ export const useGameStore = create<GameStore>()(
 				});
 
 				return true;
+			},
+			// A rewarded video watched to the end (desktop/ads.ts checks it was the one the game asked for).
+			claimRewardedAd: (adId) => {
+				const result = rewardAd(get().rewardedAds, adId);
+				if (result.diamonds <= 0) return null;
+				set((current) => ({
+					rewardedAds: result.state,
+					logistics: { ...current.logistics, premiumCurrency: current.logistics.premiumCurrency + result.diamonds },
+				}));
+				return result.diamonds;
 			},
 			dismissDiamondShortfall: () => {
 				if (get().diamondShortfall) rawSet({ diamondShortfall: null });
@@ -4448,6 +4462,7 @@ export const useGameStore = create<GameStore>()(
 				statistics,
 				productLevels,
 				dailyLogin,
+				rewardedAds,
 				albumClaimedIds,
 				weeklyEvent,
 				lots,
@@ -4490,6 +4505,7 @@ export const useGameStore = create<GameStore>()(
 				statistics,
 				productLevels,
 				dailyLogin,
+				rewardedAds,
 				albumClaimedIds,
 				weeklyEvent,
 				lots,

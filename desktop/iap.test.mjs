@@ -129,7 +129,8 @@ describe("the diamond store page", () => {
 		expect(all.some((b) => b.action === "grantCurrencyPurchase")).toBe(false);
 		const buy = all.filter((b) => b.action === "buyCurrencyPack");
 		expect(buy.length).toBe(currencyPacks.filter((p) => p.category === "diamonds").length);
-		expect(all.length).toBe(buy.length);
+		// Besides the free-video card, only the packs' price buttons.
+		expect(all.filter((b) => b.action !== "watchRewardedAd").length).toBe(buy.length);
 		expect(JSON.parse(buy[0].args)[0]).toBe("diamonds-handful");
 		expect(buy[0].label).toBe("R$ 6,90");
 	});
