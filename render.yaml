@@ -15,6 +15,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      # Prisma Postgres' pooled connection does not hold the migration lock (P1002): migrations run without it
+      # (only this one service migrates, at build time).
+      - key: PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK
+        value: "1"
       - key: DATABASE_URL
         sync: false
       - key: SESSION_SECRET
