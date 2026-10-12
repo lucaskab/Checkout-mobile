@@ -1,0 +1,23 @@
+# Render Blueprint: the cloud-save server (server/). Render › New › Blueprint › this repository.
+services:
+  - type: web
+    name: checkout-server
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    buildFilter:
+      paths: ["server/**"]
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_IDS
+        sync: false

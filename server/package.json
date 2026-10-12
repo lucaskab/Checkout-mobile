@@ -1,0 +1,17 @@
+{
+	"name": "checkout-server",
+	"private": true,
+	"version": "1.0.0",
+	"description": "Checkout - Supermercado Simulator: player accounts (Google) and cloud saves",
+	"type": "module",
+	"engines": { "node": ">=22.18" },
+	"scripts": {
+		"start": "node src/index.ts",
+		"build": "prisma generate && prisma migrate deploy",
+		"test": "node --test test/*.test.ts"
+	},
+	"dependencies": {
+		"@prisma/client": "^6.16.0",
+		"prisma": "^6.16.0"
+	}
+}

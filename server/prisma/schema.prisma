@@ -1,0 +1,54 @@
+// Cloud saves for Checkout - Supermercado Simulator (see server/README.md).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A player who signed in with Google. One account = one save.
+model Player {
+  id        String     @id @default(uuid())
+  /// Google's stable account id ("sub" in the ID token); never the e-mail, which can change.
+  googleSub String     @unique @map("google_sub")
+  email     String?
+  name      String?
+  createdAt DateTime   @default(now()) @map("created_at")
+  lastSeen  DateTime   @default(now()) @map("last_seen")
+  save      CloudSave?
+  history   SaveHistory[]
+
+  @@map("players")
+}
+
+/// The player's current progress: the game's whole save (the "checkout.game" value, a JSON text).
+model CloudSave {
+  playerId  String   @id @map("player_id")
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  /// Goes up by one on every upload; a device uploads on top of the revision it last saw.
+  revision  Int
+  data      String
+  /// What the save holds, for the "which progress do you keep?" choice (level, era, coins, diamonds, day).
+  summary   Json
+  deviceId  String   @map("device_id")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  @@map("cloud_saves")
+}
+
+/// The last saves a player replaced (to recover from a bad overwrite). The server keeps the newest few.
+model SaveHistory {
+  id        BigInt   @id @default(autoincrement())
+  playerId  String   @map("player_id")
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  revision  Int
+  data      String
+  summary   Json
+  deviceId  String   @map("device_id")
+  savedAt   DateTime @map("saved_at")
+
+  @@index([playerId, savedAt])
+  @@map("save_history")
+}
