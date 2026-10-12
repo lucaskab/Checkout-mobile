@@ -18,8 +18,8 @@ namespace Checkout {
   [Serializable] class I18nMessage{public string lang;public string[] keys;public string[] values;}
 
 #if UNITY_EDITOR || (UNITY_STANDALONE && !UNITY_IOS && !UNITY_ANDROID) || CHECKOUT_EMBEDDED
-  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-  static void Boot(){
+  // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+  internal static void Boot(){
    // QA runs feed a fixed snapshot file and must stay offline.
    if(Array.IndexOf(Environment.GetCommandLineArgs(),"--checkout-snapshot")>=0||Environment.GetEnvironmentVariable("CHECKOUT_DESKTOP")=="0")return;
    var bridge=FindAnyObjectByType<CheckoutBridge>();if(!bridge)return;

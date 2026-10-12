@@ -19,8 +19,8 @@ namespace Checkout {
   public string Current=>index>=0?Ids[index]:"";
   public static string CaptureFolder=>Path.GetFullPath(Path.Combine(Application.dataPath,"..","ArtSource","EventProps","Captures"));
 
-  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-  static void Boot(){if(Instance||!FindAnyObjectByType<CheckoutBridge>())return;Instance=new GameObject("Checkout Event Preview").AddComponent<CheckoutEventPreview>();}
+  // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+  internal static void Boot(){if(Instance||!FindAnyObjectByType<CheckoutBridge>())return;Instance=new GameObject("Checkout Event Preview").AddComponent<CheckoutEventPreview>();}
 
   CheckoutEventVisuals Effects=>FindAnyObjectByType<CheckoutEventVisuals>();
   public void Show(int i){var fx=Effects;if(!fx)return;index=((i%Ids.Length)+Ids.Length)%Ids.Length;fx.Preview(Ids[index]);if(follow)StartCoroutine(FocusSoon());}

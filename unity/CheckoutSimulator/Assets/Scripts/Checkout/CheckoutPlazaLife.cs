@@ -5,8 +5,8 @@ namespace Checkout
     // Starts the cyclists and bench visitors wherever the Harbour Quay plaza has been built.
     public static class CheckoutPlazaLife
     {
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot()
+        // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+        internal static void Boot()
         {
             var plaza = GameObject.Find("Harbour Quay Plaza");
             if (!plaza || Object.FindAnyObjectByType<CheckoutPlazaCyclists>()) return;

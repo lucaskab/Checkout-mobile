@@ -42,8 +42,8 @@ namespace Checkout
             go.AddComponent<CheckoutUiQa>();
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Auto()
+        // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+        internal static void Auto()
         {
             if (System.Environment.GetEnvironmentVariable("CHECKOUT_UI_QA") == "1") Begin();
         }

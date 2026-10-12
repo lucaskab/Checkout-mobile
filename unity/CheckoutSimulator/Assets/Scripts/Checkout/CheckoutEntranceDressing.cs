@@ -14,8 +14,8 @@ namespace Checkout {
   readonly List<Renderer> frame=new List<Renderer>();
   Transform world,root,portal,steps;Bounds last;bool doorwayCleared;
 
-  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-  static void Boot(){if(!FindAnyObjectByType<MarketSimulation>()||FindAnyObjectByType<CheckoutEntranceDressing>()||FindAnyObjectByType<CheckoutMarketShell>(FindObjectsInactive.Include))return; // the market shell builds its own entrance
+  // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+  internal static void Boot(){if(!FindAnyObjectByType<MarketSimulation>()||FindAnyObjectByType<CheckoutEntranceDressing>()||FindAnyObjectByType<CheckoutMarketShell>(FindObjectsInactive.Include))return; // the market shell builds its own entrance
   new GameObject("Checkout Entrance Dressing").AddComponent<CheckoutEntranceDressing>();}
 
   bool Setup(){

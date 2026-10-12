@@ -19,8 +19,8 @@ namespace Checkout
         const float Seconds = 20f;
         const int IphoneQuality = 2;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot()
+        // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+        internal static void Boot()
         {
             if (!Debug.isDebugBuild && !Application.isEditor) return;
             var go = new GameObject("CheckoutPerfProbe") { hideFlags = HideFlags.HideInHierarchy };

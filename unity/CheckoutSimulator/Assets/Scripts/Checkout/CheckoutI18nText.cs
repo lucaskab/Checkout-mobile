@@ -17,8 +17,8 @@ namespace Checkout
         static readonly List<TMP_Text> pending = new List<TMP_Text>();
         static readonly List<TMP_Text> dead = new List<TMP_Text>();
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot() => Ensure();
+        // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+        internal static void Boot() => Ensure();
 
         public static void Ensure()
         {

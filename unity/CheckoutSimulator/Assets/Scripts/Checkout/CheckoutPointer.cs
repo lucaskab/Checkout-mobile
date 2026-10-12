@@ -14,8 +14,8 @@ namespace Checkout
         static bool pressOverUi;
         static int pressFrame = -1;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot()
+        // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+        internal static void Boot()
         {
             var go = new GameObject("CheckoutPointer") { hideFlags = HideFlags.HideInHierarchy };
             DontDestroyOnLoad(go);

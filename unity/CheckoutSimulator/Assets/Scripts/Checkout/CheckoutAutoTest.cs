@@ -14,8 +14,8 @@ namespace Checkout {
  // sends), saves screenshots to Logs/at_*.png and a step log with any exception to
  // Logs/autotest_log.txt, then asks the editor to leave play mode.
  public sealed class CheckoutAutoTest:MonoBehaviour {
-  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-  static void Boot(){if(Application.isEditor&&File.Exists("Logs/autotest.txt"))new GameObject("CheckoutAutoTest").AddComponent<CheckoutAutoTest>();}
+  // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
+  internal static void Boot(){if(Application.isEditor&&File.Exists("Logs/autotest.txt"))new GameObject("CheckoutAutoTest").AddComponent<CheckoutAutoTest>();}
 
   readonly List<string> log=new List<string>();CheckoutBridge bridge;
   DockEntry fakeDock;RestockSlot[] fakeSlots;IncidentEntry fakeIncident;bool lowShelves;
