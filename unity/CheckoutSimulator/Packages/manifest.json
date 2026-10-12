@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.google.ads.mobile": "11.5.0",
     "com.tripo3d.tripo-api-unity": "file:com.tripo3d.tripo-api-unity",
     "com.tripo3d.unitybridge": "file:com.tripo3d.unitybridge",
     "com.unity.2d.tilemap.extras": "8.0.3",
@@ -44,5 +45,14 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0"
-  }
+  },
+  "scopedRegistries": [
+    {
+      "name": "OpenUPM",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.google"
+      ]
+    }
+  ]
 }
