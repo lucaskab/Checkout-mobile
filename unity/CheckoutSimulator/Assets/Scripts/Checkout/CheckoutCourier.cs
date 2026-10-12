@@ -645,16 +645,17 @@ namespace Checkout
 
         // The motoboy on the seat (Lucas 12/10): delivery_rider.fbx, built by ArtSource/NPCs/build_motoboy_ride.py in the
         // bike's own frame, replaces the rider modelled into delivery_bike_riding (its courier and helmet meshes are hidden).
-        static GameObject riderMesh; static bool riderLoaded;
+        static GameObject riderMesh; static Material riderMaterial; static bool riderLoaded;
         static void SeatRider(GameObject riding)
         {
-            if (!riderLoaded) { riderLoaded = true; riderMesh = Resources.Load<GameObject>("CheckoutDelivery/delivery_rider"); }
+            if (!riderLoaded) { riderLoaded = true; riderMesh = Resources.Load<GameObject>("CheckoutDelivery/delivery_rider"); riderMaterial = Resources.Load<Material>("CheckoutDelivery/delivery_rider"); }
             if (!riderMesh) return;
             foreach (var r in riding.GetComponentsInChildren<Renderer>(true))
                 if (r.name.StartsWith("fx_riding_DK_courier") || r.name.StartsWith("fx_riding_DK_helm")) r.enabled = false;
             var rider = Instantiate(riderMesh, riding.transform, false);
             rider.name = "Rider";
             rider.transform.localPosition = Vector3.zero; rider.transform.localRotation = Quaternion.identity; rider.transform.localScale = Vector3.one;
+            if (riderMaterial) foreach (var r in rider.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = riderMaterial;
         }
 
         void ShowParkedModel(Bike bike, bool parked)

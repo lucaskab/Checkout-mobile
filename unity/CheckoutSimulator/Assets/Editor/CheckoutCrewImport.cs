@@ -27,6 +27,7 @@ public class CheckoutCrewImport : AssetPostprocessor
         {
             importer.animationType = ModelImporterAnimationType.None;
             importer.importAnimation = false; importer.importCameras = false; importer.importLights = false;
+            importer.materialImportMode = ModelImporterMaterialImportMode.None;     // CheckoutCourier assigns delivery_rider.mat
             importer.useFileScale = true; importer.globalScale = 1;
         }
     }

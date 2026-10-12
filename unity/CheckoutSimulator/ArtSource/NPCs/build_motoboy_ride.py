@@ -138,8 +138,12 @@ def main():
             o.select_set(False)
         rider.hide_set(False); rider.select_set(True); bpy.context.view_layer.objects.active = rider
         bpy.ops.export_scene.fbx(filepath=OUT, use_selection=True, object_types={'MESH'}, axis_forward='-Z', axis_up='Y',
-                                 apply_scale_options='FBX_SCALE_NONE', path_mode='COPY', embed_textures=True,
+                                 apply_scale_options='FBX_SCALE_NONE', bake_space_transform=True, path_mode='STRIP',
                                  mesh_smooth_type='OFF', use_mesh_modifiers=True)
+        # The texture goes next to it: the game paints the rider with its own toon material (delivery_rider.mat).
+        img = next((n.image for m in baked.materials if m and m.node_tree for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image), None)
+        if img is not None:
+            img.filepath_raw = os.path.join(os.path.dirname(OUT), "delivery_rider.png"); img.file_format = 'PNG'; img.save()
         info["fbx"] = OUT
     print("MOTOBOY_RIDE_OK", json.dumps(info))
 
