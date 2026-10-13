@@ -52,6 +52,17 @@ export const shopItemBuildDurations: Record<string, number> = {
 	"self-checkout": 2 * HOUR,
 };
 
+/** Shop fixtures only go on sale once the market has room to place them: the stalls and the first shops bring
+ * their own register (the minimercado is the first where the player places the checkout, the self-checkout
+ * kiosks need the market building). */
+const shopItemPlaceEras: Record<string, MarketEraId> = {
+	"extra-checkout": "minimercado",
+	"self-checkout": "mercadinho",
+};
+export function getShopItemPlaceEra(itemId: string): MarketEraId | null {
+	return shopItemPlaceEras[itemId] ?? null;
+}
+
 export function isBuiltShopItem(itemId: string) {
 	return Object.hasOwn(shopItemBuildDurations, itemId);
 }

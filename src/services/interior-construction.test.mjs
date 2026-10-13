@@ -127,6 +127,11 @@ test("a new shelf is built where the player places it and opens when the works e
 test("the second checkout waits in the inventory, then the builders install it", () => {
 	game().setMarketLevel(10);
 	useGameStore.setState({ coins: 100_000 });
+	// At the stalls there is no room for a second checkout: not on sale until the minimercado.
+	game().devSetMarketEra("tenda");
+	expect(getShopItemBuildStatus(game(), "extra-checkout").status).toBe("locked");
+	expect(game().purchaseShopItem("extra-checkout", "coins")).toBe(false);
+	game().devSetMarketEra("minimercado");
 	expect(game().purchaseShopItem("extra-checkout", "coins")).toBe(true);
 	expect(game().shop.ownedItemIds).not.toContain("extra-checkout");
 	expect(getShopItemBuildStatus(game(), "extra-checkout").status).toBe("stored");

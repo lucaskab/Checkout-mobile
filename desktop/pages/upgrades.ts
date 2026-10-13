@@ -26,6 +26,8 @@ import {
 } from "@/services/employees";
 import type { Routes } from ".";
 import { getShopItemBuildStatus } from "@/services/interior-construction";
+import { getShopItemPlaceEra } from "@/data/interior-construction";
+import { getEraOrder } from "@/data/market-products";
 import {
 	act,
 	card,
@@ -232,7 +234,11 @@ export const routes: Routes = {
 			const isOwned = ownedItemIds.includes(item.id);
 			const required = item.requiresItemId ? shopItems.find((other) => other.id === item.requiresItemId) : undefined;
 			const missingRequired = !!required && !ownedItemIds.includes(required.id);
-			const isLocked = level < item.level || missingRequired;
+			// Fixtures that need room in the market (second checkout, self-checkout) arrive with that expansion.
+			const roomEra = getShopItemPlaceEra(item.id);
+			const noRoom = !!roomEra && getEraOrder(state.era.id) < getEraOrder(roomEra);
+			const roomLabel = roomEra ? `Chega com: ${getMarketEra(roomEra).name}` : "";
+			const isLocked = level < item.level || missingRequired || noRoom;
 			const consumableAmount = consumableAmounts[item.id] ?? 0;
 			const isDiamond = Boolean(item.diamondPrice);
 			const price = item.diamondPrice ?? item.coinPrice ?? 0;
@@ -242,6 +248,8 @@ export const routes: Routes = {
 			const isLegendary = quality === "lendario" || quality === "mitico";
 			const label = isOwned
 				? "Instalado"
+				: noRoom
+					? roomLabel
 				: level < item.level
 					? `Nível ${item.level}`
 					: missingRequired && required
@@ -343,7 +351,7 @@ export const routes: Routes = {
 								: missingRequired && required
 									? `Instale antes: ${required.name}`
 									: isLocked
-										? `Nível ${item.level}`
+										? noRoom ? roomLabel : `Nível ${item.level}`
 										: isDiamond
 										? "Diamantes insuficientes"
 										: "Moedas insuficientes",

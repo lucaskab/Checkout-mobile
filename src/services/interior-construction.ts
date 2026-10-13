@@ -12,6 +12,7 @@ import { getEraOrder, shelves } from "@/data/market-products";
 import { getMarketEra } from "@/data/economy";
 import type { MarketEraId } from "@/@types/economy";
 import { getProductionSector } from "@/data/production-sectors";
+import { getShopItemPlaceEra } from "@/data/interior-construction";
 import { getNextShelfUnlockUpgrade } from "@/data/shelf-capacity";
 import {
 	getUnlockedPhysicalShelfCount,
@@ -144,6 +145,9 @@ export function getShopItemBuildStatus(
 	const base = { coinCost: 0, diamondCost: 0, durationMs: shopItemBuildDurations[itemId] };
 	if (state.shop.ownedItemIds.includes(itemId)) return { status: "built", reason: "", ...base, ...works(null, now) };
 	if (construction) return { ...started(construction, now), ...base, ...works(construction, now) };
+	const roomEra = getShopItemPlaceEra(itemId);
+	if (roomEra && beforeEra(state, roomEra))
+		return { status: "locked", reason: `Chega com: ${getMarketEra(roomEra).name}`, ...base, ...works(null, now) };
 	return { status: "available", reason: "", ...base, ...works(null, now) };
 }
 

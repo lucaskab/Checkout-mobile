@@ -641,52 +641,181 @@ def oval_lathe(m, profile, base, key, sx=1.3, seg=28, obj="Body", cap=True):
     m.add(_place(bm, base), key, obj)
 
 
+def oval_ring(m, R, r, y, key, sx=1.35, seg=28, minor=6, obj="Body", center=(0, 0, 0)):
+    """Torus stretched along Unity X (rims and woven bands of oval baskets)."""
+    prof = [(R + r * math.cos(2 * math.pi * j / minor), r * math.sin(2 * math.pi * j / minor)) for j in range(minor + 1)]
+    oval_lathe(m, prof, (center[0], y, center[2]), key, sx, seg, obj, cap=False)
+
+
+def oval_pt(a, R, sx=1.35):
+    """Unity (x, z) of the point at `a` degrees on the oval of radii (R * sx, R); 270 is the customer side (-Z)."""
+    return (sx * R * math.cos(math.radians(a)), R * math.sin(math.radians(a)))
+
+
+def drape(m, profile, a0, a1, base, key, sx=1.35, seg=14, hem=.025, waves=3, thick=.004, obj="Body"):
+    """Thin cloth folded over part of an oval rim: `profile` [(r, h)] runs from inside the basket over the rim and
+    down the outside; the last ring (the hem) waves and the fold narrows towards its ends. Angles like oval_pt();
+    solidified so it reads from both sides."""
+    bm = bmesh.new()
+    rings = []
+    n = len(profile)
+    for i, (r, h) in enumerate(profile):
+        ring = []
+        for k in range(seg + 1):
+            t = k / seg
+            a = math.radians(a0 + (a1 - a0) * t)
+            edge = math.sin(math.pi * t)                       # 0 at the ends of the fold, 1 in the middle
+            drop = (i / (n - 1)) ** 2 * (1 - edge) * .9         # the outer rings lift back to the rim at the ends
+            dh = hem * (.5 - .5 * math.cos(2 * math.pi * waves * t)) if i == n - 1 else 0
+            dr = .006 * math.sin(2 * math.pi * waves * t) if i >= n - 2 else 0
+            hh = h + dh + (profile[1][1] - h) * drop if i >= 2 else h
+            ring.append(bm.verts.new((math.cos(a) * (r + dr) * sx, -math.sin(a) * (r + dr), hh)))
+        rings.append(ring)
+    for i in range(n - 1):
+        for k in range(seg):
+            f = bm.faces.new((rings[i][k], rings[i][k + 1], rings[i + 1][k + 1], rings[i + 1][k])); f.smooth = True
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bmesh.ops.solidify(bm, geom=list(bm.faces), thickness=thick)
+    for f in bm.faces:
+        f.smooth = True
+    m.add(_place(bm, base), key, obj)
+
+
+SCORE, FLOUR = "C_E8B26A", "C_E9D3AE"
+
+
+def boule(m, center, size, yaw=0, obj="Body", cross=False, crust="T_IK_Crust"):
+    """Round country loaf: crusty ellipsoid with shallow, lighter slashes almost flush in the top and a faint
+    dusting of flour."""
+    sx, sy, sz = size
+    ball(m, center, size, crust, 12, 7, obj, yaw=yaw)
+    k = Local(m, center, yaw, obj=obj)
+    if cross:
+        for yw in (35, -35):
+            dbox(k, (sx * .38, .005, .009), (0, sy * .495, 0), SCORE, .002, yaw=yw, obj=obj)
+    else:
+        for i in (-1, 1):
+            dbox(k, (.009, .005, sz * .32), (i * sx * .18, sy * .485, 0), SCORE, .002, yaw=20, obj=obj)
+    ball(k, (sx * .14, sy * .46, -sz * .16), (sx * .22, .004, sz * .16), FLOUR, 7, 3, obj)
+
+
+def french_roll(m, center, yaw=0, s=1.0, obj="Body", crust="T_IK_Crust"):
+    """Pãozinho francês: little oval roll with one shallow slit along the top."""
+    ball(m, center, (.1 * s, .062 * s, .066 * s), crust, 9, 5, obj, yaw=yaw)
+    k = Local(m, center, yaw, obj=obj)
+    dbox(k, (.05 * s, .005, .007 * s), (0, .0305 * s, 0), SCORE, .002, obj=obj)
+
+
+def baguette_scored(m, a, b, r=.032, obj="Body", crust="T_IK_Crust"):
+    """Short baguette from a to b with a few shallow diagonal slashes along its back."""
+    bar(m, a, b, r, crust, 8, obj)
+    for end, rr in ((a, r * .55), (b, r * .55)):
+        ball(m, end, (rr * 2, rr * 2, rr * 2), crust, 7, 4, obj)
+    ax, ay, az = a; bx, by, bz = b
+    L = math.sqrt((bx - ax) ** 2 + (by - ay) ** 2 + (bz - az) ** 2)
+    yaw = math.degrees(math.atan2(-(bz - az), bx - ax))
+    pitch = -math.degrees(math.asin((by - ay) / L))
+    k = Local(m, ((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2), yaw, pitch, obj=obj)
+    n = max(3, int(L / .1))
+    for i in range(n):
+        x = (i - (n - 1) / 2) * L / (n + .6)
+        dbox(k, (.008, .005, r * .8), (x, r * .965, 0), SCORE, .002, yaw=-40, obj=obj)
+    ball(k, (L * .1, r * .93, 0), (L * .3, .004, r * .5), FLOUR, 6, 3, obj)
+
+
+def braided_loaf(m, center, L=.3, yaw=0, obj="Body", crust="T_IK_Crust"):
+    """Trança: a row of overlapping dough bumps zig-zagging along the loaf."""
+    k = Local(m, center, yaw, obj=obj)
+    n = 6
+    for i in range(n):
+        x = (i - (n - 1) / 2) * L / n
+        z = .018 * (1 if i % 2 else -1)
+        ball(k, (x, .032, z), (L / n * 1.7, .066, .085), crust, 8, 5, obj, yaw=30 * (1 if i % 2 else -1))
+    for x in (-L * .42, L * .42):
+        ball(k, (x, .025, 0), (.05, .045, .055), crust, 7, 4, obj)
+
+
 @model("bread-basket")
 def bread_basket(m):
-    """Cesto de pães of the stalls (tenda to contêiner): a big wicker basket lined with a checked cloth, full of loaves
-    and baguettes, on a little wooden stand with a chalk sign. The bread is two "Anim Fill" nodes (stock levels)."""
+    """Cesto de pães of the stalls (tenda to contêiner): a big woven wicker basket with a rolled rim, rope handles and
+    a checked cloth draped over the edge, heaped with boules, baguettes, pãezinhos and a braided loaf, on a trestle
+    stand with a plank top, a slatted lower shelf (spare rolls, paper bags) and a hanging "PÃES" board.
+    The bread is two "Anim Fill" nodes (stock levels): left half 0, right half 1."""
     top = .62
-    # Stand: splayed legs, rounded top board and a low shelf with a spare basket of rolls.
+    WL, WD = "T_IK_WoodLight", "T_IK_WoodDark"
+    CANE, CANED = "C_B8823F", "C_8A5A34"
+    # ---- Trestle stand: X legs at both ends (bolted, rope-lashed), a stretcher, a slatted shelf on the crossing.
     for x in (-.4, .4):
-        for z in (-.25, .25):
-            bar(m, (x * 1.05, .02, z * 1.08), (x, top - .03, z), .028, "T_IK_WoodLight", 10)
-            ball(m, (x * 1.05, .02, z * 1.08), (.07, .04, .07), "C_" + WOODD, 10, 5)
-    dbox(m, (.98, .05, .68), (0, top - .025, 0), "T_IK_WoodLight", .02, 2)
-    dbox(m, (.86, .03, .56), (0, .2, 0), "T_IK_WoodLight", .01)
-    for z in (-.25, .25):
-        bar(m, (-.4, .2, z), (.4, .2, z), .016, "T_IK_WoodLight", 8)
-    basket(m, (-.18, .215, .02), .15, .11)
-    for i in range(5):
-        ball(m, (-.24 + (i % 3) * .06, .31 + (i // 3) * .03, -.02 + (i % 2) * .07), (.09, .06, .08), "T_IK_Crust", 10, 6)
-    ball(m, (.2, .3, .03), (.3, .2, .24), "C_D9C4A0", 14, 8)       # flour sack on the shelf, tied at the top
-    ball(m, (.2, .41, .03), (.09, .07, .08), "C_C9B08A", 10, 6)
-    torus(m, .035, .008, (.2, .4, .03), "C_8A5A34", seg=12, minor=5)
-    # The basket: oval wicker, a rolled rim and two handles, lined with a red checked cloth folded over the front.
-    oval_lathe(m, [(0, 0), (.22, 0), (.27, .1), (.3, .2)], (0, top, 0), "T_IK_Wicker", 1.35)
-    oval_lathe(m, [(.3, .19), (.32, .205), (.315, .225), (.295, .215)], (0, top, 0), "C_8A5A34", 1.35, cap=False)
-    for x in (-.41, .41):
-        torus(m, .06, .013, (x, top + .22, 0), "C_8A5A34", pitch=90, seg=16, minor=6)
-    oval_lathe(m, [(0, .1), (.24, .12), (.29, .215)], (0, top, 0), "T_IK_Checker", 1.33, cap=False)
-    for x, w in ((-.02, .3), (.27, .16)):
-        dbox(m, (w, .012, .07), (x, top + .222, -.305), "T_IK_Checker", .005)
-        dbox(m, (w, .012, .14), (x, top + .16, -.345), "T_IK_Checker", .005, pitch=-78)
-    # Bread heaped above the rim: round loaves and rolls on the left (fill 0), baguettes leaning back on the right (fill 1).
+        for s, dx in ((1, -.018), (-1, .018)):
+            dbox(m, (.05, .78, .032), (x + dx, .3, 0), WL, .008, pitch=s * 41)
+            dbox(m, (.07, .025, .09), (x + dx, .012, -s * .265), "C_" + WOODD, .006)
+        torus(m, .045, .011, (x, .3, 0), "T_IK_Rope", pitch=90, yaw=90, seg=12, minor=5)
+    dbox(m, (.86, .05, .03), (0, .3, 0), WL, .008)
+    for z in (-.09, .09):
+        dbox(m, (.84, .022, .13), (0, .34, z), WL, .006)
+    for x in (-.38, .38):
+        dbox(m, (.045, .035, .66), (x, top - .055, 0), "C_" + WOODD, .008)
+    for i in range(4):
+        z = -.255 + i * .17
+        dbox(m, (1.0, .035, .16), (0, top - .02, z), WL, .01)
+    # Spare rolls in a small basket and a stack of paper bags on the lower shelf.
+    basket(m, (-.2, .352, .0), .13, .1)
+    for i, (x, z) in enumerate(((-.25, -.03), (-.15, -.02), (-.2, .06), (-.27, .07), (-.2, -.08))):
+        french_roll(m, (x, .432 + (i % 2) * .012, z), 30 + i * 55, .85)
+    for i, yaw in enumerate((0, 7, -5, 4)):
+        dbox(m, (.22, .018, .14), (.2, .36 + i * .02, .0), "T_IK_Cardboard", .004, yaw=yaw)
+    dbox(m, (.21, .012, .05), (.2, .445, -.045), "C_C9A66B", .003, yaw=4)
+    # ---- Basket: oval wicker body, vertical stakes, two woven bands, a rolled rim with a braided cord, rope handles.
+    SX = 1.35
+    oval_lathe(m, [(0, 0), (.21, 0), (.235, .015), (.265, .09), (.285, .16), (.3, .205), (.288, .205), (.272, .16), (.252, .09), (.225, .03), (0, .03)],
+               (0, top, 0), "T_IK_Wicker", SX)
+    oval_ring(m, .212, .012, top + .012, CANED, SX, 28, 5)
+    for a in range(0, 360, 15):
+        x0, z0 = oval_pt(a, .248, SX); x1, z1 = oval_pt(a, .312, SX)
+        bar(m, (x0, top + .02, z0), (x1, top + .212, z1), .0075, CANE, 5)
+    oval_ring(m, .268, .011, top + .08, CANE, SX, 28, 5)
+    oval_ring(m, .292, .011, top + .155, CANE, SX, 28, 5)
+    oval_ring(m, .305, .02, top + .215, CANED, SX, 28, 7)
+    for i in range(36):
+        a0, a1 = i * 10, i * 10 + 10
+        x0, z0 = oval_pt(a0 - 1, .327, SX); x1, z1 = oval_pt(a1 + 1, .327, SX)
+        bar(m, (x0, top + .205, z0), (x1, top + .226, z1), .0075, CANE if i % 2 else "C_C9955A", 5)
+    for x in (-.425, .425):
+        torus_arc(m, .075, .015, (x, top + .2, 0), "T_IK_Rope", 0, 180, pitch=90, yaw=90, seg=12, minor=6)
+        for z in (-.075, .075):
+            torus(m, .018, .006, (x, top + .2, z), CANED, pitch=90, seg=8, minor=4)
+    # Thin checked cloth lining the inside (stopping just under the rim), folded over the rim at the front left
+    # and a corner hanging down on the right, so the woven body stays visible.
+    oval_lathe(m, [(0, .1), (.17, .105), (.235, .13), (.262, .17), (.279, .198)], (0, top, 0), "T_IK_Checker", SX * .99, cap=False)
+    drape(m, [(.272, .19), (.29, .215), (.31, .24), (.335, .225), (.35, .17), (.345, .12)], 195, 262, (0, top, 0), "T_IK_Checker", SX, 12, .025, 2)
+    drape(m, [(.272, .19), (.29, .215), (.31, .24), (.338, .22), (.352, .15), (.345, .07)], 338, 392, (0, top, 0), "T_IK_Checker", SX, 10, .03, 2)
+    # ---- Bread heaped above the cloth: boules, pãezinhos and a trança on the left (fill 0), baguettes leaning on the
+    # rim with a boule and rolls on the right (fill 1).
     f0, f1 = "Anim Fill 0", "Anim Fill 1"
-    bread_loaf(m, (-.24, top + .25, .04), (.28, .14, .18), -12, obj=f0)
-    bread_loaf(m, (-.06, top + .27, .12), (.24, .13, .16), 20, obj=f0, scores=2)
-    bread_loaf(m, (-.1, top + .24, -.1), (.22, .12, .15), -30, obj=f0, scores=2)
-    for i, (x, z) in enumerate(((-.33, -.12), (-.22, -.15), (-.36, .12), (.0, .02), (-.18, .22))):
-        ball(m, (x, top + .22 + (i % 2) * .02, z), (.11, .08, .1), "T_IK_Crust", 10, 6, obj=f0)
-    for i, (x, z) in enumerate(((.1, -.02), (.19, .03), (.28, -.01), (.36, .04))):
-        baguette(m, (x - .04, top + .2, z - .16), (x + .04, top + .5 - (i % 2) * .04, z + .2), .038, obj=f1)
-    bread_loaf(m, (.22, top + .25, -.14), (.26, .12, .15), 8, obj=f1, scores=3)
-    ball(m, (.36, top + .23, -.12), (.11, .08, .1), "T_IK_Crust", 10, 6, obj=f1)
-    # Chalk sign on a stake, behind the basket.
-    bar(m, (-.34, top, .26), (-.34, top + .6, .26), .014, "T_IK_WoodDark", 8)
-    rounded_panel(m, .34, .2, (-.34, top + .64, .25), "C_" + WOODL, .03, .03)
-    rounded_panel(m, .3, .16, (-.34, top + .64, .232), "C_2F3A40", .012, .02)
-    text_lite(m, "PÃES", (-.34, top + .655, .224), .07, "C_" + CREAM, .004)
-    text_lite(m, "fresquinhos", (-.34, top + .6, .224), .032, "C_" + GOLDL, .003)
+    DARK_C, LIGHT_C = "C_B8672A", "C_D9924A"
+    boule(m, (-.19, top + .255, .03), (.27, .17, .21), -15, f0, cross=True)
+    boule(m, (-.02, top + .245, .14), (.21, .13, .17), 35, f0, crust=DARK_C)
+    braided_loaf(m, (-.13, top + .215, -.16), .32, 4, f0, crust=LIGHT_C)
+    for i, (x, z, yw, c) in enumerate(((-.35, -.06, 40, LIGHT_C), (-.33, .13, -20, "T_IK_Crust"), (-.07, .02, 70, DARK_C), (-.3, .25, 60, "T_IK_Crust"),
+                                       (.02, -.2, 20, LIGHT_C), (-.1, -.04, 15, "T_IK_Crust"))):
+        french_roll(m, (x, top + .2 + (.03 if abs(x) < .15 else 0) + (i % 2) * .012, z), yw, 1.0, f0, crust=c)
+    for i, (z0, dy, c) in enumerate(((.17, .02, "T_IK_Crust"), (.09, .06, DARK_C), (.0, .02, "T_IK_Crust"))):
+        baguette_scored(m, (-.02 + i * .04, top + .2 + dy, z0 - .07), (.37 - i * .02, top + .3 + dy, z0 + .03), .03, f1, crust=c)
+    boule(m, (.2, top + .235, -.1), (.21, .13, .17), 12, f1, crust=LIGHT_C)
+    for i, (x, z, yw, c) in enumerate(((.08, .14, 20, DARK_C), (.3, .0, 55, "T_IK_Crust"), (.34, -.12, -30, LIGHT_C), (.1, -.22, 65, "T_IK_Crust"),
+                                       (.36, .1, 0, DARK_C), (.04, .04, 40, "T_IK_Crust"))):
+        french_roll(m, (x, top + .2 + (.03 if abs(x) < .15 else 0) + (i % 2) * .012, z), yw, 1.0, f1, crust=c)
+    # ---- Hanging board on a post behind the basket: "PÃES fresquinhos".
+    bar(m, (-.44, top - .03, .3), (-.44, 1.3, .3), .018, WD, 8)
+    ball(m, (-.44, 1.3, .3), (.05, .035, .05), "C_" + WOODD, 8, 4)
+    bar(m, (-.45, 1.275, .3), (-.06, 1.275, .3), .014, WD, 8)
+    ball(m, (-.06, 1.275, .3), (.04, .04, .04), "C_" + WOODD, 8, 4)
+    for x in (-.4, -.12):
+        bar(m, (x, 1.275, .3), (x, 1.195, .3), .005, "C_C9A66B", 5)
+    rounded_panel(m, .44, .23, (-.26, 1.1, .3), "C_" + WOODL, .03, .035)
+    rounded_panel(m, .4, .19, (-.26, 1.1, .279), "C_2F3A40", .012, .025)
+    text_lite(m, "PÃES", (-.26, 1.12, .268), .085, "C_" + CREAM, .004)
+    text_lite(m, "fresquinhos", (-.26, 1.055, .268), .036, "C_" + GOLDL, .003)
 
 
 # =========================================================================================== sector counters

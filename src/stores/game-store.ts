@@ -293,6 +293,7 @@ import {
 	interiorPieceIds,
 	placeInteriorConstruction,
 	scheduleInteriorConstructions,
+	getShopItemPlaceEra,
 	isBuiltShopItem,
 	normalizeBuiltSectorIds,
 	normalizeInteriorConstructions,
@@ -1887,7 +1888,12 @@ export const useGameStore = create<GameStore>()(
 					return false;
 				}
 
-				// Fixtures (second checkout, self-checkout) are installed by the builders.
+				// Fixtures (second checkout, self-checkout) are installed by the builders, and only once the
+				// market has room to place them.
+				const roomEra = getShopItemPlaceEra(item.id);
+				if (roomEra && getEraOrder(get().era.id) < getEraOrder(roomEra)) {
+					return false;
+				}
 				const installed = isBuiltShopItem(item.id);
 				const interiorConstructions = get().interiorConstructions;
 				if (installed && findInteriorConstruction(interiorConstructions, "shop", item.id)) {
