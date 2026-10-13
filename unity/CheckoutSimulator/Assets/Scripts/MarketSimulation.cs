@@ -109,7 +109,7 @@ namespace MarketDay
         {
             marketLayout=layout;
             obstacles.Clear();furniture.Clear();
-            if(Furniture!=null&&(!Checkout.CheckoutStall.Small||Checkout.CheckoutStall.ShopInside))furniture.AddRange(Furniture());
+            if(Furniture!=null)furniture.AddRange(Furniture());
             var slots=world.GetComponentInChildren<Checkout.CheckoutShelfSlots>();
             if(slots&&Furniture==null)foreach(Transform slot in slots.transform)if(slot.gameObject.activeSelf)
             {

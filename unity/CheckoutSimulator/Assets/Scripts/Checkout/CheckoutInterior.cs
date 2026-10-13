@@ -211,9 +211,22 @@ namespace Checkout
                 var shelfWorks = shelf.unlocked ? null : BuildOf("shelf", shelf.id);
                 if (shelf.unlocked || shelfWorks != null)
                 {
-                    want.Add(("shelf:" + shelf.id, "shelf", ShelfTemplate(shelf)));
+                    // Up to the contêiner bread sells from a wicker basket ("Cesto de pães"); from the Späti on, the bakery rack.
+                    var template = ShelfTemplate(shelf);
+                    if (shelf.id == "bakery" && CheckoutStall.Small && CheckoutStall.Era < 4 && kit.Find("bread-basket")) template = "bread-basket";
+                    want.Add(("shelf:" + shelf.id, "shelf", template));
                     if (shelfWorks != null) works["shelf:" + shelf.id] = shelfWorks;
                 }
+            }
+            // The stalls of the first expansions bring their own register, crates and cooler (part of the model):
+            // those are not pieces to place or move (CheckoutStall.BuiltIn), and a stall has no room for another
+            // checkout. Their saved spots (in the market, in a shop) are kept aside untouched for later.
+            var aside = new List<InteriorItem>();
+            if (!designMode && CheckoutStall.Yard)
+            {
+                bool Aside(string id, string type) => CheckoutStall.BuiltIn(id) || type == "checkout" || type == "kiosk";
+                aside.AddRange(saved.Where(e => e != null && Aside(e.id, e.type)));
+                want.RemoveAll(w => Aside(w.id, w.type));
             }
             // Furniture the app keeps stored waits in the build-mode inventory instead of standing in the shop.
             // So does everything bought that still has to be built: the player picks its spot and the works
@@ -228,9 +241,9 @@ namespace Checkout
                 foreach (var w in want.Where(w => works.TryGetValue(w.id, out var b) && b.pending && !placedIds.Contains(w.id)).ToList()) { waiting[w.id] = (w.type, w.template); want.Remove(w); }
             }
             else want.RemoveAll(w => waiting.ContainsKey(w.id));
-            // In the small shops, furniture placed somewhere else (in the market building, by a DEV jump back)
-            // waits in the inventory instead of floating on the square.
-            if (CheckoutStall.ShopInside && !designMode && !editing)
+            // In the small shops and around the stalls, furniture placed somewhere else (in the market building, a
+            // smaller stall, a DEV jump back) waits in the inventory instead of floating on the square.
+            if (CheckoutStall.Small && !designMode && !editing)
                 foreach (var w in want.Where(w => IsFunctional(w.type)).ToList())
                 {
                     var entry = saved.FirstOrDefault(e => e != null && e.id == w.id && !e.stored && !e.outside);
@@ -255,6 +268,8 @@ namespace Checkout
                 foreach (var entry in saved)
                 {
                     if (entry == null || entry.stored || IsFunctional(entry.type) || !kit.Find(entry.type)) continue;
+                    // Decorations placed in the market wait there while the market is a stall (not on the stall's paving).
+                    if (CheckoutStall.Small && !entry.outside && !designMode) { var at = WorldOf(entry.x, entry.z); if (!FloorRect.Contains(new Vector2(at.x, at.z))) { aside.Add(entry); continue; } }
                     placedDecor.TryGetValue(entry.type, out var n);
                     if (n >= Owned(entry.type)) continue;
                     placedDecor[entry.type] = n + 1;
@@ -263,6 +278,7 @@ namespace Checkout
                 }
             }
             else foreach (var it in items.Values) if (!it.functional) { want.Add((it.id, it.type, it.template)); if (it.outside) outsideIds.Add(it.id); }
+            if (!editing) keptAside = aside.ToArray();
 
             // Pieces the player never placed follow the defaults of the current shop size.
             string size = layout.State.stage + ":" + layout.State.widthScale + ":" + layout.State.depthScale;
@@ -377,7 +393,7 @@ namespace Checkout
             if (!it.root) return;
             // Outside pieces sit on the block's paving in world coordinates; shop pieces follow the projected floor.
             var at = it.outside ? new Vector3(it.x, Ground, it.z) : WorldOf(it.x, it.z);
-            if (!it.outside && CheckoutStall.ShopInside) at.y = CheckoutStall.FloorY;
+            if (!it.outside && CheckoutStall.Small) at.y = CheckoutStall.FloorY;
             it.root.SetPositionAndRotation(at, Quaternion.Euler(0, it.rot, 0));
             it.root.localScale = it.baseScale * (it.scale > 0 ? it.scale : 1);
         }
@@ -409,7 +425,7 @@ namespace Checkout
             if (!holder) return;
             // The small shops have no checkout area (their counter is part of the building), except the
             // minimercado, where the player places the checkout like in the market.
-            bool noZone = CheckoutStall.ShopInside && !CheckoutStall.PlacedCounter;
+            bool noZone = CheckoutStall.Small && !CheckoutStall.PlacedCounter;
             if (zoneMarks) zoneMarks.gameObject.SetActive(!noZone);
             if (noZone) return;
             var zone = CheckoutZone;
@@ -487,7 +503,7 @@ namespace Checkout
         // Customers queue along it towards the front and walk out through the door.
         public const float CheckoutZoneDepth = 3f;
         // The small shops have their own counter (part of the model): no checkout area to place counters in.
-        public Rect CheckoutZone { get { var f = FloorRect; if (CheckoutStall.ShopInside && !CheckoutStall.PlacedCounter) return Rect.MinMaxRect(f.xMax, f.yMin, f.xMax, f.yMax); return Rect.MinMaxRect(Mathf.Max(f.xMin, f.xMax - CheckoutZoneDepth), f.yMin, f.xMax, f.yMax); } }
+        public Rect CheckoutZone { get { var f = FloorRect; if (CheckoutStall.Small && !CheckoutStall.PlacedCounter) return Rect.MinMaxRect(f.xMax, f.yMin, f.xMax, f.yMax); return Rect.MinMaxRect(Mathf.Max(f.xMin, f.xMax - CheckoutZoneDepth), f.yMin, f.xMax, f.yMax); } }
 
         // The shop with its entrance steps, the parking bays and the delivery path stay clear.
         IEnumerable<Rect> KeepClear()
@@ -545,8 +561,9 @@ namespace Checkout
         {
             // Wall to wall (inner faces, rail excluded). The shell sizes its walls so this is always a whole
             // number of half squares: the grid starts on the west/front walls and ends exactly on the others.
-            // In the shop expansions (Späti, quitanda, minimercado) it is the little shop's floor.
-            get => CheckoutStall.ShopInside ? CheckoutStall.InteriorFloor : CheckoutMarketShell.ClearRect(layout.State);
+            // In the shop expansions (Späti, quitanda, minimercado) it is the little shop's floor; at the stalls
+            // (mesinha, tenda, banca, contêiner) the paving around the stall on its lot (CheckoutStall.Yard).
+            get => CheckoutStall.Small ? CheckoutStall.InteriorFloor : CheckoutMarketShell.ClearRect(layout.State);
         }
 
         // Kept clear in front of the doors so people can always get in.
@@ -555,12 +572,14 @@ namespace Checkout
             get
             {
                 var f = FloorRect;
+                if (CheckoutStall.Yard) return FromRect(CheckoutStall.StallFront);
                 if (CheckoutStall.ShopInside) return new Footprint { c = new Vector2(CheckoutStall.Door.x, f.yMin + .6f), ax = Vector2.right, az = Vector2.up, hx = CheckoutStall.DoorHalf + .2f, hz = .6f };
                 var door = WorldOf(DoorX, -7f);
                 return new Footprint { c = new Vector2(door.x, f.yMin + .9f), ax = Vector2.right, az = Vector2.up, hx = 1.35f, hz = .9f };
             }
         }
-        public Vector3 EntrancePoint => WorldOf(DoorX, -6.2f);
+        public Vector3 EntrancePoint => CheckoutStall.Yard ? new Vector3(CheckoutStall.StallFront.center.x, 0, CheckoutStall.StallFront.center.y)
+            : CheckoutStall.ShopInside ? new Vector3(CheckoutStall.Door.x, 0, CheckoutStall.Door.y + .3f) : WorldOf(DoorX, -6.2f);
 
         // The staff corridor inside the rear roller door: nothing may stand there (stock clerks carry boxes through).
         public Footprint ServiceDoor
@@ -568,7 +587,7 @@ namespace Checkout
             get
             {
                 // The small shops have no rear service door.
-                if (CheckoutStall.ShopInside) return new Footprint { c = new Vector2(-999, -999), ax = Vector2.right, az = Vector2.up, hx = 0, hz = 0 };
+                if (CheckoutStall.Small) return new Footprint { c = new Vector2(-999, -999), ax = Vector2.right, az = Vector2.up, hx = 0, hz = 0 };
                 var door = WorldOf(RearDoorX, 7f); var f = FloorRect;
                 return new Footprint { c = new Vector2(door.x, f.yMax - 1.3f), ax = Vector2.right, az = Vector2.up, hx = .98f, hz = 1.3f };
             }
@@ -641,7 +660,13 @@ namespace Checkout
                 }
                 else if (it.functional) { foreach (var c in Corners(f)) if (c.x > zone.xMin + eps) { why = "Área só para caixas"; return false; } }
             }
-            if (Overlap(f, Entrance)) { why = "Deixe a entrada livre"; return false; }
+            if (CheckoutStall.Yard)
+            {
+                if (IsCounter(it)) { why = "A barraca já tem o seu caixa"; return false; }
+                var stall = FromRect(CheckoutStall.StallArea); stall.hx -= .012f; stall.hz -= .012f; // flush is fine
+                if (Overlap(f, stall)) { why = "A barraca está aqui"; return false; }
+            }
+            if (Overlap(f, Entrance)) { why = CheckoutStall.Yard ? "Deixe livre a frente da barraca" : "Deixe a entrada livre"; return false; }
             if (CheckoutStall.ShopInside && !CheckoutStall.PlacedCounter)
             {
                 if (IsCounter(it)) { why = "Esta loja já tem o seu balcão"; return false; }
@@ -675,7 +700,8 @@ namespace Checkout
             var floor = FloorRect; const float cell = .25f;
             int w = Mathf.CeilToInt(floor.width / cell), h = Mathf.CeilToInt(floor.height / cell);
             var solid = new bool[w * h];
-            var boxes = items.Values.Where(i => i.root && !i.outside).Select(i => FootprintOf(i, .27f)).ToArray();
+            var boxes = items.Values.Where(i => i.root && !i.outside).Select(i => FootprintOf(i, .27f)).ToList();
+            if (CheckoutStall.Yard) boxes.Add(FromRect(CheckoutStall.StallArea));
             for (int z = 0; z < h; z++)
                 for (int x = 0; x < w; x++)
                 {
@@ -762,7 +788,7 @@ namespace Checkout
             var list = new List<Rect>();
             foreach (var other in items.Values)
                 if (other != it && other.root && !other.ghost && other.outside == it.outside) list.Add(Aabb(FootprintOf(other)));
-            if (!it.outside) { list.Add(Aabb(Entrance)); list.Add(Aabb(ServiceDoor)); }
+            if (!it.outside) { list.Add(Aabb(Entrance)); list.Add(Aabb(ServiceDoor)); if (CheckoutStall.Yard) list.Add(CheckoutStall.StallArea); }
             return list;
         }
 
@@ -978,7 +1004,10 @@ namespace Checkout
         public void MarkPending() { pending = Export(); pendingAt = Time.unscaledTime; foreach (var it in items.Values) it.saved = true; }
 
         public InteriorItem[] Export() => items.Values.Where(i => i.root && !i.design).Select(i => new InteriorItem { id = i.id, type = i.type, x = i.x, z = i.z, rot = Mathf.Repeat(Mathf.Round(i.rot), 360), outside = i.outside })
-            .Concat(waiting.Where(w => !items.ContainsKey(w.Key)).Select(w => new InteriorItem { id = w.Key, type = w.Value.type, stored = true })).ToArray();
+            .Concat(waiting.Where(w => !items.ContainsKey(w.Key)).Select(w => new InteriorItem { id = w.Key, type = w.Value.type, stored = true }))
+            .Concat(keptAside.Where(e => !items.ContainsKey(e.id) && !waiting.ContainsKey(e.id))).ToArray();
+        // Saved pieces a stall does not show (its own fixtures, checkouts, decorations left in the market): saved back as they were.
+        InteriorItem[] keptAside = Array.Empty<InteriorItem>();
 
         public string ExportJson()
         {

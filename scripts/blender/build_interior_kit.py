@@ -632,6 +632,63 @@ def shelf_bakery(m):
     box(m, (.9, .26, .04), (0, 2.02, .31), "C_B8672A", .04)
 
 
+def oval_lathe(m, profile, base, key, sx=1.3, seg=28, obj="Body", cap=True):
+    """lathe() stretched along Unity X (oval baskets and trays)."""
+    bm = lathe_bm(profile, seg, cap)
+    bmesh.ops.scale(bm, vec=Vector((sx, 1, 1)), verts=bm.verts)
+    for f in bm.faces:
+        f.smooth = True
+    m.add(_place(bm, base), key, obj)
+
+
+@model("bread-basket")
+def bread_basket(m):
+    """Cesto de pães of the stalls (tenda to contêiner): a big wicker basket lined with a checked cloth, full of loaves
+    and baguettes, on a little wooden stand with a chalk sign. The bread is two "Anim Fill" nodes (stock levels)."""
+    top = .62
+    # Stand: splayed legs, rounded top board and a low shelf with a spare basket of rolls.
+    for x in (-.4, .4):
+        for z in (-.25, .25):
+            bar(m, (x * 1.05, .02, z * 1.08), (x, top - .03, z), .028, "T_IK_WoodLight", 10)
+            ball(m, (x * 1.05, .02, z * 1.08), (.07, .04, .07), "C_" + WOODD, 10, 5)
+    dbox(m, (.98, .05, .68), (0, top - .025, 0), "T_IK_WoodLight", .02, 2)
+    dbox(m, (.86, .03, .56), (0, .2, 0), "T_IK_WoodLight", .01)
+    for z in (-.25, .25):
+        bar(m, (-.4, .2, z), (.4, .2, z), .016, "T_IK_WoodLight", 8)
+    basket(m, (-.18, .215, .02), .15, .11)
+    for i in range(5):
+        ball(m, (-.24 + (i % 3) * .06, .31 + (i // 3) * .03, -.02 + (i % 2) * .07), (.09, .06, .08), "T_IK_Crust", 10, 6)
+    ball(m, (.2, .3, .03), (.3, .2, .24), "C_D9C4A0", 14, 8)       # flour sack on the shelf, tied at the top
+    ball(m, (.2, .41, .03), (.09, .07, .08), "C_C9B08A", 10, 6)
+    torus(m, .035, .008, (.2, .4, .03), "C_8A5A34", seg=12, minor=5)
+    # The basket: oval wicker, a rolled rim and two handles, lined with a red checked cloth folded over the front.
+    oval_lathe(m, [(0, 0), (.22, 0), (.27, .1), (.3, .2)], (0, top, 0), "T_IK_Wicker", 1.35)
+    oval_lathe(m, [(.3, .19), (.32, .205), (.315, .225), (.295, .215)], (0, top, 0), "C_8A5A34", 1.35, cap=False)
+    for x in (-.41, .41):
+        torus(m, .06, .013, (x, top + .22, 0), "C_8A5A34", pitch=90, seg=16, minor=6)
+    oval_lathe(m, [(0, .1), (.24, .12), (.29, .215)], (0, top, 0), "T_IK_Checker", 1.33, cap=False)
+    for x, w in ((-.02, .3), (.27, .16)):
+        dbox(m, (w, .012, .07), (x, top + .222, -.305), "T_IK_Checker", .005)
+        dbox(m, (w, .012, .14), (x, top + .16, -.345), "T_IK_Checker", .005, pitch=-78)
+    # Bread heaped above the rim: round loaves and rolls on the left (fill 0), baguettes leaning back on the right (fill 1).
+    f0, f1 = "Anim Fill 0", "Anim Fill 1"
+    bread_loaf(m, (-.24, top + .25, .04), (.28, .14, .18), -12, obj=f0)
+    bread_loaf(m, (-.06, top + .27, .12), (.24, .13, .16), 20, obj=f0, scores=2)
+    bread_loaf(m, (-.1, top + .24, -.1), (.22, .12, .15), -30, obj=f0, scores=2)
+    for i, (x, z) in enumerate(((-.33, -.12), (-.22, -.15), (-.36, .12), (.0, .02), (-.18, .22))):
+        ball(m, (x, top + .22 + (i % 2) * .02, z), (.11, .08, .1), "T_IK_Crust", 10, 6, obj=f0)
+    for i, (x, z) in enumerate(((.1, -.02), (.19, .03), (.28, -.01), (.36, .04))):
+        baguette(m, (x - .04, top + .2, z - .16), (x + .04, top + .5 - (i % 2) * .04, z + .2), .038, obj=f1)
+    bread_loaf(m, (.22, top + .25, -.14), (.26, .12, .15), 8, obj=f1, scores=3)
+    ball(m, (.36, top + .23, -.12), (.11, .08, .1), "T_IK_Crust", 10, 6, obj=f1)
+    # Chalk sign on a stake, behind the basket.
+    bar(m, (-.34, top, .26), (-.34, top + .6, .26), .014, "T_IK_WoodDark", 8)
+    rounded_panel(m, .34, .2, (-.34, top + .64, .25), "C_" + WOODL, .03, .03)
+    rounded_panel(m, .3, .16, (-.34, top + .64, .232), "C_2F3A40", .012, .02)
+    text_lite(m, "PÃES", (-.34, top + .655, .224), .07, "C_" + CREAM, .004)
+    text_lite(m, "fresquinhos", (-.34, top + .6, .224), .032, "C_" + GOLDL, .003)
+
+
 # =========================================================================================== sector counters
 def sector(m, sid):
     title, hexc = SECTORS[sid]

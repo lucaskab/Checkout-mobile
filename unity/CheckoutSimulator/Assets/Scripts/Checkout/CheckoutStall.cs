@@ -73,6 +73,29 @@ namespace Checkout
         /// <summary>World height of the shop floor (where the placed furniture stands).</summary>
         public static float FloorY { get; private set; }
         static Vector3 payPoint, queueStep;
+        /// <summary>A stall with no inside (mesinha, tenda, banca, contêiner): what the player buys for it (the bread
+        /// basket...) stands on the paving around the stall, in <see cref="InteriorFloor"/> (the stall's yard).</summary>
+        public static bool Yard => Small && !ShopInside;
+        /// <summary>The stall model itself (world x/z) while <see cref="Yard"/>: nothing may stand there.</summary>
+        public static Rect StallArea { get; private set; }
+        /// <summary>In front of the stall, where customers pick from the crates and queue to pay: kept free.</summary>
+        public static Rect StallFront { get; private set; }
+        /// <summary>Fixtures that are part of the stall model in this expansion (the register, the produce crates,
+        /// the styrofoam cooler, the fair stall's display): they stay where the stall has them and are never placed
+        /// in build mode. In the first expansions nothing is relocated; the shops are furnished piece by piece.</summary>
+        public static bool BuiltIn(string pieceId)
+        {
+            if (!Yard) return false;
+            switch (pieceId)
+            {
+                case "checkout:main": case "shelf:produce": case "shelf:drinks": return true;
+                case "shelf:dairy": return Era >= 2;
+                case "shelf:snacks": return Era >= 3;
+                default: return false;
+            }
+        }
+        // Lot A1 (src/data/market-lots.ts): the stall's yard never leaves it.
+        const float LotMinX = -17.25f, LotMaxX = -5.75f, LotMaxZ = 4.75f;
         /// <summary>Solid parts of the stall for the navigation: walls with the door left open and the counter in a
         /// shop, the whole model otherwise.</summary>
         public static readonly List<Bounds> Obstacles = new List<Bounds>();
@@ -82,7 +105,7 @@ namespace Checkout
             Obstacles.Clear();
             ShopInside = Small && model && Plans.TryGetValue(model.name, out _);
             PlacedCounter = false;
-            if (!ShopInside) { Obstacles.Add(Footprint); return; }
+            if (!ShopInside) { Obstacles.Add(Footprint); PlanYard(); return; }
             var plan = Plans[model.name];
             PlacedCounter = plan.placedCounter;
             var o = model.transform.position; float k = model.transform.localScale.x;
@@ -101,6 +124,20 @@ namespace Checkout
             Wall(d1.x, f.yMin - t, f.xMax + t, f.yMin);                 // front, right of the door
             if (PlacedCounter) { CounterArea = new Rect(f.xMax, f.yMin, 0, 0); return; } // no counter in the model
             var c = CounterArea; Wall(c.xMin, c.yMin, c.xMax, c.yMax);  // counter
+        }
+
+        // The paving around the stall: beside and behind it on lot A1, inside the walkable court, plus a strip in
+        // front of it (kept free for the shoppers, StallFront).
+        static void PlanYard()
+        {
+            var f = Footprint; var court = Court;
+            StallArea = Rect.MinMaxRect(f.min.x, f.min.z, f.max.x, f.max.z);
+            StallFront = Rect.MinMaxRect(f.min.x - .4f, FrontLine - 1.15f, f.max.x + 1.6f, FrontLine);
+            float x0 = Mathf.Max(LotMinX + .3f, court.min.x + .3f, f.min.x - 3f), x1 = Mathf.Min(LotMaxX - .3f, court.max.x - .3f, f.max.x + 3f);
+            float z0 = Mathf.Max(court.min.z + .3f, FrontLine - 1.5f), z1 = Mathf.Min(LotMaxZ - .3f, court.max.z - .3f, f.max.z + 2.5f);
+            InteriorFloor = Rect.MinMaxRect(x0, z0, x1, Mathf.Max(z1, f.max.z + .5f));
+            CounterArea = StallArea; FloorY = .13f;
+            Door = new Vector2(f.center.x, FrontLine); DoorHalf = f.size.x * .5f;
         }
 
         // ------------------------------------------------------------------ points for the customers
@@ -160,19 +197,21 @@ namespace Checkout
             int era = known ? state.index : EraModels.Length;
             bool small = known && !state.building && !CheckoutMapEditor.Open;
             bool changed = small != Small;
+            int wasFloor = ShopInside ? 2 : Yard ? 1 : 0, wasEra = Era; // (before Small changes: Yard reads it)
             Era = era; Small = small;
             if (small) HideMarket();
             else if (changed) ShowMarket();
             if (sites) sites.Apply(snapshot);
             if (works) works.Apply(snapshot);
-            bool wasShop = ShopInside;
             ShowModel(small ? ModelFor(era) : null);
             if (!small) { ShopInside = false; PlacedCounter = false; Obstacles.Clear(); }
-            // The furniture the player placed stands inside the shop expansions.
+            // The furniture the player placed stands inside the shop expansions, or around the stall (its yard).
             var holder = map.Interior ? map.Interior.Holder : null;
-            if (holder && small) { holder.gameObject.SetActive(ShopInside); if (ShopInside) hidden.Remove(holder.gameObject); else if (!hidden.Contains(holder.gameObject)) hidden.Add(holder.gameObject); }
-            // Entering or leaving a shop expansion: the furniture moves between the shop's floor and the market's.
-            if (wasShop != ShopInside && map.Interior)
+            if (holder && small) { holder.gameObject.SetActive(true); hidden.Remove(holder.gameObject); }
+            // Entering or leaving a shop or stall expansion: the furniture moves between its floor and the market's
+            // (from one stall to the next, the stall's own fixtures change too: CheckoutStall.BuiltIn).
+            int floor = ShopInside ? 2 : Yard ? 1 : 0;
+            if ((wasFloor != floor || (floor == 1 && wasEra != era)) && map.Interior)
             {
                 map.Reapply();
                 foreach (var it in map.Interior.items.Values) map.Interior.Place(it);
@@ -251,7 +290,7 @@ namespace Checkout
                 model = Load(name);
                 models[name] = model;
             }
-            if (!model) return;
+            if (!model) { if (Small) PlanShop(null); return; } // no model: plain yard around the default footprint
             model.SetActive(true);
             bool changed = shown != model;
             shown = model;
@@ -302,6 +341,9 @@ namespace Checkout
             // like the low walls of the market building.
             foreach (var t in go.GetComponentsInChildren<Transform>(true))
                 if (t.name.StartsWith("CUT_")) t.gameObject.SetActive(false);
+            // The tent's bread basket is the one the player buys and places (shelf "bakery"), not part of the tent.
+            foreach (var t in go.GetComponentsInChildren<Transform>(true))
+                if (t.name.StartsWith("ERA1_Bread")) t.gameObject.SetActive(false);
             // A shop where the player places the checkout loses the counter of the model (and its click).
             if (CounterParts.TryGetValue(name, out var counterPrefix))
             {

@@ -1,4 +1,5 @@
-import { shelves } from "@/data/market-products";
+import { getEraOrder, shelves } from "@/data/market-products";
+import type { MarketEraId } from "@/@types/economy";
 import {
 	formatBuildDuration,
 	formatConstructionCountdown,
@@ -14,8 +15,10 @@ import { act, button, type Button, type Card, card, decorIcon, fmt, gameIcon, ty
 export const placeButton = (label = "Colocar na loja") =>
 	button(label, { route: "@build", variant: "success", icon: gameIcon("hammer") });
 
-/** Thumbnail of a shelf model (same templates as CheckoutInterior.ShelfTemplate). */
-export function shelfThumb(shelfId: string) {
+/** Thumbnail of a shelf model (same templates as CheckoutInterior.ShelfTemplate); with `eraId`, the look it has in
+ * that expansion (up to the contêiner the bakery is the bread basket, "Cesto de pães"). */
+export function shelfThumb(shelfId: string, eraId?: MarketEraId) {
+	if (shelfId === "bakery" && eraId && getEraOrder(eraId) < getEraOrder("spati")) return decorIcon("bread-basket");
 	const template: Record<string, string> = {
 		produce: "shelf-produce",
 		dairy: "shelf-dairy",

@@ -286,6 +286,8 @@ namespace Checkout
 
         void Finish()
         {
+            var misplaced = Interior.items.Values.FirstOrDefault(i => i.root && !i.design && !i.ghost && !Interior.Fits(i, i.root.position, i.rot, out _));
+            if (misplaced != null) { Select(misplaced); Say(Name(misplaced) + " não cabe aí. Mova ou gire até a área ficar verde.", true); return; }
             if (!Interior.Reachable(out var blocked)) { Select(blocked); Say(Name(blocked) + " ficou sem passagem. Abra caminho para concluir.", true); return; }
             if (!Interior.items.Values.Any(i => i.root && i.type == "checkout" && !i.building) && Interior.waiting.Values.Any(w => w.type == "checkout"))
             { Say("Coloque o caixa na área dos caixas para concluir.", true); return; }
@@ -341,14 +343,14 @@ namespace Checkout
             return d != null ? d.name : it.type;
         }
 
+        // Turning is always allowed: the footprint turns red where the turned piece does not fit (or blocks a
+        // passage), and "Concluir" waits until every piece is green again.
         void Rotate(float delta)
         {
             if (selected == null) { Say("Selecione um móvel primeiro.", true); return; }
-            float before = selected.rot, next = Mathf.Repeat(before + delta, 360);
-            var from = selected.root.position; var to = Interior.Snap(selected, from, next, from);
-            if (!Interior.Fits(selected, to, next, out var why)) { Say(why + ": não dá para girar aqui.", true); return; }
-            selected.rot = next; Interior.MoveTo(selected, to);
-            if (!selected.outside && !Interior.Reachable(out var blocked)) { selected.rot = before; Interior.MoveTo(selected, from); Say("Assim " + Name(blocked) + " fica sem passagem.", true); }
+            float next = Mathf.Repeat(selected.rot + delta, 360);
+            var from = selected.root.position;
+            selected.rot = next; Interior.MoveTo(selected, Interior.Snap(selected, from, next, from));
             ShowFootprint(); map.FurnitureChanged(false);
         }
 
@@ -467,8 +469,7 @@ namespace Checkout
         {
             rotating = false; twisting = false; simulation.cameraLocked = false;
             if (selected == null) return;
-            if (!Interior.Fits(selected, selected.root.position, selected.rot, out var why)) { selected.rot = rotStart; Interior.MoveTo(selected, rotStartPosition); Say(why + ": voltou como estava.", true); }
-            else if (!selected.outside && !Interior.Reachable(out var blocked)) { selected.rot = rotStart; Interior.MoveTo(selected, rotStartPosition); Say("Assim " + Name(blocked) + " fica sem passagem.", true); }
+            // The turn stays; a red footprint shows it does not fit there yet.
             ShowFootprint(); map.FurnitureChanged(false);
         }
 
@@ -476,7 +477,9 @@ namespace Checkout
         void Update()
         {
             // The map editor has its own tools: no build button while it is open.
-            bool hidden = Open || CheckoutMapEditor.Open || CheckoutDesktopHUD.ShopOpen || (CheckoutStall.Small && !CheckoutStall.ShopInside);
+            // At the stalls (CheckoutStall.Yard) only once there is something of the player's to place around it.
+            bool hidden = Open || CheckoutMapEditor.Open || CheckoutDesktopHUD.ShopOpen
+                || (CheckoutStall.Yard && (!Interior || (Interior.waiting.Count == 0 && !Interior.items.Values.Any(i => !i.design))));
             if (buildButton && !CheckoutStartMenu.Showing && buildButton.activeSelf == hidden) buildButton.SetActive(!hidden);
             if (buildButton && CheckoutStartMenu.Showing && buildButton.activeSelf) buildButton.SetActive(false);
             // Furniture waiting to be placed shows on the button (a new shop starts empty).
@@ -601,7 +604,10 @@ namespace Checkout
             float y = selected.outside ? CheckoutInterior.Ground : CheckoutInterior.Floor;
             var position = selected.root.position; position.y = y;
             bool ok = Interior.Fits(selected, position, selected.rot, out var why);
-            if (!ok && (dragging != null || rotating)) Say(why, true);
+            // A blocked passage is checked once the piece is let go (it walks the whole floor).
+            if (ok && !selected.outside && dragging == null && !rotating && !Interior.Reachable(out var blocked))
+            { ok = false; why = "Assim " + Name(blocked) + " fica sem passagem"; }
+            if (!ok) Say(why, true);
             var f = Interior.FootprintAt(selected, position, selected.rot);
             footprint.gameObject.SetActive(true);
             footprint.GetComponent<Renderer>().sharedMaterial = ok ? okMaterial : badMaterial;

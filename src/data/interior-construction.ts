@@ -6,6 +6,8 @@ import type { ProductionSectorId } from "@/@types/production";
 import { getMarketExpansionSkipCost } from "./market-expansions";
 import { shelves } from "./market-products";
 import { productionSectors } from "./production-sectors";
+import { getFixtureName } from "./shelf-types";
+import type { MarketEraId } from "@/@types/economy";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -59,13 +61,16 @@ export function getInteriorSkipCost(remainingMs: number) {
 	return getMarketExpansionSkipCost(remainingMs);
 }
 
-export function getInteriorBuildName(kind: InteriorBuildKind, targetId: string) {
+/** Name of a build; with `eraId`, the name the fixture has in that expansion ("Cesto de pães" at the tent). */
+export function getInteriorBuildName(kind: InteriorBuildKind, targetId: string, eraId?: MarketEraId) {
 	if (kind === "sector")
 		return (
 			productionSectors.find((sector) => sector.id === targetId)?.name ?? "Setor"
 		);
 	if (kind === "shelf")
-		return shelves.find((shelf) => shelf.id === targetId)?.name ?? "Prateleira";
+		return eraId
+			? getFixtureName(targetId, eraId)
+			: (shelves.find((shelf) => shelf.id === targetId)?.name ?? "Prateleira");
 	if (targetId === "extra-checkout") return "Caixa extra";
 	if (targetId === "self-checkout") return "Autoatendimento";
 	return "Instalação";

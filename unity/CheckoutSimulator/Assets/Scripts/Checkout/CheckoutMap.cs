@@ -34,7 +34,7 @@ namespace Checkout {
   Vector3 SectorPosition(string id){var it=Piece(id);if(it!=null)return it.root.position;var bounds=SectorBounds(id);return P(bounds.center.x,bounds.center.z);}
   Vector3 SectorApproach(string id){var it=Piece(id);if(it!=null)return Interior.Approach(it);var bounds=SectorBounds(id);return P(bounds.center.x,bounds.min.z-.65f);}
   // In the shop expansions the shelves the player placed inside are used; otherwise the stall crates.
-  bool StallCrate(string id)=>CheckoutStall.Small&&!(CheckoutStall.ShopInside&&Piece(id) is CheckoutInterior.Item it&&it.root&&it.root.gameObject.activeInHierarchy&&!it.building);
+  bool StallCrate(string id)=>CheckoutStall.Small&&!(Piece(id) is CheckoutInterior.Item it&&it.root&&it.root.gameObject.activeInHierarchy&&!it.building);
   public Vector3 Fixture(string id)=>StallCrate(id)?CheckoutStall.Crate(id):Piece(id) is CheckoutInterior.Item it?it.root.position:Special(id)?SectorPosition(id):world&&world.GetComponentInChildren<CheckoutShelfSlots>()?Point(CheckoutShelfSlots.Position(id)):fixtures.TryGetValue(id,out var p)?Point(p):Point(P(0,0));
   public Vector3 Approach(string id)=>StallCrate(id)?CheckoutStall.Approach(id):Piece(id) is CheckoutInterior.Item it?Interior.Approach(it):Special(id)?SectorApproach(id):world&&world.GetComponentInChildren<CheckoutShelfSlots>()?Point(CheckoutShelfSlots.Position(id))+Vector3.back*(.7f*layout.State.depthScale+.55f):approaches.TryGetValue(id,out var p)?Point(p):Point(P(0,0));
   public bool Special(string id)=>id!=null&&id.StartsWith("sector-");

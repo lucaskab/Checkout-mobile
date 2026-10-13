@@ -60,7 +60,7 @@ function shelfCard(state: State) {
 	if (!build.shelf) return null;
 	return buildCard(state, {
 		title: getFixtureName(build.shelf.id, state.era.id),
-		icon: shelfThumb(build.shelf.id),
+		icon: shelfThumb(build.shelf.id, state.era.id),
 		subtitle: describeFixtureProducts(build.shelf.id, state.market.unlockedProductIds)
 			? `Aceita: ${describeFixtureProducts(build.shelf.id, state.market.unlockedProductIds)}. Começa com quatro espaços de produto.`
 			: `Os produtos dele chegam com: ${getMarketEra(getShelfType(build.shelf.id)?.eraId ?? state.era.id).name}.`,
@@ -114,7 +114,7 @@ function inventoryCard(state: State): Card | null {
 		icon: gameIcon("package"),
 		tone: "featured",
 		subtitle: "Você comprou e ainda não colocou. Escolha o lugar no modo construir para os construtores começarem.",
-		lines: stored.map((item) => `• ${getInteriorBuildName(item.kind, item.targetId)}`),
+		lines: stored.map((item) => `• ${getInteriorBuildName(item.kind, item.targetId, state.era.id)}`),
 		buttons: [placeButton("Colocar agora")],
 	});
 }

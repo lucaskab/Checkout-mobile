@@ -366,7 +366,7 @@ export function createSimulatorSnapshot(
 				id: item.id,
 				kind: item.kind,
 				targetId: item.targetId,
-				name: getInteriorBuildName(item.kind, item.targetId),
+				name: getInteriorBuildName(item.kind, item.targetId, state.era.id),
 				startedAt: item.startedAt,
 				endsAt: item.endsAt,
 				durationMs: duration,

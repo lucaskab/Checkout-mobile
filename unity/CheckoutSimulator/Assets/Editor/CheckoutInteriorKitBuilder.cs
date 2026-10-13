@@ -54,6 +54,7 @@ public static partial class CheckoutMarketStagesBuilder
         Produce(Next("shelf-produce"));
         Freezer(Next("shelf-freezer"));
         BakeryRack(Next("shelf-bakery"));
+        BreadBasket(Next("bread-basket"));
         foreach (var s in new[] { "padaria", "queijaria", "acougue", "peixaria", "bebidas", "sorvetes", "adega" }) SectorCounter(Next("sector-" + s), s);
         CheckoutCounter(Next("checkout"));
         Kiosk(Next("kiosk"));
@@ -768,6 +769,34 @@ public static partial class CheckoutMarketStagesBuilder
             }
         }
         Sign(t, "PÃES FRESQUINHOS", new Vector3(0, 1.88f, .3f), 1.6f, .011f, KMat("IK_Bread", "B8672A", .3f));
+        Finish(t, piece, fills);
+    }
+
+    // The stalls' bread basket ("Cesto de pães", tenda to contêiner): a wicker basket of loaves on a little wooden
+    // stand. The loaves are the "Anim Fill 0..1" nodes of the Blender model (build_interior_kit.py, bread-basket).
+    static void BreadBasket(Transform t)
+    {
+        var piece = Piece(t, new Vector2(-.5f, -.36f), new Vector2(.5f, .36f), -.8f, 1.45f);
+        KitModel(t);
+        var fills = new List<Transform>();
+        var model = t.Find("Model");
+        if (skipBody && model)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                var node = model.GetComponentsInChildren<Transform>(true).FirstOrDefault(x => x.name == "Anim Fill " + i);
+                if (!node) continue;
+                var g = Group(t, "Anim Fill " + i);
+                node.name = "Loaves " + i; node.SetParent(g, true); fills.Add(g);
+            }
+        }
+        else
+        {
+            foreach (var x in new[] { -.4f, .4f }) foreach (var z in new[] { -.26f, .26f })
+                KBox(t, "Leg", new Vector3(x, .3f, z), new Vector3(.06f, .6f, .06f), KWood(), .01f);
+            KBox(t, "Top", new Vector3(0, .62f, 0), new Vector3(.96f, .05f, .66f), KWood(), .01f);
+            KBox(t, "Basket", new Vector3(0, .76f, 0), new Vector3(.8f, .24f, .52f), KMat("IK_Wicker", "C9965A", .2f), .06f);
+        }
         Finish(t, piece, fills);
     }
 

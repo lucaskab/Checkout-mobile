@@ -53,7 +53,7 @@ function shelfBuild(state: State, title: string): Card {
 	const build = getNextShelfBuildStatus(state);
 	return buildCard(state, {
 		title: build.shelf ? `${title}: ${getFixtureName(build.shelf.id, state.era.id)}` : title,
-		icon: build.shelf ? shelfThumb(build.shelf.id) : gameIcon("shelf"),
+		icon: build.shelf ? shelfThumb(build.shelf.id, state.era.id) : gameIcon("shelf"),
 		subtitle: build.shelf
 			? `${acceptsNow(state, build.shelf.id)} Começa com quatro espaços.`
 			: "Cada prateleira começa com quatro espaços.",
