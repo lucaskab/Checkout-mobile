@@ -403,7 +403,9 @@ namespace Checkout
                     // Measured with the holder unturned: the plank's long side becomes the holder's +Z.
                     w.shoulder = true; w.prop.rotation = Quaternion.identity;
                     var pb = CheckoutWorksKit.Bounds(w.prop.gameObject);
-                    w.plankFix = pb.size.x > pb.size.z ? Quaternion.Euler(0, -90, 0) : Quaternion.identity;
+                    // Whichever axis is the plank's length (the kit's axis conversion can leave it upright) lies along +Z.
+                    var sz = pb.size;
+                    w.plankFix = sz.y >= sz.x && sz.y >= sz.z ? Quaternion.Euler(90, 0, 0) : sz.x > sz.z ? Quaternion.Euler(0, -90, 0) : Quaternion.identity;
                     if (m) m.position -= pb.center - w.prop.position;   // carried by its middle
                 }
                 w.prop.gameObject.SetActive(false);
@@ -583,7 +585,7 @@ namespace Checkout
                 {
                     // On the right shoulder, lengthwise, the right hand up on it (the left arm swings with the walk).
                     var side = w.body.right;
-                    w.upperR.rotation = Quaternion.AngleAxis(-150, side) * w.upperR.rotation;
+                    w.upperR.rotation = Quaternion.AngleAxis(-115, side) * w.upperR.rotation;
                     w.prop.position = w.upperR.position + Vector3.up * .1f + side * .02f;
                     w.prop.rotation = Quaternion.LookRotation(CheckoutWorksKit.Flat(w.body.forward), Vector3.up) * w.plankFix;
                 }

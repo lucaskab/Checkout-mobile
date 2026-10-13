@@ -100,19 +100,19 @@ namespace Checkout
                     }
                     s.Prop("Prop_PlankStackV2", G(-7.3f, .9f), North);
                     s.Prop("Prop_SawStation", G(-15.9f, -1.4f), South);
-                    s.Prop("Prop_NailBucket", G(-13.4f, -1.1f), South);
+                    s.Prop("Prop_NailBucket", G(-11.9f, -1.15f), South);
                     s.Prop("Prop_TapeBarrier", G(-15.6f, -3.3f), South);
-                    s.Prop("Prop_Sawdust", G(-12.2f, -1.0f), South);
-                    var ladder = s.Prop("Prop_StepLadder", G(-10.1f, -.75f), North);
+                    var ladder = s.Prop("Prop_StepLadder", G(-13.3f, -.8f), North);
                     s.OnProgress(p => { bool on = p >= .6f; if (ladder.gameObject.activeSelf != on) ladder.gameObject.SetActive(on); });
                     s.ToolWorker(G(-15.6f, -2.2f), G(-15.6f, -1.4f), CheckoutWorksScene.Tool.Saw, 0);
                     s.Carrier(G(-11.2f, 3.3f), G(-7.3f, 2.7f), "Prop_PlankV2", 1);
-                    s.Carrier(G(-7.3f, -.7f), G(-9.4f, -1.25f), "Prop_PlankV2", 4);
-                    s.ToolWorker(G(-12.6f, -1.4f), G(-12.6f, -.4f), CheckoutWorksScene.Tool.Hammer, 2);
-                    // The roofer stands on the ladder's third step, facing the roof beams.
-                    s.ToolWorker(new Vector3(-10.1f, .13f + .82f, -.95f), new Vector3(-10.1f, 2.6f, .4f), CheckoutWorksScene.Tool.Drill, 5);
+                    // From the stack to the stall's front-right corner (clear of the hammer and the ladder).
+                    s.Carrier(G(-7.3f, -.75f), G(-8.9f, -1.7f), "Prop_PlankV2", 4);
+                    s.ToolWorker(G(-11.2f, -1.5f), G(-11.2f, -.5f), CheckoutWorksScene.Tool.Hammer, 2);
+                    // The roofer stands on the ladder's third step (front-left), facing the roof beams.
+                    s.ToolWorker(new Vector3(-13.3f, .13f + .82f, -1.0f), new Vector3(-13.3f, 2.6f, .4f), CheckoutWorksScene.Tool.Drill, 5);
                     s.ShowLastWhile(p => p >= .63f && p < .97f);
-                    s.Foreman(G(-13.6f, -2.55f), G(-9.6f, -2.55f), spot, 3);
+                    s.Foreman(G(-13.2f, -2.7f), G(-9.8f, -2.7f), spot, 3);
                     break;
                 }
                 case "banca":
