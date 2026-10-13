@@ -1,6 +1,8 @@
 import type { GameState } from "@/@types/game";
 import type { MissionDefinition, MissionStatus } from "@/@types/mission";
 import { getMarketEra } from "@/data/economy";
+import { getInventoryCapacity } from "@/data/inventory-capacity";
+import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
 
 export function getMissionProgress(
@@ -72,4 +74,57 @@ export function getClaimableMissionCount(state: GameState) {
 	return missions.filter(
 		(mission) => getMissionStatus(mission, state) === "claimable",
 	).length;
+}
+
+/** What claiming a mission gives right now: the coins, the reward products that go to the stockroom, and the
+ * ones that don't (no room in the stockroom, or a product the market doesn't sell yet), paid in coins at
+ * their supplier price instead, so a mission can always be claimed. */
+export type MissionRewardPlan = {
+	coins: number;
+	stored: { productId: number; quantity: number }[];
+	sold: { productId: number; quantity: number; coins: number; reason: "full" | "locked" }[];
+};
+export function getMissionRewardPlan(
+	mission: MissionDefinition,
+	state: Pick<GameState, "inventory" | "inventoryCapacityLevels" | "market">,
+): MissionRewardPlan {
+	const plan: MissionRewardPlan = { coins: mission.reward.coins, stored: [], sold: [] };
+	const held: Record<number, number> = {};
+	for (const item of mission.reward.items ?? []) {
+		const product = itemCatalog.find((entry) => entry.id === item.productId);
+		if (!product || item.quantity <= 0) continue;
+		const sells = state.market.unlockedProductIds.includes(product.id);
+		const have = (state.inventory[product.id] ?? 0) + (held[product.id] ?? 0);
+		const room = sells ? Math.max(0, getInventoryCapacity(product, state.inventoryCapacityLevels[product.id]) - have) : 0;
+		const keep = Math.min(item.quantity, room);
+		if (keep > 0) {
+			plan.stored.push({ productId: product.id, quantity: keep });
+			held[product.id] = (held[product.id] ?? 0) + keep;
+		}
+		const rest = item.quantity - keep;
+		if (rest > 0) {
+			const value = Math.max(1, Math.round(rest * product.purchasePrice));
+			plan.sold.push({ productId: product.id, quantity: rest, coins: value, reason: sells ? "full" : "locked" });
+			plan.coins += value;
+		}
+	}
+	return plan;
+}
+
+/** The reward as the player reads it: the coins, each product, and products turned into coins (and why). */
+export function describeMissionReward(
+	mission: MissionDefinition,
+	state: Pick<GameState, "inventory" | "inventoryCapacityLevels" | "market">,
+) {
+	const plan = getMissionRewardPlan(mission, state);
+	const name = (id: number) => itemCatalog.find((item) => item.id === id)?.name ?? "Produto";
+	const coins = (value: number) => value.toLocaleString("pt-BR");
+	return [
+		`${coins(mission.reward.coins)} moedas`,
+		...plan.stored.map((item) => `${item.quantity}× ${name(item.productId)}`),
+		...plan.sold.map(
+			(item) =>
+				`${item.quantity}× ${name(item.productId)} → +${coins(item.coins)} moedas (${item.reason === "full" ? "sem espaço no depósito" : "ainda não vende"})`,
+		),
+	];
 }

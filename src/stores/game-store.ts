@@ -198,7 +198,7 @@ import { getOrderSkipCost, getSupplierOrderStatus } from "@/services/logistics";
 import { getSkipDiamondCost } from "@/data/diamond-skip";
 import { createRewardedAdsState, normalizeRewardedAdsState, rewardAd } from "@/services/rewarded-ads";
 import { getCurrencyPack, getCurrencyPackCoins } from "@/data/currency-packs";
-import { getMissionProgress } from "@/services/missions";
+import { getMissionProgress, getMissionRewardPlan } from "@/services/missions";
 import { getProductionDiamondCost } from "@/services/production";
 import {
 	applyExperience,
@@ -1193,23 +1193,13 @@ export const useGameStore = create<GameStore>()(
 					return false;
 				}
 
+				// Products that don't fit in the stockroom (or aren't sold yet) come as coins instead: the
+				// mission never gets stuck behind a full stockroom.
+				const plan = getMissionRewardPlan(mission, state);
 				const inventory = { ...state.inventory };
 				const inventoryLots = { ...state.inventoryLots };
-
-				for (const item of mission.reward.items ?? []) {
-					if (
-						!canAddToInventory(
-							item.productId,
-							item.quantity,
-							inventory,
-							state.inventoryCapacityLevels,
-						)
-					) {
-						return false;
-					}
-
-					inventory[item.productId] =
-						(inventory[item.productId] ?? 0) + item.quantity;
+				for (const item of plan.stored) {
+					inventory[item.productId] = (inventory[item.productId] ?? 0) + item.quantity;
 					inventoryLots[item.productId] = appendInventoryLots(
 						inventoryLots[item.productId],
 						createInventoryLots(item.productId, item.quantity),
@@ -1217,7 +1207,7 @@ export const useGameStore = create<GameStore>()(
 				}
 
 				set({
-					coins: state.coins + mission.reward.coins,
+					coins: state.coins + plan.coins,
 					inventory,
 					inventoryLots,
 					missions: {

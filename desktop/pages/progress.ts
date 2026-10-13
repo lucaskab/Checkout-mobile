@@ -18,7 +18,7 @@ import {
 	getAchievementStars,
 	getAchievementTotals,
 } from "@/services/achievements";
-import { getMissionProgress, getMissionStatus } from "@/services/missions";
+import { describeMissionReward, getMissionProgress, getMissionStatus } from "@/services/missions";
 import {
 	canClaimDailyLogin,
 	getLoginReward,
@@ -102,9 +102,6 @@ function formatCompactNumber(value: number) {
 	if (value >= 1_000) return `${value / 1_000}k`;
 	return value.toString();
 }
-
-const productName = (id: number) =>
-	itemCatalog.find((item) => item.id === id)?.name ?? `#${id}`;
 
 // Weekly event: this week's theme, its goal and the prize.
 function weeklyEventCard(state: Parameters<Routes[string]>[0]): Card {
@@ -279,12 +276,7 @@ export const routes: Routes = {
 					: status === "claimed"
 						? " · ✓ RESGATADA"
 						: "";
-			const rewards = [
-				`${fmt(mission.reward.coins)} moedas`,
-				...(mission.reward.items ?? []).map(
-					(item) => `${item.quantity}× ${productName(item.productId)}`,
-				),
-			];
+			const rewards = describeMissionReward(mission, state);
 			cards.push(
 				card(mission.title, {
 					eyebrow: `${missionCategoryLabels[mission.category]}${tag}`,
@@ -309,8 +301,8 @@ export const routes: Routes = {
 							? [
 									act("Resgatar", "claimMission", [mission.id], {
 										variant: "success",
-										ok: "Recompensa resgatada e adicionada ao mercado.",
-										fail: "Não foi possível resgatar. Verifique o espaço disponível no estoque.",
+										ok: `Recompensa resgatada: ${rewards.join(", ")}`,
+										fail: "Não foi possível resgatar.",
 									}),
 								]
 							: [],

@@ -258,7 +258,8 @@ namespace Checkout {
    // Distinct trucks (one per order, or per box when it has none) and the shelves running low, counted without LINQ.
    int trucks=0,low=0;
    if(s?.dock!=null){truckIds.Clear();foreach(var d in s.dock)truckIds.Add(string.IsNullOrEmpty(d.orderId)?d.id:d.orderId);trucks=truckIds.Count;}
-   var slots=s?.restockSlots;if(slots!=null)foreach(var x in slots)if(x.reserve>0&&x.stock<x.capacity*.35f)low++;
+   // REPOR only calls for shelves that ran out: then a whole box goes in (a shelf with a few left can wait).
+   var slots=s?.restockSlots;if(slots!=null)foreach(var x in slots)if(x.reserve>0&&x.stock<=0)low++;
    // The shop and shelf windows cover the corner where these buttons float.
    bool free=!IsOpen&&!OtherGameOpen&&!CheckoutDesktopHUD.ShopOpen;
    dockFab.gameObject.SetActive(free&&trucks>0);if(trucks>0&&trucks!=shownTrucks){shownTrucks=trucks;dockCount.text=trucks.ToString();}

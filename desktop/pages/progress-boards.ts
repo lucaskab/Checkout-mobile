@@ -21,7 +21,7 @@ import {
 	getNextLoginDay,
 	LOGIN_STREAK_DAYS,
 } from "@/services/daily-login";
-import { getMissionProgress, getMissionStatus } from "@/services/missions";
+import { describeMissionReward, getMissionProgress, getMissionRewardPlan, getMissionStatus } from "@/services/missions";
 import { getWeekEnd, getWeeklyProgress, getWeeklyReward } from "@/services/weekly-event";
 import type { Routes } from ".";
 import {
@@ -83,15 +83,14 @@ function missionTile(state: State, mission: (typeof missions)[number]): BoardTil
 	const progress = getMissionProgress(mission, state);
 	const status = getMissionStatus(mission, state);
 	const shown = Math.min(progress, mission.goal);
-	const rewards = [
-		`${fmt(mission.reward.coins)} moedas`,
-		...(mission.reward.items ?? []).map((item) => `${item.quantity}× ${productName(item.productId)}`),
-	];
+	// Coins and products; a product with no room in the stockroom comes as coins (getMissionRewardPlan).
+	const rewards = describeMissionReward(mission, state);
+	const plan = getMissionRewardPlan(mission, state);
 	const claim = act("Resgatar", "claimMission", [mission.id], {
 		variant: "success",
 		icon: gameIcon("coin"),
-		ok: "Recompensa resgatada!",
-		fail: "Não deu para resgatar: veja se há espaço no depósito para os itens do prêmio.",
+		ok: `Recompensa resgatada: ${rewards.join(", ")}`,
+		fail: "Não deu para resgatar.",
 	});
 	const where = missionRoute[mission.category];
 	const goThere = where ? go(where[0], where[1], { icon: gameIcon(where[2] as Parameters<typeof gameIcon>[0]) }) : null;
@@ -116,7 +115,7 @@ function missionTile(state: State, mission: (typeof missions)[number]): BoardTil
 		subtitle: mission.description,
 		sticker: status === "claimable" ? "PRONTA!" : status === "locked" ? `NV ${mission.requiredLevel}` : "",
 		tone: status === "claimable" ? "success" : status === "locked" ? "locked" : status === "claimed" ? "info" : "",
-		badge: `+${fmt(mission.reward.coins)}`,
+		badge: `+${fmt(plan.coins)}`,
 		fill: ratio(shown, mission.goal),
 		fillText: `${fmt(shown)} / ${fmt(mission.goal)}`,
 		state: status === "claimable" ? "ready" : status === "locked" ? "locked" : status === "claimed" ? "done" : "",
@@ -125,7 +124,7 @@ function missionTile(state: State, mission: (typeof missions)[number]): BoardTil
 		detail: "",
 		facts: [
 			stat(gameIcon("target"), `${fmt(shown)}/${fmt(mission.goal)}`, "Progresso", status === "claimable" ? "success" : ""),
-			stat(gameIcon("coin"), fmt(mission.reward.coins), "Moedas de prêmio", "gold"),
+			stat(gameIcon("coin"), fmt(plan.coins), "Moedas de prêmio", "gold"),
 			stat(gameIcon("clipboard"), missionCategory[mission.category], "Categoria"),
 			stat(gameIcon("crown"), `Nv ${mission.requiredLevel}`, "Nível mínimo"),
 		],
@@ -256,7 +255,7 @@ function missionsBoard(state: State, args: string[]) {
 							a.mission.goal - b.mission.goal,
 					)
 					.map(({ mission }) => missionTile(state, mission));
-	const prize = claimable.reduce((total, entry) => total + entry.mission.reward.coins, 0);
+	const prize = claimable.reduce((total, entry) => total + getMissionRewardPlan(entry.mission, state).coins, 0);
 	return page(`missions:${active}`, "Missões", [], {
 		layout: "board",
 		icon: gameIcon("trophy"),

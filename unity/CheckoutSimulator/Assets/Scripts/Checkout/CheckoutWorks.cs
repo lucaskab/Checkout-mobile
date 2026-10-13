@@ -13,7 +13,7 @@ namespace Checkout
     // Works_Tools: one root object per item, found by name). Every file has one baked atlas <file>_BaseColor.
     public static class CheckoutWorksKit
     {
-        static readonly string[] Kits = { "Works_Site", "Works_Carry", "Works_Tools" };
+        static readonly string[] Kits = { "Works_Site", "Works_Carry", "Works_Tools", "Works_BancaKit" };
         static readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
         static readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
         static Material missing;
@@ -35,6 +35,14 @@ namespace Checkout
             m.SetFloat("_Glossiness", .12f);
             materials[file] = m;
             return m;
+        }
+
+        /// <summary>Is there a model for `name` (its own file, or an item in one of the kits)?</summary>
+        public static bool Has(string name)
+        {
+            if (Prefab(name)) return true;
+            foreach (var kit in Kits) { var k = Prefab(kit); if (k && FindPart(k.transform, name)) return true; }
+            return false;
         }
 
         public static Transform FindPart(Transform root, string name)
@@ -166,6 +174,8 @@ namespace Checkout
             public Animation anim; public string clip;
             public Tool use; public Vector3 a, b, look; public string carry;
             public int phase; public float clock, wait, speed = 1, yaw, seed; public bool carrier, foreman;
+            // A long load (planks) goes on the shoulder, lengthwise; plankFix turns its long axis to the holder's +Z.
+            public bool shoulder; public Quaternion plankFix = Quaternion.identity;
         }
         readonly List<Worker> workers = new List<Worker>();
 
@@ -211,6 +221,35 @@ namespace Checkout
         }
 
         public void OnProgress(Action<float> step) => progressItems.Add(step);
+
+        /// <summary>The last worker added (and his tool) only shows while `when(progress)` holds (a roofer on his
+        /// ladder once the roof goes up, ...).</summary>
+        public void ShowLastWhile(Func<float, bool> when)
+        {
+            if (workers.Count == 0) return;
+            var w = workers[workers.Count - 1];
+            progressItems.Add(p => { bool on = when(p); if (w.body && w.body.gameObject.activeSelf != on) w.body.gameObject.SetActive(on); if (w.tool && w.tool.gameObject.activeSelf != on) w.tool.gameObject.SetActive(on); });
+        }
+
+        /// <summary>Parts of a model put in place one after the other over the works: each one is lowered into its
+        /// spot over the first part of its window [from, to] (a little dust when it lands) and stays.</summary>
+        public void Assemble(Transform model, string part, float from, float to)
+        {
+            var t = CheckoutWorksKit.FindPart(model, part); if (!t) return;
+            var rest = t.localPosition; var size = t.localScale; bool landed = false;
+            progressItems.Add(p =>
+            {
+                if (!t) return;
+                float k = Mathf.Clamp01(Mathf.InverseLerp(from, from + (to - from) * .35f, p));
+                bool on = p >= from;
+                if (t.gameObject.activeSelf != on) t.gameObject.SetActive(on);
+                if (!on) { landed = false; return; }
+                float e = 1 - Mathf.Pow(1 - k, 3);
+                t.localPosition = rest + (t.parent ? t.parent.InverseTransformVector(Vector3.up * (1 - e) * .9f) : Vector3.up * (1 - e) * .9f);
+                t.localScale = size * Mathf.Lerp(.92f, 1f, e);
+                if (k >= 1 && !landed) { landed = true; if (Time.timeSinceLevelLoad > 2) Burst(t.position, 5); }
+            });
+        }
 
         /// <summary>A blow on the work (a sledgehammer or hammer landing, an excavator's bucket or the wrecking ball
         /// hitting): CheckoutRuinDemolition breaks the next piece of the ruin on it.</summary>
@@ -359,6 +398,14 @@ namespace Checkout
             {
                 w.prop = CheckoutWorksKit.Spawn(prop, transform, from, Vector3.forward);
                 var m = w.prop.Find("Model"); if (m) m.localPosition = Vector3.zero;
+                if (prop.Contains("Plank"))
+                {
+                    // Measured with the holder unturned: the plank's long side becomes the holder's +Z.
+                    w.shoulder = true; w.prop.rotation = Quaternion.identity;
+                    var pb = CheckoutWorksKit.Bounds(w.prop.gameObject);
+                    w.plankFix = pb.size.x > pb.size.z ? Quaternion.Euler(0, -90, 0) : Quaternion.identity;
+                    if (m) m.position -= pb.center - w.prop.position;   // carried by its middle
+                }
                 w.prop.gameObject.SetActive(false);
             }
         }
@@ -436,8 +483,8 @@ namespace Checkout
             var delta = target - w.body.position; delta.y = 0;
             if (delta.magnitude < .06f) return true;
             w.body.rotation = Quaternion.RotateTowards(w.body.rotation, Quaternion.LookRotation(delta), dt * 260);
-            if (Vector3.Angle(w.body.forward, delta) > 35) { Play(w, loaded ? "CarryIdle" : "Idle"); return false; }
-            Play(w, loaded ? "CarryWalking" : "Walking");
+            if (Vector3.Angle(w.body.forward, delta) > 35) { Play(w, loaded && !w.shoulder ? "CarryIdle" : "Idle"); return false; }
+            Play(w, loaded && !w.shoulder ? "CarryWalking" : "Walking");
             w.body.position = Vector3.MoveTowards(w.body.position, new Vector3(target.x, w.body.position.y, target.z), dt * (loaded ? 1.05f : 1.25f));
             return false;
         }
@@ -532,7 +579,15 @@ namespace Checkout
             foreach (var w in workers)
             {
                 if (!w.body) continue;
-                if (w.prop && w.prop.gameObject.activeSelf && w.handL && w.handR)
+                if (w.prop && w.prop.gameObject.activeSelf && w.shoulder && w.upperR)
+                {
+                    // On the right shoulder, lengthwise, the right hand up on it (the left arm swings with the walk).
+                    var side = w.body.right;
+                    w.upperR.rotation = Quaternion.AngleAxis(-150, side) * w.upperR.rotation;
+                    w.prop.position = w.upperR.position + Vector3.up * .1f + side * .02f;
+                    w.prop.rotation = Quaternion.LookRotation(CheckoutWorksKit.Flat(w.body.forward), Vector3.up) * w.plankFix;
+                }
+                else if (w.prop && w.prop.gameObject.activeSelf && w.handL && w.handR)
                 {
                     w.prop.position = (w.handL.position + w.handR.position) * .5f + Vector3.down * .3f + w.body.forward * .15f;
                     w.prop.rotation = Quaternion.LookRotation(w.body.right, Vector3.up);

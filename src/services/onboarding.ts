@@ -98,7 +98,8 @@ export function hasLowShelf(state: GameState) {
 		return getShelfSlotIds(shelf.id, count).some((slotId) => {
 			const productId = state.shelfAssignments[slotId];
 			if (!productId) return false;
-			return (state.inventory[productId] ?? 0) > 0 && (state.shelfStock[slotId] ?? 0) < capacity * 0.35;
+			// Same rule as the REPOR button (Unity CheckoutStockroom): only a shelf that ran out calls for a box.
+			return capacity > 0 && (state.inventory[productId] ?? 0) > 0 && (state.shelfStock[slotId] ?? 0) <= 0;
 		});
 	});
 }

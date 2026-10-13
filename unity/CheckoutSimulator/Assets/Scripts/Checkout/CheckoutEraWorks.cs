@@ -23,9 +23,19 @@ namespace Checkout
 
         public void Initialize(Transform root) { world = root; }
 
+#if UNITY_EDITOR
+        // Editor preview (menu Checkout/Dev/Works preview): shows an expansion's works at a given progress without
+        // touching the save. Null: the snapshot decides, as in the game.
+        public static EraConstruction Preview;
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] static void ResetPreview() => Preview = null;
+#endif
+
         public void Apply(Snapshot snapshot)
         {
             var obra = snapshot?.era?.construction;
+#if UNITY_EDITOR
+            if (Preview != null) obra = Preview;
+#endif
             string next = obra != null && !string.IsNullOrEmpty(obra.eraId) && !CheckoutMapEditor.Open ? obra.eraId + ":" + obra.startedAt : null;
             if (next == key) { if (scene && obra != null) scene.SetTimes(obra.startedAt, obra.endsAt); return; }
             Clear();
@@ -68,9 +78,46 @@ namespace Checkout
                     s.Foreman(G(cx + 3.6f, -3.6f), G(cx + 3.6f, -6.4f), G(cx, -4.9f), 3);
                     break;
                 }
+                case "banca" when CheckoutWorksKit.Has("Works_BancaBuild") && CheckoutWorksKit.Has("Works_LumberTruck") && CheckoutWorksKit.Has("Prop_SawStation"):
+                {
+                    // Carpenters build the wooden fair stall behind the tent, in the order a real one goes up: the
+                    // footprint is strung out, the posts go in, then the counter frame, the counter boards, the
+                    // sides and the produce rack, the roof beams and last the striped awning with the sign.
+                    // The lumber comes on a flatbed parked at the back of the lot (its bundles run out as the
+                    // stall grows): one carpenter carries the planks to a stack by the stall, another takes them
+                    // from the stack to the stall, one saws at the sawhorses, one hammers the counter, a roofer
+                    // works from a ladder once the roof goes up and the foreman checks the plans in front.
+                    var spot = BancaSpot;
+                    var build = s.Prop("Works_BancaBuild", spot, South, 1.2f);
+                    string[] stages = { "Stage_0", "Stage_1", "Stage_2", "Stage_3", "Stage_4", "Stage_5" };
+                    float[] at = { .02f, .17f, .32f, .48f, .63f, .80f, .97f };
+                    for (int i = 0; i < stages.Length; i++) s.Assemble(build, stages[i], at[i], at[i + 1]);
+                    var truck = s.Prop("Works_LumberTruck", G(-14.4f, 3.55f), West);
+                    for (int i = 0; i < 4; i++)
+                    {
+                        var load = CheckoutWorksKit.FindPart(truck, "Load_" + i); float gone = .22f + i * .19f;
+                        if (load) s.OnProgress(p => { bool on = p < gone; if (load.gameObject.activeSelf != on) load.gameObject.SetActive(on); });
+                    }
+                    s.Prop("Prop_PlankStackV2", G(-7.3f, .9f), North);
+                    s.Prop("Prop_SawStation", G(-15.9f, -1.4f), South);
+                    s.Prop("Prop_NailBucket", G(-13.4f, -1.1f), South);
+                    s.Prop("Prop_TapeBarrier", G(-15.6f, -3.3f), South);
+                    s.Prop("Prop_Sawdust", G(-12.2f, -1.0f), South);
+                    var ladder = s.Prop("Prop_StepLadder", G(-10.1f, -.75f), North);
+                    s.OnProgress(p => { bool on = p >= .6f; if (ladder.gameObject.activeSelf != on) ladder.gameObject.SetActive(on); });
+                    s.ToolWorker(G(-15.6f, -2.2f), G(-15.6f, -1.4f), CheckoutWorksScene.Tool.Saw, 0);
+                    s.Carrier(G(-11.2f, 3.3f), G(-7.3f, 2.7f), "Prop_PlankV2", 1);
+                    s.Carrier(G(-7.3f, -.7f), G(-9.4f, -1.25f), "Prop_PlankV2", 4);
+                    s.ToolWorker(G(-12.6f, -1.4f), G(-12.6f, -.4f), CheckoutWorksScene.Tool.Hammer, 2);
+                    // The roofer stands on the ladder's third step, facing the roof beams.
+                    s.ToolWorker(new Vector3(-10.1f, .13f + .82f, -.95f), new Vector3(-10.1f, 2.6f, .4f), CheckoutWorksScene.Tool.Drill, 5);
+                    s.ShowLastWhile(p => p >= .63f && p < .97f);
+                    s.Foreman(G(-13.6f, -2.55f), G(-9.6f, -2.55f), spot, 3);
+                    break;
+                }
                 case "banca":
                 {
-                    // Carpenters build the wooden stall behind the tent.
+                    // Carpenters build the wooden stall behind the tent (old kit, while the new models are missing).
                     var frame = s.Prop("Works_StallFrame", G(cx, 1.0f), South, 1.15f); s.Grow(frame, 0, .9f);
                     s.Prop("Prop_Sawhorse", G(cx - 4.2f, -1.6f), East);
                     s.ToolWorker(G(cx - 4.2f, -2.4f), G(cx - 4.2f, -1.6f), CheckoutWorksScene.Tool.Saw, 0);
@@ -178,13 +225,40 @@ namespace Checkout
                     break;
                 }
             }
-            // The countdown floats over the works.
-            var b = CheckoutWorksKit.Bounds(s.gameObject);
-            float top = b.size.sqrMagnitude > 0 ? Mathf.Clamp(b.max.y + 1.4f, 4.2f, 9f) : 5f;
-            var centre = b.size.sqrMagnitude > 0 ? b.center : G(cx, 0);
-            if (era == "supermercado" || era == "hipermercado") { centre = BigCentre; top = 13f; }
-            s.Countdown(new Vector3(centre.x, top, centre.z), "OBRA", "~loja:expansoes");
+            // The countdown floats right over what is being built (the frame, the walls...), just above it: measured
+            // on the props near that spot, never on the crew (a skinned worker's bounds still sit where the template
+            // stood until he is first drawn, which put the pill over the middle of the lots) nor a truck on the road.
+            var focus = Focus(era);
+            float top = 4.2f;
+            foreach (var r in s.GetComponentsInChildren<Renderer>(false))
+            {
+                if (r is SkinnedMeshRenderer) continue;
+                var c = r.bounds.center; if (new Vector2(c.x - focus.x, c.z - focus.z).sqrMagnitude > 3f * 3f) continue;
+                top = Mathf.Max(top, r.bounds.max.y + 1.2f);
+            }
+            top = Mathf.Min(top, 7f);
+            if (era == "supermercado" || era == "hipermercado") { focus = BigCentre; top = 13f; }
+            s.Countdown(new Vector3(focus.x, top, focus.z), "OBRA", "~loja:expansoes");
         }
+
+        // What each expansion's works are building (the middle of it).
+        static Vector3 Focus(string era)
+        {
+            const float cx = -11.5f;
+            switch (era)
+            {
+                case "tenda": return G(cx, -4.9f);
+                case "banca": return BancaSpot;
+                case "conteiner": return G(cx, 1.5f);
+                case "spati": return G(cx, 1.3f);
+                case "quitanda": return G(cx, 2.1f);
+                case "minimercado": return G(-1.6f, -3.6f);
+                case "mercadinho": return G(1.9f, -3.5f);
+                case "rede": return new Vector3(0, 0, -3.6f);
+                default: return G(cx, 0);
+            }
+        }
+        static Vector3 BancaSpot => G(-11.5f, .6f);
 
         Vector3 BigCentre;
 
