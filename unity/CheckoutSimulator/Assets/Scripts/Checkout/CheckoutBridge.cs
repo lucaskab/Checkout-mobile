@@ -100,7 +100,7 @@ namespace Checkout {
    Debug.LogWarning("CHECKOUT_RECEIPT "+command.action+" "+command.args+" -> "+receipt.reason);
   }
   public static void Emit(string json){
-#if UNITY_ANDROID && !UNITY_EDITOR
+#if UNITY_ANDROID && !UNITY_EDITOR && !CHECKOUT_EMBEDDED
    using(var module=new AndroidJavaClass("com.azesmwayreactnativeunity.ReactNativeUnityViewManager"))module.CallStatic("sendMessageToMobileApp",json);
 #elif UNITY_IOS && !UNITY_EDITOR && !CHECKOUT_EMBEDDED
    sendMessageToMobileApp(json);

@@ -1,11 +1,56 @@
 // Runs first in the embedded build (desktop/embedded/entry.ts): the game host normally runs under Node or Bun as a
 // separate program next to Unity. On the iPhone it runs inside the Unity player, in the system JavaScript engine
-// (JavaScriptCore), which has the language but none of Node's or the browser's extras. This file gives the host the
+// (JavaScriptCore); on Android, in QuickJS compiled into the player. Both have the language but none of Node's or
+// the browser's extras. This file gives the host the
 // few it uses: console, timers (driven by Unity calling __checkoutTick every frame), and a `process` whose stdout
 // goes to Unity (one JSON message per line) and whose env carries the language picked on the start screen.
-type Native = { send(line: string): void; log(text: string): void; save(text: string): void; load(): string; lang: string };
+type Native = {
+	send(line: string): void;
+	log(text: string): void;
+	save(text: string): void;
+	load(): string;
+	lang: string;
+	/** "android" (QuickJS, Assets/Plugins/Android/QuickJS/CheckoutJS.c); the iPhone plugin does not set it. */
+	platform?: string;
+};
 const g = globalThis as Record<string, unknown> & { __native: Native };
 const native = g.__native;
+
+// ------------------------------------------------------------------ numbers and sorting in pt-BR
+// The game formats every number with toLocaleString("pt-BR") and sorts names with localeCompare(…, "pt-BR").
+// JavaScriptCore (iPhone) has Intl and does it natively; QuickJS (Android) has no Intl, so its toLocaleString
+// ignores the locale ("130370" instead of "130.370"). This stands in for the two calls, same output as Intl.
+if (typeof g.Intl === "undefined") {
+	type Digits = { minimumFractionDigits?: number; maximumFractionDigits?: number };
+	Number.prototype.toLocaleString = function (this: number, _locales?: unknown, options?: Digits) {
+		return formatPtBr(Number(this), options);
+	};
+	String.prototype.localeCompare = function (this: string, that: unknown) {
+		return comparePtBr(String(this), String(that));
+	};
+}
+export function formatPtBr(value: number, options?: { minimumFractionDigits?: number; maximumFractionDigits?: number }) {
+	if (!Number.isFinite(value)) return String(value);
+	const min = Math.max(0, Math.min(20, options?.minimumFractionDigits ?? 0));
+	const max = Math.max(min, Math.min(20, options?.maximumFractionDigits ?? Math.max(min, 3)));
+	const fixed = Math.abs(value).toFixed(max);
+	if (fixed.includes("e")) return String(value);
+	const [whole, decimals = ""] = fixed.split(".");
+	let fraction = decimals.replace(/0+$/, "");
+	while (fraction.length < min) fraction += "0";
+	const sign = value < 0 && Number(fixed) !== 0 ? "-" : "";
+	return sign + whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (fraction ? "," + fraction : "");
+}
+// Like a collator: letters first (accents and case ignored), then accents (plain first), then case (lowercase first).
+export function comparePtBr(a: string, b: string) {
+	const base = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+	const order = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+	return (
+		order(base(a), base(b)) ||
+		order(a.normalize("NFD").toLowerCase(), b.normalize("NFD").toLowerCase()) ||
+		-order(a.normalize("NFD"), b.normalize("NFD"))
+	);
+}
 
 if (typeof g.console === "undefined") {
 	const log = (...parts: unknown[]) => native.log(parts.map((p) => (typeof p === "string" ? p : safe(p))).join(" "));
@@ -57,7 +102,7 @@ const handlers: Record<string, (() => void)[]> = {};
 g.process = {
 	env: { CHECKOUT_LANG: native.lang },
 	argv: [],
-	platform: "ios",
+	platform: native.platform ?? "ios",
 	stdout: {
 		write(chunk: string) {
 			pending += chunk;

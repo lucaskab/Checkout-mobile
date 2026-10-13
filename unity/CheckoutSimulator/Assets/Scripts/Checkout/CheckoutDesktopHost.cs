@@ -6,9 +6,10 @@ using UnityEngine;
 using Debug = UnityEngine.Debug;
 namespace Checkout {
  // Desktop stand-in for the React Native app: spawns desktop/host.ts (the real game store under
- // Node) and exchanges the same bridge messages over stdin/stdout. The stand-alone iPhone build
- // (CHECKOUT_EMBEDDED, Checkout/iPhone menu) runs the same game logic inside the player instead: the
- // bundle Resources/CheckoutGame/game.txt in JavaScriptCore (Plugins/iOS/CheckoutJS.mm), same messages.
+ // Node) and exchanges the same bridge messages over stdin/stdout. The stand-alone phone builds
+ // (CHECKOUT_EMBEDDED: Checkout/iPhone and Checkout/Android menus) run the same game logic inside the player
+ // instead: the bundle Resources/CheckoutGame/game.txt in JavaScriptCore on the iPhone (Plugins/iOS/CheckoutJS.mm)
+ // or QuickJS on Android (Plugins/Android/QuickJS/CheckoutJS.c), same C functions, same messages.
  [DefaultExecutionOrder(-600)]
  public class CheckoutDesktopHost:MonoBehaviour {
   public static CheckoutDesktopHost Active {get;private set;}
@@ -40,8 +41,8 @@ namespace Checkout {
    return File.Exists(path)?path:null;
   }
   public static bool IsRelease=>Embedded||BundledHost()!=null;
-  // The game logic runs inside the player (stand-alone iPhone build).
-#if CHECKOUT_EMBEDDED && UNITY_IOS && !UNITY_EDITOR
+  // The game logic runs inside the player (stand-alone iPhone and Android builds).
+#if CHECKOUT_EMBEDDED && (UNITY_IOS || UNITY_ANDROID) && !UNITY_EDITOR
   public static bool Embedded=>true;
   [System.Runtime.InteropServices.DllImport("__Internal")] [return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.I1)] static extern bool CheckoutJS_Start(byte[] script,int scriptLength,byte[] lang,int langLength,byte[] save,int saveLength);
   [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutJS_Send(byte[] json,int length);
@@ -56,7 +57,7 @@ namespace Checkout {
    if(!game){Debug.LogError("CHECKOUT_EMBEDDED Resources/CheckoutGame/game.txt is missing");return false;}
    var script=game.bytes;var lang=Utf8(CheckoutI18n.Language);var path=Utf8(save);
    embeddedOn=CheckoutJS_Start(script,script.Length,lang,lang.Length,path,path.Length);
-   if(!embeddedOn)Debug.LogError("CHECKOUT_EMBEDDED the game logic did not start (see the Xcode console)");
+   if(!embeddedOn)Debug.LogError("CHECKOUT_EMBEDDED the game logic did not start (see the Xcode console or adb logcat)");
    return embeddedOn;
   }
   void PumpEmbedded(){
@@ -111,8 +112,9 @@ namespace Checkout {
   void Awake(){
    bridge=GetComponent<CheckoutBridge>();
    if(Embedded){
-    // The iPhone keeps its own save in the app's documents.
-    if(!StartEmbedded(Path.Combine(Application.persistentDataPath,"checkout-iphone-save.json"))){Destroy(this);return;}
+    // The phone keeps its own save in the app's private storage.
+    var file=Application.platform==RuntimePlatform.Android?"checkout-android-save.json":"checkout-iphone-save.json";
+    if(!StartEmbedded(Path.Combine(Application.persistentDataPath,file))){Destroy(this);return;}
     Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
     CheckoutIap.Attach(this);CheckoutAds.Attach(this);CheckoutCloud.Attach(this);
     return;
