@@ -104,6 +104,16 @@ export function rewardAd(state: RewardedAdsState | undefined, adId: string, now 
 	};
 }
 
+/**
+ * A video of another placement (the missed contract's consolation, doubling the daily gift): those have their own
+ * once-a-day rules and do not use the five diamond videos of the day, but each video id still pays only once.
+ */
+export function creditPlacementAd(state: RewardedAdsState | undefined, adId: string, now = Date.now()) {
+	const ads = normalizeRewardedAdsState(state);
+	if (!adId || ads.processedIds.includes(adId)) return null;
+	return { ...ads, lastAt: ads.lastAt, total: ads.total + 1, processedIds: [...ads.processedIds.slice(-49), adId], day: ads.day || getDayKey(now) };
+}
+
 /** "2:41" / "5 h 12 min" for the wait. */
 export function formatAdWait(ms: number) {
 	const minutes = Math.ceil(ms / 60_000);

@@ -19,6 +19,7 @@ import {
 	dayContractRewardMultiplier,
 } from "@/data/day-contracts";
 import { type DayForecast, getFallbackDayForecast } from "@/services/day-forecast";
+import { CHALLENGE_EXTRA, type ContractPressure, getContractPressure, nextContractMomentum } from "@/services/contract-pressure";
 import {
 	getContractCoins,
 	getContractExperience,
@@ -132,14 +133,33 @@ export function createEmptyDayStats(): DayStats {
 
 // ---------------------------------------------------------------- contracts
 
+function scaleForecast(forecast: DayForecast, factor: number): DayForecast {
+	if (factor === 1) return forecast;
+	return {
+		...forecast,
+		revenue: forecast.revenue * factor,
+		profit: forecast.profit * factor,
+		customers: forecast.customers * factor,
+		units: forecast.units * factor,
+		requests: forecast.requests * factor,
+		unitsByCategory: Object.fromEntries(Object.entries(forecast.unitsByCategory).map(([id, units]) => [id, units * factor])),
+	};
+}
+
 function buildContract(
 	definition: DayContractDefinition,
 	level: number,
 	forecast: DayForecast,
 	category?: { id: string; label: string },
+	pressure: ContractPressure = { factor: 1, challenge: false },
 ): DayContract {
-	const target = definition.target(level, forecast, category?.id);
-	const multiplier = dayContractRewardMultiplier[definition.difficulty];
+	// Satisfaction is a percentage: harder means a few points more (capped), not a multiple.
+	const target =
+		definition.kind === "satisfaction"
+			? Math.min(90, definition.target(level, forecast, category?.id) + Math.round((pressure.factor - 1) * 25))
+			: definition.target(level, scaleForecast(forecast, pressure.factor), category?.id);
+	// A harder day pays in proportion (and a challenge a little more on top); an easier one pays its share.
+	const multiplier = dayContractRewardMultiplier[definition.difficulty] * pressure.factor * (pressure.challenge ? 1.25 : 1);
 	const label = category?.label ?? "";
 	return {
 		id: category ? `${definition.id}:${category.id}` : definition.id,
@@ -149,6 +169,7 @@ function buildContract(
 		title: definition.title(label),
 		description: definition.description(target, label),
 		target,
+		...(pressure.challenge ? { challenge: true } : {}),
 		category: category?.id,
 		categoryLabel: category?.label,
 		reward: {
@@ -165,7 +186,9 @@ export function createDayOffers(
 	dayNumber: number,
 	level: number,
 	context?: Pick<DayStoreContext, "catalog" | "shelfProductIds" | "forecast">,
+	momentum = 0,
 ): DayContract[] {
+	const pressure = getContractPressure(momentum, dayNumber);
 	// Neighbouring days hash far apart (plain consecutive seeds kept drawing the same contracts).
 	const random = seeded(mixSeed(dayNumber * 97 + level * 13));
 	const forecast = context?.forecast ?? getFallbackDayForecast(level);
@@ -184,7 +207,7 @@ export function createDayOffers(
 			}),
 		).values(),
 	);
-	const offers: DayContract[] = [];
+	const picks: { definition: DayContractDefinition; category?: { id: string; label: string } }[] = [];
 	for (const difficulty of [1, 2, 3] as const) {
 		const candidates = dayContractDefinitions.filter(
 			(definition) =>
@@ -194,16 +217,13 @@ export function createDayOffers(
 		);
 		const definition = pick(candidates, random);
 		if (!definition) continue;
-		offers.push(
-			buildContract(
-				definition,
-				level,
-				forecast,
-				definition.kind === "category" ? pick(categories, random) : undefined,
-			),
-		);
+		picks.push({ definition, category: definition.kind === "category" ? pick(categories, random) : undefined });
 	}
-	return offers;
+	// The challenge day makes only its hardest offer the "Desafio"; the other ones just climb.
+	const climb = { factor: Math.round((pressure.factor - (pressure.challenge ? CHALLENGE_EXTRA : 0)) * 100) / 100, challenge: false };
+	return picks.map(({ definition, category }, index) =>
+		buildContract(definition, level, forecast, category, pressure.challenge && index === picks.length - 1 ? pressure : climb),
+	);
 }
 
 export type ContractProgress = {
@@ -903,6 +923,7 @@ export function closeMarketDay(
 		...settled,
 		endsAt: now,
 		phase: "results",
+		contractMomentum: nextContractMomentum(settled.contractMomentum, Boolean(settled.contract), progress.completed),
 		result: {
 			averageSatisfaction: getAverageSatisfaction(stats),
 			bonus,
@@ -935,7 +956,7 @@ export function refreshDayOffers(
 	if (day.phase !== "planning" || day.offersRevision === DAY_OFFERS_REVISION || !context.forecast) return null;
 	return {
 		...day,
-		offers: createDayOffers(day.dayNumber, level, context),
+		offers: createDayOffers(day.dayNumber, level, context, day.contractMomentum),
 		offersRevision: DAY_OFFERS_REVISION,
 	};
 }
@@ -953,7 +974,7 @@ export function advanceMarketDay(
 		contract: null,
 		dayNumber,
 		endsAt: null,
-		offers: createDayOffers(dayNumber, level, context),
+		offers: createDayOffers(dayNumber, level, context, day.contractMomentum),
 		offersRevision: context?.forecast ? DAY_OFFERS_REVISION : 0,
 		phase: "planning",
 		requests: [],

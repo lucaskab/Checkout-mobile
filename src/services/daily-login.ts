@@ -10,6 +10,8 @@ export type DailyLoginState = {
 	lastClaimDay: string;
 	/** Days in a row claimed so far (1–7 after a claim). */
 	streak: number;
+	/** Day the gift was doubled with a video (once a day, after claiming it). */
+	bonusDay?: string;
 };
 
 export const LOGIN_STREAK_DAYS = 7;
@@ -30,6 +32,7 @@ export function normalizeDailyLoginState(value: unknown): DailyLoginState {
 			typeof item.streak === "number" && Number.isFinite(item.streak)
 				? Math.max(0, Math.min(LOGIN_STREAK_DAYS, Math.floor(item.streak)))
 				: 0,
+		...(typeof item.bonusDay === "string" && item.bonusDay ? { bonusDay: item.bonusDay } : {}),
 	};
 }
 
@@ -42,6 +45,12 @@ export function getDayKey(now: number) {
 
 export function canClaimDailyLogin(state: DailyLoginState | undefined, now: number) {
 	return (state?.lastClaimDay ?? "") !== getDayKey(now);
+}
+
+/** Today's gift was claimed and not doubled yet: a video doubles it (once a day). */
+export function canDoubleDailyLogin(state: DailyLoginState | undefined, now: number) {
+	const today = getDayKey(now);
+	return (state?.lastClaimDay ?? "") === today && state?.bonusDay !== today;
 }
 
 /** Day of the streak (1–7) a claim made now would be. */

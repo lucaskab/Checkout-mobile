@@ -196,7 +196,8 @@ import {
 } from "@/services/inventory-lots";
 import { getOrderSkipCost, getSupplierOrderStatus } from "@/services/logistics";
 import { getSkipDiamondCost } from "@/data/diamond-skip";
-import { createRewardedAdsState, normalizeRewardedAdsState, rewardAd } from "@/services/rewarded-ads";
+import { createRewardedAdsState, creditPlacementAd, normalizeRewardedAdsState, rewardAd } from "@/services/rewarded-ads";
+import { canClaimConsolation, rollConsolation } from "@/services/contract-pressure";
 import { getCurrencyPack, getCurrencyPackCoins } from "@/data/currency-packs";
 import { getMissionProgress, getMissionRewardPlan } from "@/services/missions";
 import { getProductionDiamondCost } from "@/services/production";
@@ -1515,6 +1516,44 @@ export const useGameStore = create<GameStore>()(
 					albumClaimedIds: [...claimed, collectionId],
 				});
 				return true;
+			},
+			claimDailyLoginBonus: (adId) => {
+				const now = Date.now();
+				const login = get().dailyLogin ?? createDailyLoginState();
+				// The claimed gift not doubled yet (also when the video ends just after midnight).
+				if (!login.lastClaimDay || login.bonusDay === login.lastClaimDay) return null;
+				const ads = creditPlacementAd(get().rewardedAds, adId, now);
+				if (!ads) return null;
+				const reward = getLoginReward(login.streak || 1, get().era.id);
+				set({
+					coins: get().coins + reward.coins,
+					logistics: { ...get().logistics, premiumCurrency: get().logistics.premiumCurrency + reward.diamonds },
+					dailyLogin: { ...login, bonusDay: login.lastClaimDay },
+					rewardedAds: ads,
+				});
+				return reward;
+			},
+			claimContractConsolation: (adId) => {
+				const { day } = get();
+				if (day.phase !== "results" || !canClaimConsolation(day.result) || !day.result) return null;
+				const prize = rollConsolation(day.result, Math.random());
+				const ads = prize ? creditPlacementAd(get().rewardedAds, adId) : null;
+				if (!prize || !ads) return null;
+				// Coins and diamonds now; the XP goes with the day's own XP when the result is collected.
+				set({
+					coins: get().coins + prize.coins,
+					logistics: { ...get().logistics, premiumCurrency: get().logistics.premiumCurrency + prize.diamonds },
+					rewardedAds: ads,
+					day: {
+						...day,
+						result: {
+							...day.result,
+							consolation: prize,
+							total: { ...day.result.total, experience: day.result.total.experience + prize.experience },
+						},
+					},
+				});
+				return prize;
 			},
 			claimDailyLogin: () => {
 				const now = Date.now();

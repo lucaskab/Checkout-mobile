@@ -17,6 +17,8 @@ import {
 	type State,
 } from "../view-kit";
 import type { Routes } from ".";
+import { canClaimConsolation, getConsolationOffer } from "@/services/contract-pressure";
+import { adsStore, getLastAdEvent, isAdOpening } from "../ads";
 
 // Desktop pages for the market day, mirroring src/components/market-day.
 const clock = (ms: number) => {
@@ -65,11 +67,13 @@ function contractCard(contract: DayContract) {
 			: []),
 	];
 	return card(contract.title, {
-		eyebrow: `CONTRATO · ${difficulty[contract.difficulty]}`,
-		subtitle: contract.description,
+		eyebrow: contract.challenge ? "CONTRATO · DESAFIO DO DIA" : `CONTRATO · ${difficulty[contract.difficulty]}`,
+		subtitle: contract.challenge
+			? `${contract.description} Você está mandando bem: este vale mais!`
+			: contract.description,
 		icon: iconOf(contract.icon),
-		badge: difficulty[contract.difficulty],
-		tone: contract.difficulty === 3 ? "warning" : "",
+		badge: contract.challenge ? "Desafio" : difficulty[contract.difficulty],
+		tone: contract.challenge ? "featured" : contract.difficulty === 3 ? "warning" : "",
 		lines: [`Recompensa: ${rewards.join(" · ")}`],
 		buttons: [
 			act("Aceitar e abrir", "startDay", [contract.id], {
@@ -237,6 +241,52 @@ function openDay(state: State, focusId?: string) {
 	);
 }
 
+// A missed contract: right away, a prize for watching a video (always given, shown before the video).
+function consolationCards(state: State): Card[] {
+	const result = state.day.result;
+	if (!result?.contract || result.contractCompleted) return [];
+	if (result.consolation)
+		return [
+			card("Prêmio de consolação", {
+				eyebrow: "VÍDEO ASSISTIDO",
+				subtitle: `Você ganhou ${result.consolation.label}. Amanhã tem outro contrato!`,
+				icon: gameIcon("gift"),
+				tone: "success",
+				badge: "Recebido",
+			}),
+		];
+	const offer = getConsolationOffer(result);
+	if (!offer) return [];
+	const missing = Math.max(0, 100 - Math.round(result.contractProgress * 100));
+	const waiting = isAdOpening("consolation");
+	const last = getLastAdEvent();
+	return [
+		card(missing <= 25 ? `Quase! Faltaram só ${missing}%` : "Não foi dessa vez", {
+			eyebrow: "PRÊMIO DE CONSOLAÇÃO",
+			subtitle: `Assista um vídeo curto e leve ${offer.coins} moedas na hora, mais um prêmio surpresa.`,
+			icon: gameIcon("gift"),
+			tone: "featured",
+			badge: "Grátis",
+			lines: [
+				`Garantido: +${fmt(offer.coins)} moedas`,
+				`Surpresa (um deles): ${offer.surprises.join(" · ")}`,
+				...(last && last.kind !== "rewarded" && !waiting
+					? [last.kind === "closed" ? "Vídeo fechado antes do fim · sem prêmio" : "O vídeo não carregou. Tente de novo."]
+					: []),
+			],
+			buttons: [
+				act(waiting ? "Abrindo o vídeo…" : "Assistir e ganhar", "watchRewardedAd", ["consolation"], {
+					variant: "gem",
+					icon: gameIcon("television"),
+					enabled: canClaimConsolation(result) && !waiting && adsStore.status !== "unavailable",
+					ok: "",
+					fail: adsStore.status === "unavailable" ? "Nenhum vídeo disponível agora." : "",
+				}),
+			],
+		}),
+	];
+}
+
 function results(state: State) {
 	const result = state.day.result;
 	if (!result) return planning(state);
@@ -250,6 +300,7 @@ function results(state: State) {
 		"day-result",
 		`Dia ${result.dayNumber} encerrado`,
 		[
+			...consolationCards(state),
 			card(`Nota ${result.grade}`, {
 				eyebrow: `${result.score} DE 100 PONTOS`,
 				subtitle: result.contract

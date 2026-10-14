@@ -14,7 +14,10 @@ import {
 	getPendingRequests,
 } from "@/services/market-day";
 import { getClaimableMissionCount } from "@/services/missions";
-import { canClaimDailyLogin } from "@/services/daily-login";
+import { canClaimDailyLogin, canDoubleDailyLogin } from "@/services/daily-login";
+import { formatAdWait, getRewardedAdOffer } from "@/services/rewarded-ads";
+import { adsStore, isAdOpening } from "./ads";
+import { cloudStore } from "./cloud";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getNextSimulatorUnlocks } from "@/services/simulator-progression";
 import { getStoredInteriorBuilds } from "@/services/interior-construction";
@@ -73,6 +76,8 @@ export type DesktopView = {
 	/** Boosters running now: the HUD shows a glowing chip for each and tints the screen edges. */
 	boosts: BoostView[];
 	tools: Button[];
+	/** Side buttons always on screen: daily gift, free video, diamond store, save with Google (quickButtons). */
+	quick: Button[];
 	hasOffline: boolean;
 	offline: Card;
 	// Level-up celebration with everything the new level opened (desktop/level-up.ts); null when seen.
@@ -125,6 +130,36 @@ function boostViews(state: State, now: number): BoostView[] {
 			},
 		];
 	});
+}
+
+// The money makers and the account, always one tap away (Lucas 14/10: "está muito escondido"): the daily gift
+// (lights up when it can be claimed or doubled), the free video (plays right away when one is ready), the diamond
+// store, and "Salvar" while the player has not signed in with Google.
+function quickButtons(state: State, now: number): Button[] {
+	const giftReady = canClaimDailyLogin(state.dailyLogin, now);
+	const giftDouble = canDoubleDailyLogin(state.dailyLogin, now);
+	const offer = getRewardedAdOffer(state.rewardedAds, now);
+	const adReady = offer.available && adsStore.status !== "unavailable" && !isAdOpening();
+	const signedIn = !["unavailable", "signed-out", "signing-in"].includes(cloudStore.status);
+	const quick: Button[] = [
+		button("Presente", {
+			icon: gameIcon("gift"),
+			route: "!gratis",
+			variant: giftReady || giftDouble ? "success" : "secondary",
+			badge: giftReady ? "!" : giftDouble ? "2x" : "",
+		}),
+		adReady
+			? act(`+${offer.reward}`, "watchRewardedAd", ["diamonds"], { icon: gameIcon("television"), variant: "gem", badge: "Grátis", ok: "" })
+			: button(offer.reason === "daily-cap" ? "Amanhã" : offer.waitMs > 0 ? formatAdWait(offer.waitMs) : "Vídeo", {
+					icon: gameIcon("television"),
+					route: "!gratis",
+					variant: "secondary",
+				}),
+		button("Loja", { icon: gameIcon("diamond"), route: "!currency", variant: "gem" }),
+	];
+	if (!signedIn && cloudStore.status !== "unavailable")
+		quick.push(button("Salvar", { icon: gameIcon("smartphone"), route: "!conta", variant: "primary", badge: "!" }));
+	return quick;
 }
 
 export const tools: {
@@ -360,6 +395,7 @@ export function createDesktopView(
 							: "",
 			});
 		}),
+		quick: quickButtons(state, now),
 		hasOffline: Boolean(state.offlineSummary),
 		offline: summary,
 		levelUp: levelUpView(state),

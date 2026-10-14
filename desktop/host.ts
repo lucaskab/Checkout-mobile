@@ -26,7 +26,7 @@ import {
 	importSave,
 	requestCloudAction,
 } from "./cloud.ts";
-import { type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
+import { type AdPlacement, adPlacements, type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
 // timers as src/app/_layout.tsx and speaks the Unity bridge protocol over stdin/stdout.
@@ -244,7 +244,9 @@ function runHudAction(message: {
 	}
 	// "Assistir vídeo": Unity plays a rewarded video (CheckoutAds.cs) for the id the host hands out.
 	if (message.action === "watchRewardedAd") {
-		const request = requestRewardedAd(useGameStore.getState());
+		const wanted = Array.isArray(message.args) ? message.args[0] : "";
+		const placement = adPlacements.includes(wanted as AdPlacement) ? (wanted as AdPlacement) : "diamonds";
+		const request = requestRewardedAd(useGameStore.getState(), Date.now(), placement);
 		if (request.ok) send(request.message);
 		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "" : t(request.reason) });
 		view();
@@ -260,9 +262,23 @@ function runHudAction(message: {
 	// Unity: that video was watched to the end. Only the one the host asked for pays (once).
 	if (message.action === "claimRewardedAd") {
 		const adId = Array.isArray(message.args) ? message.args[0] : "";
-		const diamonds = takePendingAd(adId) ? useGameStore.getState().claimRewardedAd(String(adId)) : null;
-		noteAdReward(diamonds);
-		send({ kind: "result", id, action: message.action, ok: !!diamonds, reason: diamonds ? "" : "not-requested" });
+		const placement = takePendingAd(adId);
+		const store = useGameStore.getState();
+		let ok = false;
+		if (placement === "diamonds") {
+			const diamonds = store.claimRewardedAd(String(adId));
+			noteAdReward(diamonds);
+			ok = !!diamonds;
+		} else if (placement === "consolation") {
+			const prize = store.claimContractConsolation(String(adId));
+			noteAdReward(prize?.diamonds ?? 0, Date.now(), prize ? `Prêmio de consolação: ${prize.label}!` : "");
+			ok = !!prize;
+		} else if (placement === "gift") {
+			const gift = store.claimDailyLoginBonus(String(adId));
+			noteAdReward(gift?.diamonds ?? 0, Date.now(), gift ? `Presente dobrado: +${gift.coins} moedas${gift.diamonds ? ` e +${gift.diamonds} diamantes` : ""}!` : "");
+			ok = !!gift;
+		}
+		send({ kind: "result", id, action: message.action, ok, reason: ok ? "" : "not-requested" });
 		view();
 		snapshot();
 		return;

@@ -8,7 +8,7 @@ import {
 	isCurrencyPackAvailable,
 } from "@/data/currency-packs";
 import { getPackEvent, getPackPrice, iapStore } from "../iap";
-import { adsStore, getLastAdEvent } from "../ads";
+import { adsStore, getLastAdEvent, isAdOpening } from "../ads";
 import { AD_DAILY_CAP, formatAdWait, getRewardedAdOffer } from "@/services/rewarded-ads";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
@@ -19,8 +19,10 @@ import {
 	getAchievementTotals,
 } from "@/services/achievements";
 import { describeMissionReward, getMissionProgress, getMissionStatus } from "@/services/missions";
+import { cloudStore } from "../cloud";
 import {
 	canClaimDailyLogin,
+	canDoubleDailyLogin,
 	getLoginReward,
 	getNextLoginDay,
 	LOGIN_STREAK_DAYS,
@@ -157,14 +159,20 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 		const mark = day < today || (!ready && day === today) ? "ok" : day === today ? "hoje" : "";
 		return `Dia ${day}: ${gift.coins} moedas${gift.diamonds ? ` + ${gift.diamonds} diamantes` : ""}${mark ? ` · ${mark}` : ""}`;
 	});
+	// After claiming, a video gives today's gift again (once a day).
+	const canDouble = canDoubleDailyLogin(state.dailyLogin, now);
+	const todays = getLoginReward(Math.max(1, state.dailyLogin?.streak ?? 1), state.era.id);
+	const waiting = isAdOpening("gift");
 	return card("Presente do dia", {
 		eyebrow: `SEQUÊNCIA ${Math.min(today, LOGIN_STREAK_DAYS)}/${LOGIN_STREAK_DAYS}`,
 		subtitle: ready
 			? "Volte todo dia: o presente cresce a cada dia seguido e o 7º dia dá diamantes. Perder um dia recomeça a sequência."
-			: "Presente de hoje resgatado. Volte amanhã para continuar a sequência.",
+			: canDouble
+				? "Presente resgatado! Assista um vídeo curto e ganhe o presente de hoje de novo."
+				: "Presente de hoje resgatado. Volte amanhã para continuar a sequência.",
 		icon: gameIcon("gift"),
-		tone: ready ? "featured" : "",
-		badge: ready ? "Novo" : "Resgatado",
+		tone: ready || canDouble ? "featured" : "",
+		badge: ready ? "Novo" : canDouble ? "Dobre" : "Resgatado",
 		lines: days,
 		buttons: ready
 			? [
@@ -172,10 +180,19 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 						`Resgatar ${reward.coins} moedas${reward.diamonds ? ` + ${reward.diamonds} diamantes` : ""}`,
 						"claimDailyLogin",
 						[],
-						{ variant: "success", ok: "Presente resgatado!", fail: "Já resgatado hoje." },
+						{ variant: "success", ok: "Presente resgatado! Assista um vídeo para dobrar.", fail: "Já resgatado hoje." },
 					),
 				]
-			: [],
+			: canDouble
+				? [
+						act(
+							waiting ? "Abrindo o vídeo…" : `Dobrar com vídeo · +${todays.coins} moedas${todays.diamonds ? ` + ${todays.diamonds} diamantes` : ""}`,
+							"watchRewardedAd",
+							["gift"],
+							{ variant: "gem", icon: gameIcon("television"), enabled: !waiting && adsStore.status !== "unavailable", ok: "" },
+						),
+					]
+				: [],
 	});
 }
 
@@ -183,9 +200,9 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 function adCard(state: State, missing: number): Card {
 	const offer = getRewardedAdOffer(state.rewardedAds);
 	const last = getLastAdEvent();
-	const waiting = !!adsStore.pendingId;
+	const waiting = isAdOpening("diamonds");
 	const status = last?.kind === "rewarded"
-		? `Você ganhou +${last.diamonds} diamantes!`
+		? last.label || `Você ganhou +${last.diamonds} diamantes!`
 		: last?.kind === "failed"
 			? "O vídeo não carregou. Tente de novo."
 			: last?.kind === "closed"
@@ -219,7 +236,38 @@ function adCard(state: State, missing: number): Card {
 	});
 }
 
+// "Prêmios grátis": everything free in one place, opened from the HUD's side buttons — the daily gift (and its
+// video to double it), the diamond videos, and a nudge to save the progress with Google.
+function accountNudgeCard(): Card | null {
+	const signedIn = !["unavailable", "signed-out", "signing-in"].includes(cloudStore.status);
+	if (signedIn || cloudStore.status === "unavailable") return null;
+	return card("Salve seu progresso", {
+		eyebrow: "CONTA",
+		subtitle: "Entre com Google e seus diamantes e o mercado continuam em qualquer celular.",
+		icon: gameIcon("smartphone"),
+		tone: "info",
+		buttons: [go("Entrar com Google", "conta", { variant: "primary" })],
+	});
+}
+
 export const routes: Routes = {
+	gratis: (state) =>
+		page(
+			"gratis",
+			"Prêmios grátis",
+			[
+				dailyGiftCard(state),
+				adCard(state, 1),
+				...[accountNudgeCard()].filter((c): c is Card => !!c),
+				card("Loja de diamantes", {
+					eyebrow: "OFERTAS",
+					subtitle: "Pacotes de diamantes e moedas para acelerar o mercado.",
+					icon: gameIcon("diamond"),
+					buttons: [go("Abrir a loja", "currency", { variant: "gem" })],
+				}),
+			],
+			{ icon: gameIcon("gift"), subtitle: "Presente do dia, vídeos e ofertas" },
+		),
 	missions: (state, [arg]) => {
 		const filter: MissionFilter = missionFilters.some((f) => f.id === arg)
 			? (arg as MissionFilter)

@@ -32,6 +32,8 @@ export type DayContract = {
 	reward: DayReward;
 	target: number;
 	title: string;
+	/** A "Desafio" contract: the third kept in a row is harder and pays more (src/services/contract-pressure.ts). */
+	challenge?: boolean;
 };
 
 export type SpecialRequestKind = "produto" | "alternativa" | "ajuda";
@@ -109,6 +111,8 @@ export type DayResult = {
 	score: number;
 	stats: DayStats;
 	total: DayReward;
+	/** The missed contract's consolation video, once watched: what it gave (null/absent = not yet). */
+	consolation?: (DayReward & { label: string }) | null;
 };
 
 export type GameDayState = {
@@ -127,6 +131,8 @@ export type GameDayState = {
 	shift?: TurnShift;
 	startedAt: number | null;
 	stats: DayStats;
+	/** Contracts kept in a row (>0) or missed in a row (<0): paces the next offers (contract-pressure.ts). */
+	contractMomentum?: number;
 };
 
 export type TurnShift = "dia" | "noite";

@@ -50,9 +50,9 @@ describe("rewarded videos on the host", () => {
 		expect(request.message.kind).toBe("ad-show");
 		// A second press while it opens does not ask for another.
 		expect(adsHost.requestRewardedAd(store()).ok).toBe(false);
-		expect(adsHost.takePendingAd("made-up")).toBe(false);
-		expect(adsHost.takePendingAd(request.message.id)).toBe(true);
-		expect(adsHost.takePendingAd(request.message.id)).toBe(false);
+		expect(adsHost.takePendingAd("made-up")).toBe(null);
+		expect(adsHost.takePendingAd(request.message.id)).toBe("diamonds");
+		expect(adsHost.takePendingAd(request.message.id)).toBe(null);
 	});
 
 	test("a video closed early or failed frees the button and pays nothing", () => {
@@ -96,5 +96,53 @@ describe("ads consent (GDPR)", () => {
 		expect(labels()).toContain("openAdPrivacy");
 		adsHost.applyAdsMessage({ kind: "ad", status: "ready", privacy: false });
 		expect(labels()).not.toContain("openAdPrivacy");
+	});
+});
+
+describe("placement videos (consolation, daily gift)", () => {
+	test("a missed contract's video pays its consolation once, without using the diamond videos", () => {
+		const day = store().day;
+		const contract = { id: "c", kind: "revenue", difficulty: 2, icon: "coin", title: "C", description: "", target: 100, reward: { coins: 200, diamonds: 0, experience: 40 } };
+		useGameStore.setState({
+			day: { ...day, phase: "results", result: { contract, contractCompleted: false, contractProgress: 0.8, total: { coins: 50, diamonds: 0, experience: 10 }, dayNumber: day.dayNumber, grade: "C", score: 50, highlights: [], stats: day.stats, averageSatisfaction: 70, bonus: { coins: 50, diamonds: 0, experience: 10 }, closedAt: 0, durationMs: 0 } },
+		});
+		const coins = store().coins;
+		const request = adsHost.requestRewardedAd(store(), Date.now(), "consolation");
+		expect(request.ok).toBe(true);
+		expect(adsHost.takePendingAd(request.message.id)).toBe("consolation");
+		const prize = store().claimContractConsolation(request.message.id);
+		expect(prize.coins).toBeGreaterThanOrEqual(100);
+		expect(store().coins).toBe(coins + prize.coins);
+		expect(store().day.result.consolation.label).toBe(prize.label);
+		expect(store().claimContractConsolation("other")).toBe(null);
+		expect(adsHost.requestRewardedAd(store(), Date.now(), "consolation").ok).toBe(false);
+		expect(store().rewardedAds.watched).toBe(0); // the five diamond videos are untouched
+		const result = pages(store(), "day-result").cards.find((c) => c.title === "Prêmio de consolação");
+		expect(result).toBeTruthy();
+	});
+	test("the daily gift can be doubled with a video once, after claiming it", () => {
+		expect(adsHost.requestRewardedAd(store(), Date.now(), "gift").ok).toBe(false);
+		expect(store().claimDailyLogin()).toBe(true);
+		const coins = store().coins;
+		const request = adsHost.requestRewardedAd(store(), Date.now(), "gift");
+		expect(request.ok).toBe(true);
+		adsHost.takePendingAd(request.message.id);
+		const gift = store().claimDailyLoginBonus(request.message.id);
+		expect(gift.coins).toBeGreaterThan(0);
+		expect(store().coins).toBe(coins + gift.coins);
+		expect(adsHost.requestRewardedAd(store(), Date.now(), "gift").ok).toBe(false);
+		expect(store().claimDailyLoginBonus("again")).toBe(null);
+	});
+	test("the HUD's side buttons: gift, video, store; the free page", async () => {
+		const { createDesktopView } = await import("./view.ts");
+		adsHost.adsStore.status = "ready";
+		const quick = createDesktopView(store(), 1, []).quick;
+		expect(quick.map((q) => q.icon.length > 0)).toEqual([true, true, true]);
+		expect(quick[0].badge).toBe("!"); // the gift can be claimed
+		expect(quick[1].action).toBe("watchRewardedAd"); // a video plays right away
+		expect(quick[2].route).toBe("!currency");
+		const free = pages(store(), "gratis");
+		expect(free.cards.map((c) => c.title)).toContain("Presente do dia");
+		expect(free.cards.map((c) => c.title)).toContain("Diamantes grátis");
 	});
 });

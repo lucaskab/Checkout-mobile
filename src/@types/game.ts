@@ -255,6 +255,10 @@ export type GameActions = {
 	upgradeProduct: (productId: number) => boolean;
 	/** Claims today's login gift (once per calendar day). */
 	claimDailyLogin: () => boolean;
+	/** The daily gift again, after a video watched to the end (once a day; desktop/ads.ts checks the video). */
+	claimDailyLoginBonus: (adId: string) => { coins: number; diamonds: number } | null;
+	/** The missed contract's consolation, after a video watched to the end (once per day result). */
+	claimContractConsolation: (adId: string) => { coins: number; diamonds: number; experience: number; label: string } | null;
 	/** Pays a completed collection of the product album (once). */
 	claimAlbumCollection: (collectionId: string) => boolean;
 	/** Pays the prize of this week's event once its goal is reached. */

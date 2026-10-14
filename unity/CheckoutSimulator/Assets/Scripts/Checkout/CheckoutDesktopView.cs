@@ -49,6 +49,7 @@ namespace Checkout {
   public bool isOpen,dailyClaimable,hasEvent,eventNegative,hasOffline,hasPage,canBack;public float dailyProgress;
   public string dayPhase,dayTitle,dayDetail,requestLabel,goalText,goalIcon;public bool goalDone;public float dayProgress;public int requestCount;public bool requestUrgent;
   public DesktopBoost[] boosts;
+  public DesktopButton[] quick;
   public DesktopButton[] tools;public DesktopCard offline;public DesktopPage page;public DesktopLevelUp levelUp;public DesktopCelebration celebration;
   public DesktopCoach coach;public DesktopGoal goal;
  }
