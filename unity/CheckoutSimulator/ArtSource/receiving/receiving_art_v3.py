@@ -324,7 +324,7 @@ def build_produce3(key="produce"):
     xl = -W / 2 + SW_ / 2; xr = W / 2 - TW / 2
     pine = wood_mat("pr_pine", (0.86, 0.64, 0.36, 1), (0.64, 0.44, 0.22, 1), grain=(1.0, 18.0, 18.0)); pine_d = wood_mat("pr_pine_d", (0.55, 0.36, 0.18, 1), (0.40, 0.25, 0.12, 1), grain=(18.0, 18.0, 1.0))
     chalk = mat("pr_chalk", (0.12, 0.14, 0.13, 1), rough=.9, bump=.2, scale=30); chalk_ink = mat("pr_chalk_ink", (0.95, 0.95, 0.92, 1), rough=.9, bump=0)
-    tiers = ((.30, .04, .36), (.68, .40, .36), (1.06, .76, .32)); tilt = rad(5)
+    tiers = ((.30, .04, .36), (.68, .40, .36), (1.06, .76, .32)); tilt = 0.     # level shelves: the crates stand straight
     for sx in (-1, 1):
         for k, (z, y, d) in enumerate(tiers):
             zt = z + d * math.sin(tilt)
@@ -335,7 +335,8 @@ def build_produce3(key="produce"):
     for k, (z, y, d) in enumerate(tiers):
         zc = z + d * math.sin(tilt) / 2; yc = y + d * math.cos(tilt) / 2
         for j in range(4): box(f"pr_tier{k}_{j}", (SW_ - .08, d / 4 - .008, .022), (xl, yc + (j - 1.5) * d / 4 * math.cos(tilt), zc + (j - 1.5) * d / 4 * math.sin(tilt)), pine, bevel=.004, rot=(tilt, 0, 0))
-        box(f"pr_lip{k}", (SW_ - .06, .025, .08), (xl, y - .01, z + .03), pine_d, bevel=.005, layer="front")
+        # a low front lip; only the bottom tier's is drawn over the boxes (an upper lip is behind the crates below it)
+        box(f"pr_lip{k}", (SW_ - .06, .025, .045), (xl, y - .01, z + .012), pine_d, bevel=.005, layer="front" if k == 0 else "back")
         zb = 0 if k == 0 else tiers[k - 1][0] + tiers[k - 1][2] * math.sin(tilt)      # the riser stands on the back of the tier below
         box(f"pr_under{k}", (SW_ - .08, .025, z - zb), (xl, y + .01, (z + zb) / 2), pine_d, bevel=.004, layer="front" if k == 0 else "back")
         sw = (SW_ - .12) / 2
@@ -674,7 +675,7 @@ def render_stage(what, samples=None):
     return "ok"
 
 # ---------------------------------------------------------------- boxes (512 x 512, contact shadow, eye-level view)
-BOX3_VIEW = dict(pitch=14, yaw=16, lens=50)
+BOX3_VIEW = dict(pitch=14, yaw=0, lens=50)     # square to the camera, like the shelves
 BOX3_PITCH = dict(bread=24, crate=20, tray=22, milk=18, pack=16)
 
 def _crate_plastic(nm, W, D, H, m, slots_m, handle=True, ribs=True):
