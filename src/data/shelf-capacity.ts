@@ -15,11 +15,12 @@ import { shelfTypes } from "@/data/shelf-types";
 export const initialUnlockedShelfSlots = productsPerShelf;
 
 export const shelfCapacityUpgrades: ShelfCapacityUpgrade[] = [
-	{ capacity: 3, coinCost: 0, diamondCost: 0, playerLevel: 1 },
-	{ capacity: 5, coinCost: 1_200, diamondCost: 6, playerLevel: 4 },
-	{ capacity: 8, coinCost: 6_000, diamondCost: 14, playerLevel: 8 },
-	{ capacity: 12, coinCost: 22_000, diamondCost: 28, playerLevel: 14 },
-	{ capacity: 17, coinCost: 70_000, diamondCost: 48, playerLevel: 22 },
+	// Whole supplier boxes (UNITS_PER_BOX = 5): an empty spot always takes full boxes.
+	{ capacity: 5, coinCost: 0, diamondCost: 0, playerLevel: 1 },
+	{ capacity: 10, coinCost: 1_200, diamondCost: 6, playerLevel: 4 },
+	{ capacity: 15, coinCost: 6_000, diamondCost: 14, playerLevel: 8 },
+	{ capacity: 20, coinCost: 22_000, diamondCost: 28, playerLevel: 14 },
+	{ capacity: 25, coinCost: 70_000, diamondCost: 48, playerLevel: 22 },
 ];
 
 export function getShelfCapacity(upgradeLevel = 0) {

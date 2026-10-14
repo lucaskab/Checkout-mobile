@@ -23,7 +23,7 @@ namespace Checkout {
 
   // ------------------------------------------------------------------ data from the art (Receiving json)
   [Serializable] class RoomQuad {public int level,bay,index;public float[] fl,fr,bl,br;public float ppm,ppmBack;}
-  [Serializable] class RoomFixtureJson {public string key;public int[] size;public RoomQuad[] slots;public float[] sign;public float[] display;public float boxHeight;}
+  [Serializable] class RoomFixtureJson {public string key;public int[] size;public RoomQuad[] slots;public float[] sign;public float[] display;public float boxHeight;public float[] body;}
   [Serializable] class RoomClipLine {public float x0,x1,y;}
   [Serializable] class RoomClipJson {public int[] size;public float[] sheet;public RoomClipLine[] lines;}
   static T RoomLoad<T>(string name) where T:class{var t=Resources.Load<TextAsset>("CheckoutDesktop/"+RoomDir+name);return t?JsonUtility.FromJson<T>(t.text):null;}
@@ -56,16 +56,25 @@ namespace Checkout {
    rackLayer=Node("Racks",board);U.Stretch(rackLayer,Vector2.zero,Vector2.one);
    var held=bridge.State?.stockroom??new StockroomEntry[0];
    int Boxes(string zone)=>held.Where(x=>x!=null&&x.zone==zone).Sum(x=>Mathf.Max(0,x.boxes));
-   var bays=new List<string>();
-   foreach(var z in new[]{"hortifruti","bebidas","mercearia"}){int n=Mathf.CeilToInt(Boxes(z)/9f);for(int i=0;i<n;i++)bays.Add(z);}
+   // Art v2 has a fixture per zone (drinks rack, produce stand + bread trolley); v1 shared one rack between two zones.
+   bool v2=RoomLoad<RoomFixtureJson>("receiving_drinks")!=null;
+   var racks=new List<(string key,string[] bays)>();
+   if(v2)
+    foreach(var z in new[]{"hortifruti","bebidas","mercearia"}){
+     string key=z=="bebidas"?"drinks":z=="hortifruti"?"produce":"rack";
+     int n=Mathf.CeilToInt(Boxes(z)/8f);for(int i=0;i<n;i++)racks.Add((key,new[]{z,z}));
+    }
+   else{
+    var bays=new List<string>();
+    foreach(var z in new[]{"hortifruti","bebidas","mercearia"}){int n=Mathf.CeilToInt(Boxes(z)/9f);for(int i=0;i<n;i++)bays.Add(z);}
+    for(int i=0;i<bays.Count;i+=2)racks.Add(("rack",new[]{bays[i],i+1<bays.Count?bays[i+1]:bays[i]}));
+   }
    int colds=Mathf.CeilToInt(Boxes("refrigerados")/6f);
-   if(bays.Count==0&&colds==0){bays.Add("hortifruti");bays.Add("mercearia");}
-   var racks=new List<string[]>();
-   for(int i=0;i<bays.Count;i+=2)racks.Add(new[]{bays[i],i+1<bays.Count?bays[i+1]:bays[i]});
+   if(racks.Count==0&&colds==0){racks.Add((v2?"produce":"rack",new[]{"hortifruti","hortifruti"}));racks.Add(("rack",new[]{"mercearia","mercearia"}));}
    int count=racks.Count+colds;
    float left=-W*.5f+W*.30f,right=W*.5f-W*.01f,slot=(right-left)/Mathf.Max(1,count);
    int k=0;
-   foreach(var r in racks){string name=string.Join(" · ",r.Distinct().Select(z=>ZoneNames[z]));AddFixture("rack",name,r,left+slot*(k+.5f),slot);k++;}
+   foreach(var r in racks){string name=string.Join(" · ",r.bays.Distinct().Select(z=>ZoneNames[z]));AddFixture(r.key,name,r.bays,left+slot*(k+.5f),slot);k++;}
    for(int i=0;i<colds;i++){AddFixture("coldroom","Câmara fria",new[]{"refrigerados"},left+slot*(k+.5f),slot);k++;}
   }
   void AddFixture(string key,string name,string[] bays,float centerX,float slotWidth){
@@ -73,7 +82,8 @@ namespace Checkout {
    // The rendered body takes about 60% of the image width: size the image so the body fills its slot, as tall as
    // the room allows; the foot of the rack (about 8% up the image) stands on the floor line of the backdrop.
    float aspect=d!=null&&d.size!=null?d.size[0]/(float)d.size[1]:1.6f;
-   float w=slotWidth/.6f,h=w/aspect;float maxH=H*.76f;if(h>maxH){h=maxH;w=h*aspect;}
+   float bodyFrac=d?.body!=null&&d.body.Length>=4?Mathf.Max(.2f,(d.body[2]-d.body[0])/.94f):.6f;
+   float w=slotWidth/bodyFrac,h=w/aspect;float maxH=H*.76f;if(h>maxH){h=maxH;w=h*aspect;}
    var center=new Vector2(centerX,-H*.21f+h*.42f);
    var f=new RoomFixture{name=name,bayZones=bays};
    f.root=Node("Fixture "+key+" "+name,rackLayer);U.At(f.root,Mid,new Vector2(w,h),center);
