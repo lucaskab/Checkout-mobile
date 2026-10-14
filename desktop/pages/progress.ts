@@ -9,7 +9,7 @@ import {
 } from "@/data/currency-packs";
 import { getPackEvent, getPackPrice, iapStore } from "../iap";
 import { adsStore, getLastAdEvent, isAdOpening } from "../ads";
-import { AD_DAILY_CAP, formatAdWait, getRewardedAdOffer } from "@/services/rewarded-ads";
+import { getRewardedAdOffer } from "@/services/rewarded-ads";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
@@ -196,7 +196,7 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 	});
 }
 
-// "Diamantes grátis": watch a short video for a few diamonds (max AD_DAILY_CAP a day, a few minutes apart).
+// "Diamantes grátis": watch a short video for a few diamonds, as many as the player wants (no daily limit).
 function adCard(state: State, missing: number): Card {
 	const offer = getRewardedAdOffer(state.rewardedAds);
 	const last = getLastAdEvent();
@@ -210,18 +210,14 @@ function adCard(state: State, missing: number): Card {
 				: waiting
 					? "Abrindo o vídeo…"
 					: "";
-	const label = offer.available
-		? `Assistir · +${offer.reward}`
-		: offer.reason === "daily-cap"
-			? "Volte amanhã"
-			: `Próximo em ${formatAdWait(offer.waitMs)}`;
+	const label = `Assistir · +${offer.reward}`;
 	return card("Diamantes grátis", {
 		eyebrow: "VÍDEO",
-		subtitle: `Assista um vídeo curto e ganhe diamantes · hoje: ${offer.watchedToday} de ${AD_DAILY_CAP}`,
+		subtitle: `Assista um vídeo curto e ganhe +${offer.reward} diamantes · sem limite por dia${offer.watchedToday ? ` · hoje: ${offer.watchedToday}` : ""}`,
 		icon: gameIcon("television"),
 		badge: missing > 0 && offer.available ? "Grátis" : "",
 		tone: last?.kind === "rewarded" ? "success" : last && last.kind !== "rewarded" ? "danger" : waiting ? "warning" : "info",
-		lines: status ? [status] : [offer.watchedToday + 1 >= AD_DAILY_CAP && offer.available ? "O último do dia vale mais!" : "Some os diamantes e acelere o que quiser"],
+		lines: status ? [status] : ["Quantos quiser: some os diamantes e acelere o que quiser"],
 		buttons: [
 			act(waiting ? "Aguardando…" : label, "watchRewardedAd", [], {
 				variant: "gem",

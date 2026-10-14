@@ -47,9 +47,7 @@ export function adPlacementBlock(state: GameStore, placement: AdPlacement, now =
 		return state.day.phase === "results" && canClaimConsolation(state.day.result) ? "" : "Este prêmio já foi resgatado.";
 	if (placement === "gift")
 		return canDoubleDailyLogin(state.dailyLogin, now) ? "" : "Resgate o presente de hoje primeiro (ou ele já foi dobrado).";
-	const offer = getRewardedAdOffer(state.rewardedAds, now);
-	if (offer.available) return "";
-	return offer.reason === "daily-cap" ? "Você já assistiu os vídeos de hoje. Volte amanhã!" : "Espere um pouco para o próximo vídeo.";
+	return getRewardedAdOffer(state.rewardedAds, now).available ? "" : "Espere um pouco para o próximo vídeo.";
 }
 
 /** "Assistir vídeo": checks the player may watch one now and builds the message for Unity. */

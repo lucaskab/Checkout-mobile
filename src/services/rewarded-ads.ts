@@ -1,6 +1,12 @@
 import { getDayKey } from "@/services/daily-login";
 
 /**
+ * NO LIMIT (Lucas 14/10: "não coloque limite de quantas vezes a pessoa consegue assistir ad no dia… limitar a
+ * quantidade de ad é basicamente limitar o quanto de dinheiro eu vou fazer"): any number of videos a day, one after
+ * the other, each paying AD_REWARD_DIAMONDS. The daily cap and the gap between videos below are gone; the notes are
+ * kept for the history of the sizing. (The ad network may still run out of videos to show for a while: then the
+ * button says so — that is Google's fill, not a rule of the game.)
+ *
  * Rewarded videos (Lucas 12/10): a player who does not pay can still speed up now and then by watching a video —
  * always by choice (no forced ads, no interstitials), a small reward each time that adds up until it buys what they
  * want.
@@ -16,10 +22,6 @@ import { getDayKey } from "@/services/daily-login";
  *   the session instead of five in a row).
  */
 export const AD_REWARD_DIAMONDS = 3;
-/** The last video of the day pays a little more (a reason to come back and finish the day's five). */
-export const AD_LAST_OF_DAY_DIAMONDS = 5;
-export const AD_DAILY_CAP = 5;
-export const AD_COOLDOWN_MS = 3 * 60_000;
 
 export type RewardedAdsState = {
 	/** Local calendar day of the count below ("2026-10-12"). */
@@ -63,27 +65,17 @@ export type RewardedAdOffer = {
 	watchedToday: number;
 	/** Diamonds the next video gives. */
 	reward: number;
-	/** Wait before the next one (0 = now; until tomorrow when today's are done). */
+	/** Always 0 now (no wait between videos); kept for the pages. */
 	waitMs: number;
-	/** Why not now: "" | "cooldown" | "daily-cap". */
-	reason: "" | "cooldown" | "daily-cap";
+	/** Always "" now (no daily cap, no gap). */
+	reason: "";
 };
 
-function nextMidnight(now: number) {
-	const date = new Date(now);
-	date.setHours(24, 0, 0, 0);
-	return date.getTime();
-}
-
+/** Every video can be watched right away; the count of the day is only for the pages and the stats. */
 export function getRewardedAdOffer(state: RewardedAdsState | undefined, now = Date.now()): RewardedAdOffer {
 	const ads = state ?? createRewardedAdsState();
 	const watchedToday = ads.day === getDayKey(now) ? ads.watched : 0;
-	const reward = watchedToday + 1 >= AD_DAILY_CAP ? AD_LAST_OF_DAY_DIAMONDS : AD_REWARD_DIAMONDS;
-	if (watchedToday >= AD_DAILY_CAP)
-		return { available: false, watchedToday, reward: 0, waitMs: Math.max(0, nextMidnight(now) - now), reason: "daily-cap" };
-	const waitMs = ads.lastAt ? Math.max(0, ads.lastAt + AD_COOLDOWN_MS - now) : 0;
-	if (waitMs > 0) return { available: false, watchedToday, reward, waitMs, reason: "cooldown" };
-	return { available: true, watchedToday, reward, waitMs: 0, reason: "" };
+	return { available: true, watchedToday, reward: AD_REWARD_DIAMONDS, waitMs: 0, reason: "" };
 }
 
 /** The state after the video `adId` was watched to the end, and the diamonds it gives (0 = refused). */

@@ -63,17 +63,18 @@ describe("rewarded videos on the host", () => {
 		expect(adCard().buttons[0].enabled).toBe(true);
 	});
 
-	test("the card shows today's count, the reward and the wait", () => {
+	test("the card shows the reward, no daily limit, and the next video is ready at once", () => {
 		useGameStore.setState({ logistics: { ...store().logistics, premiumCurrency: 0 } });
 		expect(adCard().buttons[0].label).toBe("Assistir · +3");
-		expect(adCard().subtitle).toContain("hoje: 0 de 5");
+		expect(adCard().subtitle).toContain("sem limite por dia");
 		const request = adsHost.requestRewardedAd(store());
 		adsHost.takePendingAd(request.message.id);
 		adsHost.noteAdReward(store().claimRewardedAd(request.message.id));
 		expect(adCard().lines[0]).toBe("Você ganhou +3 diamantes!");
-		expect(adCard().subtitle).toContain("hoje: 1 de 5");
-		expect(adCard().buttons[0].label).toMatch(/^Próximo em \d:\d\d$/);
-		expect(adCard().buttons[0].enabled).toBe(false);
+		expect(adCard().subtitle).toContain("hoje: 1");
+		expect(adCard().buttons[0].label).toBe("Assistir · +3");
+		expect(adCard().buttons[0].enabled).toBe(true);
+		expect(adsHost.requestRewardedAd(store()).ok).toBe(true);
 	});
 
 	test("no video available: the button is off and says why", () => {

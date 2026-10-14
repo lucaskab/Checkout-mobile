@@ -15,7 +15,7 @@ import {
 } from "@/services/market-day";
 import { getClaimableMissionCount } from "@/services/missions";
 import { canClaimDailyLogin, canDoubleDailyLogin } from "@/services/daily-login";
-import { formatAdWait, getRewardedAdOffer } from "@/services/rewarded-ads";
+import { getRewardedAdOffer } from "@/services/rewarded-ads";
 import { adsStore, isAdOpening } from "./ads";
 import { cloudStore } from "./cloud";
 import { getExperienceToNextLevel } from "@/services/progression";
@@ -150,7 +150,7 @@ function quickButtons(state: State, now: number): Button[] {
 		}),
 		adReady
 			? act(`+${offer.reward}`, "watchRewardedAd", ["diamonds"], { icon: gameIcon("television"), variant: "gem", badge: "Grátis", ok: "" })
-			: button(offer.reason === "daily-cap" ? "Amanhã" : offer.waitMs > 0 ? formatAdWait(offer.waitMs) : "Vídeo", {
+			: button(isAdOpening() ? "Abrindo…" : "Vídeo", {
 					icon: gameIcon("television"),
 					route: "!gratis",
 					variant: "secondary",
