@@ -6,7 +6,7 @@ import json, os, sys, random
 from PIL import Image, ImageDraw, ImageFont
 
 SRC, SRC2, OUT = sys.argv[1], sys.argv[2], sys.argv[3]; os.makedirs(OUT, exist_ok=True)
-BOX_SCALE = 1.35
+BOX_SCALE = 1.15   # boxes drawn 15 % larger than life so the products read at phone size
 def load(d, n): return Image.open(os.path.join(d, n)).convert("RGBA")
 def js(d, n): return json.load(open(os.path.join(d, n)))
 def font(sz, bold=True):
@@ -20,9 +20,11 @@ def lerp(a, b, t): return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 def dist(a, b): return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** .5
 def rect_of(st): return (st[0] * SW, (1 - st[3]) * SH, (st[2] - st[0]) * SW, (st[3] - st[1]) * SH)
 def P(a, r): return (r[0] + a[0] * r[2], r[1] + (1 - a[1]) * r[3])
-def draw_box(kind, foot, width):
-    sz = max(8, round(width * BOX_SCALE)); im = boxes[kind].resize((sz, sz), Image.LANCZOS)
-    stage.alpha_composite(im, (round(foot[0] - sz / 2), round(foot[1] - sz * .86)))
+marks = {k: js(SRC, f"box_{k}_marks.json") for k in boxes}
+def draw_box(kind, foot, ppm):
+    """Real size: the sprite's pixels per metre (marks.ppm) scaled to the slot's; pivot = the box's bottom centre."""
+    mk = marks[kind]; sz = max(8, round(boxes[kind].width * ppm / mk["ppm"] * BOX_SCALE)); im = boxes[kind].resize((sz, sz), Image.LANCZOS)
+    stage.alpha_composite(im, (round(foot[0] - sz * mk["pivot"][0]), round(foot[1] - sz * (1 - mk["pivot"][1]))))
 
 # truck: back layer, then the cargo (back rows first)
 tj = js(SRC, "receiving_truck.json"); tr = rect_of(tj["stage"])
@@ -33,14 +35,14 @@ load_kinds = ["water", "crate", "milk", "carton", "bread", "pack", "frozen"]
 cells = []
 for i in range(len(load_kinds)):
     layer, cell = divmod(i, cols * rows); row = rows - 1 - cell // cols; col = cell % cols
-    u = (col + .5) / cols; t = (row + .5) / (rows + .2)
-    foot = lerp(lerp(fl, fr, u), lerp(bl, br, u), t); w = (dist(fl, fr) * (1 - t) + dist(bl, br) * t) / (cols + .3)
-    cells.append((layer, -foot[1], load_kinds[i], (foot[0], foot[1] - layer * w * .92), w))
-for layer, _, kind, foot, w in sorted(cells, key=lambda c: (c[1], c[0])): draw_box(kind, foot, w)
+    u = (col + .5) / cols; t = (row + .5) / rows
+    foot = lerp(lerp(fl, fr, u), lerp(bl, br, u), t); ppm = tj["ppm"] * (1 - t) + tj["ppmBack"] * t
+    cells.append((layer, -foot[1], load_kinds[i], (foot[0], foot[1] - layer * marks[load_kinds[i]]["height"] * ppm), ppm))
+for layer, _, kind, foot, ppm in sorted(cells, key=lambda c: (c[1], c[0])): draw_box(kind, foot, ppm)
 
 FIX = {"rack": ["carton", "tray", "carton", None, "carton", "carton", None, "tray"],
        "drinks": ["water", "water", "pack", None, "pack", "water", None, None],
-       "produce": ["crate", "crate", "crate", None, None, None, "bread", "bread", None],
+       "produce": ["crate", "crate", "bread", "crate", None, "bread", None, "crate", None],
        "coldroom": ["milk", "frozen", "milk", None, "frozen", None, None, None]}
 NAMES = {"rack": "SECOS", "drinks": "BEBIDAS", "produce": "HORTIFRÚTI · PÃES", "coldroom": "CÂMARA FRIA"}
 COL = {"rack": "#D9A032", "drinks": "#F28C28", "produce": "#5DA637", "coldroom": "#4FA3D9"}
@@ -53,9 +55,9 @@ for key, fill in FIX.items():
     for s, kind in zip(slots, fill):
         if not kind: continue
         a, b_, c, e = (P(s[k], r) for k in ("fl", "fr", "bl", "br"))
-        foot = lerp(lerp(a, b_, .5), lerp(c, e, .5), .42); width = dist(a, b_) * .58 + dist(c, e) * .42
-        placed.append((foot, width, kind))
-    for foot, width, kind in sorted(placed, key=lambda p: (-p[0][1], p[0][0])): draw_box(kind, foot, width)
+        foot = lerp(lerp(a, b_, .5), lerp(c, e, .5), .5); ppm = (s["ppm"] + s["ppmBack"]) / 2
+        placed.append((foot, ppm, kind))
+    for foot, ppm, kind in sorted(placed, key=lambda p: (-p[0][1], p[0][0])): draw_box(kind, foot, ppm)
     stage.alpha_composite(load(SRC, f"receiving_{key}_front.png").resize(size, Image.LANCZOS), (round(r[0]), round(r[1])))
     sg = d["sign"]; x0, y0 = P((sg[0], sg[3]), r); x1, y1 = P((sg[2], sg[1]), r)
     dr = ImageDraw.Draw(stage); txt = NAMES[key]; fs = int((y1 - y0) * .62)
@@ -63,7 +65,7 @@ for key, fill in FIX.items():
     dr.text(((x0 + x1) / 2, (y0 + y1) / 2), txt, font=font(fs), fill=COL[key], anchor="mm")
 
 # clipboard over the dock (top centre), 3 example lines
-cj = js(SRC2, "receiving_clipboard.json"); cb = load(SRC2, "receiving_clipboard.png")
+cj = js(SRC, "receiving_clipboard.json"); cb = load(SRC, "receiving_clipboard.png")
 dk = js(SRC, "receiving_backdrop.json")["dock"]; ch = round(SH * .30); cw = round(ch * cb.width / cb.height)
 cb = cb.resize((cw, ch), Image.LANCZOS); cx = round((dk[0] + dk[2]) / 2 * SW - cw / 2); cy = round(SH * .012)
 stage.alpha_composite(cb, (cx, cy)); dr = ImageDraw.Draw(stage)

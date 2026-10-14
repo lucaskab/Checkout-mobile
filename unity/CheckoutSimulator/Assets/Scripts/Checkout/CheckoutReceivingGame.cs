@@ -26,6 +26,9 @@ namespace Checkout {
   public bool IsOpen=>window&&window.activeSelf;
   const string Dir="Receiving/";
   const float ComboWindow=2.4f,BoxScale=1.35f;
+  // v3 boxes are drawn at their real size (the sprite's pixels per metre scaled to the shelf's), a bit larger
+  // than life so the products read on a phone; their sprites are 512 px squares.
+  const float LifeScale=1.15f,BoxRes=512f;
   static readonly Vector2 Mid=new Vector2(.5f,.5f);
 
   CheckoutBridge bridge;RectTransform root,stage;GameObject window,hint,toast;TextMeshProUGUI title;Image backdrop;AudioSource sound;
@@ -36,20 +39,24 @@ namespace Checkout {
 
   // ------------------------------------------------------------------ data from the art
   [Serializable] class JQuad {public int level,bay,index;public float[] fl,fr,bl,br;public float ppm,ppmBack;}
-  [Serializable] class JFixture {public string key;public int[] size;public JQuad[] slots;public float[] sign;public float[] display;public float boxHeight;public float[] body;public float bodyWidthM;}
-  [Serializable] class JTruck {public string key;public int[] size;public JQuad cargo;public float ppm,ppmBack,boxHeight;public float[] dockRect;public int cargoColumns,cargoRows;}
+  [Serializable] class JFixture {public string key;public int[] size;public JQuad[] slots;public float[] sign;public float[] display;public float boxHeight;public float[] body;public float bodyWidthM;public float[] stage;}
+  [Serializable] class JTruck {public string key;public int[] size;public JQuad cargo;public float ppm,ppmBack,boxHeight;public float[] dockRect;public int cargoColumns,cargoRows;public float[] stage;}
+  [Serializable] class JMarks {public float[] label,pivot;public float ppm,width,depth,height;}
   [Serializable] class JBackdrop {public int[] size;public float[] dock;public float floorY;}
   // Art v2 (ArtSource/receiving/receiving_art_v2.py): inside the stockroom, the small truck backed into the dock door
   // on the left, four fixtures (secos, bebidas, hortifrúti + pães, câmara fria) on one floor line at one scale.
   static bool V2=>Load<JFixture>("receiving_drinks")!=null;
+  // Art v3 (receiving_art_v3.py): the whole stockroom is ONE render; every layer carries "stage", its rect in the
+  // backdrop, so it lands exactly where it was rendered (real proportions, baked contact shadows).
+  static bool V3{get{var d=Load<JFixture>("receiving_rack");return d?.stage!=null&&d.stage.Length>=4;}}
   [Serializable] class JLine {public float x0,x1,y;}
   [Serializable] class JClip {public int[] size;public float[] sheet;public JLine[] lines;}
   static T Load<T>(string name) where T:class{var t=Resources.Load<TextAsset>("CheckoutDesktop/"+Dir+name);return t?JsonUtility.FromJson<T>(t.text):null;}
 
   // A place for one box on a rack or in the cold room (stage pixels: bottom-centre of the box and its width).
-  sealed class Place {public Fixture fixture;public string zone;public int level,bay,index;public Vector2 foot;public float width;public BoxView box;}
+  sealed class Place {public Fixture fixture;public string zone;public int level,bay,index;public Vector2 foot;public float width,ppm;public BoxView box;}
   sealed class Fixture {public string key,name;public RectTransform root,boxes;public Image back,front,sign;public TextMeshProUGUI label;public readonly List<Place> places=new List<Place>();public string[] bayZones;}
-  sealed class BoxView {public RectTransform rect;public Image art;public int productId,units;public string deliveryId,zone,category;public CheckoutDragToken drag;public bool stored;}
+  sealed class BoxView {public RectTransform rect;public Image art;public int productId,units;public string deliveryId,zone,category,kind;public CheckoutDragToken drag;public bool stored;public Vector2 home;}
   sealed class NoteLine {public string deliveryId;public int productId,total,done;public TextMeshProUGUI text,qty;public Image check,strike;}
 
   readonly List<Fixture> fixtures=new List<Fixture>();readonly List<BoxView> truckBoxes=new List<BoxView>();readonly List<NoteLine> notes=new List<NoteLine>();
@@ -89,7 +96,7 @@ namespace Checkout {
   void Close(){StopAllCoroutines();Clear();window.SetActive(false);}
   void Clear(){
    foreach(var o in scene)if(o)Destroy(o);scene.Clear();if(hint)Destroy(hint);hint=null;toast=null;
-   fixtures.Clear();truckBoxes.Clear();notes.Clear();roomLeft.Clear();truckRoot=cargo=clipboard=null;ghost=null;ghostPlace=null;
+   fixtures.Clear();truckBoxes.Clear();notes.Clear();roomLeft.Clear();truckRoot=cargo=clipboard=null;truckFade=null;ghost=null;ghostPlace=null;
   }
   T Keep<T>(T c) where T:Component{scene.Add(c.gameObject);return c;}
   void Play(AudioClip clip,float pitch=1,float volume=1){if(!clip||!sound)return;sound.pitch=CheckoutRestockSound.Vary(pitch);sound.PlayOneShot(clip,volume);}
@@ -101,6 +108,7 @@ namespace Checkout {
   static readonly Dictionary<string,string> ZoneColors=new Dictionary<string,string>{{"refrigerados","4FA3D9"},{"bebidas","F28C28"},{"hortifruti","5DA637"},{"mercearia","D9A032"}};
 
   void BuildRoom(){
+   if(V3){BuildRoomV3();return;}
    if(V2){BuildRoomV2();return;}
    // Truck on the left third; secos, bebidas|hortifrúti and the cold room share the rest of the floor.
    float left=-W*.5f+W*.30f,right=W*.5f-W*.01f,slot=(right-left)/3f;
@@ -127,7 +135,25 @@ namespace Checkout {
     AddFixture(list[i].key,list[i].name,list[i].bays,new Vector2(x0+w*.5f,y0+h*.5f),0,new Vector2(w,h));
    }
   }
-  void AddFixture(string key,string name,string[] bays,Vector2 center,float slotWidth,Vector2? size=null){
+  // v3: each fixture image is placed on its own rect of the backdrop (the backdrop is cover-fitted to the stage).
+  void BuildRoomV3(){
+   var list=new (string key,string name,string[] bays)[]{
+    ("rack","Secos",new[]{"mercearia"}),("drinks","Bebidas",new[]{"bebidas"}),
+    ("produce","Hortifrúti · Pães",new[]{"hortifruti","hortifruti"}),("coldroom","Câmara fria",new[]{"refrigerados"})};
+   foreach(var f in list){
+    var d=Load<JFixture>("receiving_"+f.key);if(d?.stage==null||d.stage.Length<4)continue;
+    var r=OnBackdrop(d.stage);AddFixture(f.key,f.name,f.bays,r.center,0,r.size,false);
+   }
+  }
+  // Stage-local position (relative to the stage's centre, like anchoredPosition with a Mid anchor) of a world point.
+  Vector2 StageLocal(Vector3 world)=>(Vector2)stage.InverseTransformPoint(world)-stage.rect.center;
+  // A normalised rect of the backdrop image (origin bottom-left) in stage space.
+  Rect OnBackdrop(float[] n){
+   var corners=new Vector3[4];backdrop.rectTransform.GetWorldCorners(corners);
+   Vector2 a=StageLocal(corners[0]),b=StageLocal(corners[2]);float bw=b.x-a.x,bh=b.y-a.y;
+   return Rect.MinMaxRect(a.x+n[0]*bw,a.y+n[1]*bh,a.x+n[2]*bw,a.y+n[3]*bh);
+  }
+  void AddFixture(string key,string name,string[] bays,Vector2 center,float slotWidth,Vector2? size=null,bool shadow=true){
    var d=Load<JFixture>("receiving_"+key);
    // The rendered body takes about 60% of the image width: size the image so the body fills its slot.
    float aspect=d!=null&&d.size!=null?d.size[0]/(float)d.size[1]:1.6f;
@@ -135,7 +161,7 @@ namespace Checkout {
    if(size.HasValue){w=size.Value.x;h=size.Value.y;}
    var f=new Fixture{key=key,name=name,bayZones=bays};
    f.root=Keep(N("Fixture "+key+" "+name,stage));U.At(f.root,Mid,new Vector2(w,h),center);
-   U.Shadow(f.root,new Vector2(w*.62f,h*.08f),new Vector2(0,h*.05f));
+   if(shadow)U.Shadow(f.root,new Vector2(w*.62f,h*.08f),new Vector2(0,h*.05f));
    f.back=Layer(f.root,"Back",Dir+"receiving_"+key+"_back");
    f.boxes=N("Boxes",f.root);U.Stretch(f.boxes,Vector2.zero,Vector2.one);
    f.front=Layer(f.root,"Front",Dir+"receiving_"+key+"_front");
@@ -143,13 +169,16 @@ namespace Checkout {
    var hit=U.HitArea(N("Hit",f.root),"Area");((RectTransform)hit.transform.parent).anchorMin=d?.body!=null&&d.body.Length>=4?new Vector2(d.body[0],d.body[1]):new Vector2(.2f,.04f);((RectTransform)hit.transform.parent).anchorMax=d?.body!=null&&d.body.Length>=4?new Vector2(d.body[2],d.body[3]):new Vector2(.8f,.97f);
    ((RectTransform)hit.transform.parent).offsetMin=((RectTransform)hit.transform.parent).offsetMax=Vector2.zero;hit.raycastTarget=false;
    if(d?.slots!=null){
-    float S=h/Mathf.Max(1,d.size[1]);
+    float S=h/Mathf.Max(1,d.size[1]);   // stage px per image px
     foreach(var q in d.slots.OrderByDescending(q=>q.level).ThenBy(q=>q.bay).ThenBy(q=>q.index)){
      Vector2 P(float[] a)=>a!=null&&a.Length>1?new Vector2((a[0]-.5f)*w,(a[1]-.5f)*h):Vector2.zero;
      var fl=P(q.fl);var fr=P(q.fr);var bl=P(q.bl);var br=P(q.br);
-     var foot=Vector2.Lerp((fl+fr)*.5f,(bl+br)*.5f,.42f);float width=Mathf.Lerp((fr-fl).magnitude,(br-bl).magnitude,.42f);
+     // v3 knows the shelf's pixels per metre: the box stands on the middle of its place at real size.
+     float depth=q.ppm>0?.5f:.42f;
+     var foot=Vector2.Lerp((fl+fr)*.5f,(bl+br)*.5f,depth);float width=Mathf.Lerp((fr-fl).magnitude,(br-bl).magnitude,depth);
+     float ppm=q.ppm>0?Mathf.Lerp(q.ppm,q.ppmBack>0?q.ppmBack:q.ppm,depth)*S:0;
      string zone=bays[Mathf.Clamp(q.bay,0,bays.Length-1)];
-     f.places.Add(new Place{fixture=f,zone=zone,level=q.level,bay=q.bay,index=q.index,foot=foot+center,width=width});
+     f.places.Add(new Place{fixture=f,zone=zone,level=q.level,bay=q.bay,index=q.index,foot=foot+center,width=width,ppm=ppm});
     }
    }
    // Sign: the zone names on the board on top (two bays: both names), in the zone colours.
@@ -157,7 +186,7 @@ namespace Checkout {
     var node=N("Sign",f.root);U.Stretch(node,new Vector2(d.sign[0],d.sign[1]),new Vector2(d.sign[2],d.sign[3]),new Vector2(8,2),new Vector2(-8,-2));
     f.label=U.Label(node,"Text",K.Headline,h*.05f,"0F5F59");U.Stretch(f.label.rectTransform,Vector2.zero,Vector2.one);
     f.label.enableAutoSizing=true;f.label.fontSizeMin=10;f.label.fontSizeMax=h*.055f;
-    f.label.text=string.Join("  ·  ",bays.Distinct().Select(z=>$"<color=#{ZoneColors[z]}>{ZoneNames[z]}</color>"));
+    f.label.text=!shadow?$"<color=#{ZoneColors[bays[0]]}>{name.ToUpperInvariant()}</color>":string.Join("  ·  ",bays.Distinct().Select(z=>$"<color=#{ZoneColors[z]}>{ZoneNames[z]}</color>"));
    }
    if(key=="coldroom"&&d?.display!=null&&d.display.Length>=4){
     // The thermometer of the cold room keeps blinking its temperature.
@@ -177,22 +206,31 @@ namespace Checkout {
   // ------------------------------------------------------------------ boxes
   // Which carton a product comes in: crates for produce, shrink-wrapped packs for drinks, frozen cartons for
   // the freezer, trays for bread and eggs, plain cardboard for the rest.
-  static string BoxKind(string category){
+  public static string BoxKind(string category){
    switch(category){
     case "hortifruti":case "organicos":return "crate";
-    case "bebidas":case "refrigerantes":case "aguas":case "energeticos":case "alcoolicos":return "pack";
-    case "congelados":case "sorvetes":return "frozen";
-    case "padaria":case "ovos":return "tray";
+    case "aguas":return Has("water")?"water":"pack";
+    case "bebidas":case "refrigerantes":case "energeticos":case "alcoolicos":return "pack";
+    case "laticinios":return Has("milk")?"milk":"carton";
+    case "congelados":case "sorvetes":case "carnes":case "peixes":case "frios":case "queijos":return "frozen";
+    case "padaria":return Has("bread")?"bread":"tray";
+    case "ovos":return "tray";
     default:return "carton";
    }
   }
+  static bool Has(string kind)=>K.Icon(Dir+"box_"+kind)!=null;
+  static readonly Dictionary<string,JMarks> marks=new Dictionary<string,JMarks>();
+  static JMarks Marks(string kind){if(!marks.TryGetValue(kind,out var m)){m=Load<JMarks>("box_"+kind+"_marks");marks[kind]=m;}return m;}
+  // Size of a box sprite: real size when both the sprite and the place know their pixels per metre.
+  static float BoxSize(string kind,float width,float ppm){var m=Marks(kind);return m!=null&&m.ppm>0&&ppm>0?BoxRes*ppm/m.ppm*LifeScale:width*BoxScale;}
+  static Vector2 BoxPivot(string kind){var m=Marks(kind);return m?.pivot!=null&&m.pivot.Length>=2&&m.ppm>0?new Vector2(m.pivot[0],m.pivot[1]):new Vector2(.5f,.14f);}
   // Heavy boxes land with a deeper thud.
   static float Weight(string category){switch(category){case "aguas":case "bebidas":case "refrigerantes":case "alcoolicos":case "limpeza":return .8f;case "padaria":case "doces":case "bolachas":case "chocolates":return 1.25f;default:return 1;}}
 
-  BoxView MakeBox(RectTransform parent,int productId,int units,string category,float width){
-   string kind=BoxKind(category);float size=width*BoxScale;
+  BoxView MakeBox(RectTransform parent,int productId,int units,string category,float width,float ppm=0){
+   string kind=BoxKind(category);float size=BoxSize(kind,width,ppm);
    var holder=new GameObject("Box",typeof(RectTransform),typeof(Image)).GetComponent<Image>();holder.transform.SetParent(parent,false);
-   holder.color=new Color(1,1,1,0);holder.raycastTarget=false;var r=holder.rectTransform;r.anchorMin=r.anchorMax=Mid;r.pivot=new Vector2(.5f,.14f);r.sizeDelta=new Vector2(size,size);
+   holder.color=new Color(1,1,1,0);holder.raycastTarget=false;var r=holder.rectTransform;r.anchorMin=r.anchorMax=Mid;r.pivot=BoxPivot(kind);r.sizeDelta=new Vector2(size,size);
    var art=new GameObject("Art",typeof(RectTransform),typeof(Image)).GetComponent<Image>();art.transform.SetParent(r,false);art.sprite=K.Icon(Dir+"box_"+kind);art.raycastTarget=false;U.Stretch(art.rectTransform,Vector2.zero,Vector2.one);
    if(!art.sprite){art.sprite=K.Icon("Game/cardboard_box");}
    // The label: the product and how many units the box holds.
@@ -201,11 +239,12 @@ namespace Checkout {
    icon.sprite=K.Icon($"Products/product-{productId:000}");icon.preserveAspect=true;icon.raycastTarget=false;U.Stretch(icon.rectTransform,new Vector2(0,0),new Vector2(.48f,1),new Vector2(2,2),new Vector2(0,-2));
    var count=U.Label(node,"Units",K.Headline,size*.12f,"4A3624");U.Stretch(count.rectTransform,new Vector2(.48f,0),Vector2.one);count.text=units+"×";
    count.enableAutoSizing=true;count.fontSizeMin=6;count.fontSizeMax=size*.14f;count.overflowMode=TextOverflowModes.Overflow;
-   return new BoxView{rect=r,art=art,productId=productId,units=units,category=category};
+   return new BoxView{rect=r,art=art,productId=productId,units=units,category=category,kind=kind};
   }
   static readonly Dictionary<string,Rect> labels=new Dictionary<string,Rect>();
   static Rect Mark(string kind){
    if(labels.TryGetValue(kind,out var r))return r;
+   var mk=Marks(kind);if(mk?.label!=null&&mk.label.Length>=4){r=Rect.MinMaxRect(mk.label[0],mk.label[1],mk.label[2],mk.label[3]);labels[kind]=r;return r;}
    var t=Resources.Load<TextAsset>("CheckoutDesktop/"+Dir+"box_"+kind+"_marks");r=new Rect(.33f,.35f,.32f,.28f);
    if(t){var m=System.Text.RegularExpressions.Regex.Match(t.text,"\\[([^\\]]+)\\]");if(m.Success){var v=m.Groups[1].Value.Split(',').Select(x=>float.Parse(x.Trim(),System.Globalization.CultureInfo.InvariantCulture)).ToArray();if(v.Length>=4)r=Rect.MinMaxRect(v[0],v[1],v[2],v[3]);}}
    labels[kind]=r;return r;
@@ -216,9 +255,9 @@ namespace Checkout {
    var held=bridge.State?.stockroom;if(held==null)return;
    foreach(var item in held.OrderBy(x=>x.productId)){
     for(int i=0;i<item.boxes;i++){
-     var place=FreePlace(item.zone,item.productId,null);if(place==null)break;
+     var place=FreePlace(item.zone,item.productId,null,item.category);if(place==null)break;
      int units=i<item.boxes-1?item.caseSize:Mathf.Max(1,item.units-item.caseSize*(item.boxes-1));
-     var box=MakeBox(place.fixture.boxes,item.productId,units,item.category,place.width);box.stored=true;Put(box,place);
+     var box=MakeBox(place.fixture.boxes,item.productId,units,item.category,place.width,place.ppm);box.stored=true;Put(box,place);
      // A box already opened for the shelves shows it (lighter, a bit lower).
      if(units<item.caseSize)box.art.color=new Color(.93f,.9f,.86f,1);
     }
@@ -226,18 +265,23 @@ namespace Checkout {
   }
   void Put(BoxView box,Place place){
    place.box=box;box.rect.SetParent(place.fixture.boxes,false);box.rect.anchoredPosition=place.foot-(Vector2)place.fixture.root.anchoredPosition;
-   float s=place.width*BoxScale;box.rect.sizeDelta=new Vector2(s,s);
+   float s=BoxSize(box.kind,place.width,place.ppm);box.rect.sizeDelta=new Vector2(s,s);
    // Upper levels in front of the lower ones' tops, boxes further right on top of the left ones.
    var ordered=place.fixture.places.Where(p=>p.box!=null&&p.box.rect).OrderByDescending(p=>p.foot.y).ThenBy(p=>p.foot.x).ToList();
    for(int i=0;i<ordered.Count;i++)ordered[i].box.rect.SetSiblingIndex(i);
   }
   // A free place in the zone: next to boxes of the same product first, then the lowest, leftmost one.
-  Place FreePlace(string zone,int productId,Vector2? near){
+  Place FreePlace(string zone,int productId,Vector2? near,string category=null){
    var free=fixtures.SelectMany(f=>f.places).Where(p=>p.zone==zone&&p.box==null).ToList();if(free.Count==0)return null;
    if(near.HasValue)return free.OrderBy(p=>(p.foot-near.Value).sqrMagnitude).First();
    var friends=fixtures.SelectMany(f=>f.places).Where(p=>p.box!=null&&p.box.productId==productId).ToList();
-   if(friends.Count>0)return free.OrderBy(p=>friends.Min(f=>(f.foot-p.foot).sqrMagnitude)).First();
-   return free.OrderBy(p=>p.level).ThenBy(p=>p.bay).ThenBy(p=>p.index).First();
+   if(friends.Count>0)return free.OrderBy(p=>Pref(p,category)).ThenBy(p=>friends.Min(f=>(f.foot-p.foot).sqrMagnitude)).First();
+   return free.OrderBy(p=>Pref(p,category)).ThenBy(p=>p.level).ThenBy(p=>p.bay).ThenBy(p=>p.index).First();
+  }
+  // Bread goes on the bakery trolley (bay 1 of the produce fixture), fruit and vegetables on the crate stand.
+  static int Pref(Place p,string category){
+   if(p.fixture.key!="produce"||category==null)return 0;
+   return (category=="padaria")==(p.bay==1)?0:1;
   }
 
   // ------------------------------------------------------------------ the truck
@@ -247,18 +291,19 @@ namespace Checkout {
    float h=H*.86f,aspect=d!=null&&d.size!=null?d.size[0]/(float)d.size[1]:1.6f,w=h*aspect;
    var home=new Vector2(-W*.5f+W*.155f,-H*.04f);
    var dockArt=V2?Load<JBackdrop>("receiving_backdrop"):null;
-   if(d?.dockRect!=null&&d.dockRect.Length>=4&&dockArt?.dock!=null&&dockArt.dock.Length>=4&&backdrop)
+   bool v3=d?.stage!=null&&d.stage.Length>=4&&backdrop;
+   if(v3){var tr=OnBackdrop(d.stage);w=tr.width;h=tr.height;home=tr.center;}
+   else if(d?.dockRect!=null&&d.dockRect.Length>=4&&dockArt?.dock!=null&&dockArt.dock.Length>=4&&backdrop)
    {
     // v2: the truck's dock seal lands exactly on the backdrop's roll-up door (the backdrop is cover-fitted).
-    var corners=new Vector3[4];backdrop.rectTransform.GetWorldCorners(corners);
-    Vector2 a=stage.InverseTransformPoint(corners[0]),b=stage.InverseTransformPoint(corners[2]);
-    float bw=b.x-a.x,bh=b.y-a.y;
-    float dx=a.x+dockArt.dock[0]*bw,dy=a.y+dockArt.dock[1]*bh,dw=(dockArt.dock[2]-dockArt.dock[0])*bw;
-    var r=d.dockRect;w=dw/Mathf.Max(.01f,r[2]-r[0]);h=w/aspect;
-    home=new Vector2(dx-r[0]*w+w*.5f,dy-r[1]*h+h*.5f);
+    var dr=OnBackdrop(dockArt.dock);
+    var r=d.dockRect;w=dr.width/Mathf.Max(.01f,r[2]-r[0]);h=w/aspect;
+    home=new Vector2(dr.xMin-r[0]*w+w*.5f,dr.yMin-r[1]*h+h*.5f);
    }
-   // v2 backs in through the door: only a short slide (it would cross the wall).
-   truckRoot=Keep(N("Truck",stage));U.At(truckRoot,Mid,new Vector2(w,h),driveIn?home-new Vector2(V2?w*.18f:W*.6f,0):home);truckRoot.SetSiblingIndex(0);
+   // v3 is seen through the dock door: it backs in (grows into place and fades in); v2 slides a little.
+   truckRoot=Keep(N("Truck",stage));U.At(truckRoot,Mid,new Vector2(w,h),driveIn&&!v3?home-new Vector2(V2?w*.18f:W*.6f,0):home);truckRoot.SetSiblingIndex(0);
+   truckFade=v3?truckRoot.gameObject.AddComponent<CanvasGroup>():null;
+   if(truckFade){truckFade.blocksRaycasts=true;if(driveIn){truckFade.alpha=0;truckRoot.localScale=Vector3.one*.86f;}}
    Layer(truckRoot,"Back",Dir+"receiving_truck_back");
    cargo=N("Cargo",truckRoot);U.Stretch(cargo,Vector2.zero,Vector2.one);
    Layer(truckRoot,"Front",Dir+"receiving_truck_front");
@@ -272,28 +317,35 @@ namespace Checkout {
    var bl=q!=null?P(q.bl):new Vector2(-w*.12f,h*.01f);var br=q!=null?P(q.br):new Vector2(w*.12f,h*.01f);
    int cols=d!=null&&d.cargoColumns>0?d.cargoColumns:3,rows=d!=null&&d.cargoRows>0?d.cargoRows:3,perLayer=cols*rows;
    int shown=Mathf.Min(boxes.Count,perLayer*3);
+   float S=d?.size!=null&&d.size[0]>0?w/d.size[0]:0;   // stage px per image px (v3 knows the cargo floor's pixels per metre)
+   var order=new List<(BoxView box,float depth,int layer)>();
    for(int i=0;i<shown;i++){
     int layer=i/perLayer,cell=i%perLayer,row=rows-1-cell/cols,col=cell%cols;   // fill the back row first
-    float u=(col+.5f)/cols,t=(row+.5f)/(rows+.2f);
+    float u=(col+.5f)/cols,t=v3?(row+.5f)/rows:(row+.5f)/(rows+.2f);
     var front=Vector2.Lerp(fl,fr,u);var back=Vector2.Lerp(bl,br,u);var foot=Vector2.Lerp(front,back,t);
     float width=Mathf.Lerp((fr-fl).magnitude,(br-bl).magnitude,t)/(cols+.3f);
+    float ppm=v3&&d.ppm>0?Mathf.Lerp(d.ppm,d.ppmBack>0?d.ppmBack:d.ppm,t)*S:0;
     var (e,units)=boxes[i];
-    var box=MakeBox(cargo,e.productId,units,e.category,width);box.deliveryId=e.id;box.zone=e.zone;
-    var spot=foot+new Vector2(0,layer*width*.92f);box.rect.anchoredPosition=spot;
+    var box=MakeBox(cargo,e.productId,units,e.category,width,ppm);box.deliveryId=e.id;box.zone=e.zone;
+    var mk=Marks(box.kind);float lift=ppm>0&&mk!=null&&mk.height>0?mk.height*ppm:width*.92f;
+    var spot=foot+new Vector2(0,layer*lift);box.rect.anchoredPosition=spot;order.Add((box,foot.y,layer));
     var drag=U.Drag(box.rect.GetComponent<Image>());box.drag=drag;
-    var b=box;var at=spot;drag.SetHome(at);
+    var b=box;var at=spot;drag.SetHome(at);box.home=spot;
     drag.Setup(fixtures.Select(f=>f.root).ToArray(),target=>Drop(b,target),()=>{Miss(b);},()=>Grab(b));
     drag.Moved=local=>Hover(b,local);
     truckBoxes.Add(box);
    }
-   // Draw order: back rows behind, upper layers on top.
-   foreach(var bx in truckBoxes.OrderByDescending(x=>x.rect.anchoredPosition.y-(x.rect.anchoredPosition.y>0?0:0)).ThenBy(x=>x.rect.anchoredPosition.x))bx.rect.SetAsLastSibling();
+   // Draw order: back rows behind, then the stack of each cell from the floor up.
+   foreach(var o in order.OrderByDescending(x=>x.depth).ThenBy(x=>x.layer).ThenBy(x=>x.box.rect.anchoredPosition.x))o.box.rect.SetAsLastSibling();
    if(driveIn){Play(whoosh,.6f);StartCoroutine(Arrive(home));}
    if(boxes.Count>shown)Toast($"Mais {boxes.Count-shown} caixas no fundo do caminhão");
   }
+  CanvasGroup truckFade;
   IEnumerator Arrive(Vector2 home){
-   // Backs in, stops with a little bounce and a honk.
-   yield return U.Move(truckRoot,home,.8f,true);Play(honk,1,.7f);
+   // Backs in, stops with a little bounce and a honk (v3: grows into the door from the yard).
+   if(truckFade){StartCoroutine(Fade(truckFade,1,.45f));yield return U.Scale(truckRoot,Vector3.one,.8f,true);}
+   else yield return U.Move(truckRoot,home,.8f,true);
+   Play(honk,1,.7f);
    StartCoroutine(U.Pop(truckRoot,1.02f,.25f));
   }
 
@@ -302,9 +354,13 @@ namespace Checkout {
    lastInput=Time.unscaledTime;StopHint();Play(CheckoutRestockSound.Grab);
    // While carried the box leaves the truck's clipping and floats over everything.
    box.rect.SetParent(stage,true);box.rect.SetAsLastSibling();
+   // Its home was in the truck's space: a missed drop springs back to the same spot in the stage's.
+   if(!box.stored&&truckRoot&&box.drag)box.drag.SetHome(truckRoot.anchoredPosition+box.home);
   }
   void Hover(BoxView box,Vector2 local){
-   var f=FixtureAt(local);var place=f!=null?FreePlace(box.zone,box.productId,local):null;
+   // Over overlapping images, the fixture of the box's zone wins (as Drop does).
+   var f=fixtures.FirstOrDefault(x=>x.bayZones.Contains(box.zone)&&new Rect(x.root.anchoredPosition-x.root.sizeDelta*.5f,x.root.sizeDelta).Contains(local))??FixtureAt(local);
+   var place=f!=null?FreePlace(box.zone,box.productId,local):null;
    if(place!=null&&place.fixture!=f)place=null;
    if(place==ghostPlace)return;ghostPlace=place;
    if(ghost){Destroy(ghost.gameObject);ghost=null;}
@@ -312,7 +368,7 @@ namespace Checkout {
    // A see-through copy of the box shows where it will go.
    ghost=Keep(new GameObject("Ghost",typeof(RectTransform),typeof(Image)).GetComponent<Image>());ghost.transform.SetParent(place.fixture.boxes,false);
    ghost.sprite=box.art.sprite;ghost.raycastTarget=false;ghost.color=new Color(.75f,1,.75f,.55f);
-   var r=ghost.rectTransform;r.anchorMin=r.anchorMax=Mid;r.pivot=new Vector2(.5f,.14f);float s=place.width*BoxScale;r.sizeDelta=new Vector2(s,s);
+   var r=ghost.rectTransform;r.anchorMin=r.anchorMax=Mid;r.pivot=BoxPivot(box.kind);float s=BoxSize(box.kind,place.width,place.ppm);r.sizeDelta=new Vector2(s,s);
    r.anchoredPosition=place.foot-(Vector2)place.fixture.root.anchoredPosition;
   }
   Fixture FixtureAt(Vector2 local){
@@ -333,6 +389,8 @@ namespace Checkout {
    if(ghost){Destroy(ghost.gameObject);ghost=null;}var chosen=ghostPlace;ghostPlace=null;
    if(f==null)return false;
    if(!f.bayZones.Contains(box.zone)){
+    // Overlapping images: when the box is also over a fixture of its zone, that one answers (it was tried first).
+    if(fixtures.Any(x=>x!=f&&x.bayZones.Contains(box.zone)&&new Rect(x.root.anchoredPosition-x.root.sizeDelta*.5f,x.root.sizeDelta).Contains(local)))return false;
     // Wrong place: the sign shakes red and the right one flashes.
     Play(CheckoutRestockSound.Wrong);streak=0;
     if(f.label)StartCoroutine(U.Shake(f.label.rectTransform,.35f,10));
@@ -345,7 +403,17 @@ namespace Checkout {
     Toast("Depósito cheio para este produto! Venda um pouco ou amplie o estoque.");return false;
    }
    var place=chosen!=null&&chosen.fixture==f&&chosen.box==null?chosen:FreePlace(box.zone,box.productId,local);
-   if(place==null){Play(CheckoutRestockSound.Wrong,.85f);Toast("Essa prateleira está lotada. Use outra parte do rack.");return false;}
+   if(place==null){
+    // Every place of the zone already shows a box, but the stockroom still has room for it: it goes behind the
+    // others (into the depth of the shelf) instead of being refused.
+    var near=f.places.Where(p=>p.zone==box.zone).OrderBy(p=>(p.foot-local).sqrMagnitude).FirstOrDefault();
+    if(near==null){Play(CheckoutRestockSound.Wrong,.85f);Toast("Essa prateleira está lotada. Use outra parte do rack.");return false;}
+    box.drag.Locked=true;box.stored=true;truckBoxes.Remove(box);roomLeft[box.deliveryId]=room-box.units;
+    bridge.Command("unloadDelivery","["+Json(box.deliveryId)+","+box.units+"]");
+    StartCoroutine(Tuck(box,near));Tick(box);
+    if(truckBoxes.Count==0)StartCoroutine(Done());
+    return true;
+   }
    // Accepted: the app moves the units into stock.
    box.drag.Locked=true;box.stored=true;truckBoxes.Remove(box);roomLeft[box.deliveryId]=room-box.units;
    bridge.Command("unloadDelivery","["+Json(box.deliveryId)+","+box.units+"]");
@@ -365,7 +433,7 @@ namespace Checkout {
   IEnumerator Land(BoxView box,Place place){
    var r=box.rect;place.box=box;
    // Fly to the place (stage space), then become part of the rack's layers.
-   var to=place.foot;r.SetParent(stage,true);float s=place.width*BoxScale;
+   var to=place.foot;r.SetParent(stage,true);float s=BoxSize(box.kind,place.width,place.ppm);
    StartCoroutine(U.Scale(r,new Vector3(s/Mathf.Max(1,r.sizeDelta.x),s/Mathf.Max(1,r.sizeDelta.y),1),.22f));
    yield return U.Move(r,to,.22f);
    if(!r)yield break;
@@ -376,6 +444,11 @@ namespace Checkout {
    bool friend=place.fixture.places.Any(p=>p!=place&&p.box!=null&&p.box.productId==box.productId&&p.level==place.level&&Mathf.Abs(p.index-place.index+(p.bay-place.bay)*3)==1);
    if(friend){U.Sparkles(this,stage,place.foot+new Vector2(0,place.width*.6f),5,place.width*.9f);}
    Combo(place);
+  }
+  IEnumerator Tuck(BoxView box,Place near){
+   var r=box.rect;r.SetParent(stage,true);StartCoroutine(U.Scale(r,Vector3.one*.55f,.28f));
+   yield return U.Move(r,near.foot+new Vector2(0,near.width*.15f),.28f);
+   if(!r)yield break;Play(Weight(box.category)<1?thudLow:thudHigh,Weight(box.category));Dust(near);Destroy(r.gameObject);
   }
   IEnumerator Squash(RectTransform r){
    float[] k={1.18f,.86f,1.06f,1f};float[] y={.82f,1.12f,.96f,1f};
@@ -408,10 +481,16 @@ namespace Checkout {
   // ------------------------------------------------------------------ the delivery note
   void BuildNote(){
    var d=Load<JClip>("receiving_clipboard");var sprite=K.Icon(Dir+"receiving_clipboard");
-   float h=H*(V2?.34f:.42f),w=h*(sprite?sprite.rect.width/sprite.rect.height:.75f);
+   bool v3=V3;var dockArt=v3?Load<JBackdrop>("receiving_backdrop"):null;
+   float h=H*(v3?.40f:V2?.34f:.42f),w=h*(sprite?sprite.rect.width/sprite.rect.height:.75f);
    var img=Keep(new GameObject("Clipboard",typeof(RectTransform),typeof(Image)).GetComponent<Image>());img.transform.SetParent(stage,false);
    img.sprite=sprite;img.raycastTarget=false;if(!sprite)img.color=K.C("FFF7EC");
-   clipboard=img.rectTransform;U.At(clipboard,new Vector2(0,0),new Vector2(w,h),new Vector2(w*.62f,h*.52f));clipboard.localRotation=Quaternion.Euler(0,0,4);
+   clipboard=img.rectTransform;
+   if(dockArt?.dock!=null&&dockArt.dock.Length>=4&&backdrop){
+    // v3: hung over the dock door, between the ceiling and the door.
+    var dr=OnBackdrop(dockArt.dock);U.At(clipboard,Mid,new Vector2(w,h),new Vector2(dr.center.x,Mathf.Min(H*.5f-h*.52f,dr.yMax+h*.5f+H*.01f)));clipboard.localRotation=Quaternion.Euler(0,0,-1.5f);
+   }
+   else{U.At(clipboard,new Vector2(0,0),new Vector2(w,h),new Vector2(w*.62f,h*.52f));clipboard.localRotation=Quaternion.Euler(0,0,4);}
    var sheet=d?.sheet!=null&&d.sheet.Length>=4?Rect.MinMaxRect(d.sheet[0],d.sheet[1],d.sheet[2],d.sheet[3]):new Rect(.1f,.07f,.8f,.78f);
    var head=U.Label(clipboard,"Heading",K.Headline,h*.06f,"FFFFFF");U.Stretch(head.rectTransform,new Vector2(sheet.xMin,sheet.yMax-.08f),new Vector2(sheet.xMax,sheet.yMax-.005f));head.text="NOTA DE ENTREGA";
    head.enableAutoSizing=true;head.fontSizeMin=8;head.fontSizeMax=h*.06f;
@@ -421,9 +500,10 @@ namespace Checkout {
     var e=groups[i];float y=lines.Length>i?lines[i].y:sheet.yMax-.14f-i*.075f;float x0=lines.Length>i?lines[i].x0:sheet.xMin+.05f,x1=lines.Length>i?lines[i].x1:sheet.xMax-.05f;
     var row=N("Line "+i,clipboard);U.Stretch(row,new Vector2(x0,y),new Vector2(x1,y+.065f));
     // Printed columns: PRODUTO (left), QTD (right-aligned), OK (the check box at the right end).
-    var t=U.Label(row,"Text",K.Body,h*.042f,"3B2E22",TextAlignmentOptions.Left);U.Stretch(t.rectTransform,Vector2.zero,new Vector2(.70f,1));t.enableAutoSizing=true;t.fontSizeMin=6;t.fontSizeMax=h*.042f;
+    float fs=h*(v3?.05f:.042f);
+    var t=U.Label(row,"Text",K.Body,fs,"3B2E22",TextAlignmentOptions.Left);U.Stretch(t.rectTransform,Vector2.zero,new Vector2(.68f,1));t.enableAutoSizing=true;t.fontSizeMin=6;t.fontSizeMax=fs;
     t.textWrappingMode=TextWrappingModes.NoWrap;t.overflowMode=TextOverflowModes.Ellipsis;
-    var qty=U.Label(row,"Qty",K.Headline,h*.042f,"1D2B4F",TextAlignmentOptions.Right);U.Stretch(qty.rectTransform,new Vector2(.70f,0),new Vector2(.86f,1));qty.enableAutoSizing=true;qty.fontSizeMin=6;qty.fontSizeMax=h*.042f;
+    var qty=U.Label(row,"Qty",K.Headline,fs,"1D2B4F",TextAlignmentOptions.Right);U.Stretch(qty.rectTransform,new Vector2(.70f,0),new Vector2(.86f,1));qty.enableAutoSizing=true;qty.fontSizeMin=6;qty.fontSizeMax=fs;
     var check=U.Icon(row,"Check","Icons/success",new Vector2(.93f,.5f),new Vector2(h*.05f,h*.05f));check.color=new Color(1,1,1,0);
     var strike=N("Strike",row).gameObject.AddComponent<Image>();strike.color=new Color(.27f,.6f,.2f,0);strike.raycastTarget=false;U.Stretch(strike.rectTransform,new Vector2(0,.45f),new Vector2(0,.55f));
     int total=Mathf.Max(0,Mathf.CeilToInt((e.quantity-e.unloaded)/(float)Mathf.Max(1,e.boxUnits)));
@@ -470,7 +550,12 @@ namespace Checkout {
    Play(honk,1,.8f);yield return Leave();
    yield return new WaitForSecondsRealtime(.5f);Close();
   }
-  IEnumerator Leave(){if(!truckRoot)yield break;Play(whoosh,.5f);yield return U.Move(truckRoot,truckRoot.anchoredPosition-new Vector2(W*.7f,0),.7f);}
+  IEnumerator Leave(){
+   if(!truckRoot)yield break;Play(whoosh,.5f);
+   if(truckFade){StartCoroutine(Fade(truckFade,0,.6f));yield return U.Scale(truckRoot,Vector3.one*.86f,.7f);yield break;}
+   yield return U.Move(truckRoot,truckRoot.anchoredPosition-new Vector2(W*.7f,0),.7f);
+  }
+  static IEnumerator Fade(CanvasGroup g,float to,float seconds){float from=g.alpha;for(float t=0;t<1;t+=Time.unscaledDeltaTime/seconds){if(!g)yield break;g.alpha=Mathf.Lerp(from,to,t);yield return null;}if(g)g.alpha=to;}
 
   // ------------------------------------------------------------------ hints and messages
   IEnumerator IdleHints(){
@@ -478,7 +563,7 @@ namespace Checkout {
     yield return new WaitForSecondsRealtime(1f);
     if(hint||finishing||Time.unscaledTime-lastInput<5f)continue;
     var box=truckBoxes.LastOrDefault();if(box==null)continue;
-    var place=FreePlace(box.zone,box.productId,null);if(place==null)continue;
+    var place=FreePlace(box.zone,box.productId,null,box.category);if(place==null)continue;
     var b=box;var p=place;
     hint=U.Hint(this,stage,()=>b.rect&&!b.stored?U.LocalOf(stage,b.rect):throw new Exception(),()=>p.foot);
    }

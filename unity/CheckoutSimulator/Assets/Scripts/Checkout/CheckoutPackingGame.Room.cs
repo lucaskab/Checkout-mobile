@@ -123,15 +123,7 @@ namespace Checkout {
 
   // ------------------------------------------------------------------ boxes
   // Which carton a product comes in (same rule as the receiving room).
-  static string BoxKind(string category){
-   switch(category){
-    case "hortifruti":case "organicos":return "crate";
-    case "bebidas":case "refrigerantes":case "aguas":case "energeticos":case "alcoolicos":return "pack";
-    case "congelados":case "sorvetes":return "frozen";
-    case "padaria":case "ovos":return "tray";
-    default:return "carton";
-   }
-  }
+  static string BoxKind(string category)=>CheckoutReceivingGame.BoxKind(category);
   // Where the printed "N×" mark sits on the carton art.
   static Rect BoxMark(string kind){
    if(boxMarks.TryGetValue(kind,out var r))return r;
@@ -150,7 +142,7 @@ namespace Checkout {
    // small dark tag at the front corner.
    var peek=new GameObject("Product",typeof(RectTransform),typeof(Image)).GetComponent<Image>();peek.transform.SetParent(r,false);
    peek.sprite=K.Icon("Products/product-"+productId.ToString("000",System.Globalization.CultureInfo.InvariantCulture));peek.preserveAspect=true;peek.raycastTarget=false;
-   var pr=peek.rectTransform;pr.anchorMin=pr.anchorMax=new Vector2(.5f,kind=="tray"?.6f:.7f);pr.pivot=new Vector2(.5f,.5f);pr.sizeDelta=new Vector2(size*.56f,size*.56f);
+   var pr=peek.rectTransform;pr.anchorMin=pr.anchorMax=new Vector2(.5f,kind=="tray"||kind=="bread"||kind=="milk"?.6f:.7f);pr.pivot=new Vector2(.5f,.5f);pr.sizeDelta=new Vector2(size*.56f,size*.56f);
    var tag=new GameObject("Tag",typeof(RectTransform),typeof(Image)).GetComponent<Image>();tag.transform.SetParent(r,false);
    tag.sprite=K.Rounded(10);tag.type=Image.Type.Sliced;tag.color=new Color(.18f,.12f,.07f,.88f);tag.raycastTarget=false;
    var tr=tag.rectTransform;tr.anchorMin=tr.anchorMax=new Vector2(.8f,.24f);tr.pivot=new Vector2(.5f,.5f);tr.sizeDelta=new Vector2(size*.34f,size*.17f);

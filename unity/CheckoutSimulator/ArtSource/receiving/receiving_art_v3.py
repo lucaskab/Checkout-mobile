@@ -37,6 +37,27 @@ CAM = dict(x=0.58, y=-8.25, z=1.50, lens=26.8, centre_z=1.52, plane_y=-0.8)
 GROUPS = ("room", "yard", "truck", "rack", "drinks", "produce", "coldroom")
 INFO = {}
 
+def strip_text():
+    """The game is translated: no words are baked into the art (Unity writes every label)."""
+    for o in list(bpy.context.scene.objects):
+        if o.type == 'FONT': bpy.data.objects.remove(o, do_unlink=True)
+
+def chevron(nm, x, y, z, size, m, rot_z=0., thick=.004, plane="floor", layer="back"):
+    """Painted arrow head pointing +y (floor) or +z (wall, plane='wall')."""
+    L = size * .62; w = size * .16
+    for s_ in (-1, 1):
+        if plane == "floor": box(f"{nm}{s_}", (L, w, thick), (x + s_ * L * .33, y, z), m, bevel=0, rot=(0, 0, rot_z + s_ * rad(-40)), layer=layer)
+        else: box(f"{nm}{s_}", (L, thick, w), (x + s_ * L * .33, y, z), m, bevel=0, rot=(0, rot_z + s_ * rad(40), 0), layer=layer)
+
+def snowflake(nm, x, y, z, r, m, thick=.002, layer="back"):
+    for k in range(3):
+        a = rad(k * 60)
+        box(f"{nm}_a{k}", (.012 * r / .05, thick, r * 2), (x, y, z), m, bevel=0, rot=(0, a, 0), layer=layer)
+        for d in (-1, 1):
+            cx, cz = x + math.sin(a) * r * .62 * d, z + math.cos(a) * r * .62 * d
+            for s_ in (-1, 1):
+                box(f"{nm}_b{k}{s_}{d}", (.008 * r / .05, thick, r * .40), (cx + math.sin(a + s_ * rad(40)) * r * .14 * d, y, cz + math.cos(a + s_ * rad(40)) * r * .14 * d), m, bevel=0, rot=(0, a + s_ * rad(40), 0), layer=layer)
+
 def tag(group, fn, *a, **k):
     before = set(bpy.context.scene.objects)
     r = fn(*a, **k)
@@ -119,7 +140,7 @@ def build_room():
         box("r3_lane_" + nm, sz, lc, yellow, bevel=0)
     for k in range(9):   # hatched strip at the dock edge
         box(f"r3_hatch{k}", ((x1 - x0) / 9, .26, .004), (x0 + (k + .5) * (x1 - x0) / 9, -.48, .002), yellow if k % 2 == 0 else black, bevel=0)
-    text("r3_floor_txt", "RECEBIMENTO", .20, ((x0 + x1) / 2, -1.55, .004), yellow, bold=True)
+    for k, yy in enumerate((-1.95, -1.50, -1.05)): chevron(f"r3_chev{k}", (x0 + x1) / 2, yy, .004, .70, yellow)
     # back wall (blue block band, cream above, orange rule, skirting) with the dock opening
     def wall(nm, xa, xb, za, zb, m, y=.15, d=.30):
         if xb - xa > .01 and zb - za > .01: box(nm, (xb - xa, d, zb - za), ((xa + xb) / 2, y, (za + zb) / 2), m, bevel=0)
@@ -248,6 +269,18 @@ def fixture_slots(key):
 
 # --- SECOS: one bay, four box levels + overstock on top
 R3 = dict(BW=1.06, D=.64, H=2.42, post=.08, levels=(.10, .62, 1.14, 1.66), top=2.20)
+def chalk_apple(nm, x, y, z, r, m):
+    rounded(nm + "_o", r * 1.7, r * 1.55, (x, y, z - r * .05), m, r=r * .7, frame=.005, rot=(rad(90), 0, 0))
+    box(nm + "_st", (.006, .003, r * .5), (x + r * .05, y, z + r * .78), m, bevel=0, rot=(0, rad(15), 0))
+    rounded(nm + "_lf", r * .6, r * .28, (x + r * .38, y, z + r * .82), m, r=r * .13, frame=.005, rot=(rad(90), rad(-25), 0))
+def chalk_carrot(nm, x, y, z, r, m):
+    for s_ in (-1, 1): box(f"{nm}_s{s_}", (.006, .003, r * 1.9), (x + s_ * r * .22, y, z - r * .1), m, bevel=0, rot=(0, rad(s_ * 12), 0))
+    for k in range(3): box(f"{nm}_l{k}", (.005, .003, r * .55), (x + (k - 1) * r * .16, y, z + r * .95), m, bevel=0, rot=(0, rad((k - 1) * 25), 0))
+    for k in range(3): box(f"{nm}_r{k}", (r * .3, .003, .005), (x - r * .02, y, z - r * (.4 - k * .35)), m, bevel=0)
+def chalk_bread(nm, x, y, z, r, m):
+    rounded(nm + "_o", r * 2.4, r * .95, (x, y, z), m, r=r * .45, frame=.005, rot=(rad(90), 0, 0))
+    for k in range(3): box(f"{nm}_c{k}", (.006, .003, r * .55), (x + (k - 1) * r * .62, y, z + r * .05), m, bevel=0, rot=(0, rad(35), 0))
+
 def build_rack3(key="rack"):
     BW, D, H, post = R3["BW"], R3["D"], R3["H"], R3["post"]; W = BW + 2 * post
     set_off(FIXX[key] + W / 2, -D - .05); SLOTS.pop(key, None)
@@ -284,14 +317,14 @@ def build_drinks3(key="drinks"):
     INFO[key] = dict(sign=sg, widthM=W, slots=fixture_slots(key))
 
 # --- HORTIFRUTI | PAES: a stepped pine stand (3 tiers x 2) and a stainless bakery trolley (3 trays)
-PR3 = dict(SW=1.06, TW=.60, gap=.08, D=.92, H=1.80)
+PR3 = dict(SW=1.06, TW=.60, gap=.08, D=1.12, H=1.80)
 def build_produce3(key="produce"):
     SW_, TW, gap, D, H = PR3["SW"], PR3["TW"], PR3["gap"], PR3["D"], PR3["H"]; W = SW_ + gap + TW
     set_off(FIXX[key] + W / 2, -D - .05); SLOTS.pop(key, None)
     xl = -W / 2 + SW_ / 2; xr = W / 2 - TW / 2
     pine = wood_mat("pr_pine", (0.86, 0.64, 0.36, 1), (0.64, 0.44, 0.22, 1), grain=(1.0, 18.0, 18.0)); pine_d = wood_mat("pr_pine_d", (0.55, 0.36, 0.18, 1), (0.40, 0.25, 0.12, 1), grain=(18.0, 18.0, 1.0))
     chalk = mat("pr_chalk", (0.12, 0.14, 0.13, 1), rough=.9, bump=.2, scale=30); chalk_ink = mat("pr_chalk_ink", (0.95, 0.95, 0.92, 1), rough=.9, bump=0)
-    tiers = ((.30, .04, .40), (.74, .30, .40), (1.18, .56, .34)); tilt = rad(5)
+    tiers = ((.30, .04, .36), (.68, .40, .36), (1.06, .76, .32)); tilt = rad(5)
     for sx in (-1, 1):
         for k, (z, y, d) in enumerate(tiers):
             zt = z + d * math.sin(tilt)
@@ -303,14 +336,15 @@ def build_produce3(key="produce"):
         zc = z + d * math.sin(tilt) / 2; yc = y + d * math.cos(tilt) / 2
         for j in range(4): box(f"pr_tier{k}_{j}", (SW_ - .08, d / 4 - .008, .022), (xl, yc + (j - 1.5) * d / 4 * math.cos(tilt), zc + (j - 1.5) * d / 4 * math.sin(tilt)), pine, bevel=.004, rot=(tilt, 0, 0))
         box(f"pr_lip{k}", (SW_ - .06, .025, .08), (xl, y - .01, z + .03), pine_d, bevel=.005, layer="front")
-        box(f"pr_under{k}", (SW_ - .08, .025, z - .02 if k == 0 else .12), (xl, y + .01, (z - .02) / 2 if k == 0 else z - .07), pine_d, bevel=.004, layer="front" if k == 0 else "back")
+        zb = 0 if k == 0 else tiers[k - 1][0] + tiers[k - 1][2] * math.sin(tilt)      # the riser stands on the back of the tier below
+        box(f"pr_under{k}", (SW_ - .08, .025, z - zb), (xl, y + .01, (z + zb) / 2), pine_d, bevel=.004, layer="front" if k == 0 else "back")
         sw = (SW_ - .12) / 2
         for i in range(2):
             x0 = xl - (SW_ - .12) / 2 + i * sw
             slot(key, k, 0, i, x0 + .02, x0 + sw - .02, y + .03, y + d * math.cos(tilt) * .85, z + d * math.sin(tilt) * .3 + .022)
     rounded("pr_board", .62, .20, (xl, D - .05, H + .14), chalk, r=.02, thick=.02, rot=(rad(90), 0, 0))
     rounded("pr_board_fr", .62, .20, (xl, D - .06, H + .14), pine_d, r=.02, thick=.02, rot=(rad(90), 0, 0), frame=.025)
-    text("pr_board_txt", "FRUTAS & LEGUMES", .052, (xl, D - .066, H + .14), chalk_ink, rot=(rad(90), 0, 0), bold=True)
+    chalk_apple("pr_apple", xl - .09, D - .068, H + .14, .055, chalk_ink); chalk_carrot("pr_carrot", xl + .10, D - .068, H + .14, .06, chalk_ink)
     for px in (-.24, .24): box(f"pr_board_post{px:+.2f}", (.025, .025, .12), (xl + px, D - .05, H + .03), pine_d, bevel=.004)
     # bakery trolley: stainless uprights on casters, tray rails, three trays with slots and a top tray of bread
     inox = mat("pr_inox", (0.80, 0.82, 0.82, 1), rough=.22, metal=.9, bump=0); inox_d = mat("pr_inox_d", (0.60, 0.62, 0.62, 1), rough=.3, metal=.85, bump=0)
@@ -337,7 +371,7 @@ def build_produce3(key="produce"):
         french_roll(f"pr_roll{k}", (xr - .12 + i * .24 + rnd.uniform(-.02, .02), ty - .22 + j * .145, zz + .01), rnd.uniform(-12, 12), seed=k)
     rounded("pr_board2", .40, .17, (xr, D - .05, H + .12), chalk, r=.02, thick=.02, rot=(rad(90), 0, 0))
     rounded("pr_board2_fr", .40, .17, (xr, D - .06, H + .12), pine_d, r=.02, thick=.02, rot=(rad(90), 0, 0), frame=.025)
-    text("pr_board2_txt", "PÃES", .075, (xr, D - .066, H + .12), chalk_ink, rot=(rad(90), 0, 0), bold=True)
+    chalk_bread("pr_breadic", xr, D - .068, H + .12, .07, chalk_ink)
     sg = zone_sign(key + "_sign", 0, 2.70, w=1.25, y=-.10, mount="chains")
     INFO[key] = dict(sign=sg, widthM=W, slots=fixture_slots(key))
 
@@ -390,16 +424,18 @@ def build_coldroom3(key="coldroom"):
     # thermometer over the opening, the zone sign on the panel
     box("cr_disp_box", (.24, .04, .13), (-W / 2 + .2, -.03, oh + .18), mat("cr_disp_case", (0.85, 0.86, 0.86, 1), rough=.3, metal=.5, bump=0), bevel=.01, layer="front")
     dsp = box("cr_display", (.18, .01, .08), (-W / 2 + .2, -.052, oh + .18), mat("cr_disp", (0.03, 0.04, 0.05, 1), rough=.3, bump=0), bevel=.004, layer="front")
-    text("cr_disp_txt", "-2°C", .05, (-W / 2 + .2, -.058, oh + .18), mat("cr_led", (0.35, 0.90, 1.0, 1), emit=6, bump=0), rot=(rad(90), 0, 0), layer="front")
+    led = mat("cr_led", (0.35, 0.90, 1.0, 1), emit=6, bump=0)
+    for k, (dx, w_, h_) in enumerate(((-.05, .03, .008), (-.005, .034, .05), (.04, .034, .05))):
+        box(f"cr_seg{k}", (w_, .004, h_), (-W / 2 + .2 + dx, -.058, oh + .18), led, bevel=0, layer="front")
     sg = zone_sign(key + "_sign", ox + .18, oh + .19, w=.80, h=.22, y=-.03, mount="flat", layer="front")
     # inside: chrome wire shelving, 4 levels x 2 places; frost; the cold blue light
-    iw = ow - .02; sd = D - .45; yc = D / 2 + .15
+    iw = ow - .02; sd = .72; yc = .52      # shelves close behind the opening: the jambs hide little of them
     for lv, z in enumerate(C3["levels"]):
         grid_wire(f"cr_deck{lv}", iw, sd, (ox, yc, z), shelf, nx=20, ny=7, thick=.006)
         for yy in (yc - sd / 2, yc + sd / 2): box(f"cr_shelf_edge{lv}{yy:.1f}", (iw, .025, .03), (ox, yy, z - .01), shelf, bevel=.006)
-        sw = (iw - .06) / 2
+        sw = (iw - .16) / 2          # inset and nudged right: seen from the left, the left jamb hides the left edge
         for k in range(2):
-            x0 = ox - iw / 2 + .03 + k * sw
+            x0 = ox - iw / 2 + .12 + k * sw
             slot(key, lv, 0, k, x0 + .02, x0 + sw - .02, yc - sd / 2 + .04, yc + sd / 2 - .04, z + .01)
     for sxx in (-1, 1):
         for yy in (yc - sd / 2 + .015, yc + sd / 2 - .015):
@@ -499,21 +535,47 @@ def banana_hand(nm, loc, n=4, rot=0., layer="back"):
     p = (R @ Vector((-.10, 0, 0))) + L - OFF
     box(f"{nm}_crown", (.03, .10, .025), (p.x, p.y, p.z), _shade("banana_crown", (0.45, 0.42, 0.12, 1), (0.30, 0.25, 0.08, 1), rough=.7), bevel=.008, layer=layer, rot=(0, 0, rot))
 
-def french_roll(nm, loc, rot_deg=0., seed=0, layer="back", L=.15):
-    """Pao frances: an oval roll, golden crust darker on top, with the raised 'pestana' along the top."""
-    crust = _shade("crust", (0.70, 0.40, 0.12, 1), (0.88, 0.62, 0.28, 1), rough=.6, spec=.25, bump=.25, bump_scale=300)
-    crumb = _shade("crumb", (0.96, 0.86, 0.62, 1), (0.92, 0.78, 0.50, 1), rough=.8, spec=.2, bump=.3, bump_scale=400)
-    o = _uvsphere(nm, .05, loc, 32, 16)
-    def f(c):
-        c.x *= L / .10; c.y *= .72; c.z *= .80
-        if c.z < 0: c.z *= .40
-        return c
-    _deform(o, f); o.rotation_euler = (0, 0, rad(rot_deg)); _finish(o, nm, crust, layer)
-    o.location.z += .012
-    R = Matrix.Rotation(rad(rot_deg), 4, 'Z'); c = Vector(loc)
-    a = c + R @ Vector((0, .006, .052)); b = c + R @ Vector((0, -.004, .050))
-    sphere(f"{nm}_ear", .05, (a.x, a.y, a.z), crust, layer=layer, scale=(L / .105, .14, .10), rot=(rad(-25), 0, rad(rot_deg)))
-    sphere(f"{nm}_split", .05, (b.x, b.y, b.z), crumb, layer=layer, scale=(L / .12, .12, .06), rot=(0, 0, rad(rot_deg)))
+def _bread_mat():
+    key = "org_bread_vc"
+    if key in _M and _M[key].name in bpy.data.materials: return _M[key]
+    m = bpy.data.materials.new("RV3_" + key); m.use_nodes = True; nt = m.node_tree; b = nt.nodes["Principled BSDF"]
+    b.inputs["Roughness"].default_value = .62
+    if "Specular IOR Level" in b.inputs: b.inputs["Specular IOR Level"].default_value = .3
+    at = nt.nodes.new("ShaderNodeAttribute"); at.attribute_name = "Col"
+    tc = nt.nodes.new("ShaderNodeTexCoord"); n = nt.nodes.new("ShaderNodeTexNoise"); n.inputs["Scale"].default_value = 60; n.inputs["Detail"].default_value = 6
+    nt.links.new(tc.outputs["Object"], n.inputs["Vector"])
+    mx = nt.nodes.new("ShaderNodeMix"); mx.data_type = 'RGBA'; mx.blend_type = 'MULTIPLY'; mx.inputs["Factor"].default_value = .35
+    nt.links.new(at.outputs["Color"], mx.inputs[6]); nt.links.new(n.outputs["Color"], mx.inputs[7])
+    nt.links.new(mx.outputs[2], b.inputs["Base Color"])
+    n2 = nt.nodes.new("ShaderNodeTexNoise"); n2.inputs["Scale"].default_value = 320; n2.inputs["Detail"].default_value = 4
+    nt.links.new(tc.outputs["Object"], n2.inputs["Vector"])
+    bp = nt.nodes.new("ShaderNodeBump"); bp.inputs["Strength"].default_value = .25; bp.inputs["Distance"].default_value = .002
+    nt.links.new(n2.outputs["Fac"], bp.inputs["Height"]); nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
+    _M[key] = m; return m
+
+def french_roll(nm, loc, rot_deg=0., seed=0, layer="back", L=.13, Wd=.075, Hh=.058):
+    """Pao frances: an oval roll with tapered ends, a flat-ish base, the long split ('pestana') along the top where the
+    crumb shows (light) and one lip rises; crust golden, darker on top (vertex colours)."""
+    rnd = random.Random(seed)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=Vector(loc) + OFF, segments=40, ring_count=20); o = bpy.context.object
+    me = o.data; hl, hw = L / 2, Wd / 2; off = rnd.uniform(-.15, .15) * hw
+    cols = []
+    for v in me.vertices:
+        x, y, z = v.co.x, v.co.y, v.co.z
+        taper = 1 - .30 * x * x
+        X = x * hl; Y = y * hw * taper; Z = (z * Hh * .78 if z > 0 else z * Hh * .22) * (1 - .25 * x * x)
+        g = math.exp(-((Y - off) / (hw * .24)) ** 2) * max(0, 1 - (x * 1.15) ** 2) * (1 if z > .2 else 0)
+        Z -= g * Hh * .26
+        if z > .2 and Y < off: Z += Hh * .11 * max(0, 1 - (x * 1.1) ** 2) * math.exp(-((Y - off + hw * .25) / (hw * .3)) ** 2)
+        v.co = Vector((X, Y, Z + Hh * .22))
+        top = max(0, z) ** 1.5
+        crust = (0.80 - .22 * top, 0.52 - .20 * top, 0.20 - .10 * top)
+        crumb = (0.97, 0.90, 0.70)
+        cols.append(tuple(crust[i] * (1 - g) + crumb[i] * g for i in range(3)) + (1,))
+    ca = me.color_attributes.new("Col", 'FLOAT_COLOR', 'POINT')
+    for i, c in enumerate(cols): ca.data[i].color = c
+    me.update(); o.rotation_euler = (0, 0, rad(rot_deg))
+    return _finish(o, nm, _bread_mat(), layer)
 
 def egg(nm, loc, r=.022, m=None, layer="back"):
     o = _uvsphere(nm, r, loc, 24, 12)
@@ -540,7 +602,7 @@ def build_stage():
     sc.view_settings.exposure = -.35
     tag("room", build_room); tag("yard", build_yard); tag("truck", build_truck)
     tag("rack", build_rack3); tag("drinks", build_drinks3); tag("produce", build_produce3); tag("coldroom", build_coldroom3)
-    set_off(0, 0)
+    set_off(0, 0); strip_text()
     return {g: sum(1 for o in sc.objects if o.get("group") == g) for g in GROUPS}
 
 def _vis(group, layer):
@@ -552,7 +614,11 @@ def _vis(group, layer):
             # lights inside the truck / cold room only light their own render (and the backdrop never sees them)
             o.hide_render = g not in ("light", group); continue
         if group == "backdrop": o.hide_render = g not in ("room", "yard"); continue
-        if g == "room": o.is_shadow_catcher = True
+        # back layers catch the shadows of the whole fixture on the floor and the wall; front layers carry none
+        # (the wall seen through the invisible back parts would catch them as a dark ghost)
+        if g == "room":
+            if layer == "front": o.hide_render = True
+            else: o.is_shadow_catcher = True
         elif g == group: o.visible_camera = lay == layer
         else: o.hide_render = True
 
@@ -609,6 +675,7 @@ def render_stage(what, samples=None):
 
 # ---------------------------------------------------------------- boxes (512 x 512, contact shadow, eye-level view)
 BOX3_VIEW = dict(pitch=14, yaw=16, lens=50)
+BOX3_PITCH = dict(bread=24, crate=20, tray=22, milk=18, pack=16)
 
 def _crate_plastic(nm, W, D, H, m, slots_m, handle=True, ribs=True):
     """Stackable plastic crate: thick rim, ribbed walls with window slots, hand holes on the short sides."""
@@ -631,16 +698,25 @@ def _label(nm, w, h, loc, rot=(rad(90), 0, 0)):
     return rounded(nm, w, h, loc, mat("bx3_label", (0.97, 0.97, 0.95, 1), rough=.6, bump=0), r=.006, thick=.002, rot=rot)
 
 def build_box3_carton():
-    W, D, H = .50, .38, .36
-    v = build_box_carton()
-    blue = mat("bx3_print", BLUE, rough=.75, bump=0); orange = mat("bx3_print_o", ORANGE, rough=.75, bump=0)
-    box("bx3_band", (W + .002, D + .002, .035), (0, 0, .045), blue, bevel=.002)
-    text("bx3_brand", "CHECKOUT", .030, (W * .14, -D / 2 - .0035, H * .82), blue, rot=(rad(90), 0, 0), bold=True)
-    cyl("bx3_logo", .018, .002, (-W * .02, -D / 2 - .003, H * .82), orange, rot=(rad(90), 0, 0), verts=24)
-    return v
+    """Plain corrugated carton (secos): flaps, brown tape, 'this side up' arrows and a fragile-glass pictogram."""
+    W, D, H = .44, .34, .32
+    card = mat("bx_card", CARD, rough=.8, bump=.22, scale=120); card_d = mat("bx_card_d", CARD_D, rough=.85, bump=.2, scale=120)
+    tape = mat("bx_tape", (0.66, 0.46, 0.24, 1), rough=.25, bump=.04); ink = mat("bx_ink", (0.14, 0.11, 0.10, 1), rough=.8, bump=0)
+    blue = mat("bx3_print", BLUE, rough=.75, bump=0)
+    box("bx_body", (W, D, H - .02), (0, 0, (H - .02) / 2), card, bevel=.01, seg=4)
+    for sx in (-1, 1): box(f"bx_flap{sx}", (W / 2 - .003, D, .02), (sx * W / 4, 0, H - .01 + (.003 if sx > 0 else 0)), card, bevel=.006)
+    box("bx_flap_seam", (.005, D - .01, .016), (0, 0, H - .01), card_d, bevel=0)
+    box("bx_tape_top", (.06, D + .004, .005), (0, 0, H + .002), tape, bevel=.002)
+    box("bx_tape_front", (.06, .005, .10), (0, -D / 2 - .002, H - .05), tape, bevel=.002)
+    box("bx3_band", (W + .002, D + .002, .03), (0, 0, .04), blue, bevel=.002)
+    for k, x in enumerate((-W * .38, -W * .28)):
+        box(f"bx_arr_s{k}", (.008, .002, .06), (x, -D / 2 - .002, H * .55), ink, bevel=0)
+        chevron(f"bx_arr_h{k}", x, -D / 2 - .002, H * .55 + .035, .04, ink, plane="wall", thick=.002)
+    lab = _label("bx_label", .17, .11, (W * .12, -D / 2 - .004, H * .52))
+    return dict(label=lab, size=(W, D, H))
 
 def build_box3_crate():
-    W, D, H = .52, .36, .28; t = .018
+    W, D, H = .48, .33, .26; t = .017
     PINE, PINE2 = (0.88, 0.66, 0.38, 1), (0.66, 0.44, 0.20, 1)
     pine_x = wood_mat("bx_pine_x", PINE, PINE2); pine_y = wood_mat("bx_pine_y", PINE, PINE2, grain=(22.0, 1.0, 22.0))
     post_m = wood_mat("bx_post", (0.52, 0.32, 0.14, 1), (0.36, 0.20, 0.08, 1), grain=(18.0, 18.0, 1.0)); nail = mat("bx_nail", (0.45, 0.46, 0.46, 1), rough=.35, metal=.9, bump=0)
@@ -660,7 +736,7 @@ def build_box3_crate():
     rnd = random.Random(21); zf = .19
     for i in range(4):
         for j in range(3):
-            x = -W / 2 + .075 + i * .118 + rnd.uniform(-.008, .008); y = -D / 2 + .075 + j * .105 + rnd.uniform(-.008, .008)
+            x = -W / 2 + .07 + i * .108 + rnd.uniform(-.008, .008); y = -D / 2 + .07 + j * .095 + rnd.uniform(-.008, .008)
             kind = "tomato" if i < 2 else ("orange" if j != 1 else "apple")
             if kind == "tomato": tomato(f"bx3_tom{i}{j}", (x, y, zf + .02), r=.043, rot=rnd.uniform(0, 6))
             elif kind == "orange": orange_fruit(f"bx3_or{i}{j}", (x, y, zf + .025), r=.046)
@@ -668,29 +744,32 @@ def build_box3_crate():
     for k, (x, y) in enumerate(((-.17, -.04), (-.10, .05), (-.05, -.06), (-.18, .07))): tomato(f"bx3_tomt{k}", (x, y, zf + .075), r=.042, rot=k * 1.3)
     for k, (x, y) in enumerate(((.05, .07), (.12, -.07))): orange_fruit(f"bx3_ort{k}", (x, y, zf + .07), r=.045)
     banana_hand("bx3_ban", (.13, .0, zf + .075), n=4, rot=rad(-20))
-    text("bx_stencil", "HORTIFRUTI", .028, (-W * .14, -D / 2 - .001, zs[1]), ink, rot=(rad(90), 0, 0), bold=True)
+
     lab = _label("bx_cr_tag", .14, .052, (W * .24, -D / 2 - .004, zs[1]))
     return dict(label=lab, size=(W, D, H + .08))
 
 def build_box3_bread():
-    W, D, H = .56, .38, .085
-    crate = mat("bx3_bread_crate", (0.90, 0.40, 0.05, 1), rough=.45, bump=.04, spec=.4); dark = mat("bx3_slot", (0.10, 0.05, 0.02, 1), rough=.9, bump=0)
-    _crate_plastic("bx3_bc", W, D, H, crate, dark)
-    paper = mat("bx3_bpaper", (0.96, 0.95, 0.92, 1), rough=.9, bump=.15, scale=120)
-    box("bx3_bpaper", (W - .04, D - .04, .01), (0, 0, .03), paper, bevel=.003)
-    rnd = random.Random(3)
+    """Bakery delivery crate (low, green plastic, parchment liner) heaped with paes franceses."""
+    W, D, H = .48, .34, .075
+    crate = mat("bx3_bread_crate", (0.10, 0.50, 0.30, 1), rough=.45, bump=.04, spec=.4); dark = mat("bx3_slot", (0.02, 0.10, 0.05, 1), rough=.9, bump=0)
+    _crate_plastic("bx3_bc", W, D, H, crate, dark, handle=False)
+    paper = mat("bx3_bpaper", (0.95, 0.93, 0.86, 1), rough=.9, bump=.2, scale=90)
+    box("bx3_bpaper", (W - .03, D - .03, .006), (0, 0, .024), paper, bevel=.002)
+    for sx in (-1, 1): box(f"bx3_bpaper_up{sx}", (.006, D - .06, .05), (sx * (W / 2 - .03), 0, .055), paper, bevel=.002, rot=(0, rad(sx * 20), 0))
+    rnd = random.Random(3); k = 0
     for i in range(3):
         for j in range(4):
-            french_roll(f"bx3_roll{i}{j}", (-W / 2 + .10 + i * .18 + rnd.uniform(-.01, .01), -D / 2 + .06 + j * .088, .035), rnd.uniform(-10, 10), seed=i * 4 + j, L=.155)
+            french_roll(f"bx3_roll{k}", (-W / 2 + .085 + i * .155 + rnd.uniform(-.008, .008), -D / 2 + .05 + j * .078, .022), rnd.uniform(-8, 8), seed=k); k += 1
     for i in range(2):
         for j in range(3):
-            french_roll(f"bx3_rollt{i}{j}", (-W / 2 + .19 + i * .18 + rnd.uniform(-.01, .01), -D / 2 + .10 + j * .088, .075), rnd.uniform(-14, 14), seed=20 + i * 3 + j, L=.155)
-    lab = _label("bx3_bread_lbl", .15, .05, (W * .22, -D / 2 - .004, H * .50))
-    return dict(label=lab, size=(W, D, H + .08))
+            french_roll(f"bx3_roll{k}", (-W / 2 + .16 + i * .155 + rnd.uniform(-.01, .01), -D / 2 + .09 + j * .078, .060), rnd.uniform(-14, 14), seed=k); k += 1
+    french_roll(f"bx3_roll{k}", (-.01, .0, .098), 25, seed=k)
+    lab = _label("bx3_bread_lbl", .14, .042, (W * .24, -D / 2 - .004, H * .5))
+    return dict(label=lab, size=(W, D, .16))
 
 def build_box3_pack():
     """Engradado de refrigerante: red plastic crate, 12 glass bottles with crown caps."""
-    W, D, H = .44, .33, .18
+    W, D, H = .40, .30, .17
     crate = mat("bx3_red", (0.78, 0.06, 0.05, 1), rough=.4, bump=.04, spec=.45); dark = mat("bx3_slot2", (0.12, 0.02, 0.02, 1), rough=.9, bump=0)
     _crate_plastic("bx3_pk", W, D, H, crate, dark)
     glass = mat("bx3_glass", (0.30, 0.13, 0.04, 1), rough=.05, transmission=.85, bump=0, spec=.8); capm = mat("bx3_cap", (0.85, 0.80, 0.70, 1), rough=.25, metal=.9, bump=0)
@@ -698,7 +777,7 @@ def build_box3_pack():
     prof = [(.0, 0), (.028, .002), (.031, .01), (.031, .17), (.027, .20), (.015, .245), (.0125, .28), (.0135, .29), (.0, .292)]
     for i in range(4):
         for j in range(3):
-            x = -W / 2 + .065 + i * .104; y = -D / 2 + .062 + j * .103
+            x = -W / 2 + .058 + i * .095; y = -D / 2 + .055 + j * .095
             lathe(f"bx3_bt{i}{j}", prof, (x, y, .015), glass, segs=20)
             cyl(f"bx3_btc{i}{j}", .015, .012, (x, y, .015 + .296), capm, verts=14, bevel=.003)
             cyl(f"bx3_btl{i}{j}", .0315, .06, (x, y, .015 + .11), lbl, verts=20)
@@ -724,15 +803,15 @@ def build_box3_water():
 
 def build_box3_milk():
     """Engradado de leite: blue crate with twelve 1 L cartons (white, blue band, screw cap)."""
-    W, D, H = .44, .33, .17
+    W, D, H = .40, .30, .15
     crate = mat("bx3_blue", (0.06, 0.32, 0.78, 1), rough=.4, bump=.04, spec=.45); dark = mat("bx3_slot3", (0.02, 0.05, 0.14, 1), rough=.9, bump=0)
     _crate_plastic("bx3_mk", W, D, H, crate, dark)
     white = mat("bx3_carton", (0.97, 0.97, 0.96, 1), rough=.35, bump=0, spec=.4); band = mat("bx3_milkband", (0.10, 0.45, 0.85, 1), rough=.4, bump=0)
     capm = mat("bx3_mcap", (0.05, 0.30, 0.75, 1), rough=.4, bump=0); grass = mat("bx3_grass", (0.30, 0.65, 0.20, 1), rough=.5, bump=0)
-    cw, cd, ch = .068, .068, .20
+    cw, cd, ch = .066, .066, .19
     for i in range(4):
         for j in range(3):
-            x = -W / 2 + .055 + i * .108; y = -D / 2 + .058 + j * .105
+            x = -W / 2 + .052 + i * .098; y = -D / 2 + .053 + j * .097
             box(f"bx3_ct{i}{j}", (cw, cd, ch), (x, y, .02 + ch / 2), white, bevel=.004)
             box(f"bx3_ctb{i}{j}", (cw + .002, cd + .002, .05), (x, y, .02 + ch * .40), band, bevel=.002)
             box(f"bx3_ctg{i}{j}", (cw + .003, cd + .003, .012), (x, y, .02 + ch * .22), grass, bevel=.001)
@@ -743,17 +822,16 @@ def build_box3_milk():
 
 def build_box3_frozen():
     """Caixa termica (isopor): beaded styrofoam body and lid, blue tape, a 'CONGELADO' print and frost."""
-    W, D, H = .48, .34, .30
+    W, D, H = .44, .32, .28
     foam = mat("bx3_foam", (0.96, 0.96, 0.95, 1), rough=.75, bump=.45, scale=420); blue = mat("bx3_tape", (0.08, 0.36, 0.82, 1), rough=.3, bump=.02)
     ink = mat("bx3_fink", (0.08, 0.30, 0.70, 1), rough=.8, bump=0); frost = mat("bx_frost", (0.93, 0.97, 1.0, 1), rough=.9, bump=.4, scale=200)
     box("bx3_fz_body", (W, D, H - .05), (0, 0, (H - .05) / 2), foam, bevel=.015, seg=4)
     box("bx3_fz_lid", (W + .016, D + .016, .06), (0, 0, H - .02), foam, bevel=.018, seg=4)
     box("bx3_fz_lidstep", (W - .03, D - .03, .02), (0, 0, H + .015), foam, bevel=.008)
     for sx in (-1, 1): box(f"bx3_fz_tape{sx}", (.05, D + .025, H + .03), (sx * W * .30, 0, (H + .03) / 2), blue, bevel=.004)
-    text("bx3_fz_txt", "CONGELADO", .034, (0, -D / 2 - .002, H * .30), ink, rot=(rad(90), 0, 0), bold=True)
-    for k in range(3): box(f"bx3_fz_flake{k}", (.006, .002, .05), (-.16, -D / 2 - .003, H * .30), ink, bevel=0, rot=(0, rad(k * 60), 0))
+    snowflake("bx3_fz_flake", 0, -D / 2 - .003, H * .28, .045, ink)
     rnd = random.Random(5)
-    lab = _label("bx3_fz_lbl", .17, .07, (.02, -D / 2 - .003, H * .62))
+    lab = _label("bx3_fz_lbl", .16, .065, (0, -D / 2 - .003, H * .64))
     return dict(label=lab, size=(W + .02, D + .02, H + .03))
 
 def build_box3_tray():
@@ -781,15 +859,45 @@ BOXES3 = {"carton": build_box3_carton, "crate": build_box3_crate, "bread": build
 
 def render_box(name, samples=None, res=BOX_RES):
     clear(); sc = scene(); sc.cycles.samples = samples or SAMPLES; set_off(0, 0); sc.view_settings.exposure = .15
-    v = BOXES3[name](); W, D, H = v["size"]
+    v = BOXES3[name](); strip_text(); W, D, H = v["size"]
     ground = box("bx3_ground", (6, 6, .01), (0, 0, -.005), mat("bx3_ground", (0.5, 0.5, 0.5, 1), rough=.9, bump=0), bevel=0); ground["nofit"] = True; ground.is_shadow_catcher = True
-    camera((0, 0, H * .45), BOX3_VIEW["pitch"], 2.2, BOX3_VIEW["lens"], yaw_deg=BOX3_VIEW["yaw"])
+    camera((0, 0, H * .45), BOX3_PITCH.get(name, BOX3_VIEW["pitch"]), 2.2, BOX3_VIEW["lens"], yaw_deg=BOX3_VIEW["yaw"])
     sc.render.resolution_x, sc.render.resolution_y = res; fit_camera(1.12)
     light_rig((0, 0, H / 2), max(W, H) * 1.3, warm=.42, world=.32)
     for o in sc.objects:
         if o.type == 'LIGHT' and o.name.startswith("Key"): o.location = Vector((-.6, -1.6, 2.2)); o.rotation_euler = (Vector((0, 0, 0)) - o.location).to_track_quat('-Z', 'Y').to_euler()
-    marks = dict(label=obj_rect(v["label"]))
+    pv = proj((0, 0, 0))
+    marks = dict(label=obj_rect(v["label"]), pivot=[round(pv[0], 4), round(pv[1], 4)], ppm=ppm_at((0, 0, 0)), width=W, depth=D, height=H)
     sc.render.film_transparent = True; sc.render.use_border = False
     p = os.path.join(OUT, f"box_{name}.png"); sc.render.filepath = p; bpy.ops.render.render(write_still=True)
     write_json(f"box_{name}_marks.json", marks)
+    return p
+
+# ---------------------------------------------------------------- clipboard and stamp, without printed words
+def render_clipboard3():
+    clear(); sc = scene(); sc.cycles.samples = SAMPLES; sc.view_settings.exposure = 0; set_off(0, 0)
+    v = build_clipboard(); strip_text()
+    camera((0, -.004, 0), 84, 1.0, 50); sc.render.resolution_x, sc.render.resolution_y = CLIP_RES; fit_camera(1.05)
+    light_rig((0, 0, 0), .45, warm=.45, world=.3)
+    data = dict(size=list(CLIP_RES), sheet=obj_rect(v["sheet"]))
+    L = v["lines"]
+    data["lines"] = [dict(x0=proj((L["x0"], L["yTop"] - k * L["step"], .011))[0], x1=proj((L["x1"], L["yTop"] - k * L["step"], .011))[0],
+                          y=proj((0, L["yTop"] - k * L["step"] - L["step"] * .45, .011))[1]) for k in range(L["n"])]
+    sc.render.film_transparent = True; sc.render.use_border = False
+    p = os.path.join(OUT, "receiving_clipboard.png"); sc.render.filepath = p; bpy.ops.render.render(write_still=True)
+    write_json("receiving_clipboard.json", data)
+    return p
+
+def render_stamp3():
+    clear(); sc = scene(); sc.cycles.samples = SAMPLES; sc.view_settings.exposure = 0; set_off(0, 0)
+    build_stamp(); strip_text()
+    ink = _M.get("st_ink")
+    for o in list(sc.objects):
+        if o.name.startswith("st_ck"): bpy.data.objects.remove(o, do_unlink=True)
+    box("st_ck1", (.024, .085, .002), (-.055, -.02, 0), ink, bevel=.006, rot=(0, 0, rad(42)))
+    box("st_ck2", (.024, .17, .002), (.03, .015, 0), ink, bevel=.006, rot=(0, 0, rad(-34)))
+    camera((0, 0, 0), 89.9, 1.2, 50); sc.render.resolution_x, sc.render.resolution_y = BOX_RES; fit_camera(1.08)
+    light_rig((0, 0, 0), .5, warm=.4, world=.4)
+    sc.render.film_transparent = True; sc.render.use_border = False
+    p = os.path.join(OUT, "stamp_conferido.png"); sc.render.filepath = p; bpy.ops.render.render(write_still=True)
     return p
