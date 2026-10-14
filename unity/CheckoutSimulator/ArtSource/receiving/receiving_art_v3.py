@@ -317,36 +317,46 @@ def build_drinks3(key="drinks"):
     INFO[key] = dict(sign=sg, widthM=W, slots=fixture_slots(key))
 
 # --- HORTIFRUTI | PAES: a stepped pine stand (3 tiers x 2) and a stainless bakery trolley (3 trays)
-PR3 = dict(SW=1.06, TW=.60, gap=.08, D=1.12, H=1.80)
+PR3 = dict(SW=1.06, TW=.60, gap=.08, D=.74, H=1.80)
 def build_produce3(key="produce"):
     SW_, TW, gap, D, H = PR3["SW"], PR3["TW"], PR3["gap"], PR3["D"], PR3["H"]; W = SW_ + gap + TW
     set_off(FIXX[key] + W / 2, -D - .05); SLOTS.pop(key, None)
     xl = -W / 2 + SW_ / 2; xr = W / 2 - TW / 2
     pine = wood_mat("pr_pine", (0.86, 0.64, 0.36, 1), (0.64, 0.44, 0.22, 1), grain=(1.0, 18.0, 18.0)); pine_d = wood_mat("pr_pine_d", (0.55, 0.36, 0.18, 1), (0.40, 0.25, 0.12, 1), grain=(18.0, 18.0, 1.0))
     chalk = mat("pr_chalk", (0.12, 0.14, 0.13, 1), rough=.9, bump=.2, scale=30); chalk_ink = mat("pr_chalk_ink", (0.95, 0.95, 0.92, 1), rough=.9, bump=0)
-    tiers = ((.30, .04, .36), (.68, .40, .36), (1.06, .76, .32)); tilt = 0.     # level shelves: the crates stand straight
+    # bay 0: an open pine shelving unit (corner posts, slatted shelves, aprons and side rails): 3 shelves x 2 crates
+    DS = .62; post = .07; levels = (.10, .60, 1.10, 1.58)
+    px = SW_ / 2 - post / 2
     for sx in (-1, 1):
-        for k, (z, y, d) in enumerate(tiers):
-            zt = z + d * math.sin(tilt)
-            box(f"pr_sidep{sx}{k}", (.04, d + .04, zt + .02), (xl + sx * (SW_ / 2 - .02), y + d / 2, (zt + .02) / 2), pine_d, bevel=.006, layer="front" if k == 0 else "back")
-        box(f"pr_sideb{sx}", (.04, .16, H), (xl + sx * (SW_ / 2 - .02), D - .08, H / 2), pine_d, bevel=.006)
-    box("pr_top", (SW_, .05, .05), (xl, D - .03, H - .02), pine_d, bevel=.006)
-    box("pr_backp", (SW_ - .08, .03, H - .4), (xl, D - .015, .4 + (H - .4) / 2), pine, bevel=.004)
-    for k, (z, y, d) in enumerate(tiers):
-        zc = z + d * math.sin(tilt) / 2; yc = y + d * math.cos(tilt) / 2
-        for j in range(4): box(f"pr_tier{k}_{j}", (SW_ - .08, d / 4 - .008, .022), (xl, yc + (j - 1.5) * d / 4 * math.cos(tilt), zc + (j - 1.5) * d / 4 * math.sin(tilt)), pine, bevel=.004, rot=(tilt, 0, 0))
-        # a low front lip; only the bottom tier's is drawn over the boxes (an upper lip is behind the crates below it)
-        box(f"pr_lip{k}", (SW_ - .06, .025, .045), (xl, y - .01, z + .012), pine_d, bevel=.005, layer="front" if k == 0 else "back")
-        zb = 0 if k == 0 else tiers[k - 1][0] + tiers[k - 1][2] * math.sin(tilt)      # the riser stands on the back of the tier below
-        box(f"pr_under{k}", (SW_ - .08, .025, z - zb), (xl, y + .01, (z + zb) / 2), pine_d, bevel=.004, layer="front" if k == 0 else "back")
-        sw = (SW_ - .12) / 2
-        for i in range(2):
-            x0 = xl - (SW_ - .12) / 2 + i * sw
-            slot(key, k, 0, i, x0 + .02, x0 + sw - .02, y + .03, y + d * math.cos(tilt) * .85, z + d * math.sin(tilt) * .3 + .022)
-    rounded("pr_board", .62, .20, (xl, D - .05, H + .14), chalk, r=.02, thick=.02, rot=(rad(90), 0, 0))
-    rounded("pr_board_fr", .62, .20, (xl, D - .06, H + .14), pine_d, r=.02, thick=.02, rot=(rad(90), 0, 0), frame=.025)
-    chalk_apple("pr_apple", xl - .09, D - .068, H + .14, .055, chalk_ink); chalk_carrot("pr_carrot", xl + .10, D - .068, H + .14, .06, chalk_ink)
-    for px in (-.24, .24): box(f"pr_board_post{px:+.2f}", (.025, .025, .12), (xl + px, D - .05, H + .03), pine_d, bevel=.004)
+        for j, yy in enumerate((post / 2, DS - post / 2)):
+            lay = "front" if j == 0 else "back"
+            box(f"pr_post{sx}{j}", (post, post, H), (xl + sx * px, yy, H / 2), pine_d, bevel=.008, layer=lay)
+            box(f"pr_foot{sx}{j}", (post + .01, post + .01, .02), (xl + sx * px, yy, .01), mat("pr_foot", (0.15, 0.15, 0.16, 1), rough=.6), bevel=.004, layer=lay)
+        for z in levels: box(f"pr_siderail{sx}{z:.2f}", (.03, DS - post, .05), (xl + sx * px, DS / 2, z - .03), pine_d, bevel=.005)
+        box(f"pr_sidebrace{sx}", (.025, .025, (DS - post) * 1.55), (xl + sx * px, DS / 2, .36), pine_d, bevel=.004, rot=(rad(50), 0, 0))
+    for k, z in enumerate(levels):
+        nb = 5; bw_ = (DS - .02) / nb
+        for j in range(nb): box(f"pr_slat{k}_{j}", (SW_ - 2 * post + .02, bw_ - .014, .022), (xl, .01 + (j + .5) * bw_, z + .011), pine, bevel=.004)
+        box(f"pr_apronF{k}", (SW_ - 2 * post, .025, .06), (xl, .012, z - .025), pine_d, bevel=.005, layer="front")
+        box(f"pr_apronB{k}", (SW_ - 2 * post, .025, .06), (xl, DS - .012, z - .025), pine_d, bevel=.005)
+        if k < 3:
+            sw = (SW_ - 2 * post - .04) / 2
+            for i in range(2):
+                x0 = xl - (SW_ - 2 * post - .04) / 2 + i * sw
+                slot(key, k, 0, i, x0 + .02, x0 + sw - .02, .06, DS - .06, z + .022)
+    # top shelf: a couple of empty stacked crates (decor), the back rails
+    for k, z in enumerate((.36, .86, 1.36)): box(f"pr_backrail{k}", (SW_ - 2 * post, .02, .05), (xl, DS - .01, z), pine_d, bevel=.004)
+    zt = levels[3] + .022
+    for k, (dx, dz) in enumerate(((-.22, 0), (.22, 0), (0, .13))):
+        cx_ = xl + dx; cz_ = zt + dz
+        for j, hz in enumerate((.02, .075)):   # slatted empty crate: two boards per side, open between them
+            for sy in (-1, 1): box(f"pr_empty{k}_y{j}{sy}", (.40, .014, .04), (cx_, DS / 2 + sy * .14, cz_ + hz + .02), pine_d, bevel=.003)
+            for sx in (-1, 1): box(f"pr_empty{k}_x{j}{sx}", (.014, .28, .04), (cx_ + sx * .193, DS / 2, cz_ + hz + .02), pine_d, bevel=.003)
+        box(f"pr_empty{k}_floor", (.38, .27, .01), (cx_, DS / 2, cz_ + .006), pine_d, bevel=.002)
+    rounded("pr_board", .62, .20, (xl, DS - .05, H + .14), chalk, r=.02, thick=.02, rot=(rad(90), 0, 0))
+    rounded("pr_board_fr", .62, .20, (xl, DS - .06, H + .14), pine_d, r=.02, thick=.02, rot=(rad(90), 0, 0), frame=.025)
+    chalk_apple("pr_apple", xl - .09, DS - .068, H + .14, .055, chalk_ink); chalk_carrot("pr_carrot", xl + .10, DS - .068, H + .14, .06, chalk_ink)
+    for bx_ in (-.24, .24): box(f"pr_board_post{bx_:+.2f}", (.025, .025, .12), (xl + bx_, DS - .05, H + .03), pine_d, bevel=.004)
     # bakery trolley: stainless uprights on casters, tray rails, three trays with slots and a top tray of bread
     inox = mat("pr_inox", (0.80, 0.82, 0.82, 1), rough=.22, metal=.9, bump=0); inox_d = mat("pr_inox_d", (0.60, 0.62, 0.62, 1), rough=.3, metal=.85, bump=0)
     alu = mat("dc_alu", (0.72, 0.74, 0.74, 1), rough=.3, metal=.8, bump=.06)
