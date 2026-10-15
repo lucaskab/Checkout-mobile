@@ -2,6 +2,9 @@ import type { GameEventDefinition } from "@/@types/game-event";
 
 // Market events (Oct 2026 redesign). Ids match CheckoutEventVisuals in Unity.
 //
+// crowdShare: the share of the turn's customers, while the event runs, who come *through* its scene (withdraw at the
+// ATM, get off the bus, leave the street fair…) before walking in and shopping for real (getEventCustomerOrigin).
+//
 // Each event changes what a real neighbourhood market would feel on that day, and only happens once the
 // market has what the event is about: a power cut needs a fridge, a coffee break needs a team, a crowd
 // filming the shop needs a real shop front (requirements.minEra, in the order of the expansions).
@@ -18,6 +21,7 @@ export const gameEvents: GameEventDefinition[] = [
 		durationMinutes: 4,
 		effectLabel: "+45% de clientes",
 		effects: { customerArrivalMultiplier: 1.45 },
+		crowdShare: 0.7,
 		id: "hora-do-rush",
 		kind: "positive",
 		name: "Hora do rush",
@@ -26,8 +30,11 @@ export const gameEvents: GameEventDefinition[] = [
 	{
 		description: "O salário caiu e tem fila no caixa eletrônico da calçada.",
 		durationMinutes: 4,
-		effectLabel: "+40% no orçamento dos clientes",
-		effects: { customerBudgetMultiplier: 1.4 },
+		effectLabel: "+15% de clientes e +40% no orçamento",
+		// Payday brings people out to spend (Lucas 15/10: whoever withdraws at the ATM must really go in and buy):
+		// a modest +15% of visits on top of the bigger budgets, and most of them queue at the ATM first.
+		effects: { customerArrivalMultiplier: 1.15, customerBudgetMultiplier: 1.4 },
+		crowdShare: 0.6,
 		id: "quinto-dia-util",
 		kind: "positive",
 		name: "Quinto dia útil",
@@ -42,6 +49,7 @@ export const gameEvents: GameEventDefinition[] = [
 			customerBudgetMultiplier: 1.15,
 			categoryDemand: { hortifruti: 0.85, organicos: 0.85 },
 		},
+		crowdShare: 0.5,
 		id: "feira-de-rua",
 		kind: "positive",
 		name: "Feira de rua",
@@ -54,6 +62,7 @@ export const gameEvents: GameEventDefinition[] = [
 		effects: {
 			categoryDemand: { ...Object.fromEntries(drinks.map((category) => [category, 2])), sorvetes: 2 },
 		},
+		crowdShare: 0.4,
 		id: "onda-de-calor",
 		kind: "positive",
 		name: "Onda de calor",
@@ -62,8 +71,10 @@ export const gameEvents: GameEventDefinition[] = [
 	{
 		description: "A roleta de prêmios na porta anima os clientes a levar mais um item.",
 		durationMinutes: 4,
-		effectLabel: "Cada cliente leva +1 item",
-		effects: { extraBasketItems: 1 },
+		effectLabel: "+10% de clientes; cada cliente leva +1 item",
+		// The wheel at the door pulls in a few passers-by (+10%) who spin it and then go in to shop.
+		effects: { customerArrivalMultiplier: 1.1, extraBasketItems: 1 },
+		crowdShare: 0.5,
 		id: "sorteio-na-porta",
 		kind: "positive",
 		name: "Sorteio na porta",
@@ -74,6 +85,7 @@ export const gameEvents: GameEventDefinition[] = [
 		durationMinutes: 4,
 		effectLabel: "-25% no custo dos pedidos",
 		effects: { supplierCostMultiplier: 0.75 },
+		crowdShare: 0.35,
 		id: "caminhao-de-ofertas",
 		kind: "positive",
 		name: "Caminhão de ofertas",
@@ -95,6 +107,7 @@ export const gameEvents: GameEventDefinition[] = [
 				bolachas: 1.5,
 			},
 		},
+		crowdShare: 0.5,
 		id: "dia-de-jogo",
 		kind: "positive",
 		name: "Dia de jogo do Brasil",
@@ -115,6 +128,7 @@ export const gameEvents: GameEventDefinition[] = [
 		durationMinutes: 4,
 		effectLabel: "+20% de clientes; procura 2× pelo produto do vídeo",
 		effects: { customerArrivalMultiplier: 1.2, featuredProductBoost: 2 },
+		crowdShare: 0.5,
 		id: "viralizou",
 		kind: "positive",
 		name: "Viralizou!",
@@ -160,6 +174,7 @@ export const gameEvents: GameEventDefinition[] = [
 		durationMinutes: 4,
 		effectLabel: "-35% no orçamento; clientes preferem os produtos baratos",
 		effects: { customerBudgetMultiplier: 0.65, cheapPreference: 1 },
+		crowdShare: 0.35,
 		id: "fim-do-mes",
 		kind: "negative",
 		name: "Fim do mês",
@@ -183,6 +198,7 @@ export const gameEvents: GameEventDefinition[] = [
 			customerArrivalMultiplier: 1.15,
 			categoryDemand: { doces: 2, chocolates: 2, bolachas: 2, sorvetes: 2 },
 		},
+		crowdShare: 0.6,
 		id: "excursao-da-escola",
 		kind: "positive",
 		name: "Excursão da escola",

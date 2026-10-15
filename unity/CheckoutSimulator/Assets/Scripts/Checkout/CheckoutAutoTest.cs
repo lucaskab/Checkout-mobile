@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -220,6 +220,40 @@ namespace Checkout {
      if(home)home.HomeCamera();
     }
     fx.Preview("");
+   }
+  }
+  // Event crowds shop for real ("eventsmarket-tenda-quinto-dia-util"; stages joined with '.', the event defaults to
+  // quinto-dia-util; the word "events" puts it on the QA copy of the save). In each stage the market is opened and the
+  // event started for real (devActivateGameEvent), so the app tags a share of its customers with the event
+  // (Customer.origin) and they come through its scene (CheckoutEventVisuals.Market.cs). Logs how many tagged
+  // customers the app sent, how many began in the scene, reached the entrance, stood at the register and paid
+  // (nobody works the register in the test, so "paid" needs a hired cashier), with shots of the scene and the door:
+  // Logs/em_<stage>_<event>_<n>.jpg.
+  IEnumerator EventsMarket(string request){
+   var parts=request.Split('-');var stages=parts.Length>1?parts[1].Split('.'):new[]{"tenda"};
+   string id=parts.Length>2?string.Join("-",parts.Skip(2)):"quinto-dia-util";
+   var fx=FindAnyObjectByType<CheckoutEventVisuals>();if(!fx){Note("no CheckoutEventVisuals");yield break;}
+   if(fx.Previewing)fx.Preview("");
+   foreach(var f in Directory.GetFiles("Logs","em_*.jpg"))File.Delete(f);
+   foreach(var stage in stages){
+    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-"+stage+"\",\"action\":\"devSetMarketEra\",\"args\":[\""+stage+"\"]}");
+    yield return new WaitForSecondsRealtime(6);
+    if(!bridge.State.isOpen){CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-open\",\"action\":\"setMarketOpen\",\"args\":[true]}");for(float t=0;t<6&&!bridge.State.isOpen;t+=.5f)yield return new WaitForSecondsRealtime(.5f);}
+    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-event\",\"action\":\"devActivateGameEvent\",\"args\":[\""+id+"\"]}");
+    for(float t=0;t<6&&bridge.State.@event?.id!=id;t+=.5f)yield return new WaitForSecondsRealtime(.5f);
+    var map=FindAnyObjectByType<CheckoutMap>();var door=map?map.Entrance:Vector3.zero;
+    Note($"stage {stage}: era={bridge.State?.era?.id} open={bridge.State.isOpen} event={bridge.State.@event?.id} active scene={fx.ActiveId} door={door}");
+    if(fx.ActiveId!=id){Note("the event did not start (closed market, or not available here?)");continue;}
+    CheckoutWalker.EventQa.Clear();var tagged=new HashSet<string>();var all=new HashSet<string>();
+    var focus=fx.FocusOf(id);
+    for(int n=0;n<8;n++){
+     for(float t=0;t<12;t+=.5f){foreach(var c in bridge.State.customers??Array.Empty<Customer>()){all.Add(c.id);if(c.origin==id)tagged.Add(c.id);}yield return new WaitForSecondsRealtime(.5f);}
+     CaptureAt(focus+Vector3.up,12,$"em_{stage}_{id}_{n}");if(n%2==1)CaptureAt(new Vector3(door.x,.5f,door.z-2),12,$"em_{stage}_{id}_{n}_door");
+     var v=CheckoutWalker.EventQa.TryGetValue(id,out var q)?q:new int[4];
+     Note($"  {(n+1)*12}s: customers {all.Count}, tagged {tagged.Count}; began in the scene {v[0]}, reached the entrance {v[1]}, at the register {v[2]}, paid {v[3]}; event still on: {fx.ActiveId==id}");
+    }
+    var r=CheckoutWalker.EventQa.TryGetValue(id,out var w)?w:new int[4];
+    Note($"EVENTS_MARKET {stage} {id}: customers={all.Count} tagged={tagged.Count} began={r[0]} entrance={r[1]} register={r[2]} paid={r[3]}");
    }
   }
   // Block layout per stage ("eventslayout-supermercado.hipermercado"): where the shop, the parking lot, the depot,
@@ -547,6 +581,40 @@ namespace Checkout {
     Note($"stage {stage}: overlapping pairs per sample {overlaps/(float)Mathf.Max(1,samples):0.00} ({overlaps} in {samples})");
     foreach(var w in idle)Note($"walker phase now {w.VisitPhase}, {Vector3.Distance(w.transform.position,door):0.0} m from the door, active {w.gameObject.activeSelf}");
    }
+  }
+  // "traffic" / "traffic180": watches the city's vehicles (everything that drives through CheckoutTrafficJunctions) for N
+  // game seconds (default 120) and counts (a) samples in which a stopped vehicle stands on a zebra crossing, (b) pairs of
+  // vehicles both stopped inside a junction (box + crossings, or the roundabout out to its crossings) together for more
+  // than 3 s, (c) vehicles overlapping each other, (d) people on foot inside a vehicle. All four should stay at 0.
+  IEnumerator Traffic(string request){
+   if(!float.TryParse(request.Substring(7),out float seconds)||seconds<=0)seconds=120;
+   var last=new Dictionary<Transform,Vector3>();var stoppedSince=new Dictionary<Transform,float>();var pairs=new Dictionary<string,float>();var counted=new HashSet<string>();
+   int samples=0,onCrossing=0,deadlocks=0,overlaps=0,walkThrough=0,examples=0;const float step=.2f;
+   void Example(string s){if(examples++<25)Note("TRAFFIC_QA "+s);}
+   string Name(Transform v)=>v.name+"@"+v.position.ToString("0.0");
+   for(float t=0;t<seconds;t+=step){
+    yield return new WaitForSeconds(step);samples++;
+    var cars=CheckoutTrafficJunctions.QaVehicles();var stopped=new List<Transform>();
+    foreach(var car in cars){
+     bool still=last.TryGetValue(car,out var before)&&(car.position-before).sqrMagnitude<.05f*.05f;last[car]=car.position;
+     if(!still){stoppedSince.Remove(car);continue;}
+     if(!stoppedSince.ContainsKey(car))stoppedSince[car]=Time.time;
+     stopped.Add(car);
+     if(CheckoutTrafficJunctions.QaOnCrossing(car)){onCrossing++;Example("(a) stopped on a crossing: "+Name(car));}
+    }
+    var inJunction=stopped.Where(c=>CheckoutTrafficJunctions.QaInJunction(c.position)).ToList();var live=new HashSet<string>();
+    for(int i=0;i<inJunction.Count;i++)for(int j=i+1;j<inJunction.Count;j++){
+     var a=inJunction[i];var b=inJunction[j];string key=a.GetEntityId().GetHashCode()<b.GetEntityId().GetHashCode()?a.GetEntityId().GetHashCode()+"/"+b.GetEntityId().GetHashCode():b.GetEntityId().GetHashCode()+"/"+a.GetEntityId().GetHashCode();live.Add(key);
+     if(!pairs.ContainsKey(key))pairs[key]=Time.time;
+     if(Time.time-pairs[key]>3f&&counted.Add(key)){deadlocks++;Example("(b) both stopped in a junction >3 s: "+Name(a)+" & "+Name(b));}
+    }
+    foreach(var key in pairs.Keys.Where(k=>!live.Contains(k)).ToList()){pairs.Remove(key);counted.Remove(key);}
+    for(int i=0;i<cars.Count;i++)for(int j=i+1;j<cars.Count;j++)
+     if(CheckoutTrafficJunctions.QaInside(cars[i],cars[j].position,-.2f)||CheckoutTrafficJunctions.QaInside(cars[j],cars[i].position,-.2f)){overlaps++;Example("(c) vehicles overlap: "+Name(cars[i])+" & "+Name(cars[j]));}
+    foreach(var a in FindObjectsByType<UnityEngine.AI.NavMeshAgent>(FindObjectsSortMode.None))
+     if(a.isActiveAndEnabled)foreach(var car in cars)if(CheckoutTrafficJunctions.QaInside(car,a.transform.position,-.1f)){walkThrough++;Example("(d) person inside a vehicle: "+a.name+" in "+Name(car));}
+   }
+   Note($"TRAFFIC_QA {seconds:0}s samples={samples} vehicles={last.Count} crossings={CheckoutTrafficJunctions.Crossings.Count} (a) stoppedOnCrossing={onCrossing} (b) junctionDeadlocks={deadlocks} (c) vehicleOverlaps={overlaps} (d) peopleInsideVehicles={walkThrough}");
   }
   int Reserve(int productId)=>bridge.State.restockSlots?.FirstOrDefault(s=>s.productId==productId)?.reserve??-1;
 

@@ -51,7 +51,7 @@ namespace Checkout {
   void Update(){simulation.ExternalCamera();if(State==null){hello+=Time.unscaledDeltaTime;if(hello>1){hello=0;Emit("{\"kind\":\"ready\",\"protocol\":1}");}return;}
    simulation.speed=1;
    // New customers wait outside while the player rearranges the shop in build mode.
-   if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open){var walker=NextAvailableWalker();if(walker){if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(WalkersClearOfEntrance()){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
+   if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open){var walker=NextAvailableWalker();if(walker){if(EventVisit(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}else if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(WalkersClearOfEntrance()){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
    if(Input.GetMouseButtonDown(0)){pointerStart=Input.mousePosition;pointerDragged=false;}
    if(Input.touchCount>1||(Input.GetMouseButton(0)&&Vector2.Distance(pointerStart,Input.mousePosition)>10))pointerDragged=true;
    if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutPointer.OverUi){
@@ -61,6 +61,10 @@ namespace Checkout {
      else if(action.panel=="finishWorks")Command("finishMarketExpansionNow","[]");else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="windowSale"){var fx=GetComponent<CheckoutEventVisuals>();if(fx)fx.ServeWindow(action.requestId);}else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);}}
    }
   }
+  // A customer the running event brought (Customer.origin): their walk starts in the event's scene (the ATM queue on
+  // payday, the bus at rush hour, the street fair…) instead of the parking lot or a random sidewalk spot.
+  CheckoutEventVisuals events;
+  bool EventVisit(Customer visit,CheckoutWalker walker){if(string.IsNullOrEmpty(visit?.origin))return false;if(!events)events=GetComponent<CheckoutEventVisuals>()??FindAnyObjectByType<CheckoutEventVisuals>();return events&&events.TakeVisit(visit,walker);}
   // Scratch lists for the per-frame walker search (filled in place, never reallocated).
   readonly List<SkinnedMeshRenderer> bodyRenderers=new List<SkinnedMeshRenderer>();readonly List<CheckoutWalker> idleWalkers=new List<CheckoutWalker>();
   // True when no walker stands at the entrance (a walker counts when it is active and within 1.5 m of it).

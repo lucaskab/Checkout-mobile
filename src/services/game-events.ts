@@ -430,3 +430,18 @@ export function describeGameEventRequirements(event: GameEventDefinition) {
 	if (event.requirements.needsRefrigeration) parts.push("precisa de geladeira ou freezer");
 	return parts.join(" · ");
 }
+
+/**
+ * Who brought this customer (Lucas 15/10: "events must really interact with the market"): while an event with a
+ * crowd runs, a share of the customers who arrive (crowdShare) come through its scene — they queue at the ATM on
+ * payday, get off the rush-hour bus, leave the street fair… — and then walk in and shop like anyone else. The
+ * customer is the same real visit (same basket, same money at the register); only where Unity starts their walk
+ * changes. Seeded, so the same visit always gets the same answer.
+ */
+export function getEventCustomerOrigin(events: GameEventsState, now: number, seed: number) {
+	const active = events.activeEvent;
+	if (!active || active.endsAt <= now || active.startedAt > now) return undefined;
+	const share = getGameEvent(active.eventId)?.crowdShare ?? 0;
+	if (share <= 0) return undefined;
+	return seededRandom(seed + 31) < share ? active.eventId : undefined;
+}

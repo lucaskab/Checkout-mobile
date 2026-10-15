@@ -6,6 +6,7 @@ import {
 	createInitialGameEventsState,
 	getActiveGameEventEffects,
 	getAvailableGameEvents,
+	getEventCustomerOrigin,
 	getEventDemandMultiplier,
 	getReferencePrice,
 	inspectFixtures,
@@ -173,4 +174,36 @@ test("card machine down: cash only and smaller budgets", () => {
 	expect(card.revenueMultiplier).toBe(1);
 	expect(effectsOf("sorteio-na-porta").extraBasketItems).toBe(1);
 	expect(effectsOf("cafe-com-a-equipe").staffSpeedMultiplier).toBe(1.4);
+});
+
+test("event crowds are real customers: a share of the visits during the event come through its scene", () => {
+	const now = start + MIN;
+	const during = (eventId) => ({ ...createInitialGameEventsState(start), activeEvent: { eventId, startedAt: start, endsAt: now + MIN } });
+	// no event, an ended event, or an event without a crowd: nobody is tagged
+	expect(getEventCustomerOrigin(createInitialGameEventsState(start), now, 1)).toBeUndefined();
+	expect(getEventCustomerOrigin({ ...during("quinto-dia-util"), activeEvent: { eventId: "quinto-dia-util", startedAt: start, endsAt: now } }, now, 1)).toBeUndefined();
+	for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) expect(getEventCustomerOrigin(during("queda-de-energia"), now, seed)).toBeUndefined();
+	// payday: about crowdShare of the visits queue at the ATM first; the same visit always gets the same answer
+	const share = getGameEvent("quinto-dia-util").crowdShare;
+	let tagged = 0;
+	for (let seed = 1; seed <= 400; seed++) {
+		const origin = getEventCustomerOrigin(during("quinto-dia-util"), now, seed);
+		if (origin) tagged++;
+		expect(origin === undefined || origin === "quinto-dia-util").toBe(true);
+		expect(getEventCustomerOrigin(during("quinto-dia-util"), now, seed)).toBe(origin);
+	}
+	expect(Math.abs(tagged / 400 - share)).toBeLessThan(0.1);
+});
+
+test("every crowd event has a sane share and the negative/staff events bring no crowd", () => {
+	for (const event of gameEvents) {
+		const share = event.crowdShare ?? 0;
+		expect(share >= 0 && share <= 0.8).toBe(true);
+	}
+	for (const id of ["chuva-forte", "rua-em-obras", "maquininha-fora-do-ar", "queda-de-energia", "turno-puxado", "cafe-com-a-equipe", "vigilancia-sanitaria", "carro-de-som"])
+		expect(getGameEvent(id).crowdShare ?? 0).toBe(0);
+	// payday and the prize wheel bring a few extra (modest) visits, so the people in their scenes are real buyers
+	expect(effectsOf("quinto-dia-util").customerArrivalMultiplier).toBe(1.15);
+	expect(effectsOf("quinto-dia-util").customerBudgetMultiplier).toBe(1.4);
+	expect(effectsOf("sorteio-na-porta").customerArrivalMultiplier).toBe(1.1);
 });

@@ -17,6 +17,7 @@ namespace Checkout
         Renderer[] body;
         bool visitingBuilding, inside;
         float stalled, holdFor; int stalls;
+        bool curbWait; Vector3 curbPoint;
         void OnEnable(){CheckoutShoppingProps.SetVisible(transform,false);}
         void Start()
         {
@@ -48,6 +49,15 @@ namespace Checkout
             if(heading.sqrMagnitude<.004f){heading=agent.velocity;heading.y=0;}
             if(heading.sqrMagnitude>.004f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-heading),Time.deltaTime*540);
             if(agent.pathPending)return;
+            // At the curb: a car on the zebra crossing (or already past its stop line) goes first; then cross.
+            if(!inside)
+            {
+                var step=agent.desiredVelocity;step.y=0;
+                var ahead=transform.position+(step.sqrMagnitude>.01f?step.normalized*1.2f:Vector3.zero);
+                bool atCurb=step.sqrMagnitude>.01f&&!CheckoutTrafficJunctions.IsOnCrossing(transform.position)&&CheckoutTrafficJunctions.IsOnCrossing(ahead);
+                if((atCurb||curbWait)&&CheckoutTrafficJunctions.CrossingBusy(curbWait?curbPoint:ahead)){if(!curbWait){curbWait=true;curbPoint=ahead;}agent.isStopped=true;return;}
+                if(curbWait){curbWait=false;agent.isStopped=false;}
+            }
             if(agent.remainingDistance>.35f)
             {
                 // Blocked by someone (or someone already standing on the spot): close to the spot counts as there;

@@ -185,6 +185,7 @@ import {
 	createInitialGameEventsState,
 	getTurnEventKey,
 	getActiveGameEventEffects,
+	getEventCustomerOrigin,
 	normalizeGameEventsState,
 } from "@/services/game-events";
 import {
@@ -3068,12 +3069,16 @@ export const useGameStore = create<GameStore>()(
 				const nextShelfCare = get().shelfCare;
 
 				const nextSeed = market.randomSeed + 1;
-				const visitor = createMarketCustomer(
+				const plainVisitor = createMarketCustomer(
 					visit,
 					market.randomSeed,
 					shelfPrices,
 					market.customerSatisfaction - incidentEffects.reputationPenalty,
 				);
+				// Customers the event brought (the ATM queue on payday, the bus at rush hour…): Unity starts their
+				// walk in the event's scene; the visit, basket and money are the same.
+				const origin = getEventCustomerOrigin(events, now, market.randomSeed);
+				const visitor = origin ? { ...plainVisitor, origin } : plainVisitor;
 				const saleCategories: Record<string, number> = {};
 				let saleProfit = 0;
 				for (const purchase of visit.purchases) {

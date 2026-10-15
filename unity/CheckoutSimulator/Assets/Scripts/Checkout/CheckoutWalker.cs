@@ -46,7 +46,7 @@ namespace Checkout {
   // The shop just closed: people outside turn back, people inside head straight for the door.
   public void MarketClosed(){if(!gameObject.activeInHierarchy||!agent||!agent.isOnNavMesh)return;
    if(phase==9||phase==11||phase==6){phase=12;Go(CheckoutCityTraffic.Corner);return;}
-   if(phase==14){phase=13;Go(Away());return;}
+   if(phase==14||phase==15||phase==16||phase==17){LeaveEventLine();phase=13;Go(Away());return;}
    if(phase==5||phase==13||phase==12||phase==10||phase==7||phase==30||phase==8||phase==4)return;
    helpLine.Remove(this);Line.Remove(this);map.Lanes.Remove(this);lane=null;wait=0;
    var u=CheckoutMarketLayout.Unproject(transform.position,bridge.State.layout??new MarketLayout());
@@ -60,29 +60,67 @@ namespace Checkout {
    else if(phase==3)Go(QueuePosition(Line.IndexOf(this)));
    else if(phase==20)Go(HelpPoint());}
   public void Reserve(){Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);}
-  public void CancelVisit(){helpLine.Remove(this);if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;returnedToCar=null;Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}
-  public void BeginFromCar(Customer visit,Vector3 door,System.Action<CheckoutWalker> completed){parkingDoor=door;returnedToCar=completed;customer=visit;phase=9;index=0;wait=0;asked=false;HasPaid=false;Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(true);if(!(NavMesh.SamplePosition(door,out var hit,.8f,NavMesh.AllAreas)||NavMesh.SamplePosition(door,out hit,3f,NavMesh.AllAreas))||!agent.Warp(hit.position)){Debug.LogWarning("CHECKOUT_WALKER the parking door is off the NavMesh; the visit is dropped");ForceExit();return;}Sync();Go(new Vector3(CheckoutCityTraffic.WalkX,.15f,parkingDoor.z));snapHeading=true;}
+  public void CancelVisit(){LeaveEventLine();helpLine.Remove(this);if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;returnedToCar=null;Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}
+  public void BeginFromCar(Customer visit,Vector3 door,System.Action<CheckoutWalker> completed){eventOrigin=null;lead=null;parkingDoor=door;returnedToCar=completed;customer=visit;phase=9;index=0;wait=0;asked=false;HasPaid=false;Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(true);if(!(NavMesh.SamplePosition(door,out var hit,.8f,NavMesh.AllAreas)||NavMesh.SamplePosition(door,out hit,3f,NavMesh.AllAreas))||!agent.Warp(hit.position)){Debug.LogWarning("CHECKOUT_WALKER the parking door is off the NavMesh; the visit is dropped");ForceExit();return;}Sync();Go(new Vector3(CheckoutCityTraffic.WalkX,.15f,parkingDoor.z));snapHeading=true;}
   // Walk-in customers arrive on foot like the passers-by (Lucas 15/10: they used to pop up right at the stall's
   // front): they appear further along the avenue sidewalk, or across the avenue at the park crossing, and walk to
   // the entrance (phase 14) before shopping. If no such spot is walkable, they start at the entrance as before.
-  public void Begin(Customer visit){returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;phase=0;index=0;wait=0;asked=false;gameObject.SetActive(true);CheckoutShoppingProps.SetVisible(transform,false);
+  public void Begin(Customer visit){eventOrigin=null;lead=null;returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;phase=0;index=0;wait=0;asked=false;gameObject.SetActive(true);CheckoutShoppingProps.SetVisible(transform,false);
    var entrance=map.Entrance;
    if(ArrivalSpot(entrance,out var start)&&agent.Warp(start)){Sync();phase=14;Go(entrance);snapHeading=true;return;}
    if(!(NavMesh.SamplePosition(entrance,out var hit,2,NavMesh.AllAreas)||NavMesh.SamplePosition(entrance,out hit,6,NavMesh.AllAreas))||!agent.Warp(hit.position)){ForceExit();return;}transform.rotation=Quaternion.Euler(0,180,0);Sync();NextShelf();snapHeading=true;}
-  // A walkable spot 9-16 m along the avenue sidewalk (either side of the entrance), or across the avenue, that has a
-  // full path to the entrance and is not right next to another arriving customer.
-  public static readonly int[] ArrivalMisses=new int[4]; // QA: near the door, off the NavMesh, crowded, no path
+  // ---------------------------------------------------------------- customers an event brought (Customer.origin)
+  // Lucas 15/10: "the people at the event must really go into the market and buy". A visit the running event brought
+  // walks through its scene first (CheckoutEventVisuals.Market.cs hands over the lead-in): it either starts at a given
+  // spot (off the rush-hour or the school bus) or arrives on foot like a walk-in, then stops at the event (phase 15 →
+  // 17: the street fair's stall, the ice-cream cart, the prize wheel…; phase 16: the ATM queue on payday) and walks
+  // in to shop with its real basket (phase 14 → the usual shelves, register and payment).
+  string eventOrigin;CheckoutEventVisuals.LeadIn lead;bool leadActed;Vector3 lineGoal=Vector3.one*1e5f;
+  public string EventOrigin=>eventOrigin;
+  CheckoutEventVisuals fx;CheckoutEventVisuals Fx=>fx?fx:(fx=bridge?bridge.GetComponent<CheckoutEventVisuals>():null);
+  // QA (CheckoutAutoTest "eventsmarket"): per event, walkers that [0] began in its scene, [1] reached the entrance,
+  // [2] stood at the register, [3] paid.
+  public static readonly Dictionary<string,int[]> EventQa=new Dictionary<string,int[]>();
+  void CountEvent(int step){if(string.IsNullOrEmpty(eventOrigin))return;if(!EventQa.TryGetValue(eventOrigin,out var c))EventQa[eventOrigin]=c=new int[4];c[step]++;}
+  /// <summary>Starts a visit through the event's scene; false when no walkable start was found (the caller begins it normally).</summary>
+  public bool BeginFromEvent(Customer visit,CheckoutEventVisuals.LeadIn leadIn){
+   returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;index=0;wait=0;asked=false;leadActed=false;gameObject.SetActive(true);CheckoutShoppingProps.SetVisible(transform,false);
+   var entrance=map.Entrance;Vector3 start;
+   if(leadIn.start.HasValue){if(!(NavMesh.SamplePosition(leadIn.start.Value,out var hit,1.6f,NavMesh.AllAreas)||NavMesh.SamplePosition(leadIn.start.Value,out hit,3f,NavMesh.AllAreas))){gameObject.SetActive(false);Reserved=false;return false;}start=hit.position;}
+   else if(!ArrivalSpot(entrance,out start)){gameObject.SetActive(false);Reserved=false;return false;}
+   if(!agent.Warp(start)){gameObject.SetActive(false);Reserved=false;return false;}
+   eventOrigin=visit.origin;lead=leadIn;Sync();snapHeading=true;CountEvent(0);
+   if(leadIn.line&&Fx){phase=15;var tail=Fx.LineTail(this);if(tail.HasValue){lineGoal=tail.Value;Go(tail.Value);return true;}}
+   if(leadIn.stand.HasValue){phase=15;Go(leadIn.stand.Value);return true;}
+   phase=14;Go(entrance);return true;}
+  void LeaveEventLine(){if(Fx)Fx.LeaveLine(this);}
+  // Outside, walking the street (arriving, at the event, leaving): the phases that get an umbrella in the rain.
+  public bool OutdoorWalk=>gameObject.activeInHierarchy&&(phase==14||phase==15||phase==16||phase==17||phase==13||phase==9||phase==11||phase==12||phase==10||phase==7);
+  // Where a walk-in customer appears (Lucas 15/10: "pode colocar de mais longe, pra não ficar óbvio"): a building
+  // door or a sidewalk spot of the city, 25-45 m of walking from the entrance, so they look like any passer-by who
+  // decides to go in. Customers with a special request waiting start closer (15-25 m): their request runs out in
+  // 30-60 s. Never right beside another arriving customer.
+  public static readonly int[] ArrivalMisses=new int[4]; // QA: distance, off the NavMesh, crowded, no path
+  static readonly List<Vector3> arrivalPool=new List<Vector3>();
   bool ArrivalSpot(Vector3 entrance,out Vector3 spot){
    spot=entrance;var path=new NavMeshPath();
-   for(int tries=0;tries<8;tries++){
-    Vector3 candidate;
-    if(Random.value<.22f)candidate=new Vector3(-1.75f+Random.Range(-.6f,.6f),.15f,CheckoutStreetLayout.SouthWalkZ);
-    else{float side=Random.value<.5f?-1:1;float x=Mathf.Clamp(entrance.x+side*Random.Range(9f,16f),-CheckoutStreetLayout.InnerWalkX+1.5f,CheckoutStreetLayout.InnerWalkX-1.5f);candidate=new Vector3(x,.15f,CheckoutStreetLayout.NorthWalkZ+Random.Range(-.5f,.5f));}
-    if(Mathf.Abs(candidate.x-entrance.x)<5f&&candidate.z>CheckoutStreetLayout.SouthWalkZ+1){ArrivalMisses[0]++;continue;}
+   bool hurry=Request!=null&&Request.status=="pending";
+   float min=hurry?15:25,max=hurry?25:45;
+   arrivalPool.Clear();
+   var streets=FindAnyObjectByType<CheckoutCityStreets>();
+   if(streets){if(streets.entrances!=null)arrivalPool.AddRange(streets.entrances);if(streets.patrolPoints!=null)arrivalPool.AddRange(streets.patrolPoints);}
+   // Sidewalk spots along the avenue (both sides, across the local streets too) and across it at the park.
+   for(float dx=-44;dx<=44;dx+=4){arrivalPool.Add(new Vector3(entrance.x+dx,.15f,CheckoutStreetLayout.NorthWalkZ));arrivalPool.Add(new Vector3(entrance.x+dx,.15f,CheckoutStreetLayout.SouthWalkZ));}
+   for(int tries=0;tries<14&&arrivalPool.Count>0;tries++){
+    var candidate=arrivalPool[Random.Range(0,arrivalPool.Count)];
+    float straight=Vector3.Distance(new Vector3(candidate.x,0,candidate.z),new Vector3(entrance.x,0,entrance.z));
+    if(straight<min*.6f||straight>max){ArrivalMisses[0]++;continue;}
     if(!NavMesh.SamplePosition(candidate,out var hit,1.2f,NavMesh.AllAreas)){ArrivalMisses[1]++;continue;}
     bool crowded=false;foreach(var w in All)if(w!=this&&w&&w.gameObject.activeInHierarchy&&(w.transform.position-hit.position).sqrMagnitude<1.5f){crowded=true;break;}
     if(crowded){ArrivalMisses[2]++;continue;}
     if(!NavMesh.CalculatePath(hit.position,entrance,NavMesh.AllAreas,path)||path.status!=NavMeshPathStatus.PathComplete){ArrivalMisses[3]++;continue;}
+    float walk=0;var corners=path.corners;for(int i=1;i<corners.Length;i++)walk+=Vector3.Distance(corners[i-1],corners[i]);
+    if(walk<min||walk>max*1.35f){ArrivalMisses[0]++;continue;}
     spot=hit.position;return true;}
    return false;}
   public void RebaseLayout(MarketLayout previous,MarketLayout next){
@@ -105,12 +143,13 @@ namespace Checkout {
   // Safety net: a customer who is off the NavMesh (the floor was rebuilt under them) or makes no progress is put back
   // on the way, and as a last resort finishes the step (or leaves) instead of freezing the line forever.
   float offMesh,stuckFor;Vector3 lastSpot;
-  void ForceExit(){helpLine.Remove(this);Line.Remove(this);if(map&&map.Lanes)map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;wait=0;
+  void ForceExit(){LeaveEventLine();helpLine.Remove(this);Line.Remove(this);if(map&&map.Lanes)map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;wait=0;
    var completed=returnedToCar;returnedToCar=null;CheckoutShoppingProps.SetVisible(transform,false);if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}
    Reserved=false;gameObject.SetActive(false);completed?.Invoke(this);}
   // Stuck far from the spot: hop onto the nearest walkable point by the destination, or skip what can be skipped.
   void Unstick(){
    if(phase==0&&customer?.purchases!=null){index++;NextShelf();return;}
+   if(phase==15||phase==16||phase==17){LeaveEventLine();phase=14;}
    if(phase==14){if(NavMesh.SamplePosition(map.Entrance,out var door,3f,NavMesh.AllAreas)&&agent.Warp(door.position)){Sync();NextShelf();}else ForceExit();return;}
    if(NavMesh.SamplePosition(target,out var hit,2.5f,NavMesh.AllAreas)&&agent.Warp(hit.position)){Sync();Go(target);return;}
    if(phase==5||phase==13||phase==12||phase==10||phase==7||phase==11||phase==9||phase==6){ForceExit();return;}
@@ -138,8 +177,18 @@ namespace Checkout {
     if(browseFor<=0&&helpWait<110){phase=20;Go(HelpPoint());snapHeading=true;return;}
     var request=Request;if(request==null||request.status!="pending"||helpWait>120){helpLine.Remove(this);phase=0;NextShelf();snapHeading=true;}
     return;}
+   if(phase==16){ // In the event's line (the ATM): follow the slot; when the scene lets them go, walk in.
+    var spot=Fx?Fx.LineSpot(this):null;
+    if(!spot.HasValue){phase=14;leadActed=false;Go(map.Entrance);snapHeading=true;}
+    else{if((spot.Value-lineGoal).sqrMagnitude>.04f){lineGoal=spot.Value;Go(spot.Value);Fx.LineStanding(this,false);}
+     else if(!agent.pathPending&&(Vector3.Distance(agent.nextPosition,target)<.35f||(agent.isStopped&&Vector3.Distance(agent.nextPosition,target)<1.2f))){agent.isStopped=true;agent.velocity=Vector3.zero;Hold();var look=Fx.LineLook(this)-transform.position;look.y=0;if(look.sqrMagnitude>.01f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-look),Time.deltaTime*240);Fx.LineStanding(this,true);
+      if(Fx.LineFront(this)&&!leadActed){leadActed=true;motion.Perform("PayAtCheckout",false);}
+      return;}}}
+   if(phase==15&&lead!=null&&lead.line&&Fx){var tail=Fx.LineTail(this);
+    if(!tail.HasValue){phase=14;Go(map.Entrance);}
+    else{if((tail.Value-lineGoal).sqrMagnitude>.3f){lineGoal=tail.Value;Go(tail.Value);}if(Vector3.Distance(agent.nextPosition,tail.Value)<2.2f&&Fx.JoinLine(this)){phase=16;lineGoal=Vector3.one*1e5f;}}}
    if(wait>0){wait-=Time.deltaTime;agent.isStopped=true;transform.rotation=Quaternion.RotateTowards(transform.rotation,facing,Time.deltaTime*180);if(phase==8&&lane!=null&&lane.kiosk&&!motion.Busy)motion.Perform("GetFromShelf",false); // Scanning their own items.
-   Hold();if(wait<=0){if(phase==1){index++;NextShelf();}else if(phase==8){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),lane!=null&&lane.kiosk?0:map.PaymentDuration);}else if(phase==4){HasPaid=true;Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);}}return;}
+   Hold();if(wait<=0){if(phase==1){index++;NextShelf();}else if(phase==8){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),lane!=null&&lane.kiosk?0:map.PaymentDuration);}else if(phase==17){phase=14;Go(map.Entrance);}else if(phase==4){HasPaid=true;CountEvent(3);Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);}}return;}
    // Gave up while still in line: the basket stays behind and they walk out.
    if(phase==3&&bridge.CheckoutFor(customer?.id)==null&&bridge.CheckoutResultFor(customer?.id)?.status=="left"){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);return;}
    if(phase==3){var q=Line.IndexOf(this);var position=QueuePosition(q);if((position-target).sqrMagnitude>.05f)Go(position);}
@@ -160,10 +209,13 @@ namespace Checkout {
    stuckFor=0;agent.isStopped=true;
    if(phase==0){var id=customer.purchases[index].shelfId;var direction=map.Fixture(id)-transform.position;direction.y=0;facing=Quaternion.LookRotation(-direction);phase=1;agent.velocity=Vector3.zero;wait=Mathf.Max(1.5f,motion.Perform(map.Special(id)?"BuyAtSpecialSector":"GetFromShelf"));}
    else if(phase==20){phase=21;agent.velocity=Vector3.zero;browseFor=Random.Range(7f,12f);}
-   else if(phase==14){agent.isStopped=false;NextShelf();}
+   else if(phase==14){agent.isStopped=false;CountEvent(1);NextShelf();}
+   else if(phase==15){agent.velocity=Vector3.zero;if(lead!=null&&lead.line){phase=14;Go(map.Entrance);return;}
+    phase=17;var look=(lead!=null?lead.look:transform.position+Vector3.forward)-transform.position;look.y=0;facing=look.sqrMagnitude>.01f?Quaternion.LookRotation(-look):transform.rotation;
+    wait=Mathf.Max(lead!=null?lead.pause:1.5f,!string.IsNullOrEmpty(lead?.clip)?motion.Perform(lead.clip,false):0);if(wait<=0)wait=.1f;}
    else if(phase==2){lane=null;Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}
    else if(phase==3&&Line.Count>0&&Line[0]==this){if(customer.spent<=0){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);return;}
-    if(bridge.CheckoutFor(customer.id)!=null){phase=30;tillWait=0;arrivalPing=0;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));return;}
+    CountEvent(2);if(bridge.CheckoutFor(customer.id)!=null){phase=30;tillWait=0;arrivalPing=0;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));return;}
     phase=8;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));wait=map.ScanCustomer(customer,lane);}
    else if(phase==5){if(returnedToCar!=null){phase=12;Go(CheckoutCityTraffic.Corner);}else{phase=13;Go(Away());}}
    else if(phase==13){Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}

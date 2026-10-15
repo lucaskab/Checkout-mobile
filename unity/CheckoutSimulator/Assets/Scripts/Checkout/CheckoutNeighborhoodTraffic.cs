@@ -175,7 +175,13 @@ namespace Checkout
             void Road(float x,float z){stops.Add(new Visit{road=new Vector3(x,.15f,z)});}
             void Edge(float x,float z){Road(x,z);stops[stops.Count-1].edge=true;}
             void Detour(float x,float z){Road(x,z);stops[stops.Count-1].detour=true;}
-            void Stop(Vector3 door,float x,float z,Vector3 sidewalk){stops.Add(new Visit{road=new Vector3(x,.15f,z),sidewalk=sidewalk,entrance=door});}
+            // A drop-off never stands on a zebra crossing: it moves back to the stop line before it (the passenger with it).
+            void Stop(Vector3 door,float x,float z,Vector3 sidewalk)
+            {
+                var lane=Mathf.Abs(z+14)<.01f&&Mathf.Abs(x)<20?Vector3.left:x>23.5f?Vector3.forward:Vector3.back;
+                var road=CheckoutTrafficJunctions.OffCrossings(new Vector3(x,.15f,z),lane);
+                stops.Add(new Visit{road=road,sidewalk=sidewalk+(road-new Vector3(x,.15f,z)),entrance=door});
+            }
             // Right-hand traffic. Local streets: x ±24.6 / ±22.4. Avenue lanes: eastbound z -23 (curb) and -20,
             // westbound z -17 and -14 (curb). There is no street behind the market block.
             // Every drive runs from one end of the map to another (an edge: the car leaves and a later one

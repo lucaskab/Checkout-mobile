@@ -17,6 +17,8 @@ namespace Checkout
             cityBounds=terrain?terrain.bounds:new Bounds(new Vector3(0,0,6),new Vector3(80,1,84));
             var min=cityBounds.min+Vector3.one*1.5f;var max=cityBounds.max-Vector3.one*1.5f;
             var walks=new List<Bounds>();var patrol=new List<Vector3>();var doors=new List<Vector3>();
+            CheckoutTrafficJunctions.ClearCrossings(); // the cars stop before these (CheckoutTrafficJunctions)
+            void Cross(Vector3 a,Vector3 b,float width){Walk(a,b,width);CheckoutTrafficJunctions.AddCrossing(a,b,width);}
             void Walk(Vector3 a,Vector3 b,float width=1.8f)
             {
                 var size=new Vector3(Mathf.Abs(a.x-b.x)+width,.2f,Mathf.Abs(a.z-b.z)+width);
@@ -42,19 +44,19 @@ namespace Checkout
             bool Round(float x)=>circle&&Mathf.Abs(circle.center.x-x)<.1f&&Mathf.Abs(circle.center.z+18.5f)<.1f;
             float arm=CheckoutStreetLayout.CircleCrossing;
             // Market entrance straight across the avenue to the park's central gate.
-            Walk(new Vector3(-1.75f,0,SZ),new Vector3(-1.75f,0,-9.2f),2.5f);
+            Cross(new Vector3(-1.75f,0,SZ),new Vector3(-1.75f,0,-9.2f),2.5f);
             // Crossing strips; the road itself is never walkable. Local streets are crossed in line with the
             // avenue footways, the avenue in line with the local footways. At Columbus Circle the crossings sit
             // on the approach arms beyond the sidewalk ring (north z -18.5+arm, south z -18.5-arm, west x -23.5-arm);
             // there is none at the market corner.
             foreach(float x in new[]{-23.5f,23.5f})foreach(float z in Round(x)?new[]{-18.5f-arm,-18.5f+arm}:new[]{SZ,NZ})
             {
-                Walk(new Vector3(x-(OX-23.5f),0,z),new Vector3(x+(OX-23.5f),0,z),1.6f);
+                Cross(new Vector3(x-(OX-23.5f),0,z),new Vector3(x+(OX-23.5f),0,z),1.6f);
                 if(Round(x)){float walk=z<-18.5f?SZ:NZ;Walk(new Vector3(-OX,0,z),new Vector3(-OX,0,walk),1.6f);Walk(new Vector3(-IX,0,z),new Vector3(-IX,0,walk),1.6f);}
             }
             foreach(float x in Round(-23.5f)?new[]{-23.5f-arm,IX,OX}:new[]{-OX,-IX,IX,OX})
             {
-                Walk(new Vector3(x,0,SZ),new Vector3(x,0,NZ),1.6f);
+                Cross(new Vector3(x,0,SZ),new Vector3(x,0,NZ),1.6f);
                 if(x< -30f){Walk(new Vector3(x,0,SZ),new Vector3(-OX,0,SZ),1.6f);Walk(new Vector3(x,0,NZ),new Vector3(-OX,0,NZ),1.6f);}
             }
             var world=FindAnyObjectByType<MarketDay.MarketSimulation>().world;

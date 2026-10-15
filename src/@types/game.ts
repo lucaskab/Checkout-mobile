@@ -26,6 +26,12 @@ export type GameMarketCustomer = {
 	satisfaction: number;
 	spent: number;
 	status: "pagou" | "no caixa" | "saiu sem comprar";
+	/**
+	 * The event that brought this customer (its id, e.g. "quinto-dia-util"): Unity starts their visit in the
+	 * event's scene (the ATM queue, the bus stop, the street fair…) before they walk in and shop. Absent = a
+	 * normal walk-in or car customer.
+	 */
+	origin?: string;
 };
 
 export type GameMarketState = {

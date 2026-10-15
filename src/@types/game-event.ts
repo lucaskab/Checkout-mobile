@@ -113,6 +113,13 @@ export type GameEventDefinition = {
 	kind: GameEventKind;
 	name: string;
 	requirements: GameEventRequirements;
+	/**
+	 * Share (0–1) of the customers who arrive while the event runs that come *through* its scene: they withdraw
+	 * money at the ATM, get off the rush-hour bus, leave the street fair… and then walk into the market and shop
+	 * for real (src/services/game-events.ts getEventCustomerOrigin; Unity routes those visits through the event,
+	 * CheckoutEventVisuals.Market.cs). Absent or 0 = the event's scene sends no shoppers in.
+	 */
+	crowdShare?: number;
 	/** No longer drawn on the turn (kept so old saves and the dev menu still know it). */
 	retired?: boolean;
 };

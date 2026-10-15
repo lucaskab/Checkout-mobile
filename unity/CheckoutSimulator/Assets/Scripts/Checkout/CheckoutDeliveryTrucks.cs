@@ -480,7 +480,7 @@ namespace Checkout
             var nose = reverse ? t.position + t.rotation * new Vector3(0, 0, tr.box.min.z * scale) : t.position + t.rotation * new Vector3(0, 0, tr.box.max.z * scale);
             float look = 1.4f + tr.speed * tr.speed / (2 * brake);
             bool blocked = CheckoutEventTraffic.CityAhead(nose, dir, look) || CheckoutEventTraffic.Blocks(nose - dir * .3f, dir, look, 1.1f, t);
-            if (!reverse && CheckoutTrafficJunctions.Hold(t, dir, blocked)) top = 0;
+            if (!reverse && CheckoutTrafficJunctions.Hold(t, dir, blocked, tr.speed * tr.speed / (2 * brake * 1.8f))) top = 0;
             else if (blocked && Time.time - tr.since < 40f) top = 0;   // never stuck for ever
             tr.speed = tr.speed < top ? Mathf.Min(top, tr.speed + accel * dt) : Mathf.Max(top, tr.speed - brake * 1.8f * dt);
             float step = Mathf.Min(tr.speed * dt, dist);

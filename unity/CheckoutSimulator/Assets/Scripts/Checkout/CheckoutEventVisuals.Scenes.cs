@@ -153,7 +153,7 @@ namespace Checkout {
   void Build(string id, Transform sceneRoot) {
    root = sceneRoot; Survey(); if (cast == null || cast.Count == 0) CastPeople();
    director = root.gameObject.AddComponent<CheckoutEventDirector>();
-   curbBlocks.Remove(id); jams.Remove(id); pick = id.Length;
+   curbBlocks.Remove(id); jams.Remove(id); ForgetCrowd(id); pick = id.Length;
    switch (id) {
     case "hora-do-rush": Rush(); break;
     case "quinto-dia-util": Payday(); break;
@@ -197,8 +197,11 @@ namespace Checkout {
   // ================================================================ hora do rush
   // A city bus pulls up at the stop, opens its doors onto the curb, a crowd of workers gets off and walks to the
   // market's door; someone waiting at the shelter gets on; the bus leaves through the roundabout. Every ~40 s.
+  // The customers the rush brought (Customer.origin) ride this bus: they get off first and really go in and shop
+  // (CheckoutEventVisuals.Market.cs); the scene's own extras only fill the crowd up.
   void Rush() {
    var director = this.director;   // the stories run later: they keep this scene's director
+   var id = building; BusRiders();
    var bus = Vehicle("Rig_CityBus", Road(37, LaneW), West);
    float frontX = EastZoneFrom + .1f;
    float stopX = frontX + bus.FrontOffset;          // rig origin when its front is at frontX (westbound: front = origin - offset)
@@ -223,8 +226,10 @@ namespace Checkout {
      yield return bus.Drive(ArriveWest(stopX), 7f);
      yield return Wait(.4f);
      yield return bus.Clip("DoorsOpen");
-     for (int i = 0; i < crowd.Count; i++) {
-      var c = crowd[i]; float dx = doors[i % doors.Count];
+     var real = TakeRiders(id, crowd.Count);
+     for (int i = 0; i < real.Count; i++) { RiderGetsOff(real[i], On(doors[i % doors.Count], sideZ)); yield return Wait(.55f); }
+     for (int i = 0; i < Mathf.Max(real.Count > 0 ? 1 : crowd.Count, crowd.Count - real.Count); i++) {
+      var c = crowd[i]; float dx = doors[(i + real.Count) % doors.Count];
       c.transform.position = On(dx, sideZ); c.Face(North);
       director.StartCoroutine(GetOff(c));
       yield return Wait(.55f);
@@ -260,42 +265,76 @@ namespace Checkout {
   }
 
   // ================================================================ quinto dia útil
-  // A 24h ATM on the footway by the market: one person types, the queue waits on its phones, whoever is done walks
-  // into the market with the money; the queue steps up and someone new joins at the end.
+  // A 24h ATM against the market's front (or the stall's back line), facing the street, a few steps from the door; the
+  // queue runs along the front, away from the entrance, so the outer footway stays free for passers-by (no rope
+  // barriers: people just stand in line). Whoever is done walks into the market with the money. The payday customers
+  // (Customer.origin) are real: they arrive on foot, join this same line, withdraw (the paying move at the machine)
+  // and go in to shop; the scene's own people keep the line from looking empty and also walk in when done.
   void Payday() {
    var director = this.director;   // the stories run later: they keep this scene's director
-   float x = doorW.x + 3.6f;
+   var id = building;
+   const int capacity = 5;
+   float x = doorW.x + 3.2f;
    float zBack = small ? FootBack - .05f : Mathf.Min(facadeZ, -7.6f);
-   float atmZ = zBack - .55f, userZ = atmZ - 1.2f;
-   if (!Place(ref x, .9f, 4.4f, userZ - .5f, zBack, 26f)) return;    // no room for the ATM and its queue
+   float atmZ = zBack - .35f, userZ = atmZ - .75f;
+   if (!Place(ref x, .7f, .6f + capacity * .8f, userZ - .4f, zBack, 26f)) return;    // no room for the ATM and its line
    Focus(On(x + 1.6f, userZ));
    Prop("Pagamento_ATM", On(x, atmZ), 0);
-   Prop("Pagamento_QueueStanchions", On(x + 2.5f, userZ - .55f), 90);
-   const int slots = 4;
-   Vector3 Slot(int i) => i == 0 ? On(x, userZ) : On(x + .25f + i * .82f, userZ + .05f);
-   var people = new List<CheckoutEventActor>();
-   for (int i = 0; i < slots; i++) people.Add(Person(Next(), Slot(i), i == 0 ? North : WestDir, i == 0 ? "TypeATM" : (i % 2 == 1 ? "LookPhone" : null)));
-   var spare = Person(Next(), Slot(slots), WestDir, null, 1, false);
-   director.OnReset(() => { for (int i = 0; i < slots; i++) { people[i].transform.position = Slot(i); people[i].Face(i == 0 ? North : WestDir); people[i].Show(true); people[i].Do(i == 0 ? "TypeATM" : (i % 2 == 1 ? "LookPhone" : null)); } spare.Show(false); });
-   Story(() => Loop());
-   IEnumerator Loop() {
+   Vector3 Slot(int i) => i == 0 ? On(x, userZ) : On(x + .2f + i * .8f, userZ + .03f);
+   var line = new EventLine { slot = Slot, front = On(x, atmZ), capacity = capacity }; lines[id] = line;
+   var pool = new List<CheckoutEventActor>();
+   for (int i = 0; i < 4; i++) pool.Add(Person(Next(), Slot(i), i == 0 ? North : WestDir, null, 1, false));
+   var free = new List<CheckoutEventActor>();
+   director.OnReset(() => {
+    line.members.RemoveAll(m => m is CheckoutEventActor); line.standing.RemoveWhere(m => m is CheckoutEventActor); free.Clear();
+    for (int i = 0; i < pool.Count; i++) {
+     var a = pool[i];
+     if (i < 3) { a.transform.position = Slot(i); a.Face(i == 0 ? North : WestDir); a.Show(true); a.Do(i == 0 ? "TypeATM" : (i % 2 == 1 ? "LookPhone" : null)); line.members.Insert(Mathf.Min(i, line.members.Count), a); }
+     else { a.Show(false); free.Add(a); }
+    }
+   });
+   Story(() => Atm()); Story(() => Fill());
+   IEnumerator Atm() {
+    foreach (var m in line.members.ToArray()) if (m is CheckoutEventActor a) director.StartCoroutine(InLine(a));
     while (true) {
-     yield return Wait(UnityEngine.Random.Range(5f, 7f));
-     var done = people[0];
-     done.Do(null); yield return Wait(.4f);
-     director.StartCoroutine(Leave(done));
-     // the queue steps up
-     for (int i = 1; i < slots; i++) director.StartCoroutine(StepUp(people[i], i - 1));
-     var joiner = spare; joiner.transform.position = On(x + 7.5f, FootMid); joiner.Face(WestDir);
-     director.StartCoroutine(Join(joiner));
-     people.RemoveAt(0); people.Add(joiner); spare = done;
-     yield return Wait(1.2f);
-     people[0].Face(North); people[0].Do("TypeATM");
+     yield return null;
+     if (line.members.Count == 0) continue;
+     var first = line.members[0];
+     // whoever is first has to reach the machine (a customer may still be walking up)
+     for (float waited = 0; waited < 20f && line.members.Count > 0 && line.members[0] == first && !line.standing.Contains(first); waited += Time.deltaTime) yield return null;
+     if (line.members.Count == 0 || line.members[0] != first) continue;
+     yield return Wait(UnityEngine.Random.Range(4.5f, 6.5f));
+     if (line.members.Count == 0 || line.members[0] != first) continue;   // a customer left the line (the market closed)
+     line.members.RemoveAt(0); line.standing.Remove(first);
+     // a customer (CheckoutWalker) sees it is out of the line and walks in with the money; an extra walks to the door
+     if (first is CheckoutEventActor done) { done.Do(null); director.StartCoroutine(Leave(done)); }
     }
    }
-   IEnumerator StepUp(CheckoutEventActor a, int slot) { yield return a.Walk(new[] { Slot(slot) }, 1.0f); a.Face(slot == 0 ? North : WestDir); if (slot != 0 && UnityEngine.Random.value < .6f) a.Do("LookPhone"); }
-   IEnumerator Join(CheckoutEventActor a) { yield return a.Fade(true); yield return a.Walk(new[] { On(x + 7.5f, userZ - .1f), Slot(slots - 1) }, 1.2f); a.Face(WestDir); a.Do("LookPhone"); }
-   IEnumerator Leave(CheckoutEventActor a) { yield return a.Walk(ToDoor(a.transform.position, userZ - .2f), 1.3f); yield return a.Fade(false); }
+   // keep two or three people in line while no payday customer is in it (the real customers never wait behind extras
+   // that join after them)
+   IEnumerator Fill() {
+    while (true) {
+     yield return Wait(UnityEngine.Random.Range(2.5f, 4f));
+     if (line.members.Count < 3 && free.Count > 0 && !line.members.Any(m => m is CheckoutWalker)) { var a = free[0]; free.RemoveAt(0); director.StartCoroutine(Join(a)); }
+    }
+   }
+   IEnumerator Join(CheckoutEventActor a) { a.transform.position = On(x + 7.5f, FootMid); a.Face(WestDir); line.members.Add(a); yield return a.Fade(true); yield return InLine(a); }
+   // follows its place in the line: steps up when the one in front is done, types at the machine when first
+   IEnumerator InLine(CheckoutEventActor a) {
+    int at = -1;
+    while (line.members.Contains(a)) {
+     int i = line.members.IndexOf(a);
+     if (i != at) {
+      line.standing.Remove(a); a.Do(null);
+      yield return a.Walk(new[] { Slot(i) }, 1.0f);
+      at = i;
+      if (line.members.IndexOf(a) != i) continue;
+      a.Face(i == 0 ? North : WestDir); a.Do(i == 0 ? "TypeATM" : (UnityEngine.Random.value < .6f ? "LookPhone" : null)); line.standing.Add(a);
+     }
+     yield return null;
+    }
+   }
+   IEnumerator Leave(CheckoutEventActor a) { yield return a.Walk(ToDoor(a.transform.position, userZ - .3f), 1.3f); yield return a.Fade(false); free.Add(a); }
   }
 
   // ================================================================ feira de rua
@@ -316,6 +355,10 @@ namespace Checkout {
    Person(Next(), On(a + 1.0f, CurbEdge + .25f), South, "LookPhone");
    Person(Next(), On(a + 2.6f, CurbEdge + .3f), South);
    Person(Next(), On(a + 5.2f, CurbEdge + .25f), South, "Clipboard");
+   // the fair's customers buy at a stall and then walk into the market (Market.cs)
+   Stop(On(a + 1.8f, CurbEdge + .3f), Road(a + 1.85f, LaneW + .1f), 2.5f, "BuyAtSpecialSector");
+   Stop(On(a + 4.3f, CurbEdge + .3f), Road(a + 5.45f, LaneW + .1f), 2.5f, "BuyAtSpecialSector");
+   Stop(On(a + 6.3f, CurbEdge + .3f), Road(a + 5.45f, LaneW + .1f), 2.5f, "BuyAtSpecialSector");
    // a family takes the shopping into the market and comes back for more
    var parent = Person(Next(), On(a + 4f, CycleLane), WestDir, "CarryBox", 1, false);
    var kid = Person(Next(), On(a + 4.6f, CycleLane), WestDir, null, .58f, false);
@@ -345,6 +388,8 @@ namespace Checkout {
     Person(Next(), On(cx - 1.45f, -9.55f), EastDir, "Wave");
     Person(Next(), On(cx - .3f, -10.6f), North, "Fan");
     Person(Next(), On(cx + .55f, -10.75f), Dir(-.3f, 1), "Sip");
+    // the heat's customers stop at the cart on their way in for cold drinks (Market.cs)
+    Stop(On(cx + 1.45f, -9.85f), On(cx, -9.55f), 2.5f, "BuyAtSpecialSector"); Stop(On(cx + 1.25f, -10.85f), On(cx, -9.55f), 2f);
    }
    float bx = doorW.x + 7.4f;
    if (Place(ref bx, 1.25f, 1.25f, -10.7f, -8.65f, 14f)) {
@@ -381,6 +426,8 @@ namespace Checkout {
    Prop("Sorteio_GiftBoxes", On(ox + 1.15f, oz + .2f), -20);
    if (!small) Prop("Sorteio_BalloonArch", On(doorW.x, doorW.z - .55f), 0);
    var fans = new[] { Person(Next(), On(hub.x - .3f, hub.z - 1.35f), North), Person(Next(), On(hub.x + .6f, hub.z - 1.55f), Dir(-.2f, 1)) };
+   // the raffle's customers watch a spin with the others, then go in (Market.cs)
+   Stop(On(hub.x - 1.1f, hub.z - 1.45f), hub, 4f); Stop(On(hub.x + 1.5f, hub.z - 1.35f), hub, 4f);
    director.OnReset(() => { CheckoutEventAssets.PlayClip(wheelAnim, "Spin"); var m = promoter.Moves; if (m) m.PoseAt(0, "Hand_R"); });
    Story(() => Cheer());
    IEnumerator Cheer() {
@@ -409,6 +456,8 @@ namespace Checkout {
    Focus(On((dx + rear) * .5f, -11f));
    Prop("Ofertas_PalletStack", On(dx - 1.0f, -9.3f), 8); Prop("Ofertas_PalletStack", On(dx + .3f, -9.25f), -6);
    Person(Next(), On(dx - .9f, -10.35f), North, "LookPhone"); Person(Next(), On(dx + .4f, -10.45f), Dir(-.2f, 1));
+   // customers look through the pallets of offers on their way in (Market.cs)
+   Stop(On(dx - 1.7f, -10.15f), On(dx - 1.0f, -9.3f), 2.5f, "GetFromShelf"); Stop(On(dx - .25f, -10.95f), On(dx + .3f, -9.25f), 2.5f, "GetFromShelf");
    var porter = Person(WorkerOr("Worker_Stocker", "Customer_09"), Road(rear + .7f, CurbEdge), North, "HoldHandle", 1, false);
    var jack = Prop("Ofertas_PalletJack", Vector3.zero, 0); var load = art.Prop2(jack, "Ofertas_PalletStack", new Vector3(.58f, .13f, 0), 0, .95f);
    jack.localScale = Vector3.zero;
@@ -458,6 +507,8 @@ namespace Checkout {
    Claim(f1 - .3f, -11.1f, f2 + .3f, -10.6f);
    var fans = new List<CheckoutEventActor>();
    for (int i = 0; i < 5; i++) fans.Add(Person(Next(), On(x - 2.2f + i * 1.1f, -10.95f - (i % 2) * .4f), North, null));
+   // the match's customers watch a moment at the screen, then go in for beer and meat (Market.cs)
+   Stop(On(x - 2.7f, -10.5f), On(x, back - .4f), 4f); Stop(On(x + 2.6f, -10.5f), On(x, back - .4f), 4f);
    Confetti(root, On(x, -10.4f) + Vector3.up * 2.4f);
    var burst = root.GetComponentsInChildren<ParticleSystem>(true).LastOrDefault(); if (burst) { var e = burst.emission; e.enabled = false; }
    Story(() => Game());
@@ -499,6 +550,8 @@ namespace Checkout {
    Person(Next(), On(x - 1.5f, -10.75f), Dir(.6f, 1), "LookPhone");
    Person(Next(), On(x + 2.0f, -10.85f), Dir(-.6f, 1), "LookPhone");
    Person(Next(), On(x - .9f, -11.5f), Dir(.3f, 1));
+   // her followers watch the filming, then go in for the product of the video (Market.cs)
+   Stop(On(x - 2.3f, -10.4f), her.transform.position, 3f); Stop(On(x + 2.7f, -10.3f), her.transform.position, 3f);
    for (int i = 0; i < 4; i++) Fx2(root, "Viral_HeartPop", her.transform.position + new Vector3(-.4f + i * .3f, 2.1f + i * .15f, 0), "rise", 0, 1.1f);
   }
 
@@ -636,6 +689,8 @@ namespace Checkout {
      Prop("FimMes_PriceTags", new Vector3(cx, On(cx, wall - .3f).y, wall - .08f), 0);
      Prop("FimMes_AFrame", On(cx - 1.6f, wall - 1.3f), 10); Prop("FimMes_AFrame", On(cx + 1.8f, wall - 1.4f), -12);
      Person(Next(), On(cx - .5f, wall - 1.6f), North, "LookPhone"); Person(Next(), On(cx + .7f, wall - 2.0f), Dir(-.3f, 1));
+     // bargain hunters compare the clearance's prices, then come to the market for the cheap products (Market.cs)
+     Stop(On(cx - .1f, wall - 1.0f), On(cx, wall), 3f); Stop(On(cx + 2.6f, wall - 1.9f), On(cx, wall), 3f);
     }
    }
    float ax = doorW.x + 2.6f;
@@ -667,8 +722,11 @@ namespace Checkout {
   // ================================================================ excursão da escola
   // The school bus parks at the curb; the class gets off in a line behind the teacher, walks into the market
   // (a second teacher counts them at the door) and later comes back out and boards; the bus leaves, another comes.
+  // The trip's customers (Customer.origin: the parents and teachers along) ride this bus, get off after the class and
+  // really shop (Market.cs).
   void SchoolTrip() {
    var director = this.director;   // the stories run later: they keep this scene's director
+   var id = building; BusRiders();
    var bus = Vehicle("Rig_SchoolBus", Road(37, LaneW), West);
    float front = EastZoneFrom + .1f, stopX = front + bus.FrontOffset, sideZ = LaneW + bus.HalfWidth + .22f;
    var doorList = DoorCentres(bus, stopX); float doorX = doorList.Count > 0 ? doorList[0] : stopX - 2.2f;
@@ -689,6 +747,7 @@ namespace Checkout {
      yield return teacher.Walk(new[] { On(doorX - .9f, CycleLane + .2f) }, 1.2f); teacher.Face(Dir(.4f, -1)); teacher.Do("Wave");
      var route = ToDoor(On(doorX, sideZ));
      for (int i = 0; i < kids.Count; i++) { var kid = kids[i]; kid.transform.position = route[0]; director.StartCoroutine(Walk(kid, route, 1.0f + .1f * (i % 3))); yield return Wait(.7f); }
+     foreach (var r in TakeRiders(id, 4)) { RiderGetsOff(r, On(doorX, sideZ)); yield return Wait(.8f); }
      yield return Wait(3f); teacher.Do(null);
      yield return teacher.Walk(route.Skip(1).ToArray(), 1.15f); yield return teacher.Fade(false);
      yield return Wait(14f);                                      // shopping inside

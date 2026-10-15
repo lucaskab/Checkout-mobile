@@ -174,6 +174,25 @@ test("Unity can run a whole day through the command protocol", () => {
 	unsubscribe();
 });
 
+test("payday's ATM queue is made of real customers: they reach Unity tagged with the event and pay like anyone", () => {
+	store().startDay(FREE_DAY_CONTRACT_ID);
+	expect(store().devActivateGameEvent("quinto-dia-util")).toBe(true);
+	const origins = [];
+	for (let index = 0; index < 24; index++) {
+		useGameStore.setState({ market: { ...store().market, nextCustomerAt: 1 } });
+		if (!store().processNextCustomer()) continue;
+		const latest = store().market.recentCustomers[0];
+		origins.push(latest.origin ?? null);
+		// the snapshot carries the tag to Unity with the customer's real basket
+		const sent = createSimulatorSnapshot(store(), "day", index + 1).customers[0];
+		expect(sent.id).toBe(latest.id);
+		expect(sent.origin).toBe(latest.origin);
+	}
+	expect(origins.length).toBeGreaterThan(0);
+	expect(origins.every((origin) => origin === null || origin === "quinto-dia-util")).toBe(true);
+	expect(origins.some((origin) => origin === "quinto-dia-util")).toBe(true);
+});
+
 // ---------------------------------------------------------------- checkout counter
 
 function customerWithBasket() {

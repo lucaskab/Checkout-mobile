@@ -12,7 +12,9 @@ namespace Checkout {
  [Serializable] public class Order {public string id,status,productCategory;public int productId,quantity,boxes;public double createdAt,deliveryDurationMs;public OrderLine[] lines;}
  [Serializable] public class OrderLine {public int productId,boxes;public string productName;}
  [Serializable] public class Job {public string id,sectorId;public double startedAt,endsAt;}
- [Serializable] public class Customer {public string id,name,status,mood;public double spent;public Purchase[] purchases;}
+ // origin: the event that brought the customer ("quinto-dia-util"…): their walk starts in the event's scene (the ATM
+ // queue, the bus stop…) before they shop (CheckoutEventVisuals.Market.cs). Empty = a normal walk-in or car customer.
+ [Serializable] public class Customer {public string id,name,status,mood,origin;public double spent;public Purchase[] purchases;}
  [Serializable] public class Purchase {public string shelfId;public int productId,quantity;}
  // Market day (turn) from src/services/simulator-snapshot.ts; requests carry the waiting customer's id.
  [Serializable] public class DayState {public string phase,contractTitle,contractLabel,grade,shift;public int dayNumber,loyalty;public double startedAt,endsAt;public float contractProgress;public bool contractCompleted;public DayRequest[] requests;}

@@ -470,7 +470,7 @@ namespace Checkout
             float limit = Mathf.Max(.35f, Mathf.Sqrt(2 * Brake * Mathf.Max(0, stop - .05f)));
             float top = Mathf.Min(cruise, limit, Mathf.Lerp(cruise, 1.5f, Mathf.Clamp01(turn / 50f)));
             bool blocked = Blocked(bike, dir);
-            if (CheckoutTrafficJunctions.Hold(t, dir, blocked)) top = 0;
+            if (CheckoutTrafficJunctions.Hold(t, dir, blocked, bike.speed * bike.speed / (2 * Brake * 1.8f))) top = 0;
             bike.speed = bike.speed < top ? Mathf.Min(top, bike.speed + Accel * dt) : Mathf.Max(top, bike.speed - Brake * 1.8f * dt);
             float step = Mathf.Min(bike.speed * dt, dist);
             float yawBefore = t.eulerAngles.y;

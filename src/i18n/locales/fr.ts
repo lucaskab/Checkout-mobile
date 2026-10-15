@@ -50,6 +50,8 @@ const catalog: Catalog = {
 	"+35% em reposição.": "+35 % de réassort.",
 	"+40% lucro global.": "+40 % de bénéfice global.",
 	"+40% no orçamento dos clientes": "+40 % de budget client",
+	"+15% de clientes e +40% no orçamento": "+15 % de clients et +40 % de budget",
+	"+10% de clientes; cada cliente leva +1 item": "+10 % de clients ; chaque client prend +1 article",
 	"+40% velocidade, +15% lucro e +5% VIP.": "+40 % de vitesse, +15 % de bénéfice et +5 % VIP.",
 	"+45% de clientes": "+45 % de clients",
 	"+5% de clientes.": "+5% de clients.",

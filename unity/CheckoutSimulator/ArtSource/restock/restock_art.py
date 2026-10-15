@@ -35,6 +35,14 @@ def scene():
     sc = bpy.data.scenes.get(SCENE) or bpy.data.scenes.new(SCENE)
     bpy.context.window.scene = sc
     sc.render.engine = 'CYCLES'; sc.cycles.samples = 64; sc.cycles.use_denoising = True
+    try:   # render on the GPU (OptiX on the RTX): a CPU render of the backdrop takes minutes instead of seconds
+        prefs = bpy.context.preferences.addons['cycles'].preferences
+        types = [t[0] for t in prefs.get_device_types(bpy.context)]
+        prefs.compute_device_type = 'OPTIX' if 'OPTIX' in types else ('CUDA' if 'CUDA' in types else 'NONE')
+        prefs.get_devices()
+        for d in prefs.devices: d.use = d.type != 'CPU'
+        sc.cycles.device = 'GPU' if prefs.compute_device_type != 'NONE' else 'CPU'
+    except Exception: pass
     sc.render.resolution_x, sc.render.resolution_y = RES; sc.render.film_transparent = True
     sc.view_settings.view_transform = 'AgX'; sc.view_settings.look = 'AgX - Medium High Contrast'
     return sc
@@ -58,6 +66,50 @@ def mat(name, rgb, rough=.55, metal=0., emit=0., alpha=1., transmission=0.):
     if transmission: b.inputs["Transmission Weight"].default_value = transmission
     _M[key] = m; return m
 
+# ---------------------------------------------------------------- procedural materials (shared with backdrop_art.py)
+def _new(name):
+    key = "bd4_" + name
+    if key in _M and _M[key].name in bpy.data.materials: return _M[key], None
+    m = bpy.data.materials.get("RA_" + key) or bpy.data.materials.new("RA_" + key); m.use_nodes = True
+    _M[key] = m; return m, m.node_tree
+
+def wood_mat(name, light=(0.80, 0.56, 0.30), dark=(0.52, 0.31, 0.14), scale=1.0, rough=.5, axis="x"):
+    """Procedural wood: long wave bands along `axis` with noise distortion and a fine pore bump."""
+    m, nt = _new("wood_" + name)
+    if nt is None: return m
+    b = nt.nodes["Principled BSDF"]; b.inputs["Roughness"].default_value = rough
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    mp = nt.nodes.new("ShaderNodeMapping"); mp.inputs["Scale"].default_value = (1, 14, 14) if axis == "x" else ((14, 1, 14) if axis == "y" else (14, 14, 1))
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    wv = nt.nodes.new("ShaderNodeTexWave"); wv.wave_type = 'BANDS'; wv.bands_direction = 'DIAGONAL'
+    wv.inputs["Scale"].default_value = 1.2 * scale; wv.inputs["Distortion"].default_value = 6; wv.inputs["Detail"].default_value = 3; wv.inputs["Detail Scale"].default_value = 1.5
+    nt.links.new(mp.outputs["Vector"], wv.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB"); ramp.color_ramp.elements[0].color = (*dark, 1); ramp.color_ramp.elements[1].color = (*light, 1)
+    ramp.color_ramp.elements[0].position = .25; ramp.color_ramp.elements[1].position = .75
+    nt.links.new(wv.outputs["Fac"], ramp.inputs["Fac"]); nt.links.new(ramp.outputs["Color"], b.inputs["Base Color"])
+    bump = nt.nodes.new("ShaderNodeBump"); bump.inputs["Strength"].default_value = .06
+    nt.links.new(wv.outputs["Fac"], bump.inputs["Height"]); nt.links.new(bump.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+def stripes_mat(name, a, b_, period=.12, axis="x", rough=.8):
+    """Cloth stripes along `axis` in WORLD space (so the skirt and its scallops share one pattern), e.g. the cream / teal
+    skirt of the crates stand."""
+    m, nt = _new("stripes_" + name)
+    if nt is None: return m
+    b = nt.nodes["Principled BSDF"]; b.inputs["Roughness"].default_value = rough
+    tc = nt.nodes.new("ShaderNodeTexCoord"); geo = nt.nodes.new("ShaderNodeNewGeometry"); sep = nt.nodes.new("ShaderNodeSeparateXYZ"); nt.links.new(geo.outputs["Position"], sep.inputs[0])
+    prev = sep.outputs[{"x": "X", "y": "Y", "z": "Z"}[axis]]
+    for op, val in (('DIVIDE', period), ('FLOOR', None), ('MODULO', 2), ('ABSOLUTE', None)):
+        n = nt.nodes.new("ShaderNodeMath"); n.operation = op
+        if val is not None: n.inputs[1].default_value = val
+        nt.links.new(prev, n.inputs[0]); prev = n.outputs[0]
+    mix = nt.nodes.new("ShaderNodeMix"); mix.data_type = 'RGBA'; mix.inputs[6].default_value = a; mix.inputs[7].default_value = b_
+    nt.links.new(prev, mix.inputs[0]); nt.links.new(mix.outputs[2], b.inputs["Base Color"])
+    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 120; nz.inputs["Detail"].default_value = 2
+    bump = nt.nodes.new("ShaderNodeBump"); bump.inputs["Strength"].default_value = .05
+    nt.links.new(tc.outputs["Object"], nz.inputs["Vector"]); nt.links.new(nz.outputs["Fac"], bump.inputs["Height"]); nt.links.new(bump.outputs["Normal"], b.inputs["Normal"])
+    return m
+
 def box(name, size, loc, m, bevel=.01, layer="back", seg=3):
     bpy.ops.mesh.primitive_cube_add(size=1, location=loc); o = bpy.context.object; o.name = name
     o.scale = size; bpy.ops.object.transform_apply(scale=True)
@@ -67,10 +119,10 @@ def box(name, size, loc, m, bevel=.01, layer="back", seg=3):
     for p in o.data.polygons: p.use_smooth = True
     return o
 
-def cyl(name, r, h, loc, m, rot=(0, 0, 0), layer="back", verts=20, flat_caps=False):
+def cyl(name, r, h, loc, m, rot=(0, 0, 0), layer="back", verts=20, flat_caps=False, smooth=True):
     bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=h, location=loc, rotation=rot, vertices=verts); o = bpy.context.object
     o.name = name; o.data.materials.append(m); o["layer"] = layer
-    for p in o.data.polygons: p.use_smooth = not (flat_caps and abs(p.normal.z) > .9)   # flat caps: no dark smoothing rim on short discs
+    for p in o.data.polygons: p.use_smooth = smooth and not (flat_caps and abs(p.normal.z) > .9)   # flat caps: no dark smoothing rim on short discs (normals are read before any rotation is applied, so use smooth=False for turned discs)
     return o
 
 def light_rig(target, size):
@@ -274,18 +326,65 @@ def crate_cell(nm, x0, x1, y0, y1, z, h, wood_m, slat_m):
     for i in range(2):
         box(nm + f"_f{i}", (w + .01, .028, h * .32), (xc, y0, z + h * (.2 + .45 * i)), slat_m, bevel=.008, layer="front")
 
+def slat_crate(nm, x0, x1, y0, y1, z, h, wood_m, post_m, slats=2, layer_front="front"):
+    """A real wooden produce crate: four corner posts, a slatted floor, `slats` horizontal slats per side with a gap
+    between them (the dark interior shows through), and the front slats on the front layer."""
+    w, d = x1 - x0, y1 - y0; xc, yc = (x0 + x1) / 2, (y0 + y1) / 2; p = .022; sh = (h - .02) / slats
+    box(nm + "_floor", (w, d, .018), (xc, yc, z + .009), wood_m, bevel=.003)
+    for px in (x0, x1):
+        for py in (y0, y1):
+            box(f"{nm}_p{px:.2f}{py:.2f}", (p, p, h), (px, py, z + h / 2), post_m, bevel=.004, layer=layer_front if py == y0 else "back")
+    for k in range(slats):
+        zc = z + .01 + sh * (k + .5); t = sh * .70
+        box(f"{nm}_sb{k}", (w, .016, t), (xc, y1 + .004, zc), wood_m, bevel=.004)
+        box(f"{nm}_sl{k}", (.016, d, t), (x0 - .004, yc, zc), wood_m, bevel=.004)
+        box(f"{nm}_sr{k}", (.016, d, t), (x1 + .004, yc, zc), wood_m, bevel=.004)
+        box(f"{nm}_sf{k}", (w + .01, .016, t), (xc, y0 - .004, zc), wood_m, bevel=.004, layer=layer_front)
+
 def build_crates(key="crates"):
-    """Sidewalk table: three crates on a raised step at the back, four in front."""
+    """Hortifruti stand (v4): seven slatted wooden crates (3 on a raised step at the back, 4 in front) on a plank
+    table with turned legs, a cream / teal striped cloth skirt with a scalloped hem, same lane grid as before."""
     clear(); LANES.pop(key, None)
     W, D = 1.70, 1.00
-    table = mat("table_cloth", (0.86, 0.33, 0.28, 1), rough=.7); legs = mat("legs", WOOD, rough=.6)
-    pale = mat("crate_pale", (0.86, 0.70, 0.46, 1), rough=.7); slat = mat("crate_slat", (0.78, 0.60, 0.38, 1), rough=.7)
-    box("table", (W + .1, D + .1, .06), (0, D / 2, .72), table, bevel=.02)
-    box("table_front", (W + .1, .02, .30), (0, -.04, .60), table, bevel=.01, layer="front")
-    box("step", (W, D / 2, .16), (0, D * .75, .83), mat("step_wood", WOOD_L, rough=.6), bevel=.015)
+    plank = wood_mat("cr_plank", (0.84, 0.62, 0.36), (0.66, 0.45, 0.22), scale=1.4, axis="y")
+    crate_w = wood_mat("cr_crate", (0.86, 0.68, 0.42), (0.68, 0.50, 0.26), scale=3, axis="x", rough=.7)
+    post = wood_mat("cr_post", (0.62, 0.42, 0.20), (0.44, 0.27, 0.11), scale=3, axis="z", rough=.7)
+    legs = wood_mat("cr_legs", (0.52, 0.32, 0.14), (0.36, 0.20, 0.08), scale=2, axis="z")
+    skirt = stripes_mat("cr_skirt", CREAM, (0.10, 0.48, 0.45, 1), period=.11, axis="x")
+    zt = .72
+    box("table", (W + .12, D + .10, .04), (0, D / 2, zt - .02), plank, bevel=.012, seg=4)
+    box("table_edge", (W + .14, .03, .07), (0, -.055, zt - .035), legs, bevel=.01, layer="front")
+    for sx in (-1, 1):
+        box(f"table_edge_s{sx}", (.03, D + .12, .07), (sx * (W / 2 + .055), D / 2, zt - .035), legs, bevel=.01)
+    # turned legs: a stack of a cone, a bead and a shaft; the two front ones go to the front layer
+    for sx in (-1, 1):
+        for y, lay in ((.06, "back"), (D - .06, "back")):
+            x = sx * (W / 2 - .02)
+            cyl(f"leg{sx}{lay}_top", .045, .12, (x, y, zt - .11), legs, verts=20, layer=lay)
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=.052, location=(x, y, zt - .20), segments=24, ring_count=12); o = bpy.context.object
+            o.name = f"leg{sx}{lay}_bead"; o.data.materials.append(legs); o["layer"] = lay
+            for p in o.data.polygons: p.use_smooth = True
+            bpy.ops.mesh.primitive_cone_add(radius1=.03, radius2=.04, depth=zt - .26, location=(x, y, (zt - .26) / 2), vertices=20); o = bpy.context.object
+            o.name = f"leg{sx}{lay}_shaft"; o.data.materials.append(legs); o["layer"] = lay
+            for p in o.data.polygons: p.use_smooth = abs(p.normal.z) < .9
+    box("stretcher", (W - .1, .035, .035), (0, .06, .22), legs, bevel=.008)
+    # striped skirt hanging from the front edge, scalloped hem; a short return on each side
+    box("skirt", (W + .10, .012, .40), (0, -.062, zt - .27), skirt, bevel=.004, layer="front")
+    n = 14
+    for k in range(n):
+        x = -(W + .10) / 2 + (k + .5) * (W + .10) / n
+        cyl(f"scallop{k}", (W + .10) / n / 2, .010, (x, -.073, zt - .47), skirt, rot=(rad(90), 0, 0), verts=24, layer="front", smooth=False)   # just in front of the skirt (coplanar faces render black)
+    for sx in (-1, 1):
+        box(f"skirt_s{sx}", (.012, .30, .40), (sx * (W / 2 + .062), .15, zt - .27), skirt, bevel=.004)
+    # raised step at the back: plank top, slatted front
+    box("step", (W, D / 2, .03), (0, D * .75, zt + .145), plank, bevel=.006)
+    for k in range(3):
+        box(f"step_slat{k}", (W, .02, .04), (0, D / 2 + .005, zt + .02 + k * .045), crate_w, bevel=.004)
+    for sx in (-1, 1):
+        box(f"step_side{sx}", (.02, D / 2, .14), (sx * (W / 2 - .01), D * .75, zt + .07), crate_w, bevel=.004)
     for i, (x0, x1, y0, y1, row) in enumerate(grid_cells(W, D, margin=.04, gap=.05)):
         z = .91 if row == 0 else .75; h = .17
-        crate_cell(f"cr{i}", x0, x1, y0, y1, z, h, pale, slat)
+        slat_crate(f"cr{i}", x0, x1, y0, y1, z, h, crate_w, post)
         lane(key, x0 + .03, x1 - .03, y0 + .04, y1 - .03, z + .02, .14)
     return dict(target=(0, D * .45, .9), pitch=34, dist=3.0, lens=40, size=W)
 

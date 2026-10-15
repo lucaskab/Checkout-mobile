@@ -21,6 +21,23 @@ the warehouse and the delivery trucks, and interior points follow the purchased 
 on first activation and cached per store size; only the active event animates. Expiry is checked locally.
 Deactivation clears particles and restores the original light and ambient colors.
 
+### Event crowds shop for real
+
+Events with a crowd (`crowdShare` in `src/data/game-events.ts`) tag that share of the customers the app sends
+while they run with `Customer.origin = <event id>`. Those are real visits (basket, register, money); Unity starts
+their walk in the event's scene (`CheckoutEventVisuals.Market.cs`, `CheckoutWalker` phases 15–17) and then they
+shop like anyone else:
+
+- payday (`quinto-dia-util`): they join the ATM line by the market's front, withdraw, and walk in;
+- rush hour / school trip: they ride the bus and get off when its doors open (the scene shows fewer extras);
+- street fair, heat wave, prize wheel, offers truck, match day, influencer, month's end: they stop at the stall,
+  the ice-cream cart, the wheel, the pallets, the big screen, the filming or the pharmacy's clearance, then go in.
+
+Street and staff events (rain, road works, jam, power cut, card machine, inspection, tired shift, coffee break,
+rival's sound car) send no crowd; in the rain the customers carry umbrellas outside. QA:
+`eventsmarket-<stage>-<event>` in `CheckoutAutoTest` logs how many tagged customers began in the scene, reached
+the entrance, stood at the register and paid.
+
 ## Blender props (Unity ↔ Blender bridge)
 
 **Checkout → Eventos → 1. Gerar props no Blender** runs Blender headless (about 10 minutes for all props),
