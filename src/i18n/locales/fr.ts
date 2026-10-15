@@ -3617,6 +3617,10 @@ const catalog: Catalog = {
 	"Feche a porta! Os produtos estão esquentando": "Ferme la porte ! Les produits se réchauffent",
 	"Feche a porta para terminar": "Ferme la porte pour terminer",
 	"Feche a tampa para terminar": "Ferme le couvercle pour terminer",
+	"ARMAZÉM CENTRAL": "ENTREPÔT CENTRAL",
+	"DINHEIRO": "ESPÈCES",
+	"CARTÃO": "CARTE",
+	"CUPOM": "TICKET",
 };
 
 export default catalog;

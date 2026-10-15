@@ -3624,6 +3624,10 @@ const catalog: Catalog = {
 	"Feche a porta! Os produtos estão esquentando": "Mach die Tür zu! Die Produkte werden warm",
 	"Feche a porta para terminar": "Schließ die Tür, um fertig zu werden",
 	"Feche a tampa para terminar": "Schließ den Deckel, um fertig zu werden",
+	"ARMAZÉM CENTRAL": "ZENTRALLAGER",
+	"DINHEIRO": "BAR",
+	"CARTÃO": "KARTE",
+	"CUPOM": "BELEG",
 };
 
 export default catalog;

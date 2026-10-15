@@ -114,7 +114,7 @@ namespace Checkout {
   void Clear(){
    foreach(var o in scene)if(o)Destroy(o);
    scene.Clear();if(hint)Destroy(hint);hint=null;toast=null;
-   view=null;coldKind=false;coldRan=false;coldBar=null;coldFill=null;cold=1;
+   view=null;coldKind=false;coldRan=false;coldBar=null;coldFill=null;coldBulb=null;cold=1;
    lanes.Clear();carts.Clear();reserveLeft.Clear();pending.Clear();boxQueue.Clear();
    comboLabel=null;comboBadge=null;QaFixture=null;
   }
@@ -220,9 +220,10 @@ namespace Checkout {
    // Doors and lids: a tap opens or closes each one (they start closed).
    coldKind=view.doors.Length>0;
    for(int d=0;d<view.doors.Length;d++){int door=d;U.Tap(view.doorHits[d],()=>ToggleDoor(door));}
-   if(coldKind)BuildColdMeter(H);
+   if(coldKind)BuildColdMeter(H,new Vector2(right+4,-H*.5f+H*.46f));
    BuildCarts(g,W,H);
-   comboBadge=Keep(U.Shape(stage,"Combo","EC862E",22,Mid,new Vector2(120,44),new Vector2(W*.5f-cw*.5f-18,-H*.5f+cw*.76f+40))).rectTransform;
+   // Combo: a pill in the top bar by the close button (it used to float alone in the middle of the wall).
+   comboBadge=Keep(U.Shape(stage,"Combo","EC862E",22,new Vector2(1,1),new Vector2(150,46),new Vector2(-150,-44))).rectTransform;
    comboBadge.gameObject.SetActive(false);
    comboLabel=U.Label(comboBadge.transform,"Text",K.Headline,22,"FFFFFF");U.Stretch(comboLabel.rectTransform,Vector2.zero,Vector2.one);
    comboLabel.text="";
@@ -270,16 +271,24 @@ namespace Checkout {
    for(int i=0;i<all.Count;i++)all[i].SetSiblingIndex(i);
   }
 
-  void BuildColdMeter(float H){
-   var bar=U.Shape(stage,"Cold","FFF7EC",10,new Vector2(1,1),new Vector2(26,H*.34f),new Vector2(-31,-(18+H*.17f)));
+  // A thermometer standing beside the fixture (it used to hug the window's right edge, half hidden, and read as a
+  // scroll bar): a rounded tube with an outline and a bulb at the foot, both in the fill colour.
+  Image coldBulb;
+  bool SolidLid=>view!=null&&view.key=="cooler"; // the styrofoam box; the ice-cream chest has glass lids
+  void BuildColdMeter(float H,Vector2 at){
+   float tube=H*.3f;
+   var bar=U.Shape(stage,"Cold","FFF7EC",11,Mid,new Vector2(24,tube),at);
+   var line=bar.gameObject.AddComponent<Outline>();line.effectColor=K.C("4A3624");line.effectDistance=new Vector2(2,-2);
    Keep(bar);coldBar=bar.rectTransform;
-   coldFill=U.Box(bar.transform,"Fill","3B8FD6",8,Vector2.zero,Vector2.one);
+   coldFill=U.Box(bar.transform,"Fill","3B8FD6",8,Vector2.zero,Vector2.one);coldFill.rectTransform.offsetMin=new Vector2(5,4);coldFill.rectTransform.offsetMax=new Vector2(-5,-4);
+   coldBulb=U.Shape(bar.transform,"Bulb","3B8FD6",22,new Vector2(.5f,0),new Vector2(40,40),new Vector2(0,-12));
+   var ring=coldBulb.gameObject.AddComponent<Outline>();ring.effectColor=K.C("4A3624");ring.effectDistance=new Vector2(2,-2);
    cold=1;coldRan=false;RefreshCold();
   }
   void RefreshCold(){
    if(!coldFill)return;
    coldFill.rectTransform.anchorMax=new Vector2(1,Mathf.Clamp01(cold));
-   coldFill.color=Color.Lerp(K.C("E15533"),K.C("3B8FD6"),Mathf.Clamp01(cold));
+   coldFill.color=Color.Lerp(K.C("E15533"),K.C("3B8FD6"),Mathf.Clamp01(cold));if(coldBulb)coldBulb.color=coldFill.color;
   }
 
   // ------------------------------------------------------------------ the stock cart (pre-rendered 3D)
@@ -572,7 +581,7 @@ namespace Checkout {
    }
    if(comboBadge){
     bool on=good&&streak>=2;comboBadge.gameObject.SetActive(on);
-    if(on&&comboLabel)comboLabel.text="x"+streak;
+    if(on&&comboLabel){comboLabel.text="Combo x"+streak;StartCoroutine(U.Pop(comboBadge,1.15f,.25f));}
    }
   }
   // A soft glow that swells and fades (no sparks): the feedback stays calm.
@@ -656,6 +665,8 @@ namespace Checkout {
     RefreshCold();
    }
    if(streak>0&&Time.unscaledTime-lastGood>ComboWindow){streak=0;if(comboBadge)comboBadge.gameObject.SetActive(false);}
+   // Under a solid lid (cooler box) the lane's tag would float on top of the closed lid: shown only while it is open.
+   if(view!=null&&view.kind=="lid")foreach(var l in lanes)if(l.tag){bool see=view.Reachable(l.geo)||!SolidLid;if(l.tag.gameObject.activeSelf!=see)l.tag.gameObject.SetActive(see);}
    if(pending.Count>0){foreach(var p in pending.Values.ToList())if(Time.unscaledTime-p.lastAt>.5f)FlushSlot(p.slotId);}
    if(finished)return;
    // Round end: every box is flat. The cover must be closed to finish.

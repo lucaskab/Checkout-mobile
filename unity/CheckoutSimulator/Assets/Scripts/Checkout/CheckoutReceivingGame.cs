@@ -186,7 +186,7 @@ namespace Checkout {
     var node=N("Sign",f.root);U.Stretch(node,new Vector2(d.sign[0],d.sign[1]),new Vector2(d.sign[2],d.sign[3]),new Vector2(8,2),new Vector2(-8,-2));
     f.label=U.Label(node,"Text",K.Headline,h*.05f,"0F5F59");U.Stretch(f.label.rectTransform,Vector2.zero,Vector2.one);
     f.label.enableAutoSizing=true;f.label.fontSizeMin=10;f.label.fontSizeMax=h*.055f;
-    f.label.text=!shadow?$"<color=#{ZoneColors[bays[0]]}>{name.ToUpperInvariant()}</color>":string.Join("  ·  ",bays.Distinct().Select(z=>$"<color=#{ZoneColors[z]}>{ZoneNames[z]}</color>"));
+    f.label.text=!shadow?$"<color=#{ZoneColors[bays[0]]}>{CheckoutI18n.T(name).ToUpperInvariant()}</color>":string.Join("  ·  ",bays.Distinct().Select(z=>$"<color=#{ZoneColors[z]}>{CheckoutI18n.T(ZoneNames[z])}</color>"));
    }
    if(key=="coldroom"&&d?.display!=null&&d.display.Length>=4){
     // The thermometer of the cold room keeps blinking its temperature.

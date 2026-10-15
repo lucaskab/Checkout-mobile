@@ -128,7 +128,7 @@ namespace Checkout {
    if(d.signRect!=null&&d.signRect.x1>d.signRect.x0){
     v.title=U.Label(v.root,"Title",K.Headline,h*.045f,"0F5F59");
     U.Stretch(v.title.rectTransform,new Vector2(d.signRect.x0,d.signRect.y0),new Vector2(d.signRect.x1,d.signRect.y1),new Vector2(10,2),new Vector2(-10,-2));
-    v.title.enableAutoSizing=true;v.title.fontSizeMin=10;v.title.fontSizeMax=h*.05f;v.title.text=(displayName??"").ToUpperInvariant();
+    v.title.enableAutoSizing=true;v.title.fontSizeMin=10;v.title.fontSizeMax=h*.05f;v.title.text=CheckoutI18n.T(displayName??"").ToUpperInvariant(); // translated first: the catalog has "Gôndola de doces", not the capitals
     v.title.transform.SetSiblingIndex(v.front.GetSiblingIndex()+1);
    }
    return v;

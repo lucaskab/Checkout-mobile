@@ -67,10 +67,10 @@ def box(name, size, loc, m, bevel=.01, layer="back", seg=3):
     for p in o.data.polygons: p.use_smooth = True
     return o
 
-def cyl(name, r, h, loc, m, rot=(0, 0, 0), layer="back", verts=20):
+def cyl(name, r, h, loc, m, rot=(0, 0, 0), layer="back", verts=20, flat_caps=False):
     bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=h, location=loc, rotation=rot, vertices=verts); o = bpy.context.object
     o.name = name; o.data.materials.append(m); o["layer"] = layer
-    for p in o.data.polygons: p.use_smooth = True
+    for p in o.data.polygons: p.use_smooth = not (flat_caps and abs(p.normal.z) > .9)   # flat caps: no dark smoothing rim on short discs
     return o
 
 def light_rig(target, size):
@@ -308,24 +308,106 @@ def build_stand(key="stand"):
         lane(key, x0 + .03, x1 - .03, y0 + .04, y1 - .03, z + .02, .14)
     return dict(target=(0, D * .45, 1.05), pitch=30, dist=3.2, lens=40, size=W)
 
+def gingham(name, a=(0.98, 0.94, 0.84, 1), b=(0.80, 0.22, 0.18, 1), checks=48):
+    """Checked cloth: red/cream stripes along X multiplied by stripes along Y+Z (so the pattern also shows on
+    the hanging flaps) -> cream, pink, pink, red squares, like a real gingham."""
+    key = "gingham_" + name
+    if key in _M and _M[key].name in bpy.data.materials: return _M[key]
+    m = bpy.data.materials.get("RA_" + key) or bpy.data.materials.new("RA_" + key); m.use_nodes = True
+    nt = m.node_tree; bsdf = nt.nodes["Principled BSDF"]; bsdf.inputs["Roughness"].default_value = .9
+    tc = nt.nodes.new("ShaderNodeTexCoord"); sep = nt.nodes.new("ShaderNodeSeparateXYZ"); nt.links.new(tc.outputs["Object"], sep.inputs[0])
+    yz = nt.nodes.new("ShaderNodeMath"); yz.operation = 'ADD'; nt.links.new(sep.outputs["Y"], yz.inputs[0]); nt.links.new(sep.outputs["Z"], yz.inputs[1])
+    def stripe(sock):
+        prev = sock
+        for op, val in (('MULTIPLY', checks), ('FLOOR', None), ('MODULO', 2), ('ABSOLUTE', None)):
+            n = nt.nodes.new("ShaderNodeMath"); n.operation = op
+            if val is not None: n.inputs[1].default_value = val
+            nt.links.new(prev, n.inputs[0]); prev = n.outputs[0]
+        return prev
+    add = nt.nodes.new("ShaderNodeMath"); add.operation = 'ADD'; nt.links.new(stripe(sep.outputs["X"]), add.inputs[0]); nt.links.new(stripe(yz.outputs[0]), add.inputs[1])
+    half = nt.nodes.new("ShaderNodeMath"); half.operation = 'MULTIPLY'; half.inputs[1].default_value = .5; nt.links.new(add.outputs[0], half.inputs[0])
+    mix = nt.nodes.new("ShaderNodeMix"); mix.data_type = 'RGBA'; mix.inputs[6].default_value = a; mix.inputs[7].default_value = b
+    nt.links.new(half.outputs[0], mix.inputs[0]); nt.links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+    _M[key] = m; return m
+
+def wicker_basket(nm, x0, x1, y0, y1, z, h, wick, wick_m, wick_d, cloth=None, rows=3, back_rows=5):
+    """A woven basket: stacked rounded rods (alternating tones, weaving in and out) around a floor, vertical
+    stakes and a thick rolled rim. The front is low (rows) and the back high (back_rows) so the bread shows,
+    the sides step up halfway. Optional gingham cloth lining, folded over the front rim.
+    Front wall, front rim and front flap go to the front layer."""
+    w, d = x1 - x0, y1 - y0; xc, yc = (x0 + x1) / 2, (y0 + y1) / 2; t = .028
+    box(nm + "_floor", (w, d, .02), (xc, yc, z + .01), wick_d, bevel=.006)
+    rh = h / rows; hb = rh * back_rows; ym = yc + .02   # the sides step up at ym
+    for r in range(back_rows):
+        zc = z + .01 + rh * (r + .5); m = wick if r % 2 else wick_m; bw = rh * .48; o = .004 if r % 2 else 0
+        box(f"{nm}_b{r}", (w + t + 2 * o, t, rh), (xc, y1 + o, zc), m, bevel=bw, seg=4)
+        if r < rows:
+            box(f"{nm}_l{r}", (t, d + 2 * o, rh), (x0 - o, yc, zc), m, bevel=bw, seg=4)
+            box(f"{nm}_r{r}", (t, d + 2 * o, rh), (x1 + o, yc, zc), m, bevel=bw, seg=4)
+            box(f"{nm}_f{r}", (w + t + 2 * o, t, rh), (xc, y0 - o, zc), m, bevel=bw, seg=4, layer="front")
+        else:
+            box(f"{nm}_l{r}", (t, y1 - ym + 2 * o, rh), (x0 - o, (ym + y1) / 2, zc), m, bevel=bw, seg=4)
+            box(f"{nm}_r{r}", (t, y1 - ym + 2 * o, rh), (x1 + o, (ym + y1) / 2, zc), m, bevel=bw, seg=4)
+    n = max(3, int(w / .075)); nd = max(2, int(d / .075))
+    for k in range(n):   # stakes end just under the rim, flat caps (no dark dots peeking out)
+        x = x0 + (k + .5) * w / n
+        cyl(f"{nm}_sb{k}", .0075, hb, (x, y1 + t * .5, z + .01 + hb / 2), wick_d, verts=8, flat_caps=True)
+        cyl(f"{nm}_sf{k}", .0075, h, (x, y0 - t * .5, z + .01 + h / 2), wick_d, verts=8, layer="front", flat_caps=True)
+    for k in range(nd):
+        y = y0 + (k + .5) * d / nd; sh = hb if y > ym else h
+        cyl(f"{nm}_sl{k}", .0075, sh, (x0 - t * .5, y, z + .01 + sh / 2), wick_d, verts=8, flat_caps=True)
+        cyl(f"{nm}_sr{k}", .0075, sh, (x1 + t * .5, y, z + .01 + sh / 2), wick_d, verts=8, flat_caps=True)
+    # rolled rim: low in front, high at the back, two steps on each side; cylinders close the bevelled corners
+    zr = z + .01 + h + .012; zb = z + .01 + hb + .012; rt = .04
+    box(nm + "_rb", (w + rt, rt, .028), (xc, y1, zb), wick_d, bevel=.013, seg=4)
+    box(nm + "_rf", (w + rt, rt, .028), (xc, y0, zr), wick_d, bevel=.013, seg=4, layer="front")
+    for sx, x in ((-1, x0), (1, x1)):
+        box(f"{nm}_rs{sx}a", (rt, ym - y0 + rt, .028), (x, (y0 + ym) / 2, zr), wick_d, bevel=.013, seg=4)
+        box(f"{nm}_rs{sx}b", (rt, y1 - ym + rt, .028), (x, (ym + y1) / 2, zb), wick_d, bevel=.013, seg=4)
+        box(f"{nm}_rs{sx}c", (rt, rt, zb - zr + .028), (x, ym, (zr + zb) / 2), wick_d, bevel=.013, seg=4)
+        cyl(f"{nm}_rc{sx}b", rt / 2, .030, (x, y1, zb), wick_d, verts=12, flat_caps=True)   # a hair taller than the rim boxes
+        cyl(f"{nm}_rc{sx}m", rt / 2, .030, (x, ym, zb), wick_d, verts=12, flat_caps=True)
+        cyl(f"{nm}_rc{sx}f", rt / 2, .030, (x, y0, zr), wick_d, verts=12, layer="front", flat_caps=True)
+    if cloth:
+        box(nm + "_cl", (w - .03, d - .03, .016), (xc, yc, z + .028), cloth, bevel=.007, seg=4)
+        fw = w * .84
+        box(nm + "_cf", (fw, rt + .02, .014), (xc, y0, zr + .018), cloth, bevel=.006, seg=3, layer="front")
+        o = box(nm + "_cfh", (fw, .014, .075), (0, 0, -.0375), cloth, bevel=.006, seg=3, layer="front")
+        o.location = (xc, y0 - rt / 2 - .006, zr + .018); o.rotation_euler = (rad(-14), 0, 0)
+
 def build_basket(key="basket"):
-    """Bread baskets (wicker) on a wooden table, checked cloth in each."""
+    """Bakery bread display: woven wicker baskets lined with a red gingham cloth on a two-tier wooden stand
+    whose base is a cream-painted plank cabinet with dark corner posts (same 3 + 4 lane grid as before)."""
     clear(); LANES.pop(key, None)
     W, D = 1.70, 1.00
-    table = mat("bk_table", WOOD_L, rough=.6); wick = mat("wicker", (0.80, 0.58, 0.30, 1), rough=.8); wick_d = mat("wicker_d", (0.62, 0.42, 0.20, 1), rough=.8)
-    cloth = mat("cloth", (0.90, 0.32, 0.30, 1), rough=.8)
-    box("table", (W + .1, D + .1, .06), (0, D / 2, .72), table, bevel=.02)
-    box("table_front", (W + .1, .03, .25), (0, -.04, .62), mat("bk_front", WOOD, rough=.6), bevel=.01, layer="front")
-    box("step", (W, D / 2, .14), (0, D * .75, .82), table, bevel=.015)
+    top = mat("bk_top", (0.74, 0.48, 0.24, 1), rough=.55); wood = mat("bk_wood", WOOD, rough=.6); dark = mat("bk_dark", (0.33, 0.18, 0.08, 1), rough=.6)
+    plank = mat("bk_plank", CREAM, rough=.7); plank_d = mat("bk_plank_d", (0.87, 0.79, 0.61, 1), rough=.7)
+    wick = mat("wicker", (0.84, 0.62, 0.33, 1), rough=.75); wick_m = mat("wicker_m", (0.74, 0.52, 0.26, 1), rough=.75); wick_d = mat("wicker_d", (0.56, 0.36, 0.16, 1), rough=.75)
+    cloth = gingham("red")
+    zt = .72; zb = zt - .07   # table top / top of the cabinet
+    box("table", (W + .1, D + .1, .035), (0, D / 2, zt - .0175), top, bevel=.015, seg=4)
+    box("apron_f", (W + .1, .035, .05), (0, -.035, zt - .055), wood, bevel=.01, layer="front")
+    box("apron_trim", (W + .1, .012, .016), (0, -.056, zt - .045), dark, bevel=.004, layer="front")
+    for sx in (-1, 1):
+        box(f"apron_s{sx}", (.035, D + .1, .05), (sx * (W / 2 + .035), D / 2, zt - .055), wood, bevel=.01)
+    # cabinet: corner posts, cream vertical planks in front and on the sides, a dark plinth
+    for sx in (-1, 1):
+        for y in (.0, D):
+            box(f"post{sx}{y:.0f}", (.07, .07, zb), (sx * (W / 2 - .005), y, zb / 2), dark, bevel=.012, seg=4)
+    box("cab_side_L", (.03, D - .08, zb - .08), (-W / 2 + .01, D / 2, zb / 2 + .02), plank, bevel=.006)
+    box("cab_side_R", (.03, D - .08, zb - .08), (W / 2 - .01, D / 2, zb / 2 + .02), plank, bevel=.006)
+    box("cab_back", (W - .08, .03, zb - .08), (0, D - .01, zb / 2 + .02), plank, bevel=.006)
+    n = 15; pw = (W - .09) / n
+    for k in range(n):
+        box(f"plank{k}", (pw - .008, .03, zb - .14), (-W / 2 + .045 + (k + .5) * pw, -.005, zb / 2 + .05), plank if k % 2 else plank_d, bevel=.005)
+    box("plinth", (W - .02, D - .02, .09), (0, D / 2, .045), dark, bevel=.01)
+    box("plinth_f", (W + .02, .03, .07), (0, -.005, .035), dark, bevel=.008)
+    box("step", (W, D / 2, .14), (0, D * .75, zt + .07), top, bevel=.015)
+    box("step_face", (W, .025, .12), (0, D / 2 + .005, zt + .07), wood, bevel=.008)
     for i, (x0, x1, y0, y1, row) in enumerate(grid_cells(W, D, margin=.05, gap=.06)):
-        z = .89 if row == 0 else .75; h = .12; w, d = x1 - x0, y1 - y0; xc, yc = (x0 + x1) / 2, (y0 + y1) / 2
-        box(f"bk{i}_in", (w, d, .02), (xc, yc, z + .01), wick, bevel=.02)
-        box(f"bk{i}_cl", (w * .9, d * .9, .012), (xc, yc + .01, z + .03), cloth, bevel=.01)
-        box(f"bk{i}_b", (w, .03, h), (xc, y1, z + h / 2), wick, bevel=.012)
-        box(f"bk{i}_l", (.03, d, h), (x0, yc, z + h / 2), wick, bevel=.012)
-        box(f"bk{i}_r", (.03, d, h), (x1, yc, z + h / 2), wick, bevel=.012)
-        box(f"bk{i}_f", (w + .02, .035, h * .7), (xc, y0, z + h * .35), wick_d, bevel=.012, layer="front")
-        lane(key, x0 + .03, x1 - .03, y0 + .04, y1 - .03, z + .03, .13)
+        z = .89 if row == 0 else .75; h = .07
+        wicker_basket(f"bk{i}", x0, x1, y0, y1, z, h, wick, wick_m, wick_d, cloth)
+        lane(key, x0 + .03, x1 - .03, y0 + .04, y1 - .03, z + .036, .13)
     return dict(target=(0, D * .45, .9), pitch=34, dist=3.0, lens=40, size=W)
 
 def build_cooler(key="cooler"):
