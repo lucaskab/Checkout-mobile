@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="dock"?Dock():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -179,7 +179,7 @@ namespace Checkout {
 
   // ------------------------------------------------------------------ helpers
   static void CloseAll(){
-   foreach(var name in new[]{"CheckoutStockroom","CheckoutIncidentGame","CheckoutCounterGame"}){var c=GameObject.Find(name);if(!c)continue;var dim=c.transform.Find("Dim");if(dim&&dim.gameObject.activeSelf)dim.gameObject.SetActive(false);}
+   foreach(var name in new[]{"CheckoutStockroom","CheckoutIncidentGame","CheckoutCounterGame","CheckoutReceivingGame"}){var c=GameObject.Find(name);if(!c)continue;var dim=c.transform.Find("Dim");if(dim&&dim.gameObject.activeSelf)dim.gameObject.SetActive(false);}
   }
   // ------------------------------------------------------------------ event scenes, stage by stage
   // "events-mesinha.banca" (or "events" for every stage): switches the market to each stage with the dev tool (on the QA
@@ -501,6 +501,51 @@ namespace Checkout {
      Note("full stockroom: box back on the truck: "+(fb&&Vector2.Distance(ScreenOf(fb.transform),fh)<30));yield return Shot("dock_full");
      CloseAll();
     }else Note("full-truck check skipped: the real delivery is still at the dock");
+   }
+  }
+  // The receiving game the player really gets (the ENTREGA button: the v3 stockroom art). Dock() above checks the old
+  // flat window, kept only as the fallback. Shots Logs/at_recv_*.png: open, one box stored, several stored.
+  IEnumerator Receiving(){
+   var shelf=AnyShelf(s=>Reserve(s.productId)>=0&&Reserve(s.productId)<=2);
+   if(bridge.State.dock==null||bridge.State.dock.Length==0)yield return Dev("devArriveDelivery","["+shelf.productId+",30]",()=>bridge.State.dock!=null&&bridge.State.dock.Length>0);
+   var real=bridge.State.dock?.FirstOrDefault();if(real==null){Note("no delivery at the dock");yield break;}
+   Note($"delivery {real.id}: {real.quantity-real.unloaded}x {real.productName} zone={real.zone} boxUnits={real.boxUnits} hasArt={CheckoutReceivingGame.HasArt}");
+   yield return null;CheckoutStockroom.ShowDock();yield return new WaitForSecondsRealtime(3.5f);
+   Note("receiving open: "+Visible("CheckoutReceivingGame",null));yield return Shot("recv_open");
+   GameObject Box()=>Find("CheckoutReceivingGame",t=>t.name=="Box"&&t.GetComponent<CheckoutDragToken>()&&!t.GetComponent<CheckoutDragToken>().Locked);
+   var fixtures=GameObject.Find("CheckoutReceivingGame")?.GetComponentsInChildren<Transform>(false).Where(t=>t.name.StartsWith("Fixture ")).ToList()??new List<Transform>();
+   Note("fixtures: "+string.Join(" | ",fixtures.Select(f=>f.name)));
+   string[] words=real.zone=="refrigerados"?new[]{"coldroom","fria","freezer"}:real.zone=="hortifruti"?new[]{"produce","Hortifr"}:real.zone=="bebidas"?new[]{"drinks","Bebidas"}:new[]{"Secos","rack"};
+   var target=fixtures.FirstOrDefault(f=>words.Any(w=>f.name.Contains(w)))??fixtures.FirstOrDefault();
+   Note("target fixture: "+(target?target.name:"none"));
+   for(int i=0;i<8&&target;i++){var b=Box();if(!b)break;yield return Drag(b,ScreenOf(target));if(i==0)yield return Shot("recv_one");}
+   yield return new WaitForSecondsRealtime(1f);yield return Shot("recv_more");
+   yield return new WaitForSecondsRealtime(3f);yield return Shot("recv_end");
+   CloseAll();
+  }
+  // "walkers-events-tenda.banca" (the word "events" puts it on the QA copy of the save): in each stage, a few walk-in
+  // customers are sent to the market; they must appear down the sidewalk, not at the door. Also counts how often two
+  // people on foot overlap (bumping). Shots Logs/wk_<stage>_<n>.jpg.
+  IEnumerator Walkers(string request){
+   var parts=request.Split('-');var stages=parts.Length>2?parts[2].Split('.'):new[]{"tenda"};
+   foreach(var f in Directory.GetFiles("Logs","wk_*.jpg"))File.Delete(f);
+   foreach(var stage in stages){
+    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-"+stage+"\",\"action\":\"devSetMarketEra\",\"args\":[\""+stage+"\"]}");
+    yield return new WaitForSecondsRealtime(6);
+    var map=FindAnyObjectByType<CheckoutMap>();var door=map?map.Entrance:Vector3.zero;
+    var idle=FindObjectsByType<CheckoutWalker>(FindObjectsInactive.Include,FindObjectsSortMode.None).Where(w=>!w.gameObject.activeSelf&&!w.Reserved).Take(3).ToList();
+    Note($"stage {stage}: era={bridge.State?.era?.id} door={door} idle walkers={idle.Count}");
+    for(int i=0;i<idle.Count;i++){idle[i].Begin(new Customer{id="qa-walk-"+i,name="QA",purchases=new Purchase[0]});yield return null;
+     Note($"walker {i} starts at {idle[i].transform.position}, {Vector3.Distance(idle[i].transform.position,door):0.0} m from the door, phase {idle[i].VisitPhase}");yield return new WaitForSecondsRealtime(1.5f);}
+    int overlaps=0,samples=0;
+    for(float t=0;t<24;t+=.25f){
+     var people=FindObjectsByType<UnityEngine.AI.NavMeshAgent>(FindObjectsSortMode.None).Where(a=>a.isActiveAndEnabled&&(a.GetComponent<CheckoutCityPedestrian>()||a.GetComponent<CheckoutWalker>())).Select(a=>a.transform.position).ToList();
+     for(int a=0;a<people.Count;a++)for(int b=a+1;b<people.Count;b++)if((people[a]-people[b]).sqrMagnitude<.4f*.4f)overlaps++;samples++;
+     if(Mathf.Abs(t%6)<.01f)CaptureAt(new Vector3(door.x,.5f,door.z-2),30,$"wk_{stage}_{(int)t}");
+     yield return new WaitForSecondsRealtime(.25f);}
+    Note($"arrival spot misses (near door, off mesh, crowded, no path): {string.Join(",",CheckoutWalker.ArrivalMisses)}");
+    Note($"stage {stage}: overlapping pairs per sample {overlaps/(float)Mathf.Max(1,samples):0.00} ({overlaps} in {samples})");
+    foreach(var w in idle)Note($"walker phase now {w.VisitPhase}, {Vector3.Distance(w.transform.position,door):0.0} m from the door, active {w.gameObject.activeSelf}");
    }
   }
   int Reserve(int productId)=>bridge.State.restockSlots?.FirstOrDefault(s=>s.productId==productId)?.reserve??-1;

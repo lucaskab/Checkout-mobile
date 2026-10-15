@@ -418,21 +418,29 @@ function stockBoard(state: State, args: string[], aliasOf?: string) {
 					ok: "Tudo guardado no estoque!",
 					fail: "Sem espaço no estoque para essas caixas.",
 				}),
-				go(prizes > 0 ? `Álbum · ${prizes} prêmio${prizes === 1 ? "" : "s"}` : "Álbum", "album", {
+				go(prizes > 0 ? prizes === 1 ? "Álbum · 1 prêmio" : `Álbum · ${prizes} prêmios` : "Álbum", "album", {
 					icon: gameIcon("medal"),
 					variant: prizes > 0 ? "success" : "secondary",
 				}),
 			],
 			tip: dock.length
-				? `Chegaram ${dock.length} caminhõe${dock.length === 1 ? "" : "s"} na doca! Descarregue para os produtos irem às prateleiras.`
+				? dock.length === 1
+					? "Chegou 1 caminhão na doca! Descarregue para os produtos irem às prateleiras."
+					: `Chegaram ${dock.length} caminhões na doca! Descarregue para os produtos irem às prateleiras.`
 				: low.length > 0
-					? `${low.length} produto${low.length === 1 ? " está" : "s estão"} acabando. Peça agora, antes que os clientes saiam de mãos vazias!`
+					? low.length === 1
+						? "1 produto está acabando. Peça agora, antes que os clientes saiam de mãos vazias!"
+						: `${low.length} produtos estão acabando. Peça agora, antes que os clientes saiam de mãos vazias!`
 					: expiring.length
-						? `${expiring.length} produto${expiring.length === 1 ? " está" : "s estão"} vencendo. Reponha as prateleiras para vender a tempo.`
+						? expiring.length === 1
+							? "1 produto está vencendo. Reponha as prateleiras para vender a tempo."
+							: `${expiring.length} produtos estão vencendo. Reponha as prateleiras para vender a tempo.`
 						: share > 0.85
 							? "O estoque está quase cheio. Amplie os produtos que mais vendem."
 							: upgradable.length > 0
-								? `Estoque em dia! Você já pode melhorar ${upgradable.length} produto${upgradable.length === 1 ? "" : "s"}: cada nível dá +10% de lucro.`
+								? upgradable.length === 1
+									? "Estoque em dia! Você já pode melhorar 1 produto: cada nível dá +10% de lucro."
+									: `Estoque em dia! Você já pode melhorar ${upgradable.length} produtos: cada nível dá +10% de lucro.`
 								: "Estoque em dia! Venda bastante para liberar novos produtos.",
 			empty:
 				active === "acabando"
@@ -460,7 +468,7 @@ function dockTile(state: State, delivery: State["receiving"]["dock"][number]): B
 	return tile(`d${delivery.id}`, delivery.productName, {
 		group: "NA DOCA · DESCARREGUE",
 		icon: productIcon(delivery.productId),
-		subtitle: `${left} caixa${left === 1 ? "" : "s"} esperando`,
+		subtitle: left === 1 ? "1 caixa esperando" : `${left} caixas esperando`,
 		sticker: "CHEGOU!",
 		tone: "success",
 		badge: `x${left}`,
@@ -644,7 +652,7 @@ function dockLane(state: State, delivery: State["receiving"]["dock"][number]): B
 	return tile(`d${delivery.id}`, delivery.productName, {
 		group: "NA DOCA · DESCARREGUE",
 		icon: productIcon(delivery.productId),
-		subtitle: `${left} caixa${left === 1 ? "" : "s"} esperando · ${origin.name}`,
+		subtitle: left === 1 ? `1 caixa esperando · ${origin.name}` : `${left} caixas esperando · ${origin.name}`,
 		sticker: room > 0 ? "CHEGOU!" : "SEM ESPAÇO",
 		tone: room > 0 ? "success" : "danger",
 		badge: `x${left}`,
@@ -808,11 +816,15 @@ function suppliersBoard(state: State, args: string[]) {
 					: [go("Abrir o estoque", "!products", { icon: gameIcon("warehouse") })]),
 			],
 			tip: dock.length
-				? `${dock.length} caminhõe${dock.length === 1 ? "" : "s"} na doca! Descarregue para liberar o pátio.`
+				? dock.length === 1
+					? "1 caminhão na doca! Descarregue para liberar o pátio."
+					: `${dock.length} caminhões na doca! Descarregue para liberar o pátio.`
 				: running.length >= slots
 					? "Todos os caminhões estão na estrada. Libere mais um na Central ou acelere com um ticket."
 					: low.length > 0
-						? `${low.length} produto${low.length === 1 ? " precisa" : "s precisam"} de pedido. Use "Pedir tudo" e deixe os caminhões trabalharem!`
+						? low.length === 1
+							? '1 produto precisa de pedido. Use "Pedir tudo" e deixe os caminhões trabalharem!'
+							: `${low.length} produtos precisam de pedido. Use "Pedir tudo" e deixe os caminhões trabalharem!`
 						: "Caminhões livres e estoque em dia. Bom trabalho!",
 			empty: "Nada por aqui ainda.",
 		}),

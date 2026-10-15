@@ -217,7 +217,7 @@ namespace Checkout {
    foreach(Transform child in levelContent){child.gameObject.SetActive(false);Destroy(child.gameObject);}
    var groups=data.groups??new DesktopLevelUpGroup[0];
    int total=data.total;
-   levelCount.text=total>0?$"Você liberou {total} {(total==1?"novidade":"novidades")} no nível {data.to}":$"Nível {data.to}";
+   levelCount.text=total>1?$"Você liberou {total} novidades no nível {data.to}":total==1?$"Você liberou 1 novidade no nível {data.to}":$"Nível {data.to}";
    levelEmpty.gameObject.SetActive(groups.Length==0);levelEmpty.text=K.Clean(data.empty);
    foreach(var group in groups)LevelGroup(group);
    levelNext.text=K.Clean(data.next);

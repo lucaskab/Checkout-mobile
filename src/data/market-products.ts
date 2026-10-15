@@ -145,8 +145,17 @@ function createItem(seed: CatalogSeed): ItemDefinition {
 		unlockEra: seed.unlockEra,
 		unlockLevel: seed.unlockLevel,
 		visualAttractiveness: rarity.visualAttractiveness,
-		xpPerSale: seed.xpPerSale ?? rarity.xpPerSale,
+		xpPerSale: withSaleXpBoost(seed.xpPerSale ?? rarity.xpPerSale),
 	};
+}
+
+/**
+ * Selling felt slow to level up (Lucas 15/10: "dá pra aumentar bem pouquinho"): every product gives a little more XP
+ * per unit sold, +1 for the cheap ones and about +15 % for the rest (2→3, 3→4, 7→8, 12→14, 20→23…). Applied here so
+ * the sheet values stay as they are and every sale path (register, window, delivery) and screen agree.
+ */
+export function withSaleXpBoost(xp: number) {
+	return xp + Math.max(1, Math.round(xp * 0.15));
 }
 
 // Generated from the balance sheet (scripts/economy/catalog.py): edit there and regenerate, or edit here

@@ -896,28 +896,38 @@ export function closeMarketDay(
 		);
 	if (stats.requestsServed)
 		highlights.push(
-			`${stats.requestsServed} pedido${stats.requestsServed > 1 ? "s" : ""} resolvido${stats.requestsServed > 1 ? "s" : ""} com excelência`,
+			stats.requestsServed > 1
+				? `${stats.requestsServed} pedidos resolvidos com excelência`
+				: `${stats.requestsServed} pedido resolvido com excelência`,
 		);
 	if (stats.requestsPartial)
 		highlights.push(
-			`${stats.requestsPartial} cliente${stats.requestsPartial > 1 ? "s aceitaram" : " aceitou"} uma alternativa`,
+			stats.requestsPartial > 1
+				? `${stats.requestsPartial} clientes aceitaram uma alternativa`
+				: `${stats.requestsPartial} cliente aceitou uma alternativa`,
 		);
 	if (stats.requestsFailed)
 		highlights.push(
-			`${stats.requestsFailed} resposta${stats.requestsFailed > 1 ? "s" : ""} errada${stats.requestsFailed > 1 ? "s" : ""}`,
+			stats.requestsFailed > 1 ? `${stats.requestsFailed} respostas erradas` : `${stats.requestsFailed} resposta errada`,
 		);
 	if (stats.requestsExpired)
 		highlights.push(
-			`${stats.requestsExpired} cliente${stats.requestsExpired > 1 ? "s foram" : " foi"} embora esperando`,
+			stats.requestsExpired > 1
+				? `${stats.requestsExpired} clientes foram embora esperando`
+				: `${stats.requestsExpired} cliente foi embora esperando`,
 		);
 	if (stats.tips) highlights.push(`${stats.tips} moedas em gorjetas`);
 	if (stats.incidentsFixed)
 		highlights.push(
-			`${stats.incidentsFixed} imprevisto${stats.incidentsFixed > 1 ? "s resolvidos" : " resolvido"} na loja`,
+			stats.incidentsFixed > 1
+				? `${stats.incidentsFixed} imprevistos resolvidos na loja`
+				: `${stats.incidentsFixed} imprevisto resolvido na loja`,
 		);
 	if (stats.checkoutsLost)
 		highlights.push(
-			`${stats.checkoutsLost} cliente${stats.checkoutsLost > 1 ? "s desistiram" : " desistiu"} da fila do caixa`,
+			stats.checkoutsLost > 1
+				? `${stats.checkoutsLost} clientes desistiram da fila do caixa`
+				: `${stats.checkoutsLost} cliente desistiu da fila do caixa`,
 		);
 	return {
 		...settled,

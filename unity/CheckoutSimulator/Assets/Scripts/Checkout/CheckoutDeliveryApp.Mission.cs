@@ -189,7 +189,7 @@ namespace Checkout {
     case "moto-na-porta":
      string phrase=Pick(o.courier!=null&&o.courier.phrases!=null?o.courier.phrases.arrive:null,o.id);
      string auto=o.doorSince>0?" · automática em "+Clock(Secs(o.doorSince+MoneyDoorWait,now)):"";
-     return "\""+phrase+"\""+auto;
+     return "\""+CheckoutI18n.T(phrase)+"\""+auto;
     case "a-caminho":
      // The bike got to the door ahead of time: it is ringing the bell, the customer is coming down.
      if(AtDoor(o))return who+" tocou a campainha · "+Clock(Secs(o.deliverAt,now));

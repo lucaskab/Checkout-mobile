@@ -46,6 +46,7 @@ namespace Checkout {
   // The shop just closed: people outside turn back, people inside head straight for the door.
   public void MarketClosed(){if(!gameObject.activeInHierarchy||!agent||!agent.isOnNavMesh)return;
    if(phase==9||phase==11||phase==6){phase=12;Go(CheckoutCityTraffic.Corner);return;}
+   if(phase==14){phase=13;Go(Away());return;}
    if(phase==5||phase==13||phase==12||phase==10||phase==7||phase==30||phase==8||phase==4)return;
    helpLine.Remove(this);Line.Remove(this);map.Lanes.Remove(this);lane=null;wait=0;
    var u=CheckoutMarketLayout.Unproject(transform.position,bridge.State.layout??new MarketLayout());
@@ -61,7 +62,29 @@ namespace Checkout {
   public void Reserve(){Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);}
   public void CancelVisit(){helpLine.Remove(this);if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;returnedToCar=null;Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}
   public void BeginFromCar(Customer visit,Vector3 door,System.Action<CheckoutWalker> completed){parkingDoor=door;returnedToCar=completed;customer=visit;phase=9;index=0;wait=0;asked=false;HasPaid=false;Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(true);if(!(NavMesh.SamplePosition(door,out var hit,.8f,NavMesh.AllAreas)||NavMesh.SamplePosition(door,out hit,3f,NavMesh.AllAreas))||!agent.Warp(hit.position)){Debug.LogWarning("CHECKOUT_WALKER the parking door is off the NavMesh; the visit is dropped");ForceExit();return;}Sync();Go(new Vector3(CheckoutCityTraffic.WalkX,.15f,parkingDoor.z));snapHeading=true;}
-  public void Begin(Customer visit){returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;phase=0;index=0;wait=0;asked=false;gameObject.SetActive(true);var spawn=map.Entrance;if(!(NavMesh.SamplePosition(spawn,out var hit,2,NavMesh.AllAreas)||NavMesh.SamplePosition(spawn,out hit,6,NavMesh.AllAreas))||!agent.Warp(hit.position)){ForceExit();return;}transform.rotation=Quaternion.Euler(0,180,0);Sync();NextShelf();snapHeading=true;}
+  // Walk-in customers arrive on foot like the passers-by (Lucas 15/10: they used to pop up right at the stall's
+  // front): they appear further along the avenue sidewalk, or across the avenue at the park crossing, and walk to
+  // the entrance (phase 14) before shopping. If no such spot is walkable, they start at the entrance as before.
+  public void Begin(Customer visit){returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;phase=0;index=0;wait=0;asked=false;gameObject.SetActive(true);CheckoutShoppingProps.SetVisible(transform,false);
+   var entrance=map.Entrance;
+   if(ArrivalSpot(entrance,out var start)&&agent.Warp(start)){Sync();phase=14;Go(entrance);snapHeading=true;return;}
+   if(!(NavMesh.SamplePosition(entrance,out var hit,2,NavMesh.AllAreas)||NavMesh.SamplePosition(entrance,out hit,6,NavMesh.AllAreas))||!agent.Warp(hit.position)){ForceExit();return;}transform.rotation=Quaternion.Euler(0,180,0);Sync();NextShelf();snapHeading=true;}
+  // A walkable spot 9-16 m along the avenue sidewalk (either side of the entrance), or across the avenue, that has a
+  // full path to the entrance and is not right next to another arriving customer.
+  public static readonly int[] ArrivalMisses=new int[4]; // QA: near the door, off the NavMesh, crowded, no path
+  bool ArrivalSpot(Vector3 entrance,out Vector3 spot){
+   spot=entrance;var path=new NavMeshPath();
+   for(int tries=0;tries<8;tries++){
+    Vector3 candidate;
+    if(Random.value<.22f)candidate=new Vector3(-1.75f+Random.Range(-.6f,.6f),.15f,CheckoutStreetLayout.SouthWalkZ);
+    else{float side=Random.value<.5f?-1:1;float x=Mathf.Clamp(entrance.x+side*Random.Range(9f,16f),-CheckoutStreetLayout.InnerWalkX+1.5f,CheckoutStreetLayout.InnerWalkX-1.5f);candidate=new Vector3(x,.15f,CheckoutStreetLayout.NorthWalkZ+Random.Range(-.5f,.5f));}
+    if(Mathf.Abs(candidate.x-entrance.x)<5f&&candidate.z>CheckoutStreetLayout.SouthWalkZ+1){ArrivalMisses[0]++;continue;}
+    if(!NavMesh.SamplePosition(candidate,out var hit,1.2f,NavMesh.AllAreas)){ArrivalMisses[1]++;continue;}
+    bool crowded=false;foreach(var w in All)if(w!=this&&w&&w.gameObject.activeInHierarchy&&(w.transform.position-hit.position).sqrMagnitude<1.5f){crowded=true;break;}
+    if(crowded){ArrivalMisses[2]++;continue;}
+    if(!NavMesh.CalculatePath(hit.position,entrance,NavMesh.AllAreas,path)||path.status!=NavMeshPathStatus.PathComplete){ArrivalMisses[3]++;continue;}
+    spot=hit.position;return true;}
+   return false;}
   public void RebaseLayout(MarketLayout previous,MarketLayout next){
    if(!gameObject.activeInHierarchy||!agent)return;
    Vector3 Remap(Vector3 p){var original=CheckoutMarketLayout.Unproject(p,previous);return original.x> -9.5f&&original.x<9.5f&&original.z> -10.61f&&original.z<7.5f?CheckoutMarketLayout.Project(original,next):p;}
@@ -88,6 +111,7 @@ namespace Checkout {
   // Stuck far from the spot: hop onto the nearest walkable point by the destination, or skip what can be skipped.
   void Unstick(){
    if(phase==0&&customer?.purchases!=null){index++;NextShelf();return;}
+   if(phase==14){if(NavMesh.SamplePosition(map.Entrance,out var door,3f,NavMesh.AllAreas)&&agent.Warp(door.position)){Sync();NextShelf();}else ForceExit();return;}
    if(NavMesh.SamplePosition(target,out var hit,2.5f,NavMesh.AllAreas)&&agent.Warp(hit.position)){Sync();Go(target);return;}
    if(phase==5||phase==13||phase==12||phase==10||phase==7||phase==11||phase==9||phase==6){ForceExit();return;}
    if(NavMesh.SamplePosition(transform.position,out hit,4f,NavMesh.AllAreas)&&agent.Warp(hit.position)){Sync();Go(target);}}
@@ -136,6 +160,7 @@ namespace Checkout {
    stuckFor=0;agent.isStopped=true;
    if(phase==0){var id=customer.purchases[index].shelfId;var direction=map.Fixture(id)-transform.position;direction.y=0;facing=Quaternion.LookRotation(-direction);phase=1;agent.velocity=Vector3.zero;wait=Mathf.Max(1.5f,motion.Perform(map.Special(id)?"BuyAtSpecialSector":"GetFromShelf"));}
    else if(phase==20){phase=21;agent.velocity=Vector3.zero;browseFor=Random.Range(7f,12f);}
+   else if(phase==14){agent.isStopped=false;NextShelf();}
    else if(phase==2){lane=null;Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}
    else if(phase==3&&Line.Count>0&&Line[0]==this){if(customer.spent<=0){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);return;}
     if(bridge.CheckoutFor(customer.id)!=null){phase=30;tillWait=0;arrivalPing=0;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));return;}

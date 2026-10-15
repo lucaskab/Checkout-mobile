@@ -167,7 +167,9 @@ function sectorsBoard(state: State) {
 				tone: "info",
 			}),
 			tip: idle
-				? `${idle} setor${idle === 1 ? " está parado" : "es estão parados"}. Abra e coloque uma receita para fabricar!`
+				? idle === 1
+					? "1 setor está parado. Abra e coloque uma receita para fabricar!"
+					: `${idle} setores estão parados. Abra e coloque uma receita para fabricar!`
 				: built
 					? "Todos os setores trabalhando. Produtos fabricados custam menos que os do fornecedor."
 					: "Construa o primeiro setor: produtos fabricados dão mais lucro.",

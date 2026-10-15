@@ -275,7 +275,7 @@ function runHudAction(message: {
 			ok = !!prize;
 		} else if (placement === "gift") {
 			const gift = store.claimDailyLoginBonus(String(adId));
-			noteAdReward(gift?.diamonds ?? 0, Date.now(), gift ? `Presente dobrado: +${gift.coins} moedas${gift.diamonds ? ` e +${gift.diamonds} diamantes` : ""}!` : "");
+			noteAdReward(gift?.diamonds ?? 0, Date.now(), !gift ? "" : gift.diamonds ? `Presente dobrado: +${gift.coins} moedas e +${gift.diamonds} diamantes!` : `Presente dobrado: +${gift.coins} moedas!`);
 			ok = !!gift;
 		}
 		send({ kind: "result", id, action: message.action, ok, reason: ok ? "" : "not-requested" });

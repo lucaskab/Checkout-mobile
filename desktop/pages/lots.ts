@@ -120,5 +120,8 @@ export function missingLotsLine(state: State, eraId: string) {
 	const missing = (ERA_LOTS[eraId as keyof typeof ERA_LOTS] ?? []).filter((id) => !(state.lots?.cleared ?? []).includes(id));
 	if (!missing.length) return "";
 	const labels = missing.map((id) => MARKET_LOTS.find((lot) => lot.id === id)?.label ?? id);
-	return `Precisa ${missing.length === 1 ? "do terreno" : "dos terrenos"} ${labels.join(", ")} comprado${missing.length === 1 ? "" : "s"} e limpo${missing.length === 1 ? "" : "s"} (Loja → Terrenos) para ${getMarketEra(eraId as never).name}.`;
+	const era = getMarketEra(eraId as never).name;
+	return labels.length === 1
+		? `Precisa do terreno ${labels[0]} comprado e limpo (Loja → Terrenos) para ${era}.`
+		: `Precisa dos terrenos ${labels.join(", ")} comprados e limpos (Loja → Terrenos) para ${era}.`;
 }

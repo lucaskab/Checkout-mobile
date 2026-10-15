@@ -225,7 +225,7 @@ export const routes: Routes = {
 				eyebrow: "FORNECEDORES",
 				icon: gameIcon("warehouse"),
 				subtitle: `${storedBoxes}/${boxCapacity} caixas`,
-				badge: `${quote.availableBoxes} livre${quote.availableBoxes === 1 ? "" : "s"}`,
+				badge: quote.availableBoxes === 1 ? "1 livre" : `${quote.availableBoxes} livres`,
 				lines: [roomLine, ...(quote.incoming > 0 ? [incomingLine] : [])],
 				progress: ratio(storedBoxes, boxCapacity),
 			}),

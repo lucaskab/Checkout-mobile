@@ -30,3 +30,11 @@ O script lista em `scripts/i18n/missing.json` os textos do código que ainda nã
 Dica para textos montados no código: prefira frases inteiras, por exemplo
 `n === 1 ? \`${n} produto acabando\` : \`${n} produtos acabando\``,
 em vez de colar pedaços de palavra (`produto${n === 1 ? "" : "s"}`), que não dão para traduzir.
+
+## Conferir as telas montadas
+
+```
+node --import ./desktop/register.mjs scripts/i18n/scan-en.ts en
+```
+
+O `missing.cjs` só enxerga os textos escritos no código; o `scan-en.ts` confere o que o jogador vê de verdade. Ele abre o HUD e todas as páginas ligadas a ele (num jogo novo e em cada expansão, da banca ao supermercado), traduz cada página e snapshot no idioma pedido (padrão `en`) e lista em `scripts/i18n/scan-<idioma>.json` os textos que ainda saíram em português, com a página onde apareceram. Rotas (`~loja:…`, `!loja`) podem ser ignoradas. O ideal é terminar com zero; cada texto da lista pede uma entrada nova no catálogo (ou uma frase inteira no código, como na dica acima).

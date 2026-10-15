@@ -166,12 +166,11 @@ export function describeProductLock(product: ItemDefinition, level: number, eraI
 	const eraMissing = getEraOrder(product.unlockEra) > getEraOrder(eraId);
 	const era = getMarketEra(product.unlockEra).name;
 	const where = product.acquisition === "production" ? " Feito na produção do mercado." : "";
-	const levelText = `${levelsLeft} níve${levelsLeft === 1 ? "l" : "is"}`;
 	return {
 		levelsLeft,
 		/** Expansion still to open (null when the market already has it). */
 		eraMissing: eraMissing ? era : null,
-		progress: levelsLeft === 0 && eraMissing ? "Falta a expansão" : levelsLeft > 0 ? `Falta${levelsLeft === 1 ? "" : "m"} ${levelText}` : "Quase lá",
+		progress: levelsLeft === 0 && eraMissing ? "Falta a expansão" : levelsLeft > 0 ? levelsLeft === 1 ? "Falta 1 nível" : `Faltam ${levelsLeft} níveis` : "Quase lá",
 		detail:
 			(levelsLeft === 0 && eraMissing
 				? `O nível já liberou. Chega quando você abrir ${era} (Loja › Expansões), que traz o móvel para vender.`

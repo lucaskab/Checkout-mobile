@@ -142,5 +142,8 @@ export function getMissingLotsCost(lots: LotsState | undefined, eraId: MarketEra
 export function describeMissingLots(lots: LotsState | undefined, eraId: MarketEraId) {
 	const names = getMissingLots(lots, eraId).map((id) => getMarketLot(id)?.label ?? id);
 	if (!names.length) return "";
-	return `Precisa ${names.length === 1 ? "do terreno" : "dos terrenos"} ${names.join(", ")} (comprado${names.length === 1 ? "" : "s"} e limpo${names.length === 1 ? "" : "s"}) para ${getMarketEra(eraId).name}.`;
+	const era = getMarketEra(eraId).name;
+	return names.length === 1
+		? `Precisa do terreno ${names[0]} (comprado e limpo) para ${era}.`
+		: `Precisa dos terrenos ${names.join(", ")} (comprados e limpos) para ${era}.`;
 }

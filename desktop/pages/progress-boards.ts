@@ -210,7 +210,7 @@ function giftTiles(state: State): BoardTile[] {
 			group: "EVENTO DA SEMANA E ÁLBUM",
 			icon: gameIcon("medal"),
 			subtitle: `Venda ${SALES_TO_COLLECT} de um produto para ganhar a figurinha`,
-			sticker: prizes > 0 ? `${prizes} PRÊMIO${prizes === 1 ? "" : "S"}!` : "",
+			sticker: prizes > 0 ? prizes === 1 ? "1 PRÊMIO!" : `${prizes} PRÊMIOS!` : "",
 			tone: prizes > 0 ? "success" : "info",
 			badge: `${stickers}/${stickerTotal}`,
 			fill: ratio(stickers, stickerTotal),

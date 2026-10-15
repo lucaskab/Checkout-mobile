@@ -16,6 +16,7 @@ namespace Checkout
         float wait;
         Renderer[] body;
         bool visitingBuilding, inside;
+        float stalled, holdFor; int stalls;
         void OnEnable(){CheckoutShoppingProps.SetVisible(transform,false);}
         void Start()
         {
@@ -28,6 +29,12 @@ namespace Checkout
             // Passers-by stay on the city surfaces: the shop floor, its ramps and the service path out back
             // are baked as ShopArea, so nobody uses the supermarket as a shortcut across the block.
             agent.areaMask&=~(1<<MarketDay.MarketSimulation.ShopArea);
+            // Sidewalk manners (Lucas 15/10: people bumped and shoved each other). Everyone had the same avoidance
+            // priority, so two people meeting head-on both pushed; now each has its own, the higher one yields.
+            // Good-quality avoidance, a slimmer body, and see Update for the stall handling.
+            int seed=Mathf.Abs(GetEntityId().GetHashCode());
+            agent.avoidancePriority=25+seed%50;agent.obstacleAvoidanceType=ObstacleAvoidanceType.HighQualityObstacleAvoidance;agent.radius=Mathf.Min(agent.radius,.3f);
+            agent.speed*=.92f+(seed%17)*.01f; // Not everyone walks at the same pace (fewer people stuck in step side by side).
             if(!NavMesh.SamplePosition(home,out var hit,12,agent.areaMask)){enabled=false;return;}
             agent.Warp(hit.position);
             destination=Mathf.Abs(GetEntityId().GetHashCode()) % streets.entrances.Length;
@@ -40,7 +47,21 @@ namespace Checkout
             var heading=agent.desiredVelocity;heading.y=0;
             if(heading.sqrMagnitude<.004f){heading=agent.velocity;heading.y=0;}
             if(heading.sqrMagnitude>.004f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-heading),Time.deltaTime*540);
-            if(agent.pathPending||agent.remainingDistance>.35f)return;
+            if(agent.pathPending)return;
+            if(agent.remainingDistance>.35f)
+            {
+                // Blocked by someone (or someone already standing on the spot): close to the spot counts as there;
+                // otherwise stop and let the other one pass for a moment instead of shoving, and after a few
+                // tries pick another destination.
+                if(holdFor>0){holdFor-=Time.deltaTime;if(holdFor<=0)agent.isStopped=false;return;}
+                if(agent.velocity.sqrMagnitude<.04f&&agent.desiredVelocity.sqrMagnitude>.01f)stalled+=Time.deltaTime;else stalled=0;
+                if(stalled<.9f)return;
+                stalled=0;
+                if(agent.remainingDistance<1.6f){agent.ResetPath();}
+                else if(++stalls<3){agent.isStopped=true;holdFor=Random.Range(.5f,1.1f);return;}
+                else{stalls=0;completedVisits++;visitingBuilding=false;VisitNext();return;}
+            }
+            stalls=0;
             wait+=Time.deltaTime;
             if(visitingBuilding && !inside && wait>.2f){inside=true;agent.isStopped=true;foreach(var r in body)r.enabled=false;}
             if(wait<(visitingBuilding?1.2f:.1f))return;
@@ -70,7 +91,11 @@ namespace Checkout
             {
                 destination=(destination+1)%points.Length;
                 var path=new NavMeshPath();
-                if(agent.CalculatePath(points[destination],path)&&path.status==NavMeshPathStatus.PathComplete){agent.SetPath(path);return;}
+                // Patrol points get a small personal offset, so two people heading for the same corner don't
+                // fight for the exact same spot (building doors stay exact: they walk in there).
+                var goal=points[destination];
+                if(!visitingBuilding){var offset=Random.insideUnitCircle*.9f;if(NavMesh.SamplePosition(goal+new Vector3(offset.x,0,offset.y),out var near,.6f,agent.areaMask))goal=near.position;}
+                if(agent.CalculatePath(goal,path)&&path.status==NavMeshPathStatus.PathComplete){agent.SetPath(path);return;}
             }
         }
     }

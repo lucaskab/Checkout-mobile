@@ -51,7 +51,7 @@ function lotView(state: State, celebration: GameCelebration): CelebrationView | 
 		{ icon: gameIcon("key"), text: `${fmt(owned)} ${owned === 1 ? "terreno seu" : "terrenos seus"}` },
 		...(xp > 0 ? [{ icon: gameIcon("crown"), text: `+${fmt(xp)} XP da limpeza` }] : []),
 	];
-	if (next) chips.push({ icon: gameIcon("market"), text: missing.length ? `${next.name}: falta${missing.length === 1 ? "" : "m"} ${missing.length}` : `Pronto para ${next.name}` });
+	if (next) chips.push({ icon: gameIcon("market"), text: missing.length ? missing.length === 1 ? `${next.name}: falta 1` : `${next.name}: faltam ${missing.length}` : `Pronto para ${next.name}` });
 	return view(celebration, {
 		headline: "TERRENO LIBERADO!",
 		title: `Lote ${lot.id} é seu`,
@@ -75,7 +75,7 @@ function eraView(state: State, celebration: GameCelebration): CelebrationView | 
 	const chips: CelebrationChip[] = [
 		{ icon: gameIcon("customers"), text: `Até ${fmt(era.maxCustomersPerTurn)} clientes por dia` },
 		...(fixtures.length ? [{ icon: gameIcon("shelf"), text: `Novo móvel: ${fixtures.map((shelf) => getFixtureName(shelf.id, era.id)).join(", ")}` }] : []),
-		...(products.length ? [{ icon: gameIcon("package"), text: `${fmt(products.length)} produto${products.length === 1 ? "" : "s"} para vender` }] : []),
+		...(products.length ? [{ icon: gameIcon("package"), text: products.length === 1 ? "1 produto para vender" : `${fmt(products.length)} produtos para vender` }] : []),
 	];
 	return view(celebration, {
 		headline: "NOVA EXPANSÃO!",
@@ -105,7 +105,7 @@ function sectorView(state: State, celebration: GameCelebration): CelebrationView
 		tint: "C0612B",
 		chips: [
 			...(recipes.length
-				? [{ icon: gameIcon("conveyor"), text: `${fmt(recipes.length)} receita${recipes.length === 1 ? "" : "s"}: ${names.join(", ")}` }]
+				? [{ icon: gameIcon("conveyor"), text: recipes.length === 1 ? `1 receita: ${names.join(", ")}` : `${fmt(recipes.length)} receitas: ${names.join(", ")}` }]
 				: []),
 			{ icon: gameIcon("shelf"), text: "Balcão de vendas com 4 espaços" },
 		],
