@@ -381,11 +381,22 @@ namespace Checkout {
    if (!CheckoutStall.Yard) {
     capacity = 5; step = .8f;
     float zBack = small ? FootBack - .05f : Mathf.Min(facadeZ, -7.6f), atmZ = zBack - .35f, reachOut = .6f + capacity * step;
-    // east of the door with the line growing east, else west of it with the line growing west (within ~6 m)
-    float x = doorW.x + 3.2f; bool ok = Place(ref x, .7f, reachOut, atmZ - AtmClear - .4f, zBack, 2.8f); lineDir = Vector3.right;
-    if (!ok) { x = doorW.x - 3.2f; ok = Place(ref x, reachOut, .7f, atmZ - AtmClear - .4f, zBack, 2.8f, -1); lineDir = Vector3.left; }
+    // east of the door with the line growing east, else west of it with the line growing west (within ~6 m); a
+    // shorter line (4, then 3 places) where the crossings or the corner leave less footway
+    // then the same out on the footway, clear of the shop's planters and bollards, with a line of two at the least
+    float x = 0; bool ok = false;
+    foreach (var back in small ? new[] { zBack } : new[] { zBack, FootBack - .05f }) {
+     zBack = back; atmZ = zBack - .35f;
+     for (int cap = 5; cap >= 2 && !ok; cap--) {
+      capacity = cap; reachOut = .35f + (cap - 1) * step;   // to the far edge of the last place in line
+      x = doorW.x + 3.2f; ok = Place(ref x, .7f, reachOut, atmZ - AtmClear - .4f, zBack, 2.8f); lineDir = Vector3.right;
+      if (!ok) { x = doorW.x - 3.2f; ok = Place(ref x, reachOut, .7f, atmZ - AtmClear - .4f, zBack, 2.8f, -1); lineDir = Vector3.left; }
+     }
+     if (ok) break;
+    }
     ap = new Vector3(x, 0, atmZ); face = Vector3.back;
-    atmReport = ok ? $"ATM on the shop front at x {x:0.0} ({Mathf.Abs(x - doorW.x):0.0} m from the door)" : "no free spot on the shop front within 6 m of the door";
+    string Near(float cx, float l, float r) { var at = Rect.MinMaxRect(cx - l - 2.8f, atmZ - AtmClear - .4f, cx + r + 2.8f, zBack); return string.Join(", ", blockers.Select((b, i) => (b, i)).Where(p => p.b.Overlaps(at)).Select(p => $"{blockerNames[p.i]} x[{p.b.xMin:0.0},{p.b.xMax:0.0}] z[{p.b.yMin:0.0},{p.b.yMax:0.0}]").Concat(taken.Where(t => t.Overlaps(at)).Select(t => "taken"))); }
+    atmReport = ok ? $"ATM on the shop front at x {x:0.0} ({Mathf.Abs(x - doorW.x):0.0} m from the door, line of {capacity} {(lineDir.x > 0 ? "east" : "west")})" : $"no free spot on the shop front within 6 m of the door (door {doorW.x:0.0},{doorW.z:0.0}, ATM z {atmZ:0.0}..{zBack:0.0}; east: {Near(doorW.x + 3.2f, .7f, reachOut)}; west: {Near(doorW.x - 3.2f, reachOut, .7f)})";
     return ok;
    }
    capacity = 4; step = .75f;
