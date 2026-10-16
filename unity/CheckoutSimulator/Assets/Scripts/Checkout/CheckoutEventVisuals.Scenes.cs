@@ -48,14 +48,14 @@ namespace Checkout {
   }
 
   // ---------------------------------------------------------------- the street as it is now
-  Vector3 doorW; bool small; float facadeZ; List<Rect> blockers, taken; CheckoutEventDirector director; Transform root;
+  Vector3 doorW; bool small; float facadeZ; List<Rect> blockers, taken; List<string> blockerNames; CheckoutEventDirector director; Transform root;
 
   void Survey() {
    var map = GetComponent<CheckoutMap>() ?? FindAnyObjectByType<CheckoutMap>();
    doorW = map ? map.Entrance : new Vector3(-1.75f, .74f, -8.7f);
    small = CheckoutStall.Small;
    facadeZ = small ? FootBack : Mathf.Max(FootBack, doorW.z - .25f);
-   taken = new List<Rect>(); blockers = new List<Rect>();
+   taken = new List<Rect>(); blockers = new List<Rect>(); blockerNames = new List<string>();
    foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)) {
     if (!r.enabled || !r.gameObject.activeInHierarchy || r is ParticleSystemRenderer || r is SkinnedMeshRenderer) continue;
     if (r.transform.IsChildOf(transform)) continue;
@@ -63,14 +63,31 @@ namespace Checkout {
     if (b.max.z < -13.2f || b.min.z > -5f || b.max.x < -18f || b.min.x > 22f) continue;
     if (b.size.y < .3f || b.max.y < .45f || b.size.x > 12f || b.size.z > 12f) continue;
     if (Mover(r.transform)) continue;
-    blockers.Add(Rect.MinMaxRect(b.min.x - .1f, b.min.z - .1f, b.max.x + .1f, b.max.z + .1f));
+    Block(Rect.MinMaxRect(b.min.x - .1f, b.min.z - .1f, b.max.x + .1f, b.max.z + .1f), (r.transform.parent ? r.transform.parent.name + "/" : "") + r.name);
    }
-   blockers.Add(Rect.MinMaxRect(CrossFrom, -13f, CrossTo, -8.4f));        // the crossing and its landing
-   blockers.Add(Rect.MinMaxRect(-40f, -13f, -12.7f, -4f));                 // the roundabout's corner and its crossing
-   blockers.Add(Rect.MinMaxRect(-12.7f, -13f, -9.5f, -10.1f));             // where that crossing lands on the footway
-   if (map && map.HasParking) blockers.Add(Rect.MinMaxRect(9.2f, -13f, 18.6f, -4f)); // the parking entrance
+   Block(Rect.MinMaxRect(CrossFrom, -13f, CrossTo, -8.4f), "market crossing");        // the crossing and its landing
+   Block(Rect.MinMaxRect(-40f, -13f, -12.7f, -4f), RoundaboutCorner);       // the roundabout's corner and its crossing
+   Block(Rect.MinMaxRect(-12.7f, -13f, -9.5f, -10.1f), "roundabout crossing landing"); // where that crossing lands on the footway
+   if (map && map.HasParking) Block(Rect.MinMaxRect(9.2f, -13f, 18.6f, -4f), "parking entrance"); // the parking entrance
+   // The stall stages (mesinha … contêiner): the strip in front of the tables where shoppers pick and the register
+   // line that runs from the cooler end towards the sidewalk are the stall's own shop floor: no event prop there.
+   if (CheckoutStall.Yard) {
+    var front = CheckoutStall.StallFront; Block(Rect.MinMaxRect(front.xMin - .1f, front.yMin - .1f, front.xMax + .1f, front.yMax + .1f), "stall's tables strip");
+    var q = CheckoutStall.QueueSpot(0); Block(Rect.MinMaxRect(q.x - .5f, q.z - 2.2f, q.x + 2.6f, q.z + .2f), "stall's register line");
+    // the way from the entrance spot on the sidewalk up to the tables
+    Block(Rect.MinMaxRect(doorW.x - .7f, Mathf.Min(doorW.z, front.yMin) - .2f, doorW.x + .7f, Mathf.Max(doorW.z, front.yMin) + .1f), "stall's entry path");
+   }
    float half = small ? 1.1f : 2.5f;                                         // the stall's front / the shop's entrance steps
-   blockers.Add(Rect.MinMaxRect(doorW.x - half, -11.2f, doorW.x + half, Mathf.Max(doorW.z, -8.4f))); // way in
+   Block(Rect.MinMaxRect(doorW.x - half, -11.2f, doorW.x + half, Mathf.Max(doorW.z, -8.4f)), "way in"); // way in
+  }
+  const string RoundaboutCorner = "roundabout corner";
+  void Block(Rect r, string why) { blockers.Add(r); blockerNames.Add(why); }
+  /// <summary>What covers the rect (a blocker's name, "another prop"), or null when it is free. `inLot`: the rect is on
+  /// the market's own lot, behind the sidewalk, where the roundabout corner's wide guard does not apply.</summary>
+  string Blocker(Rect r, bool inLot = false) {
+   for (int i = 0; i < blockers.Count; i++) if (blockers[i].Overlaps(r) && !(inLot && blockerNames[i] == RoundaboutCorner)) return blockerNames[i];
+   foreach (var t in taken) if (t.Overlaps(r)) return "another prop";
+   return null;
   }
   static bool Mover(Transform t) {
    for (var p = t; p; p = p.parent) {
@@ -273,23 +290,29 @@ namespace Checkout {
   void Payday() {
    var director = this.director;   // the stories run later: they keep this scene's director
    var id = building;
-   const int capacity = 5;
-   float x = doorW.x + 3.2f;
-   float zBack = small ? FootBack - .05f : Mathf.Min(facadeZ, -7.6f);
-   float atmZ = zBack - .35f, userZ = atmZ - .75f;
-   if (!Place(ref x, .7f, .6f + capacity * .8f, userZ - .4f, zBack, 26f)) return;    // no room for the ATM and its line
-   Focus(On(x + 1.6f, userZ));
-   Prop("Pagamento_ATM", On(x, atmZ), 0);
-   Vector3 Slot(int i) => i == 0 ? On(x, userZ) : On(x + .2f + i * .8f, userZ + .03f);
-   var line = new EventLine { slot = Slot, front = On(x, atmZ), capacity = capacity }; lines[id] = line;
+   int capacity; float step;
+   if (!AtmSpot(out var ap, out var face, out var lineDir, out capacity, out step)) return;   // no room for the ATM and its line near the door
+   bool straight = Vector3.Dot(face, lineDir) > .9f;          // the line runs straight out from the machine (else beside it)
+   // Each one stands ≥ .6 m clear of the machine's body, on its screen side.
+   Vector3 Slot(int i) { var p = ap + face * AtmClear + (i == 0 ? Vector3.zero : lineDir * ((straight ? 0 : .2f) + i * step)); return On(p.x, p.z); }
+   Vector3 along = straight ? -face : -lineDir;               // how the ones waiting face (towards the machine)
+   Vector3 atFront = -face;
+   Focus(Slot(1));
+   var atm = Prop("Pagamento_ATM", On(ap.x, ap.z), CheckoutEventActor.YawFacing(face));
+   // nobody walks through the machine: it carves its body out of the walkable area
+   var block = atm.gameObject.AddComponent<NavMeshObstacle>(); block.shape = NavMeshObstacleShape.Box; block.size = new Vector3(.8f, 1.8f, .7f); block.center = new Vector3(0, .9f, 0); block.carving = true; block.carveOnlyStationary = true;
+   var line = new EventLine { slot = Slot, front = On(ap.x, ap.z), capacity = capacity };
+   // the scene's extras come from beyond the end of the line and leave straight for the way in
+   Vector3 joinFrom = Slot(capacity - 1) + lineDir * 1.6f;
    var pool = new List<CheckoutEventActor>();
-   for (int i = 0; i < 4; i++) pool.Add(Person(Next(), Slot(i), i == 0 ? North : WestDir, null, 1, false));
+   for (int i = 0; i < 4; i++) pool.Add(Person(Next(), Slot(i), i == 0 ? atFront : along, null, 1, false));
    var free = new List<CheckoutEventActor>();
+   int extras = Mathf.Min(3, capacity - 2);   // the scene's own people in line: room is always left for real customers
    director.OnReset(() => {
     line.members.RemoveAll(m => m is CheckoutEventActor); line.standing.RemoveWhere(m => m is CheckoutEventActor); free.Clear();
     for (int i = 0; i < pool.Count; i++) {
      var a = pool[i];
-     if (i < 3) { a.transform.position = Slot(i); a.Face(i == 0 ? North : WestDir); a.Show(true); a.Do(i == 0 ? "TypeATM" : (i % 2 == 1 ? "LookPhone" : null)); line.members.Insert(Mathf.Min(i, line.members.Count), a); }
+     if (i < extras) { a.transform.position = Slot(i); a.Face(i == 0 ? atFront : along); a.Show(true); a.Do(i == 0 ? "TypeATM" : (i % 2 == 1 ? "LookPhone" : null)); line.members.Insert(Mathf.Min(i, line.members.Count), a); line.joined[a] = Time.time; }
      else { a.Show(false); free.Add(a); }
     }
    });
@@ -305,7 +328,7 @@ namespace Checkout {
      if (line.members.Count == 0 || line.members[0] != first) continue;
      yield return Wait(UnityEngine.Random.Range(4.5f, 6.5f));
      if (line.members.Count == 0 || line.members[0] != first) continue;   // a customer left the line (the market closed)
-     line.members.RemoveAt(0); line.standing.Remove(first);
+     line.Drop(first);
      // a customer (CheckoutWalker) sees it is out of the line and walks in with the money; an extra walks to the door
      if (first is CheckoutEventActor done) { done.Do(null); director.StartCoroutine(Leave(done)); }
     }
@@ -315,10 +338,10 @@ namespace Checkout {
    IEnumerator Fill() {
     while (true) {
      yield return Wait(UnityEngine.Random.Range(2.5f, 4f));
-     if (line.members.Count < 3 && free.Count > 0 && !line.members.Any(m => m is CheckoutWalker)) { var a = free[0]; free.RemoveAt(0); director.StartCoroutine(Join(a)); }
+     if (line.members.Count < extras && free.Count > 0 && !line.members.Any(m => m is CheckoutWalker)) { var a = free[0]; free.RemoveAt(0); director.StartCoroutine(Join(a)); }
     }
    }
-   IEnumerator Join(CheckoutEventActor a) { a.transform.position = On(x + 7.5f, FootMid); a.Face(WestDir); line.members.Add(a); yield return a.Fade(true); yield return InLine(a); }
+   IEnumerator Join(CheckoutEventActor a) { a.transform.position = joinFrom; a.Face(along); line.Join(a); yield return a.Fade(true); yield return InLine(a); }
    // follows its place in the line: steps up when the one in front is done, types at the machine when first
    IEnumerator InLine(CheckoutEventActor a) {
     int at = -1;
@@ -329,12 +352,79 @@ namespace Checkout {
       yield return a.Walk(new[] { Slot(i) }, 1.0f);
       at = i;
       if (line.members.IndexOf(a) != i) continue;
-      a.Face(i == 0 ? North : WestDir); a.Do(i == 0 ? "TypeATM" : (UnityEngine.Random.value < .6f ? "LookPhone" : null)); line.standing.Add(a);
+      a.Face(i == 0 ? atFront : along); a.Do(i == 0 ? "TypeATM" : (UnityEngine.Random.value < .6f ? "LookPhone" : null)); line.standing.Add(a);
      }
      yield return null;
     }
    }
-   IEnumerator Leave(CheckoutEventActor a) { yield return a.Walk(ToDoor(a.transform.position, userZ - .3f), 1.3f); yield return a.Fade(false); free.Add(a); }
+   IEnumerator Leave(CheckoutEventActor a) { yield return a.Walk(small ? new[] { a.transform.position + lineDir * .7f, doorW } : ToDoor(a.transform.position, Slot(0).z - .3f), 1.3f); yield return a.Fade(false); free.Add(a); }
+   lines[id] = line;   // last: customers are routed here only once the scene is complete
+  }
+
+  /// <summary>Where payday's ATM stands, the side its screen faces (where people stand) and the way its line grows.
+  /// Shop stages: against the shop front on the footway, screen to the street, a few steps from the door, the line
+  /// along the front away from it. Stall stages (CheckoutStall.Yard): the best spot 1.8–6 m from the entrance, on
+  /// the stall's own lot (plaza beside / in front of the stall, or the sidewalk by it), never on the tables' strip,
+  /// the register line, the entry path or the way in; the screen to the street or turned to the side, the line straight
+  /// out from it or beside it, every place on the walkable area. Never more than ~6 m from the door: no spot = no ATM
+  /// (payday customers then simply walk in). Why the candidates were turned down: AtmReport (QA).</summary>
+  const float AtmClear = .95f;   // machine centre → where the user stands (body half-depth .35 + .6 clear)
+  string atmReport = "";
+  public string AtmReport => atmReport;
+  bool AtmSpot(out Vector3 ap, out Vector3 face, out Vector3 lineDir, out int capacity, out float step) {
+   ap = face = lineDir = Vector3.zero;
+   if (!CheckoutStall.Yard) {
+    capacity = 5; step = .8f;
+    float zBack = small ? FootBack - .05f : Mathf.Min(facadeZ, -7.6f), atmZ = zBack - .35f, reachOut = .6f + capacity * step;
+    // east of the door with the line growing east, else west of it with the line growing west (within ~6 m)
+    float x = doorW.x + 3.2f; bool ok = Place(ref x, .7f, reachOut, atmZ - AtmClear - .4f, zBack, 2.8f); lineDir = Vector3.right;
+    if (!ok) { x = doorW.x - 3.2f; ok = Place(ref x, reachOut, .7f, atmZ - AtmClear - .4f, zBack, 2.8f, -1); lineDir = Vector3.left; }
+    ap = new Vector3(x, 0, atmZ); face = Vector3.back;
+    atmReport = ok ? $"ATM on the shop front at x {x:0.0} ({Mathf.Abs(x - doorW.x):0.0} m from the door)" : "no free spot on the shop front within 6 m of the door";
+    return ok;
+   }
+   capacity = 4; step = .75f;
+   const float LotMinX = -17.25f, LotMaxX = -5.75f;           // lot A1: the stall's own lot (CheckoutStall)
+   var why = new Dictionary<string, int>(); void No(string k) { why.TryGetValue(k, out var n); why[k] = n + 1; }
+   var stall = CheckoutStall.StallArea; var door = new Vector2(doorW.x, doorW.z);
+   Vector3[] faces = { Vector3.back, Vector3.right, Vector3.left };
+   float best = float.MaxValue; bool found = false; Vector3 bestP = default, bestF = default, bestL = default;
+   for (float x = door.x - 6f; x <= door.x + 6f; x += .25f)
+    for (float z = -10.9f; z <= stall.center.y; z += .25f) {
+     var p2 = new Vector2(x, z); float d = Vector2.Distance(p2, door);
+     if (d < 1.8f || d > 6f) { No("too near / too far from the door"); continue; }
+     if (x - .45f < LotMinX || x + .45f > LotMaxX) { No("another lot"); continue; }
+     bool inLot = z > -8.5f;
+     var body = Rect.MinMaxRect(x - .45f, z - .45f, x + .45f, z + .45f);
+     if (stall.Overlaps(body)) { No("on the stall"); continue; }
+     var hit = Blocker(body, inLot); if (hit != null) { No("ATM spot: " + hit); continue; }
+     var p = new Vector3(x, 0, z);
+     foreach (var f in faces) {
+      var side = new Vector3(f.z, 0, -f.x); if (Vector3.Dot(side, p - doorW) < 0) side = -side;   // beside it: away from the door
+      foreach (var l in new[] { f, side }) {
+       bool straight = l == f; string bad = null;
+       for (int i = 0; i < capacity && bad == null; i++) {
+        var s = p + f * AtmClear + (i == 0 ? Vector3.zero : l * ((straight ? 0 : .2f) + i * step));
+        var spot = Rect.MinMaxRect(s.x - .25f, s.z - .25f, s.x + .25f, s.z + .25f);
+        if (stall.Overlaps(spot)) bad = "line on the stall";
+        else if (s.x < LotMinX || s.x > LotMaxX) bad = "line on another lot";
+        else if ((hit = Blocker(spot, s.z > -8.5f)) != null) bad = "line: " + hit;
+        else if (!NavMesh.SamplePosition(new Vector3(s.x, .3f, s.z), out var nav, .45f, NavMesh.AllAreas) || Mathf.Abs(nav.position.x - s.x) > .3f || Mathf.Abs(nav.position.z - s.z) > .3f) bad = "line off the walkable area";
+       }
+       if (bad != null) { No(bad); continue; }
+       // a few steps from the door, on the plaza rather than the sidewalk, screen to the street, the line straight out
+       float score = Mathf.Abs(d - 3.2f) + (z < -8.5f ? 1f : 0) + (f == Vector3.back ? 0 : .3f) + (straight ? 0 : .2f);
+       if (score < best) { best = score; found = true; bestP = p; bestF = f; bestL = l; }
+      }
+     }
+    }
+   var reasons = string.Join(", ", why.OrderByDescending(k => k.Value).Take(6).Select(k => k.Key + " ×" + k.Value));
+   if (!found) { atmReport = "stall stage: no ATM spot within 6 m of the door (" + reasons + ")"; return false; }
+   ap = bestP; face = bestF; lineDir = bestL;
+   for (int i = 0; i < capacity; i++) { var s = ap + face * AtmClear + (i == 0 ? Vector3.zero : lineDir * ((Vector3.Dot(face, lineDir) > .9f ? 0 : .2f) + i * step)); Claim(s.x - .25f, s.z - .25f, s.x + .25f, s.z + .25f); }
+   Claim(ap.x - .45f, ap.z - .45f, ap.x + .45f, ap.z + .45f);
+   atmReport = $"stall stage: ATM at ({ap.x:0.0}, {ap.z:0.0}) {Vector2.Distance(new Vector2(ap.x, ap.z), door):0.0} m from the door, screen {face}, line {(Vector3.Dot(face, lineDir) > .9f ? "straight out" : "beside")} {lineDir}; rejected: {reasons}";
+   return true;
   }
 
   // ================================================================ feira de rua

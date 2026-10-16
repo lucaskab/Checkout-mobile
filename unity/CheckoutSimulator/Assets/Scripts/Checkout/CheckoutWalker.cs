@@ -75,7 +75,7 @@ namespace Checkout {
   // spot (off the rush-hour or the school bus) or arrives on foot like a walk-in, then stops at the event (phase 15 →
   // 17: the street fair's stall, the ice-cream cart, the prize wheel…; phase 16: the ATM queue on payday) and walks
   // in to shop with its real basket (phase 14 → the usual shelves, register and payment).
-  string eventOrigin;CheckoutEventVisuals.LeadIn lead;bool leadActed;Vector3 lineGoal=Vector3.one*1e5f;
+  string eventOrigin;CheckoutEventVisuals.LeadIn lead;bool leadActed;Vector3 lineGoal=Vector3.one*1e5f;float leadSince;
   public string EventOrigin=>eventOrigin;
   CheckoutEventVisuals fx;CheckoutEventVisuals Fx=>fx?fx:(fx=bridge?bridge.GetComponent<CheckoutEventVisuals>():null);
   // QA (CheckoutAutoTest "eventsmarket"): per event, walkers that [0] began in its scene, [1] reached the entrance,
@@ -89,7 +89,7 @@ namespace Checkout {
    if(leadIn.start.HasValue){if(!(NavMesh.SamplePosition(leadIn.start.Value,out var hit,1.6f,NavMesh.AllAreas)||NavMesh.SamplePosition(leadIn.start.Value,out hit,3f,NavMesh.AllAreas))){gameObject.SetActive(false);Reserved=false;return false;}start=hit.position;}
    else if(!ArrivalSpot(entrance,out start)){gameObject.SetActive(false);Reserved=false;return false;}
    if(!agent.Warp(start)){gameObject.SetActive(false);Reserved=false;return false;}
-   eventOrigin=visit.origin;lead=leadIn;Sync();snapHeading=true;CountEvent(0);
+   eventOrigin=visit.origin;lead=leadIn;leadSince=Time.time;Sync();snapHeading=true;CountEvent(0);
    if(leadIn.line&&Fx){phase=15;var tail=Fx.LineTail(this);if(tail.HasValue){lineGoal=tail.Value;Go(tail.Value);return true;}}
    if(leadIn.stand.HasValue){phase=15;Go(leadIn.stand.Value);return true;}
    phase=14;Go(entrance);return true;}
@@ -184,9 +184,14 @@ namespace Checkout {
      else if(!agent.pathPending&&(Vector3.Distance(agent.nextPosition,target)<.35f||(agent.isStopped&&Vector3.Distance(agent.nextPosition,target)<1.2f))){agent.isStopped=true;agent.velocity=Vector3.zero;Hold();var look=Fx.LineLook(this)-transform.position;look.y=0;if(look.sqrMagnitude>.01f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-look),Time.deltaTime*240);Fx.LineStanding(this,true);
       if(Fx.LineFront(this)&&!leadActed){leadActed=true;motion.Perform("PayAtCheckout",false);}
       return;}}}
+   // On the way to the event: a stop or the line's end that cannot be reached in 40 s is skipped (straight in).
+   if(phase==15&&Time.time-leadSince>40f){phase=14;Go(map.Entrance);}
    if(phase==15&&lead!=null&&lead.line&&Fx){var tail=Fx.LineTail(this);
     if(!tail.HasValue){phase=14;Go(map.Entrance);}
-    else{if((tail.Value-lineGoal).sqrMagnitude>.3f){lineGoal=tail.Value;Go(tail.Value);}if(Vector3.Distance(agent.nextPosition,tail.Value)<2.2f&&Fx.JoinLine(this)){phase=16;lineGoal=Vector3.one*1e5f;}}}
+    else{if((tail.Value-lineGoal).sqrMagnitude>.3f){lineGoal=tail.Value;Go(tail.Value);}
+     // close to the end of the line, or as close as the path gets (the spot may be just off the walkable area)
+     bool near=Vector3.Distance(agent.nextPosition,tail.Value)<2.2f||(!agent.pathPending&&agent.hasPath&&agent.remainingDistance<.6f);
+     if(near&&Fx.JoinLine(this)){phase=16;lineGoal=Vector3.one*1e5f;}}}
    if(wait>0){wait-=Time.deltaTime;agent.isStopped=true;transform.rotation=Quaternion.RotateTowards(transform.rotation,facing,Time.deltaTime*180);if(phase==8&&lane!=null&&lane.kiosk&&!motion.Busy)motion.Perform("GetFromShelf",false); // Scanning their own items.
    Hold();if(wait<=0){if(phase==1){index++;NextShelf();}else if(phase==8){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),lane!=null&&lane.kiosk?0:map.PaymentDuration);}else if(phase==17){phase=14;Go(map.Entrance);}else if(phase==4){HasPaid=true;CountEvent(3);Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);}}return;}
    // Gave up while still in line: the basket stays behind and they walk out.

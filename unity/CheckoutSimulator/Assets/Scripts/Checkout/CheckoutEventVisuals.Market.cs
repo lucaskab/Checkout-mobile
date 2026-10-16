@@ -23,7 +23,11 @@ namespace Checkout {
   /// <summary>How a customer the event brought gets into the market: a start spot (null = on foot from the city, like
   /// any walk-in), a stop on the way (stand/look/pause/clip) or the event's line (payday's ATM).</summary>
   public sealed class LeadIn {public Vector3? start,stand;public Vector3 look;public float pause;public string clip;public bool line;}
-  sealed class EventLine {public Func<int,Vector3> slot;public Vector3 front;public int capacity;public readonly List<object> members=new List<object>();public readonly HashSet<object> standing=new HashSet<object>();}
+  sealed class EventLine {public Func<int,Vector3> slot;public Vector3 front;public int capacity;public readonly List<object> members=new List<object>();public readonly HashSet<object> standing=new HashSet<object>();
+   // when each one joined, and since when the first one is first (LineTick's timeouts)
+   public readonly Dictionary<object,float> joined=new Dictionary<object,float>();public object first;public float firstSince;
+   public void Join(object m){if(members.Contains(m))return;members.Add(m);joined[m]=Time.time;}
+   public void Drop(object m){members.Remove(m);standing.Remove(m);joined.Remove(m);}}
   sealed class Rider {public CheckoutWalker walker;public Customer visit;public string origin;public float since;}
   readonly Dictionary<string,List<LeadIn>> stops=new Dictionary<string,List<LeadIn>>();
   readonly HashSet<string> busScenes=new HashSet<string>();
@@ -54,7 +58,24 @@ namespace Checkout {
 
   // Riders whose bus never came (the event ended, the scene could not be built) walk in normally; a closed market
   // sends them home.
+  // The line keeps moving whatever happens to the scene's story (Lucas' tent-stage test 16/10: two customers stood at
+  // the ATM for the whole event): a first one who cannot reach the exact spot counts as there after 4 s, a customer
+  // first for 12 s is done withdrawing, nobody stays in line more than 45 s, and an extra stuck first for 25 s
+  // (the story stopped) steps out.
+  const float FrontReach=4f,FrontDone=12f,LineMax=45f,ExtraStuck=25f;
+  void LineTick(){
+   foreach(var line in lines.Values){
+    foreach(var m in line.members.ToArray()){if(!line.joined.ContainsKey(m))line.joined[m]=Time.time;
+     if(m is CheckoutWalker w&&(!w||!w.gameObject.activeInHierarchy||Time.time-line.joined[m]>LineMax))line.Drop(m);}
+    if(line.members.Count==0){line.first=null;continue;}
+    var first=line.members[0];if(!ReferenceEquals(first,line.first)){line.first=first;line.firstSince=Time.time;}
+    float at=Time.time-line.firstSince;
+    if(first is CheckoutWalker){if(at>FrontReach)line.standing.Add(first);if(at>FrontDone)line.Drop(first);}
+    else if(first is CheckoutEventActor a&&at>ExtraStuck){line.Drop(first);if(a)a.Show(false);}
+   }
+  }
   void MarketTick(){
+   LineTick();
    for(int i=riders.Count-1;i>=0;i--){
     var r=riders[i];
     if(!r.walker||r.walker.gameObject.activeSelf||!r.walker.Reserved){riders.RemoveAt(i);continue;}
@@ -63,18 +84,18 @@ namespace Checkout {
    }
   }
   // The event changed: customers still in its line go straight in (riders are handled by MarketTick).
-  void ReleaseCrowd(){foreach(var line in lines.Values){line.members.RemoveAll(m=>m is CheckoutWalker);line.standing.RemoveWhere(m=>m is CheckoutWalker);}}
+  void ReleaseCrowd(){foreach(var line in lines.Values)foreach(var m in line.members.ToArray())if(m is CheckoutWalker)line.Drop(m);}
 
   // ---------------------------------------------------------------- the line (CheckoutWalker phase 16)
   EventLine LineOf(CheckoutWalker w){if(string.IsNullOrEmpty(active)||!lines.TryGetValue(active,out var line))return null;return line;}
   /// <summary>Where a customer walking to the line would stand (its end); null when the line is full or gone.</summary>
   public Vector3? LineTail(CheckoutWalker w){var line=LineOf(w);if(line==null)return null;int i=line.members.IndexOf(w);if(i<0){if(line.members.Count>=line.capacity)return null;i=line.members.Count;}return line.slot(i);}
-  public bool JoinLine(CheckoutWalker w){var line=LineOf(w);if(line==null)return false;if(line.members.Contains(w))return true;if(line.members.Count>=line.capacity)return false;line.members.Add(w);return true;}
+  public bool JoinLine(CheckoutWalker w){var line=LineOf(w);if(line==null)return false;if(line.members.Contains(w))return true;if(line.members.Count>=line.capacity)return false;line.Join(w);return true;}
   /// <summary>The customer's spot in the line; null once the scene let them go (they walk in) or the line is gone.</summary>
   public Vector3? LineSpot(CheckoutWalker w){var line=LineOf(w);if(line==null)return null;int i=line.members.IndexOf(w);return i<0?(Vector3?)null:line.slot(i);}
   public Vector3 LineLook(CheckoutWalker w){var line=LineOf(w);if(line==null)return w.transform.position;int i=line.members.IndexOf(w);return i<=0?line.front:line.slot(i-1);}
   public bool LineFront(CheckoutWalker w){var line=LineOf(w);return line!=null&&line.members.Count>0&&ReferenceEquals(line.members[0],w);}
   public void LineStanding(CheckoutWalker w,bool standing){var line=LineOf(w);if(line==null)return;if(standing&&line.members.Contains(w))line.standing.Add(w);else line.standing.Remove(w);}
-  public void LeaveLine(CheckoutWalker w){foreach(var line in lines.Values){line.members.Remove(w);line.standing.Remove(w);}}
+  public void LeaveLine(CheckoutWalker w){foreach(var line in lines.Values)line.Drop(w);}
  }
 }

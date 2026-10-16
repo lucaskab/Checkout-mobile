@@ -203,10 +203,15 @@ namespace Checkout {
    // Fixture on the left, standing on the floor; the cart on the right (CartWidth); tabs on top.
    float cw=Mathf.Min(CartWidth,W*.4f);
    float top=H*.5f-(groups.Count>1?84:16),bottom=-H*.5f+8,left=-W*.5f+16,right=W*.5f-cw-30;
-   var box=new Vector2(right-left,top-bottom);
-   var center=new Vector2((left+right)*.5f,(top+bottom)*.5f);
-   int era=bridge.State?.era?.index??0;
-   view=CheckoutFixtureArt.Build(stage,CheckoutFixtureArt.ArtKey(g.shelfId,era),g.name,center,box);
+   // The fixture stands on the floor of the room (backdrop v4) at a believable size instead of filling the whole
+   // window (Lucas 16/10: "tá muito alto"): tall fixtures take ~85% of the height, low tables and baskets less.
+   int era=bridge.State?.era?.index??0;var art=CheckoutFixtureArt.ArtKey(g.shelfId,era);
+   float frac=art=="crates"?.6f:art=="basket"?.66f:art=="stand"?.7f:art=="cooler"||art=="chest"||art=="counter"||art=="display"?.72f:.85f;
+   float bottomY=bottom+2,height=(top-bottom)*frac;
+   var box=new Vector2(right-left,height);
+   var center=new Vector2((left+right)*.5f,bottomY+height*.5f);
+   view=CheckoutFixtureArt.Build(stage,art,g.name,center,box);
+   view.root.anchoredPosition=new Vector2(center.x,bottomY+view.root.sizeDelta.y*.5f); // feet on the floor even when width-limited
    Keep(view.root);
    Canvas.ForceUpdateCanvases();
    var byLane=new Dictionary<int,RestockSlot>();

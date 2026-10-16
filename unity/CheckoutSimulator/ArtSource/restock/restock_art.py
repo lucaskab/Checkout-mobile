@@ -351,7 +351,7 @@ def build_crates(key="crates"):
     post = wood_mat("cr_post", (0.62, 0.42, 0.20), (0.44, 0.27, 0.11), scale=3, axis="z", rough=.7)
     legs = wood_mat("cr_legs", (0.52, 0.32, 0.14), (0.36, 0.20, 0.08), scale=2, axis="z")
     skirt = stripes_mat("cr_skirt", CREAM, (0.10, 0.48, 0.45, 1), period=.11, axis="x")
-    zt = .72
+    zt = .52   # low market table (v4b: the owner found the .72 m stand too tall)
     box("table", (W + .12, D + .10, .04), (0, D / 2, zt - .02), plank, bevel=.012, seg=4)
     box("table_edge", (W + .14, .03, .07), (0, -.055, zt - .035), legs, bevel=.01, layer="front")
     for sx in (-1, 1):
@@ -360,22 +360,22 @@ def build_crates(key="crates"):
     for sx in (-1, 1):
         for y, lay in ((.06, "back"), (D - .06, "back")):
             x = sx * (W / 2 - .02)
-            cyl(f"leg{sx}{lay}_top", .045, .12, (x, y, zt - .11), legs, verts=20, layer=lay)
-            bpy.ops.mesh.primitive_uv_sphere_add(radius=.052, location=(x, y, zt - .20), segments=24, ring_count=12); o = bpy.context.object
+            cyl(f"leg{sx}{lay}_top", .045, .10, (x, y, zt - .10), legs, verts=20, layer=lay)
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=.052, location=(x, y, zt - .18), segments=24, ring_count=12); o = bpy.context.object
             o.name = f"leg{sx}{lay}_bead"; o.data.materials.append(legs); o["layer"] = lay
             for p in o.data.polygons: p.use_smooth = True
-            bpy.ops.mesh.primitive_cone_add(radius1=.03, radius2=.04, depth=zt - .26, location=(x, y, (zt - .26) / 2), vertices=20); o = bpy.context.object
+            bpy.ops.mesh.primitive_cone_add(radius1=.03, radius2=.04, depth=zt - .24, location=(x, y, (zt - .24) / 2), vertices=20); o = bpy.context.object
             o.name = f"leg{sx}{lay}_shaft"; o.data.materials.append(legs); o["layer"] = lay
             for p in o.data.polygons: p.use_smooth = abs(p.normal.z) < .9
-    box("stretcher", (W - .1, .035, .035), (0, .06, .22), legs, bevel=.008)
+    box("stretcher", (W - .1, .035, .035), (0, .06, .14), legs, bevel=.008)
     # striped skirt hanging from the front edge, scalloped hem; a short return on each side
-    box("skirt", (W + .10, .012, .40), (0, -.062, zt - .27), skirt, bevel=.004, layer="front")
+    box("skirt", (W + .10, .012, .26), (0, -.062, zt - .20), skirt, bevel=.004, layer="front")
     n = 14
     for k in range(n):
         x = -(W + .10) / 2 + (k + .5) * (W + .10) / n
-        cyl(f"scallop{k}", (W + .10) / n / 2, .010, (x, -.073, zt - .47), skirt, rot=(rad(90), 0, 0), verts=24, layer="front", smooth=False)   # just in front of the skirt (coplanar faces render black)
+        cyl(f"scallop{k}", (W + .10) / n / 2, .010, (x, -.073, zt - .33), skirt, rot=(rad(90), 0, 0), verts=24, layer="front", smooth=False)   # just in front of the skirt (coplanar faces render black)
     for sx in (-1, 1):
-        box(f"skirt_s{sx}", (.012, .30, .40), (sx * (W / 2 + .062), .15, zt - .27), skirt, bevel=.004)
+        box(f"skirt_s{sx}", (.012, .30, .26), (sx * (W / 2 + .062), .15, zt - .20), skirt, bevel=.004)
     # raised step at the back: plank top, slatted front
     box("step", (W, D / 2, .03), (0, D * .75, zt + .145), plank, bevel=.006)
     for k in range(3):
@@ -383,10 +383,10 @@ def build_crates(key="crates"):
     for sx in (-1, 1):
         box(f"step_side{sx}", (.02, D / 2, .14), (sx * (W / 2 - .01), D * .75, zt + .07), crate_w, bevel=.004)
     for i, (x0, x1, y0, y1, row) in enumerate(grid_cells(W, D, margin=.04, gap=.05)):
-        z = .91 if row == 0 else .75; h = .17
+        z = zt + .19 if row == 0 else zt + .03; h = .17
         slat_crate(f"cr{i}", x0, x1, y0, y1, z, h, crate_w, post)
         lane(key, x0 + .03, x1 - .03, y0 + .04, y1 - .03, z + .02, .14)
-    return dict(target=(0, D * .45, .9), pitch=34, dist=3.0, lens=40, size=W)
+    return dict(target=(0, D * .45, zt + .18), pitch=34, dist=3.0, lens=40, size=W)
 
 def build_stand(key="stand"):
     """Market stand: tilted wooden bins in two rows under a striped awning."""

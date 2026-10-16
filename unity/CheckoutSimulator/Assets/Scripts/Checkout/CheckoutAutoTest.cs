@@ -245,7 +245,7 @@ namespace Checkout {
     Note($"stage {stage}: era={bridge.State?.era?.id} open={bridge.State.isOpen} event={bridge.State.@event?.id} active scene={fx.ActiveId} door={door}");
     if(fx.ActiveId!=id){Note("the event did not start (closed market, or not available here?)");continue;}
     CheckoutWalker.EventQa.Clear();var tagged=new HashSet<string>();var all=new HashSet<string>();
-    var focus=fx.FocusOf(id);
+    var focus=fx.FocusOf(id);Note("ATM: "+fx.AtmReport);Note($"scene focus {focus} small={CheckoutStall.Small} yard={CheckoutStall.Yard} stall footprint={CheckoutStall.Footprint}");
     for(int n=0;n<8;n++){
      for(float t=0;t<12;t+=.5f){foreach(var c in bridge.State.customers??Array.Empty<Customer>()){all.Add(c.id);if(c.origin==id)tagged.Add(c.id);}yield return new WaitForSecondsRealtime(.5f);}
      CaptureAt(focus+Vector3.up,12,$"em_{stage}_{id}_{n}");if(n%2==1)CaptureAt(new Vector3(door.x,.5f,door.z-2),12,$"em_{stage}_{id}_{n}_door");

@@ -12,7 +12,8 @@ namespace Checkout {
   public void Add(Func<IEnumerator> story) { stories.Add(story); if (isActiveAndEnabled) StartCoroutine(Guard(story)); }
   /// <summary>Puts things back where a story expects them when the scene is shown again.</summary>
   public void OnReset(Action reset) => resets.Add(reset);
-  void OnEnable() { foreach (var r in resets) r(); foreach (var s in stories) StartCoroutine(Guard(s)); }
+  // A reset that throws is logged and skipped: it must never keep the scene's stories from starting.
+  void OnEnable() { foreach (var r in resets) { try { r(); } catch (Exception e) { Debug.LogException(e); } } foreach (var s in stories) StartCoroutine(Guard(s)); }
   void OnDisable() { StopAllCoroutines(); }
   IEnumerator Guard(Func<IEnumerator> story) {
    // a story that throws would silently stop the scene: log it once and keep the others going
