@@ -57,7 +57,7 @@ namespace Checkout {
    facadeZ = small ? FootBack : Mathf.Max(FootBack, doorW.z - .25f);
    taken = new List<Rect>(); blockers = new List<Rect>(); blockerNames = new List<string>();
    foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)) {
-    if (!r.enabled || !r.gameObject.activeInHierarchy || r is ParticleSystemRenderer || r is SkinnedMeshRenderer) continue;
+    if (!r.enabled || r.forceRenderingOff || !r.gameObject.activeInHierarchy || r is ParticleSystemRenderer || r is SkinnedMeshRenderer) continue;
     if (r.transform.IsChildOf(transform)) continue;
     var b = r.bounds;
     if (b.max.z < -13.2f || b.min.z > -5f || b.max.x < -18f || b.min.x > 22f) continue;
@@ -76,11 +76,16 @@ namespace Checkout {
     var q = CheckoutStall.QueueSpot(0); Block(Rect.MinMaxRect(q.x - .5f, q.z - 2.2f, q.x + 2.6f, q.z + .2f), "stall's register line");
     // the way from the entrance spot on the sidewalk up to the tables
     Block(Rect.MinMaxRect(doorW.x - .7f, Mathf.Min(doorW.z, front.yMin) - .2f, doorW.x + .7f, Mathf.Max(doorW.z, front.yMin) + .1f), "stall's entry path");
+    // the whole face of the stall down to the middle of the sidewalk: shoppers walk up to any of its tables, so
+    // nothing stands in front of it (props go beside the stall instead)
+    var stallArea = CheckoutStall.StallArea; Block(Rect.MinMaxRect(stallArea.xMin - .3f, -10.1f, stallArea.xMax + .3f, stallArea.yMin + .05f), "in front of the stall");
    }
-   float half = small ? 1.1f : 2.5f;                                         // the stall's front / the shop's entrance steps
-   Block(Rect.MinMaxRect(doorW.x - half, -11.2f, doorW.x + half, Mathf.Max(doorW.z, -8.4f)), "way in"); // way in
+   float half = small ? (CheckoutStall.ShopInside ? 2.1f : 1.1f) : 2.5f;     // the stall's front / the small shop's steps / the shop's entrance steps
+   wayIn = Rect.MinMaxRect(doorW.x - half, -11.2f, doorW.x + half, Mathf.Max(doorW.z, -8.4f));
+   Block(wayIn, "way in"); // way in
   }
   const string RoundaboutCorner = "roundabout corner";
+  Rect wayIn;
   void Block(Rect r, string why) { blockers.Add(r); blockerNames.Add(why); }
   /// <summary>What covers the rect (a blocker's name, "another prop"), or null when it is free. `inLot`: the rect is on
   /// the market's own lot, behind the sidewalk, where the roundabout corner's wide guard does not apply.</summary>
@@ -589,9 +594,18 @@ namespace Checkout {
    float x = doorW.x - 5f;
    float back = small ? FootBack : Mathf.Min(facadeZ, -7.8f);
    if (!Place(ref x, 3.4f, 3.4f, back - .75f, back, 26f, -1)) return;
+   // the flags and the fans in front of the screen fill the footway there: never in front of the door
+   if (wayIn.Overlaps(Rect.MinMaxRect(x - 3.8f, -11.2f, x + 3.8f, -10.3f))) {
+    taken.RemoveAt(taken.Count - 1);
+    x = x < doorW.x ? wayIn.xMin - 3.9f : wayIn.xMax + 3.9f;
+    if (!Place(ref x, 3.4f, 3.4f, back - .75f, back, 8f, x < doorW.x ? -1 : 1) || wayIn.Overlaps(Rect.MinMaxRect(x - 3.8f, -11.2f, x + 3.8f, -10.3f))) return;
+   }
    Focus(On(x, -10.2f));
    Prop("Jogo_BigScreen", On(x, back - .4f), 0);
    float f1 = x - 3.2f, f2 = x + 3.2f;
+   float Clear(float f) { int away = f < doorW.x ? -1 : 1; for (float d = 0; d <= 2.5f; d += .25f) { var r = Rect.MinMaxRect(f + away * d - .3f, -11.1f, f + away * d + .3f, -10.6f); if (!blockers.Any(b => b.Overlaps(r))) return f + away * d; } return float.NaN; }
+   f1 = Clear(f1); f2 = Clear(f2);
+   if (float.IsNaN(f1) || float.IsNaN(f2)) { Claim(x - 3.4f, back - .75f, x + 3.4f, back); return; }
    Rig("Rig_FlagPole", On(f1, -10.85f), 0, "Wind"); Rig("Rig_FlagPole", On(f2, -10.85f), 0, "Wind");
    var bunting = Rig("Rig_Bunting", On(f1, -10.85f) + Vector3.up * 3.85f, 0, "Wind"); bunting.localScale = new Vector3((f2 - f1) / 12f, 1, 1);
    Claim(f1 - .3f, -11.1f, f2 + .3f, -10.6f);
@@ -796,7 +810,10 @@ namespace Checkout {
    van.transform.position = Road(vx, LaneW);
    BlockCurb(WestZoneFrom - .2f, vx + van.BackOffset + .3f);
    float px = vx;
-   if (!Place(ref px, .35f, .35f, -11.1f, -9.3f, 6f)) px = vx;
+   // the pole, its ladder and the cable reel beside it: on free footway, never in the way in (looks further along
+   // the street when the van's spot is in front of the door)
+   if (!Place(ref px, .5f, 1.9f, -11.2f, -9.3f, 6f) && !Place(ref px, .5f, 1.9f, -11.2f, -9.3f, 26f)) px = float.NaN;
+   if (float.IsNaN(px)) { Person(Next(), On(vx + van.BackOffset - .4f, CurbEdge + .25f), Dir(-.4f, 1), "Clipboard"); CashOnly(); return; }
    var pole = Prop("Maquininha_TelecomPole", On(px, -9.55f), 0); Focus(On(px, -10.8f));
    Fx2(pole, "Maquininha_CtoLed", new Vector3(.11f, 4.52f, -.5f), "blink");
    Prop("Maquininha_Ladder", On(px, -11.0f), 0);
@@ -804,9 +821,14 @@ namespace Checkout {
    var tech = Person("@crew0", new Vector3(px, On(px, -11f).y + 2.1f, -10.55f), North, "WorkOverhead");
    Prop("Maquininha_CableReel", On(px + 1.3f, -10.7f), 0);
    Person(Next(), On(vx + van.BackOffset - .4f, CurbEdge + .25f), Dir(-.4f, 1), "Clipboard");
-   var sign = doorW + (small ? new Vector3(.55f, 1.35f, -.35f) : new Vector3(.3f, 1.95f, -.12f));
+   CashOnly();
+  }
+  // SÓ DINHEIRO beside the way in (on the door glass at the shop), and a customer reading it off to the side
+  void CashOnly() {
+   var sign = doorW + (small ? new Vector3(CheckoutStall.ShopInside ? 2.3f : 1.45f, 1.35f, -.1f) : new Vector3(.3f, 1.95f, -.12f));
    Prop("Maquininha_CashOnlySign", sign, 0);
-   Person(Next(), On(doorW.x + 1.1f, Mathf.Min(doorW.z - .9f, FootBack - .3f)), Dir(-.4f, 1), "LookPhone");
+   float side = small ? (CheckoutStall.ShopInside ? 2.9f : 2.1f) : 3.0f;
+   Person(Next(), On(doorW.x + side, Mathf.Min(doorW.z - .5f, FootBack - .3f)), Dir(-.6f, 1), "LookPhone");
   }
 
   // ================================================================ excursão da escola
@@ -824,7 +846,8 @@ namespace Checkout {
    var kids = new List<CheckoutEventActor>();
    for (int i = 0; i < 8; i++) kids.Add(Person(Next(), On(doorX, sideZ), North, null, .58f, false));
    var teacher = Person(Next(), On(doorX, sideZ), North, null, 1, false);
-   var counter = Person(Next(), On(doorW.x + 1.3f, Mathf.Min(doorW.z - 1.1f, FootBack - .4f)), Dir(-.5f, -1), "Clipboard");
+   float countAt = small ? (CheckoutStall.ShopInside ? 2.6f : 1.8f) : 2.9f;   // beside the way in, not in it
+   var counter = Person(Next(), On(doorW.x + countAt, Mathf.Min(doorW.z - .6f, FootBack - .4f)), Dir(-.7f, -1), "Clipboard");
    director.OnReset(() => { bus.transform.position = Road(37, LaneW); bus.Face(WestDir); foreach (var c in kids) c.Show(false); teacher.Show(false); });
    Story(() => Trip());
    IEnumerator Trip() {

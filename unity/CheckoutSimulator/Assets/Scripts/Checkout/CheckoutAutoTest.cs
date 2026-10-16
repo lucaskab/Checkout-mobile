@@ -278,14 +278,13 @@ namespace Checkout {
     foreach(var id in ids){
      if(fx){fx.Preview(id);Time.timeScale=4;yield return new WaitForSecondsRealtime(1.5f);Time.timeScale=1;yield return new WaitForSecondsRealtime(.4f);}
      var door=map.Entrance;
-     var inside=CheckoutStall.Small?CheckoutStall.Centre:CheckoutInterior.Active!=null?new Vector3(CheckoutInterior.Active.FloorRect.center.x,0,CheckoutInterior.Active.FloorRect.center.y):door+Vector3.forward*4;
-     var d=door-inside;d.y=0;var outDir=Mathf.Abs(d.x)>Mathf.Abs(d.z)?new Vector3(Mathf.Sign(d.x),0,0):new Vector3(0,0,Mathf.Sign(d.z));
+     var outDir=Vector3.back;   // every stage's way in faces the avenue (-z): the stall's front, the shop doors
      var side=new Vector3(outDir.z,0,-outDir.x);var rot=Quaternion.LookRotation(outDir);
-     var issues=DoorwayIssues(door,outDir,side,rot);checks++;
+     var issues=DoorwayIssues(door,outDir,side,rot);checks++;var reachNote=issues.FirstOrDefault(i=>i.StartsWith("#"));issues.RemoveAll(i=>i.StartsWith("#"));
      string label=id==""?"(no event)":id;
      if(issues.Count>0){blocked++;var name=$"dw_{stage}_{(id==""?"none":id)}";CaptureAt(door+outDir*2+Vector3.up*.5f,9,name);
-      foreach(var i in issues)Note($"DOORWAY_BLOCK {stage} {label}: {i}");bad.Add($"{stage}/{label}");}
-     else Note($"doorway {stage} {label}: clear (door {door.x:0.0},{door.z:0.0} out {outDir})");
+      foreach(var i in issues)Note($"DOORWAY_BLOCK {stage} {label} (door {door.x:0.0},{door.z:0.0} {reachNote}): {i}");bad.Add($"{stage}/{label}");}
+     else Note($"doorway {stage} {label}: clear (door {door.x:0.0},{door.z:0.0} out {outDir} {reachNote})");
     }
     if(fx)fx.Preview("");
    }
@@ -294,34 +293,41 @@ namespace Checkout {
   List<string> DoorwayIssues(Vector3 door,Vector3 outDir,Vector3 side,Quaternion rot){
    var issues=new List<string>();var seen=new HashSet<string>();
    string PathOf(Transform t){var p=t.name;for(int i=0;i<3&&t.parent;i++){t=t.parent;p=t.name+"/"+p;}return p;}
-   bool Mover(Transform t)=>t.GetComponentInParent<UnityEngine.AI.NavMeshAgent>()||t.GetComponentInParent<CheckoutWalker>()||t.GetComponentInParent<CheckoutCityPedestrian>();
+   bool Mover(Transform t){if(t.GetComponentInParent<UnityEngine.AI.NavMeshAgent>()||t.GetComponentInParent<CheckoutWalker>()||t.GetComponentInParent<CheckoutCityPedestrian>())return true;for(var p=t;p;p=p.parent){var n=p.name;if(n.Contains("Neighborhood car")||n.Contains("Vehicle")||n.Contains("Truck")||n.Contains("Bicycle")||n.Contains("Courier"))return true;}return false;}
    bool DoorPart(Transform t){for(var c=t;c;c=c.parent){var n=c.name;if(n.StartsWith("Anim_Door")||n.Contains("Portal")||n.Contains("jamb")||n.Contains("Mullion")||n.Contains("Sidelight")||n=="Clean entrance frame")return true;}return false;}
-   // two boxes: the door mouth (0..1.5 m out, 1.6 m wide) and the approach (1.5..5 m out, 2.4 m wide); feet to head height
-   var boxes=new[]{(c:door+outDir*.75f+Vector3.up*1.05f,h:new Vector3(.8f,.8f,.75f)),(c:door+outDir*3.25f+Vector3.up*1.05f,h:new Vector3(1.2f,.8f,1.75f))};
+   // how far the walkable way runs out from the door (up to 5 m; the road beyond the curb is not part of it)
+   float reach=0;for(float o=.25f;o<=5f;o+=.25f){if(!UnityEngine.AI.NavMesh.SamplePosition(door+outDir*o,out var h0,.3f,UnityEngine.AI.NavMesh.AllAreas)||Mathf.Abs(h0.position.y-door.y)>.6f)break;reach=o;}
+   float walk=reach;reach=Mathf.Max(reach,1.2f);
+   // two boxes: the door mouth (0..1.5 m out, 1.6 m wide) and the approach (1.5 m..reach, 2 m wide); feet to head height
+   float mouth=Mathf.Min(1.5f,reach);
+   var boxes=new List<(Vector3 c,Vector3 h)>{(door+outDir*mouth*.5f+Vector3.up*1.05f,new Vector3(.8f,.8f,mouth*.5f))};
+   if(reach>mouth+.2f)boxes.Add((door+outDir*(mouth+reach)*.5f+Vector3.up*1.05f,new Vector3(1f,.8f,(reach-mouth)*.5f)));
+   issues.Add($"#reach {reach:0.0}");
    foreach(var b in boxes){
     foreach(var col in Physics.OverlapBox(b.c,b.h,rot,~0,QueryTriggerInteraction.Ignore)){
      var t=col.transform;if(Mover(t)||DoorPart(t))continue;var bb=col.bounds;if(bb.max.y<.3f||bb.size.x>14||bb.size.z>14)continue;
      var k="col "+PathOf(t);if(seen.Add(k))issues.Add($"{k} bounds x[{bb.min.x:0.0},{bb.max.x:0.0}] z[{bb.min.z:0.0},{bb.max.z:0.0}] y[{bb.min.y:0.0},{bb.max.y:0.0}]");}
     var box=new Bounds(b.c,Vector3.zero);foreach(var sx in new[]{-1,1})foreach(var sz in new[]{-1,1})box.Encapsulate(b.c+rot*new Vector3(b.h.x*sx,0,b.h.z*sz));box.Expand(new Vector3(0,b.h.y*2,0));
     foreach(var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)){
-     if(!r.enabled||!r.gameObject.activeInHierarchy||r is ParticleSystemRenderer||r is TrailRenderer||r is LineRenderer)continue;
+     if(!r.enabled||r.forceRenderingOff||!r.gameObject.activeInHierarchy||r is ParticleSystemRenderer||r is TrailRenderer||r is LineRenderer)continue;
      var rb=r.bounds;if(!rb.Intersects(box)||rb.max.y<.3f||rb.min.y>1.9f||rb.size.x>14||rb.size.z>14)continue;
      var t=r.transform;if(Mover(t)||DoorPart(t)||r.GetComponent<Collider>())continue;
+     if(PathOf(t).Contains("BalloonArch"))continue;   // the raffle's arch frames the door: people walk in under it
      // thin things lying on the ground (mats, stripes, decals) do not block
      if(rb.size.y<.12f)continue;
      var k="prop "+PathOf(t);if(seen.Add(k))issues.Add($"{k} (no collider) bounds x[{rb.min.x:0.0},{rb.max.x:0.0}] z[{rb.min.z:0.0},{rb.max.z:0.0}] y[{rb.min.y:0.0},{rb.max.y:0.0}]");
     }
    }
    // the walkable floor: no holes (a carving obstacle) across the corridor, and a direct walk from 6 m out
-   int holes=0;for(float o=.3f;o<=5f;o+=.6f)for(float s=-.6f;s<=.61f;s+=.6f){var p=door+outDir*o+side*s;if(!UnityEngine.AI.NavMesh.SamplePosition(p,out var hit,.35f,UnityEngine.AI.NavMesh.AllAreas))holes++;}
-   if(holes>3)issues.Add($"{holes} points of the corridor are off the walkable floor");
-   var from=door+outDir*6;var path=new UnityEngine.AI.NavMeshPath();
+   int holes=0;for(float o=.3f;o<=walk;o+=.5f)for(float s=-.6f;s<=.61f;s+=.6f){var p=door+outDir*o+side*s;if(!UnityEngine.AI.NavMesh.SamplePosition(p,out var hit,.35f,UnityEngine.AI.NavMesh.AllAreas))holes++;}
+   if(holes>1)issues.Add($"{holes} points of the way in are off the walkable floor (something carves it)");
+   var from=door+outDir*reach+side*(reach<3?3:0);var path=new UnityEngine.AI.NavMeshPath();
    if(UnityEngine.AI.NavMesh.SamplePosition(from,out var a,2f,UnityEngine.AI.NavMesh.AllAreas)&&UnityEngine.AI.NavMesh.SamplePosition(door,out var z,2f,UnityEngine.AI.NavMesh.AllAreas)){
     UnityEngine.AI.NavMesh.CalculatePath(a.position,z.position,UnityEngine.AI.NavMesh.AllAreas,path);float len=0;for(int i=1;i<path.corners.Length;i++)len+=Vector3.Distance(path.corners[i-1],path.corners[i]);
     float straight=Vector3.Distance(a.position,z.position);
-    if(path.status!=UnityEngine.AI.NavMeshPathStatus.PathComplete)issues.Add($"no walk to the door from 6 m out ({path.status})");
-    else if(len>straight*1.35f+.5f)issues.Add($"walk from 6 m out detours: {len:0.0} m for {straight:0.0} m");
-   }else issues.Add("no walkable floor at the door or 6 m out");
+    if(path.status!=UnityEngine.AI.NavMeshPathStatus.PathComplete)issues.Add($"no walk to the door from the street ({path.status})");
+    else if(len>straight*1.35f+.5f)issues.Add($"walk from the street detours: {len:0.0} m for {straight:0.0} m");
+   }else issues.Add("no walkable floor at the door or on the street side");
    return issues;
   }
   // Block layout per stage ("eventslayout-supermercado.hipermercado"): where the shop, the parking lot, the depot,
