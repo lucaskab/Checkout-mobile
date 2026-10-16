@@ -132,7 +132,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		id: "pedir",
 		mode: "spotlight",
 		title: "Faça o pedido",
-		text: "Escolha um produto e peça caixas. Essa primeira entrega é expressa, por conta da casa!",
+		text: "Escolha um produto e peça caixas. Essa primeira entrega é expressa: o caminhão chega em instantes!",
 		gameText: "Escolha um produto, toque em + Carrinho e depois em Fazer pedido.",
 		target: "route:@shop|action:placeSupplierCart|action:orderLowStock",
 	},

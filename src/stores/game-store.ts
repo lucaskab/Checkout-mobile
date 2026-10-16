@@ -200,7 +200,7 @@ import { getSkipDiamondCost } from "@/data/diamond-skip";
 import { createRewardedAdsState, creditPlacementAd, normalizeRewardedAdsState, rewardAd } from "@/services/rewarded-ads";
 import { canClaimConsolation, rollConsolation } from "@/services/contract-pressure";
 import { getCurrencyPack, getCurrencyPackCoins } from "@/data/currency-packs";
-import { getMissionProgress, getMissionRewardPlan } from "@/services/missions";
+import { getMissionProgress, getMissionRewardPlan, getNewlyReachedMissionIds } from "@/services/missions";
 import { getProductionDiamondCost } from "@/services/production";
 import {
 	applyExperience,
@@ -410,6 +410,7 @@ const initialEmployeesState: GameEmployeesState = {
 
 const initialMissionsState: GameMissionsState = {
 	claimedMissionIds: [],
+	reachedMissionIds: [],
 };
 
 const initialStatistics: GameStatistics = {
@@ -570,6 +571,7 @@ function getInitialGameState(): GameState {
 		builtSectorIds: [],
 		missions: {
 			claimedMissionIds: [...initialGameState.missions.claimedMissionIds],
+			reachedMissionIds: [],
 		},
 		production: {
 			...initialGameState.production,
@@ -781,6 +783,7 @@ function migrateGameState(persistedState: unknown): GameState {
 		claimedMissionIds:
 			missionsState?.claimedMissionIds ??
 			initialGameState.missions.claimedMissionIds,
+		reachedMissionIds: missionsState?.reachedMissionIds ?? [],
 	};
 	const statistics = {
 		...initialGameState.statistics,
@@ -1046,13 +1049,29 @@ export const useGameStore = create<GameStore>()(
 					state.market.customersWhoBought > 0
 						? state.market.totalRevenue / state.market.customersWhoBought
 						: 18;
+				// Only what is on the shelves sells: each offline customer takes one unit, so empty shelves sell
+				// nothing (QA 16/10).
 				const away = state.market.isOpen
 					? getOfflineEraIncome(get().era, elapsedMs, averageTicket)
-					: null;
-				const customers = away?.customers ?? 0;
+					: { coins: 0, customers: 0 };
+				const shelfStock = { ...(state.shelfStock ?? {}) } as GameShelfStock;
+				const stocked = Object.values(shelfStock).reduce((total, units) => total + Math.max(0, units ?? 0), 0);
+				const customers = Math.min(away.customers, stocked);
+				const soldShare = away.customers > 0 ? customers / away.customers : 0;
 				const offlineCoins = Math.floor(
-					(away?.coins ?? 0) * shopEffects.offlineRevenueMultiplier,
+					away.coins * soldShare * shopEffects.offlineRevenueMultiplier,
 				);
+				// the units leave the fullest shelves first, one at a time
+				for (let left = customers; left > 0; ) {
+					const slots = Object.keys(shelfStock).filter((slot) => (shelfStock[slot] ?? 0) > 0);
+					if (slots.length === 0) break;
+					slots.sort((a, b) => (shelfStock[b] ?? 0) - (shelfStock[a] ?? 0));
+					for (const slot of slots) {
+						if (left <= 0) break;
+						shelfStock[slot] = (shelfStock[slot] ?? 0) - 1;
+						left--;
+					}
+				}
 				const progression = applyExperience(
 					state.market.level,
 					state.market.experience,
@@ -1068,6 +1087,7 @@ export const useGameStore = create<GameStore>()(
 				set({
 					coins: state.coins + offlineCoins,
 					daily: nextDaily,
+					shelfStock,
 					// Offline sales stay out of the turn's stats: the contract counts what the player played.
 					lastSessionAt: now,
 					market: {
@@ -1190,7 +1210,8 @@ export const useGameStore = create<GameStore>()(
 					!mission ||
 					state.market.level < mission.requiredLevel ||
 					state.missions.claimedMissionIds.includes(mission.id) ||
-					getMissionProgress(mission, state) < mission.goal
+					(getMissionProgress(mission, state) < mission.goal &&
+						!(state.missions.reachedMissionIds ?? []).includes(mission.id))
 				) {
 					return false;
 				}
@@ -1360,7 +1381,9 @@ export const useGameStore = create<GameStore>()(
 											eventEffects.customerArrivalMultiplier *
 											employeeEffects.customerArrivalMultiplier *
 								getTurnEffects(get().era.id, get().day.shift).customerArrivalMultiplier,
-										getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
+										getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier /
+									// a busy event (payday, rush hour) brings more people than the shop's usual cap
+									Math.max(1, eventEffects.customerArrivalMultiplier),
 									),
 							}
 						: market,
@@ -2136,7 +2159,9 @@ export const useGameStore = create<GameStore>()(
 									eventEffects.customerArrivalMultiplier *
 									employeeEffects.customerArrivalMultiplier *
 									turnEffects.customerArrivalMultiplier,
-								turnEffects.minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
+								turnEffects.minArrivalDelayMs / shopEffects.customerCapacityMultiplier /
+									// a busy event (payday, rush hour) brings more people than the shop's usual cap
+									Math.max(1, eventEffects.customerArrivalMultiplier),
 							),
 					};
 				}
@@ -3177,7 +3202,9 @@ export const useGameStore = create<GameStore>()(
 									employeeEffects.customerArrivalMultiplier *
 								getTurnEffects(get().era.id, get().day.shift).customerArrivalMultiplier *
 									getLoyaltyArrivalMultiplier(day.loyalty),
-								getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
+								getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier /
+									// a busy event (payday, rush hour) brings more people than the shop's usual cap
+									Math.max(1, eventEffects.customerArrivalMultiplier),
 							),
 						recentCustomers: [customer, ...market.recentCustomers].slice(0, 3),
 						randomSeed: nextSeed,
@@ -3643,7 +3670,7 @@ export const useGameStore = create<GameStore>()(
 			setMarketOpen: (isOpen) => {
 				// The shop needs its furniture: nothing opens while owned pieces still wait to be placed.
 				if (isOpen && !get().market.isOpen && getPiecesToPlaceBeforeOpening(get()) > 0)
-					return;
+					return false;
 				// Closing time: the customers already in line are rung up before the doors lock.
 				if (!isOpen && get().market.isOpen)
 					for (const pending of [...get().checkout.queue]) {
@@ -3666,7 +3693,7 @@ export const useGameStore = create<GameStore>()(
 				// Opening always happens inside a day: without a chosen contract it is a free day.
 				// A finished day must be reviewed (claimDayResult) before the next one opens.
 				if (isOpen && !market.isOpen) {
-					if (day.phase === "results") return;
+					if (day.phase === "results") return false;
 					if (day.phase === "planning") day = startMarketDay(day, null, now) ?? day;
 				}
 				const isOpening = isOpen && !market.isOpen;
@@ -3696,7 +3723,9 @@ export const useGameStore = create<GameStore>()(
 								employeeEffects.customerArrivalMultiplier *
 								getTurnEffects(get().era.id, get().day.shift).customerArrivalMultiplier *
 								getLoyaltyArrivalMultiplier(day.loyalty),
-							getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier,
+							getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier /
+									// a busy event (payday, rush hour) brings more people than the shop's usual cap
+									Math.max(1, eventEffects.customerArrivalMultiplier),
 						);
 				const lastShiftSummary =
 					isClosing && market.currentShift
@@ -3780,6 +3809,7 @@ export const useGameStore = create<GameStore>()(
 								}
 							: statistics,
 				});
+				return true;
 			},
 			startDay: (contractId, shift = "dia") => {
 				const { day, market } = get();
@@ -4571,6 +4601,16 @@ export const useGameStore = create<GameStore>()(
 		},
 	),
 );
+
+// Missions that count what is in stock right now (it drops when boxes go onto the shelves or spoil) stay done once
+// reached, so their reward can't vanish before the player claims it (QA 16/10).
+useGameStore.subscribe((state) => {
+	const reached = getNewlyReachedMissionIds(state);
+	if (reached.length > 0)
+		useGameStore.setState({
+			missions: { ...state.missions, reachedMissionIds: [...(state.missions.reachedMissionIds ?? []), ...reached] },
+		});
+});
 
 function normalizeShelfState(
 	shelfStock: GameShelfStock,

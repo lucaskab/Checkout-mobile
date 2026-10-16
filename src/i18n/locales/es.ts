@@ -3197,7 +3197,7 @@ const catalog: Catalog = {
 	"Seu primeiro pedido": "Tu primer pedido",
 	"Vamos comprar mercadoria do atacado. Toque em ENTREGAS.": "Vamos a comprar mercancía al mayorista. Toca ENTREGAS.",
 	"Faça o pedido": "Haz el pedido",
-	"Escolha um produto e peça caixas. Essa primeira entrega é expressa, por conta da casa!": "Elige un producto y pide cajas. ¡Esta primera entrega es express, por cuenta de la casa!",
+	"Escolha um produto e peça caixas. Essa primeira entrega é expressa: o caminhão chega em instantes!": "Elige un producto y pide cajas. Esta primera entrega es exprés: ¡el camión llega en un momento!",
 	"Escolha um produto, toque em + Carrinho e depois em Fazer pedido.": "Elige un producto, toca + Carrito y luego Hacer pedido.",
 	"O caminhão está vindo!": "¡El camión viene!",
 	"O caminhão do atacado já saiu. Enquanto isso, continue atendendo os clientes no caixa.": "El camión del mayorista ya salió. Mientras tanto, sigue atendiendo a los clientes en la caja.",
@@ -3495,6 +3495,13 @@ const catalog: Catalog = {
 	"DINHEIRO": "EFECTIVO",
 	"CARTÃO": "TARJETA",
 	"CUPOM": "TICKET",
+	// QA sweep 16/10
+	"Começa com quatro espaços.": "Empieza con cuatro espacios.",
+	"Coloque os móveis que estão esperando antes de abrir a loja.": "Coloca los muebles que están esperando antes de abrir la tienda.",
+	"Veja o resultado do dia antes de abrir de novo.": "Mira el resultado del día antes de abrir de nuevo.",
+	"1 cliente atendido": "1 cliente atendido",
+	"+1 moeda": "+1 moneda",
+	"Preço do terreno: {0} / {1} moedas": "Precio del terreno: {0} / {1} monedas",
 };
 
 export default catalog;

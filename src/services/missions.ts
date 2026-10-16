@@ -65,9 +65,24 @@ export function getMissionStatus(
 		return "locked";
 	}
 
-	return getMissionProgress(mission, state) >= mission.goal
+	return getMissionProgress(mission, state) >= mission.goal ||
+		(state.missions.reachedMissionIds ?? []).includes(mission.id)
 		? "claimable"
 		: "active";
+}
+
+/** Stock missions done right now that are not latched yet (see the subscription in stores/game-store.ts). */
+export function getNewlyReachedMissionIds(state: GameState) {
+	const reached = state.missions.reachedMissionIds ?? [];
+	return missions
+		.filter(
+			(mission) =>
+				(mission.metric === "inventoryUnits" || mission.metric === "inventoryProduct") &&
+				!reached.includes(mission.id) &&
+				!state.missions.claimedMissionIds.includes(mission.id) &&
+				getMissionStatus(mission, state) === "claimable",
+		)
+		.map((mission) => mission.id);
 }
 
 export function getClaimableMissionCount(state: GameState) {

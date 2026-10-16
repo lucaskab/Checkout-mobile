@@ -58,7 +58,7 @@ const iconOf = (icon: string) =>
 			: "target",
 	);
 
-function contractCard(contract: DayContract) {
+function contractCard(contract: DayContract, canOpen = true) {
 	const rewards = [
 		`+${fmt(contract.reward.coins)} moedas`,
 		`+${contract.reward.experience} XP`,
@@ -79,6 +79,8 @@ function contractCard(contract: DayContract) {
 			act("Aceitar e abrir", "startDay", [contract.id], {
 				variant: "success",
 				icon: gameIcon("key"),
+				// furniture still waiting to be placed: the card above says so, the button waits too
+				enabled: canOpen,
 				after: "back",
 				ok: `Dia aberto: ${contract.title}`,
 				fail: "Coloque seus móveis no modo Construir antes de abrir.",
@@ -173,13 +175,14 @@ function planning(state: State) {
 					`Fidelidade dos clientes: ${day.loyalty}/100 (mais fidelidade, mais visitas)`,
 				],
 			}),
-			...day.offers.map(contractCard),
+			...day.offers.map((offer) => contractCard(offer, waiting === 0)),
 			card("Dia livre", {
 				subtitle: "Abrir sem contrato. A nota do dia ainda conta.",
 				icon: gameIcon("key"),
 				buttons: [
 					act("Abrir sem contrato", "startDay", [FREE_DAY_CONTRACT_ID], {
 						variant: "secondary",
+						enabled: waiting === 0,
 						after: "back",
 						ok: "Mercado aberto!",
 						fail: "Coloque seus móveis no modo Construir antes de abrir.",
@@ -200,9 +203,10 @@ function planning(state: State) {
 							buttons: [
 								act("Abrir à noite", "startDay", [FREE_DAY_CONTRACT_ID, "noite"], {
 									variant: "primary",
+									enabled: waiting === 0,
 									after: "back",
 									ok: "Turno da noite aberto!",
-									fail: "Não foi possível abrir agora.",
+									fail: waiting > 0 ? "Coloque seus móveis no modo Construir antes de abrir." : "Não foi possível abrir agora.",
 								}),
 							],
 						}),

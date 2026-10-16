@@ -6,6 +6,7 @@ import { shelves } from "@/data/market-products";
 import { createSimulatorCommandHandler } from "@/services/simulator-protocol";
 import { getUnlockedSimulatorSectorId } from "@/services/simulator-sector-selection";
 import { getRecentEventOutcome } from "@/services/game-events";
+import { getPiecesToPlaceBeforeOpening } from "@/services/market-era";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
 import { useGameStore } from "@/stores/game-store";
 import { getCatalog, getLanguage, localizeSnapshot, localizeView, setLanguage, t } from "@/i18n";
@@ -213,6 +214,15 @@ function openStoreOnShortfall() {
 	return true;
 }
 
+// Why opening the shop / starting a day was refused, in words the player can act on.
+function rejectionReason(action: string) {
+	const state = useGameStore.getState();
+	if (action !== "setMarketOpen" && action !== "startDay") return null;
+	if (getPiecesToPlaceBeforeOpening(state) > 0) return t("Coloque os móveis que estão esperando antes de abrir a loja.");
+	if (state.day.phase === "results") return t("Veja o resultado do dia antes de abrir de novo.");
+	return null;
+}
+
 function runHudAction(message: {
 	id?: unknown;
 	action?: unknown;
@@ -296,7 +306,7 @@ function runHudAction(message: {
 			? ""
 			: short
 				? t(short.missing === 1 ? "Falta 1 diamante." : `Faltam ${short.missing} diamantes.`)
-				: "game-rule-rejected";
+				: rejectionReason(action) ?? "game-rule-rejected";
 		send({ kind: "result", id, action, ok, reason });
 		if (ok && message.after === "back") routes.pop();
 		// "!route" / "~route": the action then opens a page (the level-up celebration's group buttons).

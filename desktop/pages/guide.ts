@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { GameIconId } from "@/data/game-icon-assets";
 import { onboardingGuide } from "@/data/onboarding";
 import { getNextGoal } from "@/services/onboarding";
@@ -27,7 +28,8 @@ export const routes: Routes = {
 				lines: [
 					"Transforme a mesinha da calçada no maior supermercado da cidade, e depois numa rede!",
 					"O ciclo: abra a loja, atenda no caixa, reponha a vitrine, peça mercadoria ao atacado e suba de nível.",
-					goal.text ? `Agora: ${goal.text} (${goal.detail})` : "",
+					// the goal's own sentences are translated before they go inside this one
+					goal.text ? `Agora: ${t(goal.text)} (${t(goal.detail)})` : "",
 				].filter(Boolean),
 				buttons: [
 					act("Rever tutorial", "restartOnboarding", [], { variant: "success", after: "back", ok: "Vamos lá!" }),

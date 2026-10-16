@@ -49,6 +49,8 @@ export type MissionDefinition = {
 
 export type GameMissionsState = {
 	claimedMissionIds: string[];
+	/** Missions that were done at some point and stay claimable (stock missions: the stock drops later). */
+	reachedMissionIds?: string[];
 };
 
 export type MissionStatus = "active" | "claimable" | "claimed" | "locked";

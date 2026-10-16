@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { EmployeeRole } from "@/@types/employee";
 import { getMarketEra } from "@/data/economy";
 import { getAchievementIcon, getMissionIcon, getShopItemIcon } from "@/data/game-icon-assets";
@@ -251,7 +252,8 @@ export function levelUpView(state: State): LevelUpView | null {
 	}
 	const total = result.filter((group) => group.icon !== gameIcon("lock")).reduce((sum, group) => sum + group.items.length, 0);
 	const next = getNextLevelUnlocks(to, eraId);
-	const nextNames = next?.unlocks.map((unlock) => unlock.name) ?? [];
+	// translated one by one: the list's sentence is translated as a whole later and would leave the names as they are
+	const nextNames = next?.unlocks.map((unlock) => t(unlock.name)) ?? [];
 	return {
 		key: `${from}:${to}:${levelUp.at}`,
 		from,

@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { ItemDefinition } from "@/@types/item";
 import type { SupplierOrder } from "@/@types/logistics";
 import { MAX_ITEM_LEVEL } from "@/data/economy";
@@ -409,7 +410,7 @@ function stockBoard(state: State, args: string[], aliasOf?: string) {
 					icon: gameIcon("deliveryTruck"),
 					enabled: orderable > 0,
 					ok: "Pedidos feitos! Os caminhões já saíram.",
-					fail: "Sem moedas, sem vagas de entrega ou sem espaço no estoque.",
+					fail: orderable > 0 ? "Sem moedas, sem vagas de entrega ou sem espaço no estoque." : "Nada está acabando agora.",
 				}),
 				act(dock.length ? `Descarregar tudo (${dock.length})` : "Doca vazia", "unloadAllDeliveries", [], {
 					variant: "success",
@@ -590,7 +591,7 @@ function orderTitle(order: SupplierOrder) {
 /** What a truck carries, in boxes: "2 cx Tomate, 1 cx Leite e mais 2". */
 function orderContents(order: SupplierOrder) {
 	const lines = getOrderLines(order);
-	const shown = lines.slice(0, 2).map((line) => `${line.boxes} cx ${productName(line.productId)}`);
+	const shown = lines.slice(0, 2).map((line) => t(`${line.boxes} cx ${productName(line.productId)}`));
 	const rest = lines.length - shown.length;
 	return rest > 0 ? `${shown.join(", ")} e mais ${rest}` : shown.join(", ");
 }

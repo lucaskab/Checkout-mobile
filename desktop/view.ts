@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { SimulatorPanel } from "@/@types/simulator";
 import { getGameEvent } from "@/data/game-events";
 import { getActiveEventEffectLabel, getRecentEventOutcome } from "@/services/game-events";
@@ -220,8 +221,9 @@ const contractUnit = (kind: string) =>
 					: " pedidos";
 const prize = (reward: { coins: number; diamonds: number; experience: number }) =>
 	[
-		reward.coins ? `${fmt(reward.coins)} moedas` : "",
-		reward.diamonds ? `${fmt(reward.diamonds)} diamantes` : "",
+		// each piece in the player's language before the pieces join the sentence ("40 coins + 11 XP")
+		reward.coins ? t(`${fmt(reward.coins)} moedas`) : "",
+		reward.diamonds ? t(`${fmt(reward.diamonds)} diamantes`) : "",
 		reward.experience ? `${fmt(reward.experience)} XP` : "",
 	]
 		.filter(Boolean)
@@ -238,8 +240,8 @@ function offline(state: State) {
 		icon: gameIcon("coin"),
 		lines: [
 			`${fmt(minutes)} min fora`,
-			`${fmt(summary.customers)} clientes atendidos`,
-			`+${fmt(summary.coins)} moedas`,
+			summary.customers === 1 ? "1 cliente atendido" : `${fmt(summary.customers)} clientes atendidos`,
+			summary.coins === 1 ? "+1 moeda" : `+${fmt(summary.coins)} moedas`,
 		],
 		buttons: [act("Coletar", "dismissOfflineSummary", [], { variant: "success" })],
 	});

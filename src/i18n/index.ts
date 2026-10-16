@@ -54,7 +54,24 @@ function translator(language: Language) {
 /** The text in the current language (unchanged in Portuguese or when the catalog does not know it). */
 export function t(text: string): string {
 	if (current === "pt" || !text) return text;
-	return translator(current).translate(text);
+	return localNumbers(translator(current).translate(text));
+}
+
+/**
+ * The game writes numbers the Brazilian way ("1.850.000", "×0,75"); English and French players read them their
+ * own way ("1,850,000" / "1 850 000", "×0.75" / "×0,75"). Spanish and German already match. Only whole
+ * thousand groups and 1–2 decimals are touched, so English numbers already in a text ("1,000") stay as they are.
+ */
+export function localNumbers(text: string, language: Language = current): string {
+	// real-money prices come from the store already written for the player's country
+	if ((language !== "en" && language !== "fr") || /R\$|€|£/.test(text)) return text;
+	const group = language === "en" ? "," : "\u202f";
+	const point = language === "en" ? "." : ",";
+	return text
+		.replace(/(?<![\d.,])(\d{1,3}(?:\.\d{3})+)(?:,(\d{1,2}))?(?![\d.,]*\d)/g, (_, whole: string, decimals?: string) =>
+			whole.replace(/\./g, group) + (decimals ? point + decimals : ""),
+		)
+		.replace(/(?<![\d.,])(\d+),(\d{1,2})(?![\d,.]*\d)/g, (_, whole: string, decimals: string) => whole + point + decimals);
 }
 
 /** Keys of the desktop page messages that hold ids, routes, icons or colours — never text. */
@@ -73,7 +90,9 @@ const snapshotTextKeys = new Set([
 
 function localize<T>(value: T, translate: (key: string) => boolean): T {
 	const visit = (node: unknown, key: string): unknown => {
-		if (typeof node === "string") return translate(key) ? t(node) : node;
+		// id-like fields keep their text, but a plain number among them (the HUD's coins) is still written the
+		// player's way
+		if (typeof node === "string") return translate(key) ? t(node) : /^[+\-−]?[\d.,]+$/.test(node) ? localNumbers(node) : node;
 		if (Array.isArray(node)) return node.map((item) => visit(item, key));
 		if (node && typeof node === "object") {
 			const out: Record<string, unknown> = {};

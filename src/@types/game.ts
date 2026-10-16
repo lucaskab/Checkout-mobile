@@ -386,7 +386,8 @@ export type GameActions = {
 	setMarketLevel: (level: number) => void;
 	setEmployeeWorking: (employeeId: string, isWorking: boolean) => boolean;
 	trainEmployee: (employeeId: string) => boolean;
-	setMarketOpen: (isOpen: boolean) => void;
+	/** false when nothing changed: pieces still to place, or a finished day waiting for its results. */
+	setMarketOpen: (isOpen: boolean) => boolean;
 	setShelfPrice: (shelfId: string, price: number) => boolean;
 	startProduction: (input: StartProductionInput) => boolean;
 	/** Production made by hand in the kitchen game (stars 1–3; 3 = one extra unit). */

@@ -857,10 +857,12 @@ const emptyReward = (): DayReward => ({ coins: 0, diamonds: 0, experience: 0 });
 
 export function closeMarketDay(
 	day: GameDayState,
-	now: number,
+	closingAt: number,
 	level: number,
 ): GameDayState | null {
 	if (day.phase !== "open") return null;
+	// A day found over when the app comes back closed at its own end, not when the player returned.
+	const now = typeof day.endsAt === "number" && day.endsAt > 0 ? Math.min(closingAt, day.endsAt) : closingAt;
 	// Anyone still waiting when the doors close leaves unhappy.
 	const { day: settled } = expireSpecialRequests(
 		{

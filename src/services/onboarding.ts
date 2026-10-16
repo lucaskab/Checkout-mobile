@@ -228,7 +228,12 @@ function advance(state: GameState, id: OnboardingStepId, now: number): Onboardin
 		status: next ? "active" : "done",
 		step: next?.id ?? "",
 		stepStartedAt: now,
-		marks: getOnboardingMarks(state),
+		marks: ((marks) =>
+			// The first customer was rung up in the same moment they reached the till: that sale is the
+			// register step's too, so it is not kept waiting for the next customer (QA 16/10).
+			id === "primeiro-cliente" && state.checkout.served > state.onboarding.marks.served
+				? { ...marks, served: state.onboarding.marks.served }
+				: marks)(getOnboardingMarks(state)),
 		completed: [...base.completed.filter((item) => item !== id), id],
 	};
 	let logistics = update.logistics ?? state.logistics;
@@ -451,7 +456,8 @@ export function getNextGoal(state: GameState, icons: { lot: string; coin: string
 		const price = lot?.price ?? 0;
 		return {
 			text: `Compre o ${lot?.label ?? `lote ${toBuy}`}`,
-			detail: `Próxima expansão: ${next.name} · ${state.coins.toLocaleString("pt-BR")} / ${price.toLocaleString("pt-BR")} moedas`,
+			// the bar fills towards the plot's price (the expansion's own price comes after)
+			detail: `Preço do terreno: ${state.coins.toLocaleString("pt-BR")} / ${price.toLocaleString("pt-BR")} moedas`,
 			icon: icons.lot,
 			progress: price > 0 ? Math.min(1, state.coins / price) : 1,
 			route: "loja:terrenos",
