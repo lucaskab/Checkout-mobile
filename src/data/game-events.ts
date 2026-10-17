@@ -92,7 +92,7 @@ export const gameEvents: GameEventDefinition[] = [
 		requirements: { minEra: "banca" },
 	},
 	{
-		description: "Tem jogo do Brasil no telão: o bairro inteiro vem buscar cerveja, refri e carne para o churrasco.",
+		description: "Tem final de campeonato no telão: o bairro inteiro vem buscar cerveja, refri e carne para o churrasco.",
 		durationMinutes: 5,
 		effectLabel: "+15% de clientes; procura 2,5× por cerveja e refri, 2× por bebidas e carnes",
 		effects: {
@@ -110,7 +110,7 @@ export const gameEvents: GameEventDefinition[] = [
 		crowdShare: 0.5,
 		id: "dia-de-jogo",
 		kind: "positive",
-		name: "Dia de jogo do Brasil",
+		name: "Dia de final no telão",
 		requirements: { minEra: "conteiner" },
 	},
 	{

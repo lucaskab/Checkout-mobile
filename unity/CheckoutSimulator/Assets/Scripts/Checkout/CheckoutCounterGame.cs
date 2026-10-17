@@ -101,7 +101,7 @@ namespace Checkout {
   static Vector2 Mid=>new Vector2(.5f,.5f);
   void Hint(Func<Vector2> from,Func<Vector2> to,bool tap=false){if(hint)Destroy(hint);hint=U.Hint(this,stage,from,to,tap);}
   void StopHint(){if(hint)Destroy(hint);hint=null;}
-  static string Money(double v)=>"R$ "+v.ToString("0");
+  static string Money(double v)=>CheckoutCoinText.Of(v); // the game's own coin, no country's currency
 
   // A navy card with a soft shadow and a thin gold edge (customer, steps, change).
   Image Card(string name,Vector2 at,Vector2 size){
@@ -480,7 +480,7 @@ namespace Checkout {
    for(int i=0;i<digits.Length;i++){
     int d=digits[i]-'0';int index=d==0?9:d>=7?d-7:d>=4?d-1:d+5; // keypad rows 7 8 9 / 4 5 6 / 1 2 3 / 0 00 ,
     yield return PressKey(keys.Count>index?keys[index]:null);
-    if(registerDisplay)registerDisplay.text="R$ "+digits.Substring(0,i+1);
+    if(registerDisplay)registerDisplay.text=CheckoutCoinText.Tag+"\u2009"+digits.Substring(0,i+1);
    }
    yield return new WaitForSecondsRealtime(.08f);
    yield return PressKey(okKey,true);
