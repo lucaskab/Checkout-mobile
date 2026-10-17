@@ -59,11 +59,11 @@ namespace Checkout {
    if(fakeIncident!=null&&(s.incidents==null||s.incidents.All(d=>d.id!=fakeIncident.id))){s.incidents=(s.incidents??Array.Empty<IncidentEntry>()).Append(fakeIncident).ToArray();if(s.coins<fakeIncident.fixCost+1)s.coins=fakeIncident.fixCost+100;}
   }
 
-  // Register, cash step ("register"): a made-up customer pays R$ 37 with a 50 note; the test scans, taps the money
-  // into the drawer and gives R$ 13 of change (10 + 2 + 1), with a shot of each step.
+  // Register, cash step ("register"): a made-up customer pays 37 coins with 53 (a 50 note, a 2 note and a 1 coin);
+  // the test scans, taps the money into the drawer and gives 16 of change (10 + 5 + 1), with a shot of each step.
   IEnumerator RegisterCash(){
    var game=CheckoutCounterGame.Instance;if(!game){Note("no register");yield break;}
-   var fake=new CheckoutEntry{id="qa-cash",customerId="",customerName="Cliente teste",mood="",method="dinheiro",total=37,cashGiven=50,readyAt=0,expiresAt=double.MaxValue,
+   var fake=new CheckoutEntry{id="qa-cash",customerId="",customerName="Cliente teste",mood="",method="dinheiro",total=37,cashGiven=53,readyAt=0,expiresAt=double.MaxValue,
     items=new[]{new CheckoutLine{productId=1,quantity=2,name="Tomate",unitPrice=10},new CheckoutLine{productId=14,quantity=1,name="Refrigerante",unitPrice=17}}};
    game.OpenPreview(fake);
    yield return new WaitForSecondsRealtime(2f);
@@ -75,7 +75,7 @@ namespace Checkout {
    yield return Shot("register_change");
    game.QaGive(10);yield return new WaitForSecondsRealtime(.5f);
    game.QaGive(50);yield return new WaitForSecondsRealtime(.5f); // too much: refused
-   game.QaGive(2);yield return new WaitForSecondsRealtime(.6f);
+   game.QaGive(5);yield return new WaitForSecondsRealtime(.6f);
    yield return Shot("register_change2");
    game.QaGive(1);yield return new WaitForSecondsRealtime(1.6f);
    yield return Shot("register_done");

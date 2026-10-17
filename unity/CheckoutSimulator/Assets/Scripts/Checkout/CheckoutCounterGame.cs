@@ -362,9 +362,15 @@ namespace Checkout {
    StartCoroutine(U.Pop(posScreen,1.06f,.3f));
    yield return new WaitForSecondsRealtime(.5f);
    var notes=Split(given);
+   // notes fanned out on the left of the dish, coins smaller and in a row on its right (Lucas 17/10: the coins were
+   // as big as the notes and covered their values)
+   int noteIndex=0,coinIndex=0;
    for(int i=0;i<notes.Count;i++){
-    int value=notes[i];var note=MoneyArt(stage,value,DishCenter+new Vector2(-46+i*22,6+i*10),1f);note.localRotation=Quaternion.Euler(0,0,UnityEngine.Random.Range(-12,12));
-    note.localScale=Vector3.zero;StartCoroutine(U.Scale(note,Vector3.one,.25f,true));Play(value<=1?"coin_"+i%3:"note_"+i%2,1,.7f);
+    int value=notes[i];bool coin=value<=1;float size=coin?.6f:1f;
+    var at=coin?DishCenter+new Vector2(58+(coinIndex%3)*30,-26+(coinIndex/3)*26+(coinIndex%2)*6):DishCenter+new Vector2(-46+noteIndex*22,6+noteIndex*10);
+    if(coin)coinIndex++;else noteIndex++;
+    var note=MoneyArt(stage,value,at,1f);note.localRotation=Quaternion.Euler(0,0,UnityEngine.Random.Range(-12,12));
+    note.localScale=Vector3.zero;StartCoroutine(U.Scale(note,Vector3.one*size,.25f,true));Play(value<=1?"coin_"+i%3:"note_"+i%2,1,.7f);
     var n=note;U.Tap(note.GetComponent<Image>(),()=>PayNote(n,value));customerNotes.Add(note);
     yield return new WaitForSecondsRealtime(.09f);
    }
@@ -442,7 +448,8 @@ namespace Checkout {
    PopBin(value);
    var note=MoneyArt(stage,value,BinPoint(value),value<=1?.5f:.42f);note.localRotation=Quaternion.Euler(0,0,value<=1?0:90);
    var spot=DishCenter+new Vector2(UnityEngine.Random.Range(-70,70),UnityEngine.Random.Range(-10,40));
-   StartCoroutine(Arc(note,spot,UnityEngine.Random.Range(-15,15),value<=1?.55f:.72f,.34f,110));
+   if(value<=1)spot=DishCenter+new Vector2(UnityEngine.Random.Range(40,95),UnityEngine.Random.Range(-30,20));   // coins beside the notes, not on their values
+   StartCoroutine(Arc(note,spot,UnityEngine.Random.Range(-15,15),value<=1?.42f:.72f,.34f,110));
    changeGiven+=value;handNotes.Add(note);Play(value<=1?"coin_"+handNotes.Count%3:"note_"+handNotes.Count%2);
    var n=note;U.Tap(note.GetComponent<Image>(),()=>TakeBack(n,value));
    if(changeGiven==changeDue){UpdateChange();StartCoroutine(U.Pop(changePanel,1.08f,.3f));changeTitle.text=CheckoutI18n.T("TROCO CERTO!");StartCoroutine(Emote("heart"));StartCoroutine(ChangeDone());}
