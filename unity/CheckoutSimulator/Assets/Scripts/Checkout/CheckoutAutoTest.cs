@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -255,6 +255,66 @@ namespace Checkout {
     var r=CheckoutWalker.EventQa.TryGetValue(id,out var w)?w:new int[4];
     Note($"EVENTS_MARKET {stage} {id}: customers={all.Count} tagged={tagged.Count} began={r[0]} entrance={r[1]} register={r[2]} paid={r[3]}");
    }
+  }
+  // Heavy-rain umbrellas up close ("umbrella" or "umbrella-<stage>"): the rain scene runs, then up to 8 people
+  // holding an umbrella are shot from the game camera and from their side and front (Logs/um_<n>_{game,side,front}.jpg),
+  // with numbers: how far the shaft passes from the head, whether the canopy cuts into the head or body, the elbow
+  // angle and where the hand is against the shoulder. UMBRELLA lines in the log.
+  IEnumerator Umbrellas(string request){
+   var parts=request.Split('-');var stage=parts.Length>1?parts[1]:"";bool v2=parts.Contains("v2");
+   foreach(var f in Directory.GetFiles("Logs","um_*.jpg"))File.Delete(f);
+   if(v2){var model=Resources.Load<GameObject>("RainPreview/RainUmbrellaV2");Note("UMBRELLA v2 model "+(model?"loaded":"MISSING"));FindAnyObjectByType<CheckoutEventVisuals>()?.UseUmbrella(model);}
+   if(stage!=""){CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-"+stage+"\",\"action\":\"devSetMarketEra\",\"args\":[\""+stage+"\"]}");yield return new WaitForSecondsRealtime(7);}
+   if(!bridge.State.isOpen)CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-open\",\"action\":\"setMarketOpen\",\"args\":[true]}");
+   var fx=FindAnyObjectByType<CheckoutEventVisuals>();if(!fx){Note("no CheckoutEventVisuals");yield break;}
+   fx.Preview("chuva-forte");Time.timeScale=3;yield return new WaitForSecondsRealtime(4);Time.timeScale=1;yield return new WaitForSecondsRealtime(1.5f);
+   var rigs=FindObjectsByType<MarketDay.MarketRainUmbrellaRig>(FindObjectsSortMode.None).Where(r=>r.HasVisibleUmbrella).Take(8).ToList();
+   Note($"UMBRELLA people with an umbrella: {rigs.Count}");
+   int n=0;
+   foreach(var rig in rigs){
+    if(!rig)continue;
+    yield return new WaitForEndOfFrame();
+    var root=rig.transform;var bones=root.GetComponentsInChildren<Transform>(true);
+    Transform B(string k)=>bones.FirstOrDefault(b=>{var x=new string(b.name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());return x.EndsWith(k)||x.Contains(k);});
+    var head=bones.FirstOrDefault(b=>{var x=new string(b.name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());return x=="head"||x.EndsWith("head");});
+    var um=root.Find("Rain umbrella");var ur=um?um.GetComponentsInChildren<Renderer>():new Renderer[0];
+    var body=root.GetComponentsInChildren<SkinnedMeshRenderer>().Where(r=>r.enabled&&!r.name.EndsWith("_Prop")).ToArray();
+    Vector3 hp=head?head.position:root.position+Vector3.up*1.4f;
+    string metrics="";
+    if(um){
+     var axis=um.up;var grip=um.position;var toHead=hp-grip;var along=Vector3.Dot(toHead,axis);var off=(toHead-axis*along).magnitude;
+     Bounds ub=ur.Length>0?ur[0].bounds:new Bounds(um.position,Vector3.zero);foreach(var r in ur)ub.Encapsulate(r.bounds);
+     metrics+=$"shaft-to-head {off:0.00} m (along {along:0.00}); canopy y [{ub.min.y:0.00},{ub.max.y:0.00}] head y {hp.y:0.00}; umbrella scale {um.lossyScale.y:0.00}";
+     // head mesh points inside the canopy volume: a rough cut test against the canopy's lower bound near the head
+     float hairTop=float.MinValue;var baked=new Mesh();
+     foreach(var sk in body){sk.BakeMesh(baked,true);foreach(var v in baked.vertices){var w=sk.transform.TransformPoint(v);if(new Vector2(w.x-hp.x,w.z-hp.z).magnitude<.25f)hairTop=Mathf.Max(hairTop,w.y);}}
+     Destroy(baked);
+     metrics+=$"; hair top {hairTop:0.00} vs canopy bottom {ub.min.y:0.00} ({(hairTop>ub.min.y?"CUTS INTO HEAD":"clear")})";
+    }
+    var upper=bones.FirstOrDefault(b=>{var x=new string(b.name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());return (x.Contains("upperarm")||x.EndsWith("rightarm")||x.EndsWith("armr"))&&(x.Contains("right")||x.EndsWith("r"));});
+    var fore=bones.FirstOrDefault(b=>{var x=new string(b.name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());return (x.Contains("forearm")||x.Contains("lowerarm"))&&(x.Contains("right")||x.EndsWith("r"));});
+    var hand=bones.FirstOrDefault(b=>{var x=new string(b.name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());return x.Contains("hand")&&(x.Contains("right")||x.EndsWith("r"))&&(x.EndsWith("hand")||x.EndsWith("handr"));});
+    if(upper&&fore&&hand){float elbow=Vector3.Angle(upper.position-fore.position,hand.position-fore.position);var local=root.InverseTransformPoint(hand.position)-root.InverseTransformPoint(upper.position);
+     metrics+=$"; elbow {elbow:0} deg; hand vs shoulder (local) {local.x:0.00},{local.y:0.00},{local.z:0.00}; upper {upper.name} fore {fore.name} hand {hand.name} lengths {Vector3.Distance(upper.position,fore.position):0.00}/{Vector3.Distance(fore.position,hand.position):0.00}";}
+    else metrics+="; arm bones NOT found";
+    if(hand)metrics+="; hand children: "+string.Join(",",hand.GetComponentsInChildren<Transform>(true).Skip(1).Take(20).Select(t=>t.name));
+    Note($"UMBRELLA {n} {root.name}: {metrics}");
+    if(n==0&&parts.Contains("twist")){foreach(var tw in new[]{0f,60f,120f,180f,240f,300f}){MarketDay.MarketRainUmbrellaRig.HandTwist=tw;yield return null;yield return new WaitForEndOfFrame();ShootFrom(hp-root.forward*2.2f+Vector3.up*.2f+root.right*.6f,hp-Vector3.up*.35f,32,$"um_twist_{tw:0}");}MarketDay.MarketRainUmbrellaRig.HandTwist=180;}
+    CaptureAt(hp-Vector3.up*.3f,2.6f,$"um_{n}_game");
+    yield return new WaitForEndOfFrame();
+    ShootFrom(hp+root.right*3.4f+Vector3.up*.5f,hp+Vector3.up*.15f,38,$"um_{n}_side");
+    yield return new WaitForEndOfFrame();
+    ShootFrom(hp-root.forward*3.4f+Vector3.up*.6f,hp+Vector3.up*.15f,38,$"um_{n}_front");
+    n++;
+   }
+   fx.Preview("");
+  }
+  void ShootFrom(Vector3 from,Vector3 at,float fov,string name){
+   var main=Camera.main;var go=new GameObject("QA free camera");var cam=go.AddComponent<Camera>();if(main)cam.CopyFrom(main);
+   cam.orthographic=false;cam.fieldOfView=fov;go.transform.position=from;go.transform.rotation=Quaternion.LookRotation(at-from,Vector3.up);cam.nearClipPlane=.05f;cam.farClipPlane=200;
+   var rt=new RenderTexture(900,900,24){antiAliasing=4};cam.targetTexture=rt;cam.Render();var active=RenderTexture.active;RenderTexture.active=rt;
+   var image=new Texture2D(900,900,TextureFormat.RGB24,false);image.ReadPixels(new Rect(0,0,900,900),0,0);image.Apply();RenderTexture.active=active;
+   File.WriteAllBytes("Logs/"+name+".jpg",image.EncodeToJPG(85));Destroy(image);cam.targetTexture=null;rt.Release();Destroy(rt);Destroy(go);Note("shot "+name);
   }
   // Is the way in clear? ("eventsdoorway" = every stage and event, "eventsdoorway-tenda.banca" or
   // "eventsdoorway-tenda-quinto-dia-util"). For each stage, first without an event and then with each event's scene,

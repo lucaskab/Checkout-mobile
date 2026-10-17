@@ -41,6 +41,8 @@ namespace Checkout {
   void NightLight(){if(sun){sun.color=new Color(.55f,.64f,.98f);sun.intensity=(sun.intensity>0?sun.intensity:sunIntensity)*.28f;}RenderSettings.ambientLight=new Color(.16f,.19f,.31f);if(view)view.backgroundColor=new Color(.07f,.09f,.17f);}
   // Rain: the city's people and the market's own customers (CheckoutWalker) open an umbrella out on the street; a
   // customer closes it on stepping into the market and opens it again on the way out (CheckoutWalker.OutdoorWalk).
+  /// <summary>QA: shows another umbrella model on the people in the rain (CheckoutAutoTest "umbrella-…-v2").</summary>
+  public void UseUmbrella(GameObject prefab){if(prefab)umbrellaPrefab=prefab;}
   void SetCustomerUmbrellas(bool enabled){foreach(var customer in FindObjectsByType<MarketCharacterAnimator>(FindObjectsInactive.Include).Where(c=>c.GetComponent<CheckoutCityPedestrian>()||c.GetComponent<CheckoutCityAppearance>()||c.GetComponent<CheckoutWalker>())){var pedestrian=customer.GetComponent<CheckoutCityPedestrian>();var walker=customer.GetComponent<CheckoutWalker>();var rig=customer.GetComponent<MarketRainUmbrellaRig>();if(enabled&&!rig&&(!walker||walker.OutdoorWalk))rig=customer.gameObject.AddComponent<MarketRainUmbrellaRig>();if(!rig)continue;rig.Initialize(customer.animationPlayer,umbrellaPrefab);rig.SetRainShelter(enabled&&!(pedestrian&&pedestrian.IsSheltered)&&(!walker||walker.OutdoorWalk));}}
   void Update(){Interactive();MarketTick();if(active=="chuva-forte"&&(umbrellaRefresh+=Time.deltaTime)>.5f){umbrellaRefresh=0;SetCustomerUmbrellas(true);}if(string.IsNullOrEmpty(active))return;if(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()>=expiresAt){SetEvent("");return;}clock+=Time.deltaTime;
    if(!motions.TryGetValue(active,out var activeMotions))return;
