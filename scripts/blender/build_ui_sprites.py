@@ -468,6 +468,19 @@ NOTE_COLORS = {100: ('4F8FCB', 'A9CFF0'), 50: ('D98E3A', 'F6CD8C'), 20: ('D8B23C
                5: ('8A73BF', 'CEC0EE'), 2: ('4FA79A', 'A9DCD3')}
 
 
+def coin_emblem(loc, r=.1, flat=False):
+    """The game's own money mark (no currency words, Oct 2026): a gold coin with a dark ring and a star.
+    Standing (faces -Y like the note faces) or `flat` (lying on a horizontal surface, seen from above)."""
+    gold = mat(GOLD, .3, .7); dark = mat('8E7A4A', .35, .9)
+    x, y, z = loc
+    if flat:
+        cyl(r, .02, (x, y, z), gold, v=32, bev=.004); torus(r * .8, r * .06, (x, y, z + .012), dark)
+        _star('Star', r * .55, r * .25, dark, (x, y, z + .012), rot=(0, 0, 0), depth=.01)
+    else:
+        cyl(r, .02, (x, y, z), gold, rot=(90, 0, 0), v=32, bev=.004); torus(r * .8, r * .06, (x, y - .012, z), dark, rot=(90, 0, 0))
+        _star('Star', r * .55, r * .25, dark, (x, y - .012, z), rot=(90, 0, 0), depth=.01)
+
+
 def banknote(value):
     def build():
         c1, c2 = NOTE_COLORS[value]
@@ -480,7 +493,7 @@ def banknote(value):
         cyl(.2, .03, (.55, -.04, .58), mat(c1, .45, coat=.3), rot=(90, 0, 0), v=5)
         text(str(value), (-.55, -.04, .58), .52, mat('FFFFFF', .4), extrude=.008, bevel=.004)
         text(str(value), (.95, -.035, .95), .16, mat(c1, .4), extrude=.004, bevel=0)
-        text('REAIS', (-.55, -.035, .22), .12, mat(c1, .5), extrude=.003, bevel=0)
+        coin_emblem((-.55, -.03, .22), r=.11)   # (was REAIS)
         studio(elev=6, yaw=0, width=480, height=240)
     build.__name__ = f'note_{value}'
     return build
@@ -768,7 +781,7 @@ def price_tag(color, name):
         box((1.6, .06, .8), (0, 0, .4), tex('plastic', color, color, rough=.3, scale=1, bump=.03, coat=.6), .08)
         box((1.5, .01, .7), (0, -.035, .4), mat('FFFFFF', .4, alpha=1), .05).scale = (1, 1, 1)
         box((1.5, .02, .18), (0, -.04, .66), mat(color, .35), .02)
-        text('R$', (-.52, -.05, .32), .18, mat('2F3A40', .4), extrude=.004, bevel=0)
+        coin_emblem((-.52, -.045, .32), r=.11)   # (was R$)
         mark('value', box((.95, .01, .42), (.18, -.045, .33), mat('FFFFFF', .4), 0))
         studio(elev=4, yaw=0, width=400, height=210, size=1.72)
     build.__name__ = name
@@ -1144,7 +1157,7 @@ def cash_tray_v2():
     for k in range(5):
         cyl(.16, .05, (-1.35 + (k % 3) * .14, -.9 - (k // 3) * .12, .58 + k * .02), tex('noise', 'F3C95C', 'C8962E', metal=1, rough=.25, scale=1, bump=.05), v=32, bev=.01)
     box((.8, .36, .06), (-.3, -.95, .56), mat('FFF7EA', .4), .04)
-    text('R$ 1', (-.3, -.97, .6), .24, mat(NAVY, .4), rot=(0, 0, 0), extrude=.012, bevel=0)
+    coin_emblem((-.5, -.97, .6), r=.1, flat=True); text('1', (-.2, -.97, .6), .24, mat(NAVY, .4), rot=(0, 0, 0), extrude=.012, bevel=0)   # (was R$ 1)
     for i in range(1, 5):
         o = mark(f'cup{i}', box((.01, .01, .01), (-1.2, -.95, .45), mat('000000', 1, alpha=0), 0))
         o.hide_render = True
@@ -1515,9 +1528,9 @@ def register_open():
         cyl(.17, .05, (cx, cy, cz), coin_gold, rot=(rnd.uniform(-8, 8), rnd.uniform(-8, 8), 0), v=32, bev=.01)
         cyl(.1, .052, (cx, cy, cz + .002), coin_silver, rot=(rnd.uniform(-8, 8), rnd.uniform(-8, 8), 0), v=32, bev=.005)
     box((1.3, .4, .05), (1.6, -1.9, .65), mat('FFF7EA', .4), .03)
-    text('R$ 1', (1.6, -1.91, .69), .22, mat(NAVY, .4), rot=(0, 0, 0), extrude=.01, bevel=0)
-    # Brand on the drawer front, either side of the handle.
-    text('CAIXA', (-1.55, -2.6, .38), .28, mat(GOLD, .3, .7), extrude=.02, bevel=.004)
+    coin_emblem((1.35, -1.91, .69), r=.1, flat=True); text('1', (1.75, -1.91, .69), .22, mat(NAVY, .4), rot=(0, 0, 0), extrude=.01, bevel=0)   # (was R$ 1)
+    # Brand on the drawer front, either side of the handle: the money star (was the word CAIXA).
+    _star('Star', .16, .07, mat(GOLD, .3, .7), (-1.55, -2.6, .38), rot=(90, 0, 0), depth=.02)
     text('01', (1.35, -2.6, .38), .28, mat(GOLD, .3, .7), extrude=.02, bevel=.004)
     studio(elev=46, yaw=0, width=1000, height=960, size=6.4, target=(0, 0, 1.15), light=1.1, samples=96)
 
@@ -1539,12 +1552,10 @@ def banknote3(value):
         torus(.3, .025, (-.67, -.05, .64), mat(GOLD, .3, .7), rot=(90, 0, 0))
         torus(.22, .01, (-.67, -.05, .64), ink, rot=(90, 0, 0))
         _star('Star', .17, .075, ink, (-.67, -.04, .64))
-        text('BRASIL', (-.67, -.046, .25), .09, mat('FFFFFF', .5), extrude=.003, bevel=0)
         # Value in big coloured ink with a white outline.
         text(str(value), (.38, -.042, .56), .62 if value < 100 else .5, mat('FFFFFF', .4), extrude=.004, bevel=.018)
         text(str(value), (.38, -.06, .56), .62 if value < 100 else .5, ink, extrude=.006, bevel=.004)
-        text('R$', (.38, -.05, .98), .14, ink, extrude=.003, bevel=0)
-        text('REAIS', (.38, -.05, .2), .12, ink, extrude=.003, bevel=0)
+        coin_emblem((.38, -.045, .98), r=.115)   # (was R$ / REAIS)
         text(str(value), (-.86, -.05, .98), .12, ink, extrude=.003, bevel=0)
         text(str(value), (1.0, -.05, .18), .12, ink, extrude=.003, bevel=0)
         studio(elev=8, yaw=0, width=480, height=240, size=2.5, target=(0, 0, .58), light=1.05)
@@ -1565,7 +1576,7 @@ def coin3():
     cyl(.4, .16, (0, 0, .08), silver, v=96, bev=.03)
     torus(.4, .018, (0, 0, .165), silver)
     text('1', (0, .03, .17), .5, relief, rot=(0, 0, 0), extrude=.035, bevel=.012)
-    text('REAL', (0, -.26, .17), .1, relief, rot=(0, 0, 0), extrude=.01, bevel=.002)
+    _star('Star', .09, .04, relief, (0, -.27, .17), rot=(0, 0, 0), depth=.01)   # (was REAL)
     studio(elev=72, yaw=0, width=256, height=256, size=1.36, target=(0, 0, .08))
 
 

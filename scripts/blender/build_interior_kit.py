@@ -1168,7 +1168,7 @@ def watermelon_pile(m):
     for a in range(0, 360, 60):
         ball(m, (.42 + math.cos(math.radians(a)) * .09, .995, -.34 + math.sin(math.radians(a)) * .09), (.015, .01, .02), "C_" + DARK, 6, 4)
     rounded_panel(m, .3, .2, (-.42, .9, -.52), "C_F2C23F", .02, .05)
-    text(m, "R$3", (-.42, .895, -.535), .08, "C_" + RED, .012)
+    text(m, "3", (-.42, .895, -.535), .08, "C_" + RED, .012)   # (was R$3: no currency sign, Oct 2026)
 
 
 @model("claw-machine")
