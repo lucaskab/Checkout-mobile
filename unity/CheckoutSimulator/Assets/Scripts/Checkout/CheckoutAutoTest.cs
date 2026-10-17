@@ -190,6 +190,21 @@ namespace Checkout {
    {"rua-em-obras","mesinha"},{"engarrafamento","mesinha"},{"fim-do-mes","mesinha"},{"sorteio-na-porta","tenda"},{"maquininha-fora-do-ar","tenda"},
    {"caminhao-de-ofertas","banca"},{"queda-de-energia","banca"},{"vigilancia-sanitaria","banca"},{"dia-de-jogo","conteiner"},{"cafe-com-a-equipe","conteiner"},
    {"excursao-da-escola","conteiner"},{"turno-puxado","conteiner"},{"viralizou","spati"},{"carro-de-som","spati"}};
+  // People standing or walking in a street lamp (the post through them, the head on their hair): event actors and
+  // city walkers within 0.45 m of a lamp's footprint (CheckoutLampClearance).
+  void LampClashes(string where){
+   var hits=new List<string>();
+   foreach(var a in FindObjectsByType<CheckoutEventActor>(FindObjectsInactive.Exclude)){float d=CheckoutLampClearance.Distance(a.transform.position);if(d<.45f)hits.Add($"actor {a.name} {d:0.00}");}
+   foreach(var a in FindObjectsByType<MarketDay.MarketCharacterAnimator>(FindObjectsInactive.Exclude)){float d=CheckoutLampClearance.Distance(a.transform.position);if(d<.45f)hits.Add($"walker {a.name} {d:0.00}");}
+   // tall thin things (posts) right next to an event actor that the lamp list does not know
+   var posts=new HashSet<string>();
+   foreach(var a in FindObjectsByType<CheckoutEventActor>(FindObjectsInactive.Exclude)){var p=a.transform.position;
+    foreach(var r in FindObjectsByType<Renderer>(FindObjectsInactive.Exclude)){if(r is SkinnedMeshRenderer||r.GetComponentInParent<CheckoutEventActor>()||r.GetComponentInParent<MarketDay.MarketCharacterAnimator>())continue;var b=r.bounds;if(b.size.y<2.2f||b.size.x>1.6f||b.size.z>1.6f||b.min.y>1f)continue;
+     var c=new Vector2(Mathf.Clamp(p.x,b.min.x,b.max.x),Mathf.Clamp(p.z,b.min.z,b.max.z));if((c-new Vector2(p.x,p.z)).magnitude>.45f)continue;
+     posts.Add($"{a.name}~{r.name}<{(r.transform.parent?r.transform.parent.name:"")}>[{(r.sharedMaterial?r.sharedMaterial.name:"-")}] {b.min.y:0.0}-{b.max.y:0.0} lampDist={CheckoutLampClearance.Distance(p):0.00} at {p.x:0.0},{p.z:0.0}");}}
+   if(posts.Count>0)Note($"POSTS {where}: "+string.Join(" | ",posts.Take(8)));
+   Note($"LAMP_CLASH {where}: {hits.Count}{(hits.Count>0?" | "+string.Join(" | ",hits.Take(6)):"")} ({CheckoutLampClearance.Describe})");
+  }
   IEnumerator Events(string request){
    var fx=FindAnyObjectByType<CheckoutEventVisuals>();if(!fx){Note("no CheckoutEventVisuals");yield break;}
    var parts=request.Split('-');var stages=parts.Length>1?parts[1].Split('.'):Stages;
@@ -201,7 +216,7 @@ namespace Checkout {
     var home=FindAnyObjectByType<MarketDay.MarketSimulation>();if(home)home.HomeCamera();yield return new WaitForSecondsRealtime(1.5f);
     var map=FindAnyObjectByType<CheckoutMap>();
     Note($"stage {stage}: era={bridge.State?.era?.id} door={(map?map.Entrance:Vector3.zero)} small={CheckoutStall.Small}");
-    if(stage==stages[0])DumpAvenue();
+    if(stage==stages[0]){DumpAvenue();Note($"LAMPS {CheckoutLampClearance.Count} street lamps kept clear of people");Note("SIGN_FIT "+string.Join(" || ",CheckoutSignText.Report));}
     fx.Preview("");yield return new WaitForSecondsRealtime(.5f);Capture($"ev_{stage}_00-clean");
     if(map){var e=map.Entrance;home?.Focus(new Vector3(e.x,0,e.z-5),20);yield return new WaitForSecondsRealtime(1.2f);Capture($"ev_{stage}_01-front");home?.HomeCamera();yield return new WaitForSecondsRealtime(1f);}
     int at=Array.IndexOf(Stages,stage);
@@ -214,7 +229,7 @@ namespace Checkout {
      var focus=fx.FocusOf(id);
      if(home)home.Focus(new Vector3(focus.x,0,focus.z),22);
      Time.timeScale=4;yield return new WaitForSecondsRealtime(2.5f);Time.timeScale=1;yield return new WaitForSecondsRealtime(.3f);
-     Capture($"ev_{stage}_{id}");CaptureAt(focus+Vector3.up,10,$"ev_{stage}_{id}_close");
+     Capture($"ev_{stage}_{id}");CaptureAt(focus+Vector3.up,10,$"ev_{stage}_{id}_close");LampClashes($"{stage} {id}");
      Time.timeScale=4;yield return new WaitForSecondsRealtime(2.5f);Time.timeScale=1;yield return new WaitForSecondsRealtime(.3f);
      CaptureAt(focus+Vector3.up,10,$"ev_{stage}_{id}_later");
      if(home)home.HomeCamera();

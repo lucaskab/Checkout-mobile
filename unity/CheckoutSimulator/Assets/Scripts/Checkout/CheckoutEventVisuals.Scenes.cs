@@ -138,6 +138,7 @@ namespace Checkout {
   Transform Prop(string model, Vector3 p, float yaw = 0, float scale = 1) => art.Prop2(root, model, p, yaw, scale);
   Transform Rig(string rig, Vector3 p, float yaw = 0, string clip = null, float scale = 1) => art.Rig(root, rig, p, yaw, scale, clip);
   CheckoutEventActor Person(string who, Vector3 p, Vector3 face, string move = null, float scale = 1, bool shown = true, float offset = -1) {
+   p = CheckoutLampClearance.ClearInView(p);   // nobody stands in a street lamp, nor right behind one in the picture
    // "@crew0" / "@crew1": one of the construction crew (CheckoutCrew), for everyone working on a site or a pole.
    var crew = who.StartsWith("@crew") ? CheckoutCrew.Template(int.Parse(who.Substring(5))) : null;
    if (who.StartsWith("@crew") && !crew) who = "Worker_Delivery";
@@ -502,8 +503,9 @@ namespace Checkout {
    float bx = doorW.x + 7.4f;
    if (Place(ref bx, 1.25f, 1.25f, -10.7f, -8.65f, 14f)) {
     Rig("Rig_SunUmbrella", On(bx, -9.35f), 0, "Wind");
-    Person(Next(), On(bx - .35f, -9.45f), South, "SitSip");
-    Person(Next(), On(bx + .95f, -10.35f), Dir(-.5f, -1), "Fan");
+    // on the seat (the bench's seat is centred on the rig; SitSip puts the hips a little behind the feet)
+    Person(Next(), On(bx - .4f, -9.1f), South, "SitSip");
+    Person(Next(), On(bx + 1.45f, -10.5f), Dir(-.5f, -1), "Fan");
    }
   }
 
@@ -959,8 +961,11 @@ namespace Checkout {
   // held up.
   void SoundCar() {
    var director = this.director;   // the stories run later: they keep this scene's director
-   var van = Vehicle("Rig_SoundVan", Road(-37, LaneE2), East);
-   var path = CheckoutRoundabout.Route(new[] { Road(-37, LaneE2), Road(37, LaneE2) }); Focus(Road(doorW.x, -17f));
+   // the van is 2.26 m wide: centred on its lane it ran with its wheels on the double yellow line, so it keeps
+   // to the outer half of the eastbound inner lane
+   const float vanLane = LaneE2 - .55f;
+   var van = Vehicle("Rig_SoundVan", Road(-37, vanLane), East);
+   var path = CheckoutRoundabout.Route(new[] { Road(-37, vanLane), Road(37, vanLane) }); Focus(Road(doorW.x, -17f));
    director.OnReset(() => { van.transform.position = path[0]; van.Face(EastDir); });
    Story(() => Tour());
    IEnumerator Tour() {

@@ -91,6 +91,8 @@ public static class CheckoutToolRunner {
  // Copies the end of the editor log (compile errors, exceptions).
  static void WriteEditorLog(){
   var path=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Unity","Editor","Editor.log");
+  // Unity 6 moved the log into the project (the AppData one only says so)
+  var local=P("Logs/Editor.log");if(File.Exists(local)&&(!File.Exists(path)||File.GetLastWriteTimeUtc(local)>File.GetLastWriteTimeUtc(path)))path=local;
   try{
    using var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite);long start=Math.Max(0,stream.Length-400_000);stream.Seek(start,SeekOrigin.Begin);
    using var reader=new StreamReader(stream);File.WriteAllText(P("Logs/editor_log.txt"),reader.ReadToEnd());

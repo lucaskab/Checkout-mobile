@@ -51,6 +51,7 @@ namespace Checkout {
   /// (HoldHandle, CarryBox) kept while walking. `follower` is moved along keeping its offset (a pallet jack).</summary>
   public IEnumerator Walk(IList<Vector3> points, float speed = 1.25f, string carry = null, Transform follower = null) {
    if (points == null || points.Count == 0) yield break;
+   points = CheckoutLampClearance.Detour(points, transform.position);   // round the street lamps, not through them
    Clip("Walking");
    if (!string.IsNullOrEmpty(carry)) { if (skeleton) CheckoutEventMoves.Play(skeleton, carry); Move = carry; }
    else { var m = Moves; if (m) m.Stop(); Move = null; }

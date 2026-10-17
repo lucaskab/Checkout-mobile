@@ -178,10 +178,13 @@ public static class CheckoutCentralParkBuilder
         Material pole = Mat("SignPole", "8E9496"), green = Mat("StreetSignGreen", "1F6B45");
         Cyl(post, "Pole", Vector3.up * Ground, .05f, 3.1f, pole);
         Box(post, "Blade " + first, new Vector3(0, Ground + 3f, 0), new Vector3(1.9f, .3f, .04f), green);
-        Label(post, first, new Vector3(0, Ground + 3f, -.03f), 0, Color.white, .045f);
+        // names fit on the 1.9 m blade (a MarketBold capital at size 64 is about 3.9 x characterSize wide);
+        // CheckoutSignText trims them again in game, in any language
+        float Fit(string name) => Mathf.Min(.045f, 1.6f / (Mathf.Max(1, name.Length) * 3.9f));
+        Label(post, first, new Vector3(0, Ground + 3f, -.12f), 0, Color.white, Fit(first));   // clear of the post
         var blade = Box(post, "Blade " + second, new Vector3(0, Ground + 2.62f, 0), new Vector3(1.9f, .3f, .04f), green);
         blade.transform.localRotation = Quaternion.Euler(0, 90, 0);
-        Label(post, second, new Vector3(.03f, Ground + 2.62f, 0), 270, Color.white, .045f); // faces the game camera (east)
+        Label(post, second, new Vector3(.12f, Ground + 2.62f, 0), 270, Color.white, Fit(second)); // faces the game camera (east)
     }
 
     // ------------------------------------------------------------------ Central Park South
