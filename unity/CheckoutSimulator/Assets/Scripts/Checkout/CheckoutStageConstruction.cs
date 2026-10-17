@@ -25,6 +25,9 @@ namespace Checkout
         {
             Finish();
             revealing = dressing;
+            // The dressing it lives on can be switched off by the stage being shown (a jump between stages, the QA
+            // tours): no show then, the new stage just appears.
+            if (!isActiveAndEnabled) { Finish(); return; }
             running = StartCoroutine(Run(rising, footprint, floorY, title, dressing));
         }
 

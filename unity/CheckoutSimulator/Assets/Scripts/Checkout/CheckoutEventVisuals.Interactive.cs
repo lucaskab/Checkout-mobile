@@ -376,6 +376,30 @@ namespace Checkout {
    serveQueue.Enqueue(wc);
    if (!vendorRunning) StartCoroutine(VendorRun());
   }
+  /// <summary>QA: how far each jam driver's head sits above (+) or below (-) the car's roof right over it
+  /// (CheckoutAutoTest "eventsmarket"): a positive number is a head poking through the roof.</summary>
+  public string QaJamHeads() {
+   if (jamCars == null) return "no jam";
+   var sb = new System.Text.StringBuilder();
+   foreach (var j in jamCars) {
+    if (!j.window || !j.car) continue;
+    var rig = j.car.transform;
+    float headTop = float.MinValue; Vector3 at = Vector3.zero;
+    foreach (var r in rig.GetComponentsInChildren<Renderer>()) if (r.name.StartsWith("JamCar_Driver") && r.bounds.max.y > headTop) { headTop = r.bounds.max.y; at = r.bounds.center; }
+    if (headTop == float.MinValue) continue;
+    float roof = float.MinValue;
+    foreach (var r in rig.GetComponentsInChildren<Renderer>()) {
+     if (r.name.StartsWith("JamCar_Driver")) continue;
+     Mesh m = null; Matrix4x4 w = r.transform.localToWorldMatrix;
+     if (r is SkinnedMeshRenderer sk) { m = new Mesh(); sk.BakeMesh(m, true); }
+     else if (r.TryGetComponent<MeshFilter>(out var f)) m = f.sharedMesh;
+     if (!m || !m.isReadable) continue;
+     foreach (var v in m.vertices) { var p = w.MultiplyPoint3x4(v); if (new Vector2(p.x - at.x, p.z - at.z).sqrMagnitude < .2f * .2f && p.y > roof) roof = p.y; }
+    }
+    sb.Append(roof == float.MinValue ? " | no roof" : $" | {headTop - roof:+0.00;-0.00}");
+   }
+   return sb.ToString();
+  }
   /// <summary>QA: where the parts of a request's car are (CheckoutAutoTest "interactive").</summary>
   public string QaWindowCar(string id) {
    if (!windowCars.TryGetValue(id, out var wc) || !wc.rig) return "no car";

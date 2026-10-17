@@ -456,8 +456,10 @@ namespace Checkout {
    for (int i = 0; i < 4; i++) art.Cone(root, Road(a + 8.8f + i * .7f, LaneW - 1.4f + i * .8f));   // taper from the curb into the inner lane
    BlockCurb(a - .2f, a + 11.2f);
    Focus(Road(a + 4f, -13.2f));
-   Person(Next(), Road(a + 1.4f, LaneW - 1.35f), North, "Wave");
-   Person(Next(), Road(a + 5.9f, LaneW - 1.35f), North);
+   // the vendors a touch smaller: the canopies are 2.35-2.47 m high at the back and our people stand 2.5 m tall,
+   // so at full size their heads went into the awning (measured on Feira_StallRed in Blender)
+   Person(Next(), Road(a + 1.4f, LaneW - 1.35f), North, "Wave", .9f);
+   Person(Next(), Road(a + 5.9f, LaneW - 1.35f), North, null, .9f);
    Person(Next(), On(a + 1.0f, CurbEdge + .25f), South, "LookPhone");
    Person(Next(), On(a + 2.6f, CurbEdge + .3f), South);
    Person(Next(), On(a + 5.2f, CurbEdge + .25f), South, "Clipboard");
@@ -708,8 +710,9 @@ namespace Checkout {
     for (int i = 0; i < n; i++) {
      var rig = cars[(k++) % cars.Length];
      var v = Vehicle(rig, path[0], 0);
-     // the driver forward to the window he talks through (and a touch higher in his seat)
-     if (rig == "Rig_JamCar") CheckoutBoneNudge.Add(CheckoutEventAssets.Bone(v.transform, "Driver_Root"), v.transform, new Vector3(.3f, .05f, 0));
+     // the driver forward to the window he talks through, and a little lower in his seat: leaning out to wave or to
+     // take the bottle his head reached 3 cm into the roof's edge in the rig itself (measured in Blender)
+     if (rig == "Rig_JamCar") CheckoutBoneNudge.Add(CheckoutEventAssets.Bone(v.transform, "Driver_Root"), v.transform, new Vector3(.3f, -.08f, 0));
      var jc = new JamCar { car = v, lane = l, path = path, length = length, s = i * length / n + UnityEngine.Random.Range(-.6f, .6f), phase = UnityEngine.Random.value * 7f, window = rig == "Rig_JamCar" };
      v.YieldToCity = false; all.Add(jc);
     }

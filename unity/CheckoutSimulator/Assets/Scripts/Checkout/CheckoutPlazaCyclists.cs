@@ -9,7 +9,7 @@ namespace Checkout
         public int maxRiders = 5;
         public Vector2 interval = new Vector2(4, 14);
         public const float Ground = .13f;
-        class Rider { public CheckoutRigPose pose; public CheckoutBicycle bike; public Vector3[] lane; public int next = 1, route; public float speed, wheel, crank; }
+        class Rider { public CheckoutRigPose pose; public CheckoutBicycle bike; public Vector3[] lane; public int next = 1, route; public float speed, wheel, crank, offset; public Vector3 along; }
         readonly List<Rider> riders = new List<Rider>();
         List<Vector3[]> routes;
         float nextRide;
@@ -37,15 +37,22 @@ namespace Checkout
             pose.root.localPosition = new Vector3(0, CheckoutBicycle.Saddle.y + .06f - .92f, CheckoutBicycle.Saddle.z);
             pose.root.localRotation = Quaternion.Euler(0, 180, 0);
             var rider = new Rider { pose = pose, bike = bike, lane = lane, route = route, speed = Random.Range(3.2f, 4.6f) };
-            bike.root.SetPositionAndRotation(lane[0], Quaternion.LookRotation(lane[1] - lane[0]));
+            bike.root.SetPositionAndRotation(lane[0], Quaternion.LookRotation(lane[1] - lane[0])); rider.along = lane[0];
             riders.Add(rider);
         }
 
         bool Ride(Rider rider, float dt)
         {
             var bike = rider.bike.root;
-            float step = rider.speed * dt, travelled = step;
-            var position = bike.position;
+            // An event vehicle parked on the lane (the power company's bucket truck, a delivery van): the rider swings
+            // round it, slowing down while he changes side, and comes back to the lane after it.
+            var ahead = rider.next < rider.lane.Length ? rider.lane[rider.next] - rider.along : bike.forward; ahead.y = 0;
+            var fwd = ahead.sqrMagnitude > 1e-4f ? ahead.normalized : bike.forward; var side = Vector3.Cross(Vector3.up, fwd);
+            float want = DodgeFor(rider.along, fwd, side);
+            float gap = want - rider.offset;
+            rider.offset += Mathf.Clamp(gap, -2.2f * dt, 2.2f * dt);
+            float step = rider.speed * dt * (Mathf.Abs(gap) > .25f ? .45f : 1f), travelled = step;
+            var position = rider.along;
             while (step > 0 && rider.next < rider.lane.Length)
             {
                 var target = rider.lane[rider.next]; float d = Vector3.Distance(position, target);
@@ -53,10 +60,26 @@ namespace Checkout
             }
             if (rider.next >= rider.lane.Length) return false;
             var heading = rider.lane[rider.next] - position; heading.y = 0;
-            bike.position = position;
+            rider.along = position;
+            bike.position = position + side * rider.offset;
+            if (Mathf.Abs(gap) > .05f) heading += side * Mathf.Sign(gap) * heading.magnitude * .35f;
             if (heading.sqrMagnitude > 1e-4f) bike.rotation = Quaternion.RotateTowards(bike.rotation, Quaternion.LookRotation(heading), 220 * dt);
             rider.crank = rider.bike.Roll(travelled, ref rider.wheel);
             return true;
+        }
+
+        // The smallest sideways shift that keeps the rider (and the next couple of metres of his lane) off every
+        // event obstacle; 0 when the lane is clear.
+        static readonly float[] Dodges = { 0, 1f, -1f, 1.7f, -1.7f, 2.4f, -2.4f, 3.1f, -3.1f, 3.8f, -3.8f };
+        static float DodgeFor(Vector3 at, Vector3 forward, Vector3 side)
+        {
+            foreach (var o in Dodges)
+            {
+                bool clear = true;
+                for (float s = -1.2f; s <= 3.2f && clear; s += .8f) clear = !CheckoutEventTraffic.Covered(at + forward * s + side * o, .45f);
+                if (clear) return o;
+            }
+            return 0;
         }
 
         void LateUpdate()
