@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -61,6 +61,28 @@ namespace Checkout {
 
   // Register, cash step ("register"): a made-up customer pays 37 coins with 53 (a 50 note, a 2 note and a 1 coin);
   // the test scans, taps the money into the drawer and gives 16 of change (10 + 5 + 1), with a shot of each step.
+  // The delivery app on the store computer ("deliveryapp"): opened at the mercadinho (delivery is unlocked there) with
+  // the window as the player sees it, scrolled through its columns. Shots Logs/at_delivery_*.png.
+  IEnumerator DeliveryAppShots(){
+   CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-era\",\"action\":\"devSetMarketEra\",\"args\":[\"mercadinho\"]}");
+   yield return new WaitForSecondsRealtime(5);
+   CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-open\",\"action\":\"setMarketOpen\",\"args\":[true]}");
+   yield return new WaitForSecondsRealtime(1);
+   // two orders on the phone right away (they otherwise come at the shop's own pace)
+   for(int i=0;i<2;i++){CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-offer"+i+"\",\"action\":\"devSpawnDeliveryOffer\",\"args\":[]}");yield return new WaitForSecondsRealtime(.6f);}
+   CheckoutSupplierShop.ShowDelivery();yield return new WaitForSecondsRealtime(2.5f);
+   yield return Shot("delivery_0");
+   Note("delivery status: "+(CheckoutDeliveryApp.Instance?CheckoutDeliveryApp.Instance.QaStatus:"no app")+" open="+(bridge.State?.isOpen));
+   // wait for an order (they come while the shop is open), accept the first one, look at every page
+   for(float t=0;t<60&&(bridge.State.delivery?.orders==null||!bridge.State.delivery.orders.Any(o=>o!=null&&o.status=="oferta"));t+=1)yield return new WaitForSecondsRealtime(1);
+   var app=CheckoutDeliveryApp.Instance;
+   app?.QaTab(0);yield return new WaitForSecondsRealtime(1.2f);yield return Shot("delivery_orders");
+   var offer=bridge.State.delivery?.orders?.FirstOrDefault(o=>o!=null&&o.status=="oferta");
+   if(offer!=null){bridge.Command("acceptDeliveryOrder","[\""+offer.id+"\"]");yield return new WaitForSecondsRealtime(2f);}
+   app?.QaTab(1);yield return new WaitForSecondsRealtime(1.2f);yield return Shot("delivery_active");
+   app?.QaTab(2);yield return new WaitForSecondsRealtime(1.2f);yield return Shot("delivery_profile");
+   Note("delivery orders: "+(bridge.State.delivery?.orders==null?"none":string.Join(", ",bridge.State.delivery.orders.Where(o=>o!=null).Select(o=>o.status))));
+  }
   IEnumerator RegisterCash(){
    var game=CheckoutCounterGame.Instance;if(!game){Note("no register");yield break;}
    var fake=new CheckoutEntry{id="qa-cash",customerId="",customerName="Cliente teste",mood="",method="dinheiro",total=37,cashGiven=53,readyAt=0,expiresAt=double.MaxValue,

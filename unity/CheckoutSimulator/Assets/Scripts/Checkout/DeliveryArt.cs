@@ -60,6 +60,38 @@ namespace Checkout {
     return c;
    });
   }
+  // ------------------------------------------------------------------ flat app card (the delivery app's look)
+  // A modern app surface: rounded, no outline, a hairline border a shade darker than the fill and a soft shadow under
+  // it (a few texels below the body). Sliced like Chunk, so it stretches to any size.
+  public static Sprite Flat(string fillHex,int radius=18){
+   string key="flat-"+fillHex+"-"+radius;
+   if(cache.TryGetValue(key,out var got))return got;
+   Color fill=K_C(fillHex),line=Color.Lerp(fill,Color.black,.07f);
+   float S=4f,W=2*radius+16f+S;
+   return PaintSliced(key,(int)W,(int)W,radius+6,p=>{
+    float x=p.x*W,y=p.y*W;
+    // body: the square minus the shadow band at the bottom
+    float cx=Mathf.Clamp(x,radius+1,W-radius-1),cy=Mathf.Clamp(y,radius+1,W-S-radius-1);
+    float edge=radius-Vector2.Distance(new Vector2(x,y),new Vector2(cx,cy));
+    if(edge>=0){var c=edge<1.2f?line:fill;c.a=Mathf.Clamp01(edge+.5f)*fill.a;return c;}
+    // soft shadow: the same shape S texels lower, fading out over 4 texels
+    float sy=Mathf.Clamp(y,radius+1+S,W-radius-1);float se=radius-Vector2.Distance(new Vector2(x,y),new Vector2(cx,sy));
+    if(se>-4f){float a=.16f*Mathf.Clamp01((se+4f)/4f);return new Color(0,0,0,a);}
+    return Color.clear;
+   });
+  }
+  // An app avatar: the seeded colour in a clean circle with a thin white ring (no cartoon outline).
+  public static Sprite FlatDisc(string fillHex){
+   string key="fdisc-"+fillHex;
+   if(cache.TryGetValue(key,out var got))return got;
+   Color fill=K_C(fillHex);
+   return Paint(key,96,96,p=>{
+    float d=Vector2.Distance(p,new Vector2(.5f,.5f));
+    if(d>.5f)return Color.clear;
+    if(d>.465f)return new Color(1,1,1,Mathf.Clamp01((.5f-d)*60f));
+    return fill;
+   });
+  }
   static Color K_C(string hex){ColorUtility.TryParseHtmlString("#"+hex,out var c);return c;}
 
   // A round avatar disc: a dark outline, the seeded colour, a soft top highlight. Initials are drawn over it by the app.

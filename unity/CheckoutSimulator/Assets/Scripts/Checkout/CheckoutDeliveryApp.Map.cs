@@ -35,7 +35,7 @@ namespace Checkout {
 
   // The frame: a chunky rounded panel with a masked texture, a GPS ribbon and the overlay layer. Tall: at least 300 px.
   void BuildMap(RectTransform parent){
-   mapFrame=Panel(parent,"MapFrame","F5EBD6",26).rectTransform;
+   mapFrame=Panel(parent,"MapFrame",Paper,18).rectTransform;
    var sized=Pref(mapFrame.gameObject,-1,360);sized.minHeight=300;sized.flexibleHeight=1;
    var mask=N.Image(mapFrame,"Mask",Color.white,0);mask.sprite=K.Rounded(18);mask.type=Image.Type.Sliced;mask.raycastTarget=false;
    U.Stretch(mask.rectTransform,Vector2.zero,Vector2.one,new Vector2(10,10),new Vector2(-10,-10));
@@ -44,7 +44,7 @@ namespace Checkout {
    mapRaw=rawNode.gameObject.AddComponent<RawImage>();mapRaw.raycastTarget=false;mapRaw.color=Color.white;
    // Placeholder while the city view is not rendered yet.
    var ph=N.Node("Placeholder",mask.transform);U.Stretch(ph,Vector2.zero,Vector2.one);
-   var phBack=N.Image(ph,"Back",K.C("E9DCC2"),0);U.Stretch(phBack.rectTransform,Vector2.zero,Vector2.one);
+   var phBack=N.Image(ph,"Back",K.C(EmptyTone),0);U.Stretch(phBack.rectTransform,Vector2.zero,Vector2.one);
    var phIcon=SpriteImg(ph,"Icon",K.Icon("Icons/market"),Color.white,96,96);U.At(phIcon.rectTransform,new Vector2(.5f,.6f),new Vector2(96,96),Vector2.zero);
    mapPlaceholderText=U.Label(ph,"Text",K.Headline,24,Ink);U.At(mapPlaceholderText.rectTransform,new Vector2(.5f,.22f),new Vector2(300,40),Vector2.zero);
    mapPlaceholderText.text="Carregando mapa…";
@@ -54,8 +54,8 @@ namespace Checkout {
    storePin=BuildPin(mapLayer,Blue,"Loja",out storeLabel);
    storePin.gameObject.SetActive(false);
    // GPS ribbon, tilted, over the top-left corner.
-   var gps=Panel(mapFrame,"Gps",Blue,14);U.At(gps.rectTransform,new Vector2(0,1),new Vector2(212,42),new Vector2(96,-26));
-   gps.rectTransform.localRotation=Quaternion.Euler(0,0,-4f);
+   var gps=Panel(mapFrame,"Gps",Blue,14);U.At(gps.rectTransform,new Vector2(0,1),new Vector2(200,38),new Vector2(118,-34));
+   // a live chip like a map app's, straight (no game ribbon tilt)
    var gpsText=U.Label(gps.transform,"Text",K.Headline,20,"FFFFFF");U.Stretch(gpsText.rectTransform,Vector2.zero,Vector2.one);gpsText.text="GPS · ao vivo";
   }
   // A map pin: a red (or blue) head with a white outline, 40 x 52 px, its tip at the anchor, and a small label above.
@@ -118,6 +118,7 @@ namespace Checkout {
    var m=new MapOrder{id=id};
    // The route line sits under the pins and the bike (first child of the layer).
    var lineNode=N.Node("Route",mapLayer);U.Stretch(lineNode,Vector2.zero,Vector2.one);lineNode.SetAsFirstSibling();
+   lineNode.gameObject.AddComponent<CanvasRenderer>();   // RequireComponent alone sometimes left it missing (MissingComponentException on the first order)
    m.line=lineNode.gameObject.AddComponent<RouteLine>();m.line.raycastTarget=false;m.line.gameObject.SetActive(false);
    m.pin=BuildPin(mapLayer,Red,"",out m.label);
    // The bike: just the delivery moto icon (no badge), made once.

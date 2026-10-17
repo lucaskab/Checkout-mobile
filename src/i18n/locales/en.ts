@@ -3610,6 +3610,11 @@ const catalog: Catalog = {
 	"DINHEIRO": "CASH",
 	"CARTÃO": "CARD",
 	"CUPOM": "RECEIPT",
+	// Delivery app look 17/10
+	"Perfil": "Profile",
+	"Entregas da loja": "Store deliveries",
+	"Loja aberta · recebendo pedidos": "Store open · taking orders",
+	"Loja fechada · sem pedidos novos": "Store closed · no new orders",
 	// QA sweep 16/10
 	"Começa com quatro espaços.": "Starts with four slots.",
 	"Coloque os móveis que estão esperando antes de abrir a loja.": "Place the furniture that is waiting before you open the shop.",

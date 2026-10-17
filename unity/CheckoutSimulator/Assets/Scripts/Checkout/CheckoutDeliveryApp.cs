@@ -21,7 +21,9 @@ namespace Checkout {
   // Opens the store computer on the Delivery tab.
   public static void ShowTab(){CheckoutSupplierShop.ShowDelivery();}
 
-  const string Ink="4A3624",Muted="8A7560",Green="3DAA5C",Red="E15533",Blue="2E8CAE",Gold="F2B03D",EmptyTone="E5D6BC",Paper="FFF6E4";
+  // An app's palette (Lucas 17/10: "quero que pareça mais como um app"): white cards on a light grey screen, near-black
+  // text, the app's own orange-red as the brand colour (Blue keeps its old name: it is the "primary" everywhere).
+  const string Ink="1F2329",Muted="737B86",Green="1FA45A",Red="E5483B",Blue="F0532D",Gold="F5B423",EmptyTone="E7E9EC",Paper="FFFFFF",ScreenTone="F2F3F5";
   const double MoneyDoorWait=60000;
   const float PillHold=6f;
   static readonly CultureInfo Br=CultureInfo.GetCultureInfo("pt-BR");
@@ -110,19 +112,19 @@ namespace Checkout {
   static Image LayImg(Transform parent,string name,string path,float w,float h)=>SpriteImg(parent,name,K.Icon(path),Color.white,w,h);
   // A chunky game panel (outline, highlight, shadow) as a sliced image filling its rect.
   static Image Panel(Transform parent,string name,string fillHex,int radius=20){
-   var img=N.Image(parent,name,Color.white,0);img.sprite=DeliveryArt.Chunk(fillHex,radius);img.type=Image.Type.Sliced;img.raycastTarget=false;
+   var img=N.Image(parent,name,Color.white,0);img.sprite=DeliveryArt.Flat(fillHex,Mathf.Min(radius,18));img.type=Image.Type.Sliced;img.raycastTarget=false;
    return img;
   }
   // A round avatar: a seeded coloured disc with a dark outline and big white initials. Returns the disc.
   static Image Avatar(Transform parent,string name,float size,out TextMeshProUGUI initials){
    var node=N.Node(name,parent);Pref(node.gameObject,size,size);
-   var disc=N.Image(node,"Disc",Color.white,0);disc.sprite=DeliveryArt.Disc(AvatarColors[0]);disc.raycastTarget=false;U.Stretch(disc.rectTransform,Vector2.zero,Vector2.one);
+   var disc=N.Image(node,"Disc",Color.white,0);disc.sprite=DeliveryArt.FlatDisc(AvatarColors[0]);disc.raycastTarget=false;U.Stretch(disc.rectTransform,Vector2.zero,Vector2.one);
    initials=U.Label(node,"Initials",K.Headline,Mathf.Round(size*.4f),"FFFFFF");U.Stretch(initials.rectTransform,Vector2.zero,Vector2.one);
    return disc;
   }
   // Paints an avatar from its seed and its initials (cheap: the disc sprites are cached).
   static void PaintAvatar(Image disc,TextMeshProUGUI initials,int seed,string name){
-   if(disc)disc.sprite=DeliveryArt.Disc(AvatarHex(seed));
+   if(disc)disc.sprite=DeliveryArt.FlatDisc(AvatarHex(seed));
    if(initials&&initials.text!=Initials(name))initials.text=Initials(name);
   }
   static Image Star(Transform parent,bool on,float size)=>SpriteImg(parent,"Star",on?DeliveryArt.StarOn:DeliveryArt.StarOff,Color.white,size,size);
@@ -140,19 +142,19 @@ namespace Checkout {
   }
   // Column head: a saturated title ribbon and a count chip.
   static void SectionHead(RectTransform parent,string title,out TextMeshProUGUI count){
-   var head=N.Node("Head",parent);N.Row(head.gameObject,10).childAlignment=TextAnchor.MiddleLeft;Pref(head.gameObject,-1,50);
-   var ribbon=Panel(head,"Ribbon",Blue,16);N.Row(ribbon.gameObject,0,new RectOffset(18,18,4,4)).childAlignment=TextAnchor.MiddleLeft;Pref(ribbon.gameObject,-1,50).flexibleWidth=1;
-   var label=U.Label(ribbon.transform,"Title",K.Headline,26,"FFFFFF",TextAlignmentOptions.Left);
+   // an app section title: bold dark text and a small brand-coloured count pill
+   var head=N.Node("Head",parent);N.Row(head.gameObject,10,new RectOffset(6,6,0,0)).childAlignment=TextAnchor.MiddleLeft;Pref(head.gameObject,-1,44);
+   var label=U.Label(head,"Title",K.Headline,26,Ink,TextAlignmentOptions.Left);Pref(label.gameObject,-1,-1).flexibleWidth=1;
    label.text=title;
-   var chip=Panel(head,"CountBack",Gold,14);N.Row(chip.gameObject,0,new RectOffset(14,14,3,3));Pref(chip.gameObject,-1,40);
-   count=U.Label(chip.transform,"Count",K.Number,20,Ink);
+   var chip=Panel(head,"CountBack",Blue,14);N.Row(chip.gameObject,0,new RectOffset(14,14,3,3));Pref(chip.gameObject,-1,34);
+   count=U.Label(chip.transform,"Count",K.Number,18,"FFFFFF");
   }
   // A friendly empty state: a 3D icon at 120 px, a title and a tip, centred.
   static GameObject Empty(RectTransform parent,Sprite picture,string title,string text,float height){
    var node=N.Node("Empty",parent);N.Column(node.gameObject,10).childAlignment=TextAnchor.MiddleCenter;Pref(node.gameObject,-1,height);
-   SpriteImg(node,"Picture",picture,Color.white,120,120);
-   U.Label(node,"Title",K.Headline,28,Ink,TextAlignmentOptions.Center).text=title;
-   var body=N.Text(node,"Body",K.Body,19,K.C(Muted));body.alignment=TextAlignmentOptions.Center;body.text=text;Pref(body.gameObject,-1,60);
+   SpriteImg(node,"Picture",picture,Color.white,76,76);
+   U.Label(node,"Title",K.Headline,24,Ink,TextAlignmentOptions.Center).text=title;
+   var body=N.Text(node,"Body",K.Body,19,K.C(Muted));body.alignment=TextAlignmentOptions.Center;body.text=text;Pref(body.gameObject,-1,50);
    return node.gameObject;
   }
   static bool Blocked()=>(CheckoutPackingGame.Instance&&CheckoutPackingGame.Instance.IsOpen)||(CheckoutRestockGame.Instance&&CheckoutRestockGame.Instance.IsOpen)||(CheckoutReceivingGame.Instance&&CheckoutReceivingGame.Instance.IsOpen)||(CheckoutCounterGame.Instance&&CheckoutCounterGame.Instance.IsOpen);
@@ -160,14 +162,8 @@ namespace Checkout {
   // ------------------------------------------------------------------ build: the Delivery tab body
   void Build(RectTransform body){
    host=body;built=true;
-   root=N.Node("Delivery",host);U.Stretch(root,Vector2.zero,Vector2.one,new Vector2(14,12),new Vector2(-14,-12));
-   N.Column(root.gameObject,12);
-   BuildHeader(root);
-   // Three columns share the rest of the screen: offers 38%, orders in progress 34%, map and history 28%.
-   var row=N.Node("Panels",root);N.Row(row.gameObject,14).childAlignment=TextAnchor.UpperLeft;Pref(row.gameObject,-1,-1).flexibleHeight=1;
-   BuildOffersColumn(row,38);
-   BuildActiveColumn(row,34);
-   BuildSideColumn(row,28);
+   root=N.Node("Delivery",host);U.Stretch(root,Vector2.zero,Vector2.one,new Vector2(14,10),new Vector2(-14,-10));
+   BuildShell(root);   // the device, status bar, app bar, pages and the tab bar (CheckoutDeliveryApp.Shell.cs)
    BuildLocked();
   }
   // Header: four chunky chips (rank with XP, streak flame meter, rating star, motoboys).
@@ -180,7 +176,7 @@ namespace Checkout {
    U.Label(rt,"Kicker",K.Body,18,Muted,TextAlignmentOptions.Left).text="Rank de entregador";
    rankName=U.Label(rt,"Name",K.Headline,28,Ink,TextAlignmentOptions.Left);
    var xp=Panel(rt,"XpBack",EmptyTone,8);Pref(xp.gameObject,-1,18);
-   rankFill=N.Image(xp.transform,"XpFill",Color.white,0);rankFill.sprite=DeliveryArt.Chunk(RankColors[0],8);rankFill.type=Image.Type.Filled;rankFill.fillMethod=Image.FillMethod.Horizontal;rankFill.fillAmount=0;
+   rankFill=N.Image(xp.transform,"XpFill",Color.white,0);rankFill.sprite=DeliveryArt.Flat(RankColors[0],8);rankFill.type=Image.Type.Filled;rankFill.fillMethod=Image.FillMethod.Horizontal;rankFill.fillAmount=0;
    U.Stretch(rankFill.rectTransform,Vector2.zero,Vector2.one,new Vector2(3,3),new Vector2(-3,-3));
    rankXp=U.Label(xp.transform,"XpText",K.Number,15,Ink);U.Stretch(rankXp.rectTransform,Vector2.zero,Vector2.one);
    // Streak chip: a flame that grows with the streak, and a 10-segment meter.
@@ -206,7 +202,7 @@ namespace Checkout {
   }
   // A cream chunky panel that lays out its children in a row.
   Image Chip(RectTransform parent,string name,float flex){
-   var chip=Panel(parent,name,Paper,20);
+   var chip=Panel(parent,name,Paper,18);
    N.Row(chip.gameObject,12,new RectOffset(16,16,8,8)).childAlignment=TextAnchor.MiddleLeft;
    Pref(chip.gameObject,-1,116).flexibleWidth=flex;
    return chip;
@@ -330,6 +326,7 @@ namespace Checkout {
    if(!unlocked){lockSub.text="Libera no "+(string.IsNullOrEmpty(d.unlockEraName)?"próximo nível da loja":d.unlockEraName);return;}
    double now=CheckoutBridge.Now;
    SyncHeader(d);
+   SyncShell(d);
    SyncOffers(d,now);
    SyncActives(d,now);
    SyncHistory(d,now);
@@ -341,7 +338,7 @@ namespace Checkout {
    if(rank!=lastRank){
     lastRank=rank;
     rankName.text=RankNames[rank];
-    rankFill.sprite=DeliveryArt.Chunk(RankColors[rank],8);
+    rankFill.sprite=DeliveryArt.Flat(RankColors[rank],8);
    }
    float frac=1f,start=RankFrom[rank];
    if(rank<RankFrom.Length-1){float to=RankFrom[rank+1];frac=Mathf.Clamp01((d.delivered-start)/(to-start));rankXp.text=d.delivered+" / "+to;}

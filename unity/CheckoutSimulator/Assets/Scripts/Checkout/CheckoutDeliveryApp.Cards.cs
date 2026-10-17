@@ -43,7 +43,7 @@ namespace Checkout {
    var view=ScrollArea(left,"OffersView",out offersContent);
    Pref(view.gameObject,-1,-1).flexibleHeight=1;
    N.Column(offersContent.gameObject,14,new RectOffset(4,8,4,8));Fit(offersContent);
-   offersEmpty=Empty(offersContent,K.Icon("Icons/smartphone"),"Nenhum pedido agora","Novos pedidos chegam em instantes, enquanto a loja estiver aberta.",330);
+   offersEmpty=Empty(offersContent,K.Icon("Icons/smartphone"),"Nenhum pedido agora","Novos pedidos chegam em instantes, enquanto a loja estiver aberta.",220);
   }
   void BuildActiveColumn(RectTransform row,float weight){
    var right=N.Node("Active",row);N.Column(right.gameObject,10);Pref(right.gameObject,-1,-1).flexibleWidth=weight;
@@ -51,7 +51,7 @@ namespace Checkout {
    var view=ScrollArea(right,"ActiveView",out activeContent);
    Pref(view.gameObject,-1,-1).flexibleHeight=1;
    N.Column(activeContent.gameObject,14,new RectOffset(4,8,4,8));Fit(activeContent);
-   activeEmpty=Empty(activeContent,DeliveryArt.Moto,"Aceite um pedido para começar","Monte o pedido, entregue ao motoboy e ganhe estrelas e gorjeta.",330);
+   activeEmpty=Empty(activeContent,DeliveryArt.Moto,"Aceite um pedido para começar","Monte o pedido, entregue ao motoboy e ganhe estrelas e gorjeta.",220);
   }
   void BuildSideColumn(RectTransform row,float weight){
    var side=N.Node("Side",row);N.Column(side.gameObject,10);Pref(side.gameObject,-1,-1).flexibleWidth=weight;
@@ -92,7 +92,7 @@ namespace Checkout {
   OfferView BuildOfferCard(string id){
    var v=new OfferView{id=id};
    v.root=N.Node("Offer",offersContent);v.group=v.root.gameObject.AddComponent<CanvasGroup>();Pref(v.root.gameObject,-1,OfferHeight);
-   v.slide=Panel(v.root,"Ticket","FFF7EC",26).rectTransform;U.Stretch(v.slide,Vector2.zero,Vector2.one);
+   v.slide=Panel(v.root,"Ticket",Paper,18).rectTransform;U.Stretch(v.slide,Vector2.zero,Vector2.one);
    v.slide.GetComponent<Image>().raycastTarget=true;
    N.Column(v.slide.gameObject,10,new RectOffset(14,14,16,12));
    // Row 1: avatar, name and neighbourhood, countdown ring.
@@ -102,7 +102,7 @@ namespace Checkout {
    v.name=U.Label(tx,"Name",K.Headline,24,Ink,TextAlignmentOptions.Left);
    v.meta=U.Label(tx,"Meta",K.Body,18,Muted,TextAlignmentOptions.Left);
    var ring=N.Node("Ring",head);Pref(ring.gameObject,62,62);
-   var back=N.Image(ring,"Back",K.C("EADBC4"),0);back.sprite=DeliveryArt.Ring;U.Stretch(back.rectTransform,Vector2.zero,Vector2.one);
+   var back=N.Image(ring,"Back",K.C(EmptyTone),0);back.sprite=DeliveryArt.Ring;U.Stretch(back.rectTransform,Vector2.zero,Vector2.one);
    v.ringFill=N.Image(ring,"Fill",K.C(Green),0);v.ringFill.sprite=DeliveryArt.Ring;U.Stretch(v.ringFill.rectTransform,Vector2.zero,Vector2.one);
    v.ringFill.type=Image.Type.Filled;v.ringFill.fillMethod=Image.FillMethod.Radial360;v.ringFill.fillOrigin=2;v.ringFill.fillAmount=1;
    v.ring=U.Label(ring,"Text",K.Number,15,Ink);U.Stretch(v.ring.rectTransform,Vector2.zero,Vector2.one);
@@ -118,7 +118,7 @@ namespace Checkout {
    U.Label(pay.transform,"Label",K.Body,18,Ink,TextAlignmentOptions.Left).text="Ganho";
    LayImg(pay.transform,"Coin","Icons/coin",28,28);
    v.payout=U.Label(pay.transform,"Value",K.Headline,24,Ink,TextAlignmentOptions.Left);
-   v.decline=JuicyButton.Create(btns,"Recusar","FFF7EC","D4B482",64,20,null,false,Ink);v.decline.Clicked=()=>Answer(v,false);
+   v.decline=JuicyButton.Create(btns,"Recusar",ScreenTone,"D9DCE0",64,20,null,false,Ink);v.decline.Clicked=()=>Answer(v,false);
    Pref(v.decline.gameObject,110,-1).flexibleWidth=0;
    v.accept=JuicyButton.Create(btns,"Aceitar",Green,"2C7A40",64,26,"Icons/success",true);v.accept.Clicked=()=>Answer(v,true);
    Pref(v.accept.gameObject,-1,64).minWidth=150;
@@ -224,7 +224,7 @@ namespace Checkout {
   }
   // A history row, 72 px: the avatar, the name and the note, the stars and the coins earned (coin icon, "+128").
   void BuildHistoryRow(DeliveryOrder o){
-   var row=Panel(historyContent,"Row","FFF6E4",14);Pref(row.gameObject,-1,72);
+   var row=Panel(historyContent,"Row",Paper,14);Pref(row.gameObject,-1,72);
    N.Row(row.gameObject,10,new RectOffset(10,14,6,6)).childAlignment=TextAnchor.MiddleLeft;
    var disc=Avatar(row.transform,"Avatar",60,out var ini);PaintAvatar(disc,ini,o.avatar,o.customerName);
    var tx=N.Node("Texts",row.transform);N.Column(tx.gameObject,0);Pref(tx.gameObject,-1,-1).flexibleWidth=1;

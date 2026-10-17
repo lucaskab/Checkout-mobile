@@ -18,7 +18,7 @@ namespace Checkout {
 
   // A chunky 3D button: a dark bottom edge, a bright face that presses down 4 px, a little idle wiggle when asked.
   public sealed class JuicyButton:MonoBehaviour,IPointerDownHandler,IPointerUpHandler,IPointerExitHandler,IPointerEnterHandler,IPointerClickHandler {
-   const float EdgeH=7f,PressDrop=4f;
+   const float EdgeH=2f,PressDrop=1.5f;   // a flat app button: it only sinks a hair when pressed
    Image edge,face;TextMeshProUGUI label;Image icon;RectTransform faceRect;
    string fillHex="2E8CAE",edgeHex="1F6A86",lastFill="",lastEdge="",textHex="FFFFFF";
    bool enabledNow=true,pressed,hover,wiggle;
@@ -54,12 +54,12 @@ namespace Checkout {
    public void SetFill(string fill,string edgeColor){fillHex=fill;edgeHex=edgeColor;Paint();}
    public void SetEnabled(bool on){enabledNow=on;Paint();}
    void Paint(){
-    if(edgeHex!=lastEdge){lastEdge=edgeHex;edge.sprite=DeliveryArt.Chunk(edgeHex,20);}
-    if(fillHex!=lastFill){lastFill=fillHex;face.sprite=DeliveryArt.Chunk(fillHex,20);}
+    if(edgeHex!=lastEdge){lastEdge=edgeHex;edge.sprite=DeliveryArt.Flat(edgeHex,14);}
+    if(fillHex!=lastFill){lastFill=fillHex;face.sprite=DeliveryArt.Flat(fillHex,14);}
     edge.type=Image.Type.Sliced;face.type=Image.Type.Sliced;
-    edge.color=Color.white;
-    face.color=enabledNow?Color.white:new Color(.62f,.58f,.52f,1f);
-    label.color=enabledNow?K.C(textHex):K.C("B9AE9C");
+    edge.color=new Color(1,1,1,.55f);
+    face.color=enabledNow?Color.white:new Color(.78f,.79f,.8f,1f);
+    label.color=enabledNow?K.C(textHex):K.C("9AA0A8");
    }
    // Pressed or up: the face sits EdgeH px above the edge; pressed it drops PressDrop px.
    void Place(bool down){
@@ -68,7 +68,7 @@ namespace Checkout {
     faceRect.offsetMax=new Vector2(0,-drop);
    }
    void Update(){
-    if(!pressed&&wiggle&&enabledNow)transform.localScale=Vector3.one*(1f+.022f*Mathf.Sin(Time.unscaledTime*5f));
+    if(!pressed&&wiggle&&enabledNow)transform.localScale=Vector3.one*(1f+.008f*Mathf.Sin(Time.unscaledTime*4f));   // a calm "tap me" breath, app-like
     else if(transform.localScale.x!=1f)transform.localScale=Vector3.one;
     if(hover&&!pressed&&enabledNow)face.color=new Color(1.08f,1.08f,1.08f,1f);
     else if(enabledNow)face.color=Color.white;

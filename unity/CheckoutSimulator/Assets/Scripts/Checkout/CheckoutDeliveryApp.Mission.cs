@@ -112,9 +112,9 @@ namespace Checkout {
    PaintAvatar(v.courierDisc,v.courierInitials,courierSeed,courierName);
    if(stage!=v.lastStage){
     v.lastStage=stage;
-    v.ribbonBack.sprite=DeliveryArt.Chunk(stage==3?Green:stage==4?Red:Blue,16);
-    string fill=stage==3?"FFEFC2":"FFF6E4";
-    if(fill!=v.cardFill){v.cardFill=fill;v.card.sprite=DeliveryArt.Chunk(fill,24);}
+    v.ribbonBack.sprite=DeliveryArt.Flat(stage==3?Green:stage==4?Red:Blue,16);
+    string fill=stage==3?"FFF4D6":Paper;   // white card; warm when the motoboy waits at the door
+    if(fill!=v.cardFill){v.cardFill=fill;v.card.sprite=DeliveryArt.Flat(fill,24);}
     for(int i=0;i<v.nodes.Length;i++){
      bool done=i<stage,cur=i==stage;
      v.nodes[i].color=K.C(done?Green:cur?Gold:EmptyTone);
@@ -126,7 +126,7 @@ namespace Checkout {
    // The one button: pack, or hand over. The rest is a timer, shown but not pressable.
    bool live=stage==1||stage==3;
    v.action.SetText(ActionLabel(o,now));
-   v.action.SetFill(stage==3?Green:stage==1?Blue:"8A7560",stage==3?"2C7A40":stage==1?"1F6A86":"5E4B38");
+   v.action.SetFill(stage==3?Green:stage==1?Blue:"9AA0A8",stage==3?"2C7A40":stage==1?"B83A1E":"7B818A");
    v.action.SetEnabled(live);
   }
 

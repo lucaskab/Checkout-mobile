@@ -3495,6 +3495,11 @@ const catalog: Catalog = {
 	"DINHEIRO": "EFECTIVO",
 	"CARTÃO": "TARJETA",
 	"CUPOM": "TICKET",
+	// Delivery app look 17/10
+	"Perfil": "Perfil",
+	"Entregas da loja": "Entregas de la tienda",
+	"Loja aberta · recebendo pedidos": "Tienda abierta · recibiendo pedidos",
+	"Loja fechada · sem pedidos novos": "Tienda cerrada · sin pedidos nuevos",
 	// QA sweep 16/10
 	"Começa com quatro espaços.": "Empieza con cuatro espacios.",
 	"Coloque os móveis que estão esperando antes de abrir a loja.": "Coloca los muebles que están esperando antes de abrir la tienda.",

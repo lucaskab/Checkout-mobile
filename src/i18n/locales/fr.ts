@@ -3623,6 +3623,11 @@ const catalog: Catalog = {
 	"DINHEIRO": "ESPÈCES",
 	"CARTÃO": "CARTE",
 	"CUPOM": "TICKET",
+	// Delivery app look 17/10
+	"Perfil": "Profil",
+	"Entregas da loja": "Livraisons du magasin",
+	"Loja aberta · recebendo pedidos": "Magasin ouvert · commandes acceptées",
+	"Loja fechada · sem pedidos novos": "Magasin fermé · pas de nouvelles commandes",
 	// QA sweep 16/10
 	"Começa com quatro espaços.": "Commence avec quatre emplacements.",
 	"Coloque os móveis que estão esperando antes de abrir a loja.": "Place les meubles en attente avant d'ouvrir la boutique.",
