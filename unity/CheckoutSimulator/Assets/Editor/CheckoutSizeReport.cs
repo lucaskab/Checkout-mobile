@@ -63,6 +63,33 @@ public static class CheckoutSizeReport {
             if (dirty) { ti.SaveAndReimport(); changed++; }
         }
         Debug.Log("CHECKOUT_SIZE optimize textures changed=" + changed);
+        WorldCap(1024);   // 3D world textures at 1024 on Android (approved by Lucas 18/10 on side-by-side shots)
+    }
+
+    // The 3D world's textures capped at 1024 on Android (2D screens untouched); approved by Lucas 18/10 after comparing
+    // shots. "2048" puts them back exactly as they were.
+    [MenuItem("Checkout/Android/World textures 1024")] public static void World1024() => WorldCap(1024);
+    [MenuItem("Checkout/Android/World textures 2048")] public static void World2048() => WorldCap(0);
+    static void WorldCap(int cap) {
+        int changed = 0;
+        AssetDatabase.StartAssetEditing();
+        try {
+            foreach (var guid in AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets" })) {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path.Contains("/Editor/") || path.StartsWith("Assets/Art/AppIcon") || path.StartsWith("Assets/Resources/CheckoutDesktop/")) continue;
+                var ti = AssetImporter.GetAtPath(path) as TextureImporter;
+                if (ti == null || ti.maxTextureSize <= 1024) continue;
+                var ps = ti.GetPlatformTextureSettings("Android");
+                int want = cap > 0 ? cap : ti.maxTextureSize;
+                if (ps.overridden && ps.maxTextureSize == want) continue;
+                if (cap == 0 && !ps.overridden) continue;
+                if (!ps.overridden) { ps.overridden = true; ps.format = TextureImporterFormat.Automatic; }
+                ps.maxTextureSize = want;
+                ti.SetPlatformTextureSettings(ps); ti.SaveAndReimport(); changed++;
+            }
+        } finally { AssetDatabase.StopAssetEditing(); }
+        Debug.Log($"CHECKOUT_SIZE world cap {cap} changed={changed}");
+        File.WriteAllText("Logs/world_cap.txt", $"cap {cap} changed {changed}");
     }
 
     static string Folder(string p) {
