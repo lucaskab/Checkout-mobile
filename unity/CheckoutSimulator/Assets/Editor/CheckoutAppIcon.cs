@@ -37,6 +37,10 @@ public static class CheckoutAppIcon {
         Debug.Log("CHECKOUT_ICON done");
     }
 
+    // the tool runner only takes plain names (no parentheses): the Play build under a short name, icons first
+    [MenuItem("Checkout/Android/Build AAB for Play")]
+    public static void BuildForPlay() { Apply(); EditorApplication.ExecuteMenuItem("Checkout/Android/Build AAB (Google Play)"); }
+
     static Texture2D Load(string file) {
         var path = Dir + "/" + file;
         var imp = AssetImporter.GetAtPath(path) as TextureImporter;
