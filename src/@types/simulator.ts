@@ -173,8 +173,12 @@ export type SimulatorSnapshot = {
 		coinPrice: number;
 		diamondPrice: number;
 		requiredLevel: number;
-		zone: "inside" | "outside";
+		zone: "inside" | "outside" | "both";
+		/** A "melhoria": it does something while placed (the shop marks it). */
+		upgrade: boolean;
 	}[];
+	/** Coins the placed machines just took (newest first): Unity floats them over the machine. */
+	decorPlays: { itemId: string; decorId: string; coins: number; at: number }[];
 	ownedItems: string[];
 	/** Boosters running now (Melhorias → Boosters) and the seconds each has left: the map plays their effects. */
 	boosts: string[];

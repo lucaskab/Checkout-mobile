@@ -11,15 +11,15 @@ export const interiorDecor: InteriorDecorDefinition[] = [
 	{ id: "balloons", name: "Arco de balões", description: "Festa de inauguração todo dia.", diamondPrice: 15, requiredLevel: 1, zone: "inside" },
 	{ id: "floor-lamp", name: "Luminária", description: "Luz dourada e aconchegante.", coinPrice: 1_200, requiredLevel: 4, zone: "inside" },
 	{ id: "bench", name: "Banco de descanso", description: "Para quem espera na fila do caixa.", coinPrice: 1_500, requiredLevel: 5, zone: "inside" },
-	{ id: "cart-corral", name: "Carrinhos", description: "Fileira de carrinhos de compras.", coinPrice: 2_000, requiredLevel: 7, zone: "inside" },
+	{ id: "cart-corral", name: "Carrinhos de Compras", description: "Melhoria: com os carrinhos no mapa, cada cliente pode levar +1 produto.", coinPrice: 4_000, requiredLevel: 7, zone: "inside", effect: { basketItems: 1 } },
 	{ id: "plant-palm", name: "Palmeira", description: "Planta grande em vaso dourado.", coinPrice: 2_500, requiredLevel: 8, zone: "inside" },
 	{ id: "promo-stand", name: "Expositor de ofertas", description: "Pilha de promoção com placa.", coinPrice: 3_000, requiredLevel: 10, zone: "inside" },
 	{ id: "water-cooler", name: "Bebedouro", description: "Água fresca para os clientes.", coinPrice: 1_800, requiredLevel: 12, zone: "inside" },
-	{ id: "gumball", name: "Máquina de chiclete", description: "Clássico da entrada do mercado.", coinPrice: 2_200, requiredLevel: 13, zone: "inside" },
+	{ id: "gumball", name: "Máquina de chiclete", description: "Melhoria: 1 em cada 4 clientes compra um chiclete (+2 moedas cada, mais nos níveis altos; quase tudo lucro). Até 3 máquinas.", coinPrice: 2_200, requiredLevel: 13, zone: "inside", effect: { play: { chance: 0.25, coins: 2, maxPlaced: 3 } } },
 	{ id: "flower-stand", name: "Banca de flores", description: "Baldes de flores coloridas.", coinPrice: 4_000, requiredLevel: 14, zone: "inside" },
 	{ id: "watermelon-pile", name: "Ilha de melancias", description: "Montanha de melancias da estação.", coinPrice: 3_500, requiredLevel: 16, zone: "inside" },
-	{ id: "claw-machine", name: "Máquina de pelúcia", description: "Luzes piscando e bichinhos.", diamondPrice: 25, requiredLevel: 23, zone: "inside" },
-	{ id: "atm", name: "Caixa eletrônico", description: "Saque rápido perto do caixa.", coinPrice: 6_000, requiredLevel: 19, zone: "inside" },
+	{ id: "claw-machine", name: "Máquina de pelúcia", description: "Melhoria: 1 em cada 5 clientes joga (+6 moedas por jogada, mais nos níveis altos; quase tudo lucro). Dentro ou fora do mercado. Até 3 máquinas.", diamondPrice: 25, requiredLevel: 23, zone: "both", effect: { play: { chance: 0.2, coins: 6, maxPlaced: 3 } } },
+	{ id: "atm", name: "Caixa eletrônico", description: "Melhoria: os clientes sacam dinheiro e gastam +15% no mercado.", coinPrice: 15_000, requiredLevel: 19, zone: "inside", effect: { budget: 0.15 } },
 	{ id: "digital-totem", name: "Totem digital", description: "Tela de ofertas animada.", diamondPrice: 30, requiredLevel: 26, zone: "inside" },
 	// Outside the market: the plaza and footways of the city block.
 	{ id: "flower-bed", name: "Canteiro de flores", description: "Floreira comprida para a calçada.", coinPrice: 1_500, requiredLevel: 1, zone: "outside" },
@@ -90,8 +90,8 @@ export function sanitizeInteriorItems(
 		if (!finite(item.x, 80) || !finite(item.z, 80) || !finite(item.rot, 100_000)) return null;
 		const functional = (functionalInteriorTypes as readonly string[]).includes(item.type);
 		const decor = functional ? null : getInteriorDecor(item.type);
-		// Shop furniture stays inside; each decoration only goes where it belongs.
-		if (!!item.outside !== (decor?.zone === "outside")) return null;
+		// Shop furniture stays inside; each decoration only goes where it belongs (some go either way).
+		if (decor?.zone !== "both" && !!item.outside !== (decor?.zone === "outside")) return null;
 		if (!functional) {
 			if (!decor) return null;
 			placed[item.type] = (placed[item.type] ?? 0) + 1;

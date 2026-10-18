@@ -142,8 +142,8 @@ test("the second checkout waits in the inventory, then the builders install it",
 	finishAll();
 	expect(game().shop.ownedItemIds).toContain("extra-checkout");
 	// Other shop items keep working instantly.
-	expect(game().purchaseShopItem("simple-cart", "coins")).toBe(true);
-	expect(game().shop.ownedItemIds).toContain("simple-cart");
+	expect(game().purchaseShopItem("shopping-basket", "coins")).toBe(true);
+	expect(game().shop.ownedItemIds).toContain("shopping-basket");
 });
 
 test("old saves keep the sectors their level had already opened", async () => {

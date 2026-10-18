@@ -3495,6 +3495,13 @@ const catalog: Catalog = {
 	"DINHEIRO": "EFECTIVO",
 	"CARTÃO": "TARJETA",
 	"CUPOM": "TICKET",
+	// Decor upgrades 18/10
+	"Melhoria": "Mejora",
+	"Melhoria: com os carrinhos no mapa, cada cliente pode levar +1 produto.": "Mejora: con los carritos en el mapa, cada cliente puede llevar +1 producto.",
+	"Melhoria: 1 em cada 4 clientes compra um chiclete (+2 moedas cada, mais nos níveis altos; quase tudo lucro). Até 3 máquinas.": "Mejora: 1 de cada 4 clientes compra un chicle (+2 monedas cada uno, más en niveles altos; casi todo ganancia). Hasta 3 máquinas.",
+	"Melhoria: 1 em cada 5 clientes joga (+6 moedas por jogada, mais nos níveis altos; quase tudo lucro). Dentro ou fora do mercado. Até 3 máquinas.": "Mejora: 1 de cada 5 clientes juega (+6 monedas por jugada, más en niveles altos; casi todo ganancia). Dentro o fuera del mercado. Hasta 3 máquinas.",
+	"Melhoria: os clientes sacam dinheiro e gastam +15% no mercado.": "Mejora: los clientes sacan dinero y gastan +15% en el mercado.",
+	"Dentro ou fora": "Dentro o fuera",
 	// Closing time 18/10
 	"Fechando": "Cerrando",
 	"cliente": "cliente",

@@ -426,7 +426,9 @@ export function createSimulatorSnapshot(
 			diamondPrice: decor.diamondPrice ?? 0,
 			requiredLevel: decor.requiredLevel,
 			zone: decor.zone,
+			upgrade: Boolean(decor.effect),
 		})),
+		decorPlays: state.market.decorPlays ?? [],
 		// The register line: Unity keeps these customers waiting at the till until they are paid.
 		checkouts: state.checkout.queue.map((checkout) => ({
 			id: checkout.id,

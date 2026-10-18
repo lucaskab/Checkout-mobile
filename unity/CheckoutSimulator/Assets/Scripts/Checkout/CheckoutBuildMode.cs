@@ -193,6 +193,12 @@ namespace Checkout
             var name = U.Label(face.transform, "Name", K.Label, 20, "4A3624"); U.Stretch(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(10, -184), new Vector2(-10, -154)); name.text = d.name;
             var desc = U.Label(face.transform, "Desc", K.Body, 14, "8A7560"); desc.textWrappingMode = TextWrappingModes.Normal; desc.overflowMode = TextOverflowModes.Truncate;
             U.Stretch(desc.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(14, -230), new Vector2(-14, -184)); desc.text = d.description;
+            if (d.upgrade)
+            {
+                // a "melhoria": it earns or sells more while placed (its description says how)
+                var tag = U.Shape(face.transform, "Upgrade", "F2B03D", 14, new Vector2(0, 1), new Vector2(150, 30), new Vector2(86, -24));
+                var tagText = U.Label(tag.transform, "Text", K.Label, 16, "4A3624"); U.Stretch(tagText.rectTransform, Vector2.zero, Vector2.one); tagText.text = "Melhoria";
+            }
             // Price (or level lock) and how many are waiting in stock.
             var priceRow = U.Box(face.transform, "Price", "FFFFFF", 16, new Vector2(.5f, 0), new Vector2(.5f, 0)); U.At(priceRow.rectTransform, new Vector2(.5f, 0), new Vector2(170, 36), new Vector2(0, 86));
             c.priceIcon = U.Icon(priceRow.transform, "Icon", d.coinPrice > 0 ? "Icons/coin" : "Icons/diamond", new Vector2(0, .5f), new Vector2(28, 28), new Vector2(22, 0));
@@ -215,8 +221,9 @@ namespace Checkout
             {
                 if (!cards.TryGetValue(d.id, out var c)) cards[d.id] = c = MakeCard(d);
                 string zone = string.IsNullOrEmpty(d.zone) ? "inside" : d.zone;
-                c.go.SetActive(zone == shopZone);
-                if (zone != shopZone) continue;
+                bool here = zone == shopZone || zone == "both";   // the claw machine goes inside or out
+                c.go.SetActive(here);
+                if (!here) continue;
                 bool levelOk = s.level >= d.requiredLevel, gems = d.coinPrice <= 0;
                 int cost = gems ? d.diamondPrice : d.coinPrice;
                 bool afford = gems ? s.diamonds >= cost : s.coins >= cost;
@@ -429,7 +436,7 @@ namespace Checkout
         {
             if (Interior.Owned(id) - Interior.Placed(id) <= 0) return;
             var d = bridge.State?.decorCatalog?.FirstOrDefault(x => x.id == id);
-            bool outside = d != null && d.zone == "outside";
+            bool outside = d != null && (d.zone == "outside" || (d.zone == "both" && shopZone == "outside"));
             if ((outside ? "outside" : "inside") != shopZone) Focus(outside ? "outside" : "inside");
             var ray = simulation.view.ScreenPointToRay(new Vector3(Screen.width * .5f, Screen.height * .5f));
             var plane = new Plane(Vector3.up, new Vector3(0, outside ? CheckoutInterior.Ground : CheckoutInterior.Floor, 0));

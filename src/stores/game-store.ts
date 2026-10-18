@@ -1,5 +1,7 @@
+import { getDecorEffects, rollDecorPlays } from "@/services/decor-effects";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import type { InteriorState } from "@/@types/interior";
 import type { GameStatistics } from "@/@types/achievement";
 import {
 	getInteriorDecor,
@@ -920,7 +922,7 @@ function migrateGameState(persistedState: unknown): GameState {
 		lastSessionAt,
 		unlockedMarketExpansionIds,
 		marketExpansionConstruction,
-		interior: normalizeInteriorState(state.interior),
+		interior: withCartsFromShop(normalizeInteriorState(state.interior), state.shop?.ownedItemIds),
 		interiorConstructions,
 		builtSectorIds,
 		missions,
@@ -2931,6 +2933,7 @@ export const useGameStore = create<GameStore>()(
 				const daily = normalizeDailyState(get().daily, market.level, now);
 				const eventEffects = getActiveGameEventEffects(events, now);
 				const shopEffects = getShopEffects(shop);
+				const decorEffects = getDecorEffects(get().interior);
 				const employeeEffects = getEmployeeEffects(employees);
 				const { day } = get();
 				if (
@@ -3037,11 +3040,13 @@ export const useGameStore = create<GameStore>()(
 					budgetMultiplier:
 						(1 + Math.max(market.level - 1, 0) * 0.08) *
 						shopEffects.customerBudgetMultiplier *
+						decorEffects.budgetMultiplier *
 						eventEffects.customerBudgetMultiplier *
 						getTurnEffects(get().era.id, get().day.shift).budgetMultiplier,
 					// Bigger markets: customers come with a basket, then a cart (more products each).
 					maxProductsBonus:
 						shopEffects.maxProductsBonus +
+						decorEffects.basketItems +
 						getEraEffects(get().era.id).basketBonus +
 						eventEffects.extraBasketItems,
 					products: onSale,
@@ -3168,11 +3173,26 @@ export const useGameStore = create<GameStore>()(
 				if (specialRequest) {
 					nextDay = addSpecialRequest(nextDay, specialRequest);
 				}
+				// The coin machines in the market (gumball, claw machine): some customers stop and play.
+				const plays = rollDecorPlays(
+					decorEffects,
+					createDeliveryRandom(market.randomSeed * 31 + 7),
+					(1 + Math.max(market.level - 1, 0) * 0.08) * getTurnEffects(get().era.id, get().day.shift).ticketMultiplier,
+				);
+				const playCoins = plays.reduce((sum, play) => sum + play.coins, 0);
+				let playedDaily = nextDaily;
+				const decorEarnings = { ...(market.decorEarnings ?? {}) };
+				if (playCoins > 0) {
+					nextDay = recordDaySale(nextDay, { categories: {}, profit: Math.round(playCoins * 0.9), revenue: playCoins, units: 0 });
+					playedDaily = markDailySale(nextDaily, playCoins, 0, 0);
+					for (const play of plays) decorEarnings[play.decorId] = (decorEarnings[play.decorId] ?? 0) + play.coins;
+				}
 				set({
+					...(playCoins > 0 ? { coins: get().coins + playCoins } : {}),
 					checkout: checkout
 						? enqueueCheckout(get().checkout, checkout)
 						: get().checkout,
-					daily: nextDaily,
+					daily: playedDaily,
 					day: nextDay,
 					lastSessionAt: now,
 					employees: {
@@ -3208,6 +3228,15 @@ export const useGameStore = create<GameStore>()(
 									Math.max(1, eventEffects.customerArrivalMultiplier),
 							),
 						recentCustomers: [customer, ...market.recentCustomers].slice(0, 3),
+						...(playCoins > 0
+							? {
+									decorEarnings,
+									decorPlays: [
+										...plays.map((play) => ({ ...play, at: now })),
+										...(market.decorPlays ?? []),
+									].slice(0, 6),
+								}
+							: {}),
 						randomSeed: nextSeed,
 					},
 					shelfStock: nextShelfStock,
@@ -5053,6 +5082,12 @@ function createMarketCustomer(
 }
 
 // Money, XP and sales of a paid basket (the register is where revenue is booked).
+/** The "Carrinhos de Compras" upgrade became the cart corral placed on the map: who bought it gets one. */
+function withCartsFromShop(interior: InteriorState, ownedItemIds: string[] | undefined): InteriorState {
+	if (!ownedItemIds?.includes("simple-cart") || (interior.owned["cart-corral"] ?? 0) > 0) return interior;
+	return { ...interior, owned: { ...interior.owned, "cart-corral": 1 } };
+}
+
 function applyCheckoutPayment(
 	state: GameState,
 	payment: CheckoutPayment,

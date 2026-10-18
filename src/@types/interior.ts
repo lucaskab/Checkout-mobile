@@ -31,6 +31,21 @@ export type InteriorDecorDefinition = {
 	coinPrice?: number;
 	diamondPrice?: number;
 	requiredLevel: number;
-	/** Where it can be placed: inside the shop or on the block around it. */
-	zone: "inside" | "outside";
+	/** Where it can be placed: inside the shop, on the block around it, or either. */
+	zone: "inside" | "outside" | "both";
+	/** A "melhoria": what it does while it stands placed (stored pieces do nothing). */
+	effect?: DecorEffect;
+};
+
+/**
+ * What a placed decoration does for the market (src/services/decor-effects.ts adds them up). The decoration's
+ * description states the same numbers.
+ */
+export type DecorEffect = {
+	/** Extra products each customer may put in the basket (counted once, however many are placed). */
+	basketItems?: number;
+	/** Customers bring this share more money to spend (0.15 = +15%; counted once). */
+	budget?: number;
+	/** A coin machine: each customer may stop and play (chance per placed machine, up to `maxPlaced`). */
+	play?: { chance: number; coins: number; maxPlaced: number };
 };

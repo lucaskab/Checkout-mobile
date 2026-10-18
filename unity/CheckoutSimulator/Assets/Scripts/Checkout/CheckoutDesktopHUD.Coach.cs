@@ -151,9 +151,10 @@ namespace Checkout {
   void CoachAction(string action){if(!string.IsNullOrEmpty(action)){PlayCoach("tap");host.Action(action,"[]","");}}
   void PlayCoach(string clip,float volume=1){var c=U.Sfx(clip);if(c)coachSound.PlayOneShot(c,volume);}
 
+  // Null-safe: after a scene reload some coach pieces can be gone before the HUD rebuilds (it spammed NREs every frame).
   void HideCoach(){
-   coachFull.gameObject.SetActive(false);foreach(var d in coachDims)d.gameObject.SetActive(false);
-   coachRing.gameObject.SetActive(false);coachHand.gameObject.SetActive(false);coachCard.gameObject.SetActive(false);coachCompact.gameObject.SetActive(false);
+   if(coachFull)coachFull.gameObject.SetActive(false);if(coachDims!=null)foreach(var d in coachDims)if(d)d.gameObject.SetActive(false);
+   if(coachRing)coachRing.gameObject.SetActive(false);if(coachHand)coachHand.gameObject.SetActive(false);if(coachCard)coachCard.gameObject.SetActive(false);if(coachCompact)coachCompact.gameObject.SetActive(false);
   }
 
   // A game window covers the screen: the guide only leaves a note in the corner.

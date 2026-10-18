@@ -46,6 +46,10 @@ export type GameMarketState = {
 	nextCustomerAt: number | null;
 	recentUnlockProductIds: number[];
 	recentCustomers: GameMarketCustomer[];
+	/** The last coins the placed machines (gumball, claw machine) took: Unity shows them over the machine. */
+	decorPlays?: { itemId: string; decorId: string; coins: number; at: number }[];
+	/** Coins the machines earned in all, by decoration id. */
+	decorEarnings?: Record<string, number>;
 	randomSeed: number;
 	soldByProduct: Record<number, number>;
 	currentShift: GameShiftState | null;

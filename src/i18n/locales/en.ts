@@ -3610,6 +3610,13 @@ const catalog: Catalog = {
 	"DINHEIRO": "CASH",
 	"CARTÃO": "CARD",
 	"CUPOM": "RECEIPT",
+	// Decor upgrades 18/10
+	"Melhoria": "Upgrade",
+	"Melhoria: com os carrinhos no mapa, cada cliente pode levar +1 produto.": "Upgrade: with the carts on the map, each customer can take +1 product.",
+	"Melhoria: 1 em cada 4 clientes compra um chiclete (+2 moedas cada, mais nos níveis altos; quase tudo lucro). Até 3 máquinas.": "Upgrade: 1 in 4 customers buys a gumball (+2 coins each, more at higher levels; almost all profit). Up to 3 machines.",
+	"Melhoria: 1 em cada 5 clientes joga (+6 moedas por jogada, mais nos níveis altos; quase tudo lucro). Dentro ou fora do mercado. Até 3 máquinas.": "Upgrade: 1 in 5 customers plays (+6 coins per play, more at higher levels; almost all profit). Inside or outside the market. Up to 3 machines.",
+	"Melhoria: os clientes sacam dinheiro e gastam +15% no mercado.": "Upgrade: customers withdraw cash and spend +15% in the market.",
+	"Dentro ou fora": "Inside or outside",
 	// Closing time 18/10
 	"Fechando": "Closing",
 	"cliente": "customer",

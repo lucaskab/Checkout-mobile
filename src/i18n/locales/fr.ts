@@ -3623,6 +3623,13 @@ const catalog: Catalog = {
 	"DINHEIRO": "ESPÈCES",
 	"CARTÃO": "CARTE",
 	"CUPOM": "TICKET",
+	// Decor upgrades 18/10
+	"Melhoria": "Amélioration",
+	"Melhoria: com os carrinhos no mapa, cada cliente pode levar +1 produto.": "Amélioration : avec les chariots sur la carte, chaque client peut prendre +1 produit.",
+	"Melhoria: 1 em cada 4 clientes compra um chiclete (+2 moedas cada, mais nos níveis altos; quase tudo lucro). Até 3 máquinas.": "Amélioration : 1 client sur 4 achète un chewing-gum (+2 pièces chacun, plus aux niveaux élevés ; presque tout en bénéfice). Jusqu'à 3 machines.",
+	"Melhoria: 1 em cada 5 clientes joga (+6 moedas por jogada, mais nos níveis altos; quase tudo lucro). Dentro ou fora do mercado. Até 3 máquinas.": "Amélioration : 1 client sur 5 joue (+6 pièces par partie, plus aux niveaux élevés ; presque tout en bénéfice). Dans ou hors du magasin. Jusqu'à 3 machines.",
+	"Melhoria: os clientes sacam dinheiro e gastam +15% no mercado.": "Amélioration : les clients retirent de l'argent et dépensent +15 % dans le magasin.",
+	"Dentro ou fora": "Dedans ou dehors",
 	// Closing time 18/10
 	"Fechando": "Fermeture",
 	"cliente": "client",

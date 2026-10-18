@@ -3630,6 +3630,13 @@ const catalog: Catalog = {
 	"DINHEIRO": "BAR",
 	"CARTÃO": "KARTE",
 	"CUPOM": "BELEG",
+	// Decor upgrades 18/10
+	"Melhoria": "Upgrade",
+	"Melhoria: com os carrinhos no mapa, cada cliente pode levar +1 produto.": "Upgrade: Mit den Einkaufswagen auf der Karte kann jeder Kunde +1 Produkt mitnehmen.",
+	"Melhoria: 1 em cada 4 clientes compra um chiclete (+2 moedas cada, mais nos níveis altos; quase tudo lucro). Até 3 máquinas.": "Upgrade: Jeder 4. Kunde kauft einen Kaugummi (+2 Münzen pro Stück, mehr auf höheren Stufen; fast alles Gewinn). Bis zu 3 Automaten.",
+	"Melhoria: 1 em cada 5 clientes joga (+6 moedas por jogada, mais nos níveis altos; quase tudo lucro). Dentro ou fora do mercado. Até 3 máquinas.": "Upgrade: Jeder 5. Kunde spielt (+6 Münzen pro Spiel, mehr auf höheren Stufen; fast alles Gewinn). Im oder vor dem Markt. Bis zu 3 Automaten.",
+	"Melhoria: os clientes sacam dinheiro e gastam +15% no mercado.": "Upgrade: Kunden heben Geld ab und geben +15 % im Markt aus.",
+	"Dentro ou fora": "Drinnen oder draußen",
 	// Closing time 18/10
 	"Fechando": "Schließt",
 	"cliente": "Kunde",

@@ -33,15 +33,7 @@ export const shopItems: ShopItemDefinition[] = [
 		description: "Cada cliente pode levar +1 produto.",
 		effect: { basketItems: 1 },
 	},
-	{
-		id: "simple-cart",
-		name: "Carrinhos de Compras",
-		category: "equipamentos",
-		level: 7,
-		coinPrice: 4_000,
-		description: "Cada cliente pode levar +1 produto.",
-		effect: { basketItems: 1 },
-	},
+	// "Carrinhos de Compras" became a piece placed on the map (src/data/interior-decor.ts, cart-corral, 18/10).
 	{
 		id: "extra-checkout",
 		name: "Caixa Extra",
@@ -444,6 +436,8 @@ export const shopItems: ShopItemDefinition[] = [
 
 /** Ids of upgrades removed from the shop: old saves drop them (src/stores/game-store.ts migrate). */
 export const retiredShopItemIds = [
+	// now the cart corral of build mode: owners get one to place (src/stores/game-store.ts normalize)
+	"simple-cart",
 	"atlas-drone",
 	"cashback-hour",
 	"face-checkout",
