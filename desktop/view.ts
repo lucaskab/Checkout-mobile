@@ -13,6 +13,7 @@ import {
 import {
 	getContractProgress,
 	getPendingRequests,
+	isClosing,
 } from "@/services/market-day";
 import { getClaimableMissionCount } from "@/services/missions";
 import { canClaimDailyLogin, canDoubleDailyLogin } from "@/services/daily-login";
@@ -330,8 +331,10 @@ export function createDesktopView(
 		goalDone: Boolean(day.contract && day.phase !== "planning" && contract.completed),
 		dayPhase: day.phase,
 		dayTitle:
-			day.phase === "open"
-				? `${day.shift === "noite" ? "NOITE" : "DIA"} ${day.dayNumber} · ${clock((day.endsAt ?? now) - now)}`
+			day.phase === "open" && isClosing(day, now, state.checkout.queue.length)
+				? `${t("Fechando")} · ${state.checkout.queue.length} ${t(state.checkout.queue.length === 1 ? "cliente" : "clientes")}`
+				: day.phase === "open"
+				? `${day.shift === "noite" ? "NOITE" : "DIA"} ${day.dayNumber} · ${clock(Math.max(0, (day.endsAt ?? now) - now))}`
 				: day.phase === "results"
 					? `DIA ${day.dayNumber} · NOTA ${day.result?.grade ?? "-"}`
 					: `DIA ${day.dayNumber}`,

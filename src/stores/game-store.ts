@@ -148,6 +148,7 @@ import {
 	FREE_DAY_CONTRACT_ID,
 	getLoyaltyArrivalMultiplier,
 	isDayOver,
+	isClosing,
 	normalizeDayState,
 	recordDayCheckoutLost,
 	recordDayCustomer,
@@ -3997,6 +3998,8 @@ export const useGameStore = create<GameStore>()(
 					});
 				}
 				if (isDayOver(get().day, now)) {
+					// customers already inside finish shopping and pay before the day closes
+					if (isClosing(get().day, now, get().checkout.queue.length)) return false;
 					return get().closeDay();
 				}
 				return expired.expired.length > 0;

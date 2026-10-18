@@ -370,6 +370,15 @@ export function isDayOver(day: GameDayState, now: number) {
 	return day.phase === "open" && day.endsAt !== null && now >= day.endsAt;
 }
 
+// Closing time (Lucas 18/10): when the clock runs out the doors close to new customers, but the ones already inside
+// keep shopping, queue and pay; the day's results come once the last one has left. A safety cap ends it anyway
+// (whoever is still in line is rung up then, as before) so a forgotten register never holds the day forever.
+export const CLOSING_GRACE_MS = 3 * 60_000;
+
+export function isClosing(day: GameDayState, now: number, customersInside: number) {
+	return isDayOver(day, now) && customersInside > 0 && now < (day.endsAt ?? now) + CLOSING_GRACE_MS;
+}
+
 export function acceptsCustomers(day: GameDayState, now: number) {
 	return day.phase === "open" && !isDayOver(day, now);
 }

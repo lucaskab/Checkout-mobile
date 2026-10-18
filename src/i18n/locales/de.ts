@@ -3630,6 +3630,10 @@ const catalog: Catalog = {
 	"DINHEIRO": "BAR",
 	"CARTÃO": "KARTE",
 	"CUPOM": "BELEG",
+	// Closing time 18/10
+	"Fechando": "Schließt",
+	"cliente": "Kunde",
+	"clientes": "Kunden",
 	// Delivery app look 17/10
 	"Perfil": "Profil",
 	"Entregas da loja": "Lieferungen des Ladens",

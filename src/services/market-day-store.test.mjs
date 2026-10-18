@@ -118,6 +118,29 @@ test("ignored customers leave and the store loses satisfaction", () => {
 	expect(store().market.customerSatisfaction).toBeLessThan(satisfaction);
 });
 
+test("at closing time the customers inside finish before the day closes", () => {
+	store().startDay(store().day.offers[0].id);
+	const inside = { id: "qa-inside", customerId: "c1", customerName: "Ana", items: [], categories: {}, soldByProduct: {}, units: 1, total: 10, profit: 4, experience: 1, satisfaction: 0, mood: "feliz", method: "cartao", cashGiven: 0, createdAt: Date.now(), readyAt: Date.now(), expiresAt: Date.now() + 60_000 };
+	useGameStore.setState({ day: { ...store().day, endsAt: Date.now() - 1 }, checkout: { ...store().checkout, queue: [inside] } });
+	// doors closed to newcomers, but the day stays open while someone is still inside
+	expect(store().processMarketDay()).toBe(false);
+	expect(store().day.phase).toBe("open");
+	expect(store().market.isOpen).toBe(true);
+	// once the last one has left, the day closes
+	useGameStore.setState({ checkout: { ...store().checkout, queue: [] } });
+	expect(store().processMarketDay()).toBe(true);
+	expect(store().day.phase).toBe("results");
+});
+
+test("closing time has a safety cap: a forgotten line is rung up and the day ends", () => {
+	store().startDay(store().day.offers[0].id);
+	const inside = { id: "qa-late", customerId: "c2", customerName: "Bia", items: [], categories: {}, soldByProduct: {}, units: 1, total: 10, profit: 4, experience: 1, satisfaction: 0, mood: "feliz", method: "cartao", cashGiven: 0, createdAt: Date.now(), readyAt: Date.now(), expiresAt: Date.now() + 600_000 };
+	useGameStore.setState({ day: { ...store().day, endsAt: Date.now() - 4 * 60_000 }, checkout: { ...store().checkout, queue: [inside] } });
+	expect(store().processMarketDay()).toBe(true);
+	expect(store().day.phase).toBe("results");
+	expect(store().checkout.queue.length).toBe(0);
+});
+
 test("the day closes on time, shows results and pays rewards once claimed", () => {
 	store().startDay(store().day.offers[0].id);
 	useGameStore.setState({ day: { ...store().day, endsAt: Date.now() - 1 } });

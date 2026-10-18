@@ -3495,6 +3495,10 @@ const catalog: Catalog = {
 	"DINHEIRO": "EFECTIVO",
 	"CARTÃO": "TARJETA",
 	"CUPOM": "TICKET",
+	// Closing time 18/10
+	"Fechando": "Cerrando",
+	"cliente": "cliente",
+	"clientes": "clientes",
 	// Delivery app look 17/10
 	"Perfil": "Perfil",
 	"Entregas da loja": "Entregas de la tienda",

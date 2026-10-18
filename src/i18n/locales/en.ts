@@ -3610,6 +3610,10 @@ const catalog: Catalog = {
 	"DINHEIRO": "CASH",
 	"CARTÃO": "CARD",
 	"CUPOM": "RECEIPT",
+	// Closing time 18/10
+	"Fechando": "Closing",
+	"cliente": "customer",
+	"clientes": "customers",
 	// Delivery app look 17/10
 	"Perfil": "Profile",
 	"Entregas da loja": "Store deliveries",

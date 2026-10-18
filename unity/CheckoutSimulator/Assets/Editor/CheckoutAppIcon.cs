@@ -24,7 +24,7 @@ public static class CheckoutAppIcon {
                 var icons = PlayerSettings.GetPlatformIcons(NamedBuildTarget.Android, kind);
                 if (icons == null || icons.Length == 0) { Debug.LogWarning("CHECKOUT_ICON no slots for " + name); continue; }
                 foreach (var icon in icons) {
-                    if (name.Contains("Adaptive")) icon.SetTextures(fg, bg);   // layer 0 foreground, layer 1 background
+                    if (name.Contains("Adaptive")) icon.SetTextures(bg, fg);   // Unity's adaptive layers: 0 background, 1 foreground (fg first showed only the blue)
                     else icon.SetTextures(big);
                 }
                 PlayerSettings.SetPlatformIcons(NamedBuildTarget.Android, kind, icons);
