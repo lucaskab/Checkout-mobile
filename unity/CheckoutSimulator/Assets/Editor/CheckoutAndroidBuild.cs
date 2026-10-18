@@ -46,15 +46,19 @@ public static class CheckoutAndroidBuild
         Directory.CreateDirectory(folder);
         var output = Path.Combine(folder, $"checkout-{PlayerSettings.bundleVersion}-{code}.aab");
 
+        CheckoutSizeReport.Optimize();   // texture/mesh settings that keep the download small
         var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {
             scenes = scenes,
             locationPathName = output,
             target = BuildTarget.Android,
-            options = BuildOptions.None,
+            // LZ4HC: the game data stays compressed on the phone (with None it was stored raw: 390 MB download
+            // became 1.2 GB installed). Loading reads LZ4 chunks, which costs next to nothing.
+            options = BuildOptions.CompressWithLz4HC,
         });
         if (report.summary.result != BuildResult.Succeeded) throw new Exception("Build do Android falhou: " + report.summary.result);
         Debug.Log($"CHECKOUT_ANDROID_AAB_OK {output} (version code {code})");
+        CheckoutSizeReport.Run();
         EditorUtility.RevealInFinder(output);
     }
 
