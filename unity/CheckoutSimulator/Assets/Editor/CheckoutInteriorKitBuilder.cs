@@ -20,6 +20,8 @@ public static partial class CheckoutMarketStagesBuilder
     static readonly List<Mesh> scratch = new List<Mesh>();
     static readonly Dictionary<string, Mesh> productMeshes = new Dictionary<string, Mesh>();
 
+    // the tool runner only takes plain names (no parentheses)
+    [MenuItem("Supermarket/Build interior kit")] public static void BuildInteriorKitPlain() => BuildInteriorKitMenu();
     [MenuItem("Supermarket/Build interior kit (furniture + decor)")]
     public static void BuildInteriorKitMenu()
     {
@@ -1018,18 +1020,18 @@ public static partial class CheckoutMarketStagesBuilder
     static readonly Dictionary<string, Vector3> DecorSize = new Dictionary<string, Vector3>
     {
         { "basket-stack", new Vector3(.3f, .24f, 1.2f) }, { "plant-small", new Vector3(.28f, .28f, 1.3f) }, { "balloons", new Vector3(.34f, .34f, 2.3f) },
-        { "floor-lamp", new Vector3(.24f, .24f, 1.9f) }, { "bench", new Vector3(.8f, .3f, 1.2f) }, { "cart-corral", new Vector3(.42f, 1.0f, 1.4f) },
+        { "floor-lamp", new Vector3(.24f, .24f, 1.9f) }, { "bench", new Vector3(.8f, .3f, 1.2f) }, { "cart-corral", new Vector3(.46f, 1.04f, 1.6f) },
         { "plant-palm", new Vector3(.45f, .45f, 2.4f) }, { "promo-stand", new Vector3(.58f, .44f, 1.9f) }, { "water-cooler", new Vector3(.22f, .22f, 1.7f) },
-        { "gumball", new Vector3(.24f, .24f, 1.6f) }, { "flower-stand", new Vector3(1.12f, .62f, 2.4f) }, { "watermelon-pile", new Vector3(.72f, .56f, 1.3f) },
-        { "claw-machine", new Vector3(.45f, .45f, 2.4f) }, { "atm", new Vector3(.38f, .34f, 2.1f) }, { "digital-totem", new Vector3(.34f, .2f, 2.2f) },
+        { "gumball", new Vector3(.22f, .22f, 1.5f) }, { "flower-stand", new Vector3(1.13f, .71f, 2.45f) }, { "watermelon-pile", new Vector3(.72f, .56f, 1.3f) },
+        { "claw-machine", new Vector3(.49f, .49f, 2.25f) }, { "atm", new Vector3(.37f, .42f, 2.0f) }, { "digital-totem", new Vector3(.34f, .2f, 2.2f) },
         // Outside the shop (city block).
         { "park-bench", new Vector3(.86f, .36f, 1.2f) }, { "tree-planter", new Vector3(.72f, .72f, 3.2f) }, { "flower-bed", new Vector3(1.04f, .44f, 1.2f) },
         { "street-lamp", new Vector3(.24f, .24f, 3.9f) }, { "fountain", new Vector3(1.12f, 1.12f, 1.9f) }, { "bike-rack", new Vector3(.92f, .3f, 1.3f) },
         { "popcorn-cart", new Vector3(.8f, .42f, 2.5f) }, { "ice-cream-cart", new Vector3(.8f, .42f, 2.5f) }, { "parasol-table", new Vector3(1.0f, 1.0f, 2.7f) },
         { "kiddie-ride", new Vector3(.46f, .62f, 1.5f) }, { "billboard", new Vector3(.94f, .3f, 2.8f) }, { "recycle-bins", new Vector3(.8f, .24f, 1.3f) },
         // decor v2 (19/10); sizes from the Blender report
-        { "vending-machine", new Vector3(.5f, .42f, 2.0f) }, { "photo-booth", new Vector3(.62f, .55f, 2.3f) }, { "coffee-kiosk", new Vector3(1.05f, .6f, 2.7f) },
-        { "festoon-pergola", new Vector3(1.6f, 1.3f, 2.8f) },
+        { "vending-machine", new Vector3(.45f, .45f, 2.0f) }, { "photo-booth", new Vector3(.5f, .52f, 2.2f) }, { "coffee-kiosk", new Vector3(1.11f, .71f, 3.15f) },
+        { "festoon-pergola", new Vector3(1.35f, 1.27f, 2.7f) },
     };
     public static readonly string[] OutsideDecor = { "park-bench", "tree-planter", "flower-bed", "street-lamp", "fountain", "bike-rack", "popcorn-cart", "ice-cream-cart", "parasol-table", "kiddie-ride", "billboard", "recycle-bins", "festoon-pergola" };
 
