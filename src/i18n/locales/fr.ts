@@ -2653,7 +2653,7 @@ const catalog: Catalog = {
 	"Venda chocolates premium e conquiste os clientes mais exigentes.": "Vendez des chocolats premium et séduisez les clients les plus exigeants.",
 	"Venda cortes nobres e seja reconhecido pelo melhor açougue.": "Vendez des pièces de choix et soyez reconnu pour la meilleure boucherie.",
 	"Venda pela janela {0}/{1} · espere a buzina": "Vente par la vitre {0}/{1} · attends le klaxon",
-	"Venda pela janela {0}/{1} · um motorista está buzinando: clique no carro!": "Vente par la vitre {0}/{1} · un conducteur klaxonne : clique sur la voiture !",
+	"Venda pela janela {0}/{1} · um motorista está buzinando: toque no carro!": "Vente par la vitre {0}/{1} · un conducteur klaxonne : touche la voiture !",
 	"Venda pizzas congeladas suficientes para alimentar uma cidade.": "Vendez assez de pizzas surgelées pour nourrir une ville.",
 	"Venda produtos diferentes e mostre a força do seu catálogo.": "Vends des produits variés et montre la force de ton catalogue.",
 	"Venda sucos naturais e refresque uma multidão de clientes.": "Vendez des jus frais et rafraîchissez une foule de clients.",
@@ -3696,6 +3696,11 @@ const catalog: Catalog = {
 	"Comprado! Já vai para o mercado: arraste até o lugar.": "Acheté ! Il arrive dans le marché : fais-le glisser à sa place.",
 	"Guardado em Guardados. A loja só abre com tudo no lugar.": "Rangé dans Rangés. Le magasin n'ouvre qu'avec tout en place.",
 	"Guardado. Está em Guardados para colocar de novo.": "Rangé. Il est dans Rangés pour le replacer.",
+	"Arraste para o lugar e solte.": "Fais-le glisser à sa place et lâche.",
+	"Arraste para o lugar e solte o botão.": "Fais-le glisser à sa place et relâche le bouton.",
+	"Arraste as peças para mover  •  Gire com dois dedos ou nas setas": "Fais glisser les pièces pour les déplacer  •  Tourne avec deux doigts ou les flèches",
+	"Arraste as peças para mover  •  Gire nas setas ou com Ctrl + mouse": "Fais glisser les pièces pour les déplacer  •  Tourne avec les flèches ou Ctrl + souris",
+	"Grade": "Grille",
 };
 
 export default catalog;

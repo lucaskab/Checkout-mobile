@@ -279,7 +279,7 @@ function eventEffectLine(
 	if (sales) {
 		const honking = sales.requests.some((request) => request.status === "waiting");
 		return honking
-			? `Venda pela janela ${sales.served}/${sales.goal} · um motorista está buzinando: clique no carro!`
+			? `Venda pela janela ${sales.served}/${sales.goal} · um motorista está buzinando: toque no carro!`
 			: `Venda pela janela ${sales.served}/${sales.goal} · espere a buzina`;
 	}
 	return getActiveEventEffectLabel(event, active);

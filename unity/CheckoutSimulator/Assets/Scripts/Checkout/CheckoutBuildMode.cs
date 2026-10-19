@@ -41,7 +41,9 @@ namespace Checkout
         // The HUD's "Colocar" buttons (shop, inventory cards) open the build mode directly.
         public static void OpenFromHud() { if (instance && instance.enabled && !Open && !CheckoutMapEditor.Open) instance.Enter(); }
         static bool Touch => Input.touchSupported && Application.isMobilePlatform;
-        string HowTo => Touch ? "Arraste para mover  •  Gire com dois dedos" : "Arraste para mover  •  Segure Ctrl e mova o mouse para girar  •  G liga/desliga a grade";
+        // The game is played mostly on phones (Lucas 20/10: "no celular não tem Ctrl, não tem G"): the hint talks about
+        // fingers and the on-screen buttons; the keys (Ctrl + mouse, G, Delete, Esc) are only quiet extras on a computer.
+        static string HowTo => CheckoutScreen.Handheld ? "Arraste as peças para mover  •  Gire com dois dedos ou nas setas" : "Arraste as peças para mover  •  Gire nas setas ou com Ctrl + mouse";
 
         public void Initialize(CheckoutBridge owner, CheckoutMap projection)
         {
@@ -99,7 +101,9 @@ namespace Checkout
             CheckoutBridge.Emit("{\"kind\":\"buildMode\",\"open\":" + (show ? "false" : "true") + "}");
         }
 
-        void Enter()
+        // picked: the piece a long press lifted in the game; the camera stays where it is and the piece follows the finger.
+        void Enter() => Enter(null);
+        void Enter(CheckoutInterior.Item picked)
         {
             if (Open || bridge.State == null || CheckoutMapEditor.Open) return;
             Open = true; Interior.editing = true; GameHud(false);
@@ -108,16 +112,23 @@ namespace Checkout
             tabChosen = false; folded = false; tray.sizeDelta = new Vector2(tray.sizeDelta.x, TrayH); placeAfterBuy = null;
             buildButton.SetActive(false); hud.gameObject.SetActive(true); CloseSheet();
             cameraBefore = simulation.CameraState;
-            Focus("inside");
-            Select(null);
+            if (picked == null) { Focus("inside"); Select(null); }
+            else
+            {
+                // Lifted with a long press: the tray starts folded so the shop around the finger stays in view.
+                Focus(picked.outside ? "outside" : "inside", false); Select(picked);
+                folded = true; tray.sizeDelta = new Vector2(tray.sizeDelta.x, TrayHeadH + 10);
+            }
             RefreshTray();
             Say(HowTo);
         }
 
-        void Focus(string zone)
+        void Focus(string zone) => Focus(zone, true);
+        void Focus(string zone, bool moveCamera)
         {
             shopZone = zone;
-            if (zone == "inside") { var f = Interior.FloorRect; simulation.Focus(new Vector3(f.center.x, 0, f.center.y), Mathf.Max(f.width, f.height) * .62f); }
+            if (!moveCamera) { }
+            else if (zone == "inside") { var f = Interior.FloorRect; simulation.Focus(new Vector3(f.center.x, 0, f.center.y), Mathf.Max(f.width, f.height) * .62f); }
             else { var r = CheckoutInterior.BlockRect; simulation.Focus(new Vector3(r.center.x, 0, r.center.y - 6), 30); }
             // The tray follows: its decorations are the ones for this side of the door.
             if (Open) { CloseSheet(); RefreshTray(); }
@@ -306,6 +317,7 @@ namespace Checkout
             }
             // A gentle pulse so the player notices there is something to place.
             if (inventoryBadge && inventoryBadge.activeSelf) inventoryBadge.transform.localScale = Vector3.one * (1 + Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3)) * .12f);
+            HoldToMove();
             if (!Open) return;
             refresh -= Time.unscaledDeltaTime;
             if (refresh <= 0)
@@ -319,7 +331,7 @@ namespace Checkout
                 RefreshTray();
                 if (Time.unscaledTime > messageUntil) Say(HowTo);
             }
-            if (Input.GetKeyDown(KeyCode.G)) { CheckoutInterior.GridOn = !CheckoutInterior.GridOn; Say(CheckoutInterior.GridOn ? "Grade ligada: as peças encaixam nos quadrados." : "Grade desligada: movimento livre (ainda encosta nas paredes e nos móveis)."); }
+            if (Input.GetKeyDown(KeyCode.G)) ToggleGrid();
             ShowGrid();
             if (Input.GetKeyDown(KeyCode.Delete)) Store();
             if (Input.GetKeyDown(KeyCode.Escape)) { if (sheetFor != null) CloseSheet(); else Cancel(); return; }

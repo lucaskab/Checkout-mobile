@@ -2553,7 +2553,7 @@ const catalog: Catalog = {
 	"Venda chocolates premium e conquiste os clientes mais exigentes.": "Vende chocolates premium y conquista a los clientes más exigentes.",
 	"Venda cortes nobres e seja reconhecido pelo melhor açougue.": "Vende cortes selectos y sé reconocido por la mejor carnicería.",
 	"Venda pela janela {0}/{1} · espere a buzina": "Venta por la ventanilla {0}/{1} · espera el claxon",
-	"Venda pela janela {0}/{1} · um motorista está buzinando: clique no carro!": "Venta por la ventanilla {0}/{1} · un conductor está tocando el claxon: ¡haz clic en el coche!",
+	"Venda pela janela {0}/{1} · um motorista está buzinando: toque no carro!": "Venta por la ventanilla {0}/{1} · un conductor está tocando el claxon: ¡toca el coche!",
 	"Venda pizzas congeladas suficientes para alimentar uma cidade.": "Vende suficientes pizzas congeladas para alimentar una ciudad.",
 	"Venda produtos diferentes e mostre a força do seu catálogo.": "Vende productos distintos y muestra la fuerza de tu catálogo.",
 	"Venda sucos naturais e refresque uma multidão de clientes.": "Vende zumos naturales y refresca a una multitud de clientes.",
@@ -3568,6 +3568,11 @@ const catalog: Catalog = {
 	"Comprado! Já vai para o mercado: arraste até o lugar.": "¡Comprado! Ya va al mercado: arrástralo a su lugar.",
 	"Guardado em Guardados. A loja só abre com tudo no lugar.": "Guardado en Guardados. La tienda solo abre con todo en su lugar.",
 	"Guardado. Está em Guardados para colocar de novo.": "Guardado. Está en Guardados para colocarlo de nuevo.",
+	"Arraste para o lugar e solte.": "Arrástralo a su lugar y suéltalo.",
+	"Arraste para o lugar e solte o botão.": "Arrástralo a su lugar y suelta el botón.",
+	"Arraste as peças para mover  •  Gire com dois dedos ou nas setas": "Arrastra las piezas para moverlas  •  Gira con dos dedos o con las flechas",
+	"Arraste as peças para mover  •  Gire nas setas ou com Ctrl + mouse": "Arrastra las piezas para moverlas  •  Gira con las flechas o con Ctrl + ratón",
+	"Grade": "Cuadrícula",
 };
 
 export default catalog;

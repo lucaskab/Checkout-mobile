@@ -2643,7 +2643,7 @@ const catalog: Catalog = {
 	"Venda chocolates premium e conquiste os clientes mais exigentes.": "Sell premium chocolates and win over the pickiest customers.",
 	"Venda cortes nobres e seja reconhecido pelo melhor açougue.": "Sell prime cuts and be known for the best butcher.",
 	"Venda pela janela {0}/{1} · espere a buzina": "Window sales {0}/{1} · wait for the horn",
-	"Venda pela janela {0}/{1} · um motorista está buzinando: clique no carro!": "Window sales {0}/{1} · a driver is honking: click the car!",
+	"Venda pela janela {0}/{1} · um motorista está buzinando: toque no carro!": "Window sales {0}/{1} · a driver is honking: tap the car!",
 	"Venda pizzas congeladas suficientes para alimentar uma cidade.": "Sell enough frozen pizzas to feed a whole city.",
 	"Venda produtos diferentes e mostre a força do seu catálogo.": "Sell different products and show off your catalog.",
 	"Venda sucos naturais e refresque uma multidão de clientes.": "Sell fresh juices and refresh a crowd of customers.",
@@ -3683,6 +3683,11 @@ const catalog: Catalog = {
 	"Comprado! Já vai para o mercado: arraste até o lugar.": "Bought! It's going into the market: drag it into place.",
 	"Guardado em Guardados. A loja só abre com tudo no lugar.": "Put away in Stored. The shop only opens with everything in place.",
 	"Guardado. Está em Guardados para colocar de novo.": "Put away. It's in Stored to place again.",
+	"Arraste para o lugar e solte.": "Drag it into place and let go.",
+	"Arraste para o lugar e solte o botão.": "Drag it into place and release the button.",
+	"Arraste as peças para mover  •  Gire com dois dedos ou nas setas": "Drag pieces to move them  •  Turn with two fingers or the arrows",
+	"Arraste as peças para mover  •  Gire nas setas ou com Ctrl + mouse": "Drag pieces to move them  •  Turn with the arrows or Ctrl + mouse",
+	"Grade": "Grid",
 };
 
 export default catalog;

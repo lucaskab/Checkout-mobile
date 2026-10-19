@@ -2654,7 +2654,7 @@ const catalog: Catalog = {
 	"Venda chocolates premium e conquiste os clientes mais exigentes.": "Verkaufe Premium-Schokolade und überzeuge die anspruchsvollsten Kunden.",
 	"Venda cortes nobres e seja reconhecido pelo melhor açougue.": "Verkaufe Edelstücke und werde für die beste Metzgerei bekannt.",
 	"Venda pela janela {0}/{1} · espere a buzina": "Fensterverkauf {0}/{1} · warte auf die Hupe",
-	"Venda pela janela {0}/{1} · um motorista está buzinando: clique no carro!": "Fensterverkauf {0}/{1} · ein Fahrer hupt: klick auf das Auto!",
+	"Venda pela janela {0}/{1} · um motorista está buzinando: toque no carro!": "Fensterverkauf {0}/{1} · ein Fahrer hupt: tippe auf das Auto!",
 	"Venda pizzas congeladas suficientes para alimentar uma cidade.": "Verkaufe genug Tiefkühlpizzas, um eine ganze Stadt zu ernähren.",
 	"Venda produtos diferentes e mostre a força do seu catálogo.": "Verkaufe verschiedene Produkte und zeig die Stärke deines Katalogs.",
 	"Venda sucos naturais e refresque uma multidão de clientes.": "Verkaufe frische Säfte und erfrische eine Menge Kunden.",
@@ -3703,6 +3703,11 @@ const catalog: Catalog = {
 	"Comprado! Já vai para o mercado: arraste até o lugar.": "Gekauft! Es kommt gleich in den Markt: zieh es an seinen Platz.",
 	"Guardado em Guardados. A loja só abre com tudo no lugar.": "In Eingelagert weggeräumt. Der Laden öffnet nur, wenn alles steht.",
 	"Guardado. Está em Guardados para colocar de novo.": "Weggeräumt. Es liegt in Eingelagert zum erneuten Aufstellen.",
+	"Arraste para o lugar e solte.": "Zieh es an seinen Platz und lass los.",
+	"Arraste para o lugar e solte o botão.": "Zieh es an seinen Platz und lass die Taste los.",
+	"Arraste as peças para mover  •  Gire com dois dedos ou nas setas": "Zieh Teile, um sie zu bewegen  •  Dreh mit zwei Fingern oder den Pfeilen",
+	"Arraste as peças para mover  •  Gire nas setas ou com Ctrl + mouse": "Zieh Teile, um sie zu bewegen  •  Dreh mit den Pfeilen oder Strg + Maus",
+	"Grade": "Raster",
 };
 
 export default catalog;

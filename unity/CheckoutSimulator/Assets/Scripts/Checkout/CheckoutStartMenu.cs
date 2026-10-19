@@ -91,7 +91,8 @@ namespace Checkout
             Option(new Vector2(X(0), -40), width, L("Jogar"), L("Continue o seu mercado de onde parou."), null, "Icons/market", "success", () => Choose(false));
             Option(new Vector2(X(1), -40), width, L("Opções"), L("Música, sons, idioma e conta."), null, "Icons/settings", "coin", () => CheckoutSettings.Show());
             if (!release) Option(new Vector2(X(2), -40), width, L("Modo edição"), L("Monte o mapa de cada loja: mova, adicione, redimensione e pinte ruas e ciclovias. Dinheiro infinito, em um save separado."), null, "Icons/hammer", "secondary", () => Choose(true));
-            hint.text = L(release ? "Enter = Jogar" : "Enter = Jogar   •   E = Modo edição") + "   •   " + L("O = Opções");
+            // Keyboard shortcuts only where there is a keyboard (Lucas 20/10: the game is mostly played on phones).
+            hint.text = CheckoutScreen.Handheld ? "" : L(release ? "Enter = Jogar" : "Enter = Jogar   •   E = Modo edição") + "   •   " + L("O = Opções");
         }
 
         // A language picked in Opções: the cards are written again in it.

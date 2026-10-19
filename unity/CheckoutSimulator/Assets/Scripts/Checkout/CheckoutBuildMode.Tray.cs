@@ -31,7 +31,7 @@ namespace Checkout
         RectTransform tray, trayStrip, trayList, sheet, floatBar, sheetButtons;
         TextMeshProUGUI emptyNote, floatName, sheetTitle, sheetZone, sheetBody;
         Image sheetIcon; GameObject sheetUpgrade;
-        CheckoutDesktopButton zoneInside, zoneOutside, foldButton, rotateLeft, rotateRight;
+        CheckoutDesktopButton zoneInside, zoneOutside, foldButton, rotateLeft, rotateRight, gridButton;
         readonly Dictionary<string, (CheckoutDesktopButton button, GameObject badge, TextMeshProUGUI count)> tabs = new Dictionary<string, (CheckoutDesktopButton, GameObject, TextMeshProUGUI)>();
         readonly List<CheckoutBuildCard> cardPool = new List<CheckoutBuildCard>();
         readonly List<CheckoutDesktopButton> sheetPool = new List<CheckoutDesktopButton>();
@@ -105,6 +105,8 @@ namespace Checkout
             Tab(head, "decoracao", "Decoração", "Icons/plant");
             Tab(head, "melhorias", "Melhorias", "Icons/lightning");
             var spacer = Node(head, "Spacer"); spacer.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
+            // The floor grid: on, pieces snap to its squares (G on a keyboard does the same).
+            gridButton = U.Button(head, "Grade", "secondary", ToggleGrid, TrayHeadH - 10, Phone ? 16 : 18); gridButton.SetWidth(Phone ? 130 : 150);
             foldButton = U.Button(head, "", "primary", () => Fold(!folded), TrayHeadH - 10, 16); foldButton.SetWidth(TrayHeadH + 8); BigIcon(foldButton, (TrayHeadH - 10) * .7f);
 
             // The strip of cards (scrolls sideways; the mouse wheel scrolls it too).
@@ -181,6 +183,8 @@ namespace Checkout
             var icon = b.transform.Find("Face/Icon"); var le = icon ? icon.GetComponent<LayoutElement>() : null;
             if (le) le.preferredWidth = le.preferredHeight = size;
         }
+
+        static void TintIcon(CheckoutDesktopButton b, Color c) { var icon = b.transform.Find("Face/Icon"); var img = icon ? icon.GetComponent<Image>() : null; if (img) img.color = c; }
 
         // ------------------------------------------------------------------ refresh
         sealed class Entry
@@ -271,6 +275,7 @@ namespace Checkout
             zoneInside.Apply(Data("Dentro", "secondary", true, "Icons/shelf", shopZone == "inside"));
             zoneOutside.Apply(Data("Fora", "secondary", true, "Icons/garden", shopZone == "outside"));
             foldButton.Apply(Data("", "primary", true)); foldButton.SetIconSprite(CheckoutGlyph.Get(folded ? "up" : "down"));
+            gridButton.Apply(Data("Grade", "secondary", true, "", CheckoutInterior.GridOn)); gridButton.SetIconSprite(CheckoutGlyph.Get("grid")); TintIcon(gridButton, K.Ink);
         }
 
         void SetTabCount(string key, int n)
@@ -541,6 +546,18 @@ namespace Checkout
             {
                 case "down": return Mathf.Min(Segment(p, new Vector2(-.45f, .2f), new Vector2(0, -.25f)), Segment(p, new Vector2(0, -.25f), new Vector2(.45f, .2f))) - stroke;
                 case "up": return Mathf.Min(Segment(p, new Vector2(-.45f, -.2f), new Vector2(0, .25f)), Segment(p, new Vector2(0, .25f), new Vector2(.45f, -.2f))) - stroke;
+                case "ring": return Mathf.Abs(p.magnitude - .8f) - .13f;
+                case "grid":
+                {
+                    // A 3 x 3 floor grid: four lines each way inside a square.
+                    float d = 1, s = .1f;
+                    foreach (var c in new[] { -.66f, -.22f, .22f, .66f })
+                    {
+                        d = Mathf.Min(d, Segment(p, new Vector2(c, -.66f), new Vector2(c, .66f)));
+                        d = Mathf.Min(d, Segment(p, new Vector2(-.66f, c), new Vector2(.66f, c)));
+                    }
+                    return d - s * .7f;
+                }
                 case "turn-left": p.x = -p.x; goto case "turn-right";
                 case "turn-right":
                 {
