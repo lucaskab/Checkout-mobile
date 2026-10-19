@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -52,6 +52,7 @@ namespace Checkout {
   void LateUpdate(){Patch(bridge?.State);}
   void Patch(Snapshot s){
    if(s==null)return;
+   if(fakePlays!=null)s.decorPlays=fakePlays;
    if(fakeDock!=null&&(s.dock==null||s.dock.All(d=>d.id!=fakeDock.id)))s.dock=(s.dock??Array.Empty<DockEntry>()).Append(fakeDock).ToArray();
    if(fakeSlots!=null&&(s.restockSlots==null||s.restockSlots.All(d=>d.slotId!=fakeSlots[0].slotId)))s.restockSlots=(s.restockSlots??Array.Empty<RestockSlot>()).Concat(fakeSlots).ToArray();
    // "fixtures": every slot a third full with stock in the stockroom (visual check of the REPOR game)
@@ -83,6 +84,22 @@ namespace Checkout {
    app?.QaTab(2);yield return new WaitForSecondsRealtime(1.2f);yield return Shot("delivery_profile");
    Note("delivery orders: "+(bridge.State.delivery?.orders==null?"none":string.Join(", ",bridge.State.delivery.orders.Where(o=>o!=null).Select(o=>o.status))));
   }
+  // Coin machines ("decorplays"): a made-up play on a piece already standing in the shop (nothing is bought or placed,
+  // the save is untouched) to check the "+coins" float and the bounce of CheckoutDecorPlays. Shots Logs/at_decor_*.png.
+  DecorPlay[] fakePlays;
+  IEnumerator DecorPlays(){
+   var interior=CheckoutInterior.Active;
+   var item=interior?(interior.items.Values.FirstOrDefault(i=>i.root&&i.type=="checkout")??interior.items.Values.FirstOrDefault(i=>i.root)):null;
+   if(interior)Note("decorplays: interior items "+interior.items.Count+": "+string.Join(",",interior.items.Values.Take(8).Select(i=>i.id+(i.root?"":"(no root)"))));
+   if(item==null){Note("decorplays: no placed checkout to use");yield break;}
+   var cam=Camera.main;if(cam)Note($"decorplays: using {item.id} at {item.root.position}");
+   CheckoutCameraFocus(item.root.position);yield return new WaitForSecondsRealtime(1.5f);
+   fakePlays=new[]{new DecorPlay{itemId=item.id,decorId="claw-machine",coins=18,at=CheckoutBridge.Now}};
+   yield return new WaitForSecondsRealtime(.35f);yield return Shot("decor_pop1");
+   yield return new WaitForSecondsRealtime(.5f);yield return Shot("decor_pop2");
+   fakePlays=null;
+  }
+  void CheckoutCameraFocus(Vector3 at){var sim=FindAnyObjectByType<MarketDay.MarketSimulation>();if(sim)sim.Focus(at,7f);}
   IEnumerator RegisterCash(){
    var game=CheckoutCounterGame.Instance;if(!game){Note("no register");yield break;}
    var fake=new CheckoutEntry{id="qa-cash",customerId="",customerName="Cliente teste",mood="",method="dinheiro",total=37,cashGiven=53,readyAt=0,expiresAt=double.MaxValue,
