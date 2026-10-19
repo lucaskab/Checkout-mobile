@@ -91,6 +91,7 @@ public static partial class CheckoutMarketStagesBuilder
             string albedo = KitFolder + "Textures/" + texture + "_albedo.png", bump = KitFolder + "Textures/" + texture + "_normal.png";
             KitTexture(albedo, false);
             material.mainTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(albedo);
+            if (!material.mainTexture) Debug.LogError("Interior kit: texture " + albedo + " did not load as a 2D texture (material " + name + " stays plain)");
             material.mainTextureScale = tile ?? Vector2.one;
             if (normal && AssetDatabase.LoadAssetAtPath<Texture2D>(bump))
             {
@@ -118,8 +119,9 @@ public static partial class CheckoutMarketStagesBuilder
         var type = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
         // The product label atlas (8x8 labels) keeps its full 2048 so the printed names stay readable.
         int size = path.Contains("IK_Labels") ? 2048 : 1024;
-        if (importer.textureType != type || importer.sRGBTexture == normal || importer.anisoLevel != 4 || importer.maxTextureSize != size)
-        { importer.textureType = type; importer.sRGBTexture = !normal; importer.anisoLevel = 4; importer.maxTextureSize = size; importer.SaveAndReimport(); }
+        // a plain 2D texture (a cube-shaped import leaves the material blank, white in the game)
+        if (importer.textureType != type || importer.textureShape != TextureImporterShape.Texture2D || importer.sRGBTexture == normal || importer.anisoLevel != 4 || importer.maxTextureSize != size)
+        { importer.textureType = type; importer.textureShape = TextureImporterShape.Texture2D; importer.sRGBTexture = !normal; importer.anisoLevel = 4; importer.maxTextureSize = size; importer.SaveAndReimport(); }
     }
 
     // ------------------------------------------------------------------ Blender models (scripts/blender/build_interior_kit.py)
