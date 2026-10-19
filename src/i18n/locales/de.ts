@@ -3691,6 +3691,18 @@ const catalog: Catalog = {
 	"Entre com a sua conta nas OPÇÕES (a engrenagem), na aba CONTA. Assim o mercado, as moedas e os diamantes ficam salvos, mesmo se você trocar de celular.": "Melde dich in den EINSTELLUNGEN (das Zahnrad) im Reiter KONTO an. So bleiben Markt, Münzen und Diamanten gespeichert, auch wenn du das Handy wechselst.",
 	"Depois": "Später",
 	"O seu progresso vai para a nuvem quando o jogo começar.": "Dein Fortschritt wird in die Cloud geladen, sobald das Spiel startet.",
+	// Build tray 20/10
+	"Obra": "Bau",
+	"Guardados": "Eingelagert",
+	"Dentro": "Drinnen",
+	"Fora": "Draußen",
+	"MÓVEL": "MÖBEL",
+	"Nada guardado. O que você comprar ou guardar aparece aqui.": "Nichts eingelagert. Was du kaufst oder wegräumst, erscheint hier.",
+	"Nada aqui por enquanto.": "Hier ist noch nichts.",
+	"Dentro ou fora do mercado": "Im oder vor dem Markt",
+	"Comprado! Já vai para o mercado: arraste até o lugar.": "Gekauft! Es kommt gleich in den Markt: zieh es an seinen Platz.",
+	"Guardado em Guardados. A loja só abre com tudo no lugar.": "In Eingelagert weggeräumt. Der Laden öffnet nur, wenn alles steht.",
+	"Guardado. Está em Guardados para colocar de novo.": "Weggeräumt. Es liegt in Eingelagert zum erneuten Aufstellen.",
 };
 
 export default catalog;

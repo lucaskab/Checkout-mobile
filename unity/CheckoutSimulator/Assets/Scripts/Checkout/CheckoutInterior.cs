@@ -1107,7 +1107,7 @@ namespace Checkout
     [Serializable] public class InteriorState { public InteriorItem[] items; public DecorOwned[] owned; }
     [Serializable] public class InteriorItem { public string id, type; public float x, z, rot; public bool stored, outside; }
     [Serializable] public class DecorOwned { public string type; public int count; }
-    [Serializable] public class DecorEntry { public string id, name, description, zone; public int coinPrice, diamondPrice, requiredLevel; public bool upgrade; }
+    [Serializable] public class DecorEntry { public string id, name, description, zone; public int coinPrice, diamondPrice, requiredLevel, limit; public bool upgrade; }
     // Coins a placed machine (gumball, claw machine) just took: CheckoutDecorPlays floats them over it.
     [Serializable] public class DecorPlay { public string itemId, decorId; public int coins; public double at; }
 }

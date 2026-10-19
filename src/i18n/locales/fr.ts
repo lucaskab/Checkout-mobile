@@ -3684,6 +3684,18 @@ const catalog: Catalog = {
 	"Entre com a sua conta nas OPÇÕES (a engrenagem), na aba CONTA. Assim o mercado, as moedas e os diamantes ficam salvos, mesmo se você trocar de celular.": "Connecte-toi à ton compte dans OPTIONS (l'engrenage), onglet COMPTE. Ainsi ton marché, tes pièces et tes diamants restent sauvegardés, même si tu changes de téléphone.",
 	"Depois": "Plus tard",
 	"O seu progresso vai para a nuvem quando o jogo começar.": "Ta progression part dans le cloud dès que le jeu commence.",
+	// Build tray 20/10
+	"Obra": "Travaux",
+	"Guardados": "Rangés",
+	"Dentro": "Dedans",
+	"Fora": "Dehors",
+	"MÓVEL": "MEUBLE",
+	"Nada guardado. O que você comprar ou guardar aparece aqui.": "Rien de rangé. Ce que tu achètes ou ranges apparaît ici.",
+	"Nada aqui por enquanto.": "Rien ici pour l'instant.",
+	"Dentro ou fora do mercado": "Dans ou hors du marché",
+	"Comprado! Já vai para o mercado: arraste até o lugar.": "Acheté ! Il arrive dans le marché : fais-le glisser à sa place.",
+	"Guardado em Guardados. A loja só abre com tudo no lugar.": "Rangé dans Rangés. Le magasin n'ouvre qu'avec tout en place.",
+	"Guardado. Está em Guardados para colocar de novo.": "Rangé. Il est dans Rangés pour le replacer.",
 };
 
 export default catalog;

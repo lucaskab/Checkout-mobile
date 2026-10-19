@@ -3556,6 +3556,18 @@ const catalog: Catalog = {
 	"Entre com a sua conta nas OPÇÕES (a engrenagem), na aba CONTA. Assim o mercado, as moedas e os diamantes ficam salvos, mesmo se você trocar de celular.": "Inicia sesión con tu cuenta en OPCIONES (el engranaje), en la pestaña CUENTA. Así el mercado, las monedas y los diamantes quedan guardados, aunque cambies de móvil.",
 	"Depois": "Después",
 	"O seu progresso vai para a nuvem quando o jogo começar.": "Tu progreso se sube a la nube cuando empiece el juego.",
+	// Build tray 20/10
+	"Obra": "Obra",
+	"Guardados": "Guardados",
+	"Dentro": "Dentro",
+	"Fora": "Fuera",
+	"MÓVEL": "MUEBLE",
+	"Nada guardado. O que você comprar ou guardar aparece aqui.": "Nada guardado. Lo que compres o guardes aparece aquí.",
+	"Nada aqui por enquanto.": "Nada aquí por ahora.",
+	"Dentro ou fora do mercado": "Dentro o fuera del mercado",
+	"Comprado! Já vai para o mercado: arraste até o lugar.": "¡Comprado! Ya va al mercado: arrástralo a su lugar.",
+	"Guardado em Guardados. A loja só abre com tudo no lugar.": "Guardado en Guardados. La tienda solo abre con todo en su lugar.",
+	"Guardado. Está em Guardados para colocar de novo.": "Guardado. Está en Guardados para colocarlo de nuevo.",
 };
 
 export default catalog;

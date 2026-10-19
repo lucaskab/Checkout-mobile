@@ -176,6 +176,8 @@ export type SimulatorSnapshot = {
 		zone: "inside" | "outside" | "both";
 		/** A "melhoria": it does something while placed (the shop marks it). */
 		upgrade: boolean;
+		/** Machines that pay only up to this many placed copies (0: no limit); the build tray shows "2/3". */
+		limit: number;
 	}[];
 	/** Coins the placed machines just took (newest first): Unity floats them over the machine. */
 	decorPlays: { itemId: string; decorId: string; coins: number; at: number }[];

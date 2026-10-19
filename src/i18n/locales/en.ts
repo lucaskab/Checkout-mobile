@@ -3671,6 +3671,18 @@ const catalog: Catalog = {
 	"Entre com a sua conta nas OPÇÕES (a engrenagem), na aba CONTA. Assim o mercado, as moedas e os diamantes ficam salvos, mesmo se você trocar de celular.": "Sign in to your account in SETTINGS (the gear), on the ACCOUNT tab. That way your market, coins and diamonds stay saved, even if you change phones.",
 	"Depois": "Later",
 	"O seu progresso vai para a nuvem quando o jogo começar.": "Your progress goes to the cloud once the game starts.",
+	// Build tray 20/10
+	"Obra": "Works",
+	"Guardados": "Stored",
+	"Dentro": "Inside",
+	"Fora": "Outside",
+	"MÓVEL": "FURNITURE",
+	"Nada guardado. O que você comprar ou guardar aparece aqui.": "Nothing stored. What you buy or put away shows up here.",
+	"Nada aqui por enquanto.": "Nothing here yet.",
+	"Dentro ou fora do mercado": "Inside or outside the market",
+	"Comprado! Já vai para o mercado: arraste até o lugar.": "Bought! It's going into the market: drag it into place.",
+	"Guardado em Guardados. A loja só abre com tudo no lugar.": "Put away in Stored. The shop only opens with everything in place.",
+	"Guardado. Está em Guardados para colocar de novo.": "Put away. It's in Stored to place again.",
 };
 
 export default catalog;

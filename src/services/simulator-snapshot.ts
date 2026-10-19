@@ -427,6 +427,7 @@ export function createSimulatorSnapshot(
 			requiredLevel: decor.requiredLevel,
 			zone: decor.zone,
 			upgrade: Boolean(decor.effect),
+			limit: decor.effect?.play?.maxPlaced ?? 0,
 		})),
 		decorPlays: state.market.decorPlays ?? [],
 		// The register line: Unity keeps these customers waiting at the till until they are paid.

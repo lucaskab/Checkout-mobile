@@ -262,6 +262,8 @@ namespace Checkout {
    else{Sound("card_no");StartCoroutine(U.Shake(boardPressed,.3f,10));}
    boardPressed=null;
   }
+  /// <summary>The HUD's tap sound, for panels drawn elsewhere (the build tray).</summary>
+  public void Tap()=>Sound("tap",1.05f);
   void Sound(string name,float pitch=1){var clip=U.Sfx(name);if(!clip||!boardSound)return;boardSound.pitch=pitch;boardSound.PlayOneShot(clip);}
 
   // Timers tick, gauges slide, ready tiles glow (called from Update).
