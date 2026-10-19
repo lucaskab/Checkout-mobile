@@ -8,11 +8,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// A player who signed in with Google. One account = one save.
+/// A player who signed in with Google or with Apple. One account = one save.
 model Player {
   id        String     @id @default(uuid())
-  /// Google's stable account id ("sub" in the ID token); never the e-mail, which can change.
-  googleSub String     @unique @map("google_sub")
+  /// Google's stable account id ("sub" in the ID token); never the e-mail, which can change. Null for Apple accounts.
+  googleSub String?    @unique @map("google_sub")
+  /// Apple's stable account id ("sub" in the identity token; per app team). Null for Google accounts.
+  appleSub  String?    @unique @map("apple_sub")
+  /// Apple's refresh token for this player (when the server has the Apple key): revoked when the account is deleted.
+  appleRefresh String? @map("apple_refresh")
   email     String?
   name      String?
   createdAt DateTime   @default(now()) @map("created_at")

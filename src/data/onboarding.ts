@@ -87,7 +87,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		mode: "spotlight",
 		title: "Seu primeiro dia",
 		text:
-			"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque para abrir. No fim da lista também dá para abrir um dia livre.",
+			"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque para abrir.",
 		target: "action:startDay",
 	},
 	{

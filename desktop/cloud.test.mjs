@@ -111,8 +111,20 @@ describe("the Conta page", () => {
 	test("signed out → Entrar com Google sends the login to Unity", () => {
 		cloud.applyCloudMessage({ kind: "cloud", status: "signed-out" });
 		expect(buttons("conta").find((b) => b.action === "cloudSignIn").enabled).toBe(true);
-		expect(cloud.requestCloudAction("cloudSignIn", [])).toEqual({ ok: true, message: { kind: "cloud-signin" } });
+		expect(cloud.requestCloudAction("cloudSignIn", [])).toEqual({ ok: true, message: { kind: "cloud-signin", provider: "google" } });
 		expect(cloud.requestCloudAction("cloudSync", []).ok).toBe(false);
+	});
+
+	test("iPhone: Entrar com a Apple next to Google; only the logins the device offers", () => {
+		cloud.applyCloudMessage({ kind: "cloud", status: "signed-out", providers: ["apple", "google"] });
+		const signIns = buttons("conta").filter((b) => b.action === "cloudSignIn");
+		expect(signIns.map((b) => b.label)).toEqual(["Iniciar sessão com a Apple", "Entrar com Google"]);
+		expect(cloud.requestCloudAction("cloudSignIn", ["apple"])).toEqual({ ok: true, message: { kind: "cloud-signin", provider: "apple" } });
+		cloud.applyCloudMessage({ kind: "cloud", status: "signed-out", providers: ["google"] });
+		expect(cloud.requestCloudAction("cloudSignIn", ["apple"]).ok).toBe(false);
+		cloud.applyCloudMessage({ kind: "cloud", status: "synced", provider: "apple", name: "", email: "" });
+		expect(pages(store(), "conta").cards[0].title).toBe("Conta Apple");
+		cloud.applyCloudMessage({ kind: "cloud", status: "signed-out", providers: [] });
 	});
 
 	test("signed in: who, when it was saved, save now, sign out; deleting asks twice", () => {

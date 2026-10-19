@@ -2,7 +2,7 @@ import type { Routes } from ".";
 import { cloudStore, describeSummary, exportSave, formatAgo, isAhead } from "../cloud";
 import { act, card, gameIcon, page } from "../view-kit";
 
-// "Conta" (Guia › Conta e nuvem): sign in with Google so the market, coins and diamonds follow the player to a new
+// "Conta" (Guia › Conta e nuvem; also the Opções tab "Conta" in Unity): sign in with Google (or Apple on the iPhone) so the market, coins and diamonds follow the player to a new
 // phone (Lucas 12/10). Unity does the login and the uploads (CheckoutCloud.cs); this page shows where things stand.
 export function accountStatusLine(now = Date.now()) {
 	switch (cloudStore.status) {
@@ -11,7 +11,7 @@ export function accountStatusLine(now = Date.now()) {
 		case "signed-out":
 			return cloudStore.error || "Progresso salvo só neste aparelho.";
 		case "signing-in":
-			return "Entrando com o Google…";
+			return "Entrando…";
 		case "syncing":
 			return "Salvando na nuvem…";
 		case "offline":
@@ -64,28 +64,38 @@ export const routes: Routes = {
 				}),
 			);
 		} else if (!signedIn) {
+			// Lucas 19/10: Google and, on the iPhone, Apple (the App Store asks for it next to Google).
+			const providers = cloudStore.providers.length ? cloudStore.providers : ["google" as const];
+			const canSignIn = status === "signed-out";
 			cards.push(
 				card("Salve o seu progresso", {
 					icon: gameIcon("key"),
-					eyebrow: "CONTA GOOGLE",
+					eyebrow: "CONTA",
 					tone: status === "unavailable" ? "locked" : "info",
 					lines: [
-						"Entre com o Google para guardar o mercado, as moedas e os diamantes na nuvem.",
+						providers.includes("apple")
+							? "Entre com a Apple ou com o Google para guardar o mercado, as moedas e os diamantes na nuvem."
+							: "Entre com o Google para guardar o mercado, as moedas e os diamantes na nuvem.",
 						"Trocou de celular? É só entrar com a mesma conta e continuar de onde parou.",
 						accountStatusLine(now),
 					],
-					buttons: [
-						act(status === "signing-in" ? "Entrando…" : "Entrar com Google", "cloudSignIn", [], {
-							variant: "success",
-							enabled: status === "signed-out",
-							ok: "Abrindo o login do Google…",
-						}),
-					],
+					buttons: providers.map((provider) =>
+						act(
+							status === "signing-in" ? "Entrando…" : provider === "apple" ? "Iniciar sessão com a Apple" : "Entrar com Google",
+							"cloudSignIn",
+							[provider],
+							{
+								variant: provider === "apple" ? "secondary" : "success",
+								enabled: canSignIn,
+								ok: provider === "apple" ? "Abrindo o login da Apple…" : "Abrindo o login do Google…",
+							},
+						),
+					),
 				}),
 			);
 		} else {
 			cards.push(
-				card(cloudStore.name || "Conta Google", {
+				card(cloudStore.name || (cloudStore.provider === "apple" ? "Conta Apple" : "Conta Google"), {
 					icon: gameIcon("success"),
 					eyebrow: "CONECTADO",
 					subtitle: cloudStore.email,

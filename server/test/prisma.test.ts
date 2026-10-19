@@ -14,14 +14,28 @@ describe("Prisma store (Postgres)", { skip: !enabled && "no DATABASE_URL" }, asy
 	const sub = `g-${Date.now()}`;
 
 	test("sign in creates once and updates the profile", async () => {
-		const a = await store.signIn(sub, "a@x.com", "A");
-		const b = await store.signIn(sub, "b@x.com", "B");
+		const a = await store.signIn("google", sub, "a@x.com", "A");
+		const b = await store.signIn("google", sub, "b@x.com", "B");
 		assert.equal(a.id, b.id);
 		assert.equal((await store.getPlayer(a.id))?.email, "b@x.com");
 	});
 
+	test("Apple accounts: their own id, the name kept from the first login, the refresh token stored", async () => {
+		const appleSub = `a-${Date.now()}`;
+		const first = await store.signIn("apple", appleSub, "x@privaterelay.appleid.com", "Bia");
+		const again = await store.signIn("apple", appleSub, null, null);
+		assert.equal(first.id, again.id);
+		assert.equal(again.provider, "apple");
+		assert.equal(again.name, "Bia");
+		assert.equal(again.email, "x@privaterelay.appleid.com");
+		await store.setAppleRefresh(first.id, "r-1");
+		assert.equal((await store.getPlayer(first.id))?.appleRefresh, "r-1");
+		assert.notEqual((await store.signIn("google", appleSub, null, null)).id, first.id, "a Google id never matches an Apple one");
+		await store.deletePlayer(first.id);
+	});
+
 	test("replace, conflict, history (newest 10), concurrent uploads, delete", async () => {
-		const player = await store.signIn(sub, null, null);
+		const player = await store.signIn("google", sub, null, null);
 		const at = (revision: number) => (current: { revision: number } | null) => (current?.revision ?? 0) === revision;
 		const first = await store.replaceSave(player.id, { data: save(1), summary: summary(1), deviceId: "a" }, at(0));
 		assert.ok(first.ok);

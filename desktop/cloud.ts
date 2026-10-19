@@ -5,7 +5,7 @@ import { useGameStore } from "@/stores/game-store";
 /**
  * Cloud saves as the host sees them (Lucas 12/10: "o progresso e os diamantes continuam se ele trocar de celular").
  *
- * Unity (CheckoutCloud.cs) owns the Google login, the session and the network: it talks to the server
+ * Unity (CheckoutCloud.cs) owns the login (Google; Apple on the iPhone), the session and the network: it talks to the server
  * (server/, Render + Prisma Postgres) and decides when to upload. The host owns the save itself and the pages:
  * - `cloud-export` → the whole save as the store persists it ("checkout.game"), and what it holds;
  * - `cloud-import` → replaces the progress on this device with the cloud's (then the game resumes from it);
@@ -15,11 +15,17 @@ import { useGameStore } from "@/stores/game-store";
  */
 export type SaveSummary = { level: number; era: string; coins: number; diamonds: number; day: number; version: number };
 export type CloudStatus = "unavailable" | "signed-out" | "signing-in" | "synced" | "syncing" | "offline" | "conflict" | "error";
+/** Who the player signs in with: Google (Android, PC, iPhone) or Apple (iPhone). */
+export type CloudProvider = "google" | "apple";
 
 export const cloudStore = {
 	status: "unavailable" as CloudStatus,
 	email: "",
 	name: "",
+	/** The signed-in account's provider ("" when signed out). */
+	provider: "" as CloudProvider | "",
+	/** The logins this device offers, in button order (Unity decides: Apple only on the iPhone). */
+	providers: [] as CloudProvider[],
 	/** When the progress was last saved in the cloud (ms). */
 	lastSyncAt: 0,
 	error: "",
@@ -95,6 +101,8 @@ export type CloudUnityMessage = {
 	status?: unknown;
 	email?: unknown;
 	name?: unknown;
+	provider?: unknown;
+	providers?: unknown;
 	lastSyncAt?: unknown;
 	error?: unknown;
 	conflict?: unknown;
@@ -106,6 +114,9 @@ export function applyCloudMessage(message: CloudUnityMessage) {
 	if (statuses.includes(message.status as CloudStatus)) cloudStore.status = message.status as CloudStatus;
 	if (typeof message.email === "string") cloudStore.email = message.email;
 	if (typeof message.name === "string") cloudStore.name = message.name;
+	if (message.provider === "google" || message.provider === "apple" || message.provider === "") cloudStore.provider = message.provider;
+	if (Array.isArray(message.providers))
+		cloudStore.providers = message.providers.filter((p): p is CloudProvider => p === "google" || p === "apple");
 	if (typeof message.lastSyncAt === "number") cloudStore.lastSyncAt = message.lastSyncAt;
 	cloudStore.error = typeof message.error === "string" ? message.error : "";
 	const conflict = message.conflict as { cloud?: unknown; cloudAt?: unknown; cloudDevice?: unknown; otherAccount?: unknown } | undefined;
@@ -115,7 +126,7 @@ export function applyCloudMessage(message: CloudUnityMessage) {
 			: null;
 	if (cloudStore.status === "signed-out") {
 		// The error (a refused login) stays on the page until the next try.
-		cloudStore.email = cloudStore.name = "";
+		cloudStore.email = cloudStore.name = cloudStore.provider = "";
 		cloudStore.lastSyncAt = 0;
 	}
 }
@@ -126,12 +137,15 @@ export type CloudRequest = { ok: true; message: Record<string, unknown> } | { ok
 export function requestCloudAction(action: string, args: unknown[], now = Date.now()): CloudRequest {
 	const signedIn = !["unavailable", "signed-out", "signing-in"].includes(cloudStore.status);
 	switch (action) {
-		case "cloudSignIn":
+		case "cloudSignIn": {
 			if (cloudStore.status === "unavailable") return { ok: false, reason: "O login não está disponível nesta versão do jogo." };
 			if (signedIn) return { ok: false, reason: "Você já entrou." };
-			return { ok: true, message: { kind: "cloud-signin" } };
+			const provider = args[0] === "apple" ? "apple" : "google";
+			if (cloudStore.providers.length && !cloudStore.providers.includes(provider)) return { ok: false, reason: "Este login não está disponível neste aparelho." };
+			return { ok: true, message: { kind: "cloud-signin", provider } };
+		}
 		case "cloudSync":
-			if (!signedIn) return { ok: false, reason: "Entre com o Google primeiro." };
+			if (!signedIn) return { ok: false, reason: "Entre na sua conta primeiro." };
 			return { ok: true, message: { kind: "cloud-sync" } };
 		case "cloudResolve": {
 			const keep = args[0];
@@ -177,5 +191,5 @@ export function formatAgo(at: number, now = Date.now()) {
 export const isAhead = (a: SaveSummary, b: SaveSummary) => a.level > b.level || (a.level === b.level && a.day >= b.day);
 
 export function resetCloudStore() {
-	Object.assign(cloudStore, { status: "unavailable", email: "", name: "", lastSyncAt: 0, error: "", conflict: null, confirmDeleteUntil: 0 });
+	Object.assign(cloudStore, { status: "unavailable", email: "", name: "", provider: "", providers: [], lastSyncAt: 0, error: "", conflict: null, confirmDeleteUntil: 0 });
 }

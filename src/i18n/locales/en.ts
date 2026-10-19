@@ -3648,6 +3648,24 @@ const catalog: Catalog = {
 	"O que não cabe na mesinha fica guardado no depósito. Toque em PRODUTOS e depois na aba ESTOQUE.": "Whatever doesn't fit on the table is kept in the storeroom. Tap PRODUCTS, then the STOCK tab.",
 	"Vamos comprar mercadoria do atacado. Abra PRODUTOS e toque na aba ENTREGAS.": "Let's buy stock from the wholesaler. Open PRODUCTS and tap the DELIVERIES tab.",
 	"Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado.": "Open PRODUCTS and tap the DELIVERIES tab to see the wholesaler.",
+	"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque para abrir.": "Each day lasts 5 minutes. Pick a contract, a goal that pays extra coins and XP, and tap to open.",
+	// Account tab and Sign in with Apple 19/10
+	"Conta": "Account",
+	"Sua conta": "Your account",
+	"Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem.": "Tap Play and come back here to sign in and save your progress in the cloud.",
+	"Guarde o seu progresso na nuvem.": "Keep your progress in the cloud.",
+	"Este aparelho e a sua conta têm progressos diferentes. Escolha qual continua.": "This device and your account have different progress. Choose which one continues.",
+	"Guarde o mercado, as moedas e os diamantes na nuvem. Trocou de celular? É só entrar com a mesma conta.": "Keep your market, coins and diamonds in the cloud. New phone? Just sign in with the same account.",
+	"Iniciar sessão com a Apple": "Sign in with Apple",
+	"Conta Apple": "Apple account",
+	"Toque de novo": "Tap again",
+	"Entrar com a Apple funciona no iPhone.": "Sign in with Apple works on the iPhone.",
+	"Não deu para entrar com a Apple.": "Couldn't sign in with Apple.",
+	"A Apple não confirmou o login ({0}).": "Apple didn't confirm the sign-in ({0}).",
+	"Abrindo o login da Apple…": "Opening Apple sign-in…",
+	"Entre com a Apple ou com o Google para guardar o mercado, as moedas e os diamantes na nuvem.": "Sign in with Apple or Google to keep your market, coins and diamonds in the cloud.",
+	"Este login não está disponível neste aparelho.": "This sign-in isn't available on this device.",
+	"Entre na sua conta primeiro.": "Sign in to your account first.",
 };
 
 export default catalog;

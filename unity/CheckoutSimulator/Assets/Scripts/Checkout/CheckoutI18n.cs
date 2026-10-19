@@ -241,7 +241,8 @@ namespace Checkout
                 ["Não foi possível agora."] = "Not possible right now.",
                 // Opções window (CheckoutSettings) and its start-screen card.
                 ["Opções"] = "Settings", ["Ajuste a música e os sons do jogo."] = "Adjust the game's music and sounds.", ["Música"] = "Music", ["Efeitos sonoros"] = "Sound effects", ["Ligada"] = "On", ["Desligada"] = "Off", ["Ligados"] = "On", ["Desligados"] = "Off", ["Fechar"] = "Close", ["Volume da música e dos efeitos sonoros."] = "Music and sound effects volume.", ["O = Opções"] = "O = Settings",
-                ["Sons"] = "Sound", ["Música, sons e idioma."] = "Music, sound, language.",
+                ["Sons"] = "Sound", ["Música, sons, idioma e conta."] = "Music, sound, language, account.",
+                ["Conta"] = "Account", ["Sua conta"] = "Your account", ["Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem."] = "Tap Play and come back here to sign in and save your progress in the cloud.", ["Guarde o seu progresso na nuvem."] = "Keep your progress in the cloud.",
             },
             ["es"] = new Dictionary<string, string>
             {
@@ -256,7 +257,8 @@ namespace Checkout
                 ["Não foi possível agora."] = "No es posible ahora.",
                 // Opções window (CheckoutSettings) and its start-screen card.
                 ["Opções"] = "Opciones", ["Ajuste a música e os sons do jogo."] = "Ajusta la música y los sonidos del juego.", ["Música"] = "Música", ["Efeitos sonoros"] = "Efectos de sonido", ["Ligada"] = "Activada", ["Desligada"] = "Desactivada", ["Ligados"] = "Activados", ["Desligados"] = "Desactivados", ["Fechar"] = "Cerrar", ["Volume da música e dos efeitos sonoros."] = "Volumen de la música y de los efectos de sonido.", ["O = Opções"] = "O = Opciones",
-                ["Sons"] = "Sonido", ["Música, sons e idioma."] = "Música, sonido, idioma.",
+                ["Sons"] = "Sonido", ["Música, sons, idioma e conta."] = "Música, sonido, idioma, cuenta.",
+                ["Conta"] = "Cuenta", ["Sua conta"] = "Tu cuenta", ["Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem."] = "Toca Jugar y vuelve aquí para iniciar sesión y guardar tu progreso en la nube.", ["Guarde o seu progresso na nuvem."] = "Guarda tu progreso en la nube.",
             },
             ["fr"] = new Dictionary<string, string>
             {
@@ -271,7 +273,8 @@ namespace Checkout
                 ["Não foi possível agora."] = "Impossible pour le moment.",
                 // Opções window (CheckoutSettings) and its start-screen card.
                 ["Opções"] = "Options", ["Ajuste a música e os sons do jogo."] = "Règle la musique et les sons du jeu.", ["Música"] = "Musique", ["Efeitos sonoros"] = "Effets sonores", ["Ligada"] = "Activée", ["Desligada"] = "Désactivée", ["Ligados"] = "Activés", ["Desligados"] = "Désactivés", ["Fechar"] = "Fermer", ["Volume da música e dos efeitos sonoros."] = "Volume de la musique et des effets sonores.", ["O = Opções"] = "O = Options",
-                ["Sons"] = "Son", ["Música, sons e idioma."] = "Musique, son, langue.",
+                ["Sons"] = "Son", ["Música, sons, idioma e conta."] = "Musique, son, langue, compte.",
+                ["Conta"] = "Compte", ["Sua conta"] = "Ton compte", ["Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem."] = "Touche Jouer et reviens ici pour te connecter et sauvegarder ta progression dans le cloud.", ["Guarde o seu progresso na nuvem."] = "Garde ta progression dans le cloud.",
             },
             ["de"] = new Dictionary<string, string>
             {
@@ -286,7 +289,8 @@ namespace Checkout
                 ["Não foi possível agora."] = "Gerade nicht möglich.",
                 // Opções window (CheckoutSettings) and its start-screen card.
                 ["Opções"] = "Einstellungen", ["Ajuste a música e os sons do jogo."] = "Stell Musik und Töne des Spiels ein.", ["Música"] = "Musik", ["Efeitos sonoros"] = "Soundeffekte", ["Ligada"] = "An", ["Desligada"] = "Aus", ["Ligados"] = "An", ["Desligados"] = "Aus", ["Fechar"] = "Schließen", ["Volume da música e dos efeitos sonoros."] = "Lautstärke von Musik und Soundeffekten.", ["O = Opções"] = "O = Einstellungen",
-                ["Sons"] = "Ton", ["Música, sons e idioma."] = "Musik, Ton, Sprache.",
+                ["Sons"] = "Ton", ["Música, sons, idioma e conta."] = "Musik, Ton, Sprache, Konto.",
+                ["Conta"] = "Konto", ["Sua conta"] = "Dein Konto", ["Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem."] = "Tippe auf Spielen und komm hierher zurück, um dich anzumelden und deinen Fortschritt in der Cloud zu speichern.", ["Guarde o seu progresso na nuvem."] = "Speichere deinen Fortschritt in der Cloud.",
             },
         };
     }

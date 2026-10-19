@@ -1,13 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { canReplace, MAX_SAVE_BYTES, readSave, type SaveRecord } from "./save.ts";
 import type { Store } from "./store.ts";
-import { type GoogleVerifier, readSession, signSession } from "./tokens.ts";
+import type { PlayerRecord } from "./store.ts";
+import { type AppleTokens, type AppleVerifier, type GoogleVerifier, readSession, signSession } from "./tokens.ts";
 
 /**
  * The game's API (all JSON):
  * - POST /v1/auth/google  {idToken}                       → {token, player, save: summary | null}
- * - POST /v1/auth/google-code {code, codeVerifier, redirectUri} → the same (PC/Editor: the browser login's code
- *   is exchanged here, so the game never carries the desktop client's secret)
+ * - POST /v1/auth/google-code {code, codeVerifier, redirectUri, client?} → the same (PC/Editor: the browser login's
+ *   code is exchanged here, so the game never carries the desktop client's secret; client "ios" = the iPhone's
+ *   Google login, an iOS OAuth client with its own redirect scheme and no secret)
+ * - POST /v1/auth/apple   {idToken, authorizationCode?, name?} → the same (Sign in with Apple on the iPhone; the
+ *   name comes from the phone, Apple sends it only on the first login)
  * - GET  /v1/save                                          → {revision, updatedAt, summary, data} | 404
  * - PUT  /v1/save         {baseRevision, data, deviceId, force?} → {revision, updatedAt, summary}
  *                                                           | 409 {error:"conflict", current: {revision, updatedAt, summary, deviceId}}
@@ -20,6 +24,12 @@ export type AppOptions = {
 	verifyGoogle: GoogleVerifier;
 	/** PC/Editor login: trades the browser login's code for Google's ID token (null when not configured). */
 	exchangeCode?: ((code: string, codeVerifier: string, redirectUri: string) => Promise<string | null>) | null;
+	/** iPhone Google login: trades the code of the iOS OAuth client (null when not configured). */
+	exchangeIosCode?: ((code: string, codeVerifier: string, redirectUri: string) => Promise<string | null>) | null;
+	/** Sign in with Apple (null when not configured). */
+	verifyApple?: AppleVerifier | null;
+	/** Apple's token API: keeps a refresh token at login and revokes it when the account is deleted (optional). */
+	apple?: AppleTokens | null;
 	sessionSecret: string;
 	now?: () => number;
 	/** Requests per minute per address (and per player). */
@@ -90,6 +100,17 @@ export function createApp(options: AppOptions) {
 		return player;
 	};
 
+	// The answer to a login: the game's session, who the player is, and the summary of the cloud save.
+	const welcome = async (player: PlayerRecord) => {
+		const save = await store.getSave(player.id);
+		log(`sign-in ${player.id} (${player.provider})`);
+		return {
+			token: signSession(player.id, sessionSecret, now()),
+			player: { id: player.id, email: player.email, name: player.name, provider: player.provider },
+			save: save ? describe(save) : null,
+		};
+	};
+
 	async function route(req: IncomingMessage) {
 		const path = (req.url ?? "/").split("?")[0];
 		const method = req.method ?? "GET";
@@ -100,10 +121,16 @@ export function createApp(options: AppOptions) {
 			let idToken = body.idToken;
 			if (path === "/v1/auth/google-code") {
 				const { code, codeVerifier, redirectUri } = body;
-				if (!options.exchangeCode) throw new HttpError(404, { error: "not-configured" });
-				if (typeof code !== "string" || typeof codeVerifier !== "string" || typeof redirectUri !== "string" || !/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(redirectUri))
+				const ios = body.client === "ios";
+				const exchange = ios ? options.exchangeIosCode : options.exchangeCode;
+				if (!exchange) throw new HttpError(404, { error: "not-configured" });
+				// PC/Editor: a loopback address; iPhone: the iOS client's own scheme (com.googleusercontent.apps.<id>).
+				const redirectOk = ios
+					? /^com\.googleusercontent\.apps\.[\w-]+:\/oauth2redirect\/?$/.test(String(redirectUri))
+					: /^http:\/\/127\.0\.0\.1:\d+\/?$/.test(String(redirectUri));
+				if (typeof code !== "string" || typeof codeVerifier !== "string" || typeof redirectUri !== "string" || !redirectOk)
 					throw new HttpError(400, { error: "bad-code" });
-				idToken = await options.exchangeCode(code, codeVerifier, redirectUri);
+				idToken = await exchange(code, codeVerifier, redirectUri);
 			}
 			if (typeof idToken !== "string" || idToken.length > 8192) throw new HttpError(400, { error: "missing-token" });
 			let identity;
@@ -116,17 +143,40 @@ export function createApp(options: AppOptions) {
 				log(`login refused (${path})`);
 				throw new HttpError(401, { error: "google-refused" });
 			}
-			const player = await store.signIn(identity.sub, identity.email ?? null, identity.name ?? null);
-			const save = await store.getSave(player.id);
-			log(`sign-in ${player.id}`);
-			return {
-				status: 200,
-				body: {
-					token: signSession(player.id, sessionSecret, now()),
-					player: { id: player.id, email: player.email, name: player.name },
-					save: save ? describe(save) : null,
-				},
-			};
+			return { status: 200, body: await welcome(await store.signIn("google", identity.sub, identity.email ?? null, identity.name ?? null)) };
+		}
+
+		if (path === "/v1/auth/apple" && method === "POST") {
+			if (!options.verifyApple) throw new HttpError(404, { error: "not-configured" });
+			const body = await readJson(req);
+			const { idToken, authorizationCode } = body;
+			if (typeof idToken !== "string" || idToken.length > 8192) throw new HttpError(400, { error: "missing-token" });
+			let identity;
+			try {
+				identity = await options.verifyApple(idToken);
+			} catch {
+				throw new HttpError(503, { error: "apple-unavailable" });
+			}
+			if (!identity) {
+				log("apple login refused");
+				throw new HttpError(401, { error: "apple-refused" });
+			}
+			// The phone sends the name the player shared (only on the very first login).
+			const name = typeof body.name === "string" ? body.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+			const player = await store.signIn("apple", identity.sub, identity.email ?? null, name || null);
+			// Keep Apple's refresh token, so deleting the account can revoke it. A failure here never blocks the login.
+			if (options.apple && typeof authorizationCode === "string" && authorizationCode.length < 2048) {
+				try {
+					const refresh = await options.apple.exchange(authorizationCode);
+					if (refresh) {
+						await store.setAppleRefresh(player.id, refresh);
+						player.appleRefresh = refresh;
+					}
+				} catch (error) {
+					log(`apple code exchange failed: ${(error as Error)?.message ?? error}`);
+				}
+			}
+			return { status: 200, body: await welcome(player) };
 		}
 
 		if (path === "/v1/save" && method === "GET") {
@@ -155,6 +205,14 @@ export function createApp(options: AppOptions) {
 
 		if (path === "/v1/account" && method === "DELETE") {
 			const player = await playerOf(req);
+			// Apple accounts: the game's access to the Apple ID ends too (App Store rule 5.1.1(v)). Best effort.
+			if (player.appleRefresh && options.apple) {
+				try {
+					if (!(await options.apple.revoke(player.appleRefresh))) log(`apple revoke refused for ${player.id}`);
+				} catch (error) {
+					log(`apple revoke failed: ${(error as Error)?.message ?? error}`);
+				}
+			}
 			await store.deletePlayer(player.id);
 			log(`deleted ${player.id}`);
 			return { status: 204, body: null };

@@ -3533,6 +3533,24 @@ const catalog: Catalog = {
 	"O que não cabe na mesinha fica guardado no depósito. Toque em PRODUTOS e depois na aba ESTOQUE.": "Lo que no cabe en la mesita se guarda en el almacén. Toca PRODUCTOS y luego la pestaña INVENTARIO.",
 	"Vamos comprar mercadoria do atacado. Abra PRODUTOS e toque na aba ENTREGAS.": "Vamos a comprar mercancía al mayorista. Abre PRODUCTOS y toca la pestaña ENTREGAS.",
 	"Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado.": "Abre PRODUCTOS y toca la pestaña ENTREGAS para ver al mayorista.",
+	"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque para abrir.": "Cada día dura 5 minutos. Elige un contrato, una meta que da monedas y XP extra, y toca para abrir.",
+	// Account tab and Sign in with Apple 19/10
+	"Conta": "Cuenta",
+	"Sua conta": "Tu cuenta",
+	"Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem.": "Toca Jugar y vuelve aquí para iniciar sesión y guardar tu progreso en la nube.",
+	"Guarde o seu progresso na nuvem.": "Guarda tu progreso en la nube.",
+	"Este aparelho e a sua conta têm progressos diferentes. Escolha qual continua.": "Este dispositivo y tu cuenta tienen progresos diferentes. Elige cuál continúa.",
+	"Guarde o mercado, as moedas e os diamantes na nuvem. Trocou de celular? É só entrar com a mesma conta.": "Guarda el mercado, las monedas y los diamantes en la nube. ¿Cambiaste de móvil? Solo entra con la misma cuenta.",
+	"Iniciar sessão com a Apple": "Iniciar sesión con Apple",
+	"Conta Apple": "Cuenta de Apple",
+	"Toque de novo": "Toca de nuevo",
+	"Entrar com a Apple funciona no iPhone.": "Iniciar sesión con Apple funciona en el iPhone.",
+	"Não deu para entrar com a Apple.": "No se pudo iniciar sesión con Apple.",
+	"A Apple não confirmou o login ({0}).": "Apple no confirmó el inicio de sesión ({0}).",
+	"Abrindo o login da Apple…": "Abriendo el inicio de sesión de Apple…",
+	"Entre com a Apple ou com o Google para guardar o mercado, as moedas e os diamantes na nuvem.": "Inicia sesión con Apple o Google para guardar el mercado, las monedas y los diamantes en la nube.",
+	"Este login não está disponível neste aparelho.": "Este inicio de sesión no está disponible en este dispositivo.",
+	"Entre na sua conta primeiro.": "Inicia sesión en tu cuenta primero.",
 };
 
 export default catalog;

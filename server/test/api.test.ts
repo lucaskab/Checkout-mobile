@@ -6,7 +6,8 @@ import { after, before, describe, test } from "node:test";
 import { createApp } from "../src/app.ts";
 import { readSave } from "../src/save.ts";
 import { memoryStore } from "../src/store.ts";
-import { googleVerifier, readSession, signSession } from "../src/tokens.ts";
+import { appleClientSecret, appleTokens, appleVerifier, googleVerifier, readSession, signSession } from "../src/tokens.ts";
+import { verify as verifySig } from "node:crypto";
 
 const SECRET = "test-secret-test-secret-test-secret-123";
 const save = (state: Record<string, unknown>, version = 45) => JSON.stringify({ state, version });
@@ -80,8 +81,64 @@ describe("Google ID tokens", () => {
 	});
 });
 
+describe("Apple identity tokens", () => {
+	const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+	const jwk = { ...(publicKey.export({ format: "jwk" }) as object), kid: "apple-1", alg: "RS256" } as any;
+	const now = 1_800_000_000_000;
+	const make = (claims: Record<string, unknown>) => {
+		const header = Buffer.from(JSON.stringify({ alg: "RS256", kid: "apple-1" })).toString("base64url");
+		const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+		return `${header}.${payload}.${sign("RSA-SHA256", Buffer.from(`${header}.${payload}`), privateKey).toString("base64url")}`;
+	};
+	const good = { iss: "https://appleid.apple.com", aud: "com.lucasfurini.checkout", sub: "001234.abcd", email: "x@privaterelay.appleid.com", exp: now / 1000 + 600 };
+	const verify = appleVerifier(["com.lucasfurini.checkout", "com.lucasfurini.checkout.dev"], async () => ({ keys: { keys: [jwk] }, maxAgeMs: 3600_000 }), () => now);
+
+	test("accepts Apple's token for the game's bundle ids", async () => {
+		assert.deepEqual(await verify(make(good)), { sub: "001234.abcd", email: "x@privaterelay.appleid.com" });
+		assert.equal((await verify(make({ ...good, aud: "com.lucasfurini.checkout.dev", email: undefined })))?.sub, "001234.abcd");
+	});
+
+	test("refuses Google's issuer, other apps and expired tokens", async () => {
+		assert.equal(await verify(make({ ...good, iss: "https://accounts.google.com" })), null);
+		assert.equal(await verify(make({ ...good, aud: "com.someone.else" })), null);
+		assert.equal(await verify(make({ ...good, exp: now / 1000 - 3600 })), null);
+	});
+
+	test("the client secret for Apple's token API is an ES256 JWT signed with the team's key", () => {
+		const key = generateKeyPairSync("ec", { namedCurve: "P-256" });
+		const pem = key.privateKey.export({ format: "pem", type: "pkcs8" }).toString();
+		const secret = appleClientSecret({ teamId: "TEAM123", keyId: "KEY456", privateKey: pem, clientId: "com.lucasfurini.checkout" }, now);
+		const [h, p, s] = secret.split(".");
+		assert.deepEqual(JSON.parse(Buffer.from(h, "base64url").toString()), { alg: "ES256", kid: "KEY456" });
+		const claims = JSON.parse(Buffer.from(p, "base64url").toString());
+		assert.equal(claims.iss, "TEAM123");
+		assert.equal(claims.sub, "com.lucasfurini.checkout");
+		assert.equal(claims.aud, "https://appleid.apple.com");
+		assert.ok(verifySig("sha256", Buffer.from(`${h}.${p}`), { key: key.publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(s, "base64url")));
+	});
+
+	test("Apple's token API: the code becomes a refresh token; revoking posts the token", async () => {
+		const key = generateKeyPairSync("ec", { namedCurve: "P-256" });
+		const pem = key.privateKey.export({ format: "pem", type: "pkcs8" }).toString();
+		const calls: { url: string; body: URLSearchParams }[] = [];
+		const post = (async (url: string, init: { body: URLSearchParams }) => {
+			calls.push({ url, body: init.body });
+			return new Response(url.endsWith("/token") ? JSON.stringify({ refresh_token: "r-1" }) : "", { status: 200 });
+		}) as unknown as typeof fetch;
+		const apple = appleTokens({ teamId: "T", keyId: "K", privateKey: pem, clientId: "com.lucasfurini.checkout" }, post, () => now);
+		assert.equal(await apple.exchange("code-1"), "r-1");
+		assert.equal(await apple.revoke("r-1"), true);
+		assert.equal(calls[0].url, "https://appleid.apple.com/auth/token");
+		assert.equal(calls[0].body.get("grant_type"), "authorization_code");
+		assert.equal(calls[1].url, "https://appleid.apple.com/auth/revoke");
+		assert.equal(calls[1].body.get("token"), "r-1");
+		assert.equal(calls[1].body.get("client_id"), "com.lucasfurini.checkout");
+	});
+});
+
 describe("the API", () => {
 	const store = memoryStore(undefined, 60 * 60_000);
+	const revoked: string[] = [];
 	const identities: Record<string, { sub: string; email: string; name: string }> = {
 		"token-ana": { sub: "g-ana", email: "ana@example.com", name: "Ana" },
 		"token-bia": { sub: "g-bia", email: "bia@example.com", name: "Bia" },
@@ -91,6 +148,12 @@ describe("the API", () => {
 			store,
 			verifyGoogle: async (t) => identities[t] ?? null,
 			exchangeCode: async (code, verifier, uri) => (code === "code-ana" && verifier === "v" && uri.startsWith("http://127.0.0.1:") ? "token-ana" : null),
+			exchangeIosCode: async (code, verifier, uri) => (code === "ios-ana" && verifier === "v" && uri.endsWith(":/oauth2redirect") ? "token-ana" : null),
+			verifyApple: async (t) => (t === "apple-cris" ? { sub: "001.cris", email: "cris@privaterelay.appleid.com" } : t === "apple-dani" ? { sub: "001.dani" } : null),
+			apple: {
+				exchange: async (code) => (code === "auth-code" ? "refresh-cris" : null),
+				revoke: async (token) => (revoked.push(token), true),
+			},
 			sessionSecret: SECRET,
 			rateLimit: 1000,
 		}),
@@ -130,6 +193,38 @@ describe("the API", () => {
 		assert.equal(ok.body.player.email, "ana@example.com");
 		assert.equal((await call("POST", "/v1/auth/google-code", { code: "stolen", codeVerifier: "v", redirectUri: "http://127.0.0.1:1/" })).status, 400);
 		assert.equal((await call("POST", "/v1/auth/google-code", { code: "code-ana", codeVerifier: "v", redirectUri: "https://evil.example/" })).status, 400);
+	});
+
+	test("iPhone Google login trades the iOS client's code; only its own scheme as the redirect", async () => {
+		const ok = await call("POST", "/v1/auth/google-code", { client: "ios", code: "ios-ana", codeVerifier: "v", redirectUri: "com.googleusercontent.apps.123-abc:/oauth2redirect" });
+		assert.equal(ok.status, 200);
+		assert.equal(ok.body.player.provider, "google");
+		assert.equal((await call("POST", "/v1/auth/google-code", { client: "ios", code: "ios-ana", codeVerifier: "v", redirectUri: "http://127.0.0.1:1/" })).status, 400);
+	});
+
+	test("Sign in with Apple: own account, the name from the first login, refresh token kept and revoked on delete", async () => {
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "forged" })).status, 401);
+		assert.equal((await call("POST", "/v1/auth/apple", {})).status, 400);
+		const first = (await call("POST", "/v1/auth/apple", { idToken: "apple-cris", authorizationCode: "auth-code", name: "  Cris   Souza " })).body;
+		assert.equal(first.player.provider, "apple");
+		assert.equal(first.player.name, "Cris Souza");
+		assert.equal(first.player.email, "cris@privaterelay.appleid.com");
+		const again = (await call("POST", "/v1/auth/apple", { idToken: "apple-cris" })).body;
+		assert.equal(again.player.id, first.player.id);
+		assert.equal(again.player.name, "Cris Souza", "Apple sends the name only once: the server keeps it");
+		assert.notEqual((await signIn("token-ana")).player.id, first.player.id);
+		// No e-mail shared, no name: still an account.
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-dani" })).status, 200);
+		assert.equal((await call("DELETE", "/v1/account", undefined, again.token)).status, 204);
+		assert.deepEqual(revoked, ["refresh-cris"]);
+	});
+
+	test("Sign in with Apple not configured → 404", async () => {
+		const plain = createServer(createApp({ store, verifyGoogle: async () => null, sessionSecret: SECRET, rateLimit: 1000 }));
+		await new Promise<void>((done) => plain.listen(0, () => done()));
+		const response = await fetch(`http://127.0.0.1:${(plain.address() as AddressInfo).port}/v1/auth/apple`, { method: "POST", body: JSON.stringify({ idToken: "x" }) });
+		await new Promise<void>((done) => plain.close(() => done()));
+		assert.equal(response.status, 404);
 	});
 
 	test("the save needs a session", async () => {

@@ -29,6 +29,8 @@ namespace Checkout {
     case "danger":return new Style("E15533","C0401F","FFFFFF");
     case "coin":return new Style("F2B03D","C58A1E","4A3624");
     case "gem":return new Style("8B5C9E","6A4279","FFFFFF");
+    // "Iniciar sessão com a Apple": black with white text, as Apple asks for its button.
+    case "apple":return new Style("111111","000000","FFFFFF");
     case "secondary":return new Style("FBEEDA","D4B482","4A3624");
     default:return new Style("2E8CAE","1F6A86","FFFFFF");
    }

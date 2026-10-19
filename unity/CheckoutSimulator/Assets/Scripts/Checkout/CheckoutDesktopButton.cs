@@ -40,6 +40,8 @@ namespace Checkout {
    var sprite=K.Icon(data.icon);icon.sprite=sprite;icon.gameObject.SetActive(sprite);
    icon.color=data.enabled?Color.white:new Color(1,1,1,.55f);
   }
+  /// <summary>An icon that is not a file in Resources (Apple's logo, made by the iPhone itself).</summary>
+  public void SetIconSprite(Sprite sprite){icon.sprite=sprite;icon.gameObject.SetActive(sprite);}
   void Layout(){float drop=pressed?Lift-2:0;faceRect.offsetMin=new Vector2(0,Lift-drop);faceRect.offsetMax=new Vector2(0,-drop);}
   public void OnPointerDown(PointerEventData e){if(e.button!=PointerEventData.InputButton.Left||Data==null||!Data.enabled)return;pressed=true;Layout();}
   public void OnPointerUp(PointerEventData e){pressed=false;Layout();}

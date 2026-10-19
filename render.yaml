@@ -31,3 +31,19 @@ services:
       # Pasted by Lucas in Render (secret): the PC/Editor client's secret.
       - key: GOOGLE_DESKTOP_CLIENT_SECRET
         sync: false
+      # Sign in with Apple (iPhone, 19/10): the app's bundle ids (public). The first one is the client id of Apple's
+      # token API.
+      - key: APPLE_BUNDLE_IDS
+        value: com.lucasfurini.checkout,com.lucasfurini.checkout.dev
+      # Optional, from the Apple Developer account (Keys › Sign in with Apple): lets the server revoke the Apple login
+      # when a player deletes the account. Pasted by Lucas in Render (the .p8 key is a secret).
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false
+      # Optional: Google login on the iPhone (an "iOS" OAuth client in Google Cloud for the bundle id). Add it to
+      # GOOGLE_CLIENT_IDS too.
+      - key: GOOGLE_IOS_CLIENT_ID
+        sync: false

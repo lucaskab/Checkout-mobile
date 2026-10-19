@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="account"?AccountShots():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -98,6 +98,17 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(.35f);yield return Shot("decor_pop1");
    yield return new WaitForSecondsRealtime(.5f);yield return Shot("decor_pop2");
    fakePlays=null;
+  }
+  // Opções › Conta and the Guia's "Conta e nuvem" (sign in with Google, Apple on the iPhone) and the contract list
+  // without the "Dia livre" card ("account"). Nothing is signed in or bought. Shots Logs/at_account_*.png.
+  IEnumerator AccountShots(){
+   void Route(string r)=>CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\""+r+"\"}");
+   Route("");yield return new WaitForSecondsRealtime(1f);
+   CheckoutSettings.Show("conta");yield return new WaitForSecondsRealtime(1f);yield return Shot("account_tab");
+   var cloud=CheckoutCloud.Active;Note("account: cloud "+(cloud?cloud.State+" provider '"+cloud.Provider+"' providers "+string.Join(",",CheckoutCloud.Providers):"none"));
+   CheckoutSettings.Hide();Route("!conta");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("account_page");
+   Route("!day");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("account_contracts");
+   Route("");
   }
   // The tidier HUD (Lucas 19/10, "hudtidy"): the corner Bônus button and its menu, the Produtos and Missões windows with
   // their header tabs, the Opções window on both tabs, and the game switched to English and back from Opções › Idioma.

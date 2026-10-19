@@ -1,6 +1,6 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { HISTORY_EVERY_MS, HISTORY_KEPT, type SaveRecord, type SaveSummary } from "./save.ts";
-import type { Store } from "./store.ts";
+import type { PlayerRecord, Store } from "./store.ts";
 
 const toRecord = (row: { revision: number; data: string; summary: unknown; deviceId: string; updatedAt: Date }): SaveRecord => ({
 	revision: row.revision,
@@ -8,6 +8,16 @@ const toRecord = (row: { revision: number; data: string; summary: unknown; devic
 	summary: row.summary as SaveSummary,
 	deviceId: row.deviceId,
 	updatedAt: row.updatedAt,
+});
+
+const toPlayer = (row: { id: string; googleSub: string | null; appleSub: string | null; email: string | null; name: string | null; appleRefresh: string | null }): PlayerRecord => ({
+	id: row.id,
+	provider: row.appleSub ? "apple" : "google",
+	googleSub: row.googleSub,
+	appleSub: row.appleSub,
+	email: row.email,
+	name: row.name,
+	appleRefresh: row.appleRefresh,
 });
 
 /**
@@ -19,17 +29,23 @@ const toRecord = (row: { revision: number; data: string; summary: unknown; devic
 export function prismaStore(prisma = new PrismaClient(), historyEveryMs = HISTORY_EVERY_MS): Store & { close(): Promise<void> } {
 	const store: Store & { close(): Promise<void> } = {
 		close: () => prisma.$disconnect(),
-		async signIn(googleSub, email, name) {
+		async signIn(provider, sub, email, name) {
+			const where = provider === "apple" ? { appleSub: sub } : { googleSub: sub };
+			// A missing e-mail or name (Apple sends the name once) keeps the saved one.
+			const known = { ...(email !== null ? { email } : {}), ...(name !== null ? { name } : {}) };
 			const player = await prisma.player.upsert({
-				where: { googleSub },
-				create: { googleSub, email, name },
-				update: { email, name, lastSeen: new Date() },
+				where,
+				create: { ...where, email, name },
+				update: { ...known, lastSeen: new Date() },
 			});
-			return { id: player.id, googleSub: player.googleSub, email: player.email, name: player.name };
+			return toPlayer(player);
+		},
+		async setAppleRefresh(playerId, token) {
+			await prisma.player.update({ where: { id: playerId }, data: { appleRefresh: token } });
 		},
 		async getPlayer(id) {
 			const player = await prisma.player.findUnique({ where: { id } });
-			return player && { id: player.id, googleSub: player.googleSub, email: player.email, name: player.name };
+			return player && toPlayer(player);
 		},
 		async getSave(playerId) {
 			const save = await prisma.cloudSave.findUnique({ where: { playerId } });

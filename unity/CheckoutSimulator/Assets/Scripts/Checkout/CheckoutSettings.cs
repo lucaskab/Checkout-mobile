@@ -12,8 +12,9 @@ namespace Checkout
     // "Opções" window (Lucas 18/10): music volume, sound-effects volume and an on/off switch for each. Opens from the
     // start screen (card "Opções", key O) and during the game (gear button next to "?"; on phones in the toolbar).
     // It sits above the HUD and the mini-games; the game keeps running behind it. Settings live in CheckoutAudio.
-    // Lucas 19/10: tabs, so more settings fit later. "Sons" (the two volumes) and "Idioma" (the language picker that
-    // used to be its own card on the start screen); a pick applies at once, in the game too (the host retranslates).
+    // Lucas 19/10: tabs, so more settings fit later. "Sons" (the two volumes), "Idioma" (the language picker that
+    // used to be its own card on the start screen; a pick applies at once, in the game too: the host retranslates)
+    // and "Conta" (sign in with Google, or Apple on the iPhone, so the progress is saved in the cloud: CheckoutCloud).
     [DefaultExecutionOrder(1000)] // after the HUD and the start screen: they see Open on the frame Esc closes it
     public sealed class CheckoutSettings : MonoBehaviour
     {
@@ -31,7 +32,7 @@ namespace Checkout
 
         public static void Show(string open)
         {
-            tab = open == "idioma" ? "idioma" : "sons";
+            tab = open == "idioma" || open == "conta" ? open : "sons";
             if (current) { current.BuildPage(false); return; }
             current = new GameObject("CheckoutSettings").AddComponent<CheckoutSettings>();
             current.Build();
@@ -48,6 +49,7 @@ namespace Checkout
             preview = gameObject.AddComponent<AudioSource>(); preview.playOnAwake = false;
             CheckoutAudio.Changed += Refresh;
             CheckoutI18n.Changed += Relabel;
+            CheckoutCloud.Changed += AccountChanged;
             BuildPage(true);
         }
 
@@ -71,16 +73,18 @@ namespace Checkout
             U.At(title.rectTransform, new Vector2(.5f, 1), new Vector2(520, 56), new Vector2(0, -48)); title.text = L("Opções");
             var subtitle = U.Label(f, "Subtitle", K.Body, 21, "8A7560", TextAlignmentOptions.Left);
             U.At(subtitle.rectTransform, new Vector2(.5f, 1), new Vector2(520, 32), new Vector2(0, -92));
-            subtitle.text = L(tab == "idioma" ? "Escolha o idioma do jogo." : "Ajuste a música e os sons do jogo.");
+            subtitle.text = L(tab == "idioma" ? "Escolha o idioma do jogo." : tab == "conta" ? "Guarde o seu progresso na nuvem." : "Ajuste a música e os sons do jogo.");
             var close = U.Button(f, "X", "danger", Hide, 60, 26);
             U.At((RectTransform)close.transform, new Vector2(1, 1), new Vector2(64, 64), new Vector2(-50, -50));
 
             // Tabs.
-            Tab(f, "sons", L("Sons"), "Icons/sound", new Vector2(-125, -158));
-            Tab(f, "idioma", L("Idioma"), "Icons/globe", new Vector2(125, -158));
+            Tab(f, "sons", L("Sons"), "Icons/sound", new Vector2(-248, -158));
+            Tab(f, "idioma", L("Idioma"), "Icons/globe", new Vector2(0, -158));
+            Tab(f, "conta", L("Conta"), "Icons/smartphone", new Vector2(248, -158));
             var line = U.Box(f, "TabLine", "E7D6BD", 2, new Vector2(.5f, 1), new Vector2(.5f, 1)); U.At(line.rectTransform, new Vector2(.5f, 1), new Vector2(740, 4), new Vector2(0, -192));
 
             if (tab == "idioma") BuildLanguages(f);
+            else if (tab == "conta") BuildAccount(f);
             else
             {
                 music = BuildRow(f, new Vector2(0, -280), L("Música"), K.C("8B5C9E"),
@@ -104,7 +108,7 @@ namespace Checkout
             var b = CheckoutDesktopButton.Create(parent, 58, 24, 16);
             b.Apply(new DesktopButton { label = label, icon = icon, variant = on ? "coin" : "secondary", enabled = true, active = on, action = "", args = "[]", route = "", after = "", ok = "", fail = "", badge = "" });
             b.Clicked = _ => { if (tab == id) return; tab = id; BuildPage(false); };
-            U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(230, 58), offset);
+            U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(226, 58), offset);
         }
 
         // ── Idioma: every language written in its own language; the pick applies at once ───────────────────
@@ -122,6 +126,100 @@ namespace Checkout
                 float x = alone ? 0 : (i % 2 == 0 ? -182 : 182);
                 U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(340, 64), new Vector2(x, -250 - row * 84));
             }
+        }
+
+        // ── Conta: Google (and Apple on the iPhone), what is saved, sign out, delete ───────────────────────────
+        float deleteArmedUntil; string accountShown;
+        void AccountChanged()
+        {
+            // Redraw only when what the tab shows changed (CheckoutCloud reports every sync).
+            var cloud = CheckoutCloud.Active;
+            var key = cloud ? cloud.State + "|" + cloud.Provider + "|" + cloud.Error + "|" + cloud.LastSyncAt : "";
+            if (tab == "conta" && canvas && key != accountShown) BuildPage(false);
+        }
+
+        void BuildAccount(Transform parent)
+        {
+            var cloud = CheckoutCloud.Active;
+            accountShown = cloud ? cloud.State + "|" + cloud.Provider + "|" + cloud.Error + "|" + cloud.LastSyncAt : "";
+            var card = U.Shape(parent, "Account", "FBEEDA", 22, new Vector2(.5f, 1), new Vector2(740, 300), new Vector2(0, -360));
+            var c = card.transform;
+            var icon = U.Icon(c, "Icon", "Icons/key", new Vector2(0, 1), new Vector2(84, 84), new Vector2(70, -66));
+            var title = U.Label(c, "Title", K.Headline, 30, "4A3624", TextAlignmentOptions.Left);
+            U.At(title.rectTransform, new Vector2(0, 1), new Vector2(560, 42), new Vector2(410, -44));
+            title.enableAutoSizing = true; title.fontSizeMin = 20; title.fontSizeMax = 30;
+            var text = U.Label(c, "Text", K.Body, 20, "8A7560", TextAlignmentOptions.TopLeft);
+            text.textWrappingMode = TextWrappingModes.Normal;
+            U.At(text.rectTransform, new Vector2(0, 1), new Vector2(560, 90), new Vector2(410, -116));
+            var row = N.Node("Buttons", c); U.At(row, new Vector2(.5f, 0), new Vector2(700, 64), new Vector2(0, 52));
+            var h = N.Row(row.gameObject, 12); h.childAlignment = TextAnchor.MiddleCenter; h.childForceExpandWidth = true;
+
+            string state = cloud ? cloud.State : "start";
+            bool signedIn = cloud && !string.IsNullOrEmpty(cloud.Provider) && state != "signed-out";
+            if (!cloud)
+            {
+                // The start screen: the cloud starts with the game.
+                title.text = L("Sua conta");
+                text.text = L("Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem.");
+                return;
+            }
+            if (state == "unavailable")
+            {
+                title.text = L("Sua conta");
+                text.text = L("O login não está disponível nesta versão do jogo.");
+                return;
+            }
+            if (state == "conflict")
+            {
+                icon.sprite = K.Icon("Icons/warning");
+                title.text = L("Qual progresso continua?");
+                text.text = L("Este aparelho e a sua conta têm progressos diferentes. Escolha qual continua.");
+                AccountButton(row, L("Escolher"), "Icons/warning", "coin", () => { Hide(); CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\"!conta\"}"); });
+                return;
+            }
+            if (!signedIn)
+            {
+                title.text = L("Salve o seu progresso");
+                var lines = L("Guarde o mercado, as moedas e os diamantes na nuvem. Trocou de celular? É só entrar com a mesma conta.");
+                if (!string.IsNullOrEmpty(cloud.Error)) lines += "\n<color=#C0401F>" + L(cloud.Error) + "</color>";
+                text.text = lines;
+                bool busy = state == "signing-in";
+                foreach (var provider in CheckoutCloud.Providers)
+                {
+                    bool apple = provider == "apple";
+                    var b = AccountButton(row, L(busy ? "Entrando…" : apple ? "Iniciar sessão com a Apple" : "Entrar com Google"), apple ? "" : "Icons/key", apple ? "apple" : "success", () => cloud.RequestSignIn(provider), !busy);
+                    if (apple) b.SetIconSprite(CheckoutCloud.AppleLogo());
+                }
+                return;
+            }
+            // Signed in: who, when it was saved, save now, sign out, delete (asks twice).
+            bool appleAccount = cloud.Provider == "apple";
+            var logo = appleAccount ? CheckoutCloud.AppleLogo() : null;
+            icon.sprite = K.Icon("Icons/success");
+            title.text = !string.IsNullOrEmpty(cloud.PlayerName) ? cloud.PlayerName : L(appleAccount ? "Conta Apple" : "Conta Google");
+            var when = cloud.LastSyncAt > 0 ? System.DateTimeOffset.FromUnixTimeMilliseconds(cloud.LastSyncAt).ToLocalTime().ToString("HH:mm") : "";
+            string line = state == "syncing" ? L("Salvando na nuvem…")
+                : state == "offline" ? L("Sem conexão: o progresso fica neste aparelho e vai para a nuvem quando a internet voltar.")
+                : state == "error" ? L(string.IsNullOrEmpty(cloud.Error) ? "Não deu para falar com o servidor. Tente de novo daqui a pouco." : cloud.Error)
+                : when.Length > 0 ? L("Tudo salvo na nuvem") + " · " + when : L("Conectado à nuvem.");
+            text.text = (string.IsNullOrEmpty(cloud.Email) ? "" : cloud.Email + "\n") + line;
+            AccountButton(row, L(state == "syncing" ? "Salvando…" : "Salvar agora"), "Icons/coin", "primary", cloud.RequestSync, state != "syncing");
+            AccountButton(row, L("Sair"), "", "secondary", cloud.RequestSignOut);
+            bool armed = Time.unscaledTime < deleteArmedUntil;
+            AccountButton(row, L(armed ? "Toque de novo" : "Apagar conta"), "Icons/warning", "danger", () =>
+            {
+                if (Time.unscaledTime < deleteArmedUntil) { deleteArmedUntil = 0; cloud.RequestDelete(); }
+                else { deleteArmedUntil = Time.unscaledTime + 6f; BuildPage(false); }
+            });
+            if (logo) { icon.sprite = logo; icon.color = K.C("111111"); }
+        }
+
+        CheckoutDesktopButton AccountButton(Transform row, string label, string icon, string variant, Action click, bool enabled = true)
+        {
+            var b = CheckoutDesktopButton.Create(row, 60, 21, 16);
+            b.Apply(new DesktopButton { label = label, icon = icon, variant = variant, enabled = enabled, active = false, action = "", args = "[]", route = "", after = "", ok = "", fail = "", badge = "" });
+            b.Clicked = _ => { if (enabled) click(); };
+            return b;
         }
 
         static void Pick(string id)
@@ -213,6 +311,7 @@ namespace Checkout
         {
             CheckoutAudio.Changed -= Refresh;
             CheckoutI18n.Changed -= Relabel;
+            CheckoutCloud.Changed -= AccountChanged;
             if (current == this) current = null;
         }
     }

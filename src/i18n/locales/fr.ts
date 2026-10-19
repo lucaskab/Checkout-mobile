@@ -3661,6 +3661,24 @@ const catalog: Catalog = {
 	"O que não cabe na mesinha fica guardado no depósito. Toque em PRODUTOS e depois na aba ESTOQUE.": "Ce qui ne tient pas sur la petite table est rangé dans la réserve. Touche PRODUITS, puis l'onglet STOCK.",
 	"Vamos comprar mercadoria do atacado. Abra PRODUTOS e toque na aba ENTREGAS.": "Achetons de la marchandise au grossiste. Ouvre PRODUITS et touche l'onglet LIVRAISONS.",
 	"Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado.": "Ouvre PRODUITS et touche l'onglet LIVRAISONS pour voir le grossiste.",
+	"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque para abrir.": "Chaque journée dure 5 minutes. Choisis un contrat, un objectif qui rapporte des pièces et de l'XP en plus, et touche pour ouvrir.",
+	// Account tab and Sign in with Apple 19/10
+	"Conta": "Compte",
+	"Sua conta": "Ton compte",
+	"Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem.": "Touche Jouer et reviens ici pour te connecter et sauvegarder ta progression dans le cloud.",
+	"Guarde o seu progresso na nuvem.": "Garde ta progression dans le cloud.",
+	"Este aparelho e a sua conta têm progressos diferentes. Escolha qual continua.": "Cet appareil et ton compte ont des progressions différentes. Choisis laquelle continue.",
+	"Guarde o mercado, as moedas e os diamantes na nuvem. Trocou de celular? É só entrar com a mesma conta.": "Garde ton marché, tes pièces et tes diamants dans le cloud. Nouveau téléphone ? Connecte-toi simplement avec le même compte.",
+	"Iniciar sessão com a Apple": "Se connecter avec Apple",
+	"Conta Apple": "Compte Apple",
+	"Toque de novo": "Touche encore",
+	"Entrar com a Apple funciona no iPhone.": "Se connecter avec Apple fonctionne sur iPhone.",
+	"Não deu para entrar com a Apple.": "Impossible de se connecter avec Apple.",
+	"A Apple não confirmou o login ({0}).": "Apple n'a pas confirmé la connexion ({0}).",
+	"Abrindo o login da Apple…": "Ouverture de la connexion Apple…",
+	"Entre com a Apple ou com o Google para guardar o mercado, as moedas e os diamantes na nuvem.": "Connecte-toi avec Apple ou Google pour garder ton marché, tes pièces et tes diamants dans le cloud.",
+	"Este login não está disponível neste aparelho.": "Cette connexion n'est pas disponible sur cet appareil.",
+	"Entre na sua conta primeiro.": "Connecte-toi d'abord à ton compte.",
 };
 
 export default catalog;

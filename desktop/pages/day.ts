@@ -176,19 +176,7 @@ function planning(state: State) {
 				],
 			}),
 			...day.offers.map((offer) => contractCard(offer, waiting === 0)),
-			card("Dia livre", {
-				subtitle: "Abrir sem contrato. A nota do dia ainda conta.",
-				icon: gameIcon("key"),
-				buttons: [
-					act("Abrir sem contrato", "startDay", [FREE_DAY_CONTRACT_ID], {
-						variant: "secondary",
-						enabled: waiting === 0,
-						after: "back",
-						ok: "Mercado aberto!",
-						fail: "Coloque seus móveis no modo Construir antes de abrir.",
-					}),
-				],
-			}),
+			// No "Dia livre" card (Lucas 19/10): a contract only adds a prize, so there is no reason to skip one.
 			// From the Späti on the shop can also open at night.
 			...(canOpenAtNight(state.era.id)
 				? [

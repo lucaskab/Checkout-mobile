@@ -3668,6 +3668,24 @@ const catalog: Catalog = {
 	"O que não cabe na mesinha fica guardado no depósito. Toque em PRODUTOS e depois na aba ESTOQUE.": "Was nicht auf den Tisch passt, kommt ins Lager. Tippe auf PRODUKTE und dann auf den Reiter LAGER.",
 	"Vamos comprar mercadoria do atacado. Abra PRODUTOS e toque na aba ENTREGAS.": "Kaufen wir Ware beim Großhändler. Öffne PRODUKTE und tippe auf den Reiter LIEFERUNGEN.",
 	"Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado.": "Öffne PRODUKTE und tippe auf den Reiter LIEFERUNGEN, um den Großhändler zu sehen.",
+	"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque para abrir.": "Jeder Tag dauert 5 Minuten. Wähle einen Auftrag, ein Ziel mit Extra-Münzen und XP, und tippe zum Öffnen.",
+	// Account tab and Sign in with Apple 19/10
+	"Conta": "Konto",
+	"Sua conta": "Dein Konto",
+	"Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem.": "Tippe auf Spielen und komm hierher zurück, um dich anzumelden und deinen Fortschritt in der Cloud zu speichern.",
+	"Guarde o seu progresso na nuvem.": "Speichere deinen Fortschritt in der Cloud.",
+	"Este aparelho e a sua conta têm progressos diferentes. Escolha qual continua.": "Dieses Gerät und dein Konto haben unterschiedliche Fortschritte. Wähle, welcher weitergeht.",
+	"Guarde o mercado, as moedas e os diamantes na nuvem. Trocou de celular? É só entrar com a mesma conta.": "Speichere Markt, Münzen und Diamanten in der Cloud. Neues Handy? Melde dich einfach mit demselben Konto an.",
+	"Iniciar sessão com a Apple": "Mit Apple anmelden",
+	"Conta Apple": "Apple-Konto",
+	"Toque de novo": "Noch einmal tippen",
+	"Entrar com a Apple funciona no iPhone.": "Mit Apple anmelden funktioniert auf dem iPhone.",
+	"Não deu para entrar com a Apple.": "Anmeldung mit Apple fehlgeschlagen.",
+	"A Apple não confirmou o login ({0}).": "Apple hat die Anmeldung nicht bestätigt ({0}).",
+	"Abrindo o login da Apple…": "Apple-Anmeldung wird geöffnet…",
+	"Entre com a Apple ou com o Google para guardar o mercado, as moedas e os diamantes na nuvem.": "Melde dich mit Apple oder Google an, um Markt, Münzen und Diamanten in der Cloud zu speichern.",
+	"Este login não está disponível neste aparelho.": "Diese Anmeldung ist auf diesem Gerät nicht verfügbar.",
+	"Entre na sua conta primeiro.": "Melde dich zuerst an.",
 };
 
 export default catalog;

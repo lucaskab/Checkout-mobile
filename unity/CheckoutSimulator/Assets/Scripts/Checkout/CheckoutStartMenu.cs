@@ -78,7 +78,8 @@ namespace Checkout
         }
 
         // ── Main screen: Jogar · Opções · (Modo edição) ──────────────────────────────────────────────────
-        // Lucas 19/10: the language moved into Opções (tab "Idioma"); the card's text says so.
+        // Lucas 19/10: the language moved into Opções (tab "Idioma"); the card's text says so. No pill with the
+        // language in use: the player is reading it.
         void ShowMain()
         {
             Clear();
@@ -86,7 +87,7 @@ namespace Checkout
             int count = release ? 2 : 3; float width = count == 3 ? 380 : 440, gap = count == 3 ? 420 : 480;
             float X(int i) => (i - (count - 1) * .5f) * gap;
             Option(new Vector2(X(0), -40), width, L("Jogar"), L("Continue o seu mercado de onde parou."), null, "Icons/market", "success", () => Choose(false));
-            Option(new Vector2(X(1), -40), width, L("Opções"), L("Música, sons e idioma."), CheckoutI18n.NameOf(CheckoutI18n.Language), "Icons/settings", "coin", () => CheckoutSettings.Show());
+            Option(new Vector2(X(1), -40), width, L("Opções"), L("Música, sons, idioma e conta."), null, "Icons/settings", "coin", () => CheckoutSettings.Show());
             if (!release) Option(new Vector2(X(2), -40), width, L("Modo edição"), L("Monte o mapa de cada loja: mova, adicione, redimensione e pinte ruas e ciclovias. Dinheiro infinito, em um save separado."), null, "Icons/hammer", "secondary", () => Choose(true));
             hint.text = L(release ? "Enter = Jogar" : "Enter = Jogar   •   E = Modo edição") + "   •   " + L("O = Opções");
         }
@@ -113,7 +114,7 @@ namespace Checkout
             name.text = label; name.enableAutoSizing = true; name.fontSizeMin = 26; name.fontSizeMax = 40; // long names ("Bearbeitungsmodus") on the narrower cards
             var desc = U.Label(face.transform, "Text", K.Body, 19, "BFD0E8"); desc.textWrappingMode = TextWrappingModes.Normal; desc.overflowMode = TextOverflowModes.Truncate;
             U.At(desc.rectTransform, new Vector2(.5f, 1), new Vector2(width - 70, 90), new Vector2(0, -236)); desc.text = text;
-            // Opções: the language in use, as a gold pill under the text.
+            // A gold pill under the text (no card uses one now).
             if (!string.IsNullOrEmpty(badge)) { U.At(desc.rectTransform, new Vector2(.5f, 1), new Vector2(width - 70, 40), new Vector2(0, -214)); var pill = U.Shape(face.transform, "Current", "E0B040", 18, new Vector2(.5f, 1), new Vector2(200, 36), new Vector2(0, -258)); var pt = U.Label(pill.transform, "Text", K.Label, 20, "1D2B4F"); U.Stretch(pt.rectTransform, Vector2.zero, Vector2.one); pt.text = badge; }
             var b = U.Button(face.transform, label, variant, onClick, 64, 24);
             U.At((RectTransform)b.transform, new Vector2(.5f, 0), new Vector2(Mathf.Min(300, width - 80), 64), new Vector2(0, 56));

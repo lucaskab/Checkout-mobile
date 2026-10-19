@@ -8,12 +8,14 @@ using UnityEngine.Networking;
 
 namespace Checkout {
  /// <summary>
- /// Cloud saves (Lucas 12/10): the player signs in with Google and the progress (market, coins, diamonds) follows
- /// them to a new phone. The server is server/ (Node on Render, Prisma Postgres); the host owns the save itself
+ /// Cloud saves (Lucas 12/10): the player signs in with Google (or Apple on the iPhone, 19/10) and the progress
+ /// (market, coins, diamonds) follows them to a new phone. The server is server/ (Node on Render, Prisma Postgres); the host owns the save itself
  /// (desktop/cloud.ts: cloud-export / cloud-import) and the "Conta" page.
  /// - Login: Android = "Sign in with Google" (Credential Manager, Plugins/Android/CheckoutGoogleSignIn.java);
  ///   Editor and PC builds = the browser (OAuth with PKCE on a 127.0.0.1 port; the server trades the code).
- ///   iPhone: not yet (needs Google Sign-In for iOS and Sign in with Apple).
+ ///   iPhone = "Sign in with Apple" (the system sheet, Plugins/iOS/CheckoutSignIn.mm; required by the App Store next
+ ///   to Google) and Google through the system's web login sheet with the iOS OAuth client (IosClientId).
+ /// - The Opções window (tab "Conta", CheckoutSettings) and the Guia page "Conta e nuvem" both drive it.
  /// - Sync: every few minutes while playing (only when the save changed) and when the app goes to the background.
  ///   Each upload says which cloud revision it builds on; if another phone uploaded in between, the server refuses
  ///   and the player chooses which progress continues (never a silent overwrite). A new phone (fresh game) simply
@@ -27,31 +29,53 @@ namespace Checkout {
   // is the PC/Editor's (its secret stays on the server).
   public const string WebClientId="663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com";
   const string DesktopClientId="663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com";
+  // The iOS OAuth client (Google Cloud › Credentials › iOS, bundle id of the iPhone app). Empty = no Google button on
+  // the iPhone yet (Apple only). Its redirect is the reversed id: com.googleusercontent.apps.<id>:/oauth2redirect.
+  const string IosClientId="";
   const float UploadEvery=300f,RetryOffline=60f;
   static string Server{get{var env=Environment.GetEnvironmentVariable("CHECKOUT_SERVER");return string.IsNullOrEmpty(env)?DefaultServer:env.TrimEnd('/');}}
 
   CheckoutDesktopHost host;
-  string token,playerId,email,playerName,deviceId,lastHash;int revision;long lastSyncAt;
+  string token,playerId,email,playerName,provider,deviceId,lastHash;int revision;long lastSyncAt;
   // What the progress held at the last sync (level, day, diamonds), and which account it belongs to.
   Summary synced;string owner;
-  string status="unavailable";bool busy,uploadWaiting;float nextUpload=float.MaxValue;
+  string status="unavailable",lastError="";bool busy,uploadWaiting;float nextUpload=float.MaxValue;
   CloudSave conflictCloud;
   readonly Dictionary<string,Action<string>> waiting=new Dictionary<string,Action<string>>();int sequence;
 
   // ---- JSON shapes (server and host) ----
   [Serializable] public class Summary{public int level;public string era;public double coins;public double diamonds;public int day;public int version;}
   [Serializable] public class CloudSave{public int revision;public string updatedAt;public Summary summary;public string deviceId;public string data;}
-  [Serializable] class Player{public string id;public string email;public string name;}
+  [Serializable] class Player{public string id;public string email;public string name;public string provider;}
   [Serializable] class AuthReply{public string token;public Player player;public CloudSave save;}
   [Serializable] class ConflictReply{public string error;public CloudSave current;}
   [Serializable] class Upload{public int baseRevision;public string data;public string deviceId;public bool force;}
   [Serializable] class IdToken{public string idToken;}
-  [Serializable] class CodeLogin{public string code;public string codeVerifier;public string redirectUri;}
+  [Serializable] class CodeLogin{public string code;public string codeVerifier;public string redirectUri;public string client;}
+  [Serializable] class AppleAnswer{public string identityToken;public string authorizationCode;public string name;public string email;}
+  [Serializable] class AppleLogin{public string idToken;public string authorizationCode;public string name;}
   [Serializable] class Exported{public string id;public string data;public Summary summary;public bool fresh;}
   [Serializable] class Imported{public string id;public bool ok;}
   [Serializable] class Resolve{public string keep;}
   [Serializable] class Conflict{public Summary cloud;public long cloudAt;public string cloudDevice;public bool otherAccount;}
-  [Serializable] class Status{public string kind="cloud";public string status;public string email;public string name;public long lastSyncAt;public string error;public Conflict conflict;}
+  [Serializable] class Status{public string kind="cloud";public string status;public string email;public string name;public string provider;public string[] providers;public long lastSyncAt;public string error;public Conflict conflict;}
+
+  // ---- for the Opções window (tab "Conta") ----
+  /// <summary>Something changed (status, account): the Opções tab redraws.</summary>
+  public static event Action Changed;
+  public string State=>status;public string Email=>SignedIn?email:"";public string PlayerName=>SignedIn?playerName:"";
+  public string Provider=>SignedIn?provider:"";public long LastSyncAt=>lastSyncAt;public string Error=>lastError;
+  /// <summary>The logins this device offers, in the order of the buttons ("apple", "google").</summary>
+  public static string[] Providers{get{
+   if(Application.platform==RuntimePlatform.IPhonePlayer)return string.IsNullOrEmpty(IosClientId)?new[]{"apple"}:new[]{"apple","google"};
+   // The Editor shows the Apple button too (it explains that it works on the iPhone), to see the screens as there.
+   if(Application.isEditor)return new[]{"google","apple"};
+   return SignInSupported?new[]{"google"}:new string[0];
+  }}
+  public void RequestSignIn(string with){if(!busy&&!SignedIn)StartCoroutine(Run(SignIn(with)));}
+  public void RequestSync(){if(!busy&&SignedIn)StartCoroutine(Run(status=="conflict"?Reconcile():UploadSave(false)));}
+  public void RequestSignOut(){if(SignedIn)SignOut();}
+  public void RequestDelete(){if(!busy&&SignedIn)StartCoroutine(Run(DeleteAccount()));}
 
   public static void Attach(CheckoutDesktopHost owner){
    if(Active||!owner)return;
@@ -59,11 +83,11 @@ namespace Checkout {
    var go=new GameObject("CheckoutCloud");go.transform.SetParent(owner.transform,false);
    Active=go.AddComponent<CheckoutCloud>();Active.host=owner;
   }
-  static bool SignInSupported=>Application.isEditor||Application.platform==RuntimePlatform.Android||Application.platform==RuntimePlatform.WindowsPlayer||Application.platform==RuntimePlatform.OSXPlayer;
+  static bool SignInSupported=>Application.isEditor||Application.platform==RuntimePlatform.Android||Application.platform==RuntimePlatform.IPhonePlayer||Application.platform==RuntimePlatform.WindowsPlayer||Application.platform==RuntimePlatform.OSXPlayer;
 
   IEnumerator Start(){
    token=PlayerPrefs.GetString("checkout.cloud.token","");playerId=PlayerPrefs.GetString("checkout.cloud.player","");
-   email=PlayerPrefs.GetString("checkout.cloud.email","");playerName=PlayerPrefs.GetString("checkout.cloud.name","");
+   email=PlayerPrefs.GetString("checkout.cloud.email","");playerName=PlayerPrefs.GetString("checkout.cloud.name","");provider=PlayerPrefs.GetString("checkout.cloud.provider","google");
    deviceId=PlayerPrefs.GetString("checkout.cloud.device","");owner=PlayerPrefs.GetString("checkout.cloud.owner","");
    if(string.IsNullOrEmpty(deviceId)){deviceId=SystemInfo.deviceModel+"-"+Guid.NewGuid().ToString("N").Substring(0,8);PlayerPrefs.SetString("checkout.cloud.device",deviceId);PlayerPrefs.Save();}
    LoadPlayerState();
@@ -91,8 +115,9 @@ namespace Checkout {
   bool SignedIn=>!string.IsNullOrEmpty(token);
 
   void Report(string next,string error="",Conflict conflict=null){
-   status=next;
-   host.Send(JsonUtility.ToJson(new Status{status=next,email=SignedIn?email:"",name=SignedIn?playerName:"",lastSyncAt=lastSyncAt,error=error,conflict=conflict}));
+   status=next;lastError=error??"";
+   host.Send(JsonUtility.ToJson(new Status{status=next,email=SignedIn?email:"",name=SignedIn?playerName:"",provider=SignedIn?provider:"",providers=Providers,lastSyncAt=lastSyncAt,error=error,conflict=conflict}));
+   Changed?.Invoke();
   }
 
   void Update(){
@@ -113,7 +138,7 @@ namespace Checkout {
   // ---- host lines ----
   public void OnHost(string kind,string line){
    switch(kind){
-    case "cloud-signin":if(!busy&&!SignedIn)StartCoroutine(Run(SignIn()));break;
+    case "cloud-signin":{var with=JsonUtility.FromJson<SignInWith>(line)?.provider;if(!busy&&!SignedIn)StartCoroutine(Run(SignIn(string.IsNullOrEmpty(with)?"google":with)));break;}
     case "cloud-sync":if(!busy&&SignedIn)StartCoroutine(Run(status=="conflict"?Reconcile():UploadSave(false)));break;
     case "cloud-signout":SignOut();break;
     case "cloud-delete":if(!busy&&SignedIn)StartCoroutine(Run(DeleteAccount()));break;
@@ -137,6 +162,7 @@ namespace Checkout {
    bool ok=false;yield return AskHost("cloud-import",",\"data\":"+wrapped.Substring(5,wrapped.Length-6),r=>{ok=r!=null&&(JsonUtility.FromJson<Imported>(r)?.ok??false);});answer(ok);
   }
   [Serializable] class Wrap{public string v;}
+  [Serializable] class SignInWith{public string provider;}
 
   // ---- server ----
   class Reply{public long code;public string text;public bool network;}
@@ -228,16 +254,32 @@ namespace Checkout {
   }
   void SignOut(){
    token="";email=playerName="";conflictCloud=null;
-   PlayerPrefs.DeleteKey("checkout.cloud.token");PlayerPrefs.DeleteKey("checkout.cloud.email");PlayerPrefs.DeleteKey("checkout.cloud.name");PlayerPrefs.Save();
+   PlayerPrefs.DeleteKey("checkout.cloud.token");PlayerPrefs.DeleteKey("checkout.cloud.email");PlayerPrefs.DeleteKey("checkout.cloud.name");PlayerPrefs.DeleteKey("checkout.cloud.provider");PlayerPrefs.Save();
    nextUpload=float.MaxValue;Report("signed-out");
   }
 
-  // ---- Google login ----
-  string idToken,signInError;bool signInDone;
-  IEnumerator SignIn(){
+  // ---- login (Google, or Apple on the iPhone) ----
+  string idToken,signInError;bool signInDone;AppleAnswer appleAnswer;string webCallback;
+  IEnumerator SignIn(string with){
    Report("signing-in");
-   Reply r=null;
-   if(Application.platform==RuntimePlatform.Android&&!Application.isEditor){
+   Reply r=null;bool apple=with=="apple";
+   if(apple){
+    if(Application.platform!=RuntimePlatform.IPhonePlayer){Report("signed-out",CheckoutI18n.T("Entrar com a Apple funciona no iPhone."));yield break;}
+#if UNITY_IOS && !UNITY_EDITOR
+    appleAnswer=null;signInError=null;signInDone=false;
+    CheckoutApple_SignIn(gameObject.name);
+    float until=Time.unscaledTime+300f;while(!signInDone&&Time.unscaledTime<until)yield return null;
+    if(appleAnswer==null||string.IsNullOrEmpty(appleAnswer.identityToken)){Report("signed-out",signInError=="cancelled"?"":CheckoutI18n.T("Não deu para entrar com a Apple."));yield break;}
+    yield return Call("POST","/v1/auth/apple",JsonUtility.ToJson(new AppleLogin{idToken=appleAnswer.identityToken,authorizationCode=appleAnswer.authorizationCode,name=appleAnswer.name}),x=>r=x);
+#endif
+   } else if(Application.platform==RuntimePlatform.IPhonePlayer){
+    // iPhone + Google: the system's web login sheet with the iOS OAuth client (PKCE, no secret).
+    if(string.IsNullOrEmpty(IosClientId)){Report("signed-out",CheckoutI18n.T("Não deu para entrar com o Google."));yield break;}
+    CodeLogin code=null;string error=null;
+    yield return IosGoogleLogin(c=>code=c,e=>error=e);
+    if(code==null){Report("signed-out",error??"");yield break;}
+    yield return Call("POST","/v1/auth/google-code",JsonUtility.ToJson(code),x=>r=x);
+   } else if(Application.platform==RuntimePlatform.Android&&!Application.isEditor){
     idToken=signInError=null;signInDone=false;
     try{
      using var player=new AndroidJavaClass("com.unity3d.player.UnityPlayer");
@@ -255,15 +297,70 @@ namespace Checkout {
     Debug.Log("CHECKOUT_CLOUD browser login ok, asking the server ("+Server+")");
     yield return Call("POST","/v1/auth/google-code",JsonUtility.ToJson(code),x=>r=x);
    }
+   if(r==null){Report("signed-out");yield break;}
    Debug.Log("CHECKOUT_CLOUD login reply "+r.code+" "+(r.text.Length>200?r.text.Substring(0,200):r.text));
    if(r.network||r.code>=500){Report("signed-out","Sem conexão com o servidor. Tente de novo.");yield break;}
-   if(r.code!=200){Report("signed-out",CheckoutI18n.T("O Google não confirmou o login ({0}).").Replace("{0}",r.code.ToString()));yield break;}
+   if(r.code!=200){Report("signed-out",CheckoutI18n.T(apple?"A Apple não confirmou o login ({0}).":"O Google não confirmou o login ({0}).").Replace("{0}",r.code.ToString()));yield break;}
    var auth=JsonUtility.FromJson<AuthReply>(r.text);
    token=auth.token;playerId=auth.player.id;email=auth.player.email??"";playerName=auth.player.name??"";
+   provider=string.IsNullOrEmpty(auth.player.provider)?(apple?"apple":"google"):auth.player.provider;
    PlayerPrefs.SetString("checkout.cloud.token",token);PlayerPrefs.SetString("checkout.cloud.player",playerId);
-   PlayerPrefs.SetString("checkout.cloud.email",email);PlayerPrefs.SetString("checkout.cloud.name",playerName);PlayerPrefs.Save();
+   PlayerPrefs.SetString("checkout.cloud.email",email);PlayerPrefs.SetString("checkout.cloud.name",playerName);PlayerPrefs.SetString("checkout.cloud.provider",provider);PlayerPrefs.Save();
    LoadPlayerState();
    yield return Reconcile();
+  }
+
+#if UNITY_IOS && !UNITY_EDITOR
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutApple_SignIn(string receiver);
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutWeb_Start(string url,string scheme,string receiver);
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern int CheckoutApple_Logo(int size,out IntPtr bytes);
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutApple_Free(IntPtr bytes);
+#endif
+  static Sprite appleLogo;
+  /// <summary>Apple's logo for the "Iniciar sessão com a Apple" button, from the iPhone's own symbols (null elsewhere).</summary>
+  public static Sprite AppleLogo(){
+#if UNITY_IOS && !UNITY_EDITOR
+   if(appleLogo)return appleLogo;
+   try{
+    int length=CheckoutApple_Logo(96,out var bytes);if(length<=0||bytes==IntPtr.Zero)return null;
+    var data=new byte[length];System.Runtime.InteropServices.Marshal.Copy(bytes,data,0,length);CheckoutApple_Free(bytes);
+    var texture=new Texture2D(2,2,TextureFormat.RGBA32,false);texture.LoadImage(data);
+    appleLogo=Sprite.Create(texture,new Rect(0,0,texture.width,texture.height),new Vector2(.5f,.5f),100);
+   }catch(Exception ex){Debug.LogWarning("CHECKOUT_CLOUD Apple logo: "+ex.Message);}
+#endif
+   return appleLogo;
+  }
+
+  // Called by CheckoutSignIn.mm (UnitySendMessage).
+  public void OnAppleSignIn(string json){try{appleAnswer=JsonUtility.FromJson<AppleAnswer>(json);}catch{appleAnswer=null;}signInDone=true;}
+  public void OnAppleSignInFailed(string reason){signInError=reason;signInDone=true;Debug.Log("CHECKOUT_CLOUD Apple sign-in: "+reason);}
+  public void OnWebAuthDone(string url){webCallback=url;signInDone=true;}
+  public void OnWebAuthFailed(string reason){signInError=reason;webCallback=null;signInDone=true;Debug.Log("CHECKOUT_CLOUD web login: "+reason);}
+
+  // iPhone + Google: Google's login page in the system's web sheet, back on the iOS client's own scheme.
+  IEnumerator IosGoogleLogin(Action<CodeLogin> done,Action<string> failed){
+   string verifier=RandomText(48),state=RandomText(16);
+   string challenge;using(var sha=SHA256.Create())challenge=Base64Url(sha.ComputeHash(Encoding.ASCII.GetBytes(verifier)));
+   string scheme="com.googleusercontent.apps."+IosClientId.Replace(".apps.googleusercontent.com","");
+   string redirect=scheme+":/oauth2redirect";
+   var url="https://accounts.google.com/o/oauth2/v2/auth?client_id="+IosClientId+"&redirect_uri="+Uri.EscapeDataString(redirect)
+    +"&response_type=code&scope="+Uri.EscapeDataString("openid email profile")+"&code_challenge="+challenge+"&code_challenge_method=S256&state="+state+"&prompt=select_account";
+   webCallback=null;signInError=null;signInDone=false;
+#if UNITY_IOS && !UNITY_EDITOR
+   CheckoutWeb_Start(url,scheme,gameObject.name);
+#else
+   signInDone=true;signInError="ios-only";
+#endif
+   float until=Time.unscaledTime+300f;while(!signInDone&&Time.unscaledTime<until)yield return null;
+   if(string.IsNullOrEmpty(webCallback)){failed(signInError=="cancelled"?"":CheckoutI18n.T("Não deu para entrar com o Google."));yield break;}
+   var query=ParseQuery(webCallback);
+   if(!query.TryGetValue("state",out var back)||back!=state||!query.TryGetValue("code",out var code)||string.IsNullOrEmpty(code)){failed("");yield break;}
+   done(new CodeLogin{code=code,codeVerifier=verifier,redirectUri=redirect,client="ios"});
+  }
+  static Dictionary<string,string> ParseQuery(string url){
+   var result=new Dictionary<string,string>();int q=url.IndexOf('?');if(q<0)return result;
+   foreach(var pair in url.Substring(q+1).Split('&')){var kv=pair.Split(new[]{'='},2);if(kv.Length==2)result[Uri.UnescapeDataString(kv[0])]=Uri.UnescapeDataString(kv[1].Replace('+',' '));}
+   return result;
   }
 
   // Called by CheckoutGoogleSignIn.java (UnitySendMessage).
