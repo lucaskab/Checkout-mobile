@@ -416,7 +416,7 @@ export function getCoachView(state: GameState, route: OnboardingRoute, now: numb
 				: { ...base, mode: "spotlight", title: "Abra a loja", text: "A loja está fechada. Toque em ABRIR para os clientes voltarem.", target: "market" };
 		// Steps that point at a button inside a page: first lead the player to that page.
 		if (def.id === "dia-livre" && name !== "day") return { ...base, target: "market" };
-		if (def.id === "pedir" && name !== "suppliers") return { ...base, target: "tool:!suppliers", text: "Toque em ENTREGAS para abrir o atacado." };
+		if (def.id === "pedir" && name !== "suppliers") return { ...base, target: "route:!suppliers|tool:!store|tool:!products", text: "Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado." };
 		if (def.id === "caixa" && !readyAtRegister(state, now)) return { ...base, mode: "bubble", target: "", text: "O cliente está escolhendo... já já ele vai para o caixa." };
 		if (def.id === "descarregar" && !trucksAtDock(state)) return { ...base, mode: "bubble", target: "" };
 		return base;

@@ -3642,6 +3642,12 @@ const catalog: Catalog = {
 	"1 cliente atendido": "1 customer served",
 	"+1 moeda": "+1 coin",
 	"Preço do terreno: {0} / {1} moedas": "Plot price: {0} / {1} coins",
+	// HUD tidy 19/10
+	"Bônus": "Bonus",
+	"Estes caixotes são a sua vitrine. Toque em PRODUTOS para ver o que você vende.": "These crates are your shop window. Tap PRODUCTS to see what you sell.",
+	"O que não cabe na mesinha fica guardado no depósito. Toque em PRODUTOS e depois na aba ESTOQUE.": "Whatever doesn't fit on the table is kept in the storeroom. Tap PRODUCTS, then the STOCK tab.",
+	"Vamos comprar mercadoria do atacado. Abra PRODUTOS e toque na aba ENTREGAS.": "Let's buy stock from the wholesaler. Open PRODUCTS and tap the DELIVERIES tab.",
+	"Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado.": "Open PRODUCTS and tap the DELIVERIES tab to see the wholesaler.",
 };
 
 export default catalog;

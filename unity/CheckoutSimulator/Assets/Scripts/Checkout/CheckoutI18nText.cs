@@ -16,6 +16,9 @@ namespace Checkout
         static readonly Dictionary<TMP_Text, string> seen = new Dictionary<TMP_Text, string>();
         static readonly List<TMP_Text> pending = new List<TMP_Text>();
         static readonly List<TMP_Text> dead = new List<TMP_Text>();
+        // The Portuguese a text had before we translated it: a later language change (Opções › Idioma, Lucas 19/10)
+        // starts again from it, so a label written once in Unity does not stay in the previous language.
+        static readonly Dictionary<TMP_Text, string> source = new Dictionary<TMP_Text, string>();
 
         // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
         internal static void Boot() => Ensure();
@@ -53,9 +56,13 @@ namespace Checkout
             if (changed is TMP_Text text && !seen.ContainsKey(text)) pending.Add(text);
         }
 
-        // A new language: texts still showing Portuguese get another look.
+        // A new language: texts we translated go back to their Portuguese (if nobody changed them since), and every
+        // text gets another look.
         static void Retranslate()
         {
+            foreach (var pair in source)
+                if (pair.Key && seen.TryGetValue(pair.Key, out var written) && ReferenceEquals(pair.Key.text, written)) pair.Key.text = pair.Value;
+            source.Clear();
             var keys = new List<TMP_Text>(seen.Keys);
             foreach (var key in keys) seen[key] = null;
         }
@@ -74,12 +81,13 @@ namespace Checkout
                 // Typed text (the map editor's search box) belongs to the player.
                 if (text.GetComponentInParent<TMP_InputField>(true)) { dead.Add(text); continue; }
                 var translated = CheckoutI18n.T(current);
-                if (!ReferenceEquals(translated, current) && translated != current) text.text = translated;
+                source.Remove(text); // new text from the game: its own words are the source now
+                if (!ReferenceEquals(translated, current) && translated != current) { source[text] = current; text.text = translated; }
                 changes.Add(text);
             }
             foreach (var text in changes) seen[text] = text.text;
             changes.Clear();
-            foreach (var text in dead) seen.Remove(text);
+            foreach (var text in dead) { seen.Remove(text); source.Remove(text); }
             dead.Clear();
         }
 

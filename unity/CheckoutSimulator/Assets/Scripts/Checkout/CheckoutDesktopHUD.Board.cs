@@ -17,6 +17,7 @@ namespace Checkout {
  public partial class CheckoutDesktopHUD {
   public static bool BoardOpen;
 
+  SectionBar boardGroupTabs;GameObject boardIconBack;
   GameObject boardWin;Image boardHeader,boardIcon,boardBackdrop,boardMeterFill;RectTransform boardStats,boardTabsRow,boardMeter,boardMeterTrack,boardMeterMarks,boardBody,boardGridArea,boardContent,boardFooter,boardDetail,boardTipBar;
   TextMeshProUGUI boardTitle,boardSubtitle,boardCoins,boardDiamonds,boardMeterTitle,boardMeterText,boardTip,boardEmpty;Image boardMeterIcon;ScrollRect boardScroll,boardDetailScroll;
   readonly List<CheckoutDesktopButton> boardTabs=new List<CheckoutDesktopButton>();readonly List<GameObject> boardTabBadges=new List<GameObject>();
@@ -51,11 +52,12 @@ namespace Checkout {
    var shine=N.Image(boardHeader.transform,"Shine",new Color(1,1,1,.12f),24);var shr=shine.rectTransform;shr.anchorMin=new Vector2(0,.55f);shr.anchorMax=Vector2.one;shr.offsetMin=new Vector2(6,0);shr.offsetMax=new Vector2(-6,-4);
    shine.gameObject.AddComponent<LayoutElement>().ignoreLayout=true;
    var row=N.Row(boardHeader.gameObject,12,Phone?new RectOffset(14,12,6,10):new RectOffset(18,16,10,14));row.childAlignment=TextAnchor.MiddleLeft;
-   var iconBack=N.Image(boardHeader.transform,"IconBack",new Color(1,1,1,.95f),20);var ib=iconBack.gameObject.AddComponent<LayoutElement>();ib.preferredWidth=ib.preferredHeight=Phone?48:68;
+   var iconBack=N.Image(boardHeader.transform,"IconBack",new Color(1,1,1,.95f),20);boardIconBack=iconBack.gameObject;var ib=iconBack.gameObject.AddComponent<LayoutElement>();ib.preferredWidth=ib.preferredHeight=Phone?48:68;
    boardIcon=N.Image(iconBack.transform,"Icon",Color.white,0);boardIcon.preserveAspect=true;Stretch(boardIcon.rectTransform,new Vector2(6,6),new Vector2(-6,-6));
    var titles=N.Node("Titles",boardHeader.transform);N.Column(titles.gameObject,0);var tl=titles.gameObject.AddComponent<LayoutElement>();tl.flexibleWidth=1;tl.minWidth=240;
    boardTitle=N.Text(titles,"Title",K.Headline,Phone?28:34,Color.white);boardTitle.textWrappingMode=TextWrappingModes.NoWrap;boardTitle.characterSpacing=1;
    boardSubtitle=N.Text(titles,"Subtitle",K.Body,15,new Color(1,1,1,.88f));boardSubtitle.textWrappingMode=TextWrappingModes.NoWrap;boardSubtitle.overflowMode=TextOverflowModes.Ellipsis;boardSubtitle.gameObject.SetActive(!Phone); // the title and tabs say it
+   boardGroupTabs=MakeSections(titles);
    boardStats=N.Node("Stats",boardHeader.transform);var sr=N.Row(boardStats.gameObject,8);sr.childAlignment=TextAnchor.MiddleRight;
    boardCoins=Balance(boardHeader.transform,"Icons/coin",null);
    boardDiamonds=Balance(boardHeader.transform,"Icons/diamond",()=>host.Route("~loja:moedas"));
@@ -105,11 +107,15 @@ namespace Checkout {
    if(!on){boardShown=null;return;}
    var p=v.page;var b=p.board;boardData=b;boardReceivedAt=Time.realtimeSinceStartup;
    string page=(p.route??"").Split(':')[0];bool fresh=page!=boardShown;
-   if(fresh){boardShown=page;boardLaneStates.Clear();boardSelected=string.IsNullOrEmpty(b.focus)?null:b.focus;boardMeterShown=-1;StartCoroutine(U.Pop(boardWin.transform.Find("Window"),1.02f,.22f));}
+   // A header tab switch (Produtos, Missões) swaps the window in place: no opening pop.
+   if(fresh){boardShown=page;boardLaneStates.Clear();boardSelected=string.IsNullOrEmpty(b.focus)?null:b.focus;boardMeterShown=-1;if(!TakeSectionHop())StartCoroutine(U.Pop(boardWin.transform.Find("Window"),1.02f,.22f));}
    boardCoins.text=v.coins;boardDiamonds.text=v.diamonds;
    boardHeader.color=K.C(string.IsNullOrEmpty(b.tint)?"2E8CAE":b.tint);
    boardTitle.text=K.Clean(p.title);boardSubtitle.text=K.Clean(p.subtitle);
    var icon=K.Icon(p.icon);boardIcon.sprite=icon;boardIcon.enabled=icon;
+   // Windows of a toolbar group: the sibling windows as big tabs instead of the title (the tabs have icons).
+   bool grouped=ApplySections(boardGroupTabs,p.sections,boardTitle,boardSubtitle,!Phone);
+   if(boardIconBack)boardIconBack.SetActive(!grouped);
    var back=K.Icon(b.backdrop);boardBackdrop.sprite=back;boardBackdrop.enabled=back;
    ApplyBoardStats(b.stats??new DesktopStat[0]);
    ApplyBoardTabs(p.tabs??new DesktopButton[0]);

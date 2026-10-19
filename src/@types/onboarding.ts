@@ -39,7 +39,7 @@ export type OnboardingState = {
 /**
  * Where the coach points. Unity tries each target of a "|" list in order and uses the first one on screen:
  *   world:<panel>[:<shelfId>]   a clickable object of the map (CheckoutTarget)
- *   tool:<route>                a toolbar button ("tool:!products")
+ *   tool:<route>                a toolbar button ("tool:!missions"; a group's button routes to one of its tabs)
  *   market                      the Abrir / Fechar / Resultado button
  *   action:<name>               a page button that runs this store action ("action:startDay")
  *   route:<prefix>              a page button whose route starts with this ("route:@shop")

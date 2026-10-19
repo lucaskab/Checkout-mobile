@@ -3655,6 +3655,12 @@ const catalog: Catalog = {
 	"1 cliente atendido": "1 client servi",
 	"+1 moeda": "+1 pièce",
 	"Preço do terreno: {0} / {1} moedas": "Prix du terrain : {0} / {1} pièces",
+	// HUD tidy 19/10
+	"Bônus": "Bonus",
+	"Estes caixotes são a sua vitrine. Toque em PRODUTOS para ver o que você vende.": "Ces cagettes sont ta vitrine. Touche PRODUITS pour voir ce que tu vends.",
+	"O que não cabe na mesinha fica guardado no depósito. Toque em PRODUTOS e depois na aba ESTOQUE.": "Ce qui ne tient pas sur la petite table est rangé dans la réserve. Touche PRODUITS, puis l'onglet STOCK.",
+	"Vamos comprar mercadoria do atacado. Abra PRODUTOS e toque na aba ENTREGAS.": "Achetons de la marchandise au grossiste. Ouvre PRODUITS et touche l'onglet LIVRAISONS.",
+	"Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado.": "Ouvre PRODUITS et touche l'onglet LIVRAISONS pour voir le grossiste.",
 };
 
 export default catalog;

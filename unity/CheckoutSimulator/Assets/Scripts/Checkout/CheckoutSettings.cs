@@ -12,20 +12,27 @@ namespace Checkout
     // "Opções" window (Lucas 18/10): music volume, sound-effects volume and an on/off switch for each. Opens from the
     // start screen (card "Opções", key O) and during the game (gear button next to "?"; on phones in the toolbar).
     // It sits above the HUD and the mini-games; the game keeps running behind it. Settings live in CheckoutAudio.
+    // Lucas 19/10: tabs, so more settings fit later. "Sons" (the two volumes) and "Idioma" (the language picker that
+    // used to be its own card on the start screen); a pick applies at once, in the game too (the host retranslates).
     [DefaultExecutionOrder(1000)] // after the HUD and the start screen: they see Open on the frame Esc closes it
     public sealed class CheckoutSettings : MonoBehaviour
     {
         public static bool Open => current;
         static CheckoutSettings current;
+        // The tab shown when the window opens: the last one used.
+        static string tab = "sons";
 
         class Row { public Slider slider; public TextMeshProUGUI value; public CheckoutDesktopButton toggle; public Image icon; }
         Row music, effects;
-        RectTransform window;
+        RectTransform canvas, page, window;
         AudioSource preview;
 
-        public static void Show()
+        public static void Show() => Show(tab);
+
+        public static void Show(string open)
         {
-            if (current) return;
+            tab = open == "idioma" ? "idioma" : "sons";
+            if (current) { current.BuildPage(false); return; }
             current = new GameObject("CheckoutSettings").AddComponent<CheckoutSettings>();
             current.Build();
         }
@@ -36,11 +43,24 @@ namespace Checkout
 
         void Build()
         {
-            var root = U.Canvas(transform, "CheckoutSettings", 450); // over the HUD (50), mini-games (80-96) and the start screen (300)
-            // Dim layer: a click outside the window closes it (the window is its sibling, so its clicks stay inside).
-            var dim = U.Box(root, "Dim", "000000", 0, Vector2.zero, Vector2.one); dim.color = new Color(.14f, .09f, .05f, .62f); U.Bleed(dim); U.Tap(dim, Hide);
+            canvas = U.Canvas(transform, "CheckoutSettings", 450); // over the HUD (50), mini-games (80-96) and the start screen (300)
+            // A short sound to hear the effects volume (it goes through the listener like every effect).
+            preview = gameObject.AddComponent<AudioSource>(); preview.playOnAwake = false;
+            CheckoutAudio.Changed += Refresh;
+            CheckoutI18n.Changed += Relabel;
+            BuildPage(true);
+        }
 
-            var edge = U.Shape(root, "Window", "D4B482", 30, new Vector2(.5f, .5f), new Vector2(820, 590)); edge.raycastTarget = true;
+        // The whole window; built again on a tab switch or a language change (every text is a Portuguese key).
+        void BuildPage(bool pop)
+        {
+            if (page) Destroy(page.gameObject);
+            music = effects = null;
+            page = N.Node("Page", canvas); U.Stretch(page, Vector2.zero, Vector2.one);
+            // Dim layer: a click outside the window closes it (the window is its sibling, so its clicks stay inside).
+            var dim = U.Box(page, "Dim", "000000", 0, Vector2.zero, Vector2.one); dim.color = new Color(.14f, .09f, .05f, .62f); U.Bleed(dim); U.Tap(dim, Hide);
+
+            var edge = U.Shape(page, "Window", "D4B482", 30, new Vector2(.5f, .5f), new Vector2(820, 640)); edge.raycastTarget = true;
             window = edge.rectTransform;
             var face = U.Box(edge.transform, "Face", "FFF7EC", 28, Vector2.zero, Vector2.one); face.rectTransform.offsetMin = new Vector2(4, 9); face.rectTransform.offsetMax = new Vector2(-4, -4);
             var f = face.transform;
@@ -50,27 +70,70 @@ namespace Checkout
             var title = U.Label(f, "Title", K.Headline, 44, "4A3624", TextAlignmentOptions.Left);
             U.At(title.rectTransform, new Vector2(.5f, 1), new Vector2(520, 56), new Vector2(0, -48)); title.text = L("Opções");
             var subtitle = U.Label(f, "Subtitle", K.Body, 21, "8A7560", TextAlignmentOptions.Left);
-            U.At(subtitle.rectTransform, new Vector2(.5f, 1), new Vector2(520, 32), new Vector2(0, -92)); subtitle.text = L("Ajuste a música e os sons do jogo.");
+            U.At(subtitle.rectTransform, new Vector2(.5f, 1), new Vector2(520, 32), new Vector2(0, -92));
+            subtitle.text = L(tab == "idioma" ? "Escolha o idioma do jogo." : "Ajuste a música e os sons do jogo.");
             var close = U.Button(f, "X", "danger", Hide, 60, 26);
             U.At((RectTransform)close.transform, new Vector2(1, 1), new Vector2(64, 64), new Vector2(-50, -50));
 
-            music = BuildRow(f, new Vector2(0, -205), L("Música"), K.C("8B5C9E"),
-                v => { if (v > 0 && !CheckoutAudio.MusicOn) CheckoutAudio.MusicOn = true; CheckoutAudio.MusicVolume = v; },
-                () => CheckoutAudio.MusicOn = !CheckoutAudio.MusicOn, null);
-            effects = BuildRow(f, new Vector2(0, -375), L("Efeitos sonoros"), K.C("2E8CAE"),
-                v => { if (v > 0 && !CheckoutAudio.EffectsOn) CheckoutAudio.EffectsOn = true; CheckoutAudio.EffectsVolume = v; },
-                () => { CheckoutAudio.EffectsOn = !CheckoutAudio.EffectsOn; Sample(); }, Sample);
+            // Tabs.
+            Tab(f, "sons", L("Sons"), "Icons/sound", new Vector2(-125, -158));
+            Tab(f, "idioma", L("Idioma"), "Icons/globe", new Vector2(125, -158));
+            var line = U.Box(f, "TabLine", "E7D6BD", 2, new Vector2(.5f, 1), new Vector2(.5f, 1)); U.At(line.rectTransform, new Vector2(.5f, 1), new Vector2(740, 4), new Vector2(0, -192));
+
+            if (tab == "idioma") BuildLanguages(f);
+            else
+            {
+                music = BuildRow(f, new Vector2(0, -280), L("Música"), K.C("8B5C9E"),
+                    v => { if (v > 0 && !CheckoutAudio.MusicOn) CheckoutAudio.MusicOn = true; CheckoutAudio.MusicVolume = v; },
+                    () => CheckoutAudio.MusicOn = !CheckoutAudio.MusicOn, null);
+                effects = BuildRow(f, new Vector2(0, -445), L("Efeitos sonoros"), K.C("2E8CAE"),
+                    v => { if (v > 0 && !CheckoutAudio.EffectsOn) CheckoutAudio.EffectsOn = true; CheckoutAudio.EffectsVolume = v; },
+                    () => { CheckoutAudio.EffectsOn = !CheckoutAudio.EffectsOn; Sample(); }, Sample);
+            }
 
             var done = U.Button(f, L("Fechar"), "success", Hide, 64, 24);
-            U.At((RectTransform)done.transform, new Vector2(.5f, 0), new Vector2(260, 64), new Vector2(0, 52));
+            U.At((RectTransform)done.transform, new Vector2(.5f, 0), new Vector2(260, 64), new Vector2(0, 48));
 
-            // A short sound to hear the effects volume (it goes through the listener like every effect).
-            preview = gameObject.AddComponent<AudioSource>(); preview.playOnAwake = false;
-
-            CheckoutAudio.Changed += Refresh;
             Refresh();
-            StartCoroutine(U.Pop(window, 1.04f, .22f));
+            if (pop) StartCoroutine(U.Pop(window, 1.04f, .22f));
         }
+
+        void Tab(Transform parent, string id, string label, string icon, Vector2 offset)
+        {
+            bool on = tab == id;
+            var b = CheckoutDesktopButton.Create(parent, 58, 24, 16);
+            b.Apply(new DesktopButton { label = label, icon = icon, variant = on ? "coin" : "secondary", enabled = true, active = on, action = "", args = "[]", route = "", after = "", ok = "", fail = "", badge = "" });
+            b.Clicked = _ => { if (tab == id) return; tab = id; BuildPage(false); };
+            U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(230, 58), offset);
+        }
+
+        // ── Idioma: every language written in its own language; the pick applies at once ───────────────────
+        void BuildLanguages(Transform parent)
+        {
+            var list = CheckoutI18n.Languages;
+            for (int i = 0; i < list.Length; i++)
+            {
+                var id = list[i].id; bool active = id == CheckoutI18n.Language;
+                var b = CheckoutDesktopButton.Create(parent, 64, 26, 16);
+                b.Apply(new DesktopButton { label = list[i].name, icon = active ? "Icons/success" : "Icons/globe", variant = active ? "success" : "secondary", enabled = true, active = false, action = "", args = "[]", route = "", after = "", ok = "", fail = "", badge = "" });
+                b.Clicked = _ => Pick(id);
+                // Two columns; an odd last one sits in the middle.
+                int row = i / 2; bool alone = i == list.Length - 1 && list.Length % 2 == 1;
+                float x = alone ? 0 : (i % 2 == 0 ? -182 : 182);
+                U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(340, 64), new Vector2(x, -250 - row * 84));
+            }
+        }
+
+        static void Pick(string id)
+        {
+            if (id == CheckoutI18n.Language) return;
+            CheckoutI18n.SetLanguage(id); // Changed → this window relabels itself, as do the HUD's own texts
+            // In the game, the host translates the pages and names: tell it (on the start screen there is no host yet;
+            // it starts in the language picked here).
+            if (CheckoutDesktopHost.Active) CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\"" + id + "\"}");
+        }
+
+        void Relabel() { if (canvas) BuildPage(false); }
 
         // A card with the big icon, the name and percentage, the slider and the on/off button.
         Row BuildRow(Transform parent, Vector2 offset, string name, Color fill, Action<float> changed, Action toggle, Action released)
@@ -149,6 +212,7 @@ namespace Checkout
         void OnDestroy()
         {
             CheckoutAudio.Changed -= Refresh;
+            CheckoutI18n.Changed -= Relabel;
             if (current == this) current = null;
         }
     }

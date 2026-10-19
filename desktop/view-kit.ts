@@ -191,6 +191,11 @@ export type Page = {
 	// Shop categories (left rail). Chips are the sub-filters of the open category.
 	tabs: Button[];
 	chips: Button[];
+	/**
+	 * Sibling windows shown as big tabs in the header (Lucas 19/10, "a HUD está lotada"): one toolbar button opens a
+	 * group (Produtos: Prateleiras · Estoque · Entregas; Missões: Missões · Conquistas) and these switch inside it.
+	 */
+	sections: Button[];
 	cards: Card[];
 	/** Layout "shelf" only. */
 	shelf: ShelfView | null;
@@ -316,7 +321,7 @@ export function page(
 	cards: Card[],
 	options: Partial<Page> = {},
 ): Page {
-	return { route, title, subtitle: "", icon: "", layout: "", tabs: [], chips: [], cards, shelf: null, board: null, kitchen: null, ...options };
+	return { route, title, subtitle: "", icon: "", layout: "", tabs: [], chips: [], sections: [], cards, shelf: null, board: null, kitchen: null, ...options };
 }
 export const ratio = (value: number, total: number) =>
 	Math.max(0, Math.min(1, value / Math.max(total, 1)));

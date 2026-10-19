@@ -8,7 +8,7 @@ namespace Checkout {
   public string title,eyebrow,subtitle,icon,badge,tone;public string[] lines;public float progress=-1;public DesktopButton[] buttons;
  }
  [Serializable] public class DesktopPage {
-  public string route,title,subtitle,icon,layout;public DesktopButton[] tabs,chips;public DesktopCard[] cards;public DesktopShelf shelf;public DesktopBoard board;public DesktopKitchen kitchen;
+  public string route,title,subtitle,icon,layout;public DesktopButton[] tabs,chips,sections;public DesktopCard[] cards;public DesktopShelf shelf;public DesktopBoard board;public DesktopKitchen kitchen;
  }
  // Game windows built from tiles (layout "board"): mirrors BoardView / BoardTile / BoardMeter / BoardStat of desktop/view-kit.ts.
  [Serializable] public class DesktopStat {public string icon,value,label,tone;}
@@ -50,6 +50,8 @@ namespace Checkout {
   public string dayPhase,dayTitle,dayDetail,requestLabel,goalText,goalIcon;public bool goalDone;public float dayProgress;public int requestCount;public bool requestUrgent;
   public DesktopBoost[] boosts;
   public DesktopButton[] quick;
+  // The corner "Bônus" button that opens the quick buttons as a menu (CheckoutDesktopHUD.Quick.cs).
+  public DesktopButton quickMain;
   public DesktopButton[] tools;public DesktopCard offline;public DesktopPage page;public DesktopLevelUp levelUp;public DesktopCelebration celebration;
   public DesktopCoach coach;public DesktopGoal goal;
  }

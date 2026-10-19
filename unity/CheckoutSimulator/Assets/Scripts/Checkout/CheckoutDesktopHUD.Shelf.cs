@@ -21,6 +21,7 @@ namespace Checkout {
 
   GameObject shelfWin;RectTransform shelfRail,shelfArt,shelfSlotsLayer,shelfOverlay,shelfDetail,shelfHeaderIcon;
   Image shelfHeader,shelfBack,shelfFront,shelfIcon;TextMeshProUGUI shelfTitle,shelfSubtitle,shelfSign,shelfNote,shelfCoins;
+  SectionBar shelfGroupTabs;GameObject shelfIconBack;
   GameObject shelfNoteBar;CheckoutDesktopButton shelfExpand,shelfCapacity;
   readonly List<CheckoutDesktopButton> shelfTabs=new List<CheckoutDesktopButton>();readonly List<GameObject> shelfTabBadges=new List<GameObject>();
   readonly List<ShelfSlotUi> shelfSlots=new List<ShelfSlotUi>();
@@ -38,11 +39,12 @@ namespace Checkout {
    // Header: band in the fixture's colour, its picture, name and what it sells now.
    shelfHeader=N.Image(face.transform,"Header",K.C("8A5A2B"),26);var hr=shelfHeader.rectTransform;hr.anchorMin=new Vector2(0,1);hr.anchorMax=Vector2.one;hr.pivot=new Vector2(.5f,1);hr.offsetMin=new Vector2(0,-92);hr.offsetMax=Vector2.zero;
    var row=N.Row(shelfHeader.gameObject,14,new RectOffset(18,18,10,14));row.childAlignment=TextAnchor.MiddleLeft;
-   var iconBack=N.Image(shelfHeader.transform,"IconBack",new Color(1,1,1,.92f),18);var ib=iconBack.gameObject.AddComponent<LayoutElement>();ib.preferredWidth=ib.preferredHeight=66;
+   var iconBack=N.Image(shelfHeader.transform,"IconBack",new Color(1,1,1,.92f),18);shelfIconBack=iconBack.gameObject;var ib=iconBack.gameObject.AddComponent<LayoutElement>();ib.preferredWidth=ib.preferredHeight=66;
    shelfIcon=N.Image(iconBack.transform,"Icon",Color.white,0);shelfIcon.preserveAspect=true;Stretch(shelfIcon.rectTransform,new Vector2(5,5),new Vector2(-5,-5));
    var titles=N.Node("Titles",shelfHeader.transform);N.Column(titles.gameObject,0);titles.gameObject.AddComponent<LayoutElement>().flexibleWidth=1;
    shelfTitle=N.Text(titles,"Title",K.Headline,32,Color.white);shelfTitle.textWrappingMode=TextWrappingModes.NoWrap;
    shelfSubtitle=N.Text(titles,"Subtitle",K.Body,16,new Color(1,1,1,.85f));shelfSubtitle.textWrappingMode=TextWrappingModes.NoWrap;shelfSubtitle.overflowMode=TextOverflowModes.Ellipsis;
+   shelfGroupTabs=MakeSections(titles);
    shelfCoins=Balance(shelfHeader.transform,"Icons/coin",null);
    var close=CheckoutDesktopButton.Create(shelfHeader.transform,54,22,14);close.SetWidth(58);close.Clicked=_=>host.Route("");
    close.Apply(new DesktopButton{label="X",variant="danger",enabled=true,route="",action="",args="[]",after="",ok="",fail="",badge=""});
@@ -86,6 +88,7 @@ namespace Checkout {
   // ------------------------------------------------------------------ apply
   void ApplyShelf(DesktopView v){
    bool on=v.hasPage&&v.page!=null&&v.page.layout=="shelf"&&v.page.shelf!=null&&!string.IsNullOrEmpty(v.page.shelf.id);
+   if(on&&!shelfWin.activeSelf)TakeSectionHop(); // a header tab switch landed here (the shelf window has no pop)
    if(shelfWin.activeSelf!=on)shelfWin.SetActive(on);ShelfOpen=on;
    if(!on){shelfShown=null;return;}
    var p=v.page;var s=p.shelf;shelfData=s;
@@ -94,6 +97,9 @@ namespace Checkout {
    var tint=K.C(string.IsNullOrEmpty(s.tint)?"8A5A2B":s.tint);shelfHeader.color=tint;
    shelfTitle.text=K.Clean(s.name);shelfSubtitle.text=K.Clean(s.accepts);shelfSign.text=K.Clean(s.name);
    var icon=K.Icon(p.icon);shelfIcon.sprite=icon;shelfIcon.enabled=icon;
+   // Prateleiras is a tab of Produtos: the tabs take the title's place (the fixture's name is on its sign).
+   bool grouped=ApplySections(shelfGroupTabs,p.sections,shelfTitle,shelfSubtitle,true);
+   if(shelfIconBack)shelfIconBack.SetActive(!grouped);
    shelfBack.sprite=K.Icon(s.art+"_back");shelfFront.sprite=K.Icon(s.art+"_front");
    shelfBack.enabled=shelfBack.sprite;shelfFront.enabled=shelfFront.sprite;
    shelfNoteBar.SetActive(!string.IsNullOrEmpty(s.stallNote));shelfNote.text=K.Clean(s.stallNote);

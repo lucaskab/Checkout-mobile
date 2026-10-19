@@ -241,6 +241,7 @@ namespace Checkout
                 ["Não foi possível agora."] = "Not possible right now.",
                 // Opções window (CheckoutSettings) and its start-screen card.
                 ["Opções"] = "Settings", ["Ajuste a música e os sons do jogo."] = "Adjust the game's music and sounds.", ["Música"] = "Music", ["Efeitos sonoros"] = "Sound effects", ["Ligada"] = "On", ["Desligada"] = "Off", ["Ligados"] = "On", ["Desligados"] = "Off", ["Fechar"] = "Close", ["Volume da música e dos efeitos sonoros."] = "Music and sound effects volume.", ["O = Opções"] = "O = Settings",
+                ["Sons"] = "Sound", ["Música, sons e idioma."] = "Music, sound, language.",
             },
             ["es"] = new Dictionary<string, string>
             {
@@ -255,6 +256,7 @@ namespace Checkout
                 ["Não foi possível agora."] = "No es posible ahora.",
                 // Opções window (CheckoutSettings) and its start-screen card.
                 ["Opções"] = "Opciones", ["Ajuste a música e os sons do jogo."] = "Ajusta la música y los sonidos del juego.", ["Música"] = "Música", ["Efeitos sonoros"] = "Efectos de sonido", ["Ligada"] = "Activada", ["Desligada"] = "Desactivada", ["Ligados"] = "Activados", ["Desligados"] = "Desactivados", ["Fechar"] = "Cerrar", ["Volume da música e dos efeitos sonoros."] = "Volumen de la música y de los efectos de sonido.", ["O = Opções"] = "O = Opciones",
+                ["Sons"] = "Sonido", ["Música, sons e idioma."] = "Música, sonido, idioma.",
             },
             ["fr"] = new Dictionary<string, string>
             {
@@ -269,6 +271,7 @@ namespace Checkout
                 ["Não foi possível agora."] = "Impossible pour le moment.",
                 // Opções window (CheckoutSettings) and its start-screen card.
                 ["Opções"] = "Options", ["Ajuste a música e os sons do jogo."] = "Règle la musique et les sons du jeu.", ["Música"] = "Musique", ["Efeitos sonoros"] = "Effets sonores", ["Ligada"] = "Activée", ["Desligada"] = "Désactivée", ["Ligados"] = "Activés", ["Desligados"] = "Désactivés", ["Fechar"] = "Fermer", ["Volume da música e dos efeitos sonoros."] = "Volume de la musique et des effets sonores.", ["O = Opções"] = "O = Options",
+                ["Sons"] = "Son", ["Música, sons e idioma."] = "Musique, son, langue.",
             },
             ["de"] = new Dictionary<string, string>
             {
@@ -283,6 +286,7 @@ namespace Checkout
                 ["Não foi possível agora."] = "Gerade nicht möglich.",
                 // Opções window (CheckoutSettings) and its start-screen card.
                 ["Opções"] = "Einstellungen", ["Ajuste a música e os sons do jogo."] = "Stell Musik und Töne des Spiels ein.", ["Música"] = "Musik", ["Efeitos sonoros"] = "Soundeffekte", ["Ligada"] = "An", ["Desligada"] = "Aus", ["Ligados"] = "An", ["Desligados"] = "Aus", ["Fechar"] = "Schließen", ["Volume da música e dos efeitos sonoros."] = "Lautstärke von Musik und Soundeffekten.", ["O = Opções"] = "O = Einstellungen",
+                ["Sons"] = "Ton", ["Música, sons e idioma."] = "Musik, Ton, Sprache.",
             },
         };
     }

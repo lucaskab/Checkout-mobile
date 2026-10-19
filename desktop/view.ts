@@ -27,6 +27,7 @@ import { type CoachView, type GoalView, getCoachView, getNextGoal } from "@/serv
 import { type LevelUpView, levelUpView } from "./level-up";
 import { type CelebrationView, celebrationView } from "./celebration";
 import { pages } from "./pages";
+import { groupOf, groupRoute, type ToolGroup, toolGroups } from "./sections";
 import {
 	act,
 	type Button,
@@ -80,6 +81,8 @@ export type DesktopView = {
 	tools: Button[];
 	/** Side buttons always on screen: daily gift, free video, diamond store, save with Google (quickButtons). */
 	quick: Button[];
+	/** The one corner button that opens the side buttons as a small menu (Lucas 19/10, "a tela está muito lotada"). */
+	quickMain: Button;
 	hasOffline: boolean;
 	offline: Card;
 	// Level-up celebration with everything the new level opened (desktop/level-up.ts); null when seen.
@@ -151,7 +154,7 @@ function quickButtons(state: State, now: number): Button[] {
 			badge: giftReady ? "!" : giftDouble ? "2x" : "",
 		}),
 		adReady
-			? act(`+${offer.reward}`, "watchRewardedAd", ["diamonds"], { icon: gameIcon("television"), variant: "gem", badge: "Grátis", ok: "" })
+			? act(`Vídeo · +${offer.reward}`, "watchRewardedAd", ["diamonds"], { icon: gameIcon("television"), variant: "gem", badge: "Grátis", ok: "" })
 			: button(isAdOpening() ? "Abrindo…" : "Vídeo", {
 					icon: gameIcon("television"),
 					route: "!gratis",
@@ -164,21 +167,29 @@ function quickButtons(state: State, now: number): Button[] {
 	return quick;
 }
 
+// The corner button that holds them: a gift with a red count of what is waiting (gift to claim, free video, sign in).
+export function quickMainButton(quick: Button[]): Button {
+	const waiting = quick.filter((item) => item.badge !== "").length;
+	return button("Bônus", {
+		icon: gameIcon("gift"),
+		variant: waiting > 0 ? "success" : "secondary",
+		badge: waiting > 0 ? String(waiting) : "",
+	});
+}
+
 export const tools: {
-	id: SimulatorPanel | "dev" | "loja";
+	id: SimulatorPanel | "dev" | "loja" | ToolGroup["id"];
 	label: string;
 	icon: GameIconId;
 	requiredLevel: number;
 }[] = [
 	// Everything that is bought (furniture, upgrades, team, expansions, decorations, coins) is in the shop.
 	{ id: "loja", label: "Loja", icon: "market", requiredLevel: 1 },
-	{ id: "store", label: "Prateleiras", icon: "shelf", requiredLevel: 1 },
-	// Estoque is also the depot (route "storage" opens it on the dock).
-	{ id: "products", label: "Estoque", icon: "warehouse", requiredLevel: 1 },
-	{ id: "suppliers", label: "Entregas", icon: "deliveryTruck", requiredLevel: 1 },
+	// Groups (desktop/sections.ts, Lucas 19/10): Produtos = Prateleiras · Estoque · Entregas as tabs of one window.
+	{ id: "produtos", label: "Produtos", icon: "warehouse", requiredLevel: 1 },
 	{ id: "sectors", label: "Produção", icon: "conveyor", requiredLevel: 18 },
-	{ id: "missions", label: "Missões", icon: "trophy", requiredLevel: 1 },
-	{ id: "achievements", label: "Conquistas", icon: "crown", requiredLevel: 1 },
+	// Missões = Missões · Conquistas.
+	{ id: "missoes", label: "Missões", icon: "trophy", requiredLevel: 1 },
 	{ id: "dev", label: "Dev", icon: "toolbox", requiredLevel: 1 },
 ];
 
@@ -300,6 +311,7 @@ export function createDesktopView(
 		return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 	};
 	const current = route ? pages(state, route) : page("", "", []);
+	const quick = quickButtons(state, now);
 	return {
 		kind: "view",
 		revision,
@@ -379,28 +391,30 @@ export function createDesktopView(
 			const stored = getStoredInteriorBuilds(state).length;
 			// Trucks waiting at the dock to be unloaded.
 			const atDock = state.receiving.dock.filter((delivery) => delivery.quantity > delivery.unloaded).length;
+			const group = toolGroups.find((item) => item.id === tool.id);
+			const root = (stack[0] ?? "").split(":")[0];
 			return button(tool.label, {
 				icon: gameIcon(tool.icon),
-				route: `!${tool.id}`,
+				// A group opens the tab that needs the player (trucks at the dock → Estoque), else its first tab.
+				route: group ? groupRoute(state, group) : `!${tool.id}`,
 				// The shop stands out in gold.
 				variant: tool.id === "loja" ? "coin" : "secondary",
 				enabled: !locked,
-				// Estoque also lights up on the old Depósito route ("storage"), which is the same window now.
-				active: ((root) => root !== "" && (root === tool.id || (tool.id === "products" && root === "storage")))(
-					(stack[0] ?? "").split(":")[0],
-				),
+				// A group lights up on any of its windows.
+				active: root !== "" && (group ? groupOf(root)?.id === group.id : root === tool.id),
 				fail: locked ? `Nível ${tool.requiredLevel}` : "",
 				badge:
 					tool.id === "loja" && stored > 0
 						? String(stored)
-						: tool.id === "products" && atDock > 0
+						: tool.id === "produtos" && atDock > 0
 							? String(atDock)
-						: tool.id === "missions" && canClaimDailyLogin(state.dailyLogin, Date.now())
+						: tool.id === "missoes" && canClaimDailyLogin(state.dailyLogin, Date.now())
 							? "!"
 							: "",
 			});
 		}),
-		quick: quickButtons(state, now),
+		quick,
+		quickMain: quickMainButton(quick),
 		hasOffline: Boolean(state.offlineSummary),
 		offline: summary,
 		levelUp: levelUpView(state),

@@ -334,6 +334,14 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		send(createIapCatalogMessage());
 		snapshot();
 		view();
+	} else if (message.kind === "language" && typeof message.lang === "string") {
+		// Opções › Idioma during the game (CheckoutSettings): from now on pages, names and Unity's own texts go out in
+		// the new language.
+		setLanguage(message.lang);
+		const catalog = getCatalog();
+		send({ kind: "i18n", lang: getLanguage(), keys: Object.keys(catalog), values: Object.values(catalog) });
+		snapshot();
+		view();
 	} else if (message.kind === "panel" && message.panel === "requests") {
 		// A click on a customer waiting with a special request in the Unity world.
 		navigate(

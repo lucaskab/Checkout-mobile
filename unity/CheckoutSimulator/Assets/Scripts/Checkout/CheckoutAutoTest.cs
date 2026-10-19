@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -98,6 +98,27 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(.35f);yield return Shot("decor_pop1");
    yield return new WaitForSecondsRealtime(.5f);yield return Shot("decor_pop2");
    fakePlays=null;
+  }
+  // The tidier HUD (Lucas 19/10, "hudtidy"): the corner Bônus button and its menu, the Produtos and Missões windows with
+  // their header tabs, the Opções window on both tabs, and the game switched to English and back from Opções › Idioma.
+  // Nothing is bought or saved (the language goes back to what it was). Shots Logs/at_hud_*.png.
+  IEnumerator HudTidy(){
+   void Route(string r)=>CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\""+r+"\"}");
+   void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
+   CheckoutDesktopButton Corner(){var rail=GameObject.Find("QuickRail");return rail?rail.GetComponentInChildren<CheckoutDesktopButton>():null;}
+   var home=FindAnyObjectByType<MarketDay.MarketSimulation>();if(home)home.HomeCamera();
+   Route("");yield return new WaitForSecondsRealtime(1.5f);yield return Shot("hud_home");
+   var corner=Corner();Note("hudtidy: corner button "+(corner?corner.Data?.label+" badge "+corner.Data?.badge:"missing"));
+   if(corner){corner.Clicked?.Invoke(corner);yield return new WaitForSecondsRealtime(.6f);yield return Shot("hud_bonus_menu");corner.Clicked?.Invoke(corner);yield return new WaitForSecondsRealtime(.3f);}
+   foreach(var r in new[]{"store","products","suppliers","missions","achievements"}){Route("!"+r);yield return new WaitForSecondsRealtime(1.4f);yield return Shot("hud_"+r);}
+   Route("");yield return new WaitForSecondsRealtime(.8f);
+   CheckoutSettings.Show("sons");yield return new WaitForSecondsRealtime(.8f);yield return Shot("hud_opcoes_sons");
+   CheckoutSettings.Show("idioma");yield return new WaitForSecondsRealtime(.6f);yield return Shot("hud_opcoes_idioma");
+   var before=CheckoutI18n.Language;Note("hudtidy: language "+before);
+   Lang(before=="en"?"es":"en");yield return new WaitForSecondsRealtime(2.5f);yield return Shot("hud_opcoes_idioma_en");
+   CheckoutSettings.Hide();Route("!products");yield return new WaitForSecondsRealtime(1.6f);yield return Shot("hud_products_en");
+   Route("");Lang(before);yield return new WaitForSecondsRealtime(2.5f);yield return Shot("hud_home_back");
+   Note("hudtidy: language back to "+CheckoutI18n.Language);
   }
   // The decor v2/v3 pieces in the game's own light ("decorshow"): clones of the Interior Kit templates stand in a row
   // on the plaza in front of the shop (plain clones, not shop items: nothing is bought, placed or saved), a wide

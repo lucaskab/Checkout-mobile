@@ -1,4 +1,5 @@
 import { page, type Page, type State } from "../view-kit";
+import { sectionsFor } from "../sections";
 import { routes as day } from "./day";
 import { routes as dev } from "./dev";
 import { routes as loja, shopPage } from "./loja";
@@ -49,7 +50,10 @@ export function pages(state: State, route: string): Page {
 	const build = all[name];
 	if (!build) return page(route, "Em breve", []);
 	try {
-		return build(state, args);
+		const built = build(state, args);
+		// The windows of a toolbar group (Produtos, Missões) carry their siblings as big header tabs.
+		if (built.layout === "shelf" || built.layout === "board") built.sections = sectionsFor(state, route);
+		return built;
 	} catch (error) {
 		return page(route, "Erro ao montar a tela", [], { subtitle: String(error) });
 	}

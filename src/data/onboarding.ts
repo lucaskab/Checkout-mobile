@@ -61,8 +61,9 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		id: "mesinha",
 		mode: "spotlight",
 		title: "A sua mesinha",
-		text: "Estes caixotes são a sua vitrine. Toque em PRATELEIRAS para ver o que você vende.",
-		target: "tool:!store",
+		text: "Estes caixotes são a sua vitrine. Toque em PRODUTOS para ver o que você vende.",
+		// Produtos opens on Prateleiras (desktop/sections.ts); with trucks at the dock it opens on Estoque instead.
+		target: "route:!store|tool:!products",
 	},
 	{
 		id: "vitrine",
@@ -109,8 +110,9 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		id: "estoque",
 		mode: "spotlight",
 		title: "O seu depósito",
-		text: "O que não cabe na mesinha fica guardado no depósito. Toque em ESTOQUE para ver.",
-		target: "tool:!products",
+		text: "O que não cabe na mesinha fica guardado no depósito. Toque em PRODUTOS e depois na aba ESTOQUE.",
+		// The Estoque tab of the open window, else the Produtos button.
+		target: "route:!products|tool:!store",
 	},
 	{
 		id: "deposito",
@@ -125,8 +127,8 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		id: "entregas",
 		mode: "spotlight",
 		title: "Seu primeiro pedido",
-		text: "Vamos comprar mercadoria do atacado. Toque em ENTREGAS.",
-		target: "tool:!suppliers",
+		text: "Vamos comprar mercadoria do atacado. Abra PRODUTOS e toque na aba ENTREGAS.",
+		target: "route:!suppliers|tool:!store|tool:!products",
 	},
 	{
 		id: "pedir",
