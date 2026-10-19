@@ -10,7 +10,8 @@ using K = Checkout.CheckoutDesktopKit;
 namespace Checkout
 {
     // First screen on desktop: "Jogar" starts the real game (its own save), "Idioma" picks the game's language
-    // (PT, EN, ES, FR, DE; saved for the next time) and "Modo edição" opens the map editor on a separate sandbox
+    // (PT, EN, ES, FR, DE; saved for the next time), "Opções" opens the music / sound-effects volume window
+    // (CheckoutSettings, also reachable in the game) and "Modo edição" opens the map editor on a separate sandbox
     // save. CHECKOUT_START=play|edit skips the screen (automated runs).
     public class CheckoutStartMenu : MonoBehaviour
     {
@@ -76,18 +77,19 @@ namespace Checkout
             ShowMain();
         }
 
-        // ── Main screen: Jogar · Idioma · (Modo edição) ───────────────────────────────────────────────────
+        // ── Main screen: Jogar · Idioma · Opções · (Modo edição) ──────────────────────────────────────────
         void ShowMain()
         {
             languages = false;
             Clear();
             subtitle.text = L("Supermercado Simulator");
-            int count = release ? 2 : 3; float width = count == 3 ? 420 : 460, gap = count == 3 ? 450 : 520;
+            int count = release ? 3 : 4; float width = count == 4 ? 350 : 420, gap = count == 4 ? 378 : 450;
             float X(int i) => (i - (count - 1) * .5f) * gap;
             Option(new Vector2(X(0), -40), width, L("Jogar"), L("Continue o seu mercado de onde parou."), null, "Icons/market", "success", () => Choose(false));
             Option(new Vector2(X(1), -40), width, L("Idioma"), L("Escolha o idioma do jogo."), CheckoutI18n.NameOf(CheckoutI18n.Language), "Icons/globe", "primary", ShowLanguages);
-            if (!release) Option(new Vector2(X(2), -40), width, L("Modo edição"), L("Monte o mapa de cada loja: mova, adicione, redimensione e pinte ruas e ciclovias. Dinheiro infinito, em um save separado."), null, "Icons/hammer", "secondary", () => Choose(true));
-            hint.text = L(release ? "Enter = Jogar" : "Enter = Jogar   •   E = Modo edição") + "   •   " + L("L = Idioma");
+            Option(new Vector2(X(2), -40), width, L("Opções"), L("Volume da música e dos efeitos sonoros."), null, "Icons/settings", "coin", CheckoutSettings.Show);
+            if (!release) Option(new Vector2(X(3), -40), width, L("Modo edição"), L("Monte o mapa de cada loja: mova, adicione, redimensione e pinte ruas e ciclovias. Dinheiro infinito, em um save separado."), null, "Icons/hammer", "secondary", () => Choose(true));
+            hint.text = L(release ? "Enter = Jogar" : "Enter = Jogar   •   E = Modo edição") + "   •   " + L("L = Idioma") + "   •   " + L("O = Opções");
         }
 
         // ── Language screen: every language written in its own language; the pick applies at once ─────────
@@ -137,7 +139,7 @@ namespace Checkout
             var face = U.Box(edge.transform, "Face", "1D2B4F", 28, Vector2.zero, Vector2.one); face.rectTransform.offsetMin = new Vector2(4, 8); face.rectTransform.offsetMax = new Vector2(-4, -4);
             U.Icon(face.transform, "Icon", icon, new Vector2(.5f, 1), new Vector2(96, 96), new Vector2(0, -78));
             var name = U.Label(face.transform, "Name", K.Headline, 40, "FFFFFF"); U.At(name.rectTransform, new Vector2(.5f, 1), new Vector2(width - 40, 56), new Vector2(0, -164));
-            name.text = label;
+            name.text = label; name.enableAutoSizing = true; name.fontSizeMin = 26; name.fontSizeMax = 40; // long names ("Bearbeitungsmodus") on the narrower cards
             var desc = U.Label(face.transform, "Text", K.Body, 19, "BFD0E8"); desc.textWrappingMode = TextWrappingModes.Normal; desc.overflowMode = TextOverflowModes.Truncate;
             U.At(desc.rectTransform, new Vector2(.5f, 1), new Vector2(width - 70, 90), new Vector2(0, -236)); desc.text = text;
             // Idioma: the language in use, as a gold pill under the text.
@@ -160,7 +162,8 @@ namespace Checkout
         void Update()
         {
             if (Chosen) return;
-            if (languages)
+            if (CheckoutSettings.Open) { } // the Opções window is on top: its keys are its own
+            else if (languages)
             {
                 if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Backspace) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) ShowMain();
                 else for (int i = 0; i < CheckoutI18n.Languages.Length; i++)
@@ -171,6 +174,7 @@ namespace Checkout
                 if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) { Choose(false); return; }
                 if (!release && Input.GetKeyDown(KeyCode.E)) { Choose(true); return; }
                 if (Input.GetKeyDown(KeyCode.L)) ShowLanguages();
+                if (Input.GetKeyDown(KeyCode.O)) CheckoutSettings.Show();
             }
             // The map turns slowly behind the menu.
             if (simulation)

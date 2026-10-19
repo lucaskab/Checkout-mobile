@@ -37,6 +37,7 @@ namespace Checkout
             if (started) return;
             started = true;
             Run(CheckoutI18nText.Boot);
+            Run(CheckoutAudio.Boot); // background music + the volume settings
             Run(CheckoutPointer.Boot);
             Run(CheckoutEntranceDressing.Boot);
             Run(CheckoutPlazaLife.Boot);

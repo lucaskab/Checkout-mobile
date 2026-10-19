@@ -239,6 +239,8 @@ namespace Checkout
                 ["O jogo parou de responder. Feche e abra de novo."] = "The game stopped responding. Close it and open it again.",
                 ["O processo do jogo (node) parou. Veja o Console."] = "The game process (node) stopped. Check the Console.",
                 ["Não foi possível agora."] = "Not possible right now.",
+                // Opções window (CheckoutSettings) and its start-screen card.
+                ["Opções"] = "Settings", ["Ajuste a música e os sons do jogo."] = "Adjust the game's music and sounds.", ["Música"] = "Music", ["Efeitos sonoros"] = "Sound effects", ["Ligada"] = "On", ["Desligada"] = "Off", ["Ligados"] = "On", ["Desligados"] = "Off", ["Fechar"] = "Close", ["Volume da música e dos efeitos sonoros."] = "Music and sound effects volume.", ["O = Opções"] = "O = Settings",
             },
             ["es"] = new Dictionary<string, string>
             {
@@ -251,6 +253,8 @@ namespace Checkout
                 ["O jogo parou de responder. Feche e abra de novo."] = "El juego dejó de responder. Ciérralo y vuelve a abrirlo.",
                 ["O processo do jogo (node) parou. Veja o Console."] = "El proceso del juego (node) se detuvo. Mira la Consola.",
                 ["Não foi possível agora."] = "No es posible ahora.",
+                // Opções window (CheckoutSettings) and its start-screen card.
+                ["Opções"] = "Opciones", ["Ajuste a música e os sons do jogo."] = "Ajusta la música y los sonidos del juego.", ["Música"] = "Música", ["Efeitos sonoros"] = "Efectos de sonido", ["Ligada"] = "Activada", ["Desligada"] = "Desactivada", ["Ligados"] = "Activados", ["Desligados"] = "Desactivados", ["Fechar"] = "Cerrar", ["Volume da música e dos efeitos sonoros."] = "Volumen de la música y de los efectos de sonido.", ["O = Opções"] = "O = Opciones",
             },
             ["fr"] = new Dictionary<string, string>
             {
@@ -263,6 +267,8 @@ namespace Checkout
                 ["O jogo parou de responder. Feche e abra de novo."] = "Le jeu ne répond plus. Ferme-le et rouvre-le.",
                 ["O processo do jogo (node) parou. Veja o Console."] = "Le processus du jeu (node) s'est arrêté. Regarde la Console.",
                 ["Não foi possível agora."] = "Impossible pour le moment.",
+                // Opções window (CheckoutSettings) and its start-screen card.
+                ["Opções"] = "Options", ["Ajuste a música e os sons do jogo."] = "Règle la musique et les sons du jeu.", ["Música"] = "Musique", ["Efeitos sonoros"] = "Effets sonores", ["Ligada"] = "Activée", ["Desligada"] = "Désactivée", ["Ligados"] = "Activés", ["Desligados"] = "Désactivés", ["Fechar"] = "Fermer", ["Volume da música e dos efeitos sonoros."] = "Volume de la musique et des effets sonores.", ["O = Opções"] = "O = Options",
             },
             ["de"] = new Dictionary<string, string>
             {
@@ -275,6 +281,8 @@ namespace Checkout
                 ["O jogo parou de responder. Feche e abra de novo."] = "Das Spiel reagiert nicht mehr. Schließe es und öffne es erneut.",
                 ["O processo do jogo (node) parou. Veja o Console."] = "Der Spielprozess (node) wurde beendet. Sieh in der Konsole nach.",
                 ["Não foi possível agora."] = "Gerade nicht möglich.",
+                // Opções window (CheckoutSettings) and its start-screen card.
+                ["Opções"] = "Einstellungen", ["Ajuste a música e os sons do jogo."] = "Stell Musik und Töne des Spiels ein.", ["Música"] = "Musik", ["Efeitos sonoros"] = "Soundeffekte", ["Ligada"] = "An", ["Desligada"] = "Aus", ["Ligados"] = "An", ["Desligados"] = "Aus", ["Fechar"] = "Schließen", ["Volume da música e dos efeitos sonoros."] = "Lautstärke von Musik und Soundeffekten.", ["O = Opções"] = "O = Einstellungen",
             },
         };
     }

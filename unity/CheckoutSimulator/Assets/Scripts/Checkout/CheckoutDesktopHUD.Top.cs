@@ -7,7 +7,7 @@ namespace Checkout {
   TextMeshProUGUI goalText;UnityEngine.UI.Image goalIcon;
   TextMeshProUGUI levelText,progressText,xpText,dailyText,eventName,eventTimer,eventEffect,coinsText,gemsText;
   RectTransform xpFill,dailyFill;GameObject eventPanel;UnityEngine.UI.Image eventEdge,eventFace,eventIcon,dailyEdge;
-  CheckoutDesktopButton marketButton,claimButton;RectTransform helpButton;
+  CheckoutDesktopButton marketButton,claimButton;RectTransform helpButton,settingsButton;
 
   TextMeshProUGUI Chip(Transform parent,string icon,System.Action onClick){
    var face=Panel(parent,"Chip",Phone?130:150,Phone?38:58,out var edge,out _,18);Clickable(edge.gameObject,onClick);
@@ -64,6 +64,9 @@ namespace Checkout {
    // "?" opens the Guia (what each button does, the objective, replay the tutorial).
    var help=Panel(bar,"Help",58,58,out var helpEdge,out _,29);Clickable(helpEdge.gameObject,()=>host.Route("!guia"));helpButton=(RectTransform)helpEdge.transform;
    var mark=N.Text(help,"Mark",K.Headline,30,K.C("2E8CAE"));mark.text="?";mark.alignment=TMPro.TextAlignmentOptions.Center;var mr=mark.rectTransform;mr.anchorMin=Vector2.zero;mr.anchorMax=Vector2.one;mr.offsetMin=mr.offsetMax=Vector2.zero;
+   // Gear: the Opções window (music and sound-effects volume, CheckoutSettings). Phones: in the toolbar, after "?".
+   var gear=Panel(bar,"Settings",58,58,out var gearEdge,out _,29);Clickable(gearEdge.gameObject,CheckoutSettings.Show);settingsButton=(RectTransform)gearEdge.transform;
+   var cog=N.Image(gear,"Icon",Color.white,0);cog.sprite=K.Icon("Icons/settings");cog.preserveAspect=true;var cr=cog.rectTransform;cr.anchorMin=Vector2.zero;cr.anchorMax=Vector2.one;cr.offsetMin=new Vector2(7,6);cr.offsetMax=new Vector2(-7,-6);
    var wallet=N.Node("Wallet",bar);N.Column(wallet.gameObject,Phone?4:6);wallet.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=0;
    coinsText=Chip(wallet,"coin",()=>host.Route(CheckoutDesktopHost.IsRelease?"!currency":"!dev:moedas")); // the coin cheats only in development
    gemsText=Chip(wallet,"diamond",()=>host.Route("!currency"));

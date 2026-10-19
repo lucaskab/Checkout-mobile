@@ -42,10 +42,12 @@ namespace Checkout {
    if(string.IsNullOrEmpty(id)||!string.IsNullOrEmpty(showingId))return;
    showingId=id;earned=false;
    if(!ShowVideo()){Report(Ready?"ready":"unavailable","failed",id);showingId=null;}
+   else CheckoutAudio.HoldMusic(true); // the game's music waits while the video plays
   }
 
   // The video ended: watched to the end pays (through the host), otherwise nothing.
   void Finished(){
+   CheckoutAudio.HoldMusic(false);
    var id=showingId;showingId=null;if(string.IsNullOrEmpty(id))return;
    if(earned)host.Action("claimRewardedAd","["+CheckoutIapFlow.Quote(id)+"]","",(ok,reason)=>{if(!ok)Debug.LogWarning("CHECKOUT_ADS reward refused: "+reason);});
    else Report(Ready?"ready":"loading","closed",id);

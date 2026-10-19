@@ -75,7 +75,8 @@ namespace Checkout {
   void Update(){
    // Esc closes the level-up celebration first (UpdateLevelUp), the page only when nothing is over it.
    bool celebrating=LevelUpOpen||ConquestOpen;
-   if(Input.GetKeyDown(KeyCode.Escape)&&!celebrating&&view!=null&&view.hasPage)host.Route(view.canBack?"back":"");
+   // The Opções window (CheckoutSettings) takes Esc for itself while it is open.
+   if(Input.GetKeyDown(KeyCode.Escape)&&!celebrating&&!CheckoutSettings.Open&&view!=null&&view.hasPage)host.Route(view.canBack?"back":"");
    UpdateToast();UpdateBoosts();UpdateBoard();UpdateLevelUp();UpdateConquest();UpdateCoach();
   }
  }
