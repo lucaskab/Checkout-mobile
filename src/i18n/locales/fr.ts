@@ -3630,6 +3630,15 @@ const catalog: Catalog = {
 	"Melhoria: 1 em cada 5 clientes joga (+6 moedas por jogada, mais nos níveis altos; quase tudo lucro). Dentro ou fora do mercado. Até 3 máquinas.": "Amélioration : 1 client sur 5 joue (+6 pièces par partie, plus aux niveaux élevés ; presque tout en bénéfice). Dans ou hors du magasin. Jusqu'à 3 machines.",
 	"Melhoria: os clientes sacam dinheiro e gastam +15% no mercado.": "Amélioration : les clients retirent de l'argent et dépensent +15 % dans le magasin.",
 	"Dentro ou fora": "Dedans ou dehors",
+	// Decor v2 19/10
+	"Máquina de bebidas": "Distributeur de boissons",
+	"Melhoria: 1 em cada 5 clientes compra uma bebida gelada (+4 moedas cada, mais nos níveis altos). Dentro ou fora do mercado. Até 3 máquinas.": "Amélioration : 1 client sur 5 achète une boisson fraîche (+4 pièces chacune, plus aux niveaux élevés). Dans ou hors du magasin. Jusqu'à 3 machines.",
+	"Cabine de fotos": "Photomaton",
+	"Melhoria: 1 em cada 8 clientes tira fotos na cabine (+9 moedas cada, mais nos níveis altos). Dentro ou fora do mercado. Até 2 cabines.": "Amélioration : 1 client sur 8 fait des photos dans la cabine (+9 pièces chaque fois, plus aux niveaux élevés). Dans ou hors du magasin. Jusqu'à 2 cabines.",
+	"Quiosque de café": "Kiosque à café",
+	"Melhoria: 1 em cada 4 clientes leva um café e um docinho (+5 moedas cada, mais nos níveis altos). Até 2 quiosques.": "Amélioration : 1 client sur 4 prend un café et une douceur (+5 pièces chacun, plus aux niveaux élevés). Jusqu'à 2 kiosques.",
+	"Pérgola com luzes": "Pergola lumineuse",
+	"Varal de lâmpadas sobre a praça.": "Une guirlande d'ampoules au-dessus de la place.",
 	// Closing time 18/10
 	"Fechando": "Fermeture",
 	"cliente": "client",
