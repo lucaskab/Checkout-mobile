@@ -74,6 +74,8 @@ namespace Checkout
             subtitle = U.Label(root, "Subtitle", K.Label, 30, "FFFFFF"); U.At(subtitle.rectTransform, new Vector2(.5f, 1), new Vector2(1200, 50), new Vector2(0, phone ? -104 : -245));
             hint = U.Label(root, "Hint", K.Body, 18, "BFD0E8"); U.At(hint.rectTransform, new Vector2(.5f, 0), new Vector2(1200, 40), new Vector2(0, 60));
             CheckoutI18n.Changed += Relabel;
+            // The account can be signed in from Opções › Conta before the game starts.
+            CheckoutCloud.Ensure();
             ShowMain();
         }
 

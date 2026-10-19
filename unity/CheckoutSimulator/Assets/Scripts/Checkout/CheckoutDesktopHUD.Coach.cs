@@ -252,6 +252,8 @@ namespace Checkout {
    if(spec=="market")return Visible(marketButton?(RectTransform)marketButton.transform:null,out hole);
    if(spec=="goal")return goalCard&&goalCard.activeInHierarchy&&Visible((RectTransform)goalCard.transform,out hole);
    if(spec=="help")return helpButton&&Visible(helpButton,out hole);
+   // The gear (Opções): the tutorial's "Guarde o seu progresso" step points at it.
+   if(spec=="settings")return settingsButton&&Visible(settingsButton,out hole);
    if(spec.StartsWith("tool:")){var route=spec.Substring(5);foreach(var t in tools)if(t&&t.gameObject.activeInHierarchy&&t.Data!=null&&t.Data.route==route)return Visible((RectTransform)t.transform,out hole);return false;}
    if(spec.StartsWith("fab:")){
     string name=spec=="fab:caixa"?"CaixaButton":spec=="fab:repor"?"ReporButton":spec=="fab:entrega"?"EntregaButton":"";

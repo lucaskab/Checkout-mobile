@@ -32,7 +32,8 @@ namespace Checkout
 
         public static void Show(string open)
         {
-            tab = open == "idioma" || open == "conta" ? open : "sons";
+            // null keeps the last tab used.
+            if (open != null) tab = open == "idioma" || open == "conta" ? open : "sons";
             if (current) { current.BuildPage(false); return; }
             current = new GameObject("CheckoutSettings").AddComponent<CheckoutSettings>();
             current.Build();
@@ -140,7 +141,12 @@ namespace Checkout
 
         void BuildAccount(Transform parent)
         {
-            var cloud = CheckoutCloud.Active;
+            // The account works before "Jogar" too (Lucas 19/10): the login happens here, the sync once the game runs.
+            var cloud = CheckoutCloud.Ensure();
+            // The tutorial's "Guarde o seu progresso" step is done once the player sees this tab in the game.
+            var hud = CheckoutDesktopHost.Active ? CheckoutDesktopHost.Active.Hud : null;
+            if (cloud.Playing && hud && hud.CoachKey == "conta" && hud.Silent.Add("coach-conta"))
+                CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"coach-conta\",\"action\":\"onboardingNext\",\"args\":[]}");
             accountShown = cloud ? cloud.State + "|" + cloud.Provider + "|" + cloud.Error + "|" + cloud.LastSyncAt : "";
             var card = U.Shape(parent, "Account", "FBEEDA", 22, new Vector2(.5f, 1), new Vector2(740, 300), new Vector2(0, -360));
             var c = card.transform;
@@ -154,15 +160,8 @@ namespace Checkout
             var row = N.Node("Buttons", c); U.At(row, new Vector2(.5f, 0), new Vector2(700, 64), new Vector2(0, 52));
             var h = N.Row(row.gameObject, 12); h.childAlignment = TextAnchor.MiddleCenter; h.childForceExpandWidth = true;
 
-            string state = cloud ? cloud.State : "start";
-            bool signedIn = cloud && !string.IsNullOrEmpty(cloud.Provider) && state != "signed-out";
-            if (!cloud)
-            {
-                // The start screen: the cloud starts with the game.
-                title.text = L("Sua conta");
-                text.text = L("Toque em Jogar e volte aqui para entrar e guardar o seu progresso na nuvem.");
-                return;
-            }
+            string state = cloud.State;
+            bool signedIn = !string.IsNullOrEmpty(cloud.Provider) && state != "signed-out" && state != "signing-in";
             if (state == "unavailable")
             {
                 title.text = L("Sua conta");
@@ -198,12 +197,13 @@ namespace Checkout
             icon.sprite = K.Icon("Icons/success");
             title.text = !string.IsNullOrEmpty(cloud.PlayerName) ? cloud.PlayerName : L(appleAccount ? "Conta Apple" : "Conta Google");
             var when = cloud.LastSyncAt > 0 ? System.DateTimeOffset.FromUnixTimeMilliseconds(cloud.LastSyncAt).ToLocalTime().ToString("HH:mm") : "";
-            string line = state == "syncing" ? L("Salvando na nuvem…")
+            string line = state == "ready" || !cloud.Playing ? L("O seu progresso vai para a nuvem quando o jogo começar.")
+                : state == "syncing" ? L("Salvando na nuvem…")
                 : state == "offline" ? L("Sem conexão: o progresso fica neste aparelho e vai para a nuvem quando a internet voltar.")
                 : state == "error" ? L(string.IsNullOrEmpty(cloud.Error) ? "Não deu para falar com o servidor. Tente de novo daqui a pouco." : cloud.Error)
                 : when.Length > 0 ? L("Tudo salvo na nuvem") + " · " + when : L("Conectado à nuvem.");
             text.text = (string.IsNullOrEmpty(cloud.Email) ? "" : cloud.Email + "\n") + line;
-            AccountButton(row, L(state == "syncing" ? "Salvando…" : "Salvar agora"), "Icons/coin", "primary", cloud.RequestSync, state != "syncing");
+            if (cloud.Playing) AccountButton(row, L(state == "syncing" ? "Salvando…" : "Salvar agora"), "Icons/coin", "primary", cloud.RequestSync, state != "syncing");
             AccountButton(row, L("Sair"), "", "secondary", cloud.RequestSignOut);
             bool armed = Time.unscaledTime < deleteArmedUntil;
             AccountButton(row, L(armed ? "Toque de novo" : "Apagar conta"), "Icons/warning", "danger", () =>

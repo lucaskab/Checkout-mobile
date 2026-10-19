@@ -45,5 +45,6 @@ export type OnboardingState = {
  *   route:<prefix>              a page button whose route starts with this ("route:@shop")
  *   fab:caixa | fab:repor | fab:entrega   the floating game buttons on the left
  *   help                        the "?" button of the top bar
+ *   settings                    the gear (Opções) of the top bar (the toolbar on phones)
  */
 export type OnboardingTarget = string;

@@ -31,6 +31,7 @@ export type OnboardingStepId =
 	| "caminhao"
 	| "descarregar"
 	| "missoes"
+	| "conta"
 	| "objetivo";
 
 export type OnboardingStepDef = {
@@ -160,6 +161,17 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		title: "Missões",
 		text: "Missões dão moedas e prêmios. Quando aparecer um número vermelho aqui, tem prêmio para pegar!",
 		target: "tool:!missions",
+	},
+	{
+		// Lucas 19/10: the player learns that the progress can be kept in the cloud (Opções › Conta). Skipped by the
+		// host when the player is already signed in (desktop/host.ts); the Conta tab also finishes it.
+		id: "conta",
+		mode: "bubble",
+		title: "Guarde o seu progresso",
+		text:
+			"Entre com a sua conta nas OPÇÕES (a engrenagem), na aba CONTA. Assim o mercado, as moedas e os diamantes ficam salvos, mesmo se você trocar de celular.",
+		target: "settings",
+		button: "Depois",
 	},
 	{
 		id: "objetivo",

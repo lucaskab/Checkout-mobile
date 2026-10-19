@@ -8,6 +8,8 @@ namespace Checkout {
  // It holds no game rules; every button sends a route or a store action back to the host.
  public partial class CheckoutDesktopHUD:MonoBehaviour {
   CheckoutDesktopHost host;RectTransform root;DesktopView view;
+  /// <summary>The tutorial step or tip the coach shows now ("" = none), e.g. "conta" opens Opções on its Conta tab.</summary>
+  public string CoachKey=>view?.coach?.key??"";
   readonly Dictionary<string,DesktopButton> pending=new Dictionary<string,DesktopButton>();
   public readonly HashSet<string> Silent=new HashSet<string>();
   // Actions answered in code instead of a toast (CheckoutIap: a purchase is confirmed to the store on the answer).

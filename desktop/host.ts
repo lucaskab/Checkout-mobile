@@ -161,7 +161,16 @@ function snapshot() {
 	dirty = false;
 	send(localizeSnapshot(createSimulatorSnapshot(useGameStore.getState(), session, revision)));
 }
+// The tutorial's "Guarde o seu progresso" step (src/data/onboarding.ts "conta") has nothing to ask of a player who
+// is already signed in (maybe on the start screen): it moves on by itself.
+function skipAccountStep() {
+	const state = useGameStore.getState();
+	if (state.onboarding.status !== "active" || state.onboarding.step !== "conta") return;
+	const signedIn = !["unavailable", "signed-out", "signing-in"].includes(cloudStore.status);
+	if (signedIn) state.onboardingNext();
+}
 function view() {
+	skipAccountStep();
 	viewDirty = false;
 	viewSentAt = Date.now();
 	send(localizeView(createDesktopView(useGameStore.getState(), revision, routes)));

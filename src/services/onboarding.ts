@@ -145,6 +145,9 @@ export function isStepDone(id: OnboardingStepId, state: GameState, route: Onboar
 			return state.receiving.unloadedUnits > marks.unloaded;
 		case "missoes":
 			return name === "missions";
+		case "conta":
+			// Finished by its button, by the Opções › Conta tab, or by the host when the player is signed in.
+			return false;
 	}
 }
 

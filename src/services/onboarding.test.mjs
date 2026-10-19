@@ -127,6 +127,12 @@ test("the guided first day is finished by playing, step by step", () => {
 	tick("");
 	expect(step()).toBe("missoes");
 	tick("missions");
+	// Lucas 19/10: where to keep the progress (Opções › Conta); "Depois" moves on.
+	expect(step()).toBe("conta");
+	const conta = getCoachView(store(), "", clock);
+	expect(conta.target).toBe("settings");
+	expect(conta.buttonAction).toBe("onboardingNext");
+	expect(store().onboardingNext()).toBe(true);
 	expect(step()).toBe("objetivo");
 	const diamonds = store().logistics.premiumCurrency;
 	expect(store().onboardingNext()).toBe(true);

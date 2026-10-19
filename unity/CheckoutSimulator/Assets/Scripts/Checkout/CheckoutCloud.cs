@@ -16,6 +16,9 @@ namespace Checkout {
  ///   iPhone = "Sign in with Apple" (the system sheet, Plugins/iOS/CheckoutSignIn.mm; required by the App Store next
  ///   to Google) and Google through the system's web login sheet with the iOS OAuth client (IosClientId).
  /// - The Opções window (tab "Conta", CheckoutSettings) and the Guia page "Conta e nuvem" both drive it.
+ /// - Lucas 19/10: the player can sign in on the start screen, before "Jogar" (Ensure: no host yet, so nothing is
+ ///   synced); when the game starts, Attach hands it the host and it compares this device with the cloud (a new
+ ///   phone then simply takes the cloud's progress).
  /// - Sync: every few minutes while playing (only when the save changed) and when the app goes to the background.
  ///   Each upload says which cloud revision it builds on; if another phone uploaded in between, the server refuses
  ///   and the player chooses which progress continues (never a silent overwrite). A new phone (fresh game) simply
@@ -73,16 +76,28 @@ namespace Checkout {
    return SignInSupported?new[]{"google"}:new string[0];
   }}
   public void RequestSignIn(string with){if(!busy&&!SignedIn)StartCoroutine(Run(SignIn(with)));}
-  public void RequestSync(){if(!busy&&SignedIn)StartCoroutine(Run(status=="conflict"?Reconcile():UploadSave(false)));}
+  public void RequestSync(){if(InGame&&!busy&&SignedIn)StartCoroutine(Run(status=="conflict"?Reconcile():UploadSave(false)));}
   public void RequestSignOut(){if(SignedIn)SignOut();}
   public void RequestDelete(){if(!busy&&SignedIn)StartCoroutine(Run(DeleteAccount()));}
 
-  public static void Attach(CheckoutDesktopHost owner){
-   if(Active||!owner)return;
-   // UnitySendMessage (Android login) finds the receiver by name.
-   var go=new GameObject("CheckoutCloud");go.transform.SetParent(owner.transform,false);
-   Active=go.AddComponent<CheckoutCloud>();Active.host=owner;
+  /// <summary>The account before the game starts (start screen, Opções › Conta): sign in, sign out, delete.</summary>
+  public static CheckoutCloud Ensure(){
+   if(Active)return Active;
+   // UnitySendMessage (Android/iPhone login) finds the receiver by name. It outlives "Sair" (the scene reloads).
+   var go=new GameObject("CheckoutCloud");DontDestroyOnLoad(go);
+   Active=go.AddComponent<CheckoutCloud>();
+   return Active;
   }
+  /// <summary>The game started: from now on the progress is synced with the cloud.</summary>
+  public static void Attach(CheckoutDesktopHost owner){
+   if(!owner)return;
+   var cloud=Ensure();bool fresh=!cloud.host;cloud.host=owner;
+   if(fresh&&cloud.started)cloud.StartCoroutine(cloud.Begin());
+  }
+  /// <summary>Is the game running (the host is there to export and import the save)?</summary>
+  bool InGame=>host;
+  public bool Playing=>InGame;
+  bool started;
   static bool SignInSupported=>Application.isEditor||Application.platform==RuntimePlatform.Android||Application.platform==RuntimePlatform.IPhonePlayer||Application.platform==RuntimePlatform.WindowsPlayer||Application.platform==RuntimePlatform.OSXPlayer;
 
   IEnumerator Start(){
@@ -91,10 +106,17 @@ namespace Checkout {
    deviceId=PlayerPrefs.GetString("checkout.cloud.device","");owner=PlayerPrefs.GetString("checkout.cloud.owner","");
    if(string.IsNullOrEmpty(deviceId)){deviceId=SystemInfo.deviceModel+"-"+Guid.NewGuid().ToString("N").Substring(0,8);PlayerPrefs.SetString("checkout.cloud.device",deviceId);PlayerPrefs.Save();}
    LoadPlayerState();
+   started=true;
+   if(!InGame){Report(!SignInSupported?"unavailable":SignedIn?"ready":"signed-out");yield break;}
+   yield return Begin();
+  }
+  // The game is running: say where the account stands, and compare this device with the cloud.
+  IEnumerator Begin(){
    // Let the host start and load the save first.
    yield return new WaitForSecondsRealtime(2f);
    if(!SignInSupported){Report("unavailable");yield break;}
-   if(string.IsNullOrEmpty(token)){Report("signed-out");yield break;}
+   if(!SignedIn){Report("signed-out");yield break;}
+   while(busy)yield return null; // a login from the start screen may still be on its way
    yield return Run(Reconcile());
   }
   void LoadPlayerState(){
@@ -116,18 +138,18 @@ namespace Checkout {
 
   void Report(string next,string error="",Conflict conflict=null){
    status=next;lastError=error??"";
-   host.Send(JsonUtility.ToJson(new Status{status=next,email=SignedIn?email:"",name=SignedIn?playerName:"",provider=SignedIn?provider:"",providers=Providers,lastSyncAt=lastSyncAt,error=error,conflict=conflict}));
+   if(InGame)host.Send(JsonUtility.ToJson(new Status{status=next,email=SignedIn?email:"",name=SignedIn?playerName:"",provider=SignedIn?provider:"",providers=Providers,lastSyncAt=lastSyncAt,error=error,conflict=conflict}));
    Changed?.Invoke();
   }
 
   void Update(){
-   if(!SignedIn||busy||status=="conflict")return;
+   if(!InGame||!SignedIn||busy||status=="conflict"||status=="ready")return;
    if(!uploadWaiting&&Time.unscaledTime<nextUpload)return;
    uploadWaiting=false;nextUpload=Time.unscaledTime+UploadEvery;StartCoroutine(Run(UploadSave(false)));
   }
   // Leaving the game (phone home button, closing the window): send what changed now (or right after the current call).
   void OnApplicationPause(bool paused){
-   if(!paused||!SignedIn||status=="conflict")return;
+   if(!paused||!InGame||!SignedIn||status=="conflict"||status=="ready")return;
    if(busy)uploadWaiting=true;else StartCoroutine(Run(UploadSave(false)));
   }
   void OnApplicationFocus(bool focused){if(!focused)OnApplicationPause(true);}
@@ -148,6 +170,7 @@ namespace Checkout {
    }
   }
   IEnumerator AskHost(string kind,string extra,Action<string> answer){
+   if(!InGame){answer(null);yield break;}
    string id="cloud-"+(++sequence);string reply=null;waiting[id]=r=>reply=r;
    host.Send("{\"kind\":\""+kind+"\",\"id\":\""+id+"\""+extra+"}");
    float until=Time.unscaledTime+30f;
@@ -214,7 +237,7 @@ namespace Checkout {
    revision=cloud.revision;lastSyncAt=ParseTime(cloud.updatedAt);
    Exported now=null;yield return ExportSave(x=>now=x);lastHash=now!=null?Hash(now.data):"";synced=now?.summary??cloud.summary;
    SavePlayerState();conflictCloud=null;Report("synced");nextUpload=Time.unscaledTime+UploadEvery;
-   host.Hud?.Notify(CheckoutI18n.T("Progresso da nuvem carregado!"),true);
+   if(InGame)host.Hud?.Notify(CheckoutI18n.T("Progresso da nuvem carregado!"),true);
   }
   IEnumerator TakeCloud(){
    Report("syncing");
@@ -250,7 +273,7 @@ namespace Checkout {
    if(!string.IsNullOrEmpty(playerId)){foreach(var key in new[]{"rev.","hash.","at.","summary."})PlayerPrefs.DeleteKey("checkout.cloud."+key+playerId);}
    // The progress stays on this device but no longer belongs to an account.
    if(owner==playerId){owner="";PlayerPrefs.DeleteKey("checkout.cloud.owner");}
-   SignOut();host.Hud?.Notify(CheckoutI18n.T("Conta apagada."),true);
+   SignOut();if(InGame)host.Hud?.Notify(CheckoutI18n.T("Conta apagada."),true);
   }
   void SignOut(){
    token="";email=playerName="";conflictCloud=null;
@@ -307,6 +330,8 @@ namespace Checkout {
    PlayerPrefs.SetString("checkout.cloud.token",token);PlayerPrefs.SetString("checkout.cloud.player",playerId);
    PlayerPrefs.SetString("checkout.cloud.email",email);PlayerPrefs.SetString("checkout.cloud.name",playerName);PlayerPrefs.SetString("checkout.cloud.provider",provider);PlayerPrefs.Save();
    LoadPlayerState();
+   // On the start screen the progress is compared with the cloud once the game starts (Attach).
+   if(!InGame){Report("ready");yield break;}
    yield return Reconcile();
   }
 

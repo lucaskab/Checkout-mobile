@@ -3551,6 +3551,11 @@ const catalog: Catalog = {
 	"Entre com a Apple ou com o Google para guardar o mercado, as moedas e os diamantes na nuvem.": "Inicia sesión con Apple o Google para guardar el mercado, las monedas y los diamantes en la nube.",
 	"Este login não está disponível neste aparelho.": "Este inicio de sesión no está disponible en este dispositivo.",
 	"Entre na sua conta primeiro.": "Inicia sesión en tu cuenta primero.",
+	// Account before Jogar + tutorial step 19/10
+	"Guarde o seu progresso": "Guarda tu progreso",
+	"Entre com a sua conta nas OPÇÕES (a engrenagem), na aba CONTA. Assim o mercado, as moedas e os diamantes ficam salvos, mesmo se você trocar de celular.": "Inicia sesión con tu cuenta en OPCIONES (el engranaje), en la pestaña CUENTA. Así el mercado, las monedas y los diamantes quedan guardados, aunque cambies de móvil.",
+	"Depois": "Después",
+	"O seu progresso vai para a nuvem quando o jogo começar.": "Tu progreso se sube a la nube cuando empiece el juego.",
 };
 
 export default catalog;
