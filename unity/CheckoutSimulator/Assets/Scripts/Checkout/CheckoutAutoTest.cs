@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -98,6 +98,40 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(.35f);yield return Shot("decor_pop1");
    yield return new WaitForSecondsRealtime(.5f);yield return Shot("decor_pop2");
    fakePlays=null;
+  }
+  // The decor v2/v3 pieces in the game's own light ("decorshow"): clones of the Interior Kit templates stand in a row
+  // on the plaza in front of the shop (plain clones, not shop items: nothing is bought, placed or saved), a wide
+  // shot, a close shot of each, then the photo booth closing its curtain for a photo. Shots Logs/at_show_*.png.
+  IEnumerator DecorShow(){
+   var interior=CheckoutInterior.Active;var sim=FindAnyObjectByType<MarketDay.MarketSimulation>();
+   var kit=sim&&sim.world?sim.world.Find("Interior Kit"):null;
+   if(!interior||!kit){Note("decorshow: no interior kit");yield break;}
+   CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\"\"}");yield return new WaitForSecondsRealtime(.5f); // no page over the shots
+   string[] ids={"cart-corral","gumball","atm","claw-machine","vending-machine","photo-booth","flower-stand","coffee-kiosk","festoon-pergola"};
+   var cam=Camera.main;var fwd=cam?Vector3.ProjectOnPlane(cam.transform.forward,Vector3.up).normalized:Vector3.forward;var right=Vector3.Cross(Vector3.up,fwd);
+   var floor=interior.FloorRect;var center=new Vector3(floor.center.x,0,floor.center.y);var door=interior.EntrancePoint;
+   var outward=Vector3.ProjectOnPlane(door-center,Vector3.up).normalized;
+   var origin=door+outward*2.6f;origin.y=door.y;
+   var shown=new List<GameObject>();float x=-(ids.Length-1)*1.6f;
+   foreach(var id in ids){
+    var t=kit.Find(id);if(!t){Note("decorshow: missing template "+id);x+=3.2f;continue;}
+    var go=Instantiate(t.gameObject);go.name="Show "+id;go.SetActive(true);
+    go.transform.SetPositionAndRotation(origin+right*x+Vector3.up*CheckoutInterior.Ground,Quaternion.LookRotation(fwd));
+    shown.Add(go);x+=3.2f;
+   }
+   Note($"decorshow: {shown.Count} pieces at {origin}");
+   sim.Focus(origin,11f);yield return new WaitForSecondsRealtime(1.5f);yield return Shot("show_all");
+   foreach(var go in shown){sim.Focus(go.transform.position,6f);yield return new WaitForSecondsRealtime(.8f);
+    if(cam){var p=cam.WorldToScreenPoint(go.transform.position+Vector3.up*1.1f);Note($"decorshow: screen {go.name.Substring(5)} {p.x:0} {Screen.height-p.y:0} of {Screen.width}x{Screen.height}");}
+    yield return Shot("show_"+go.name.Substring(5));}
+   var booth=shown.FirstOrDefault(g=>g.name=="Show photo-booth");
+   if(booth){
+    sim.Focus(booth.transform.position,6f);CheckoutDecorPlays.Photos(booth.transform);
+    yield return new WaitForSecondsRealtime(.2f);yield return Shot("show_booth_closing");
+    yield return new WaitForSecondsRealtime(.5f);yield return Shot("show_booth_closed");
+    yield return new WaitForSecondsRealtime(1.6f);yield return Shot("show_booth_open");
+   }
+   foreach(var go in shown)Destroy(go);
   }
   void CheckoutCameraFocus(Vector3 at){var sim=FindAnyObjectByType<MarketDay.MarketSimulation>();if(sim)sim.Focus(at,7f);}
   IEnumerator RegisterCash(){

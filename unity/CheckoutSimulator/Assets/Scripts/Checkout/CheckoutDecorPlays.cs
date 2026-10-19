@@ -64,6 +64,14 @@ namespace Checkout {
    Destroy(go);
   }
 
+  // Plays the booth's photo animation on any booth (the "decorshow" autotest uses it on a plain clone).
+  public static void Photos(Transform booth) {
+   Ensure(); var self = FindAnyObjectByType<CheckoutDecorPlays>(); var c = booth ? CurtainOf(booth) : null;
+   if (!self || !c || self.busy.Contains(c)) return;
+   if (!self.curtains.ContainsKey(c)) { self.curtains[c] = c.localScale; c.localScale = self.Drawn(c, CurtainOpen); }
+   self.StartCoroutine(self.TakePhotos(c));
+  }
+
   static Transform CurtainOf(Transform root) => root.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name.StartsWith("Anim Curtain"));
 
   // Every placed booth starts with its curtain drawn open (the model is built closed).
