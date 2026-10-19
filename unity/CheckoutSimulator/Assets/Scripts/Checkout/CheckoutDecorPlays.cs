@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 
@@ -8,6 +10,12 @@ namespace Checkout {
  // Here each new play floats "+coins" over the placed machine and gives it a little bounce.
  public sealed class CheckoutDecorPlays : MonoBehaviour {
   CheckoutBridge bridge; double seen = -1;
+  // Photo booths (Lucas 19/10): the curtain ("Anim Curtain", pivot on the rail side, local X = how far it is drawn)
+  // stays open; when a customer takes photos it closes, the flash goes off inside, and it opens again.
+  const float CurtainOpen = .25f;
+  readonly Dictionary<Transform, Vector3> curtains = new Dictionary<Transform, Vector3>();
+  readonly HashSet<Transform> busy = new HashSet<Transform>();
+  float nextScan;
 
   public static void Ensure() {
    if (FindAnyObjectByType<CheckoutDecorPlays>()) return;
@@ -15,6 +23,7 @@ namespace Checkout {
   }
 
   void Update() {
+   if (Time.unscaledTime >= nextScan) { nextScan = Time.unscaledTime + 1f; ScanCurtains(); }
    if (!bridge) bridge = FindAnyObjectByType<CheckoutBridge>();
    var plays = bridge ? bridge.State?.decorPlays : null;
    if (plays == null) return;
@@ -25,7 +34,11 @@ namespace Checkout {
    foreach (var p in plays) {
     if (p == null || p.at <= seen) continue;
     var interior = CheckoutInterior.Active; var item = interior ? interior.Get(p.itemId) : null;
-    if (item != null && item.root) StartCoroutine(Pop(item.root, p.coins));
+    if (item != null && item.root) {
+     StartCoroutine(Pop(item.root, p.coins));
+     var curtain = CurtainOf(item.root);
+     if (curtain && !busy.Contains(curtain)) StartCoroutine(TakePhotos(curtain));
+    }
    }
    seen = newest;
   }
@@ -49,6 +62,51 @@ namespace Checkout {
    }
    if (machine) machine.localScale = baseScale;
    Destroy(go);
+  }
+
+  static Transform CurtainOf(Transform root) => root.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name.StartsWith("Anim Curtain"));
+
+  // Every placed booth starts with its curtain drawn open (the model is built closed).
+  void ScanCurtains() {
+   var interior = CheckoutInterior.Active; if (!interior) return;
+   foreach (var it in interior.items.Values) {
+    if (it == null || !it.root || it.type != "photo-booth") continue;
+    var c = CurtainOf(it.root); if (!c || curtains.ContainsKey(c)) continue;
+    curtains[c] = c.localScale;
+    if (!busy.Contains(c)) c.localScale = Drawn(c, CurtainOpen);
+   }
+   foreach (var dead in curtains.Keys.Where(k => !k).ToList()) curtains.Remove(dead);
+  }
+
+  Vector3 Drawn(Transform c, float amount) { var b = curtains.TryGetValue(c, out var s) ? s : c.localScale; return new Vector3(b.x * amount, b.y, b.z); }
+
+  IEnumerator TakePhotos(Transform curtain) {
+   if (!curtains.ContainsKey(curtain)) curtains[curtain] = curtain.localScale;
+   busy.Add(curtain);
+   yield return Draw(curtain, CurtainOpen, 1f, .35f);
+   // the flash: a quick white light inside the booth, twice
+   var flash = new GameObject("Booth flash").AddComponent<Light>();
+   flash.type = LightType.Point; flash.color = Color.white; flash.range = 2.2f; flash.intensity = 0;
+   flash.transform.position = curtain.parent ? curtain.parent.position + Vector3.up * 1.4f : curtain.position;
+   for (int shot = 0; shot < 2; shot++) {
+    yield return new WaitForSeconds(.35f);
+    for (float t = 0; t < .18f; t += Time.deltaTime) { if (flash) flash.intensity = 6f * (1 - t / .18f); yield return null; }
+    if (flash) flash.intensity = 0;
+   }
+   if (flash) Destroy(flash.gameObject);
+   yield return new WaitForSeconds(.4f);
+   if (curtain) yield return Draw(curtain, 1f, CurtainOpen, .45f);
+   busy.Remove(curtain);
+  }
+
+  IEnumerator Draw(Transform c, float from, float to, float seconds) {
+   for (float t = 0; t < seconds; t += Time.deltaTime) {
+    if (!c) yield break;
+    float k = Mathf.SmoothStep(0, 1, t / seconds);
+    c.localScale = Drawn(c, Mathf.Lerp(from, to, k));
+    yield return null;
+   }
+   if (c) c.localScale = Drawn(c, to);
   }
 
   static float TopOf(Transform t) {

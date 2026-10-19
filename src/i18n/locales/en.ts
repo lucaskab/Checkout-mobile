@@ -3617,6 +3617,15 @@ const catalog: Catalog = {
 	"Melhoria: 1 em cada 5 clientes joga (+6 moedas por jogada, mais nos níveis altos; quase tudo lucro). Dentro ou fora do mercado. Até 3 máquinas.": "Upgrade: 1 in 5 customers plays (+6 coins per play, more at higher levels; almost all profit). Inside or outside the market. Up to 3 machines.",
 	"Melhoria: os clientes sacam dinheiro e gastam +15% no mercado.": "Upgrade: customers withdraw cash and spend +15% in the market.",
 	"Dentro ou fora": "Inside or outside",
+	// Decor v2 19/10
+	"Máquina de bebidas": "Drinks machine",
+	"Melhoria: 1 em cada 5 clientes compra uma bebida gelada (+4 moedas cada, mais nos níveis altos). Dentro ou fora do mercado. Até 3 máquinas.": "Upgrade: 1 in 5 customers buys a cold drink (+4 coins each, more at higher levels). Inside or outside the market. Up to 3 machines.",
+	"Cabine de fotos": "Photo booth",
+	"Melhoria: 1 em cada 8 clientes tira fotos na cabine (+9 moedas cada, mais nos níveis altos). Dentro ou fora do mercado. Até 2 cabines.": "Upgrade: 1 in 8 customers takes photos in the booth (+9 coins each, more at higher levels). Inside or outside the market. Up to 2 booths.",
+	"Quiosque de café": "Coffee kiosk",
+	"Melhoria: 1 em cada 4 clientes leva um café e um docinho (+5 moedas cada, mais nos níveis altos). Até 2 quiosques.": "Upgrade: 1 in 4 customers grabs a coffee and a treat (+5 coins each, more at higher levels). Up to 2 kiosks.",
+	"Pérgola com luzes": "Pergola with lights",
+	"Varal de lâmpadas sobre a praça.": "A string of bulbs over the plaza.",
 	// Closing time 18/10
 	"Fechando": "Closing",
 	"cliente": "customer",

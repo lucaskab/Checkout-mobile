@@ -20,6 +20,8 @@ export const interiorDecor: InteriorDecorDefinition[] = [
 	{ id: "watermelon-pile", name: "Ilha de melancias", description: "Montanha de melancias da estação.", coinPrice: 3_500, requiredLevel: 16, zone: "inside" },
 	{ id: "claw-machine", name: "Máquina de pelúcia", description: "Melhoria: 1 em cada 5 clientes joga (+6 moedas por jogada, mais nos níveis altos; quase tudo lucro). Dentro ou fora do mercado. Até 3 máquinas.", diamondPrice: 25, requiredLevel: 23, zone: "both", effect: { play: { chance: 0.2, coins: 6, maxPlaced: 3 } } },
 	{ id: "atm", name: "Caixa eletrônico", description: "Melhoria: os clientes sacam dinheiro e gastam +15% no mercado.", coinPrice: 15_000, requiredLevel: 19, zone: "inside", effect: { budget: 0.15 } },
+	{ id: "vending-machine", name: "Máquina de bebidas", description: "Melhoria: 1 em cada 5 clientes compra uma bebida gelada (+4 moedas cada, mais nos níveis altos). Dentro ou fora do mercado. Até 3 máquinas.", coinPrice: 7_500, requiredLevel: 11, zone: "both", effect: { play: { chance: 0.2, coins: 4, maxPlaced: 3 } } },
+	{ id: "photo-booth", name: "Cabine de fotos", description: "Melhoria: 1 em cada 8 clientes tira fotos na cabine (+9 moedas cada, mais nos níveis altos). Dentro ou fora do mercado. Até 2 cabines.", diamondPrice: 30, requiredLevel: 18, zone: "both", effect: { play: { chance: 0.125, coins: 9, maxPlaced: 2 } } },
 	{ id: "digital-totem", name: "Totem digital", description: "Tela de ofertas animada.", diamondPrice: 30, requiredLevel: 26, zone: "inside" },
 	// Outside the market: the plaza and footways of the city block.
 	{ id: "flower-bed", name: "Canteiro de flores", description: "Floreira comprida para a calçada.", coinPrice: 1_500, requiredLevel: 1, zone: "outside" },
@@ -33,6 +35,8 @@ export const interiorDecor: InteriorDecorDefinition[] = [
 	{ id: "billboard", name: "Placa de ofertas", description: "Anuncie as promoções da semana.", coinPrice: 4_500, requiredLevel: 15, zone: "outside" },
 	{ id: "fountain", name: "Fonte", description: "Fonte de dois andares com água corrente.", diamondPrice: 45, requiredLevel: 21, zone: "outside" },
 	{ id: "popcorn-cart", name: "Carrinho de pipoca", description: "Cheirinho de pipoca na entrada.", coinPrice: 5_000, requiredLevel: 17, zone: "outside" },
+	{ id: "coffee-kiosk", name: "Quiosque de café", description: "Melhoria: 1 em cada 4 clientes leva um café e um docinho (+5 moedas cada, mais nos níveis altos). Até 2 quiosques.", coinPrice: 12_000, requiredLevel: 15, zone: "outside", effect: { play: { chance: 0.25, coins: 5, maxPlaced: 2 } } },
+	{ id: "festoon-pergola", name: "Pérgola com luzes", description: "Varal de lâmpadas sobre a praça.", coinPrice: 6_500, requiredLevel: 12, zone: "outside" },
 	{ id: "kiddie-ride", name: "Carrinho de mola", description: "Brinquedo para a criançada.", diamondPrice: 35, requiredLevel: 25, zone: "outside" },
 ];
 

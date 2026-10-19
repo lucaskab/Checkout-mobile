@@ -63,6 +63,8 @@ public static partial class CheckoutMarketStagesBuilder
         Decor(Next("plant-palm"), "plant-palm"); Decor(Next("promo-stand"), "promo-stand"); Decor(Next("water-cooler"), "water-cooler");
         Decor(Next("gumball"), "gumball"); Decor(Next("flower-stand"), "flower-stand"); Decor(Next("watermelon-pile"), "watermelon-pile");
         Decor(Next("claw-machine"), "claw-machine"); Decor(Next("atm"), "atm"); Decor(Next("digital-totem"), "digital-totem");
+        // decor v2 (19/10): new pieces, inside or out (src/data/interior-decor.ts says where each one may stand)
+        Decor(Next("vending-machine"), "vending-machine"); Decor(Next("photo-booth"), "photo-booth"); Decor(Next("coffee-kiosk"), "coffee-kiosk");
         foreach (var id in OutsideDecor) Decor(Next(id), id);
         if (skipNode) UnityEngine.Object.DestroyImmediate(skipNode);
 
@@ -1018,15 +1020,18 @@ public static partial class CheckoutMarketStagesBuilder
         { "basket-stack", new Vector3(.3f, .24f, 1.2f) }, { "plant-small", new Vector3(.28f, .28f, 1.3f) }, { "balloons", new Vector3(.34f, .34f, 2.3f) },
         { "floor-lamp", new Vector3(.24f, .24f, 1.9f) }, { "bench", new Vector3(.8f, .3f, 1.2f) }, { "cart-corral", new Vector3(.42f, 1.0f, 1.4f) },
         { "plant-palm", new Vector3(.45f, .45f, 2.4f) }, { "promo-stand", new Vector3(.58f, .44f, 1.9f) }, { "water-cooler", new Vector3(.22f, .22f, 1.7f) },
-        { "gumball", new Vector3(.24f, .24f, 1.6f) }, { "flower-stand", new Vector3(.72f, .4f, 1.9f) }, { "watermelon-pile", new Vector3(.72f, .56f, 1.3f) },
+        { "gumball", new Vector3(.24f, .24f, 1.6f) }, { "flower-stand", new Vector3(1.12f, .62f, 2.4f) }, { "watermelon-pile", new Vector3(.72f, .56f, 1.3f) },
         { "claw-machine", new Vector3(.45f, .45f, 2.4f) }, { "atm", new Vector3(.38f, .34f, 2.1f) }, { "digital-totem", new Vector3(.34f, .2f, 2.2f) },
         // Outside the shop (city block).
         { "park-bench", new Vector3(.86f, .36f, 1.2f) }, { "tree-planter", new Vector3(.72f, .72f, 3.2f) }, { "flower-bed", new Vector3(1.04f, .44f, 1.2f) },
         { "street-lamp", new Vector3(.24f, .24f, 3.9f) }, { "fountain", new Vector3(1.12f, 1.12f, 1.9f) }, { "bike-rack", new Vector3(.92f, .3f, 1.3f) },
         { "popcorn-cart", new Vector3(.8f, .42f, 2.5f) }, { "ice-cream-cart", new Vector3(.8f, .42f, 2.5f) }, { "parasol-table", new Vector3(1.0f, 1.0f, 2.7f) },
         { "kiddie-ride", new Vector3(.46f, .62f, 1.5f) }, { "billboard", new Vector3(.94f, .3f, 2.8f) }, { "recycle-bins", new Vector3(.8f, .24f, 1.3f) },
+        // decor v2 (19/10); sizes from the Blender report
+        { "vending-machine", new Vector3(.5f, .42f, 2.0f) }, { "photo-booth", new Vector3(.62f, .55f, 2.3f) }, { "coffee-kiosk", new Vector3(1.05f, .6f, 2.7f) },
+        { "festoon-pergola", new Vector3(1.6f, 1.3f, 2.8f) },
     };
-    public static readonly string[] OutsideDecor = { "park-bench", "tree-planter", "flower-bed", "street-lamp", "fountain", "bike-rack", "popcorn-cart", "ice-cream-cart", "parasol-table", "kiddie-ride", "billboard", "recycle-bins" };
+    public static readonly string[] OutsideDecor = { "park-bench", "tree-planter", "flower-bed", "street-lamp", "fountain", "bike-rack", "popcorn-cart", "ice-cream-cart", "parasol-table", "kiddie-ride", "billboard", "recycle-bins", "festoon-pergola" };
 
     static void Decor(Transform t, string id)
     {
