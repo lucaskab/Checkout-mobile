@@ -254,7 +254,8 @@ namespace Checkout
         void Say(string text, bool warn = false)
         {
             if (!status) return;
-            status.text = text; status.color = K.C(warn ? "FFA48C" : "FFFFFF"); // on the navy hint pill messageUntil = Time.unscaledTime + (warn ? 3.5f : 6f);
+            // White on the navy hint pill; warnings in light red.
+            status.text = text; status.color = K.C(warn ? "FFA48C" : "FFFFFF"); messageUntil = Time.unscaledTime + (warn ? 3.5f : 6f);
         }
 
         // ------------------------------------------------------------------ rotation (Ctrl + mouse, two-finger twist)

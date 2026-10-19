@@ -105,7 +105,7 @@ namespace Checkout
             Tab(head, "decoracao", "Decoração", "Icons/plant");
             Tab(head, "melhorias", "Melhorias", "Icons/lightning");
             var spacer = Node(head, "Spacer"); spacer.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
-            foldButton = U.Button(head, "", "primary", () => Fold(!folded), TrayHeadH - 10, 16); foldButton.SetWidth(TrayHeadH + 8);
+            foldButton = U.Button(head, "", "primary", () => Fold(!folded), TrayHeadH - 10, 16); foldButton.SetWidth(TrayHeadH + 8); BigIcon(foldButton, (TrayHeadH - 10) * .7f);
 
             // The strip of cards (scrolls sideways; the mouse wheel scrolls it too).
             var shelf = N.Image(face.transform, "Strip", K.Paper, 18); trayStrip = shelf.rectTransform;
@@ -165,13 +165,21 @@ namespace Checkout
             var fit = bar.gameObject.AddComponent<ContentSizeFitter>(); fit.horizontalFit = fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             float h = Phone ? 50 : 56;
             selectedIcon = N.Image(floatBar, "Picture", Color.white, 0); selectedIcon.preserveAspect = true; var pl = selectedIcon.gameObject.AddComponent<LayoutElement>(); pl.preferredWidth = pl.preferredHeight = h;
-            floatName = N.Text(floatBar, "Name", K.Label, Phone ? 17 : 19, Color.white); floatName.textWrappingMode = TextWrappingModes.NoWrap; floatName.overflowMode = TextOverflowModes.Ellipsis;
+            floatName = N.Text(floatBar, "Name", K.Label, Phone ? 17 : 19, Color.white); floatName.textWrappingMode = TextWrappingModes.NoWrap; floatName.overflowMode = TextOverflowModes.Ellipsis; floatName.alignment = TextAlignmentOptions.MidlineLeft;
             var nl = floatName.gameObject.AddComponent<LayoutElement>(); nl.preferredWidth = Phone ? 170 : 200; nl.preferredHeight = h;
             rotateLeft = U.Button(floatBar, "", "primary", () => Rotate(-45), h, 16); rotateLeft.SetWidth(h + 6);
             rotateRight = U.Button(floatBar, "", "primary", () => Rotate(45), h, 16); rotateRight.SetWidth(h + 6);
             storeButton = U.Button(floatBar, "Guardar", "danger", Store, h, Phone ? 16 : 17); storeButton.Apply(Data("Guardar", "danger", true, "Icons/package")); storeButton.SetWidth(Phone ? 136 : 150);
             rotateLeft.SetIconSprite(CheckoutGlyph.Get("turn-left")); rotateRight.SetIconSprite(CheckoutGlyph.Get("turn-right"));
+            BigIcon(rotateLeft, h * .78f); BigIcon(rotateRight, h * .78f);
             floatBar.gameObject.SetActive(false);
+        }
+
+        // The glyph buttons carry no label: their icon may fill most of the face.
+        static void BigIcon(CheckoutDesktopButton b, float size)
+        {
+            var icon = b.transform.Find("Face/Icon"); var le = icon ? icon.GetComponent<LayoutElement>() : null;
+            if (le) le.preferredWidth = le.preferredHeight = size;
         }
 
         // ------------------------------------------------------------------ refresh
@@ -453,7 +461,7 @@ namespace Checkout
             bool phone = CheckoutScreen.Handheld; float textH = phone ? 50 : 58;
             c.art = N.Image(c.face.transform, "Art", K.C("F7E6C8"), 14); U.Stretch(c.art.rectTransform, Vector2.zero, Vector2.one, new Vector2(6, textH), new Vector2(-6, -6));
             c.glow = N.Image(c.art.transform, "Glow", Color.white, 0); c.glow.sprite = U.Glow(); U.Stretch(c.glow.rectTransform, Vector2.zero, Vector2.one, new Vector2(6, 2), new Vector2(-6, -2));
-            c.icon = N.Image(c.art.transform, "Icon", Color.white, 0); c.icon.preserveAspect = true; U.Stretch(c.icon.rectTransform, Vector2.zero, Vector2.one, new Vector2(8, 6), new Vector2(-8, -6));
+            c.icon = N.Image(c.art.transform, "Icon", Color.white, 0); c.icon.preserveAspect = true; U.Stretch(c.icon.rectTransform, Vector2.zero, Vector2.one, new Vector2(-6, -2), new Vector2(6, 6)); // the renders keep a margin: a little past the panel reads bigger
             c.lockIcon = N.Image(c.art.transform, "Lock", Color.white, 0); c.lockIcon.sprite = K.Icon("Icons/lock"); c.lockIcon.preserveAspect = true;
             var lr = c.lockIcon.rectTransform; lr.anchorMin = lr.anchorMax = lr.pivot = new Vector2(1, 0); lr.anchoredPosition = new Vector2(-4, 4); lr.sizeDelta = new Vector2(30, 30);
             // Upgrade mark (top-left): a gold coin with a lightning bolt.
@@ -468,7 +476,7 @@ namespace Checkout
             N.Row(nb.gameObject, 0, new RectOffset(7, 7, 1, 1)); var nf = nb.gameObject.AddComponent<ContentSizeFitter>(); nf.horizontalFit = nf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             c.note = N.Text(nb.transform, "Text", K.Number, 12, Color.white); c.note.textWrappingMode = TextWrappingModes.NoWrap;
             // Name, then the price line.
-            c.title = U.Label(c.face.transform, "Name", K.Label, phone ? 14 : 16, "4A3624"); U.Stretch(c.title.rectTransform, Vector2.zero, new Vector2(1, 0), new Vector2(6, textH - (phone ? 24 : 27)), new Vector2(-6, textH - 2));
+            c.title = U.Label(c.face.transform, "Name", K.Label, phone ? 14 : 16, "4A3624"); c.title.enableAutoSizing = true; c.title.fontSizeMin = phone ? 11 : 12; c.title.fontSizeMax = phone ? 14 : 16; U.Stretch(c.title.rectTransform, Vector2.zero, new Vector2(1, 0), new Vector2(6, textH - (phone ? 24 : 27)), new Vector2(-6, textH - 2));
             var line = N.Node("Price", c.face.transform); U.Stretch(line, Vector2.zero, new Vector2(1, 0), new Vector2(6, 4), new Vector2(-6, phone ? 25 : 30));
             var row = N.Row(line.gameObject, 4); row.childAlignment = TextAnchor.MiddleCenter;
             c.priceIcon = N.Image(line, "Icon", Color.white, 0); c.priceIcon.preserveAspect = true; var pl = c.priceIcon.gameObject.AddComponent<LayoutElement>(); pl.preferredWidth = pl.preferredHeight = phone ? 20 : 24;
@@ -528,7 +536,7 @@ namespace Checkout
 
         static float Distance(string kind, Vector2 p)
         {
-            const float stroke = .11f;
+            const float stroke = .12f;
             switch (kind)
             {
                 case "down": return Mathf.Min(Segment(p, new Vector2(-.45f, .2f), new Vector2(0, -.25f)), Segment(p, new Vector2(0, -.25f), new Vector2(.45f, .2f))) - stroke;
@@ -537,7 +545,7 @@ namespace Checkout
                 case "turn-right":
                 {
                     // A ring open at the top, the arrow head on its left end pointing into the gap (clockwise).
-                    const float radius = .52f, gapFrom = 60, gapTo = 120;
+                    const float radius = .5f, gapFrom = 55, gapTo = 125;
                     float angle = Mathf.Atan2(p.y, p.x) * Mathf.Rad2Deg; if (angle < 0) angle += 360;
                     float ring = angle > gapFrom && angle < gapTo
                         ? Mathf.Min(Vector2.Distance(p, Polar(radius, gapFrom)), Vector2.Distance(p, Polar(radius, gapTo))) - stroke
@@ -545,7 +553,7 @@ namespace Checkout
                     // Head at 120°, pointing along the clockwise tangent.
                     var at = Polar(radius, gapTo); float a = gapTo * Mathf.Deg2Rad;
                     var tangent = new Vector2(Mathf.Sin(a), -Mathf.Cos(a)); var normal = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-                    float head = Triangle(p, at + tangent * .36f, at + normal * .27f - tangent * .04f, at - normal * .27f - tangent * .04f);
+                    float head = Triangle(p, at + tangent * .42f, at + normal * .3f - tangent * .06f, at - normal * .3f - tangent * .06f);
                     return Mathf.Min(ring, head);
                 }
                 default: return 1;
