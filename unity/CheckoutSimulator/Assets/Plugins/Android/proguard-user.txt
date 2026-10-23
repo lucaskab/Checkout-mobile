@@ -1,0 +1,4 @@
+# Checkout (22/10/2026): the Google Mobile Ads Unity plugin 11.5 ships a "nextgen" wrapper
+# (com.google.unity.ads.nextgen) that references the GMA Next-Gen SDK, which the game does not use
+# (it uses play-services-ads). With Minify Release on, R8 stops on those missing classes.
+-dontwarn com.google.android.libraries.ads.mobile.sdk.**

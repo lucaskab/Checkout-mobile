@@ -68,6 +68,8 @@ public static partial class CheckoutMarketStagesBuilder
         // decor v2 (19/10): new pieces, inside or out (src/data/interior-decor.ts says where each one may stand)
         Decor(Next("vending-machine"), "vending-machine"); Decor(Next("photo-booth"), "photo-booth"); Decor(Next("coffee-kiosk"), "coffee-kiosk");
         foreach (var id in OutsideDecor) Decor(Next(id), id);
+        // decor v4 (22/10): new decorations, inside and on the plaza (src/data/interior-decor.ts)
+        foreach (var id in NewDecorV4) Decor(Next(id), id);
         if (skipNode) UnityEngine.Object.DestroyImmediate(skipNode);
 
         foreach (var m in scratch) if (m && !AssetDatabase.Contains(m)) UnityEngine.Object.DestroyImmediate(m);
@@ -1021,21 +1023,27 @@ public static partial class CheckoutMarketStagesBuilder
     // Footprint half-size (x, z) and marker height of every decoration, inside and outside the shop.
     static readonly Dictionary<string, Vector3> DecorSize = new Dictionary<string, Vector3>
     {
-        { "basket-stack", new Vector3(.3f, .24f, 1.2f) }, { "plant-small", new Vector3(.28f, .28f, 1.3f) }, { "balloons", new Vector3(.34f, .34f, 2.3f) },
-        { "floor-lamp", new Vector3(.24f, .24f, 1.9f) }, { "bench", new Vector3(.8f, .3f, 1.2f) }, { "cart-corral", new Vector3(.46f, 1.04f, 1.6f) },
-        { "plant-palm", new Vector3(.45f, .45f, 2.4f) }, { "promo-stand", new Vector3(.58f, .44f, 1.9f) }, { "water-cooler", new Vector3(.22f, .22f, 1.7f) },
-        { "gumball", new Vector3(.22f, .22f, 1.5f) }, { "flower-stand", new Vector3(1.13f, .71f, 2.45f) }, { "watermelon-pile", new Vector3(.72f, .56f, 1.3f) },
-        { "claw-machine", new Vector3(.49f, .49f, 2.25f) }, { "atm", new Vector3(.37f, .42f, 2.0f) }, { "digital-totem", new Vector3(.34f, .2f, 2.2f) },
-        // Outside the shop (city block).
-        { "park-bench", new Vector3(.86f, .36f, 1.2f) }, { "tree-planter", new Vector3(.72f, .72f, 3.2f) }, { "flower-bed", new Vector3(1.04f, .44f, 1.2f) },
-        { "street-lamp", new Vector3(.24f, .24f, 3.9f) }, { "fountain", new Vector3(1.12f, 1.12f, 1.9f) }, { "bike-rack", new Vector3(.92f, .3f, 1.3f) },
-        { "popcorn-cart", new Vector3(.8f, .42f, 2.5f) }, { "ice-cream-cart", new Vector3(.8f, .42f, 2.5f) }, { "parasol-table", new Vector3(1.0f, 1.0f, 2.7f) },
-        { "kiddie-ride", new Vector3(.46f, .62f, 1.5f) }, { "billboard", new Vector3(.94f, .3f, 2.8f) }, { "recycle-bins", new Vector3(.8f, .24f, 1.3f) },
-        // decor v2 (19/10); sizes from the Blender report
-        { "vending-machine", new Vector3(.45f, .45f, 2.0f) }, { "photo-booth", new Vector3(.5f, .52f, 2.2f) }, { "coffee-kiosk", new Vector3(1.11f, .71f, 3.15f) },
-        { "festoon-pergola", new Vector3(1.35f, 1.27f, 2.7f) },
+        // decor v4 (22/10/2026): every decoration remade in Blender (ArtSource/decor_v4) + 20 new ones; sizes measured on the models
+        { "plant-small", new Vector3(.28f, .28f, .95f) }, { "park-bench", new Vector3(.82f, .36f, 1.03f) }, { "fountain", new Vector3(1.12f, 1.12f, 1.8f) },
+        { "tree-planter", new Vector3(.72f, .72f, 3.14f) }, { "flower-bed", new Vector3(1.04f, .46f, .9f) }, { "street-lamp", new Vector3(.25f, .24f, 3.9f) },
+        { "bike-rack", new Vector3(.9f, .3f, 1.05f) }, { "recycle-bins", new Vector3(.8f, .24f, 1.28f) }, { "plant-palm", new Vector3(.5f, .5f, 2.1f) },
+        { "promo-stand", new Vector3(.57f, .45f, 1.85f) }, { "watermelon-pile", new Vector3(.73f, .58f, 1.31f) }, { "digital-totem", new Vector3(.33f, .2f, 2.1f) },
+        { "gumball", new Vector3(.23f, .22f, 1.51f) }, { "picket-fence", new Vector3(1f, .16f, 1f) }, { "hedge-planter", new Vector3(.8f, .3f, 1.06f) },
+        { "bird-bath", new Vector3(.35f, .35f, 1.07f) }, { "picnic-table", new Vector3(.85f, .75f, 1.02f) }, { "veggie-garden", new Vector3(1.02f, .57f, .72f) },
+        { "popcorn-cart", new Vector3(.79f, .38f, 2.06f) }, { "ice-cream-cart", new Vector3(.8f, .42f, 2.27f) }, { "parasol-table", new Vector3(1f, 1f, 2.5f) },
+        { "kiddie-ride", new Vector3(.46f, .62f, 1.28f) }, { "billboard", new Vector3(.94f, .3f, 2.76f) }, { "basket-stack", new Vector3(.3f, .24f, 1.2f) },
+        { "balloons", new Vector3(.33f, .34f, 2.23f) }, { "floor-lamp", new Vector3(.24f, .24f, 1.89f) }, { "bench", new Vector3(.78f, .3f, 1.05f) },
+        { "water-cooler", new Vector3(.22f, .21f, 1.7f) }, { "umbrella-stand", new Vector3(.17f, .16f, 1.1f) }, { "monstera", new Vector3(.49f, .47f, 1.48f) },
+        { "can-pyramid", new Vector3(.33f, .25f, 1.35f) }, { "fruit-pyramid", new Vector3(.66f, .59f, 1.14f) }, { "tasting-table", new Vector3(.72f, .43f, .96f) },
+        { "wine-barrel", new Vector3(.46f, .44f, 1.18f) }, { "neon-cart", new Vector3(.5f, .15f, 1.77f) }, { "giant-teddy", new Vector3(.45f, .42f, 1.38f) },
+        { "party-tree", new Vector3(.5f, .5f, 2.29f) }, { "aquarium", new Vector3(.45f, .45f, 1.72f) }, { "swing-set", new Vector3(1.15f, .57f, 2.2f) },
+        { "hotdog-cart", new Vector3(.8f, .46f, 2.38f) }, { "topiary-animal", new Vector3(.44f, .51f, 1.29f) }, { "gazebo", new Vector3(1.41f, 1.49f, 3.2f) },
+        { "carousel", new Vector3(1.29f, 1.29f, 2.6f) }, { "claw-machine", new Vector3(.49f, .49f, 2.25f) }, { "atm", new Vector3(.37f, .42f, 1.97f) },
+        { "vending-machine", new Vector3(.45f, .45f, 1.95f) }, { "photo-booth", new Vector3(.5f, .52f, 2.19f) }, { "cart-corral", new Vector3(.46f, 1.04f, 1.6f) },
+        { "flower-stand", new Vector3(1.12f, .74f, 2.43f) }, { "coffee-kiosk", new Vector3(1.13f, .7f, 3.19f) }, { "festoon-pergola", new Vector3(1.34f, 1.24f, 2.66f) },
     };
     public static readonly string[] OutsideDecor = { "park-bench", "tree-planter", "flower-bed", "street-lamp", "fountain", "bike-rack", "popcorn-cart", "ice-cream-cart", "parasol-table", "kiddie-ride", "billboard", "recycle-bins", "festoon-pergola" };
+    static readonly string[] NewDecorV4 = { "umbrella-stand", "monstera", "can-pyramid", "fruit-pyramid", "tasting-table", "wine-barrel", "neon-cart", "giant-teddy", "party-tree", "aquarium", "picket-fence", "hedge-planter", "bird-bath", "picnic-table", "veggie-garden", "swing-set", "hotdog-cart", "topiary-animal", "gazebo", "carousel" };
 
     static void Decor(Transform t, string id)
     {

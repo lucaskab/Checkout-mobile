@@ -1,0 +1,2779 @@
+{
+ "plant-small": {
+  "name": "PlantSmall",
+  "tris": 5804,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.279,
+   0.279,
+   0.923
+  ],
+  "size_xyz": [
+   0.551,
+   0.546,
+   0.923
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    0.3
+   ]
+  },
+  "materials": [
+   "T_IK_D4_PlantSmall"
+  ],
+  "texture": "IK_D4_PlantSmall_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\plant-small.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\plant-small.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\plant-small_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\plant-small_close.png"
+  ],
+  "old": {
+   "tris": 1608,
+   "footprint": [
+    0.25,
+    0.25,
+    0.766
+   ]
+  },
+  "secs": 9.2,
+  "date": "2026-10-22 19:10"
+ },
+ "park-bench": {
+  "name": "ParkBench",
+  "tris": 8672,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.82,
+   0.359,
+   1.034
+  ],
+  "size_xyz": [
+   1.64,
+   0.714,
+   1.036
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_ParkBench"
+  ],
+  "texture": "IK_D4_ParkBench_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\park-bench.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\park-bench.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\park-bench_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\park-bench_close.png"
+  ],
+  "old": {
+   "tris": 908,
+   "footprint": [
+    0.81,
+    0.32,
+    0.92
+   ]
+  },
+  "secs": 6.7,
+  "date": "2026-10-22 19:10"
+ },
+ "fountain": {
+  "name": "Fountain",
+  "tris": 12008,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.115,
+   1.115,
+   1.8
+  ],
+  "size_xyz": [
+   2.23,
+   2.23,
+   1.8
+  ],
+  "objects": [
+   "Body",
+   "Anim Spin"
+  ],
+  "anim": [
+   "Anim Spin"
+  ],
+  "pivots": {
+   "Anim Spin": [
+    0.0,
+    0.0,
+    1.44
+   ]
+  },
+  "materials": [
+   "T_IK_D4_Fountain"
+  ],
+  "texture": "IK_D4_Fountain_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\fountain.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\fountain.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\fountain_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\fountain_close.png"
+  ],
+  "old": {
+   "tris": 1528,
+   "footprint": [
+    1.12,
+    1.12,
+    1.36
+   ]
+  },
+  "secs": 10.1,
+  "date": "2026-10-22 19:10"
+ },
+ "tree-planter": {
+  "name": "TreePlanter",
+  "tris": 10758,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.72,
+   0.72,
+   3.14
+  ],
+  "size_xyz": [
+   1.44,
+   1.44,
+   3.14
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    1.36
+   ]
+  },
+  "materials": [
+   "T_IK_D4_TreePlanter"
+  ],
+  "texture": "IK_D4_TreePlanter_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\tree-planter.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\tree-planter.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\tree-planter_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\tree-planter_close.png"
+  ],
+  "old": {
+   "tris": 2552,
+   "footprint": [
+    0.758,
+    0.7,
+    2.919
+   ]
+  },
+  "secs": 8.2,
+  "date": "2026-10-22 19:11"
+ },
+ "flower-bed": {
+  "name": "FlowerBed",
+  "tris": 9326,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.041,
+   0.456,
+   0.898
+  ],
+  "size_xyz": [
+   2.073,
+   0.881,
+   0.898
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.4,
+    0.42
+   ]
+  },
+  "materials": [
+   "T_IK_D4_FlowerBed"
+  ],
+  "texture": "IK_D4_FlowerBed_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\flower-bed.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\flower-bed.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\flower-bed_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\flower-bed_close.png"
+  ],
+  "old": {
+   "tris": 3956,
+   "footprint": [
+    1.03,
+    0.43,
+    0.75
+   ]
+  },
+  "secs": 3.6,
+  "date": "2026-10-22 19:10"
+ },
+ "gumball": {
+  "name": "Gumball",
+  "tris": 5960,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.226,
+   0.215,
+   1.506
+  ],
+  "size_xyz": [
+   0.451,
+   0.429,
+   1.506
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_Gumball",
+   "G_Glass"
+  ],
+  "texture": "IK_D4_Gumball_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\gumball.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\gumball.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\gumball_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\gumball_close.png"
+  ],
+  "old": {
+   "tris": 9306,
+   "footprint": [
+    0.21,
+    0.216,
+    1.49
+   ]
+  },
+  "secs": 9.8,
+  "date": "2026-10-22 19:11"
+ },
+ "street-lamp": {
+  "name": "StreetLamp",
+  "tris": 8892,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.247,
+   0.24,
+   3.9
+  ],
+  "size_xyz": [
+   0.493,
+   0.48,
+   3.9
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    2.42
+   ]
+  },
+  "materials": [
+   "T_IK_D4_StreetLamp",
+   "E_FFE3A0"
+  ],
+  "texture": "IK_D4_StreetLamp_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\street-lamp.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\street-lamp.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\street-lamp_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\street-lamp_close.png"
+  ],
+  "old": {
+   "tris": 1720,
+   "footprint": [
+    0.2,
+    0.2,
+    3.65
+   ]
+  },
+  "secs": 13.6,
+  "date": "2026-10-22 19:11"
+ },
+ "picket-fence": {
+  "name": "PicketFence",
+  "tris": 9696,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.992,
+   0.151,
+   0.995
+  ],
+  "size_xyz": [
+   1.96,
+   0.222,
+   1.01
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway",
+   "Anim Sway.001",
+   "Anim Sway.002"
+  ],
+  "anim": [
+   "Anim Sway",
+   "Anim Sway.001",
+   "Anim Sway.002"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    -0.52,
+    0.04,
+    0.0
+   ],
+   "Anim Sway.001": [
+    0.52,
+    0.04,
+    0.0
+   ],
+   "Anim Sway.002": [
+    0.02,
+    0.06,
+    0.0
+   ]
+  },
+  "materials": [
+   "T_IK_D4_PicketFence"
+  ],
+  "texture": "IK_D4_PicketFence_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\picket-fence.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\picket-fence.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\picket-fence_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\picket-fence_close.png"
+  ],
+  "old": null,
+  "secs": 4.2,
+  "date": "2026-10-22 19:11"
+ },
+ "digital-totem": {
+  "name": "DigitalTotem",
+  "tris": 3498,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.33,
+   0.2,
+   2.1
+  ],
+  "size_xyz": [
+   0.66,
+   0.4,
+   2.1
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Scroll"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Scroll"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.2,
+    0.076,
+    0.33
+   ],
+   "Anim Scroll": [
+    0.0,
+    0.0755,
+    1.19
+   ]
+  },
+  "materials": [
+   "T_IK_D4_DigitalTotem",
+   "E_6FE3FF",
+   "T_IK_Screen"
+  ],
+  "texture": "IK_D4_DigitalTotem_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\digital-totem.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\digital-totem.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\digital-totem_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\digital-totem_close.png"
+  ],
+  "old": {
+   "tris": 304,
+   "footprint": [
+    0.32,
+    0.17,
+    2.0
+   ]
+  },
+  "secs": 6.7,
+  "date": "2026-10-22 19:10"
+ },
+ "swing-set": {
+  "name": "SwingSet",
+  "tris": 3968,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.15,
+   0.567,
+   2.204
+  ],
+  "size_xyz": [
+   2.3,
+   1.135,
+   2.271
+  ],
+  "objects": [
+   "Body",
+   "Anim Bob",
+   "Anim Sway",
+   "Anim Sway.001"
+  ],
+  "anim": [
+   "Anim Bob",
+   "Anim Sway",
+   "Anim Sway.001"
+  ],
+  "pivots": {
+   "Anim Bob": [
+    -0.78,
+    0.0,
+    2.058
+   ],
+   "Anim Sway": [
+    -0.55,
+    0.0,
+    2.0
+   ],
+   "Anim Sway.001": [
+    0.55,
+    0.0,
+    2.0
+   ]
+  },
+  "materials": [
+   "T_IK_D4_SwingSet"
+  ],
+  "texture": "IK_D4_SwingSet_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\swing-set.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\swing-set.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\swing-set_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\swing-set_close.png"
+  ],
+  "old": null,
+  "secs": 6.3,
+  "date": "2026-10-22 19:11"
+ },
+ "popcorn-cart": {
+  "name": "PopcornCart",
+  "tris": 8916,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.787,
+   0.376,
+   2.062
+  ],
+  "size_xyz": [
+   1.452,
+   0.753,
+   2.074
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    2.02
+   ]
+  },
+  "materials": [
+   "T_IK_D4_PopcornCart",
+   "G_Glass",
+   "E_FFE2A8"
+  ],
+  "texture": "IK_D4_PopcornCart_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\popcorn-cart.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\popcorn-cart.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\popcorn-cart_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\popcorn-cart_close.png"
+  ],
+  "old": {
+   "tris": 9956,
+   "footprint": [
+    0.9,
+    0.9,
+    2.24
+   ]
+  },
+  "secs": 5.3,
+  "date": "2026-10-22 19:10"
+ },
+ "ice-cream-cart": {
+  "name": "IceCreamCart",
+  "tris": 9696,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.797,
+   0.419,
+   2.27
+  ],
+  "size_xyz": [
+   1.595,
+   0.836,
+   2.282
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    2.24
+   ]
+  },
+  "materials": [
+   "T_IK_D4_IceCreamCart"
+  ],
+  "texture": "IK_D4_IceCreamCart_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\ice-cream-cart.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\ice-cream-cart.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\ice-cream-cart_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\ice-cream-cart_close.png"
+  ],
+  "old": {
+   "tris": 11808,
+   "footprint": [
+    0.9,
+    0.9,
+    2.24
+   ]
+  },
+  "secs": 5.4,
+  "date": "2026-10-22 19:11"
+ },
+ "cart-corral": {
+  "name": "CartCorral",
+  "tris": 8724,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.46,
+   1.04,
+   1.591
+  ],
+  "size_xyz": [
+   0.92,
+   2.08,
+   1.591
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_CartCorral"
+  ],
+  "texture": "IK_D4_CartCorral_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\cart-corral.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\cart-corral.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\cart-corral_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\cart-corral_close.png"
+  ],
+  "old": {
+   "tris": 19104,
+   "footprint": [
+    0.46,
+    1.06,
+    1.62
+   ]
+  },
+  "secs": 3.1,
+  "date": "2026-10-22 19:24"
+ },
+ "basket-stack": {
+  "name": "BasketStack",
+  "tris": 5914,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.29,
+   0.214,
+   1.199
+  ],
+  "size_xyz": [
+   0.58,
+   0.427,
+   1.199
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_BasketStack"
+  ],
+  "texture": "IK_D4_BasketStack_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\basket-stack.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\basket-stack.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\basket-stack_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\basket-stack_close.png"
+  ],
+  "old": {
+   "tris": 11756,
+   "footprint": [
+    0.37,
+    0.185,
+    1.05
+   ]
+  },
+  "secs": 7.7,
+  "date": "2026-10-22 19:10"
+ },
+ "hedge-planter": {
+  "name": "HedgePlanter",
+  "tris": 5972,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.795,
+   0.295,
+   1.045
+  ],
+  "size_xyz": [
+   1.59,
+   0.59,
+   1.045
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    0.44
+   ]
+  },
+  "materials": [
+   "T_IK_D4_HedgePlanter"
+  ],
+  "texture": "IK_D4_HedgePlanter_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\hedge-planter.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\hedge-planter.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\hedge-planter_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\hedge-planter_close.png"
+  ],
+  "old": null,
+  "secs": 6.0,
+  "date": "2026-10-22 19:11"
+ },
+ "hotdog-cart": {
+  "name": "HotdogCart",
+  "tris": 9796,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.799,
+   0.454,
+   2.382
+  ],
+  "size_xyz": [
+   1.598,
+   0.903,
+   2.414
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_HotdogCart"
+  ],
+  "texture": "IK_D4_HotdogCart_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\hotdog-cart.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\hotdog-cart.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\hotdog-cart_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\hotdog-cart_close.png"
+  ],
+  "old": null,
+  "secs": 3.8,
+  "date": "2026-10-22 19:11"
+ },
+ "wine-barrel": {
+  "name": "WineBarrel",
+  "tris": 5896,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.452,
+   0.438,
+   1.183
+  ],
+  "size_xyz": [
+   0.855,
+   0.831,
+   1.183
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_WineBarrel",
+   "G_Glass"
+  ],
+  "texture": "IK_D4_WineBarrel_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\wine-barrel.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\wine-barrel.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\wine-barrel_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\wine-barrel_close.png"
+  ],
+  "old": null,
+  "secs": 9.3,
+  "date": "2026-10-22 19:11"
+ },
+ "bird-bath": {
+  "name": "BirdBath",
+  "tris": 6064,
+  "budget": 6000,
+  "within_budget": false,
+  "footprint_half_x_half_z_height": [
+   0.347,
+   0.345,
+   1.064
+  ],
+  "size_xyz": [
+   0.693,
+   0.69,
+   1.069
+  ],
+  "objects": [
+   "Body",
+   "Anim Bob",
+   "Anim Bob.001"
+  ],
+  "anim": [
+   "Anim Bob",
+   "Anim Bob.001"
+  ],
+  "pivots": {
+   "Anim Bob": [
+    0.2,
+    0.16,
+    0.965
+   ],
+   "Anim Bob.001": [
+    -0.11,
+    -0.05,
+    0.905
+   ]
+  },
+  "materials": [
+   "T_IK_D4_BirdBath"
+  ],
+  "texture": "IK_D4_BirdBath_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\bird-bath.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\bird-bath.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\bird-bath_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\bird-bath_close.png"
+  ],
+  "old": null,
+  "secs": 10.6,
+  "date": "2026-10-22 19:11"
+ },
+ "bike-rack": {
+  "name": "BikeRack",
+  "tris": 8248,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.9,
+   0.29,
+   1.053
+  ],
+  "size_xyz": [
+   1.8,
+   0.52,
+   1.056
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_BikeRack"
+  ],
+  "texture": "IK_D4_BikeRack_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\bike-rack.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\bike-rack.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\bike-rack_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\bike-rack_close.png"
+  ],
+  "old": {
+   "tris": 6130,
+   "footprint": [
+    1.05,
+    0.25,
+    0.98
+   ]
+  },
+  "secs": 6.2,
+  "date": "2026-10-22 19:11"
+ },
+ "recycle-bins": {
+  "name": "RecycleBins",
+  "tris": 5160,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.79,
+   0.241,
+   1.279
+  ],
+  "size_xyz": [
+   1.58,
+   0.482,
+   1.279
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_RecycleBins"
+  ],
+  "texture": "IK_D4_RecycleBins_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\recycle-bins.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\recycle-bins.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\recycle-bins_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\recycle-bins_close.png"
+  ],
+  "old": {
+   "tris": 1580,
+   "footprint": [
+    0.78,
+    0.23,
+    0.89
+   ]
+  },
+  "secs": 5.0,
+  "date": "2026-10-22 19:11"
+ },
+ "watermelon-pile": {
+  "name": "WatermelonPile",
+  "tris": 8724,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.723,
+   0.573,
+   1.306
+  ],
+  "size_xyz": [
+   1.445,
+   1.145,
+   1.306
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_WatermelonPile"
+  ],
+  "texture": "IK_D4_WatermelonPile_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\watermelon-pile.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\watermelon-pile.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\watermelon-pile_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\watermelon-pile_close.png"
+  ],
+  "old": {
+   "tris": 6384,
+   "footprint": [
+    0.71,
+    0.56,
+    1.23
+   ]
+  },
+  "secs": 3.9,
+  "date": "2026-10-22 19:10"
+ },
+ "topiary-animal": {
+  "name": "TopiaryAnimal",
+  "tris": 7412,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.44,
+   0.503,
+   1.287
+  ],
+  "size_xyz": [
+   0.88,
+   0.943,
+   1.287
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    0.31
+   ]
+  },
+  "materials": [
+   "T_IK_D4_TopiaryAnimal"
+  ],
+  "texture": "IK_D4_TopiaryAnimal_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\topiary-animal.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\topiary-animal.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\topiary-animal_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\topiary-animal_close.png"
+  ],
+  "old": null,
+  "secs": 9.2,
+  "date": "2026-10-22 19:11"
+ },
+ "umbrella-stand": {
+  "name": "UmbrellaStand",
+  "tris": 5720,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.17,
+   0.158,
+   1.101
+  ],
+  "size_xyz": [
+   0.333,
+   0.312,
+   1.101
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_UmbrellaStand"
+  ],
+  "texture": "IK_D4_UmbrellaStand_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\umbrella-stand.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\umbrella-stand.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\umbrella-stand_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\umbrella-stand_close.png"
+  ],
+  "old": null,
+  "secs": 3.7,
+  "date": "2026-10-22 19:11"
+ },
+ "monstera": {
+  "name": "Monstera",
+  "tris": 9624,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.484,
+   0.462,
+   1.483
+  ],
+  "size_xyz": [
+   0.878,
+   0.913,
+   1.483
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    0.31
+   ]
+  },
+  "materials": [
+   "T_IK_D4_Monstera"
+  ],
+  "texture": "IK_D4_Monstera_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\monstera.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\monstera.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\monstera_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\monstera_close.png"
+  ],
+  "old": null,
+  "secs": 7.0,
+  "date": "2026-10-22 19:11"
+ },
+ "balloons": {
+  "name": "Balloons",
+  "tris": 7876,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.328,
+   0.336,
+   2.228
+  ],
+  "size_xyz": [
+   0.652,
+   0.637,
+   2.229
+  ],
+  "objects": [
+   "Body",
+   "Anim Bob",
+   "Anim Bob.001",
+   "Anim Bob.002",
+   "Anim Bob.003",
+   "Anim Bob.004",
+   "Anim Bob.005",
+   "Anim Bob.006",
+   "Anim Bob.007",
+   "Anim Bob.008",
+   "Anim Bob.009"
+  ],
+  "anim": [
+   "Anim Bob",
+   "Anim Bob.001",
+   "Anim Bob.002",
+   "Anim Bob.003",
+   "Anim Bob.004",
+   "Anim Bob.005",
+   "Anim Bob.006",
+   "Anim Bob.007",
+   "Anim Bob.008",
+   "Anim Bob.009"
+  ],
+  "pivots": {
+   "Anim Bob": [
+    0.1475,
+    0.0537,
+    1.47
+   ],
+   "Anim Bob.001": [
+    -0.0055,
+    0.1569,
+    1.59
+   ],
+   "Anim Bob.002": [
+    -0.1509,
+    0.0433,
+    1.47
+   ],
+   "Anim Bob.003": [
+    -0.0878,
+    -0.1302,
+    1.59
+   ],
+   "Anim Bob.004": [
+    0.0967,
+    -0.1237,
+    1.47
+   ],
+   "Anim Bob.005": [
+    0.0587,
+    0.087,
+    1.77
+   ],
+   "Anim Bob.006": [
+    -0.087,
+    0.0587,
+    1.84
+   ],
+   "Anim Bob.007": [
+    -0.0587,
+    -0.087,
+    1.77
+   ],
+   "Anim Bob.008": [
+    0.087,
+    -0.0587,
+    1.84
+   ],
+   "Anim Bob.009": [
+    0.0,
+    0.0,
+    2.03
+   ]
+  },
+  "materials": [
+   "T_IK_D4_Balloons"
+  ],
+  "texture": "IK_D4_Balloons_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\balloons.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\balloons.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\balloons_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\balloons_close.png"
+  ],
+  "old": {
+   "tris": 2320,
+   "footprint": [
+    0.38,
+    0.38,
+    2.08
+   ]
+  },
+  "secs": 8.5,
+  "date": "2026-10-22 19:10"
+ },
+ "neon-cart": {
+  "name": "NeonCart",
+  "tris": 4424,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.5,
+   0.15,
+   1.769
+  ],
+  "size_xyz": [
+   1.0,
+   0.3,
+   1.769
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002",
+   "Anim Blink.003",
+   "Anim Blink.004",
+   "Anim Blink.005"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002",
+   "Anim Blink.003",
+   "Anim Blink.004",
+   "Anim Blink.005"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.0,
+    0.08,
+    0.87
+   ],
+   "Anim Blink.001": [
+    0.0,
+    0.08,
+    0.66
+   ],
+   "Anim Blink.002": [
+    0.0,
+    0.08,
+    0.93
+   ],
+   "Anim Blink.003": [
+    -0.32,
+    0.08,
+    1.43
+   ],
+   "Anim Blink.004": [
+    0.33,
+    0.08,
+    1.39
+   ],
+   "Anim Blink.005": [
+    0.32,
+    0.08,
+    0.37
+   ]
+  },
+  "materials": [
+   "T_IK_D4_NeonCart",
+   "E_FF5FA8",
+   "E_FFD64A"
+  ],
+  "texture": "IK_D4_NeonCart_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\neon-cart.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\neon-cart.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\neon-cart_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\neon-cart_close.png"
+  ],
+  "old": null,
+  "secs": 16.4,
+  "date": "2026-10-22 19:11"
+ },
+ "flower-stand": {
+  "name": "FlowerStand",
+  "tris": 14792,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.12,
+   0.733,
+   2.43
+  ],
+  "size_xyz": [
+   2.24,
+   1.434,
+   2.43
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway",
+   "Anim Sway.001",
+   "Anim Sway.002",
+   "Anim Sway.003",
+   "Anim Sway.004",
+   "Anim Sway.005",
+   "Anim Sway.006",
+   "Anim Sway.007",
+   "Anim Sway.008",
+   "Anim Sway.009",
+   "Anim Sway.010",
+   "Anim Sway.011",
+   "Anim Sway.012",
+   "Anim Sway.013",
+   "Anim Sway.014",
+   "Anim Sway.015",
+   "Anim Sway.016",
+   "Anim Sway.017"
+  ],
+  "anim": [
+   "Anim Sway",
+   "Anim Sway.001",
+   "Anim Sway.002",
+   "Anim Sway.003",
+   "Anim Sway.004",
+   "Anim Sway.005",
+   "Anim Sway.006",
+   "Anim Sway.007",
+   "Anim Sway.008",
+   "Anim Sway.009",
+   "Anim Sway.010",
+   "Anim Sway.011",
+   "Anim Sway.012",
+   "Anim Sway.013",
+   "Anim Sway.014",
+   "Anim Sway.015",
+   "Anim Sway.016",
+   "Anim Sway.017"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    -0.78,
+    -0.22,
+    0.5
+   ],
+   "Anim Sway.001": [
+    -0.47,
+    -0.22,
+    0.5
+   ],
+   "Anim Sway.002": [
+    -0.16,
+    -0.22,
+    0.5
+   ],
+   "Anim Sway.003": [
+    0.16,
+    -0.22,
+    0.5
+   ],
+   "Anim Sway.004": [
+    0.47,
+    -0.22,
+    0.5
+   ],
+   "Anim Sway.005": [
+    0.78,
+    -0.22,
+    0.5
+   ],
+   "Anim Sway.006": [
+    -0.78,
+    -0.44,
+    0.8
+   ],
+   "Anim Sway.007": [
+    -0.47,
+    -0.44,
+    0.8
+   ],
+   "Anim Sway.008": [
+    -0.16,
+    -0.44,
+    0.8
+   ],
+   "Anim Sway.009": [
+    0.16,
+    -0.44,
+    0.8
+   ],
+   "Anim Sway.010": [
+    0.47,
+    -0.44,
+    0.8
+   ],
+   "Anim Sway.011": [
+    0.78,
+    -0.44,
+    0.8
+   ],
+   "Anim Sway.012": [
+    -0.72,
+    -0.58,
+    1.14
+   ],
+   "Anim Sway.013": [
+    0.0,
+    -0.58,
+    1.14
+   ],
+   "Anim Sway.014": [
+    0.72,
+    -0.58,
+    1.14
+   ],
+   "Anim Sway.015": [
+    -0.36,
+    0.4,
+    0.3
+   ],
+   "Anim Sway.016": [
+    0.0,
+    0.4,
+    0.3
+   ],
+   "Anim Sway.017": [
+    0.36,
+    0.42,
+    0.34
+   ]
+  },
+  "materials": [
+   "T_IK_D4_FlowerStand",
+   "E_FFE6A8"
+  ],
+  "texture": "IK_D4_FlowerStand_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\flower-stand.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\flower-stand.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\flower-stand_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\flower-stand_close.png"
+  ],
+  "old": {
+   "tris": 31374,
+   "footprint": [
+    1.13,
+    0.723,
+    2.435
+   ]
+  },
+  "secs": 12.8,
+  "date": "2026-10-22 19:24"
+ },
+ "plant-palm": {
+  "name": "PlantPalm",
+  "tris": 14556,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.498,
+   0.478,
+   2.094
+  ],
+  "size_xyz": [
+   0.988,
+   0.956,
+   2.094
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.0,
+    0.52
+   ]
+  },
+  "materials": [
+   "T_IK_D4_PlantPalm"
+  ],
+  "texture": "IK_D4_PlantPalm_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\plant-palm.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\plant-palm.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\plant-palm_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\plant-palm_close.png"
+  ],
+  "old": {
+   "tris": 2616,
+   "footprint": [
+    0.686,
+    0.697,
+    1.944
+   ]
+  },
+  "secs": 4.3,
+  "date": "2026-10-22 19:10"
+ },
+ "picnic-table": {
+  "name": "PicnicTable",
+  "tris": 6960,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.85,
+   0.75,
+   1.017
+  ],
+  "size_xyz": [
+   1.7,
+   1.5,
+   1.037
+  ],
+  "objects": [
+   "Body",
+   "Anim Bob"
+  ],
+  "anim": [
+   "Anim Bob"
+  ],
+  "pivots": {
+   "Anim Bob": [
+    -0.52,
+    -0.22,
+    0.92
+   ]
+  },
+  "materials": [
+   "T_IK_D4_PicnicTable"
+  ],
+  "texture": "IK_D4_PicnicTable_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\picnic-table.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\picnic-table.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\picnic-table_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\picnic-table_close.png"
+  ],
+  "old": null,
+  "secs": 6.0,
+  "date": "2026-10-22 19:11"
+ },
+ "can-pyramid": {
+  "name": "CanPyramid",
+  "tris": 8136,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.33,
+   0.247,
+   1.349
+  ],
+  "size_xyz": [
+   0.66,
+   0.489,
+   1.349
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    -0.08,
+    -0.19,
+    1.24
+   ]
+  },
+  "materials": [
+   "T_IK_D4_CanPyramid"
+  ],
+  "texture": "IK_D4_CanPyramid_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\can-pyramid.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\can-pyramid.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\can-pyramid_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\can-pyramid_close.png"
+  ],
+  "old": null,
+  "secs": 10.4,
+  "date": "2026-10-22 19:11"
+ },
+ "floor-lamp": {
+  "name": "FloorLamp",
+  "tris": 4998,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.241,
+   0.239,
+   1.89
+  ],
+  "size_xyz": [
+   0.481,
+   0.478,
+   1.89
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_FloorLamp",
+   "E_FFD27A"
+  ],
+  "texture": "IK_D4_FloorLamp_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\floor-lamp.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\floor-lamp.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\floor-lamp_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\floor-lamp_close.png"
+  ],
+  "old": {
+   "tris": 694,
+   "footprint": [
+    0.27,
+    0.27,
+    1.74
+   ]
+  },
+  "secs": 14.8,
+  "date": "2026-10-22 19:10"
+ },
+ "giant-teddy": {
+  "name": "GiantTeddy",
+  "tris": 4888,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.446,
+   0.412,
+   1.375
+  ],
+  "size_xyz": [
+   0.893,
+   0.77,
+   1.383
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_GiantTeddy"
+  ],
+  "texture": "IK_D4_GiantTeddy_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\giant-teddy.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\giant-teddy.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\giant-teddy_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\giant-teddy_close.png"
+  ],
+  "old": null,
+  "secs": 6.5,
+  "date": "2026-10-22 19:11"
+ },
+ "claw-machine": {
+  "name": "ClawMachine",
+  "tris": 14374,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.49,
+   0.49,
+   2.25
+  ],
+  "size_xyz": [
+   0.98,
+   0.98,
+   2.25
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002",
+   "Anim Spin"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002",
+   "Anim Spin"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.0,
+    0.0,
+    2.215
+   ],
+   "Anim Blink.001": [
+    0.0,
+    0.0,
+    2.215
+   ],
+   "Anim Blink.002": [
+    0.0,
+    0.0,
+    2.215
+   ],
+   "Anim Spin": [
+    0.12,
+    -0.06,
+    1.76
+   ]
+  },
+  "materials": [
+   "T_IK_D4_ClawMachine",
+   "G_Glass",
+   "E_FFE9B0"
+  ],
+  "texture": "IK_D4_ClawMachine_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\claw-machine.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\claw-machine.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\claw-machine_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\claw-machine_close.png"
+  ],
+  "old": {
+   "tris": 20796,
+   "footprint": [
+    0.487,
+    0.493,
+    2.22
+   ]
+  },
+  "secs": 11.4,
+  "date": "2026-10-22 19:07"
+ },
+ "gazebo": {
+  "name": "Gazebo",
+  "tris": 13548,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.404,
+   1.49,
+   3.2
+  ],
+  "size_xyz": [
+   2.809,
+   2.894,
+   3.225
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.0,
+    0.0,
+    2.0
+   ],
+   "Anim Blink.001": [
+    0.0,
+    0.0,
+    2.0
+   ],
+   "Anim Blink.002": [
+    0.0,
+    0.0,
+    2.0
+   ]
+  },
+  "materials": [
+   "T_IK_D4_Gazebo",
+   "E_FFE4A0"
+  ],
+  "texture": "IK_D4_Gazebo_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\gazebo.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\gazebo.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\gazebo_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\gazebo_close.png"
+  ],
+  "old": null,
+  "secs": 4.6,
+  "date": "2026-10-22 19:11"
+ },
+ "vending-machine": {
+  "name": "VendingMachine",
+  "tris": 9956,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.45,
+   0.445,
+   1.952
+  ],
+  "size_xyz": [
+   0.9,
+   0.845,
+   1.952
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Blink.001"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Blink.001"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    -0.19,
+    0.414,
+    1.53
+   ],
+   "Anim Blink.001": [
+    -0.19,
+    0.412,
+    0.98
+   ]
+  },
+  "materials": [
+   "T_IK_D4_VendingMachine",
+   "E_FFF4DC",
+   "G_Glass"
+  ],
+  "texture": "IK_D4_VendingMachine_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\vending-machine.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\vending-machine.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\vending-machine_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\vending-machine_close.png"
+  ],
+  "old": {
+   "tris": 11018,
+   "footprint": [
+    0.45,
+    0.46,
+    1.93
+   ]
+  },
+  "secs": 9.0,
+  "date": "2026-10-22 19:08"
+ },
+ "fruit-pyramid": {
+  "name": "FruitPyramid",
+  "tris": 14244,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.66,
+   0.589,
+   1.14
+  ],
+  "size_xyz": [
+   1.32,
+   1.146,
+   1.142
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_FruitPyramid"
+  ],
+  "texture": "IK_D4_FruitPyramid_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\fruit-pyramid.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\fruit-pyramid.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\fruit-pyramid_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\fruit-pyramid_close.png"
+  ],
+  "old": null,
+  "secs": 2.3,
+  "date": "2026-10-22 19:11"
+ },
+ "promo-stand": {
+  "name": "PromoStand",
+  "tris": 7738,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.57,
+   0.445,
+   1.854
+  ],
+  "size_xyz": [
+   1.14,
+   0.865,
+   1.854
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.04,
+    1.715
+   ]
+  },
+  "materials": [
+   "T_IK_D4_PromoStand"
+  ],
+  "texture": "IK_D4_PromoStand_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\promo-stand.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\promo-stand.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\promo-stand_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\promo-stand_close.png"
+  ],
+  "old": {
+   "tris": 2708,
+   "footprint": [
+    0.79,
+    0.425,
+    1.78
+   ]
+  },
+  "secs": 5.2,
+  "date": "2026-10-22 19:10"
+ },
+ "party-tree": {
+  "name": "PartyTree",
+  "tris": 13506,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.5,
+   0.495,
+   2.29
+  ],
+  "size_xyz": [
+   0.972,
+   0.988,
+   2.297
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002",
+   "Anim Blink.003"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002",
+   "Anim Blink.003"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.0,
+    0.0,
+    1.2
+   ],
+   "Anim Blink.001": [
+    0.0,
+    0.0,
+    1.2
+   ],
+   "Anim Blink.002": [
+    0.0,
+    0.0,
+    1.2
+   ],
+   "Anim Blink.003": [
+    0.0,
+    0.0,
+    1.2
+   ]
+  },
+  "materials": [
+   "T_IK_D4_PartyTree",
+   "E_FFF1BE",
+   "E_FF86BE"
+  ],
+  "texture": "IK_D4_PartyTree_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\party-tree.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\party-tree.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\party-tree_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\party-tree_close.png"
+  ],
+  "old": null,
+  "secs": 4.7,
+  "date": "2026-10-22 19:11"
+ },
+ "bench": {
+  "name": "Bench",
+  "tris": 9556,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.78,
+   0.295,
+   1.049
+  ],
+  "size_xyz": [
+   1.56,
+   0.573,
+   1.049
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_Bench"
+  ],
+  "texture": "IK_D4_Bench_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\bench.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\bench.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\bench_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\bench_close.png"
+  ],
+  "old": {
+   "tris": 804,
+   "footprint": [
+    0.76,
+    0.244,
+    0.89
+   ]
+  },
+  "secs": 5.3,
+  "date": "2026-10-22 19:10"
+ },
+ "billboard": {
+  "name": "Billboard",
+  "tris": 9424,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.94,
+   0.29,
+   2.755
+  ],
+  "size_xyz": [
+   1.88,
+   0.4,
+   2.755
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.0,
+    0.1,
+    0.29
+   ]
+  },
+  "materials": [
+   "T_IK_D4_Billboard",
+   "E_FFF1C4"
+  ],
+  "texture": "IK_D4_Billboard_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\billboard.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\billboard.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\billboard_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\billboard_close.png"
+  ],
+  "old": {
+   "tris": 802,
+   "footprint": [
+    0.93,
+    0.296,
+    2.52
+   ]
+  },
+  "secs": 8.1,
+  "date": "2026-10-22 19:11"
+ },
+ "kiddie-ride": {
+  "name": "KiddieRide",
+  "tris": 5928,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.453,
+   0.613,
+   1.276
+  ],
+  "size_xyz": [
+   0.905,
+   1.225,
+   1.276
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Bob",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Bob",
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.32,
+    -0.43,
+    0.89
+   ],
+   "Anim Bob": [
+    0.0,
+    0.0,
+    0.52
+   ],
+   "Anim Sway": [
+    0.36,
+    -0.5,
+    1.25
+   ]
+  },
+  "materials": [
+   "T_IK_D4_KiddieRide",
+   "G_Glass",
+   "E_FFF1C4"
+  ],
+  "texture": "IK_D4_KiddieRide_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\kiddie-ride.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\kiddie-ride.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\kiddie-ride_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\kiddie-ride_close.png"
+  ],
+  "old": {
+   "tris": 4564,
+   "footprint": [
+    0.47,
+    0.62,
+    0.97
+   ]
+  },
+  "secs": 11.1,
+  "date": "2026-10-22 19:11"
+ },
+ "veggie-garden": {
+  "name": "VeggieGarden",
+  "tris": 13496,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.014,
+   0.568,
+   0.715
+  ],
+  "size_xyz": [
+   2.013,
+   1.075,
+   0.715
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway",
+   "Anim Sway.001",
+   "Anim Sway.002"
+  ],
+  "anim": [
+   "Anim Sway",
+   "Anim Sway.001",
+   "Anim Sway.002"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    0.2,
+    0.2,
+    0.2
+   ],
+   "Anim Sway.001": [
+    0.5,
+    -0.18,
+    0.2
+   ],
+   "Anim Sway.002": [
+    0.8,
+    0.17,
+    0.2
+   ]
+  },
+  "materials": [
+   "T_IK_D4_VeggieGarden"
+  ],
+  "texture": "IK_D4_VeggieGarden_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\veggie-garden.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\veggie-garden.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\veggie-garden_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\veggie-garden_close.png"
+  ],
+  "old": null,
+  "secs": 3.4,
+  "date": "2026-10-22 19:11"
+ },
+ "tasting-table": {
+  "name": "TastingTable",
+  "tris": 9336,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.718,
+   0.428,
+   0.959
+  ],
+  "size_xyz": [
+   1.435,
+   0.856,
+   0.959
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_TastingTable",
+   "G_Glass"
+  ],
+  "texture": "IK_D4_TastingTable_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\tasting-table.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\tasting-table.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\tasting-table_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\tasting-table_close.png"
+  ],
+  "old": null,
+  "secs": 20.2,
+  "date": "2026-10-22 19:11"
+ },
+ "aquarium": {
+  "name": "Aquarium",
+  "tris": 9882,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.444,
+   0.444,
+   1.718
+  ],
+  "size_xyz": [
+   0.888,
+   0.888,
+   1.718
+  ],
+  "objects": [
+   "Body",
+   "Anim Bob",
+   "Anim Spin",
+   "Anim Sway",
+   "Anim Sway.001",
+   "Anim Sway.002"
+  ],
+  "anim": [
+   "Anim Bob",
+   "Anim Spin",
+   "Anim Sway",
+   "Anim Sway.001",
+   "Anim Sway.002"
+  ],
+  "pivots": {
+   "Anim Bob": [
+    0.12,
+    0.17,
+    1.0
+   ],
+   "Anim Spin": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "Anim Sway": [
+    -0.21,
+    0.06,
+    0.635
+   ],
+   "Anim Sway.001": [
+    0.22,
+    0.0,
+    0.635
+   ],
+   "Anim Sway.002": [
+    0.14,
+    0.2,
+    0.635
+   ]
+  },
+  "materials": [
+   "T_IK_D4_Aquarium",
+   "G_Glass",
+   "E_DFF6FF"
+  ],
+  "texture": "IK_D4_Aquarium_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\aquarium.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\aquarium.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\aquarium_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\aquarium_close.png"
+  ],
+  "old": null,
+  "secs": 6.9,
+  "date": "2026-10-22 19:11"
+ },
+ "carousel": {
+  "name": "Carousel",
+  "tris": 14944,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.29,
+   1.29,
+   2.595
+  ],
+  "size_xyz": [
+   2.58,
+   2.58,
+   2.595
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Spin"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Spin"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.0,
+    0.0,
+    0.1
+   ],
+   "Anim Blink.001": [
+    0.0,
+    0.0,
+    0.1
+   ],
+   "Anim Spin": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "materials": [
+   "T_IK_D4_Carousel",
+   "E_FFE4A0"
+  ],
+  "texture": "IK_D4_Carousel_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\carousel.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\carousel.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\carousel_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\carousel_close.png"
+  ],
+  "old": null,
+  "secs": 7.1,
+  "date": "2026-10-22 19:11"
+ },
+ "water-cooler": {
+  "name": "WaterCooler",
+  "tris": 3510,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.218,
+   0.206,
+   1.695
+  ],
+  "size_xyz": [
+   0.378,
+   0.356,
+   1.695
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink"
+  ],
+  "anim": [
+   "Anim Blink"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.095,
+    0.164,
+    0.86
+   ]
+  },
+  "materials": [
+   "T_IK_D4_WaterCooler",
+   "E_7CF2A0"
+  ],
+  "texture": "IK_D4_WaterCooler_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\water-cooler.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\water-cooler.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\water-cooler_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\water-cooler_close.png"
+  ],
+  "old": {
+   "tris": 880,
+   "footprint": [
+    0.18,
+    0.245,
+    1.48
+   ]
+  },
+  "secs": 12.1,
+  "date": "2026-10-22 19:10"
+ },
+ "parasol-table": {
+  "name": "ParasolTable",
+  "tris": 13868,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.001,
+   1.002,
+   2.504
+  ],
+  "size_xyz": [
+   2.002,
+   2.003,
+   2.505
+  ],
+  "objects": [
+   "Body",
+   "Anim Sway"
+  ],
+  "anim": [
+   "Anim Sway"
+  ],
+  "pivots": {
+   "Anim Sway": [
+    -0.02,
+    -0.08,
+    0.9
+   ]
+  },
+  "materials": [
+   "T_IK_D4_ParasolTable"
+  ],
+  "texture": "IK_D4_ParasolTable_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\parasol-table.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\parasol-table.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\parasol-table_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\parasol-table_close.png"
+  ],
+  "old": {
+   "tris": 1268,
+   "footprint": [
+    1.02,
+    1.02,
+    2.555
+   ]
+  },
+  "secs": 3.7,
+  "date": "2026-10-22 19:11"
+ },
+ "coffee-kiosk": {
+  "name": "CoffeeKiosk",
+  "tris": 14436,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.13,
+   0.7,
+   3.14
+  ],
+  "size_xyz": [
+   2.26,
+   1.21,
+   3.187
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink"
+  ],
+  "anim": [
+   "Anim Blink"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.0,
+    0.66,
+    2.0
+   ]
+  },
+  "materials": [
+   "T_IK_D4_CoffeeKiosk",
+   "E_FFE6A8",
+   "G_Glass"
+  ],
+  "texture": "IK_D4_CoffeeKiosk_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\coffee-kiosk.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\coffee-kiosk.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\coffee-kiosk_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\coffee-kiosk_close.png"
+  ],
+  "old": {
+   "tris": 10324,
+   "footprint": [
+    1.11,
+    0.925,
+    3.13
+   ]
+  },
+  "secs": 5.4,
+  "date": "2026-10-22 19:24"
+ },
+ "photo-booth": {
+  "name": "PhotoBooth",
+  "tris": 7552,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.495,
+   0.517,
+   2.187
+  ],
+  "size_xyz": [
+   0.989,
+   1.014,
+   2.187
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002",
+   "Anim Curtain"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002",
+   "Anim Curtain"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.0,
+    0.0,
+    2.17
+   ],
+   "Anim Blink.001": [
+    0.0,
+    0.0,
+    2.17
+   ],
+   "Anim Blink.002": [
+    0.0,
+    0.0,
+    2.17
+   ],
+   "Anim Curtain": [
+    -0.44,
+    0.44,
+    1.86
+   ]
+  },
+  "materials": [
+   "T_IK_D4_PhotoBooth",
+   "E_FFE9B0"
+  ],
+  "texture": "IK_D4_PhotoBooth_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\photo-booth.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\photo-booth.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\photo-booth_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\photo-booth_close.png"
+  ],
+  "old": {
+   "tris": 4008,
+   "footprint": [
+    0.5,
+    0.534,
+    2.156
+   ]
+  },
+  "secs": 14.2,
+  "date": "2026-10-22 19:07"
+ },
+ "atm": {
+  "name": "Atm",
+  "tris": 6260,
+  "budget": 10000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.37,
+   0.42,
+   1.97
+  ],
+  "size_xyz": [
+   0.74,
+   0.765,
+   1.97
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_Atm",
+   "E_7CE08A",
+   "E_FFF1C8"
+  ],
+  "texture": "IK_D4_Atm_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\atm.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\atm.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\atm_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\atm_close.png"
+  ],
+  "old": {
+   "tris": 3492,
+   "footprint": [
+    0.37,
+    0.48,
+    1.92
+   ]
+  },
+  "secs": 14.1,
+  "date": "2026-10-22 19:07"
+ },
+ "festoon-pergola": {
+  "name": "FestoonPergola",
+  "tris": 14226,
+  "budget": 15000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   1.331,
+   1.232,
+   2.659
+  ],
+  "size_xyz": [
+   2.662,
+   2.463,
+   2.659
+  ],
+  "objects": [
+   "Body",
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002"
+  ],
+  "anim": [
+   "Anim Blink",
+   "Anim Blink.001",
+   "Anim Blink.002"
+  ],
+  "pivots": {
+   "Anim Blink": [
+    0.0,
+    -0.7,
+    2.05
+   ],
+   "Anim Blink.001": [
+    0.0,
+    0.0,
+    2.05
+   ],
+   "Anim Blink.002": [
+    0.0,
+    0.7,
+    2.05
+   ]
+  },
+  "materials": [
+   "T_IK_D4_FestoonPergola",
+   "E_FFD98A",
+   "E_FFE6A8"
+  ],
+  "texture": "IK_D4_FestoonPergola_albedo.png",
+  "texture_size": 1024,
+  "fbx": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\fbx\\festoon-pergola.fbx",
+  "thumb": "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\thumbs\\festoon-pergola.png",
+  "previews": [
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\festoon-pergola_game.png",
+   "C:\\Checkout-mobile\\unity\\CheckoutSimulator\\ArtSource\\decor_v4\\previews\\festoon-pergola_close.png"
+  ],
+  "old": {
+   "tris": 7144,
+   "footprint": [
+    1.35,
+    1.27,
+    2.64
+   ]
+  },
+  "secs": 4.7,
+  "date": "2026-10-22 19:22"
+ }
+}

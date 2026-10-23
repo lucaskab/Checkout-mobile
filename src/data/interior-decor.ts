@@ -23,6 +23,17 @@ export const interiorDecor: InteriorDecorDefinition[] = [
 	{ id: "vending-machine", name: "Máquina de bebidas", description: "Melhoria: 1 em cada 5 clientes compra uma bebida gelada (+4 moedas cada, mais nos níveis altos). Dentro ou fora do mercado. Até 3 máquinas.", coinPrice: 7_500, requiredLevel: 11, zone: "both", effect: { play: { chance: 0.2, coins: 4, maxPlaced: 3 } } },
 	{ id: "photo-booth", name: "Cabine de fotos", description: "Melhoria: 1 em cada 8 clientes tira fotos na cabine (+9 moedas cada, mais nos níveis altos). Dentro ou fora do mercado. Até 2 cabines.", diamondPrice: 30, requiredLevel: 18, zone: "both", effect: { play: { chance: 0.125, coins: 9, maxPlaced: 2 } } },
 	{ id: "digital-totem", name: "Totem digital", description: "Tela de ofertas animada.", diamondPrice: 30, requiredLevel: 26, zone: "inside" },
+	// Decor v4 (22/10/2026): new inside decorations (coins and diamonds).
+	{ id: "umbrella-stand", name: "Porta-guarda-chuvas", description: "Balde de latão com guarda-chuvas coloridos.", coinPrice: 900, requiredLevel: 2, zone: "inside" },
+	{ id: "monstera", name: "Costela-de-adão", description: "Folhonas recortadas num vaso de cerâmica.", coinPrice: 1_400, requiredLevel: 3, zone: "inside" },
+	{ id: "can-pyramid", name: "Pirâmide de latas", description: "Latas empilhadas em promoção, com faixa colorida.", coinPrice: 2_400, requiredLevel: 7, zone: "inside" },
+	{ id: "fruit-pyramid", name: "Pirâmide de frutas", description: "Caixotes de maçãs, laranjas e limões em degraus.", coinPrice: 3_200, requiredLevel: 9, zone: "inside" },
+	{ id: "tasting-table", name: "Mesa de degustação", description: "Queijos, pães e uvas para provar.", coinPrice: 3_600, requiredLevel: 14, zone: "inside" },
+	{ id: "wine-barrel", name: "Barril de vinhos", description: "Barril de carvalho com garrafas e taças.", coinPrice: 4_500, requiredLevel: 18, zone: "inside" },
+	{ id: "neon-cart", name: "Neon de carrinho", description: "Carrinho de compras em neon que pisca.", diamondPrice: 20, requiredLevel: 10, zone: "inside" },
+	{ id: "giant-teddy", name: "Ursão de pelúcia", description: "Ursão gigante de laço, a alegria da criançada.", diamondPrice: 25, requiredLevel: 12, zone: "inside" },
+	{ id: "party-tree", name: "Árvore de festa", description: "Árvore enfeitada com bolas e luzinhas piscando.", diamondPrice: 30, requiredLevel: 15, zone: "inside" },
+	{ id: "aquarium", name: "Aquário", description: "Peixinhos coloridos nadando entre plantas.", diamondPrice: 40, requiredLevel: 20, zone: "inside" },
 	// Outside the market: the plaza and footways of the city block.
 	{ id: "flower-bed", name: "Canteiro de flores", description: "Floreira comprida para a calçada.", coinPrice: 1_500, requiredLevel: 1, zone: "outside" },
 	{ id: "bike-rack", name: "Bicicletário", description: "Vagas para as bicicletas dos clientes.", coinPrice: 1_200, requiredLevel: 3, zone: "outside" },
@@ -38,6 +49,17 @@ export const interiorDecor: InteriorDecorDefinition[] = [
 	{ id: "coffee-kiosk", name: "Quiosque de café", description: "Melhoria: 1 em cada 4 clientes leva um café e um docinho (+5 moedas cada, mais nos níveis altos). Até 2 quiosques.", coinPrice: 12_000, requiredLevel: 15, zone: "outside", effect: { play: { chance: 0.25, coins: 5, maxPlaced: 2 } } },
 	{ id: "festoon-pergola", name: "Pérgola com luzes", description: "Varal de lâmpadas sobre a praça.", coinPrice: 6_500, requiredLevel: 12, zone: "outside" },
 	{ id: "kiddie-ride", name: "Carrinho de mola", description: "Brinquedo para a criançada.", diamondPrice: 35, requiredLevel: 25, zone: "outside" },
+	// Decor v4 (22/10/2026): new plaza decorations.
+	{ id: "picket-fence", name: "Cerquinha florida", description: "Cerca de madeira branca com flores.", coinPrice: 900, requiredLevel: 1, zone: "outside" },
+	{ id: "hedge-planter", name: "Jardineira com cerca viva", description: "Arbusto podadinho numa jardineira de madeira.", coinPrice: 1_600, requiredLevel: 2, zone: "outside" },
+	{ id: "bird-bath", name: "Bebedouro de passarinhos", description: "Pedra entalhada com passarinhos.", coinPrice: 1_300, requiredLevel: 4, zone: "outside" },
+	{ id: "picnic-table", name: "Mesa de piquenique", description: "Mesa de madeira com toalha xadrez.", coinPrice: 2_400, requiredLevel: 5, zone: "outside" },
+	{ id: "veggie-garden", name: "Horta", description: "Canteiros com alface, cenoura e tomate.", coinPrice: 2_800, requiredLevel: 8, zone: "outside" },
+	{ id: "swing-set", name: "Balanço", description: "Balanço de madeira para a criançada.", coinPrice: 6_000, requiredLevel: 13, zone: "outside" },
+	{ id: "hotdog-cart", name: "Carrinho de cachorro-quente", description: "Salsichas na chapa e guarda-sol listrado.", coinPrice: 5_500, requiredLevel: 16, zone: "outside" },
+	{ id: "topiary-animal", name: "Arbusto em forma de bicho", description: "Um elefantinho podado com capricho.", diamondPrice: 30, requiredLevel: 16, zone: "outside" },
+	{ id: "gazebo", name: "Coreto", description: "Coreto de ferro e madeira com luzinhas.", diamondPrice: 50, requiredLevel: 22, zone: "outside" },
+	{ id: "carousel", name: "Mini carrossel", description: "Carrossel de cavalinhos que gira.", diamondPrice: 60, requiredLevel: 24, zone: "outside" },
 ];
 
 export const functionalInteriorTypes = ["shelf", "sector", "checkout", "kiosk"] as const;
