@@ -59,6 +59,8 @@ public static class CheckoutIphoneBuild
         PlayerSettings.iOS.sdkVersion = iOSSdkVersion.DeviceSDK;
         PlayerSettings.iOS.targetOSVersionString = "16.4";
         PlayerSettings.iOS.appleEnableAutomaticSigning = true;
+        // iPhone only for the first release: an iPad build would need its own set of App Store screenshots.
+        PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneOnly;
         PlayerSettings.productName = "Checkout";
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
         PlayerSettings.allowedAutorotateToLandscapeLeft = true; PlayerSettings.allowedAutorotateToLandscapeRight = true;

@@ -133,6 +133,8 @@ namespace Checkout {
    // QA runs play a fresh copy of the player's save (they switch stages with the dev tools).
    if(CheckoutStartMenu.QaMode){var qa=Path.Combine(Application.persistentDataPath,"checkout-qa-save.json");try{if(File.Exists(save))File.Copy(save,qa,true);}catch{}save=qa;}
    start.EnvironmentVariables["CHECKOUT_DESKTOP_SAVE"]=save;
+   // App Store screenshots: no Dev tab in the HUD (the dev actions that set up the market still work).
+   if(Application.isEditor&&File.Exists("Logs/store_shots.txt"))start.EnvironmentVariables["CHECKOUT_HIDE_DEV"]="1";
    // The language picked on the start screen: the host translates every page before sending it.
    start.EnvironmentVariables["CHECKOUT_LANG"]=CheckoutI18n.Language;
    try {process=Process.Start(start);}catch(Exception ex){Debug.LogError("CHECKOUT_DESKTOP could not start node: "+ex.Message);Destroy(this);return;}

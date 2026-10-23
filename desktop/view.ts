@@ -386,7 +386,10 @@ export function createDesktopView(
 		eventNegative: hasEvent ? event?.kind === "negative" : outcome?.kind === "negative",
 		boosts: boostViews(state, now),
 		// Release builds (scripts/release/build-host.ts) hide the Dev tab.
-		tools: tools.filter((tool) => tool.id !== "dev" || __DEV__).map((tool) => {
+		// App Store screenshots (CHECKOUT_HIDE_DEV, Unity "Store screenshots") hide it too, while the dev actions keep working.
+		tools: tools
+			.filter((tool) => tool.id !== "dev" || (__DEV__ && !(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.CHECKOUT_HIDE_DEV))
+			.map((tool) => {
 			const locked = state.market.level < tool.requiredLevel;
 			const stored = getStoredInteriorBuilds(state).length;
 			// Trucks waiting at the dock to be unloaded.

@@ -30,6 +30,8 @@ namespace Checkout
             var env = Environment.GetEnvironmentVariable("CHECKOUT_START");
             if (env == "play" || env == "edit") { Launch(bridge, env == "edit"); return; }
             try { QaMode = System.IO.File.Exists("Logs/autotest.txt") && System.IO.File.ReadAllText("Logs/autotest.txt").Contains("events"); } catch { QaMode = false; }
+            // App Store screenshots (Checkout/iPhone/Store screenshots): also on the QA copy of the save, straight into the game.
+            if (Application.isEditor && System.IO.File.Exists("Logs/store_shots.txt")) QaMode = true;
             if (QaMode) { Launch(bridge, false); return; }
             bridge.AddComponent<CheckoutStartMenu>().Build();
         }
