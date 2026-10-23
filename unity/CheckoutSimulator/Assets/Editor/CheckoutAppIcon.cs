@@ -41,8 +41,9 @@ public static class CheckoutAppIcon {
     // Store asks). Includes the 1024 marketing icon (IconKind.Store) that App Store Connect validates on upload.
     [MenuItem("Checkout/iPhone/Apply app icons")]
     public static void ApplyIos() {
-        var big = Load("app_icon_1024.png");
-        if (!big) { Debug.LogError("CHECKOUT_ICON missing " + Dir + "/app_icon_1024.png"); return; }
+        // Lucas 23/10: the iPhone has its own icon art (app_icon_ios_1024.png, RGB, no alpha).
+        var big = Load("app_icon_ios_1024.png");
+        if (!big) { Debug.LogError("CHECKOUT_ICON missing " + Dir + "/app_icon_ios_1024.png"); return; }
         foreach (var kind in new[] { IconKind.Application, IconKind.Spotlight, IconKind.Settings, IconKind.Notification, IconKind.Store }) {
             var sizes = PlayerSettings.GetIconSizes(NamedBuildTarget.iOS, kind);
             if (sizes == null || sizes.Length == 0) continue;
