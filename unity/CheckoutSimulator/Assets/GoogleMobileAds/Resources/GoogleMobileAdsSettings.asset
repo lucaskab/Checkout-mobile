@@ -18,7 +18,7 @@ MonoBehaviour:
   enableGradleBuildPreProcessor: 1
   disableOptimizeInitialization: 0
   disableOptimizeAdLoading: 0
-  userTrackingUsageDescription: Usamos este identificador para mostrar anúncios mais relevantes nos vídeos opcionais que dão diamantes.
+  userTrackingUsageDescription: 
   userLanguage: en
   overrideDefaultGmaAndroidSdk: 0
   selectedGmaAndroidSdk: 0

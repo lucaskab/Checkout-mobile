@@ -41,6 +41,9 @@ public static class CheckoutIosSignIn
         var plist = new PlistDocument();
         plist.ReadFromFile(plistPath);
         plist.root.SetBoolean("ITSAppUsesNonExemptEncryption", false);
+        // The game never asks for App Tracking Transparency (no IDFA): without the prompt text App Store Connect does not
+        // ask which data is used to track (23/10: the Google Mobile Ads settings had added it).
+        if (plist.root.values.ContainsKey("NSUserTrackingUsageDescription")) plist.root.values.Remove("NSUserTrackingUsageDescription");
         plist.WriteToFile(plistPath);
 
         // Unity 6.5 bug (issue 24512): UnityRuntime.framework keeps MinimumOSVersion 15.0 when the game targets a
