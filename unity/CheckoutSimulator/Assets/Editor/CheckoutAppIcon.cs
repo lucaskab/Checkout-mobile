@@ -37,6 +37,21 @@ public static class CheckoutAppIcon {
         Debug.Log("CHECKOUT_ICON done");
     }
 
+    // iPhone (23/10, TestFlight): every iOS icon slot gets the 1024 art (Unity scales it; RGB, no alpha, as the App
+    // Store asks). Includes the 1024 marketing icon (IconKind.Store) that App Store Connect validates on upload.
+    [MenuItem("Checkout/iPhone/Apply app icons")]
+    public static void ApplyIos() {
+        var big = Load("app_icon_1024.png");
+        if (!big) { Debug.LogError("CHECKOUT_ICON missing " + Dir + "/app_icon_1024.png"); return; }
+        foreach (var kind in new[] { IconKind.Application, IconKind.Spotlight, IconKind.Settings, IconKind.Notification, IconKind.Store }) {
+            var sizes = PlayerSettings.GetIconSizes(NamedBuildTarget.iOS, kind);
+            if (sizes == null || sizes.Length == 0) continue;
+            PlayerSettings.SetIcons(NamedBuildTarget.iOS, Enumerable.Repeat(big, sizes.Length).ToArray(), kind);
+        }
+        AssetDatabase.SaveAssets();
+        Debug.Log("CHECKOUT_ICON iOS done");
+    }
+
     // the tool runner only takes plain names (no parentheses): the Play build under a short name, icons first
     [MenuItem("Checkout/Android/Build AAB for Play")]
     public static void BuildForPlay() { Apply(); EditorApplication.ExecuteMenuItem("Checkout/Android/Build AAB (Google Play)"); }

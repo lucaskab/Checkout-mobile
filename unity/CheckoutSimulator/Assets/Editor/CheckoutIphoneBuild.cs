@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
@@ -29,6 +30,56 @@ public static class CheckoutIphoneBuild
         var project = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "builds", "iphone", "Unity-iPhone.xcodeproj"));
         if (!Directory.Exists(project)) throw new Exception("Gere o projeto primeiro: " + Menu);
         EditorUtility.OpenWithDefaultApp(project);
+    }
+
+    // ---- TestFlight / App Store (Lucas 23/10: paid Apple Developer account; only the Unity game ships, no React Native) ----
+    // Release build with the store bundle id (the same as the Android package), Boot scene first like the Android AAB,
+    // the app icon, a new build number every time and the signing team from Player Settings. Output:
+    // unity/builds/iphone-store/ -> Xcode: Product › Archive › Distribute App › App Store Connect.
+    public const string StoreBundleId = "com.lucasfurini.checkout";
+    const string StoreMenu = "Checkout/iPhone/Build for TestFlight";
+
+    [MenuItem(StoreMenu)]
+    public static void BuildForTestFlight()
+    {
+        if (EditorApplication.isPlaying) throw new InvalidOperationException("Saia do Play antes de gerar o build do iPhone.");
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS)
+            throw new Exception("Mude a plataforma para iOS (File › Build Profiles) antes de gerar o build do TestFlight.");
+        if (!File.Exists("Assets/Resources/CheckoutGame/game.txt"))
+            throw new Exception("Falta Assets/Resources/CheckoutGame/game.txt: rode  bun scripts/release/build-embedded.ts  na raiz do repositório.");
+        if (string.IsNullOrEmpty(PlayerSettings.iOS.appleDeveloperTeamID))
+            throw new Exception("Preencha o Team ID da conta paga em Player Settings › iOS › Other Settings › Signing Team ID.");
+        var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
+        if (scenes.Length < 2 || !scenes[0].EndsWith("/Boot.unity"))
+            throw new Exception("A lista de cenas precisa começar pela cena Boot (Assets/Scenes/Boot.unity) e depois a Supermarket.");
+        EditorSceneManager.SaveOpenScenes(); AssetDatabase.SaveAssets();
+
+        CheckoutAppIcon.ApplyIos();
+        PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.iOS, StoreBundleId);
+        PlayerSettings.iOS.sdkVersion = iOSSdkVersion.DeviceSDK;
+        PlayerSettings.iOS.targetOSVersionString = "16.4";
+        PlayerSettings.iOS.appleEnableAutomaticSigning = true;
+        PlayerSettings.productName = "Checkout";
+        PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
+        PlayerSettings.allowedAutorotateToLandscapeLeft = true; PlayerSettings.allowedAutorotateToLandscapeRight = true;
+        PlayerSettings.allowedAutorotateToPortrait = false; PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+        // App Store Connect refuses a build number it has already seen (for the same version).
+        int.TryParse(PlayerSettings.iOS.buildNumber, out var number);
+        PlayerSettings.iOS.buildNumber = (number + 1).ToString();
+        AssetDatabase.SaveAssets();
+
+        var out_ = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "builds", "iphone-store"));
+        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        {
+            scenes = scenes,
+            locationPathName = out_,
+            target = BuildTarget.iOS,
+            options = BuildOptions.None,
+            extraScriptingDefines = new[] { "CHECKOUT_EMBEDDED" },
+        });
+        if (report.summary.result != BuildResult.Succeeded) throw new Exception("Build do iPhone (TestFlight) falhou: " + report.summary.result);
+        Debug.Log($"CHECKOUT_IPHONE_STORE_OK {out_} (version {PlayerSettings.bundleVersion} build {PlayerSettings.iOS.buildNumber})");
+        EditorUtility.RevealInFinder(Path.Combine(out_, "Unity-iPhone.xcodeproj"));
     }
 
     [MenuItem(Menu)]
