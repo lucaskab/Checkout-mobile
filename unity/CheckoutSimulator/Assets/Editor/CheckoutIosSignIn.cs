@@ -42,6 +42,17 @@ public static class CheckoutIosSignIn
         plist.ReadFromFile(plistPath);
         plist.root.SetBoolean("ITSAppUsesNonExemptEncryption", false);
         plist.WriteToFile(plistPath);
+
+        // Unity 6.5 bug (issue 24512): UnityRuntime.framework keeps MinimumOSVersion 15.0 when the game targets a
+        // later iOS; App Store Connect rejects the upload (90208 "does not support the minimum OS Version").
+        var runtimePlist = System.IO.Path.Combine(path, "Frameworks", "UnityRuntime.framework", "Info.plist");
+        if (System.IO.File.Exists(runtimePlist))
+        {
+            var runtime = new PlistDocument();
+            runtime.ReadFromFile(runtimePlist);
+            runtime.root.SetString("MinimumOSVersion", PlayerSettings.iOS.targetOSVersionString);
+            runtime.WriteToFile(runtimePlist);
+        }
     }
 }
 #endif
