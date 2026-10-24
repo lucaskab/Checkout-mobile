@@ -102,10 +102,15 @@ namespace Checkout {
   // 30-60 s. Never right beside another arriving customer.
   public static readonly int[] ArrivalMisses=new int[4]; // QA: distance, off the NavMesh, crowded, no path
   static readonly List<Vector3> arrivalPool=new List<Vector3>();
+  /// <summary>When the market last opened (Time.time), set by CheckoutBridge.</summary>
+  public static float MarketOpenedAt=-999;
   bool ArrivalSpot(Vector3 entrance,out Vector3 spot){
    spot=entrance;var path=new NavMeshPath();
    bool hurry=Request!=null&&Request.status=="pending";
-   float min=hurry?15:25,max=hurry?25:45;
+   // Right after opening (Lucas 24/10: a long empty start felt like nothing happened) the first shoppers come from
+   // the nearest corners: they reach the shop in a few seconds instead of half a minute.
+   bool opening=Time.time-MarketOpenedAt<25;
+   float min=opening?8:hurry?15:25,max=opening?18:hurry?25:45;
    arrivalPool.Clear();
    var streets=FindAnyObjectByType<CheckoutCityStreets>();
    if(streets){if(streets.entrances!=null)arrivalPool.AddRange(streets.entrances);if(streets.patrolPoints!=null)arrivalPool.AddRange(streets.patrolPoints);}

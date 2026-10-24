@@ -3748,6 +3748,7 @@ const catalog: Catalog = {
 	"Gire esta massa e encaixe no lugar marcado.": "Turn this dough and fit it in the marked spot.",
 	"Esta massa vai no lugar marcado.": "This dough goes in the marked spot.",
 	"Esta massa está atrapalhando: tire e tente outro lugar.": "This dough is in the way: take it off and try another spot.",
+	"até {0} clientes por dia": "up to {0} customers a day",
 };
 
 export default catalog;

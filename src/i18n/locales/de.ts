@@ -3768,6 +3768,7 @@ const catalog: Catalog = {
 	"Gire esta massa e encaixe no lugar marcado.": "Dreh diesen Teigling und leg ihn an die markierte Stelle.",
 	"Esta massa vai no lugar marcado.": "Dieser Teigling gehört an die markierte Stelle.",
 	"Esta massa está atrapalhando: tire e tente outro lugar.": "Dieser Teigling ist im Weg: nimm ihn weg und probier eine andere Stelle.",
+	"até {0} clientes por dia": "bis zu {0} Kunden pro Tag",
 };
 
 export default catalog;

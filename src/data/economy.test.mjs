@@ -38,7 +38,10 @@ test("eras go from the sidewalk table to the chain, each one pricier, bigger and
 		expect(era.coinCost).toBeGreaterThan(previous.coinCost);
 		expect(era.targetDay).toBeGreaterThanOrEqual(previous.targetDay);
 		expect(era.productSlots).toBeGreaterThanOrEqual(previous.productSlots);
-		expect(era.ticketMultiplier).toBeGreaterThanOrEqual(previous.ticketMultiplier);
+		// More people every era. Baskets grow from the tent on: the first stalls trade a livelier crowd for small
+		// baskets (Lucas 24/10: no long empty gaps at the start), the sidewalk table is the one exception.
+		expect(era.maxCustomersPerTurn).toBeGreaterThanOrEqual(previous.maxCustomersPerTurn);
+		if (index >= 2) expect(era.ticketMultiplier).toBeGreaterThanOrEqual(previous.ticketMultiplier);
 		expect(era.buildDurationMs).toBeGreaterThanOrEqual(MIN_BUILD_MS);
 		expect(era.buildDurationMs).toBeLessThanOrEqual(MAX_BUILD_MS);
 	}

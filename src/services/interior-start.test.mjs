@@ -13,7 +13,8 @@ const { useGameStore } = await import("../stores/game-store.ts");
 const { createSimulatorSnapshot } = await import("./simulator-snapshot.ts");
 const { FREE_DAY_CONTRACT_ID } = await import("./market-day.ts");
 const { getWaitingInteriorPieces } = await import("../data/interior-decor.ts");
-const initial = JSON.stringify(useGameStore.getState());
+// The store's own starting state: bun shares modules between test files, so another file may have played already.
+const initial = JSON.stringify(useGameStore.getInitialState());
 beforeEach(() => useGameStore.setState(JSON.parse(initial)));
 afterAll(() => useGameStore.setState(JSON.parse(initial)));
 const game = () => useGameStore.getState();

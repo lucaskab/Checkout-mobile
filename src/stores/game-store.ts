@@ -3747,7 +3747,11 @@ export const useGameStore = create<GameStore>()(
 				}
 				const firstCustomer =
 					market.customersServed === 0 && market.recentCustomers.length === 0;
-				const nextCustomerDelay = firstCustomer
+				// Opening the shop (every day, not only the first one) brings someone in a few seconds: a long wait
+				// before the first customer made the start of each day feel like nothing was happening (Lucas 24/10).
+				const nextCustomerDelay = isOpening
+					? 3_000 + (Math.abs(market.randomSeed) % 2_000)
+					: firstCustomer
 					? 6_000
 					: getCustomerArrivalDelay(
 							market.level,

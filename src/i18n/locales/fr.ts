@@ -3761,6 +3761,7 @@ const catalog: Catalog = {
 	"Gire esta massa e encaixe no lugar marcado.": "Tournez ce pâton et placez-le à l'endroit indiqué.",
 	"Esta massa vai no lugar marcado.": "Ce pâton va à l'endroit indiqué.",
 	"Esta massa está atrapalhando: tire e tente outro lugar.": "Ce pâton gêne : retirez-le et essayez un autre endroit.",
+	"até {0} clientes por dia": "jusqu'à {0} clients par jour",
 };
 
 export default catalog;

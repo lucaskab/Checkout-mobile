@@ -3633,6 +3633,7 @@ const catalog: Catalog = {
 	"Gire esta massa e encaixe no lugar marcado.": "Gira esta masa y encájala en el lugar marcado.",
 	"Esta massa vai no lugar marcado.": "Esta masa va en el lugar marcado.",
 	"Esta massa está atrapalhando: tire e tente outro lugar.": "Esta masa estorba: quítala y prueba otro lugar.",
+	"até {0} clientes por dia": "hasta {0} clientes por día",
 };
 
 export default catalog;

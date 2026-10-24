@@ -9,7 +9,8 @@ import { missingLotsLine } from "./lots";
 const perks = (id: string) => {
 	const era = getMarketEra(id as never);
 	const parts = [
-		era.arrivalMultiplier !== 1 ? `clientes ×${era.arrivalMultiplier.toLocaleString("pt-BR")}` : "",
+		// How lively the shop gets: the cap of customers in a 5-minute day (maxCustomersPerTurn counts 10 minutes).
+		`até ${Math.round(era.maxCustomersPerTurn / 2)} clientes por dia`,
 		era.ticketMultiplier > 1 ? `cesta ×${era.ticketMultiplier.toLocaleString("pt-BR")}` : "",
 		era.offlineTurnsPerHour > 0
 			? `vende sozinho ${Math.round(getOfflineTurnsPerHour(era) * 100)}% de um turno por hora fora`
