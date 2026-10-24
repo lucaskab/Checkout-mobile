@@ -244,6 +244,11 @@ export type KitchenStep = {
 	tool: string;
 	/** Short fact shown when the step is done ("Ponto de véu!"). */
 	done: string;
+	/** Puzzle steps (kind "tray", CheckoutDesktopHUD.KitchenPuzzle.cs): the board in cells [columns, rows], the
+	 * pieces that may be dealt (ids of the puzzle's piece set) and how many 1×1 pieces at most (fewer = harder). */
+	grid: number[];
+	pieces: string[];
+	singles: number;
 };
 export type KitchenView = {
 	recipeId: string;
@@ -402,6 +407,9 @@ export function kstep(kind: string, title: string, hint: string, options: Partia
 		slow: 0,
 		tool: "",
 		done: "",
+		grid: [],
+		pieces: [],
+		singles: 0,
 		...options,
 	};
 }

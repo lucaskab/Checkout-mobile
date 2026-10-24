@@ -19,10 +19,7 @@ const item = (productId: number): KitchenItem => ({
 const extra = (name: string, label: string): KitchenItem => ({ icon: art(name), label });
 
 // Products used as ingredients.
-const FARINHA = 43;
-const MANTEIGA = 7;
 const LEITE = 5;
-const OVOS = 50;
 const CHOCOLATE = 24;
 
 const QUEIJO_PRATO = 6;
@@ -56,12 +53,6 @@ const FERMENTO_LACTEO = extra("kt_culture", "Fermento lácteo");
 const CLORETO = extra("kt_calcium", "Cloreto de cálcio");
 const COALHO = extra("kt_rennet", "Coalho");
 const MOFO = extra("kt_penicillium", "Mofo branco");
-const FERMENTO = extra("kt_yeast", "Fermento");
-const AGUA = extra("kt_water", "Água gelada");
-const SAL = extra("kt_salt", "Sal");
-
-/** Four slanted cuts along a loaf that fills the art from side to side. */
-const pestanas = [0.2, 0.4, 0.6, 0.8].flatMap((x) => [x - 0.07, 0.36, x + 0.07, 0.64]);
 
 /** Cut lines over the vat: four down, three across (cubes of about 1.5 cm). */
 const lira = [
@@ -258,149 +249,48 @@ const serve = (full: string) =>
 		done: "Geladinho!",
 	});
 
+/** The bakery puzzle: fill a tray of `grid` cells with the dealt doughs (pieces of the set in
+ * CheckoutDesktopHUD.KitchenPuzzle.cs: frances 1×1, forma 1×2, baguete 1×3, tranca 1×4, redondo 2×2). */
+function fornada(title: string, grid: [number, number], pieces: string[], singles: number, hint: string): KitchenStep {
+	return kstep("tray", title, hint, { grid, pieces, singles, done: "Assadeira cheia!" });
+}
+
+/** Into the oven: take it out when it is golden. */
+function forno(raw: string, baked: string, title: string, hint: string, minutes: number, done: string): KitchenStep {
+	return kstep("stop", title, hint, {
+		art: art(raw),
+		states: [art(baked)],
+		back: art("kt_oven"),
+		at: [0.5, 0.36],
+		gauge: "oven",
+		zone: [0.72, 0.88],
+		scale: [0, minutes],
+		unit: "min",
+		seconds: 7,
+		size: 300,
+		done,
+	});
+}
+
 const games: Record<string, () => KitchenStep[]> = {
 	// ------------------------------------------------------------ padaria
+	// The bakery is a packing puzzle (Lucas 24/10: "algo mais puzzle, que faça a pessoa pensar"): the doughs of the
+	// batch, each its own shape on the grid, must fill the baking tray with no gap — then into the oven. The three
+	// recipes are three levels: a bigger tray, longer loaves and fewer little rolls to plug the holes.
 	"baguete-rustica": () => [
-		kstep("add", "Misture os ingredientes", "Na ordem da padaria: farinha e fermento, a água gelada (segura a massa em 27 °C), o sal e por último a gordura.", {
-			art: art("kt_bowl"),
-			states: [art("kt_dough_rough")],
-			items: [item(FARINHA), FERMENTO, AGUA, SAL, item(MANTEIGA)],
-			size: 330,
-			done: "Massa misturada!",
-		}),
-		kstep("rub", "Sove a massa", "Esfregue a massa para os lados até ela ficar lisa e elástica: o ponto de véu, quando estica fininha sem rasgar.", {
-			art: art("kt_dough_rough"),
-			states: [art("kt_dough_smooth")],
-			count: 14,
-			size: 300,
-			done: "Ponto de véu!",
-		}),
-		kstep("stop", "Deixe crescer", "A massa descansa coberta, num lugar morno (~32 °C). Toque em PRONTO quando ela dobrar de tamanho: nem antes, nem depois.", {
-			art: art("kt_dough_smooth"),
-			states: [art("kt_dough_risen")],
-			gauge: "grow",
-			zone: [0.62, 0.8],
-			scale: [1, 2.4],
-			unit: "x",
-			seconds: 7,
-			size: 280,
-			done: "Dobrou de tamanho!",
-		}),
-		kstep("swipe", "Modele as baguetes", "Abra, enrole e alongue: arraste para os lados sobre a massa para esticá-la num bastão comprido.", {
-			art: art("kt_dough_risen"),
-			states: [art("kt_baguette_raw")],
-			dir: -1,
-			count: 6,
-			size: 300,
-			done: "Bem modelada!",
-		}),
-		kstep("cut", "Faça as pestanas", "Com a lâmina, corte rápido e inclinado sobre cada guia, de ponta a ponta. É esse corte que abre e vira a pestana crocante.", {
-			art: art("kt_baguette_raw"),
-			states: [art("kt_baguette_scored")],
-			lines: pestanas,
-			tool: art("kt_blade"),
-			size: 760,
-			done: "Pestanas perfeitas!",
-		}),
-		kstep("stop", "Asse com vapor", "Forno a 220 °C com vapor, uns 18 minutos. Tire quando a casca estiver bem dourada: cedo fica pálida, tarde queima.", {
-			art: art("kt_baguette_scored"),
-			states: [art("kt_baguette_baked")],
-			back: art("kt_oven"),
-			at: [0.5, 0.36],
-			gauge: "oven",
-			zone: [0.72, 0.88],
-			scale: [0, 18],
-			unit: "min",
-			seconds: 8,
-			size: 300,
-			done: "Casquinha crocante!",
-		}),
+		fornada("Monte a fornada", [4, 3], ["frances", "forma", "baguete"], 3,
+			"Arraste as massas para a assadeira até não sobrar nenhum buraco. Toque numa massa para girar."),
+		forno("kt_baguette_raw", "kt_baguette_baked", "Asse com vapor", "Forno a 220 °C com vapor, uns 18 minutos. Tire quando a casca estiver bem dourada: cedo fica pálida, tarde queima.", 18, "Casquinha crocante!"),
 	],
 	"croissant-premium": () => [
-		kstep("add", "Faça a massa", "Farinha, fermento, leite e uma pitada de sal na tigela.", {
-			art: art("kt_bowl"),
-			states: [art("kt_dough_rough")],
-			items: [item(FARINHA), FERMENTO, item(LEITE), SAL],
-			size: 330,
-			done: "Massa pronta para sovar!",
-		}),
-		kstep("rub", "Sove", "Sove até a massa ficar lisa.", {
-			art: art("kt_dough_rough"),
-			states: [art("kt_dough_smooth")],
-			count: 10,
-			size: 300,
-			done: "Lisinha!",
-		}),
-		kstep("add", "Coloque a manteiga", "Abra a massa e coloque a manteiga gelada no meio: ela vai virar as camadas folhadas.", {
-			art: art("kt_dough_sheet"),
-			items: [item(MANTEIGA)],
-			size: 420,
-			done: "Manteiga envelopada!",
-		}),
-		kstep("swipe", "Lamine em 3 dobras", "Estique a massa para cima e para baixo e dobre em três, três vezes. Cada dobra multiplica as camadas.", {
-			art: art("kt_dough_sheet"),
-			dir: 90,
-			count: 6,
-			size: 420,
-			done: "27 camadas de manteiga!",
-		}),
-		kstep("cut", "Corte os triângulos", "Corte a massa laminada em triângulos compridos seguindo as guias.", {
-			art: art("kt_dough_sheet"),
-			states: [art("kt_croissant_raw")],
-			lines: [0.08, 0.15, 0.3, 0.85, 0.3, 0.85, 0.52, 0.15, 0.52, 0.15, 0.74, 0.85, 0.74, 0.85, 0.92, 0.15],
-			tool: art("kt_blade"),
-			size: 420,
-			done: "Agora é só enrolar!",
-		}),
-		kstep("stop", "Asse", "Forno a 200 °C. Tire quando estiverem bem dourados e folhados.", {
-			art: art("kt_croissant_raw"),
-			states: [art("kt_croissant_baked")],
-			back: art("kt_oven"),
-			at: [0.5, 0.36],
-			gauge: "oven",
-			zone: [0.7, 0.86],
-			scale: [0, 20],
-			unit: "min",
-			seconds: 8,
-			size: 220,
-			done: "Folhados e dourados!",
-		}),
+		fornada("Monte a fornada", [5, 4], ["frances", "forma", "baguete", "redondo"], 2,
+			"Encaixe todas as massas na assadeira, sem buracos. Toque para girar; arraste uma massa já posta para tirá-la."),
+		forno("kt_croissant_raw", "kt_croissant_baked", "Asse", "Forno a 200 °C. Tire quando as camadas estiverem douradas e estufadas.", 16, "Folhado perfeito!"),
 	],
 	"bolo-de-vitrine": () => [
-		kstep("add", "Misture a massa", "Ovos, leite, farinha e o chocolate derretido na tigela.", {
-			art: art("kt_bowl"),
-			states: [art("kt_cake_batter")],
-			items: [item(OVOS), item(LEITE), item(FARINHA), item(CHOCOLATE)],
-			size: 330,
-			done: "Tudo na tigela!",
-		}),
-		kstep("rub", "Bata a massa", "Bata com o batedor até a massa ficar lisa e aerada, sem pelotas.", {
-			art: art("kt_cake_batter"),
-			tool: art("kt_whisk"),
-			count: 12,
-			size: 330,
-			done: "Massa fofinha!",
-		}),
-		kstep("stop", "Asse", "Forno a 180 °C. Tire quando o palito sair limpo: nem cru no meio, nem ressecado.", {
-			art: art("kt_cake_batter"),
-			states: [art("kt_cake_baked")],
-			back: art("kt_oven"),
-			at: [0.5, 0.36],
-			gauge: "oven",
-			zone: [0.66, 0.84],
-			scale: [0, 40],
-			unit: "min",
-			seconds: 9,
-			size: 230,
-			done: "Palito limpo!",
-		}),
-		kstep("tap", "Decore", "Toque em cada marca para pôr o chantilly e as cerejas.", {
-			art: art("kt_cake_baked"),
-			states: [art("kt_cake_done")],
-			spots: [0.5, 0.86, 0.79, 0.76, 0.88, 0.55, 0.74, 0.38, 0.5, 0.33, 0.26, 0.38, 0.12, 0.55, 0.21, 0.76],
-			size: 360,
-			done: "Pronto para a vitrine!",
-		}),
+		fornada("Monte a fornada", [6, 4], ["frances", "forma", "baguete", "tranca", "redondo"], 1,
+			"A fornada grande do dia: as massas compridas primeiro, os pãezinhos fecham os buracos. Toque para girar."),
+		forno("kt_cake_batter", "kt_cake_baked", "Asse", "Forno a 180 °C. Tire quando o palito sair limpo: nem cru no meio, nem ressecado.", 40, "Palito limpo!"),
 	],
 	// ------------------------------------------------------------ queijaria (Embrapa: queijo minas frescal)
 	"queijo-minas": () => cheeseMaking(4, [item(LEITE)], 38),

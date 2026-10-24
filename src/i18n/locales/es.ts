@@ -3621,6 +3621,18 @@ const catalog: Catalog = {
 	"Sem espaço na loja": "Sin espacio en la tienda",
 	"Mova ou guarde móveis e decorações no modo construir, ou cresça o mercado.": "Mueve o guarda muebles y decoraciones en el modo construcción, o haz crecer el mercado.",
 	"Organizar a loja": "Organizar la tienda",
+	"Monte a fornada": "Arma la hornada",
+	"Arraste as massas para a assadeira até não sobrar nenhum buraco. Toque numa massa para girar.": "Arrastra las masas a la bandeja hasta que no quede ningún hueco. Toca una masa para girarla.",
+	"Encaixe todas as massas na assadeira, sem buracos. Toque para girar; arraste uma massa já posta para tirá-la.": "Encaja todas las masas en la bandeja, sin huecos. Toca para girar; arrastra una masa ya puesta para quitarla.",
+	"A fornada grande do dia: as massas compridas primeiro, os pãezinhos fecham os buracos. Toque para girar.": "La gran hornada del día: primero las masas largas, los panecillos tapan los huecos. Toca para girar.",
+	"Assadeira cheia!": "¡Bandeja llena!",
+	"Forno a 200 °C. Tire quando as camadas estiverem douradas e estufadas.": "Horno a 200 °C. Sácalo cuando las capas estén doradas e infladas.",
+	"Folhado perfeito!": "¡Hojaldre perfecto!",
+	"Dica": "Pista",
+	"Movimentos: {0}  ·  ideal: {1}": "Movimientos: {0}  ·  ideal: {1}",
+	"Gire esta massa e encaixe no lugar marcado.": "Gira esta masa y encájala en el lugar marcado.",
+	"Esta massa vai no lugar marcado.": "Esta masa va en el lugar marcado.",
+	"Esta massa está atrapalhando: tire e tente outro lugar.": "Esta masa estorba: quítala y prueba otro lugar.",
 };
 
 export default catalog;

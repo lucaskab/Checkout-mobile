@@ -3736,6 +3736,18 @@ const catalog: Catalog = {
 	"Sem espaço na loja": "No room in the shop",
 	"Mova ou guarde móveis e decorações no modo construir, ou cresça o mercado.": "Move or store furniture and decorations in build mode, or grow the market.",
 	"Organizar a loja": "Arrange the shop",
+	"Monte a fornada": "Fill the baking tray",
+	"Arraste as massas para a assadeira até não sobrar nenhum buraco. Toque numa massa para girar.": "Drag the doughs onto the tray until there are no gaps left. Tap a dough to turn it.",
+	"Encaixe todas as massas na assadeira, sem buracos. Toque para girar; arraste uma massa já posta para tirá-la.": "Fit every dough on the tray with no gaps. Tap to turn; drag a placed dough to take it back.",
+	"A fornada grande do dia: as massas compridas primeiro, os pãezinhos fecham os buracos. Toque para girar.": "The big batch of the day: long doughs first, the little rolls fill the gaps. Tap to turn.",
+	"Assadeira cheia!": "Tray full!",
+	"Forno a 200 °C. Tire quando as camadas estiverem douradas e estufadas.": "Oven at 200 °C. Take it out when the layers are golden and puffed up.",
+	"Folhado perfeito!": "Perfect layers!",
+	"Dica": "Hint",
+	"Movimentos: {0}  ·  ideal: {1}": "Moves: {0}  ·  ideal: {1}",
+	"Gire esta massa e encaixe no lugar marcado.": "Turn this dough and fit it in the marked spot.",
+	"Esta massa vai no lugar marcado.": "This dough goes in the marked spot.",
+	"Esta massa está atrapalhando: tire e tente outro lugar.": "This dough is in the way: take it off and try another spot.",
 };
 
 export default catalog;

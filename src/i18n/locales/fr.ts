@@ -3749,6 +3749,18 @@ const catalog: Catalog = {
 	"Sem espaço na loja": "Pas de place dans la boutique",
 	"Mova ou guarde móveis e decorações no modo construir, ou cresça o mercado.": "Déplacez ou rangez meubles et décorations en mode construction, ou agrandissez le marché.",
 	"Organizar a loja": "Ranger la boutique",
+	"Monte a fornada": "Préparez la fournée",
+	"Arraste as massas para a assadeira até não sobrar nenhum buraco. Toque numa massa para girar.": "Glissez les pâtons sur la plaque jusqu'à ce qu'il ne reste aucun trou. Touchez un pâton pour le tourner.",
+	"Encaixe todas as massas na assadeira, sem buracos. Toque para girar; arraste uma massa já posta para tirá-la.": "Placez tous les pâtons sur la plaque, sans trous. Touchez pour tourner ; faites glisser un pâton posé pour le retirer.",
+	"A fornada grande do dia: as massas compridas primeiro, os pãezinhos fecham os buracos. Toque para girar.": "La grande fournée du jour : d'abord les pâtons longs, les petits pains bouchent les trous. Touchez pour tourner.",
+	"Assadeira cheia!": "Plaque pleine !",
+	"Forno a 200 °C. Tire quando as camadas estiverem douradas e estufadas.": "Four à 200 °C. Sortez-le quand les couches sont dorées et bien gonflées.",
+	"Folhado perfeito!": "Feuilletage parfait !",
+	"Dica": "Indice",
+	"Movimentos: {0}  ·  ideal: {1}": "Coups : {0}  ·  idéal : {1}",
+	"Gire esta massa e encaixe no lugar marcado.": "Tournez ce pâton et placez-le à l'endroit indiqué.",
+	"Esta massa vai no lugar marcado.": "Ce pâton va à l'endroit indiqué.",
+	"Esta massa está atrapalhando: tire e tente outro lugar.": "Ce pâton gêne : retirez-le et essayez un autre endroit.",
 };
 
 export default catalog;

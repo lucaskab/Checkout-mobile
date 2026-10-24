@@ -3756,6 +3756,18 @@ const catalog: Catalog = {
 	"Sem espaço na loja": "Kein Platz im Laden",
 	"Mova ou guarde móveis e decorações no modo construir, ou cresça o mercado.": "Verschiebe oder verstaue Möbel und Deko im Baumodus oder vergrößere den Markt.",
 	"Organizar a loja": "Laden einrichten",
+	"Monte a fornada": "Das Blech füllen",
+	"Arraste as massas para a assadeira até não sobrar nenhum buraco. Toque numa massa para girar.": "Zieh die Teiglinge aufs Blech, bis keine Lücke mehr bleibt. Tippe einen Teigling an, um ihn zu drehen.",
+	"Encaixe todas as massas na assadeira, sem buracos. Toque para girar; arraste uma massa já posta para tirá-la.": "Bring alle Teiglinge ohne Lücken aufs Blech. Tippen dreht; zieh einen gelegten Teigling weg, um ihn zurückzunehmen.",
+	"A fornada grande do dia: as massas compridas primeiro, os pãezinhos fecham os buracos. Toque para girar.": "Die große Tagesladung: zuerst die langen Teiglinge, die Brötchen füllen die Lücken. Tippen dreht.",
+	"Assadeira cheia!": "Blech voll!",
+	"Forno a 200 °C. Tire quando as camadas estiverem douradas e estufadas.": "Ofen auf 200 °C. Hol ihn raus, wenn die Schichten goldbraun und aufgegangen sind.",
+	"Folhado perfeito!": "Perfekter Blätterteig!",
+	"Dica": "Tipp",
+	"Movimentos: {0}  ·  ideal: {1}": "Züge: {0}  ·  ideal: {1}",
+	"Gire esta massa e encaixe no lugar marcado.": "Dreh diesen Teigling und leg ihn an die markierte Stelle.",
+	"Esta massa vai no lugar marcado.": "Dieser Teigling gehört an die markierte Stelle.",
+	"Esta massa está atrapalhando: tire e tente outro lugar.": "Dieser Teigling ist im Weg: nimm ihn weg und probier eine andere Stelle.",
 };
 
 export default catalog;

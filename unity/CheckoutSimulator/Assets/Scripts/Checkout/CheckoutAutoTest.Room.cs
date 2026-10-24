@@ -88,5 +88,23 @@ namespace Checkout {
    File.WriteAllLines("Logs/room_summary.txt",summary);
    roomEra=-1;var last=CheckoutInterior.Active;if(last)last.editing=false;
   }
+ // The bakery puzzle ("trayplay-<recipe>"): opens the recipe's tray step, shows it, places half the doughs the way the
+ // deal solves it, then the rest, and shoots each moment (Logs/at_tray_*.png).
+ IEnumerator TrayPlay(string request){
+  var recipe=request.Contains("-")?request.Substring(request.IndexOf('-')+1):"croissant-premium";
+  CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\"kitchen:"+recipe+":0\"}");
+  yield return new WaitForSecondsRealtime(3);
+  yield return Shot("tray_"+recipe+"_0");
+  var hud=FindAnyObjectByType<CheckoutDesktopHUD>();if(!hud){Note("no HUD");yield break;}
+  int placed=0;for(int i=0;i<3&&hud.QaTrayPlace();i++){placed++;yield return new WaitForSecondsRealtime(.5f);}
+  yield return Shot("tray_"+recipe+"_1");
+  while(hud.QaTrayPlace()){placed++;yield return new WaitForSecondsRealtime(.35f);}
+  yield return new WaitForSecondsRealtime(.6f);
+  yield return Shot("tray_"+recipe+"_2");
+  Note("tray "+recipe+" placed "+placed);
+  yield return new WaitForSecondsRealtime(2.5f);
+  yield return Shot("tray_"+recipe+"_3");
+  CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\"\"}");
+ }
  }
 }

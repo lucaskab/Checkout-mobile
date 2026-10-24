@@ -210,6 +210,8 @@ namespace Checkout {
   void KFinish(DesktopKitchenStep s){if(kNext&&kNext.enabled){kTarget.sprite=kNext.sprite;kNext.color=new Color(1,1,1,0);}}
 
   IEnumerator RunStep(DesktopKitchenStep s,int index){
+   // Puzzle steps draw their own board (CheckoutDesktopHUD.KitchenPuzzle.cs).
+   if(s.kind=="tray"){yield return StepTray(s);KitchenMeter(1);yield break;}
    KitchenTarget(s);
    kTarget.transform.localScale=Vector3.zero;yield return U.Scale(kTarget.transform,Vector3.one,.25f,true);
    switch(s.kind){
