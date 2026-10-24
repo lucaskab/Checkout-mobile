@@ -159,16 +159,18 @@ namespace Checkout {
     var hits=Physics.RaycastAll(o,Vector3.down,6).Where(h=>!OfPiece(h.transform)).OrderBy(h=>h.distance).ToArray();
     floorHits.Add(hits.Length>0?$"{hits[0].point.y:0.000}({hits[0].collider.name})":"none");
    }
-   // Without colliders: the flat parts of the shop model under the floor's centre (the slab and its boards).
+   // The shop model has no colliders: give its meshes temporary ones and drop rays on the floor (slab top).
    if(CheckoutStall.ShopInside){
-    var c0=floor.center;var flats=new List<string>();
-    foreach(var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)){
-     if(!r.enabled||!r.gameObject.activeInHierarchy)continue;var b=r.bounds;
-     if(b.size.y>.6f||b.min.x>c0.x||b.max.x<c0.x||b.min.z>c0.y||b.max.z<c0.y||b.max.y>gy+1.2f||b.max.y<gy-1)continue;
-     if(b.size.x<floor.width*.4f||b.size.z<floor.height*.4f)continue;
-     flats.Add($"{r.name}:{b.min.y:0.000}-{b.max.y:0.000}");
+    var model=FindObjectsByType<MeshFilter>(FindObjectsSortMode.None).Where(m=>m.gameObject.activeInHierarchy&&m.sharedMesh&&m.GetComponentsInParent<Transform>().Any(t=>t.name.StartsWith("Era"+CheckoutStall.Era+"_"))).ToList();
+    var temp=new List<MeshCollider>();foreach(var m in model){var mc=m.gameObject.AddComponent<MeshCollider>();mc.sharedMesh=m.sharedMesh;temp.Add(mc);}
+    Physics.SyncTransforms();var tops=new List<string>();
+    foreach(var f in new[]{new Vector2(.25f,.3f),new Vector2(.5f,.5f),new Vector2(.75f,.7f),new Vector2(.4f,.8f)}){
+     var o=new Vector3(Mathf.Lerp(floor.xMin,floor.xMax,f.x),gy+2.5f,Mathf.Lerp(floor.yMin,floor.yMax,f.y));
+     var hit=temp.Select(c=>c.Raycast(new Ray(o,Vector3.down),out var h,6)?h:(RaycastHit?)null).Where(h=>h.HasValue).Select(h=>h.Value).OrderBy(h=>h.distance).ToList();
+     tops.Add(hit.Count>0?string.Join(">",hit.Take(3).Select(h=>$"{h.point.y:0.000}({h.collider.name})")):"none");
     }
-    Note($"grid {stage} flat parts under the centre: {string.Join(" ",flats)}");
+    foreach(var mc in temp)Destroy(mc);
+    Note($"grid {stage} model meshes {model.Count}, floor surface: {string.Join(" ",tops)}");
    }
    var feet=inside.items.Values.Where(i=>i.root&&!i.outside).Select(i=>{var rs=i.root.GetComponentsInChildren<Renderer>();return rs.Length>0?rs.Min(r=>r.bounds.min.y):i.root.position.y;}).ToList();
    string feetText=feet.Count>0?$"min {feet.Min():0.000} max {feet.Max():0.000} roots {inside.items.Values.Where(i=>i.root&&!i.outside).Select(i=>i.root.position.y).DefaultIfEmpty(0).Min():0.000}":"no pieces";
