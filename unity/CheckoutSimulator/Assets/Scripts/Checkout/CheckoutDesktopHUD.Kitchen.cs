@@ -211,7 +211,9 @@ namespace Checkout {
 
   IEnumerator RunStep(DesktopKitchenStep s,int index){
    // Puzzle steps draw their own board (CheckoutDesktopHUD.KitchenPuzzle.cs).
-   if(s.kind=="tray"){yield return StepTray(s);KitchenMeter(1);yield break;}
+   IEnumerator puzzle=s.kind=="tray"?StepTray(s):s.kind=="aging"?StepAging(s):s.kind=="portions"?StepPortions(s):s.kind=="orders"?StepOrders(s)
+    :s.kind=="sort"?StepSort(s):s.kind=="scoops"?StepScoops(s):s.kind=="decant"?StepDecant(s):null;
+   if(puzzle!=null){yield return puzzle;KitchenMeter(1);yield break;}
    KitchenTarget(s);
    kTarget.transform.localScale=Vector3.zero;yield return U.Scale(kTarget.transform,Vector3.one,.25f,true);
    switch(s.kind){

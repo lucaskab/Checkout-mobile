@@ -106,5 +106,16 @@ namespace Checkout {
   yield return Shot("tray_"+recipe+"_3");
   CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\"\"}");
  }
+ // The sector puzzles ("kitchenshot-<recipe>.<recipe>…"): opens each recipe's first step and shoots it (Logs/at_kitchen_*.png).
+ IEnumerator KitchenShots(string request){
+  var recipes=request.Contains("-")?request.Substring(request.IndexOf('-')+1).Split('.'):new string[0];
+  foreach(var recipe in recipes){
+   CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\"kitchen:"+recipe+":0\"}");
+   yield return new WaitForSecondsRealtime(3.5f);
+   yield return Shot("kitchen_"+recipe);
+   CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\"\"}");
+   yield return new WaitForSecondsRealtime(1);
+  }
+ }
  }
 }
