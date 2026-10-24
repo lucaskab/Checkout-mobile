@@ -31,7 +31,7 @@ namespace Checkout {
    }
    float total=thick.Sum();var grams=thick.Select(t=>t/total*target*portions).ToArray();
 
-   float W=StageW,H=StageH;float width=W-140,height=Mathf.Min(170,H*.36f);var center=new Vector2(0,10);
+   float W=StageW,H=StageH;float width=W-140,height=Mathf.Min(170,H*(useArt?.44f:.36f));var center=new Vector2(0,10);
    float left=center.x-width/2;
    var columns=new List<Image>();var fats=new List<Image>();
    RawImage meatImage=null;float pxScale=0;
