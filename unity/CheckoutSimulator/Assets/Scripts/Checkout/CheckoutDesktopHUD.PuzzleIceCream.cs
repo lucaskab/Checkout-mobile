@@ -38,11 +38,12 @@ namespace Checkout {
     // The gelato freezer of the bench art: one tub per flavour in its slots; the cone in the stand on the right; the
     // order slip runs along the front of the freezer (Lucas 24/10: the flavours in real ice-cream-shop tubs).
     var stand=PBench(CheckoutPuzzleArt.ConeStand);
-    scoop=Mathf.Min(96,(H/2-stand.y-20)/(n*.8f+.3f));
+    // On a short (phone) bench the scoops overlap more, so a tall cone still fits above the stand.
+    scoop=Mathf.Min(96,(H/2-8-stand.y)/(n*.66f+.9f));
     coneAt=stand+new Vector2(0,scoop*.25f);
     var coneArt=K.Icon("Game/pz_cone");
     var cone=PImage(kitchenStage,"Cone",Color.white,0,coneAt,new Vector2(scoop*.95f,scoop*1.27f));if(coneArt!=null){cone.sprite=coneArt;cone.preserveAspect=true;}else cone.color=K.C("D9A05B");
-    for(int i=0;i<n;i++){var at=coneAt+new Vector2(0,scoop*.62f+i*scoop*.78f);slotAt.Add(at);slots.Add(PImage(kitchenStage,"Slot",new Color(1,1,1,.28f),(int)(scoop/2),at,new Vector2(scoop*.86f,scoop*.86f)));}
+    for(int i=0;i<n;i++){var at=coneAt+new Vector2(0,scoop*.6f+i*scoop*.66f);slotAt.Add(at);slots.Add(PImage(kitchenStage,"Slot",new Color(1,1,1,.28f),(int)(scoop/2),at,new Vector2(scoop*.86f,scoop*.86f)));}
     for(int f=0;f<n;f++){
      var r0=CheckoutPuzzleArt.TubSlots[f];var at=PBench(r0.center);var size=PBenchSize(r0.size);
      var tub=PImage(kitchenStage,"Tub",Color.white,0,at,size*1.02f);tub.sprite=K.Icon("Game/pz_tub_"+flavors[f]);tub.preserveAspect=true;
@@ -57,14 +58,14 @@ namespace Checkout {
      PHandle(tub.rectTransform,began,moved,ended,null);
      var inCone=PNode(r,"Grab",Vector2.zero,r.sizeDelta);PHandle(inCone,began,moved,ended,null);
     }
-    // The order slip: one card per clue along the steel front of the freezer.
-    var front=new Rect(60,40,920,170);var frontAt=PBench(front.center);var frontSize=PBenchSize(front.size);
-    var slip=PBoard("Order slip",frontAt,frontSize,"C99A5B","FFFDF6");
-    float cardW=Mathf.Min(170,(frontSize.x-24)/clues.Count-8),cardH=frontSize.y-22;
+    // The order slip: a tall card between the freezer and the cone stand, one row per clue.
+    var slipPx=new Rect(1000,30,225,840);var slipAt=PBench(slipPx.center);var slipSize=PBenchSize(slipPx.size);
+    var slip=PBoard("Order slip",slipAt,slipSize,"C99A5B","FFFDF6");
+    float rowH=Mathf.Min(104,(slipSize.y-20)/clues.Count),rowW=slipSize.x-14;
     for(int c=0;c<clues.Count;c++){
-     var x=(c-(clues.Count-1)/2f)*(cardW+8);var card=PNode(slip,"Clue",new Vector2(x,-2),new Vector2(cardW,cardH));
-     DrawClue(card,clues[c],flavors,n,cardH-8);
-     var tick=N.Image(card,"Tick",new Color(.85f,.85f,.85f,1),11);tick.rectTransform.sizeDelta=new Vector2(22,22);tick.rectTransform.anchoredPosition=new Vector2(cardW/2-15,cardH/2-15);ticks.Add(tick);
+     var y=(slipSize.y-20)/2-(c+.5f)*rowH;var row=PNode(slip,"Clue",new Vector2(0,y),new Vector2(rowW,rowH-6));
+     DrawClue(row,clues[c],flavors,n,rowH-10);
+     float t=Mathf.Clamp(rowH*.3f,16,24);var tick=N.Image(row,"Tick",new Color(.85f,.85f,.85f,1),(int)(t/2));tick.rectTransform.sizeDelta=new Vector2(t,t);tick.rectTransform.anchoredPosition=new Vector2(rowW/2-t/2-6,0);ticks.Add(tick);
     }
    }
    else{
