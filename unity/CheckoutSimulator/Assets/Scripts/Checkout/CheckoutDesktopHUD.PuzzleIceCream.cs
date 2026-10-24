@@ -28,35 +28,75 @@ namespace Checkout {
    var clues=MakeScoopClues(answer,n);
 
    float W=StageW,H=StageH;
-   // The cone (centre left): a waffle cone with n slots stacked on it.
-   float scoop=Mathf.Min(104,(H-50)/(n*.82f+1.05f));var coneAt=new Vector2(-W*.14f,-H/2+scoop*.75f+12);scoopMoves=0;
-   var cone=PImage(kitchenStage,"Cone",K.C("D9A05B"),10,coneAt,new Vector2(scoop*.95f,scoop*1.3f));
-   for(int k=0;k<4;k++){var line=N.Image(cone.transform,"Waffle",new Color(.55f,.33f,.12f,.5f),2);line.rectTransform.sizeDelta=new Vector2(4,scoop*1.4f);line.rectTransform.anchoredPosition=new Vector2((k-1.5f)*scoop*.22f,0);line.rectTransform.localRotation=Quaternion.Euler(0,0,30);}
+   bool useArt=K.Icon("Game/pz_bench_sorvetes")!=null&&flavors.All(f=>K.Icon("Game/pz_tub_"+f)!=null)&&n<=CheckoutPuzzleArt.TubSlots.Length;
+   float scoop;Vector2 coneAt;
    var slots=new List<Image>();var slotAt=new List<Vector2>();
-   for(int i=0;i<n;i++){var at=coneAt+new Vector2(0,scoop*.7f+i*scoop*.82f);slotAt.Add(at);slots.Add(PImage(kitchenStage,"Slot",new Color(.55f,.38f,.25f,.22f),(int)(scoop/2),at,new Vector2(scoop*.9f,scoop*.9f)));}
    var placed=new int[n];for(int i=0;i<n;i++)placed[i]=-1;
-   var scoopRects=new RectTransform[n];var homes=new Vector2[n];
-   // The tubs (a column on the left): one scoop of each flavour to take.
-   for(int f=0;f<n;f++){
-    homes[f]=new Vector2(-W/2+70,H/2-scoop*.62f-f*(H-40)/n);
-    var tub=PImage(kitchenStage,"Tub",K.C("C9D8E4"),14,homes[f]-new Vector2(0,scoop*.22f),new Vector2(scoop*1f,scoop*.55f));
-    var r=PNode(kitchenStage,"Scoop",homes[f],new Vector2(scoop*.9f,scoop*.9f));DrawScoop(r,flavors[f],scoop*.86f,f);
-    scoopRects[f]=r;int flavor=f;Vector2 grab=Vector2.zero;
-    PHandle(r,p=>{grab=r.anchoredPosition-p;r.SetAsLastSibling();kitchenPad.Interacted=true;Sound("pop",1.2f);},p=>r.anchoredPosition=p+grab*.5f,p=>ScoopDrop(flavor,placed,slots,slotAt,scoopRects,homes),null);
+   var scoopRects=new RectTransform[n];var homes=new Vector2[n];var looks=new CanvasGroup[n];int held=-1;scoopMoves=0;
+   var ticks=new List<Image>();
+   if(useArt){
+    // The gelato freezer of the bench art: one tub per flavour in its slots; the cone in the stand on the right; the
+    // order slip runs along the front of the freezer (Lucas 24/10: the flavours in real ice-cream-shop tubs).
+    var stand=PBench(CheckoutPuzzleArt.ConeStand);
+    scoop=Mathf.Min(96,(H/2-stand.y-20)/(n*.8f+.3f));
+    coneAt=stand+new Vector2(0,scoop*.25f);
+    var coneArt=K.Icon("Game/pz_cone");
+    var cone=PImage(kitchenStage,"Cone",Color.white,0,coneAt,new Vector2(scoop*.95f,scoop*1.27f));if(coneArt!=null){cone.sprite=coneArt;cone.preserveAspect=true;}else cone.color=K.C("D9A05B");
+    for(int i=0;i<n;i++){var at=coneAt+new Vector2(0,scoop*.62f+i*scoop*.78f);slotAt.Add(at);slots.Add(PImage(kitchenStage,"Slot",new Color(1,1,1,.28f),(int)(scoop/2),at,new Vector2(scoop*.86f,scoop*.86f)));}
+    for(int f=0;f<n;f++){
+     var r0=CheckoutPuzzleArt.TubSlots[f];var at=PBench(r0.center);var size=PBenchSize(r0.size);
+     var tub=PImage(kitchenStage,"Tub",Color.white,0,at,size*1.02f);tub.sprite=K.Icon("Game/pz_tub_"+flavors[f]);tub.preserveAspect=true;
+     homes[f]=at+new Vector2(0,size.y*.08f);
+     var r=PNode(kitchenStage,"Scoop",homes[f],new Vector2(scoop*.9f,scoop*.9f));DrawScoop(r,flavors[f],scoop*.86f,f);
+     looks[f]=r.gameObject.AddComponent<CanvasGroup>();looks[f].alpha=0;looks[f].blocksRaycasts=false;
+     scoopRects[f]=r;int flavor=f;
+     // Dragging starts on the tub (a scoop comes out of it) or on the scoop already in the cone.
+     System.Action<Vector2> began=p=>{held=flavor;r.anchoredPosition=p;r.SetAsLastSibling();looks[flavor].alpha=1;kitchenPad.Interacted=true;Sound("pop",1.2f);};
+     System.Action<Vector2> moved=p=>r.anchoredPosition=p;
+     System.Action<Vector2> ended=p=>{held=-1;ScoopDrop(flavor,placed,slots,slotAt,scoopRects,homes);};
+     PHandle(tub.rectTransform,began,moved,ended,null);
+     var inCone=PNode(r,"Grab",Vector2.zero,r.sizeDelta);PHandle(inCone,began,moved,ended,null);
+    }
+    // The order slip: one card per clue along the steel front of the freezer.
+    var front=new Rect(60,40,920,170);var frontAt=PBench(front.center);var frontSize=PBenchSize(front.size);
+    var slip=PBoard("Order slip",frontAt,frontSize,"C99A5B","FFFDF6");
+    float cardW=Mathf.Min(170,(frontSize.x-24)/clues.Count-8),cardH=frontSize.y-22;
+    for(int c=0;c<clues.Count;c++){
+     var x=(c-(clues.Count-1)/2f)*(cardW+8);var card=PNode(slip,"Clue",new Vector2(x,-2),new Vector2(cardW,cardH));
+     DrawClue(card,clues[c],flavors,n,cardH-8);
+     var tick=N.Image(card,"Tick",new Color(.85f,.85f,.85f,1),11);tick.rectTransform.sizeDelta=new Vector2(22,22);tick.rectTransform.anchoredPosition=new Vector2(cardW/2-15,cardH/2-15);ticks.Add(tick);
+    }
    }
-   // The order slip (right): the clues as little pictures, each with a tick.
-   float slipW=Mathf.Min(W*.42f,520);var slipAt=new Vector2(W/2-slipW/2-20,0);
-   var slip=PBoard("Order slip",slipAt,new Vector2(slipW,H-40),"C99A5B","FFFDF6");
-   float rowH=Mathf.Min(104,(H-80)/clues.Count);var ticks=new List<Image>();
-   for(int c=0;c<clues.Count;c++){
-    var y=(H-40)/2-30-(c+.5f)*rowH;var row=PNode(slip,"Clue",new Vector2(0,y),new Vector2(slipW-30,rowH-8));
-    DrawClue(row,clues[c],flavors,n,rowH-12);
-    var tick=N.Image(row,"Tick",new Color(.85f,.85f,.85f,1),14);tick.rectTransform.sizeDelta=new Vector2(28,28);tick.rectTransform.anchoredPosition=new Vector2(slipW/2-40,0);ticks.Add(tick);
+   else{
+    // The cone (centre left): a waffle cone with n slots stacked on it.
+    scoop=Mathf.Min(104,(H-50)/(n*.82f+1.05f));coneAt=new Vector2(-W*.14f,-H/2+scoop*.75f+12);
+    var cone=PImage(kitchenStage,"Cone",K.C("D9A05B"),10,coneAt,new Vector2(scoop*.95f,scoop*1.3f));
+    for(int k=0;k<4;k++){var line=N.Image(cone.transform,"Waffle",new Color(.55f,.33f,.12f,.5f),2);line.rectTransform.sizeDelta=new Vector2(4,scoop*1.4f);line.rectTransform.anchoredPosition=new Vector2((k-1.5f)*scoop*.22f,0);line.rectTransform.localRotation=Quaternion.Euler(0,0,30);}
+    for(int i=0;i<n;i++){var at=coneAt+new Vector2(0,scoop*.7f+i*scoop*.82f);slotAt.Add(at);slots.Add(PImage(kitchenStage,"Slot",new Color(.55f,.38f,.25f,.22f),(int)(scoop/2),at,new Vector2(scoop*.9f,scoop*.9f)));}
+    // The tubs (a column on the left): one scoop of each flavour to take.
+    for(int f=0;f<n;f++){
+     homes[f]=new Vector2(-W/2+70,H/2-scoop*.62f-f*(H-40)/n);
+     var tub=PImage(kitchenStage,"Tub",K.C("C9D8E4"),14,homes[f]-new Vector2(0,scoop*.22f),new Vector2(scoop*1f,scoop*.55f));
+     var r=PNode(kitchenStage,"Scoop",homes[f],new Vector2(scoop*.9f,scoop*.9f));DrawScoop(r,flavors[f],scoop*.86f,f);
+     scoopRects[f]=r;int flavor=f;Vector2 grab=Vector2.zero;
+     PHandle(r,p=>{grab=r.anchoredPosition-p;r.SetAsLastSibling();kitchenPad.Interacted=true;Sound("pop",1.2f);},p=>r.anchoredPosition=p+grab*.5f,p=>ScoopDrop(flavor,placed,slots,slotAt,scoopRects,homes),null);
+    }
+    // The order slip (right): the clues as little pictures, each with a tick.
+    float slipW=Mathf.Min(W*.42f,520);var slipAt=new Vector2(W/2-slipW/2-20,0);
+    var slip=PBoard("Order slip",slipAt,new Vector2(slipW,H-40),"C99A5B","FFFDF6");
+    float rowH=Mathf.Min(104,(H-80)/clues.Count);
+    for(int c=0;c<clues.Count;c++){
+     var y=(H-40)/2-30-(c+.5f)*rowH;var row=PNode(slip,"Clue",new Vector2(0,y),new Vector2(slipW-30,rowH-8));
+     DrawClue(row,clues[c],flavors,n,rowH-12);
+     var tick=N.Image(row,"Tick",new Color(.85f,.85f,.85f,1),14);tick.rectTransform.sizeDelta=new Vector2(28,28);tick.rectTransform.anchoredPosition=new Vector2(slipW/2-40,0);ticks.Add(tick);
+    }
    }
    var moveText=PMoves(new Vector2(-W*.2f,-H/2+14),300);moveText.gameObject.SetActive(false);
    var hand=KHint(()=>scoopRects[0]?scoopRects[0].anchoredPosition:Vector2.zero,()=>slotAt[0]);
    while(true){
     if(kitchenPad.Interacted&&hand)Destroy(hand);
+    // A scoop back in its tub disappears into it (the art version takes the scoops out of the tubs).
+    for(int f=0;f<n;f++)if(looks[f]){bool shown=held==f||System.Array.IndexOf(placed,f)>=0;looks[f].alpha=Mathf.MoveTowards(looks[f].alpha,shown?1:0,Time.unscaledDeltaTime*6);looks[f].blocksRaycasts=shown;}
     int ok=0;for(int c=0;c<clues.Count;c++){bool good=placed.All(x=>x>=0)?ClueHolds(clues[c],placed):CluePossible(clues[c],placed);bool full=ClueDecided(clues[c],placed);
      ticks[c].color=full&&good?K.C("4F9A2E"):full?K.C("D8462A"):new Color(.85f,.85f,.85f,1);if(full&&good)ok++;}
     KitchenMeter(ok/(float)clues.Count);
@@ -127,7 +167,7 @@ namespace Checkout {
   void DrawClue(RectTransform row,ScoopClue c,string[] flavors,int n,float h){
    var back=N.Image(row,"Back",new Color(.96f,.92f,.84f,1),12);back.rectTransform.sizeDelta=row.sizeDelta;
    float d=Mathf.Min(h/(c.kind==0||c.kind==3?n*.52f+.7f:2.2f),58);
-   float x=-row.sizeDelta.x/2+60;
+   float x=-row.sizeDelta.x/2+Mathf.Min(60,row.sizeDelta.x*.3f);
    if(c.kind==0||c.kind==3){
     var mini=N.Node("Mini cone",row);mini.anchoredPosition=new Vector2(x,0);
     var cone=N.Image(mini,"Cone",K.C("D9A05B"),6);cone.rectTransform.sizeDelta=new Vector2(d*.8f,d);cone.rectTransform.anchoredPosition=new Vector2(0,-h/2+d*.5f);

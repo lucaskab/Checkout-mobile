@@ -14,6 +14,7 @@ namespace Checkout {
  // or the second is full. Get the asked amount into any vessel. The classic decanting puzzle; a solver picks a deal with a
  // fitting number of pours for the level and gives the ideal. Desfazer / Recomeçar help (both count as moves).
  public partial class CheckoutDesktopHUD {
+  const string WineColor="5A0E1E";   // deep bordeaux (Lucas 24/10: the old red read too light for wine)
   IEnumerator StepDecant(DesktopKitchenStep s){
    int level=Mathf.Clamp(s.count,1,3);
    (int[] caps,int[] start,int target,int par) deal=default;
@@ -34,25 +35,54 @@ namespace Checkout {
    float W=StageW,H=StageH;float maxCap=cap.Max();
    float colW=Mathf.Min(170,(W-120)/count-30),fullH=H-150;
    var bases=new List<Vector2>();var vessels=new List<RectTransform>();var wines=new List<Image>();var labels=new List<TextMeshProUGUI>();
-   for(int v=0;v<count;v++){
+   // The Blender glass vessels (demijohn, carafe, mug + masks): the wine is clipped to the inside of each glass.
+   var arts=CheckoutPuzzleArt.Vessels;bool useArt=arts.All(a=>K.Icon("Game/"+a.id)!=null&&K.Icon("Game/"+a.id+"_mask")!=null);
+   var glasses=new PGlassParts[count];var pours=new List<Image>[count];
+   if(useArt){
+    // Bigger vessels, bigger glass (by rank: the caps go down); everything scaled to fit left of the goal card.
+    var hs=new float[count];var ws=new float[count];
+    for(int v=0;v<count;v++){var a=arts[Mathf.Min(v,2)];hs[v]=(H-110)*(.5f+.5f*cap[v]/maxCap)*(v>=3?.85f:1);ws[v]=hs[v]*a.size.x/a.size.y;}
+    float room=W-330,need=ws.Sum()*.82f+18*(count-1),fit=Mathf.Min(1,room/need);
+    float x=-W/2+20+(room-need*fit)/2;
+    for(int v=0;v<count;v++){
+     var a=arts[Mathf.Min(v,2)];float h=hs[v]*fit,w=ws[v]*fit;x+=w*.41f;
+     var at=new Vector2(x,-H/2+18+h/2);x+=w*.41f+18*fit;bases.Add(at);
+     var g=PGlass(kitchenStage,a,at,h);glasses[v]=g;pours[v]=new List<Image>();vessels.Add(g.root);wines.Add(null);
+     float glassTop=(a.inside.yMax-a.size.y/2)*g.scale;
+     var tag=PImage(g.root,"Tag",K.C("FFF7EC"),10,new Vector2((a.inside.center.x-a.size.x/2)*g.scale,Mathf.Min(h/2-10,glassTop+30)),new Vector2(96,34));
+     labels.Add(PText(tag.transform,"",17,K.Ink,Vector2.zero,new Vector2(94,32),K.Number));
+     int index=v;PHandle(g.root,null,null,null,()=>VesselTap(index));
+    }
+   }
+   else for(int v=0;v<count;v++){
     float h=Mathf.Max(70,fullH*cap[v]/maxCap),w=colW*(.7f+.3f*cap[v]/maxCap);
     var at=new Vector2((v-(count-1)/2f)*(colW+30)-W*.08f,-H/2+50+h/2);bases.Add(at);
     var vessel=PNode(kitchenStage,"Vessel",at,new Vector2(w,h));PShadow(vessel,new Vector2(w,h*.25f));
     var body=N.Image(vessel,"Body",v==0?K.C("8A5A2B"):new Color(.8f,.92f,.88f,.45f),18);body.rectTransform.sizeDelta=new Vector2(w,h);
     if(v==0)for(int k=1;k<4;k++){var hoop=N.Image(vessel,"Hoop",K.C("4A3624"),4);hoop.rectTransform.sizeDelta=new Vector2(w+6,8);hoop.rectTransform.anchoredPosition=new Vector2(0,-h/2+h*k/4f);}
     var window=N.Image(vessel,"Window",new Color(1,1,1,.18f),14);window.rectTransform.sizeDelta=new Vector2(w-22,h-22);
-    var wine=N.Image(vessel,"Wine",K.C("8E1B3A"),12);var wr=wine.rectTransform;wr.anchorMin=wr.anchorMax=new Vector2(.5f,0);wr.pivot=new Vector2(.5f,0);wr.anchoredPosition=new Vector2(0,11);
+    var wine=N.Image(vessel,"Wine",K.C(WineColor),12);var wr=wine.rectTransform;wr.anchorMin=wr.anchorMax=new Vector2(.5f,0);wr.pivot=new Vector2(.5f,0);wr.anchoredPosition=new Vector2(0,11);
     wines.Add(wine);
     var tag=PImage(vessel,"Tag",K.C("FFF7EC"),10,new Vector2(0,h/2+24),new Vector2(96,34));
     labels.Add(PText(tag.transform,"",17,K.Ink,Vector2.zero,new Vector2(94,32),K.Number));
     vessels.Add(vessel);int index=v;PHandle(vessel,null,null,null,()=>VesselTap(index));
    }
    // The goal card (right).
-   var goal=PBoard("Goal",new Vector2(W/2-150,H/2-110),new Vector2(250,170),"8E1B3A","FFF7F2");
-   var glass=N.Image(goal,"Glass",K.C("8E1B3A"),20);glass.rectTransform.sizeDelta=new Vector2(56,56);glass.rectTransform.anchoredPosition=new Vector2(0,26);
-   PText(goal,$"{deal.target} L",34,K.C("8E1B3A"),new Vector2(0,-40),new Vector2(220,46),K.Headline);
+   var goal=PBoard("Goal",new Vector2(W/2-150,H/2-110),new Vector2(250,170),WineColor,"FFF7F2");
+   var glass=N.Image(goal,"Glass",K.C(WineColor),20);glass.rectTransform.sizeDelta=new Vector2(56,56);glass.rectTransform.anchoredPosition=new Vector2(0,26);
+   PText(goal,$"{deal.target} L",34,K.C(WineColor),new Vector2(0,-40),new Vector2(220,46),K.Headline);
    int moves=0,selected=-1;var history=new Stack<int[]>();
-   void Redraw(){for(int v=0;v<count;v++){float h=vessels[v].sizeDelta.y-22;wines[v].rectTransform.sizeDelta=new Vector2(vessels[v].sizeDelta.x-22,h*amount[v]/cap[v]);labels[v].text=$"{amount[v]}/{cap[v]} L";}}
+   void Redraw(){
+    for(int v=0;v<count;v++){
+     labels[v].text=$"{amount[v]}/{cap[v]} L";
+     if(!useArt){float h=vessels[v].sizeDelta.y-22;wines[v].rectTransform.sizeDelta=new Vector2(vessels[v].sizeDelta.x-22,h*amount[v]/cap[v]);continue;}
+     foreach(var l in pours[v])if(l)Destroy(l.gameObject);pours[v].Clear();
+     if(amount[v]<=0)continue;
+     var a=glasses[v].v;float level=a.inner.yMin+a.inner.height*amount[v]/cap[v];
+     pours[v].Add(PLiquid(glasses[v],K.C(WineColor),0,level));
+     pours[v].Add(PLiquid(glasses[v],K.C("8C2A3C"),level-4,level));   // the surface catches a little light
+    }
+   }
    Redraw();
    vesselTap=v=>{
     kitchenPad.Interacted=true;

@@ -34,32 +34,55 @@ namespace Checkout {
    if(jugs==null){jugs=new List<List<int>>();for(int f=0;f<n;f++)jugs.Add(new List<int>{f,(f+1)%n,f,(f+1)%n});for(int j=0;j<empty;j++)jugs.Add(new List<int>());par=SolveSort(jugs,50000);if(par<0)par=n*3;}
 
    float W=StageW,H=StageH;int count=jugs.Count;
-   float jugW=Mathf.Min(120,(W-100)/count-24),unitH=Mathf.Min(62,(H-130)/JugCap),jugH=unitH*JugCap+26;
    var bases=new List<Vector2>();var jugRects=new List<RectTransform>();
    var layers=new List<List<Image>>();
-   for(int j=0;j<count;j++){
-    var at=new Vector2((j-(count-1)/2f)*(jugW+24),10);bases.Add(at);
-    var jug=PNode(kitchenStage,"Jug",at,new Vector2(jugW,jugH));
-    PShadow(jug,new Vector2(jugW,jugH*.3f));
-    var glass=N.Image(jug,"Glass",new Color(.85f,.95f,1f,.35f),18);glass.rectTransform.sizeDelta=new Vector2(jugW,jugH);
-    var rim=N.Image(jug,"Rim",new Color(1,1,1,.7f),6);rim.rectTransform.sizeDelta=new Vector2(jugW+8,10);rim.rectTransform.anchoredPosition=new Vector2(0,jugH/2);
-    jugRects.Add(jug);layers.Add(new List<Image>());
-    int index=j;PHandle(jug,null,null,null,()=>JugTap(index));
+   // The Blender juice glasses (pz_jug_glass + its mask): the juice layers are clipped to the inside of the glass.
+   var art=CheckoutPuzzleArt.Jug;var glasses=new List<PGlassParts>();
+   bool useArt=K.Icon("Game/"+art.id)!=null&&K.Icon("Game/"+art.id+"_mask")!=null;
+   float jugW,unitH,jugH;
+   if(useArt){
+    float aspect=art.size.x/art.size.y,step=.8f;   // glasses step by 80% of the sprite (the slice on the rim may overlap)
+    jugH=Mathf.Min(H-90,440,(W-80)/count/step/aspect);jugW=jugH*aspect;unitH=0;
+    float shift=(art.size.x/2-art.inside.center.x)*jugH/art.size.y;   // the glass (not the orange slice) is centred
+    for(int j=0;j<count;j++){
+     var at=new Vector2((j-(count-1)/2f)*jugW*step+shift,12);bases.Add(at);
+     var g=PGlass(kitchenStage,art,at,jugH);glasses.Add(g);jugRects.Add(g.root);layers.Add(new List<Image>());
+     int index=j;PHandle(g.root,null,null,null,()=>JugTap(index));
+    }
+   }
+   else{
+    jugW=Mathf.Min(120,(W-100)/count-24);unitH=Mathf.Min(62,(H-130)/JugCap);jugH=unitH*JugCap+26;
+    for(int j=0;j<count;j++){
+     var at=new Vector2((j-(count-1)/2f)*(jugW+24),10);bases.Add(at);
+     var jug=PNode(kitchenStage,"Jug",at,new Vector2(jugW,jugH));
+     PShadow(jug,new Vector2(jugW,jugH*.3f));
+     var glass=N.Image(jug,"Glass",new Color(.85f,.95f,1f,.35f),18);glass.rectTransform.sizeDelta=new Vector2(jugW,jugH);
+     var rim=N.Image(jug,"Rim",new Color(1,1,1,.7f),6);rim.rectTransform.sizeDelta=new Vector2(jugW+8,10);rim.rectTransform.anchoredPosition=new Vector2(0,jugH/2);
+     jugRects.Add(jug);layers.Add(new List<Image>());
+     int index=j;PHandle(jug,null,null,null,()=>JugTap(index));
+    }
    }
    var shine=new List<Image>();
-   for(int j=0;j<count;j++){var g=N.Image(jugRects[j],"Shine",new Color(1,1,1,.28f),6);g.rectTransform.sizeDelta=new Vector2(8,jugH*.75f);g.rectTransform.anchoredPosition=new Vector2(-jugW*.32f,0);shine.Add(g);}
+   if(!useArt)for(int j=0;j<count;j++){var g=N.Image(jugRects[j],"Shine",new Color(1,1,1,.28f),6);g.rectTransform.sizeDelta=new Vector2(8,jugH*.75f);g.rectTransform.anchoredPosition=new Vector2(-jugW*.32f,0);shine.Add(g);}
    void Redraw(){
     for(int j=0;j<count;j++){
      foreach(var l in layers[j])if(l)Destroy(l.gameObject);layers[j].Clear();
      for(int k=0;k<jugs[j].Count;k++){
       var c=K.C(JuiceColor[flavors[jugs[j][k]]]);
+      if(useArt){
+       // Each juice is a band of the glass's liquid column; the lowest one fills the rounded floor too.
+       float unit=art.inner.height/JugCap,from=k==0?0:art.inner.yMin+k*unit,to=art.inner.yMin+(k+1)*unit;
+       var band=PLiquid(glasses[j],c,from,to);layers[j].Add(band);
+       if(k==jugs[j].Count-1){var top=PLiquid(glasses[j],Color.Lerp(c,Color.white,.35f),to-5,to);layers[j].Add(top);}
+       continue;
+      }
       var layer=N.Image(jugRects[j],"Juice",c,k==0?14:4);layer.rectTransform.sizeDelta=new Vector2(jugW-14,unitH-2);
       layer.rectTransform.anchoredPosition=new Vector2(0,-jugH/2+13+(k+.5f)*unitH);layer.transform.SetSiblingIndex(2+k);
-      var top=N.Image(layer.transform,"Top",new Color(1,1,1,.18f),3);top.rectTransform.sizeDelta=new Vector2(jugW-20,6);top.rectTransform.anchoredPosition=new Vector2(0,unitH/2-5);
+      var top2=N.Image(layer.transform,"Top",new Color(1,1,1,.18f),3);top2.rectTransform.sizeDelta=new Vector2(jugW-20,6);top2.rectTransform.anchoredPosition=new Vector2(0,unitH/2-5);
       layers[j].Add(layer);
      }
     }
-    for(int j=0;j<count;j++)shine[j].transform.SetAsLastSibling();
+    for(int j=0;j<shine.Count;j++)shine[j].transform.SetAsLastSibling();
    }
    Redraw();
    var history=new Stack<List<List<int>>>();int moves=0;int selected=-1;

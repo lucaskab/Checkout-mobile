@@ -215,7 +215,7 @@ def clean_shadow(path, edge=.14):
     fall = np.clip(d, 0, 1)
     fall = fall * fall * (3 - 2 * fall)
     al = a[..., 3]
-    al = np.where(sh, np.clip((al - .04) / .96, 0, 1) * fall, al)
+    al = np.where(sh, np.minimum(np.clip((al - .04) / .96, 0, 1) * fall, .45), al)    # shadows never count as 'opaque'
     a[..., 3] = al
     img_save(a, path)
 
@@ -1518,7 +1518,9 @@ def fish_skin_material():
     gx = nb.math("SUBTRACT", fs, .79)
     arc = nb.mapr(nb.math("ABSOLUTE", nb.math("SUBTRACT", nb.math("SQRT", nb.add(nb.mul(gx, gx), nb.mul(nb.mul(fy, .085), nb.mul(fy, .085)))), .085)), .008, .0)
     arc = nb.mul(arc, nb.mapr(fs, .73, .76))
-    base = nb.mix(nb.mul(arc, .6), base, srgb("5A3E46"))
+    base = nb.mix(nb.mul(arc, .85), base, srgb("4A3440"))
+    mouth = nb.mul(nb.mapr(nb.math("ABSOLUTE", nb.math("SUBTRACT", fy, -.12)), .05, .0), nb.mapr(fs, .965, .985))
+    base = nb.mix(nb.mul(mouth, .8), base, srgb("3A2A30"))
     head = nb.mapr(fs, .8, .9)
     base = nb.mix(nb.mul(head, .2), base, srgb("C8D3D9"))
     h = nb.add(nb.mul(sc, -.5), nb.mul(n_f, .15), nb.mul(arc, -.8))
@@ -1542,6 +1544,28 @@ def fin_material():
     return mat
 
 
+def fin_material2(name, center, rays, length):
+    """Translucent fin: dark rays fanning out from `center` (local coords), darker at the root, lighter tips."""
+    mat = mat_get("M_fin_" + name)
+    nb = NB(mat)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    x, y, z = nb.sep(tc)
+    dx, dy = nb.math("SUBTRACT", x, center[0]), nb.math("SUBTRACT", y, center[1])
+    ang = nb.math("ARCTAN2", dy, dx)
+    d = nb.math("SQRT", nb.add(nb.mul(dx, dx), nb.mul(dy, dy)))
+    n = nb.noise(tc, 90, 3)
+    ray = nb.mapr(nb.math("ABSOLUTE", nb.math("SINE", nb.add(nb.mul(ang, rays * 3.0), nb.mul(n, .6)))), .8, 1.0)
+    root = abs(center[1]) if abs(center[1]) > .01 else 0.0
+    t = nb.mapr(nb.math("SUBTRACT", d, root), .0, length)
+    base = nb.ramp(nb.add(nb.mul(t, .8), nb.mul(n, .2)), [(0, srgb("4F6A80")), (.45, srgb("7F98AB")), (1, srgb("C9D8E2"))])
+    base = nb.mix(nb.mul(ray, nb.add(.25, nb.mul(t, .45))), base, srgb("324A5E"))
+    alpha = nb.add(.95, nb.mul(t, -.4), nb.mul(ray, .3))
+    nb.bsdf(**{"Base Color": base, "Roughness": .25, "Coat Weight": .7, "Coat Roughness": .08, "Subsurface Weight": .4,
+               "Subsurface Radius": (.6, .8, 1), "Subsurface Scale": .002, "Alpha": nb.math("MINIMUM", alpha, 1.0),
+               "Normal": nb.node("ShaderNodeBump", Height=ray, Strength=.25, Distance=.0004).outputs[0]})
+    return mat
+
+
 def eye_material():
     mat = mat_get("M_fish_eye")
     nb = NB(mat)
@@ -1559,48 +1583,39 @@ def build_fish(c, at):
     L, H, T = .27, .092, .04
     body = mesh_object("fish_peixe", fish_body_bm(L, H, T), fish_skin_material(), c, subsurf=1)
     body.location = at
-    fm = fin_material()
-    fb = bmesh.new()
-    # tail (forked, curved lobes), at -X
+    # fins: each its own object (origin at the fin base) so the rays can fan out from the root
     x0 = -L / 2 + .014
-    tail = [(x0, -.01)]
+    tail = [(0, -.01)]
     for k in range(1, 9):
         t = k / 8
-        tail.append((x0 - .052 * t, -.01 - .034 * t ** .8))
-    tail += [(x0 - .044, -.02), (x0 - .036, -.004), (x0 - .036, .004), (x0 - .044, .02)]
+        tail.append((-.052 * t, -.01 - .034 * t ** .8))
+    tail += [(-.044, -.02), (-.036, -.004), (-.036, .004), (-.044, .02)]
     for k in range(8, 0, -1):
         t = k / 8
-        tail.append((x0 - .052 * t, .01 + .034 * t ** .8))
-    tail.append((x0, .01))
-    tb = fin_bm(round_outline(tail, .003, 3))
-    xform(tb, loc=(0, H * .01, T * .14))
-    bm_join(fb, tb)
-    # dorsal fin along the back: spiny front, soft back
+        tail.append((-.052 * t, .01 + .034 * t ** .8))
+    tail.append((0, .01))
     dor = [(-.045, -.004)]
     for k in range(13):
         t = k / 12
-        hgt = .016 * (1 - .55 * t) * (1 if k % 2 == 0 else .8)
-        dor.append((-.045 + .1 * t, hgt))
+        dor.append((-.045 + .1 * t, .016 * (1 - .55 * t) * (1 if k % 2 == 0 else .82)))
     dor.append((.06, -.004))
-    db = fin_bm(round_outline(dor, .0015, 2))
-    xform(db, loc=(0, H / 2 * .86, T * .22))
-    bm_join(fb, db)
-    an = [(-.085, .002), (-.08, -.013), (-.062, -.016), (-.048, -.01), (-.04, .002)]
-    ab = fin_bm(round_outline(an, .003, 3))
-    xform(ab, loc=(0, -H / 2 * .6, T * .2))
-    bm_join(fb, ab)
-    pv = [(0, .002), (.004, -.014), (.016, -.015), (.024, .002)]
-    pb = fin_bm(round_outline(pv, .003, 3))
-    xform(pb, loc=(.0, -H / 2 * .9, T * .2))
-    bm_join(fb, pb)
-    fins = mesh_object("fish_peixe_fins", fb, fm, c, subsurf=1)
-    fins.location = at
-    # pectoral fin lying on the flank behind the gill
+    an = [(-.025, .002), (-.02, -.013), (-.002, -.016), (.012, -.01), (.02, .002)]
+    pv = [(-.012, .002), (-.008, -.014), (.004, -.015), (.012, .002)]
     pc = [(0, 0), (-.026, -.009), (-.034, -.003), (-.03, .005), (-.007, .007)]
-    pcb = fin_bm(round_outline(pc, .004, 4), t=.0008)
-    xform(pcb, loc=(.066, -.012, T * .8), rot=(0, 4, -12))
-    pf = mesh_object("fish_peixe_pect", pcb, fm, c, subsurf=1)
-    pf.location = at
+    fins = []
+    for name, pts, loc, rot, center, rays, ln, t in (
+            ("tail", tail, (x0, H * .01, T * .14), 0, (.004, 0), 7.0, .055, .0009),
+            ("dorsal", dor, (0, H / 2 * .86, T * .22), 0, (0, -.06), 20.0, .018, .0009),
+            ("anal", an, (-.06, -H / 2 * .6, T * .2), 0, (0, .05), 18.0, .016, .0009),
+            ("pelvic", pv, (.012, -H / 2 * .9, T * .2), 0, (0, .04), 18.0, .015, .0009),
+            ("pect", pc, (.066, -.012, T * .8), -12, (.002, 0), 6.0, .034, .0008)):
+        fbm = fin_bm(round_outline(pts, .003 if name != "dorsal" else .0015, 3), t=t)
+        if name == "pect":
+            xform(fbm, rot=(0, 4, 0))
+        ob = mesh_object("fish_peixe_" + name, fbm, fin_material2(name, center, rays, ln), c, subsurf=1)
+        ob.location = at + Vector(loc)
+        ob.rotation_euler.z = math.radians(rot)
+        fins.append(ob.name)
     # eye
     s_eye = .9
     ex = (s_eye - .5) * L
@@ -1611,7 +1626,7 @@ def build_fish(c, at):
     ring = lathe_bm([(.0095, 0), (.0122, .0), (.0127, .0014), (.0107, .0026), (.0095, .0019)], 48)
     ro = mesh_object("fish_peixe_eyering", ring, simple_material("M_eyering", "6F8494", .3, var="8FA2AE", coat=.6), c, subsurf=1)
     ro.location = at + Vector((ex, ey, T * .6 - .0012))
-    return [body.name, fins.name, pf.name, eo.name, ro.name]
+    return [body.name, eo.name, ro.name] + fins
 
 
 def fillet_bm(L, W, T, taper=1.0, seed=0, belly=.0):
@@ -1639,37 +1654,53 @@ def fillet_material(kind):
     nb = NB(mat)
     tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
     x, y, z = nb.sep(tc)
+    geo = nb.node("ShaderNodeNewGeometry")
+    nz = nb.sep(geo.outputs["Normal"])[2]
     n_m = nb.noise(tc, 50, 5, .6)
     n_f = nb.noise(tc, 400, 4, .6)
-    # myomere lines: chevrons across the fillet
-    k = 2 * math.pi / (.018 if kind == "file" else .014)
-    chev = nb.add(x, nb.mul(nb.math("ABSOLUTE", nb.add(y, nb.mul(nb.math("SUBTRACT", n_m, .5), .01))), .55 if kind == "salmao" else .35))
-    wv = nb.math("SINE", nb.mul(nb.add(chev, nb.mul(n_m, .004)), k))
-    line = nb.mul(nb.mapr(wv, .82 if kind == "salmao" else .9, 1.0), nb.mapr(nb.noise(tc, 25, 3), .3, .5) if kind == "file" else 1.0)
-    if kind == "salmao":
-        flesh = nb.ramp(nb.add(nb.mul(n_m, .6), nb.mul(n_f, .3), -.05), [(0, srgb("FF9A62")), (.5, srgb("F7804A")), (1, srgb("E2653A"))])
-        fatc = srgb("FFE3D0")
-        edge = nb.mapr(nb.math("ABSOLUTE", y), .042, .058)
-        base = nb.mix(nb.mul(line, .85), flesh, fatc)
-        base = nb.mix(nb.mul(edge, .55), base, srgb("FFD7BF"))
-        kw = {"Subsurface Weight": .45, "Subsurface Radius": (1, .45, .25), "Roughness": .3, "Coat Weight": .55}
+    sal = kind == "salmao"
+    # myomere (flake) lines: W-shaped arcs across the fillet, uneven spacing
+    yy = nb.add(y, nb.mul(nb.math("SUBTRACT", n_m, .5), .008))
+    ay = nb.math("ABSOLUTE", yy)
+    warp = nb.math("SUBTRACT", nb.noise(nb.node("ShaderNodeMapping", Vector=tc, Scale=(1, .35, 1)).outputs[0], 9, 3, .5), .5)
+    curv = nb.add(.45 if sal else .38, nb.mul(nb.math("SUBTRACT", nb.noise(tc, 6, 2), .5), .3))
+    chev = nb.add(x, nb.mul(ay, curv), nb.mul(nb.mul(ay, ay), -5.0 if sal else -4.0), nb.mul(warp, .03))
+    per = .0135 if sal else .016
+    ph = nb.math("FRACT", nb.math("DIVIDE", chev, per))
+    width = nb.mul(nb.add(.045 if sal else .035, nb.mul(nb.noise(tc, 22, 3), .05 if sal else .03)), nb.mapr(ay, .05, .02))
+    line = nb.node("ShaderNodeMapRange", Value=nb.math("ABSOLUTE", nb.math("SUBTRACT", ph, .5)),
+                   **{"From Min": nb.math("SUBTRACT", .5, width), "From Max": .5, "To Min": 0.0, "To Max": 1.0},
+                   _interpolation_type="SMOOTHSTEP", _clamp=True).outputs[0]
+    shade = nb.mapr(ph, .5, .9)                       # each flake slightly darker towards its next line
+    lat = nb.mul(nb.mapr(nb.math("ABSOLUTE", nb.add(y, nb.add(-.004, nb.mul(warp, .006)))), .003, .0), nb.mapr(nb.noise(tc, 12, 2), .35, .6))
+    skin = nb.mapr(nz, .45, .2)
+    if sal:
+        back = nb.mapr(y, -.04, .05)
+        flesh = nb.ramp(nb.add(nb.mul(back, .7), nb.mul(n_m, .4), -.1), [(0, srgb("FFA06A")), (.45, srgb("F7834B")), (1, srgb("E2622F"))])
+        flesh = nb.mix(nb.mul(shade, .12), flesh, srgb("D4552A"))
+        base = nb.mix(nb.mul(line, .92), flesh, srgb("FFEBDD"))
+        belly = nb.mapr(y, -.035, -.052)
+        base = nb.mix(nb.mul(belly, .6), base, srgb("FFDCC6"))
+        base = nb.mix(nb.mul(lat, .25), base, srgb("B9644A"))
+        base = nb.mix(skin, base, srgb("9EA6AC"))
+        kw = {"Subsurface Weight": .45, "Subsurface Radius": (1, .45, .25), "Roughness": .28, "Coat Weight": .65}
     else:
-        flesh = nb.ramp(nb.add(nb.mul(n_m, .6), nb.mul(n_f, .3), -.05), [(0, srgb("FFFDF8")), (.5, srgb("F8F1EA")), (1, srgb("F0E2DA"))])
-        base = nb.mix(nb.mul(line, .35), flesh, srgb("E6D3CC"))
-        flake = nb.mapr(nb.noise(tc, 90, 6, .7, .5), .55, .7)
-        base = nb.mix(nb.mul(flake, .2), base, srgb("FFFFFF"))
-        pink = nb.mapr(nb.math("ABSOLUTE", nb.add(y, .01)), .01, .0)
-        base = nb.mix(nb.mul(pink, .25), base, srgb("F2C6BF"))
-        kw = {"Subsurface Weight": .6, "Subsurface Radius": (1, .9, .8), "Roughness": .3, "Coat Weight": .5}
-    h = nb.add(nb.mul(line, .5), nb.mul(n_f, .3))
+        flesh = nb.ramp(nb.add(nb.mul(n_m, .6), nb.mul(n_f, .3), -.05), [(0, srgb("F0F5FA")), (.5, srgb("E9EEF4")), (1, srgb("E2E4EA"))])
+        flesh = nb.mix(nb.mul(shade, .2), flesh, srgb("D6D6DE"))
+        base = nb.mix(nb.mul(line, .7), flesh, srgb("C9BCBC"))
+        base = nb.mix(nb.mul(lat, .15), base, srgb("E6B9B2"))
+        base = nb.mix(skin, base, srgb("8C9298"))
+        kw = {"Subsurface Weight": .35, "Subsurface Radius": (.9, .9, 1), "Roughness": .3, "Coat Weight": .5}
+    h = nb.add(nb.mul(line, -.6), nb.mul(shade, -.25), nb.mul(n_f, .25))
     kw.update({"Base Color": base, "Coat Roughness": .1, "Subsurface Scale": .006, "Specular IOR Level": .55,
-               "Normal": nb.node("ShaderNodeBump", Height=h, Strength=.25, Distance=.0008).outputs[0]})
+               "Normal": nb.node("ShaderNodeBump", Height=h, Strength=.3, Distance=.0008).outputs[0]})
     nb.bsdf(**kw)
     return mat
 
 
 def shrimp_bm(seed=0, R=.027, r0=.0128):
-    """A peeled-but-tail-on shrimp curled in a C (top view), with segment ridges."""
+    """Shell-on (headless) shrimp curled in a C, seen from its side: overlapping shell plates.
+    Writes 'dors' (+1 back / outer curve .. -1 belly / inner curve)."""
     pts = []
     N = 40
     for i in range(N + 1):
@@ -1677,16 +1708,26 @@ def shrimp_bm(seed=0, R=.027, r0=.0128):
         a = math.radians(-20 + 225 * t)
         rr = R * (1 - .32 * t)
         pts.append((rr * math.cos(a), rr * math.sin(a), 0))
+    P = spline(pts, 3)
     def rad(t):
-        seg = .92 + .08 * math.cos(t * 2 * math.pi * 6)
-        return r0 * (1 - .6 * t ** 1.3) * seg * (.8 + .2 * min(1.0, t * 8 + .3))
-    bm = tube_bm(spline(pts, 2), rad, 16)
+        plate = (t * 6.0) % 1.0
+        seg = .9 + .14 * plate ** 1.5
+        return r0 * (1 - .6 * t ** 1.3) * seg * (.82 + .18 * min(1.0, t * 8 + .3))
+    bm = tube_bm(P, rad, 18)
+    ld = bm.verts.layers.float.new("dors")
+    for v in bm.verts:
+        q = Vector((v.co.x, v.co.y, 0))
+        best = min(P, key=lambda p: (Vector(p[:2] + (0,)) - q).length_squared)
+        c = Vector((best[0], best[1], 0))
+        outward = c.normalized() if c.length > 1e-6 else Vector((1, 0, 0))
+        d = (Vector((v.co.x, v.co.y, v.co.z)) - Vector((best[0], best[1], 0)))
+        v[ld] = max(-1.0, min(1.0, d.dot(outward) / max(d.length, 1e-6)))
     zmin = min(v.co.z for v in bm.verts)
     for v in bm.verts:
         v.co.z -= zmin
         if v.co.z < r0 * .25:
             v.co.z *= .5
-    return bm, pts
+    return bm, P
 
 
 def shrimp_material():
@@ -1695,44 +1736,76 @@ def shrimp_material():
     uv = nb.node("ShaderNodeTexCoord").outputs["UV"]
     u, v, _ = nb.sep(uv)
     tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    dors = nb.node("ShaderNodeAttribute", _attribute_name="dors").outputs["Fac"]
     n = nb.noise(tc, 120, 4)
-    seg = nb.math("FRACT", nb.mul(u, 1 / .0105))
-    band = nb.mapr(nb.math("ABSOLUTE", nb.math("SUBTRACT", seg, .5)), .32, .5)
-    back = nb.mapr(nb.math("ABSOLUTE", nb.math("SUBTRACT", v, .25)), .25, .05)
-    base = nb.ramp(nb.add(nb.mul(back, .6), nb.mul(n, .3)), [(0, srgb("FFE3D6")), (.45, srgb("FBA58E")), (1, srgb("EE6E52"))])
-    base = nb.mix(nb.mul(band, .55), base, srgb("FFF1EA"))
-    nb.bsdf(**{"Base Color": base, "Roughness": .3, "Coat Weight": .6, "Coat Roughness": .1, "Subsurface Weight": .4,
+    seg = nb.math("FRACT", nb.mul(u, 1 / .0098))
+    edge = nb.mapr(seg, .9, .985)
+    band = nb.mapr(seg, .55, .9)
+    base = nb.ramp(nb.add(nb.mul(dors, .5), .5, nb.mul(n, .15)),
+                   [(0, srgb("FFE0D4")), (.35, srgb("FFB79E")), (.6, srgb("F6865F")), (.85, srgb("E65A3A")), (1, srgb("C9452E"))])
+    base = nb.mix(nb.mul(band, .22), base, srgb("FFF0E6"))
+    base = nb.mix(nb.mul(edge, .5), base, srgb("B5402C"))
+    nb.bsdf(**{"Base Color": base, "Roughness": .28, "Coat Weight": .75, "Coat Roughness": .08, "Subsurface Weight": .45,
                "Subsurface Radius": (1, .5, .4), "Subsurface Scale": .004,
-               "Normal": nb.node("ShaderNodeBump", Height=nb.add(nb.mul(band, -.6), nb.mul(n, .3)), Strength=.35, Distance=.0008).outputs[0]})
+               "Normal": nb.node("ShaderNodeBump", Height=nb.add(nb.mul(edge, -.8), nb.mul(band, .3), nb.mul(n, .2)), Strength=.4, Distance=.0008).outputs[0]})
     return mat
 
 
 def shrimp_tail_material():
-    return simple_material("M_shrimp_tail", "F0643E", .25, coat=.7, var="F8956A", sss=.3)
+    mat = mat_get("M_shrimp_tail")
+    nb = NB(mat)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    rnd = nb.node("ShaderNodeObjectInfo").outputs["Random"]
+    n = nb.noise(tc, 300, 3)
+    base = nb.ramp(n, [(0, srgb("E2502F")), (1, srgb("F57C52"))])
+    nb.bsdf(**{"Base Color": base, "Roughness": .25, "Coat Weight": .7, "Coat Roughness": .08, "Subsurface Weight": .5,
+               "Subsurface Radius": (1, .4, .3), "Subsurface Scale": .003, "Alpha": .92})
+    return mat
 
 
 def build_shrimps(c, at):
     sb = bmesh.new()
     tb = bmesh.new()
-    poses = [(-.026, -.014, 10, 0, 0), (.028, -.01, 175, 1, 0), (.0, .016, 95, 2, .014)]
+    lb = bmesh.new()
+    poses = [(-.028, -.014, 10, 0, 0), (.03, -.01, 175, 1, 0), (.0, .018, 95, 2, .014)]
     for x, y, rot, seed, z in poses:
-        b, pts = shrimp_bm(seed)
+        b, P = shrimp_bm(seed)
         xform(b, loc=(x, y, z), rot=(0, 0, rot))
         bm_join(sb, b)
-        # tail fan at the end of the curl
-        e = Vector(pts[-1])
-        d = (Vector(pts[-1]) - Vector(pts[-3])).normalized()
+        # tail fan: telson + two uropods each side, fanned out
+        e = Vector(P[-1])
+        d = (Vector(P[-1]) - Vector(P[-4])).normalized()
         a = math.degrees(math.atan2(d.y, d.x))
-        fan = [(-.003, -.003), (.008, -.009), (.017, -.011), (.02, -.004), (.016, 0), (.02, .004), (.017, .011), (.008, .009), (-.003, .003)]
-        f = outline_slab(round_outline(fan, .003, 3), .0024, bevel=.001, segs=2)
-        xform(f, loc=(e.x, e.y, .003), rot=(0, 0, a))
+        f = bmesh.new()
+        for k, (ang, ln, w) in enumerate(((0, .02, .0045), (-28, .019, .005), (28, .019, .005), (-50, .016, .0045), (50, .016, .0045))):
+            blade = [(0, -w * .5), (ln * .5, -w), (ln, -w * .45), (ln * 1.05, 0), (ln, w * .45), (ln * .5, w), (0, w * .5)]
+            bl = outline_slab(round_outline(blade, .0015, 2), .0014, bevel=.0005, segs=1)
+            xform(bl, rot=(0, -6, ang), loc=(0, 0, .0006 * k))
+            bm_join(f, bl)
+        xform(f, loc=(e.x, e.y, .004), rot=(0, 0, a))
         xform(f, loc=(x, y, z), rot=(0, 0, rot))
         bm_join(tb, f)
+        # little legs (pleopods) under the belly, along the inner curve
+        for k in range(5):
+            t = .12 + .13 * k
+            i = int(t * (len(P) - 1))
+            p = Vector(P[i])
+            inward = -Vector((p.x, p.y, 0)).normalized()
+            tang = (Vector(P[min(i + 1, len(P) - 1)]) - Vector(P[max(i - 1, 0)])).normalized()
+            r_here = .0128 * (1 - .6 * t ** 1.3)
+            for side in (-1, 1):
+                root = p + inward * r_here * .7 + Vector((0, 0, .006 + side * .002))
+                tip = root + inward * .009 - tang * .003 + Vector((0, 0, -.002))
+                leg = tube_bm([root[:], ((root + tip) / 2 + inward * .001)[:], tip[:]], lambda q: .0011 * (1 - .6 * q), 6)
+                xform(leg, loc=(x, y, z), rot=(0, 0, rot))
+                bm_join(lb, leg)
     s = mesh_object("fish_camarao", sb, shrimp_material(), c, subsurf=1)
     s.location = at
     t = mesh_object("fish_camarao_tails", tb, shrimp_tail_material(), c, subsurf=1)
     t.location = at
-    return [s.name, t.name]
+    lg = mesh_object("fish_camarao_legs", lb, simple_material("M_shrimp_legs", "F7A58C", .35, var="FFC9B6", sss=.4), c, subsurf=1)
+    lg.location = at
+    return [s.name, t.name, lg.name]
 
 
 def build_fish_pieces():
@@ -1744,7 +1817,7 @@ def build_fish_pieces():
     f = mesh_object("fish_file", fillet_bm(.235, .1, .016, 1.0, 1), fillet_material("file"), c, subsurf=1)
     f.location = o + Vector((FISH_SLOT["peixe"] + .5, 0, .0005))
     names["file"] = [f.name]
-    sm = mesh_object("fish_salmao", fillet_bm(.255, .1, .024, .7, 2, belly=.08), fillet_material("salmao"), c, subsurf=1)
+    sm = mesh_object("fish_salmao", fillet_bm(.24, .1, .026, .35, 2, belly=.06), fillet_material("salmao"), c, subsurf=1)
     sm.location = o + Vector((FISH_SLOT["peixe"] + .9, 0, .0005))
     names["salmao"] = [sm.name]
     names["camarao"] = build_shrimps(c, o + Vector((FISH_SLOT["peixe"] + 1.3, 0, .0005)))
@@ -1752,8 +1825,8 @@ def build_fish_pieces():
     return names
 
 
-FISH_PARTS = {"peixe": ["fish_peixe", "fish_peixe_fins", "fish_peixe_pect", "fish_peixe_eye", "fish_peixe_eyering"],
-              "file": ["fish_file"], "salmao": ["fish_salmao"], "camarao": ["fish_camarao", "fish_camarao_tails"]}
+FISH_PARTS = {"peixe": ["fish_peixe", "fish_peixe_eye", "fish_peixe_eyering"] + ["fish_peixe_" + n for n in ("tail", "dorsal", "anal", "pelvic", "pect")],
+              "file": ["fish_file"], "salmao": ["fish_salmao"], "camarao": ["fish_camarao", "fish_camarao_tails", "fish_camarao_legs"]}
 FISH_X = {"peixe": 0.0, "file": .5, "salmao": .9, "camarao": 1.3}
 
 
@@ -2011,6 +2084,434 @@ def run_peixaria():
 
 
 
+
+# ============================================================================================ ACOUGUE v2: real cuts (side view)
+MEAT_RES = (1400, 300)
+MEAT_PXM = 2000.0
+MEAT_TILT = 3.0
+CUTS = ["contrafile", "picanha", "fraldinha"]
+
+
+def cut_shape(cut):
+    """(length, depth, thickness(s), fat(s) thickness) for s in 0..1 along the piece (left -> right)."""
+    if cut == "contrafile":       # strip loin: thick, even, a fat cap all along the top
+        L, D = .6, .13
+        th = lambda s: .074 + .008 * math.sin(s * 5.1 + .4) * .5 + .006 * s
+        fat = lambda s: .011 + .003 * math.sin(s * 7 + 1) - .005 * max(0.0, s - .8) / .2
+    elif cut == "picanha":        # rump cap: thick in the middle, triangular, a thick fat cap
+        L, D = .56, .14
+        th = lambda s: .03 + .07 * math.sin(math.pi * min(1.0, max(0.0, s * .95 + .03))) ** 1.3
+        fat = lambda s: .011 + .003 * math.sin(s * 9)
+    else:                         # flank steak: long, thin, tapering, almost no fat
+        L, D = .62, .12
+        th = lambda s: .012 + .03 * (1 - s) ** .9 * (1 + .12 * math.sin(s * 11))
+        fat = lambda s: 0.0
+    return L, D, th, fat
+
+
+def meat_cut_bm(cut, n=90):
+    """Slab along X, cross-section a soft superellipse (flat bottom); writes 's' (along) and 'hz' (0 bottom..1 top)
+    and 'ft' (fat thickness / local height) for the shader."""
+    L, D, th, fat = cut_shape(cut)
+    bm = cube_sphere(n)
+    ls = bm.verts.layers.float.new("s")
+    lh = bm.verts.layers.float.new("hz")
+    lf = bm.verts.layers.float.new("ft")
+    off = Vector((CUTS.index(cut) * 3.1, 1.7, .4))
+    for v in bm.verts:
+        x, y, z = v.co
+        s = (x + 1) / 2
+        rc = math.hypot(y, z)
+        uy, uz = (y / rc, z / rc) if rc > 1e-9 else (0.0, 1.0)
+        r = (abs(uy) ** 5 + abs(uz) ** 5) ** (-1 / 5)
+        end = (1 - abs(2 * s - 1) ** 8) ** .35                    # rounded, slightly pinched ends
+        H = th(s) * (.55 + .45 * end)
+        dd = D / 2 * (.8 + .2 * end)
+        Y = uy * r * dd
+        zz = uz * r
+        Z = H * max(0.0, (zz + .8) / 1.8)
+        lump = 1 + .02 * noise.fractal(Vector((x * 3, y * 2, z * 2)) + off, .6, 2, 2)
+        X = (s - .5) * L + .006 * noise.noise(Vector((y * 5, z * 5, 1)) + off) * (1 - end)
+        v.co = Vector((X, Y * lump, Z * lump))
+        v[ls] = s
+        v[lh] = Z / max(H, 1e-6)
+        v[lf] = fat(s) / max(H, 1e-6)
+    zmin = min(v.co.z for v in bm.verts)
+    for v in bm.verts:
+        v.co.z -= zmin
+    return bm
+
+
+def beef_material(cut):
+    mat = mat_get("M_beef_" + cut)
+    nb = NB(mat)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    x, y, z = nb.sep(tc)
+    s = nb.node("ShaderNodeAttribute", _attribute_name="s").outputs["Fac"]
+    hz = nb.node("ShaderNodeAttribute", _attribute_name="hz").outputs["Fac"]
+    ft = nb.node("ShaderNodeAttribute", _attribute_name="ft").outputs["Fac"]
+    geo = nb.node("ShaderNodeNewGeometry")
+    # grain runs along the piece, gently waving
+    wav = nb.noise(tc, 6, 3, .5)
+    gz = nb.add(z, nb.mul(wav, .02), nb.mul(y, .15))
+    gvec = nb.node("ShaderNodeCombineXYZ", X=nb.mul(x, 1.0), Y=nb.mul(gz, 1.0), Z=nb.mul(y, 1.0)).outputs[0]
+    gstr = nb.node("ShaderNodeMapping", Vector=gvec, Scale=(1.0, 9.0, 9.0)).outputs[0]
+    zones = nb.noise(tc, 15, 5, .6, .4)
+    fib = nb.noise(nb.node("ShaderNodeMapping", Vector=gvec, Scale=(1.0, 90.0, 90.0)).outputs[0], 22, 3, .6)
+    meat = nb.ramp(nb.add(nb.mul(zones, 1.2), nb.mul(fib, .45), -.35),
+                   [(0, srgb("BC3833")), (.3, srgb("A6292D")), (.55, srgb("8C1F26")), (.8, srgb("74171F")), (1, srgb("561019"))])
+    # intramuscular marbling: long thin veins running with the grain + small elongated flecks, in clusters
+    vgr = nb.node("ShaderNodeMapping", Vector=gvec, Scale=(1.0, 22.0, 22.0)).outputs[0]
+    vn = nb.noise(vgr, 6, 2, .45, .0)
+    vein = nb.mapr(nb.math("ABSOLUTE", nb.math("SUBTRACT", vn, .5)), .012, .0)
+    vein = nb.mul(vein, nb.mapr(nb.noise(nb.node("ShaderNodeMapping", Vector=gvec, Scale=(1.0, 3.0, 3.0)).outputs[0], 12, 2, .5), .42, .56))
+    clus = nb.mapr(nb.noise(tc, 10, 3, .5, .2), .3, .55)
+    vein = nb.mul(vein, clus)
+    fl = nb.noise(nb.node("ShaderNodeMapping", Vector=gvec, Scale=(1.0, 4.5, 4.5)).outputs[0], 140, 2, .5)
+    fleck = nb.mul(nb.mapr(fl, .64, .69), nb.mapr(nb.noise(tc, 16, 3), .32, .55))
+    fl2 = nb.noise(nb.node("ShaderNodeMapping", Vector=gvec, Scale=(1.0, 3.0, 3.0)).outputs[0], 320, 2, .5)
+    fleck = nb.math("MAXIMUM", fleck, nb.mul(nb.mapr(fl2, .7, .74), nb.mapr(nb.noise(tc, 9, 3), .42, .62)))
+    seam = nb.mapr(nb.math("ABSOLUTE", nb.math("SUBTRACT", nb.noise(nb.node("ShaderNodeMapping", Vector=gvec, Scale=(1.0, 4.0, 4.0)).outputs[0], 2.5, 2, .4), .5)), .006, .0)
+    marb = nb.math("MAXIMUM", nb.math("MAXIMUM", vein, nb.mul(fleck, .8)), nb.mul(seam, .45))
+    fstreak = nb.mapr(fib, .55, .75)
+    meat = nb.mix(nb.mul(fstreak, .3), meat, srgb("C9554B"))
+    dstreak = nb.mapr(fib, .42, .25)
+    meat = nb.mix(nb.mul(dstreak, .3), meat, srgb("5A1118"))
+    if cut == "fraldinha":
+        marb = nb.mul(marb, .6)
+    fatc = nb.ramp(nb.noise(tc, 60, 3), [(0, srgb("FBF1DE")), (1, srgb("F0DCB8"))])
+    halo = nb.mapr(marb, .0, .5)
+    base = nb.mix(nb.mul(halo, .35), meat, srgb("D9706A"))
+    base = nb.mix(nb.mapr(marb, .25, .7), base, fatc)
+    # cut ends a little darker and drier
+    ends = nb.math("MAXIMUM", nb.mapr(s, .06, .0), nb.mapr(s, .94, 1.0))
+    base = nb.mix(nb.mul(ends, .45), base, srgb("5E1016"))
+    # fat cap on top: creamy, smooth, wavy boundary
+    edge = nb.math("SUBTRACT", 1.0, ft)
+    edge = nb.add(edge, nb.mul(nb.math("SUBTRACT", nb.noise(tc, 30, 3), .5), .08))
+    cap = nb.node("ShaderNodeMapRange", Value=hz, **{"From Min": edge, "From Max": nb.add(edge, .04), "To Min": 0.0, "To Max": 1.0},
+                  _interpolation_type="SMOOTHSTEP", _clamp=True).outputs[0]
+    cap = nb.mul(cap, nb.mapr(ft, .0, .02))
+    fatcap = nb.ramp(nb.add(nb.mul(nb.noise(tc, 25, 5, .6), .7), nb.mul(hz, .3)), [(0, srgb("F2DDB4")), (.5, srgb("F6E6C6")), (1, srgb("FCF5E6"))])
+    base = nb.mix(cap, base, fatcap)
+    rim = nb.mul(cap, nb.mapr(cap, 1.0, .5))
+    base = nb.mix(nb.mul(rim, .4), base, srgb("F2C9B2"))
+    h = nb.add(nb.mul(fib, .6), nb.mul(marb, .4), nb.mul(cap, nb.noise(tc, 40, 3)))
+    nb.bsdf(**{"Base Color": base, "Roughness": nb.add(.42, nb.mul(cap, -.08), nb.mul(fib, .12)),
+               "Coat Weight": nb.add(.22, nb.mul(cap, -.05)), "Coat Roughness": .18, "Specular IOR Level": .5,
+               "Subsurface Weight": nb.add(.12, nb.mul(cap, .4)), "Subsurface Radius": (1, .55, .35), "Subsurface Scale": .006,
+               "Normal": nb.node("ShaderNodeBump", Height=h, Strength=.22, Distance=.0006).outputs[0]})
+    return mat
+
+
+def build_meat_cuts():
+    o = O("acougue") + Vector((0, 1.0, 0))
+    c = col("Acougue cuts")
+    wipe_collection(c.name)
+    for i, cut in enumerate(CUTS):
+        ob = mesh_object("cut_" + cut, meat_cut_bm(cut), beef_material(cut), c, subsurf=1)
+        ob.location = o + Vector((i * 1.0, 0, .0005))
+    catcher("acougue", o + Vector((1.0, .1, 0)), (3.4, 1.0), "Catcher_cuts")
+
+
+def meat_profile(path, bins=120):
+    a = img_load(path)
+    h, w = a.shape[:2]
+    m = a[..., 3] > .5            # same rule as the game: alpha > 0.5 (shadows are capped at 0.45)
+    cols = np.where(m.any(0))[0]
+    l, r = int(cols.min()), int(cols.max())
+    hts = np.zeros(w, np.float32)
+    for xx in range(l, r + 1):
+        ys = np.where(m[:, xx])[0]
+        if len(ys):
+            hts[xx] = (ys.max() - ys.min() + 1) / h
+    prof = []
+    for k in range(bins):
+        a0 = l + (r + 1 - l) * k / bins
+        a1 = l + (r + 1 - l) * (k + 1) / bins
+        seg = hts[int(a0):max(int(a0) + 1, int(a1))]
+        prof.append(round(float(seg.mean()), 4))
+    rows = np.where(m.any(1))[0]
+    return {"profile": prof, "x_range": [l, r], "y_range_from_bottom": [int(h - 1 - rows.max()), int(h - 1 - rows.min())],
+            "size": [w, h]}
+
+
+def render_piece_acougue2(cut):
+    ob = bpy.data.objects["cut_" + cut]
+    L, D, th, fat = cut_shape(cut)
+    size = (MEAT_RES[0] / MEAT_PXM, MEAT_RES[1] / MEAT_PXM)
+    center = ob.location + Vector((0, 0, .055))
+    path = shoot(center, size, MEAT_RES, os.path.join(OUT, "pz_meat_%s.png" % cut), True, [ob.name, "Catcher_cuts"], "front", MEAT_TILT)
+    manifest_update("pz_meat_%s" % cut, meat_profile(path))
+    return path
+
+
+def mockup_acougue2(cut="picanha"):
+    bench = load("pz_bench_acougue.png")
+    bench[..., 3] = 1
+    sp = load("pz_meat_%s.png" % cut)
+    place(bench, sp, 800, 430, 1500, None)
+    for cx in (800 - 1460 * .17, 800 + 1460 * .16):
+        g = blank(5, 300, (1, 1, 1), .85)
+        over(bench, g, int(cx) - 2, 270)
+        hd = blank(40, 56, srgb_f("3B2A1E"), 1.0)
+        hd[..., 3] = rounded_mask(40, 56, 12)
+        over(bench, hd, int(cx) - 20, 214)
+    bench[..., 3] = 1
+    return save_png(bench, "mockup_acougue.png")
+
+
+def run_acougue2():
+    out = [render_piece_acougue2(c) for c in CUTS]
+    out.append(mockup_acougue2())
+    return out
+
+
+
+# ============================================================================================ PEIXARIA v2: shard ice, meltwater, retail scale
+_SHARDS = []
+
+
+def shard_templates(n=20, seed=91):
+    """Irregular faceted ice chips: convex hulls of random points, flattened a bit, tiny bevel for edge glints."""
+    if _SHARDS:
+        return _SHARDS
+    rnd = random.Random(seed)
+    for k in range(n):
+        bm = bmesh.new()
+        sx, sy, sz = 1.0, rnd.uniform(.55, 1.0), rnd.uniform(.35, .7)
+        for i in range(rnd.randint(8, 13)):
+            d = Vector((rnd.gauss(0, 1), rnd.gauss(0, 1), rnd.gauss(0, 1))).normalized() * rnd.uniform(.65, 1.0)
+            bm.verts.new((d.x * sx, d.y * sy, d.z * sz))
+        res = bmesh.ops.convex_hull(bm, input=bm.verts[:])
+        kill = list({g for g in res["geom_interior"] + res["geom_unused"] if isinstance(g, bmesh.types.BMVert)})
+        if kill:
+            bmesh.ops.delete(bm, geom=kill, context="VERTS")
+        bmesh.ops.bevel(bm, geom=bm.edges[:], offset=.035, segments=1, affect="EDGES", clamp_overlap=True)
+        bm.verts.index_update()
+        vs = np.array([v.co[:] for v in bm.verts], np.float32)
+        fs = [[v.index for v in f.verts] for f in bm.faces]
+        bm.free()
+        _SHARDS.append((vs, fs))
+    return _SHARDS
+
+
+def shard_ice(area, count, seed, size=(.006, .014), heap=None, zbase=0.0, layers=1.0):
+    tpl = shard_templates()
+    rnd = random.Random(seed)
+    x0, y0, x1, y1 = area
+    V, F = [], []
+    off = placed = tries = 0
+    while placed < count and tries < count * 12:
+        tries += 1
+        x, y = rnd.uniform(x0, x1), rnd.uniform(y0, y1)
+        hgt = heap(x, y) if heap else 1.0
+        if hgt <= 0 or rnd.random() > hgt:
+            continue
+        s_ = rnd.uniform(*size)
+        vs, fs = tpl[rnd.randrange(len(tpl))]
+        R = np.array(Matrix.Rotation(rnd.uniform(0, 6.28), 3, "Z") @ Matrix.Rotation(rnd.uniform(-.5, .5), 3, "Y") @
+                     Matrix.Rotation(rnd.uniform(-.5, .5), 3, "X"), np.float32)
+        p = (vs * s_) @ R.T + np.array([x, y, zbase + hgt * layers * .018 * rnd.random() + s_ * .25], np.float32)
+        V.append(p)
+        F.extend([[i + off for i in f] for f in fs])
+        off += len(vs)
+        placed += 1
+    me = bpy.data.meshes.new("_ice")
+    me.from_pydata(np.concatenate(V).tolist(), [], F)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bpy.data.meshes.remove(me)
+    return bm
+
+
+def ice_material2():
+    mat = mat_get("M_ice2")
+    nb = NB(mat)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    n = nb.noise(tc, 180, 4)
+    frost = nb.mapr(nb.noise(tc, 70, 5, .6), .5, .72)
+    ao = nb.node("ShaderNodeAmbientOcclusion", Distance=.01, _samples=8).outputs["AO"]
+    occ = nb.mapr(ao, .95, .45)
+    base = nb.ramp(nb.add(nb.mul(n, .4), nb.mul(frost, .6)), [(0, srgb("EAF7FC")), (1, srgb("FFFFFF"))])
+    base = nb.mix(nb.mul(occ, .45), base, srgb("6FA9CF"))
+    bubbles = nb.mapr(nb.node("ShaderNodeTexVoronoi", Vector=tc, Scale=900, _feature="F1").outputs["Distance"], .1, .03)
+    base = nb.mix(nb.mul(bubbles, .4), base, srgb("FFFFFF"))
+    nb.bsdf(**{"Base Color": base, "Roughness": nb.add(.02, nb.mul(frost, .3)), "IOR": 1.31,
+               "Transmission Weight": nb.mul(nb.math("SUBTRACT", 1.0, frost), .5), "Specular IOR Level": 1.0,
+               "Coat Weight": .6, "Coat Roughness": .02, "Subsurface Weight": .35, "Subsurface Radius": (.5, .75, 1),
+               "Subsurface Scale": .008, "Emission Color": nb.mix(occ, srgb("E6F7FD"), srgb("8DC0DD")), "Emission Strength": .14})
+    return mat
+
+
+def water_material():
+    mat = mat_get("M_meltwater")
+    nb = NB(mat)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    n = nb.noise(tc, 25, 4, .6)
+    a = nb.mapr(n, .35, .55)
+    nb.bsdf(**{"Base Color": srgb("9CCBE0"), "Roughness": .02, "Coat Weight": 1.0, "Coat Roughness": .01, "Specular IOR Level": .9,
+               "Alpha": nb.mul(a, .55),
+               "Normal": nb.node("ShaderNodeBump", Height=nb.noise(tc, 60, 3), Strength=.08, Distance=.001).outputs[0]})
+    return mat
+
+
+def puddle_bm(rx, ry, seed=0, n=72):
+    pts = []
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        k = 1 + .18 * noise.noise(Vector((math.cos(a) * 2, math.sin(a) * 2, seed)))
+        pts.append((rx * k * math.cos(a), ry * k * math.sin(a)))
+    bm = bmesh.new()
+    vs = [bm.verts.new((x, y, 0)) for x, y in pts]
+    bm.faces.new(vs)
+    return bm
+
+
+def build_bench_peixaria2():
+    o = O("peixaria") + Vector((0, -2.0, 0))
+    c = col("Peixaria bench")
+    wipe_collection(c.name)
+    W, H = BENCH_SIZE
+    top = mesh_object("PB_Top", quad_bm(W * 1.04, H * 1.04), steel_counter_material(), c, subsurf=0)
+    top.location = o
+    def heap_tl(x, y):
+        d = math.hypot((x + .66) / .44, (y - .38) / .27)
+        return max(0.0, 1 - d ** 3)
+    def heap_br(x, y):
+        d = math.hypot((x - .66) / .44, (y + .38) / .26)
+        return max(0.0, 1 - d ** 3)
+    ib = shard_ice((-.66, .1, -.2, .38), 2600, 1, size=(.007, .016), heap=heap_tl, layers=1.4)
+    bm_join(ib, shard_ice((.2, -.38, .66, -.1), 2600, 2, size=(.007, .016), heap=heap_br, layers=1.4))
+    mesh_object("PB_Ice", ib, ice_material2(), c, subsurf=0, smooth_shade=False).location = o
+    wm = water_material()
+    for k, (x, y, rx, ry) in enumerate(((-.56, .3, .2, .13), (.56, -.3, .21, .13))):
+        pu = mesh_object("PB_Water%d" % k, puddle_bm(rx, ry, k), wm, c, subsurf=0)
+        pu.location = o + Vector((x, y, .0008))
+    lm = lemon_material()
+    for k, (lx, ly, lz) in enumerate(((-.5, .25, .024), (-.4, .31, .018), (.5, -.25, .022))):
+        lo = mesh_object("PB_Lemon%d" % k, lemon_half_bm(.04, .03), lm, c, subsurf=1)
+        lo.location = o + Vector((lx, ly, lz))
+        lo.rotation_euler = (math.radians(6 * (k - 1)), math.radians(4), 0)
+    pm = leaf_material("M_parsley", "3E8F3A", "6DB352")
+    for k, (px, py, pr) in enumerate(((.47, .26, 200), (.53, .3, 230), (.43, .31, 170), (.36, -.31, 20))):
+        po = mesh_object("PB_Parsley%d" % k, parsley_bm(k), pm, c, subsurf=1)
+        po.location = o + Vector((px, py, 0 if k < 3 else .016))
+        po.rotation_euler.z = math.radians(pr)
+    knife(c, "PB_Knife", o + Vector((-.43, -.3, 0)), 12, blade_len=.21, blade_w=.03, handle_len=.12, kind="chef",
+          blade_mat=metal_material("M_steel_p", "8F9AA2", .25),
+          handle_mat=simple_material("M_knife_poly", "1F8F85", .35, var="25A193", coat=.3))
+
+
+SCALE_PXM = 4000.0          # the scale sprite is rendered at 2x the game's 260 x 150 px
+
+
+def build_scale(c, at):
+    w, h = 260 / 2000, 150 / 2000
+    names = []
+    body_m = metal_material("M_scale_steel", "B9C3CA", .28)
+    body = rounded_slab(w, h, .014, .012)
+    ob = mesh_object("SC_Body", body, body_m, c, subsurf=1)
+    ob.location = at
+    names.append(ob.name)
+    # recessed dark gap under the plate + the brushed weighing plate on top
+    pw, ph = w - .012, h - .034
+    gap = rounded_slab(pw + .002, ph + .002, .0155, .009)
+    xform(gap, loc=(0, .006, 0))
+    g = mesh_object("SC_Gap", gap, simple_material("M_scale_gap", "39424A", .5), c, subsurf=1)
+    g.location = at
+    plate = rounded_slab(pw, ph, .004, .008)
+    xform(plate, loc=(0, .006, .016))
+    pm = mat_get("M_scale_plate")
+    nb = NB(pm)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    sv = nb.node("ShaderNodeMapping", Vector=tc, Scale=(2, 900, 1)).outputs[0]
+    br = nb.noise(sv, 1.0, 4, .55)
+    nb.bsdf(**{"Base Color": nb.ramp(br, [(0, srgb("CBD3D9")), (1, srgb("EEF2F5"))]), "Metallic": .9, "Roughness": nb.add(.18, nb.mul(br, .12)),
+               "Normal": nb.node("ShaderNodeBump", Height=br, Strength=.12, Distance=.0004).outputs[0]})
+    p = mesh_object("SC_Plate", plate, pm, c, subsurf=1)
+    p.location = at
+    # display: dark glass window in a bezel along the front edge, two small buttons (no digits)
+    bz = rounded_slab(w - .018, .019, .0152, .005)
+    xform(bz, loc=(0, -h / 2 + .0115, 0))
+    b = mesh_object("SC_Bezel", bz, simple_material("M_scale_bezel", "5E6971", .35, var="6E7A82"), c, subsurf=1)
+    b.location = at
+    dw = rounded_slab(w - .05, .012, .0156, .003)
+    xform(dw, loc=(-.008, -h / 2 + .0115, 0))
+    dm = mat_get("M_scale_display")
+    nb = NB(dm)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    x, y, z = nb.sep(tc)
+    refl = nb.mapr(nb.add(x, nb.mul(y, -2.0)), -.02, .03)
+    nb.bsdf(**{"Base Color": nb.mix(nb.mul(refl, .25), srgb("142028"), srgb("2E4250")), "Roughness": .05, "Coat Weight": 1.0,
+               "Coat Roughness": .02, "Specular IOR Level": .9})
+    d = mesh_object("SC_Display", dw, dm, c, subsurf=1)
+    d.location = at
+    for k, hexc in enumerate(("1F8F85", "F08A2C")):
+        bt = lathe_bm([(0, .0152), (.0032, .0152), (.0034, .0165), (.0026, .0178), (0, .018)], 24)
+        xform(bt, loc=(w / 2 - .022 + k * .0095, -h / 2 + .0115, 0))
+        bo = mesh_object("SC_Btn%d" % k, bt, simple_material("M_btn_" + hexc, hexc, .3, coat=.6), c, subsurf=1)
+        bo.location = at
+        names.append(bo.name)
+    names += [g.name, p.name, b.name, d.name]
+    return names
+
+
+def build_icebed2():
+    o = O("peixaria") + Vector((0, -4.0, 0))
+    c = col("Peixaria parts")
+    wipe_collection(c.name)
+    w, h = 1540 / MPX, 690 / MPX
+    tray = rounded_slab(w, h, .012, 22 / MPX)
+    mesh_object("PP_IceTray", tray, steel_counter_material(), c, subsurf=1).location = o
+    ib = shard_ice((-w / 2 + .012, -h / 2 + .012, w / 2 - .012, h / 2 - .012), 9000, 5, size=(.007, .014), zbase=.009)
+    mesh_object("PP_Ice", ib, ice_material2(), c, subsurf=0, smooth_shade=False).location = o
+    wb = quad_bm(w - .02, h - .02)
+    wa = mesh_object("PP_Water", wb, water_material(), c, subsurf=0)
+    wa.location = o + Vector((0, 0, .0125))
+    build_scale(c, o + Vector((1.0, 0, 0)))
+    catcher("peixaria", o + Vector((.5, 0, -.0005)), (2.6, 1.2), "Catcher_pparts")
+
+
+SCALE_PARTS = ["SC_Body", "SC_Gap", "SC_Plate", "SC_Bezel", "SC_Display", "SC_Btn0", "SC_Btn1"]
+
+
+def render_scale():
+    o = O("peixaria") + Vector((1.0, -4.0, 0))
+    p = shoot(o + Vector((0, 0, .01)), (560 / SCALE_PXM, 340 / SCALE_PXM), (560, 340), os.path.join(OUT, "pz_scale.png"), True,
+              SCALE_PARTS + ["Catcher_pparts"])
+    a = img_load(p)
+    save_png(img_resize(a, 300, 182), "mockup_part_scale.png")
+    return p
+
+
+def render_icebed2():
+    o = O("peixaria") + Vector((0, -4.0, 0))
+    return shoot(o, (1600 / MPX, 760 / MPX), (1600, 760), os.path.join(OUT, "mockup_part_icebed.png"), True,
+                 ["PP_IceTray", "PP_Ice", "PP_Water", "Catcher_pparts"])
+
+
+def mockup_peixaria2():
+    bench = load("pz_bench_peixaria.png")
+    bench[..., 3] = 1
+    place(bench, load("mockup_part_icebed.png"), 800, 547)
+    sc = load("pz_scale.png")
+    for t in range(3):
+        place(bench, sc, 800 + (t - 1) * 290, 89, 280, None)
+    unit = 82
+    looks = {"peixe": (1.9, .8), "file": (1.3, .62), "camarao": (.9, .72), "salmao": (1.4, .62)}
+    pieces = ["peixe", "salmao", "camarao", "file", "peixe", "salmao"]
+    for i, k in enumerate(pieces):
+        row, colm = i // 3, i % 3
+        cx = 800 + (colm - 1) * (1480 / 3)
+        cy = 547 - (1 if row == 0 else -1) * 690 * .22
+        w, h = looks[k]
+        place(bench, load("pz_fish_%s.png" % k), cx, cy, int(w * unit * 1.9), int(h * unit * 1.9))
+    place(bench, load("pz_fish_file.png"), 800, 76, int(1.3 * unit * 1.2), int(.62 * unit * 1.2))
+    bench[..., 3] = 1
+    return save_png(bench, "mockup_peixaria.png")
+
+
 # ============================================================================================ GLASS SPRITES (sucos, adega)
 GLASS_TILT = 8.0
 
@@ -2198,7 +2699,7 @@ def inner_rect(center, size_m, res, r_in, z_bot, z_top, tilt=GLASS_TILT, shrink=
     return [int(math.ceil(l)) + shrink, int(math.ceil(b)) + shrink, int(r) - shrink, int(tp)]
 
 
-def shell_profile(outer, wall=.0028, base=.012, rim=.0016):
+def shell_profile(outer, wall=.0028, base=.012, rim=.0016, round_floor=0.0):
     """outer: [(r, z)] bottom->top (first r>0 at z=0). Returns a closed lathe profile with a thick base and a
     rounded rim: outer up, round over the rim, inner wall back down (offset inwards), inner floor."""
     prof = [(0.0, 0.0)] + list(outer)
@@ -2212,7 +2713,15 @@ def shell_profile(outer, wall=.0028, base=.012, rim=.0016):
         if z < base:
             continue
         inner.append((max(.0005, r - wall), z))
-    inner.append((max(.0005, outer[0][0] - wall - .004), base))
+    if round_floor:
+        rin = inner[-1][0]
+        zf = inner[-1][1]
+        inner = [p for p in inner if p[1] > base + round_floor]
+        for k in range(1, 7):
+            a = math.pi / 2 * k / 6
+            inner.append(((rin - round_floor) + round_floor * math.cos(a), base + round_floor - round_floor * math.sin(a)))
+    else:
+        inner.append((max(.0005, outer[0][0] - wall - .004), base))
     prof += inner
     prof.append((0.0, base))
     return prof
@@ -3011,6 +3520,589 @@ def run_adega():
     return out
 
 
+
+# ============================================================================================ masks (inside of a glass) + SUCOS v2
+def mask_material():
+    mat = mat_get("M_inside_mask")
+    nb = NB(mat)
+    em = nb.node("ShaderNodeEmission", Color=(1, 1, 1, 1), Strength=1.0)
+    o = nb.node("ShaderNodeOutputMaterial")
+    nb.nt.links.new(em.outputs[0], o.inputs["Surface"])
+    return mat
+
+
+def inside_bm(outer, wall, base, seg=96, top_drop=0.0, round_floor=0.0):
+    """Solid of the cavity of a lathe vessel: inner wall from the inner floor up to the rim."""
+    prof = [(0.0, base)]
+    if round_floor:
+        rin = max(.0005, [r for r, z in outer if z >= base + round_floor][0] - wall)
+        for k in range(6, 0, -1):
+            a = math.pi / 2 * k / 6
+            prof.append(((rin - round_floor) + round_floor * math.cos(a), base + round_floor - round_floor * math.sin(a)))
+    for r, z in outer:
+        if z < base + round_floor:
+            continue
+        prof.append((max(.0005, r - wall), z))
+    zt = outer[-1][1] - top_drop
+    prof = [p for p in prof if p[1] <= zt] + [(max(.0005, outer[-1][0] - wall), zt), (0.0, zt)]
+    return lathe_bm(prof, seg)
+
+
+def render_mask(name, mask_obj, center, size_m, res, tilt=GLASS_TILT):
+    sc = bpy.context.scene
+    vt, lk = sc.view_settings.view_transform, sc.view_settings.look
+    try:
+        sc.view_settings.view_transform, sc.view_settings.look = "Standard", "None"
+        set_world("warm", 0.0)
+        p = shoot(center, size_m, res, os.path.join(OUT, name + "_mask.png"), True, [mask_obj], "front", tilt, sun="")
+    finally:
+        sc.view_settings.view_transform, sc.view_settings.look = vt, lk
+        set_world("warm")
+    a = img_load(p)
+    a[..., :3] = 1.0
+    img_save(a, p)
+    return p
+
+
+JUICE = dict(R0=.034, R1=.041, H=.205, wall=.0042, base=.02, res=(240, 560), pxm=1850.0, cx=-.014)
+
+
+def juice_outer():
+    R0, R1, H = JUICE["R0"], JUICE["R1"], JUICE["H"]
+    pts = [(R0 - .012, 0), (R0 - .006, .0008), (R0 - .0022, .003), (R0 - .0004, .0075), (R0, .012)]
+    for k in range(1, 13):
+        t = k / 12
+        pts.append((R0 + (R1 - R0) * t ** 1.15, .012 + (H - .012) * t))
+    return pts
+
+
+def citrus_slice_material(name, pulp0, pulp1, pith, peel, R, segs=10):
+    mat = mat_get(name)
+    nb = NB(mat)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    x, y, z = nb.sep(tc)
+    r = nb.math("SQRT", nb.add(nb.mul(x, x), nb.mul(y, y)))
+    ang = nb.math("ARCTAN2", y, x)
+    n = nb.noise(tc, 150, 4)
+    seg = nb.math("ABSOLUTE", nb.math("SUBTRACT", nb.math("FRACT", nb.mul(ang, segs / (2 * math.pi))), .5))
+    memb = nb.mul(nb.mapr(seg, .44, .5), nb.mapr(r, R * .12, R * .2))
+    cells = nb.mapr(nb.node("ShaderNodeTexVoronoi", Vector=tc, Scale=450, _feature="DISTANCE_TO_EDGE").outputs["Distance"], .0, .12)
+    pulp = nb.ramp(nb.add(nb.mul(n, .5), nb.mul(cells, .4)), [(0, srgb(pulp0)), (1, srgb(pulp1))])
+    face = nb.mix(memb, pulp, srgb(pith))
+    face = nb.mix(nb.mapr(r, R * .82, R * .87), face, srgb(pith))
+    face = nb.mix(nb.mapr(r, R * .92, R * .95), face, srgb(peel))
+    face = nb.mix(nb.mapr(r, R * .12, R * .06), face, srgb(pith))
+    nb.bsdf(**{"Base Color": face, "Roughness": .3, "Coat Weight": .6, "Coat Roughness": .1, "Subsurface Weight": .45,
+               "Subsurface Radius": (1, .7, .3), "Subsurface Scale": .004,
+               "Normal": nb.node("ShaderNodeBump", Height=nb.add(nb.mul(memb, .6), nb.mul(cells, .3)), Strength=.3, Distance=.0008).outputs[0]})
+    return mat
+
+
+def straw_material():
+    mat = mat_get("M_straw")
+    nb = NB(mat)
+    uv = nb.node("ShaderNodeTexCoord").outputs["UV"]
+    u, v, _ = nb.sep(uv)
+    st = nb.mapr(nb.math("SINE", nb.mul(nb.add(nb.mul(u, 1 / .012), nb.mul(v, 1.0)), 2 * math.pi)), -.1, .1)
+    base = nb.mix(st, srgb("FFF7EA"), srgb("1F8F85"))
+    nb.bsdf(**{"Base Color": base, "Roughness": .3, "Coat Weight": .5, "Coat Roughness": .1})
+    return mat
+
+
+def build_juice_glass(c, at):
+    outer = juice_outer()
+    H = JUICE["H"]
+    bm = lathe_bm(shell_profile(outer, wall=JUICE["wall"], base=JUICE["base"], rim=.0022, round_floor=.009), 96)
+    g = mesh_object("JG_Glass", bm, glass_material(), c, subsurf=1)
+    g.location = at
+    set_dense(g, lambda co: max(min(1.0, max(0.0, (JUICE["base"] + .004 - co.z) / .012)) * .85,
+                                min(1.0, max(0.0, (co.z - (H - .005)) / .005)) * .6))
+    # striped straw leaning out over the back-left of the rim
+    a, b = Vector((-.016, .014, H - .022)), Vector((-.036, .006, H + .05))
+    st = tube_bm([a[:], ((a + b) / 2)[:], b[:]], .0034, 16)
+    so = mesh_object("JG_Straw", st, straw_material(), c, subsurf=1)
+    so.location = at
+    # orange wheel clipped on the right of the rim (outside the glass)
+    R = .019
+    sl = lathe_bm([(0, -.003), (R * .98, -.003), (R, -.0018), (R, .0018), (R * .98, .003), (0, .003)], 64)
+    so2 = mesh_object("JG_Slice", sl, citrus_slice_material("M_juice_slice", "FFA531", "FFC566", "FFEBC8", "F28A1A", R, 10), c, subsurf=1)
+    so2.location = at + Vector((JUICE["R1"] + .014, -.006, H + .006))
+    so2.rotation_euler = (math.radians(90), math.radians(-8), 0)
+    m = mesh_object("JG_Inside", inside_bm(outer, JUICE["wall"], JUICE["base"], round_floor=.009), mask_material(), c, subsurf=1)
+    m.location = at
+    return [g.name], [so.name, so2.name], m.name
+
+
+def build_sucos_pieces2():
+    o = O("sucos")
+    c = col("Sucos pieces")
+    wipe_collection(c.name)
+    build_juice_glass(c, o)
+    softboxes(c, "JG", o)
+    catcher("sucos", o + Vector((0, .1, 0)), (1.2, 1.2))
+
+
+def juice_frame():
+    o = O("sucos")
+    res = JUICE["res"]
+    size = (res[0] / JUICE["pxm"], res[1] / JUICE["pxm"])
+    center = o + Vector((-JUICE["cx"] + .002, 0, JUICE["H"] * .5 + .022))
+    return o, res, size, center
+
+
+def render_piece_sucos2(kind="glass"):
+    o, res, size, center = juice_frame()
+    if kind == "mask":
+        p = render_mask("pz_jug_glass", "JG_Inside", center, size, res)
+        return p
+    path, _ = render_glass("pz_jug_glass", ["JG_Glass"], ["JG_Straw", "JG_Slice"], ["JG_Soft0", "JG_Soft1", "JG_Soft2"],
+                           center, size, res, catcher_name="Catcher_sucos")
+    rect = inner_rect(center, size, res, JUICE["R0"] + .002 - JUICE["wall"], JUICE["base"] + .004, JUICE["H"] - .012, axis=o)
+    manifest_update("pz_jug_glass", {"inner": rect, "size": list(res), "mask": "pz_jug_glass_mask.png",
+                                     "check": glass_stats("pz_jug_glass", rect)})
+    return path
+
+
+def build_bench_sucos2():
+    o = O("sucos") + Vector((0, -2.0, 0))
+    c = col("Sucos bench")
+    wipe_collection(c.name)
+    W, H = BENCH_SIZE
+    top = mesh_object("SB_Top", quad_bm(W * 1.04, H * 1.04),
+                      wood_material("M_juicebar", light="F0C98E", dark="C99055", plank=.1, seam=True, scale=1.2), c, subsurf=0)
+    top.location = o
+    linen(c, "SB_Napkin", o + Vector((-.5, .27, 0)), (.36, .26), rot=-10, seed=3)
+    om = fruit_skin_material("M_orange", "F7931E", "E5770F", pore=700, rough=.35)
+    for k, (x, y) in enumerate(((-.58, .3), (-.47, .34), (-.62, .17))):
+        ob = mesh_object("SB_Orange%d" % k, orange_bm(seed=k), om, c, subsurf=1)
+        ob.location = o + Vector((x, y, .044))
+    hcm = citrus_cut_material("M_orange_cut", "FFA531", "FFC566", "FFE9C2", "F28A1A", .044, 11)
+    for k, (x, y) in enumerate(((-.42, .24), (-.52, .16))):
+        oh = mesh_object("SB_OrangeHalf%d" % k, lemon_half_bm(.044, .036), hcm, c, subsurf=1)
+        oh.location = o + Vector((x, y, .004))
+    lm = fruit_skin_material("M_lime", "5DAA2E", "3E8A1F", pore=800, rough=.3)
+    for k, (x, y) in enumerate(((.57, .31), (.49, .35))):
+        b = ellipsoid(.032, .037, .03, 4, seed=k + 5, lump=.02)
+        ob = mesh_object("SB_Lime%d" % k, b, lm, c, subsurf=1)
+        ob.location = o + Vector((x, y, .03))
+        ob.rotation_euler.z = math.radians(30 * k + 20)
+    lcm = citrus_cut_material("M_lime_cut", "A6D65A", "C8EA8A", "EEF7D8", "4F9A28", .033, 9)
+    lh = mesh_object("SB_LimeHalf", lemon_half_bm(.033, .027), lcm, c, subsurf=1)
+    lh.location = o + Vector((.45, .26, 0))
+    mm = leaf_material("M_mint", "3E9A4A", "79C267")
+    for k, (px, py, pr) in enumerate(((.6, .18, 200), (.4, .33, 150))):
+        po = mesh_object("SB_Mint%d" % k, parsley_bm(k + 7, .1, 6), mm, c, subsurf=1)
+        po.location = o + Vector((px, py, 0))
+        po.rotation_euler.z = math.radians(pr)
+    sm = strawberry_material()
+    cm = leaf_material("M_calyx", "3E7A2E", "5E9A3A")
+    for k, (x, y, r) in enumerate(((-.55, -.27, 20), (-.47, -.31, -40), (-.6, -.33, 80), (-.42, -.25, 150), (-.52, -.2, 110))):
+        sc_ = 1.45 - .06 * k
+        ob = mesh_object("SB_Straw%d" % k, strawberry_bm(k, sc_), sm, c, subsurf=1)
+        ob.location = o + Vector((x, y, 0))
+        ob.rotation_euler.z = math.radians(r)
+        ca = mesh_object("SB_Calyx%d" % k, calyx_bm(k), cm, c, subsurf=1)
+        a = math.radians(r)
+        ca.location = o + Vector((x + math.sin(a) * .021 * sc_, y + math.cos(a) * .021 * sc_, .013 * sc_))
+        ca.rotation_euler = (math.radians(90), 0, a)
+    grape_bunch(c, "SB_Grapes", o + Vector((.36, -.3, 0)), grape_material("M_grape_green", "9CC24A", "C9DD74", bloom=.5), n=24, seed=6, rot=110, r=.013,
+                stem_mat=stem_material())
+    R = .06
+    pr_ = [(0, 0), (R * .98, 0), (R, .002), (R, .012), (R * .98, .014), (0, .014)]
+    pm = mesh_object("SB_Pineapple", lathe_bm(pr_, 64), pineapple_slice_material(R), c, subsurf=1)
+    pm.location = o + Vector((.56, -.26, 0))
+    lv = bmesh.new()
+    for k in range(6):
+        pts = [(0, -.004), (.05, -.003), (.08, 0), (.05, .003), (0, .004)]
+        lf = outline_slab(pts, .0015, bevel=.0005, segs=1)
+        xform(lf, rot=(0, -8, 130 + 12 * k), loc=(0, 0, .002 * k))
+        bm_join(lv, lf)
+    lo = mesh_object("SB_PineLeaf", lv, leaf_material("M_pine_leaf", "4C7F3A", "6C9E4C"), c, subsurf=1)
+    lo.location = o + Vector((.64, -.15, .0))
+    # a few clear ice cubes near the limes
+    ib = bmesh.new()
+    rnd = random.Random(4)
+    for k in range(5):
+        cb = bmesh.new()
+        bmesh.ops.create_cube(cb, size=.022)
+        bmesh.ops.bevel(cb, geom=cb.edges[:], offset=.003, segments=3, affect="EDGES")
+        xform(cb, loc=(.3 + rnd.uniform(-.04, .04), .3 + rnd.uniform(-.04, .03), .011), rot=(0, 0, rnd.uniform(0, 90)))
+        bm_join(ib, cb)
+    mesh_object("SB_IceCubes", ib, ice_material2(), c, subsurf=0).location = o
+
+
+def mockup_sucos2():
+    bench = load("pz_bench_bebidas.png")
+    bench[..., 3] = 1
+    with open(os.path.join(OUT, "manifest.json")) as f:
+        man = json.load(f)
+    l, b, r, t = man["pz_jug_glass"]["inner"]
+    jug = load("pz_jug_glass.png")
+    mask = load("pz_jug_glass_mask.png")[..., 3]
+    sw, sh = 240, 560
+    sc = 150 / sw
+    ow, oh = int(sw * sc), int(sh * sc)
+    mask_s = img_resize(np.dstack([np.ones_like(mask)] * 3 + [mask]).astype(np.float32), ow, oh)[..., 3]
+    cols = ["F59A23", "E5484D", "8CCB3C", "7E4AA8", "F6D44A", "F2667E"]
+    stacks = [[0, 1, 2, 0], [1, 2, 1], [2, 0, 1, 2], [3, 4], [4, 3, 4, 3], []]
+    ys_bottom = oh - b * sc
+    ys_top = oh - t * sc
+    unit = (ys_bottom - ys_top) / 4
+    for j in range(6):
+        cx = 800 + (j - 2.5) * 175
+        cy = 430
+        x0, y0 = int(cx - ow / 2), int(cy - oh / 2)
+        layer = blank(ow, oh)
+        for k, ci in enumerate(stacks[j]):
+            y1 = ys_bottom - k * unit
+            y2 = y1 - unit
+            rgb = np.array(srgb_f(cols[ci]), np.float32)
+            top = int(y2) if k < len(stacks[j]) - 1 else int(y2)
+            layer[max(0, int(y2)):int(y1) if k else oh, :, :3] = rgb
+            layer[max(0, int(y2)):int(y1) if k else oh, :, 3] = .93
+            layer[max(0, int(y2)):max(0, int(y2)) + 3, :, :3] = np.minimum(1, rgb * 1.25)
+        layer[..., 3] *= mask_s
+        over(bench, layer, x0, y0)
+        place(bench, jug, cx, cy, ow, oh)
+    bench[..., 3] = 1
+    return save_png(bench, "mockup_sucos.png")
+
+
+
+# ============================================================================================ SORVETES v2: gelato tubs + display freezer
+TUB = dict(W=.22, D=.17, H=.075, r=.018, res=(400, 320), pxm=1500.0, tilt=62.0)
+
+
+def rrect_pts(w, d, r, n=10):
+    pts = []
+    for cx, cy, a0 in ((w / 2 - r, d / 2 - r, 0), (-w / 2 + r, d / 2 - r, 90), (-w / 2 + r, -d / 2 + r, 180), (w / 2 - r, -d / 2 + r, 270)):
+        for i in range(n + 1):
+            a = math.radians(a0 + 90 * i / n)
+            pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return pts
+
+
+def sweep_rrect(w, d, r, profile, n=10):
+    """Rounded-rectangle 'lathe': each (offset, z) of `profile` becomes a ring offset outwards by `offset`.
+    Closes the first and last ring with n-gons."""
+    bm = bmesh.new()
+    rings = []
+    for off, z in profile:
+        rings.append([bm.verts.new((x, y, z)) for x, y in rrect_pts(w + 2 * off, d + 2 * off, max(.002, r + off), n)])
+    m = len(rings[0])
+    for i in range(len(rings) - 1):
+        for j in range(m):
+            bm.faces.new((rings[i][j], rings[i][(j + 1) % m], rings[i + 1][(j + 1) % m], rings[i + 1][j]))
+    bm.faces.new(list(reversed(rings[0])))
+    bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return bm
+
+
+def pan_material():
+    mat = mat_get("M_gelato_pan")
+    nb = NB(mat)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    x, y, z = nb.sep(tc)
+    geo = nb.node("ShaderNodeNewGeometry")
+    nz = nb.sep(geo.outputs["Normal"])[2]
+    sv = nb.node("ShaderNodeMapping", Vector=tc, Scale=(4, 700, 1)).outputs[0]
+    br = nb.noise(sv, 1.0, 3, .5)
+    steel = nb.ramp(nb.add(nb.mul(br, .6), nb.mul(nb.noise(tc, 20, 3), .4)), [(0, srgb("7F8A92")), (1, srgb("B4BEC5"))])
+    # frost: fine white crystals on the rim and the upper wall
+    fr = nb.mul(nb.mapr(z, TUB["H"] - .002, TUB["H"] + .004), nb.mapr(nb.noise(tc, 60, 5, .6), .25, .45))
+    sp = nb.mapr(nb.noise(tc, 1400, 2, .5), .6, .66)
+    fr = nb.math("MAXIMUM", fr, nb.mul(sp, nb.mapr(z, TUB["H"] - .02, TUB["H"] - .004)))
+    base = nb.mix(fr, steel, nb.ramp(nb.noise(tc, 500, 2), [(0, srgb("EAF4F9")), (1, srgb("FFFFFF"))]))
+    nb.bsdf(**{"Base Color": base, "Metallic": nb.math("SUBTRACT", .95, nb.mul(fr, .95)), "Roughness": nb.add(.22, nb.mul(fr, .55), nb.mul(br, .1)),
+               "Normal": nb.node("ShaderNodeBump", Height=nb.add(br, nb.mul(fr, nb.noise(tc, 400, 3))), Strength=.25, Distance=.0005).outputs[0]})
+    return mat
+
+
+def gelato_surface_bm(seed, nx=90, ny=70):
+    W, D, H, r = TUB["W"], TUB["D"], TUB["H"], TUB["r"]
+    iw, idd = W - .012, D - .012
+    rnd = random.Random(seed)
+    off = Vector((seed * 5.1, seed * 1.7, .3))
+    sc = (rnd.uniform(-.04, .04), rnd.uniform(-.03, .03), rnd.uniform(.035, .05), rnd.uniform(0, 6.28))   # scoop mark
+    bm = bmesh.new()
+    vs = {}
+    rr = r - .006
+    for i in range(nx + 1):
+        for j in range(ny + 1):
+            x = (i / nx - .5) * iw
+            y = (j / ny - .5) * idd
+            # pull corner points onto the rounded inner outline
+            qx, qy = abs(x) - (iw / 2 - rr), abs(y) - (idd / 2 - rr)
+            if qx > 0 and qy > 0:
+                k = rr / math.hypot(qx, qy)
+                if k < 1:
+                    x = math.copysign(iw / 2 - rr + qx * k, x)
+                    y = math.copysign(idd / 2 - rr + qy * k, y)
+            ex = min(iw / 2 - abs(x), idd / 2 - abs(y))
+            edge = smooth(0, .02, ex)
+            heap = math.cos(min(1.0, abs(x) / (iw / 2)) * math.pi / 2) ** .6 * math.cos(min(1.0, abs(y) / (idd / 2)) * math.pi / 2) ** .6
+            p = Vector((x, y, 0))
+            wave = .009 * math.sin(x * 60 + 3.0 * noise.noise(p * 16 + off)) * math.sin(y * 48 + 2.0 * noise.noise(p * 12 + off))
+            swirl = .007 * noise.fractal(p * 22 + off, .6, 2.0, 3)
+            ridge = .006 * (1 - abs(math.sin((x * .8 + y) * 90 + 4 * noise.noise(p * 10 + off)))) ** 3
+            z = H * .92 + edge * (.038 * heap + wave + swirl + ridge) + (1 - edge) * .004
+            # the scoop mark: a curled trough with a raised lip beside it
+            dx, dy = x - sc[0], y - sc[1]
+            d = abs(math.hypot(dx, dy) - sc[2] * .5)
+            ang = math.atan2(dy, dx)
+            arc = smooth(-.2, .6, math.cos(ang - sc[3]))
+            z += arc * edge * (-.012 * math.exp(-(d / .009) ** 2) + .005 * math.exp(-((d - .013) / .005) ** 2))
+            vs[i, j] = bm.verts.new((x, y, z))
+    for i in range(nx):
+        for j in range(ny):
+            bm.faces.new((vs[i, j], vs[i + 1, j], vs[i + 1, j + 1], vs[i, j + 1]))
+    return bm
+
+
+def build_tubs():
+    o = O("sorvetes") + Vector((0, 1.0, 0))
+    c = col("Sorvetes tubs")
+    wipe_collection(c.name)
+    W, D, H, r = TUB["W"], TUB["D"], TUB["H"], TUB["r"]
+    prof = [(-.006, 0), (-.0035, .0012), (-.001, .006), (0, .02), (0, H), (.005, H + .001), (.0065, H + .0035), (.005, H + .0055),
+            (.001, H + .0055), (-.0025, H + .004), (-.003, H - .002), (-.003, .008), (-.006, .004), (-.009, .004)]
+    for i, f in enumerate(FLAVORS):
+        at = o + Vector((i * .4, 0, .0005))
+        pan = mesh_object("tub_pan_" + f, sweep_rrect(W, D, r, prof), pan_material(), c, subsurf=1)
+        pan.location = at
+        g = mesh_object("tub_gelato_" + f, gelato_surface_bm(i + 3), icecream_material(f), c, subsurf=1)
+        g.location = at
+    catcher("sorvetes", o + Vector((1.0, .05, 0)), (3.0, 1.0), "Catcher_tubs")
+
+
+def render_tub(f):
+    pan = bpy.data.objects["tub_pan_" + f]
+    res = TUB["res"]
+    size = (res[0] / TUB["pxm"], res[1] / TUB["pxm"])
+    center = pan.location + Vector((0, 0, TUB["H"] * .55))
+    return shoot(center, size, res, os.path.join(OUT, "pz_tub_%s.png" % f), True, [pan.name, "tub_gelato_" + f, "Catcher_tubs"], "front", TUB["tilt"])
+
+
+FREEZER_PXM = 1600 / (BENCH_SIZE[0])
+SLOT = dict(w=280, h=224, gap=26, x0=70, y0=196)         # pixels, top-left origin, 3 x 2
+
+
+def slot_rects_px():
+    out = []
+    for row in range(2):
+        for col_ in range(3):
+            l = SLOT["x0"] + col_ * (SLOT["w"] + SLOT["gap"])
+            t = SLOT["y0"] + row * (SLOT["h"] + SLOT["gap"])
+            out.append((l, t, l + SLOT["w"], t + SLOT["h"]))
+    return out
+
+
+def px2m(x, y, o):
+    """Bench pixel (top-left origin) -> world point on the bench plane."""
+    W, H = BENCH_SIZE
+    return o + Vector(((x / 1600 - .5) * W, (.5 - y / 900) * H, 0))
+
+
+def freezer_well_material():
+    mat = mat_get("M_freezer_well")
+    nb = NB(mat)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    n = nb.noise(tc, 30, 5, .6)
+    fr = nb.mul(nb.mapr(nb.noise(tc, 220, 4, .6), .55, .7), nb.mapr(nb.noise(tc, 12, 3), .35, .65))
+    base = nb.ramp(n, [(0, srgb("4A6073")), (1, srgb("647D90"))])
+    base = nb.mix(nb.mul(fr, .55), base, srgb("DCEBF4"))
+    nb.bsdf(**{"Base Color": base, "Roughness": nb.add(.35, nb.mul(fr, .4)), "Metallic": nb.mul(nb.math("SUBTRACT", 1.0, fr), .5),
+               "Normal": nb.node("ShaderNodeBump", Height=nb.add(n, fr), Strength=.2, Distance=.001).outputs[0]})
+    return mat
+
+
+def build_bench_sorvetes2():
+    o = O("sorvetes") + Vector((0, -2.0, 0))
+    c = col("Sorvetes bench")
+    wipe_collection(c.name)
+    W, H = BENCH_SIZE
+    top = mesh_object("IB_Top", quad_bm(W * 1.04, H * 1.04), terrazzo_material(), c, subsurf=0)
+    top.location = o
+    s = 1 / FREEZER_PXM
+    steel = metal_material("M_freezer_steel", "B3BDC4", .26)
+    # freezer cabinet top: a steel deck around the well, dividers between the 6 slots
+    fx0, fy0, fx1, fy1 = 28, 40, 990, 852
+    cx, cy = (fx0 + fx1) / 2, (fy0 + fy1) / 2
+    deck = rounded_slab((fx1 - fx0) * s, (fy1 - fy0) * s, .02, .02)
+    d = mesh_object("IB_Deck", deck, steel, c, subsurf=0)
+    d.location = px2m(cx, cy, o)
+    # dark frosty well where the slots open
+    rects = slot_rects_px()
+    wl, wt = rects[0][0] - 14, rects[0][1] - 14
+    wr, wb = rects[-1][2] + 14, rects[-1][3] + 14
+    well = rounded_slab((wr - wl) * s, (wb - wt) * s, .0215, .012)
+    w = mesh_object("IB_Well", well, freezer_well_material(), c, subsurf=0)
+    w.location = px2m((wl + wr) / 2, (wt + wb) / 2, o)
+    # slot frames: a raised steel lip around every opening (4 bars each), then the dividers between them
+    bars = bmesh.new()
+    lip = 10
+    for (l, t, r_, b) in rects:
+        for (bx, by, bw, bh) in ((l - lip, t - lip, r_ - l + 2 * lip, lip), (l - lip, b, r_ - l + 2 * lip, lip),
+                                 (l - lip, t, lip, b - t), (r_, t, lip, b - t)):
+            sl = rounded_slab(bw * s, bh * s, .006, .0025)
+            xform(sl, loc=px2m(bx + bw / 2, by + bh / 2, Vector()) + Vector((0, 0, .0215)))
+            bm_join(bars, sl)
+    mesh_object("IB_SlotLips", bars, metal_material("M_freezer_lip", "C9D1D7", .2), c, subsurf=1).location = o
+    # front: curved glass sneeze guard along the customer edge
+    gl = rounded_slab((fx1 - fx0 - 30) * s, 46 * s, .03, .01)
+    gm = mat_get("M_freezer_glass")
+    nb = NB(gm)
+    tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
+    y_ = nb.sep(tc)[1]
+    hl = nb.mapr(nb.math("ABSOLUTE", nb.add(y_, .004)), .006, .0)
+    nb.bsdf(**{"Base Color": nb.mix(nb.mul(hl, .8), srgb("A9D8E6"), srgb("FFFFFF")), "Roughness": .03, "Transmission Weight": .5, "IOR": 1.45,
+               "Coat Weight": 1.0, "Coat Roughness": .02, "Alpha": nb.add(.55, nb.mul(hl, .45))})
+    g = mesh_object("IB_Glass", gl, gm, c, subsurf=0)
+    g.location = px2m(cx, fy1 - 32, o) + Vector((0, 0, .02))
+    # cone stand on the right: a round steel base with a ring holder (the game stands the cone in it)
+    st = CONE_STAND
+    base = lathe_bm([(0, 0), (.07, 0), (.075, .004), (.074, .012), (.068, .015), (0, .015)], 64)
+    bo = mesh_object("IB_StandBase", base, steel, c, subsurf=1)
+    bo.location = px2m(st[0], st[1], o)
+    ring = lathe_bm([(.026, .015), (.034, .015), (.036, .03), (.034, .034), (.028, .034), (.026, .03)], 48)
+    ro = mesh_object("IB_StandRing", ring, metal_material("M_stand_ring", "D7DEE3", .18, False), c, subsurf=1)
+    ro.location = bo.location
+    hole = lathe_bm([(0, .0151), (.0262, .0151), (.0262, .016), (0, .016)], 48)
+    ho = mesh_object("IB_StandHole", hole, simple_material("M_stand_hole", "3A434B", .6), c, subsurf=0)
+    ho.location = bo.location
+    # props at the right corners: sprinkles bowl (top-right), cherries + wafers (bottom-right)
+    prof = [(0, 0), (.04, 0), (.06, .01), (.07, .035), (.066, .037), (.056, .014), (.04, .008), (0, .008)]
+    bowl = mesh_object("IB_Bowl", lathe_bm(spline(prof, 3), 64), simple_material("M_ibowl", "F49AB5", .25, coat=.7, var="F7A9C0"), c, subsurf=1)
+    bowl.location = px2m(1500, 110, o)
+    rnd = random.Random(9)
+    cols = ["E5484D", "F6D44A", "54B6E8", "8CCB3C", "FFFFFF", "F28CA6", "9A6AD0"]
+    sp = {h: bmesh.new() for h in cols}
+    bc = bowl.location - o
+    def sprinkle(x, y, z, h):
+        t = tube_bm([(-.0035, 0, 0), (.0035, 0, 0)], .0011, 6)
+        xform(t, loc=(x, y, z + .0011), rot=(rnd.uniform(-20, 20), rnd.uniform(-20, 20), rnd.uniform(0, 360)))
+        bm_join(sp[h], t)
+    for i in range(380):
+        a, r = rnd.uniform(0, 6.28), .058 * math.sqrt(rnd.random())
+        sprinkle(bc.x + r * math.cos(a), bc.y + r * math.sin(a), .012 + .018 * (1 - (r / .058) ** 2) + rnd.uniform(0, .004), rnd.choice(cols))
+    for i in range(30):
+        sprinkle(bc.x - rnd.uniform(.07, .16), bc.y - rnd.uniform(-.04, .08), 0, rnd.choice(cols))
+    for h, b in sp.items():
+        mesh_object("IB_Spr_" + h, b, simple_material("M_spr_" + h, h, .35, coat=.5), c, subsurf=0).location = o
+    chm = simple_material("M_cherry", "B3102A", .15, coat=1.0, var="D4203A", sss=.2)
+    for k, (x, y) in enumerate(((1480, 800), (1520, 770), (1445, 830))):
+        b = ellipsoid(.014, .014, .013, 4, seed=k, lump=.02)
+        for v in b.verts:
+            v.co.z += .013
+        ob = mesh_object("IB_Cherry%d" % k, b, chm, c, subsurf=1)
+        ob.location = px2m(x, y, o)
+        stm = tube_bm(spline([(0, 0, .025), (.008, .015, .03), (.02, .035, .022), (.03, .05, .008)], 4), .0011, 6)
+        so = mesh_object("IB_CherryStem%d" % k, stm, stem_material(), c, subsurf=1)
+        so.location = ob.location
+        so.rotation_euler.z = math.radians(-40 + 50 * k)
+    wm = simple_material("M_wafer", "E7B26A", .55, var="D49A50", bump_scale=400)
+    for k, (x, y, rr_) in enumerate(((1180, 800, 15), (1200, 830, 25))):
+        t = tube_bm([(-.07, 0, .007), (.07, 0, .007)], .0072, 24)
+        ob = mesh_object("IB_Wafer%d" % k, t, wm, c, subsurf=1)
+        ob.location = px2m(x, y, o)
+        ob.rotation_euler.z = math.radians(rr_)
+    rects_bl = [[l, 900 - b, r_, 900 - t] for (l, t, r_, b) in rects]
+    manifest_update("pz_bench_sorvetes", {"slots": rects_bl, "slot_order": "row-major from the top-left, rects (left, bottom, right, top) px from bottom-left",
+                                          "cone_stand": [CONE_STAND[0], 900 - CONE_STAND[1]], "size": [1600, 900]})
+
+
+CONE_STAND = (1290, 560)
+
+
+def mockup_sorvetes2():
+    bench = load("pz_bench_sorvetes.png")
+    bench[..., 3] = 1
+    for (l, t, r_, b), f in zip(slot_rects_px(), FLAVORS):
+        place(bench, load("pz_tub_%s.png" % f), (l + r_) / 2, (t + b) / 2 - 6, r_ - l + 30, None)
+    scoop = 120
+    cx, cy = CONE_STAND
+    place(bench, load("pz_cone.png"), cx, cy - 60, int(scoop * 1.0), None)
+    for i, f in enumerate(["chocolate", "menta", "morango"]):
+        place(bench, load("pz_scoop_%s.png" % f), cx, cy - 150 - i * scoop * .72, int(scoop * 1.25), None)
+    bench[..., 3] = 1
+    return save_png(bench, "mockup_sorvetes.png")
+
+
+
+# ============================================================================================ ADEGA masks + mockup v2
+def adega_frame(kind):
+    o = O("adega")
+    at = o + Vector((VESSEL_X[kind], 0, 0))
+    res = VESSELS[kind]
+    pxm = {"big": 1720, "mid": 1950, "small": 1620}[kind]
+    size = (res[0] / pxm, res[1] / pxm)
+    outer, _ = vessel_outer(kind)
+    ztop = max(z for r, z in outer) + (.03 if kind == "big" else .002)
+    center = at + Vector((.013 if kind == "small" else 0, 0, ztop * .5 + (.008 if kind == "big" else .006)))
+    return at, center, size, res
+
+
+def build_adega_masks():
+    c = col("Adega pieces")
+    for k in VESSELS:
+        at, center, size, res = adega_frame(k)
+        outer, (r_in, z_bot, z_top) = vessel_outer(k)
+        name = "VS_%s_Inside" % k
+        ob = bpy.data.objects.get(name)
+        if ob:
+            bpy.data.objects.remove(ob, do_unlink=True)
+        m = mesh_object(name, inside_bm(outer, .003, z_bot), mask_material(), c, subsurf=1)
+        m.location = at
+
+
+def render_adega_mask(kind):
+    at, center, size, res = adega_frame(kind)
+    p = render_mask("pz_vessel_%s" % kind, "VS_%s_Inside" % kind, center, size, res)
+    m = {}
+    pth = os.path.join(OUT, "manifest.json")
+    with open(pth) as f:
+        m = json.load(f)
+    d = m.get("pz_vessel_%s" % kind, {})
+    d["mask"] = "pz_vessel_%s_mask.png" % kind
+    manifest_update("pz_vessel_%s" % kind, d)
+    return p
+
+
+def mockup_adega2():
+    bench = load("pz_bench_adega.png")
+    bench[..., 3] = 1
+    with open(os.path.join(OUT, "manifest.json")) as f:
+        man = json.load(f)
+    W, H = 1600, 900
+    colW = min(170, (W - 120) / 3 - 30)
+    fullH = H - 150
+    caps = {"big": 8, "mid": 5, "small": 3}
+    amount = {"big": 6, "mid": 2, "small": 3}
+    wine = np.array(srgb_f("5A0E1E"), np.float32)
+    for v, k in enumerate(("big", "mid", "small")):
+        sw, sh = VESSELS[k]
+        h = max(70, fullH * caps[k] / 8)
+        w = h * sw / sh
+        cx = 800 + (v - 1) * (colW + 30) * 1.75 - W * .04
+        cy = 450 - (-H / 2 + 50 + h / 2)
+        sc = h / sh
+        l, b, r, t = man["pz_vessel_%s" % k]["inner"]
+        mk = load("pz_vessel_%s_mask.png" % k)
+        mk = img_resize(mk, int(w), int(h))
+        ib, it = h - b * sc, h - t * sc
+        lvl = ib - (ib - it) * amount[k] / caps[k]
+        layer = blank(int(w), int(h))
+        layer[int(lvl):, :, :3] = wine
+        layer[int(lvl):, :, 3] = .96
+        layer[int(lvl):int(lvl) + 3, :, :3] = np.minimum(1, wine * 1.8)
+        layer[..., 3] *= mk[..., 3]
+        over(bench, layer, int(cx - w / 2), int(cy - h / 2))
+        place(bench, load("pz_vessel_%s.png" % k), cx, cy, int(w), int(h))
+    bench[..., 3] = 1
+    return save_png(bench, "mockup_adega.png")
+
+
 # ============================================================================================ registry / entry points
 def build(sector):
     ensure_file()
@@ -3063,3 +4155,57 @@ def run_all():
         if s in RUN:
             out += run(s)
     return out
+
+
+# ============================================================================================ v2 registry (second pass)
+def build_acougue_v2():
+    build_meat_cuts()
+    build_bench_acougue()
+
+
+def build_peixaria_v2():
+    build_fish_pieces()
+    build_bench_peixaria2()
+    build_icebed2()
+
+
+def run_peixaria_v2():
+    out = [render_piece_peixaria(k) for k in FISH]
+    out += [render_bench("peixaria"), render_icebed2(), render_scale(), mockup_peixaria2()]
+    return out
+
+
+def build_sucos_v2():
+    build_sucos_pieces2()
+    build_bench_sucos2()
+
+
+def run_sucos_v2():
+    return [render_piece_sucos2("glass"), render_piece_sucos2("mask"), render_bench("sucos"), mockup_sucos2()]
+
+
+def build_sorvetes_v2():
+    build_sorvetes_pieces()
+    build_tubs()
+    build_bench_sorvetes2()
+
+
+def run_sorvetes_v2():
+    out = [render_piece_sorvetes(f) for f in FLAVORS + ["cone"]] + [render_tub(f) for f in FLAVORS]
+    return out + [render_bench("sorvetes"), mockup_sorvetes2()]
+
+
+def build_adega_v2():
+    build_adega()
+    build_adega_masks()
+
+
+def run_adega_v2():
+    out = [render_piece_adega(k) for k in VESSELS] + [render_adega_mask(k) for k in VESSELS]
+    return out + [render_bench("adega"), mockup_adega2()]
+
+
+BUILD.update({"acougue": build_acougue_v2, "peixaria": build_peixaria_v2, "sucos": build_sucos_v2,
+              "sorvetes": build_sorvetes_v2, "adega": build_adega_v2})
+RUN.update({"acougue": run_acougue2, "peixaria": run_peixaria_v2, "sucos": run_sucos_v2,
+            "sorvetes": run_sorvetes_v2, "adega": run_adega_v2})

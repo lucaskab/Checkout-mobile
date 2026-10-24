@@ -36,6 +36,24 @@ namespace Checkout {
   }
   // Soft shadow under a piece.
   void PShadow(Transform parent,Vector2 size){var s=N.Image(parent,"Shadow",new Color(.2f,.1f,.03f,.28f),0);s.sprite=U.Glow();var r=s.rectTransform;r.anchorMin=r.anchorMax=r.pivot=new Vector2(.5f,.5f);r.anchoredPosition=new Vector2(0,-size.y*.08f);r.sizeDelta=size*1.15f;}
+  // A glass vessel from the Blender art (CheckoutPuzzleArt): the liquid goes under `inside`, clipped to the inner shape of
+  // the glass by its mask sprite, and the glass is drawn over it. Null when the art is missing (the puzzle draws its own).
+  sealed class PGlassParts {public RectTransform root,inside;public float scale;public CheckoutPuzzleArt.Vessel v;}
+  PGlassParts PGlass(Transform parent,CheckoutPuzzleArt.Vessel v,Vector2 at,float height){
+   var glass=K.Icon("Game/"+v.id);var mask=K.Icon("Game/"+v.id+"_mask");if(glass==null||mask==null)return null;
+   float k=height/v.size.y;var root=PNode(parent,"Vessel",at,v.size*k);
+   var inside=N.Image(root,"Inside",Color.white,0);inside.sprite=mask;Stretch(inside.rectTransform,Vector2.zero,Vector2.zero);inside.gameObject.AddComponent<Mask>().showMaskGraphic=false;
+   var art=N.Image(root,"Glass",Color.white,0);art.sprite=glass;Stretch(art.rectTransform,Vector2.zero,Vector2.zero);
+   return new PGlassParts{root=root,inside=inside.rectTransform,scale=k,v=v};
+  }
+  // A band of liquid between two heights of the glass sprite (pixels from its bottom), as wide as the glass.
+  Image PLiquid(PGlassParts g,Color c,float fromPx,float toPx){
+   var img=N.Image(g.inside,"Liquid",c,0);var r=img.rectTransform;r.anchorMin=r.anchorMax=r.pivot=new Vector2(.5f,0);
+   r.sizeDelta=new Vector2(g.root.sizeDelta.x,Mathf.Max(0,toPx-fromPx)*g.scale);r.anchoredPosition=new Vector2(0,fromPx*g.scale);return img;
+  }
+  // A stage point from a pixel of the bench art (1600×900, from the bottom-left): the bench fills the stage.
+  Vector2 PBench(Vector2 px)=>new Vector2((px.x/CheckoutPuzzleArt.BenchSize.x-.5f)*StageW,(px.y/CheckoutPuzzleArt.BenchSize.y-.5f)*StageH);
+  Vector2 PBenchSize(Vector2 px)=>new Vector2(px.x/CheckoutPuzzleArt.BenchSize.x*StageW,px.y/CheckoutPuzzleArt.BenchSize.y*StageH);
   // Pointer handle (drag / tap) in stage coordinates.
   TrayHandle PHandle(RectTransform r,Action<Vector2> began,Action<Vector2> moved,Action<Vector2> ended,Action tapped){
    var img=r.GetComponent<Image>();if(!img){img=r.gameObject.AddComponent<Image>();img.color=new Color(1,1,1,.001f);}else if(img.color.a<=0)img.color=new Color(1,1,1,.001f);img.raycastTarget=true;

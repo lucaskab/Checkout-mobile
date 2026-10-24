@@ -34,10 +34,20 @@ namespace Checkout {
 
    float W=StageW,H=StageH;
    // Orders on top: a tray on a scale each.
-   float trayW=Mathf.Min(260,(W-80)/trays-30),trayH=Mathf.Min(150,H*.38f);
+   // The Blender scale (steel body, weighing plate, display window) and crushed-ice bed, when present.
+   var scaleArt=K.Icon("Game/pz_scale");var iceArt=K.Icon("Game/pz_icebed");
+   float trayW=Mathf.Min(260,(W-80)/trays-30),trayH=scaleArt!=null?trayW*CheckoutPuzzleArt.ScaleSize.y/CheckoutPuzzleArt.ScaleSize.x:Mathf.Min(150,H*.38f);
    var trayRects=new List<RectTransform>();var readouts=new List<(Image back,TextMeshProUGUI text)>();
    for(int t=0;t<trays;t++){
     var at=new Vector2((t-(trays-1)/2f)*(trayW+30),H/2-trayH/2-14);
+    if(scaleArt!=null){
+     var scaleImg=PImage(kitchenStage,"Scale",Color.white,0,at,new Vector2(trayW,trayH));scaleImg.sprite=scaleArt;
+     float k=trayW/CheckoutPuzzleArt.ScaleSize.x;var d=CheckoutPuzzleArt.ScaleDisplay;
+     var window=new Vector2((d.center.x-CheckoutPuzzleArt.ScaleSize.x/2)*k,(d.center.y-CheckoutPuzzleArt.ScaleSize.y/2)*k);
+     var glow=PImage(scaleImg.transform,"Readout",new Color(0,0,0,0),6,window,new Vector2(d.width*k,d.height*k));
+     var text2=PText(glow.transform,"",Mathf.Clamp(d.height*k*.62f,13,18),K.C("9BE7A0"),Vector2.zero,new Vector2(d.width*k-6,d.height*k),K.Number);
+     trayRects.Add(scaleImg.rectTransform);readouts.Add((glow,text2));continue;
+    }
     var scale=PImage(kitchenStage,"Scale",K.C("D9DEE3"),18,at,new Vector2(trayW,trayH));
     PImage(scale.transform,"Plate",K.C("F7FAFC"),16,new Vector2(0,10),new Vector2(trayW-24,trayH-56));
     var back=PImage(scale.transform,"Readout",K.C("2E3A4A"),10,new Vector2(0,-trayH/2+22),new Vector2(trayW-40,34));
@@ -46,8 +56,12 @@ namespace Checkout {
    }
    // Ice bed below with the pieces.
    float iceH=H-trayH-60;var iceAt=new Vector2(0,-H/2+iceH/2+8);
-   var ice=PImage(kitchenStage,"Ice",K.C("CFE8F3"),22,iceAt,new Vector2(W-60,iceH));
-   for(int i=0;i<40;i++){var cube=N.Image(ice.transform,"Cube",new Color(1,1,1,.45f),6);float d=10+Noise(i,1)*14;cube.rectTransform.sizeDelta=new Vector2(d,d);cube.rectTransform.anchoredPosition=new Vector2((Noise(i,2)-.5f)*(W-90),(Noise(i,5)-.5f)*(iceH-30));cube.rectTransform.localRotation=Quaternion.Euler(0,0,Noise(i,8)*90);}
+   if(iceArt!=null){var bed=PImage(kitchenStage,"Ice",Color.white,0,iceAt,new Vector2(W-40,iceH+10));bed.sprite=iceArt;}
+   else{
+    var ice=PImage(kitchenStage,"Ice",K.C("CFE8F3"),22,iceAt,new Vector2(W-60,iceH));
+    for(int i=0;i<40;i++){var cube=N.Image(ice.transform,"Cube",new Color(1,1,1,.45f),6);float d=10+Noise(i,1)*14;cube.rectTransform.sizeDelta=new Vector2(d,d);cube.rectTransform.anchoredPosition=new Vector2((Noise(i,2)-.5f)*(W-90),(Noise(i,5)-.5f)*(iceH-30));cube.rectTransform.localRotation=Quaternion.Euler(0,0,Noise(i,8)*90);}
+   }
+   bool lcd=scaleArt!=null;
    float unit=Mathf.Min(82,(W-100)/(pieceCount*1.1f+1));
    int perRow=Mathf.CeilToInt(pieceCount/(iceH>unit*2.4f?2f:1f));
    for(int i=0;i<pieces.Count;i++){
@@ -70,13 +84,14 @@ namespace Checkout {
     for(int t=0;t<trays;t++){
      int sum=pieces.Where(q=>q.tray==t).Sum(q=>q.grams);
      readouts[t].text.text=$"{Kg(sum)} / {Kg(targets[t])}";
-     readouts[t].back.color=sum==targets[t]?K.C("4F9A2E"):sum>targets[t]?K.C("D8462A"):K.C("2E3A4A");
+     if(lcd)readouts[t].text.color=sum==targets[t]?K.C("7CF08A"):sum>targets[t]?K.C("FF7A66"):K.C("CFE9FF");
+     else readouts[t].back.color=sum==targets[t]?K.C("4F9A2E"):sum>targets[t]?K.C("D8462A"):K.C("2E3A4A");
     }
     moves=fishMoves;PMovesText(moveText,moves,par);
     KitchenMeter(pieces.Count(q=>q.tray>=0)/(float)pieceCount*.9f);
     yield return null;
    }
-   for(int t=0;t<trays;t++){readouts[t].text.text=$"{Kg(targets[t])} / {Kg(targets[t])}";readouts[t].back.color=K.C("4F9A2E");StartCoroutine(U.Pop(trayRects[t],1.06f,.25f));}
+   for(int t=0;t<trays;t++){readouts[t].text.text=$"{Kg(targets[t])} / {Kg(targets[t])}";if(lcd)readouts[t].text.color=K.C("7CF08A");else readouts[t].back.color=K.C("4F9A2E");StartCoroutine(U.Pop(trayRects[t],1.06f,.25f));}
    if(hand)Destroy(hand);
    kitchenScore=PuzzleScore(fishMoves,par,false);
    yield return PSolved(new Vector2(0,H/2-trayH/2),W*.35f);
@@ -101,9 +116,9 @@ namespace Checkout {
 
   // Fish drawn in code until the Blender art (Game/pz_fish_<kind>) exists.
   void DrawFish(RectTransform parent,string kind,Vector2 size,int seed){
-   PShadow(parent,size);
    var art=K.Icon("Game/pz_fish_"+kind);
-   if(art){var i=N.Image(parent,"Art",Color.white,0);i.sprite=art;i.preserveAspect=true;i.rectTransform.sizeDelta=size;return;}
+   if(art){var i=N.Image(parent,"Art",Color.white,0);i.sprite=art;i.preserveAspect=true;i.rectTransform.sizeDelta=size*1.15f;return;}   // the art has its own soft shadow
+   PShadow(parent,size);
    var look=FishLook[kind];
    if(kind=="peixe"){
     var body=N.Image(parent,"Body",K.C(look.body),(int)(size.y/2));body.rectTransform.sizeDelta=new Vector2(size.x*.8f,size.y*.8f);body.rectTransform.anchoredPosition=new Vector2(size.x*.06f,0);
