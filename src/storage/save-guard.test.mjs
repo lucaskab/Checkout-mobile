@@ -1,36 +1,36 @@
 import { afterAll, beforeEach, expect, mock, test } from "bun:test";
+import { createJSONStorage } from "zustand/middleware";
 
 // Updates must never cost the players their progress (Lucas 24/10): an old save is migrated with everything kept,
 // and a save that cannot be loaded is never overwritten by the fresh game that starts in its place.
+// The store's storage is swapped through persist.setOptions (other test files may have loaded the store already).
 globalThis.__DEV__ = false;
 const guard = await import("./save-guard.ts");
-const memory = new Map();
-mock.module("@/storage/mmkv", () => ({
-	mmkvStorage: {
-		getItem: (key) => memory.get(key) ?? null,
-		setItem: (key, value) => {
-			if (!guard.blocksWrite(key)) memory.set(key, value);
-		},
-		removeItem: (key) => {
-			if (!guard.blocksWrite(key)) memory.delete(key);
-		},
-	},
-}));
+mock.module("@/storage/mmkv", () => ({ mmkvStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } }));
 const { useGameStore } = await import("../stores/game-store.ts");
+const memory = new Map();
+const raw = {
+	getItem: (key) => memory.get(key) ?? null,
+	setItem: (key, value) => {
+		if (!guard.blocksWrite(key)) memory.set(key, value);
+	},
+	removeItem: (key) => {
+		if (!guard.blocksWrite(key)) memory.delete(key);
+	},
+};
+const original = useGameStore.persist.getOptions().storage;
 const initial = JSON.stringify(useGameStore.getState());
-const options = () => useGameStore.persist.getOptions();
-function saved(state) {
-	const persisted = options().partialize(state);
-	return JSON.parse(JSON.stringify(persisted));
-}
+const saved = (state) => JSON.parse(JSON.stringify(useGameStore.persist.getOptions().partialize(state)));
 
 beforeEach(() => {
 	guard.unlockSave();
 	memory.clear();
+	useGameStore.persist.setOptions({ storage: createJSONStorage(() => raw) });
 	useGameStore.setState(JSON.parse(initial));
 });
 afterAll(() => {
 	guard.unlockSave();
+	useGameStore.persist.setOptions({ storage: original });
 	useGameStore.setState(JSON.parse(initial));
 });
 
