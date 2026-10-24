@@ -117,7 +117,7 @@ export const marketEras: MarketEraDefinition[] = [
 	{
 		id: "spati",
 		index: 4,
-		name: "Späti",
+		name: "Conveniência",
 		coinCost: 12_000,
 		targetDay: 5,
 		buildDurationMs: getBuildDurationForCost(12_000),

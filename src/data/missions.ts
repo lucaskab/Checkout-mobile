@@ -462,7 +462,7 @@ function expansionMissions(): MissionDefinition[] {
 		{ era: "tenda", goal: { metric: "unitsSold", goal: 60, title: "A tenda pegou", description: "Venda 60 unidades no total." } },
 		{ era: "banca", goal: { metric: "productLevels", goal: 5, title: "Banca afinada", description: "Some 5 níveis de produto." } },
 		{ era: "conteiner", goal: { metric: "customersServed", goal: 300, title: "Clientela fiel", description: "Atenda 300 clientes no total." } },
-		{ era: "spati", goal: { metric: "productLevels", goal: 12, title: "O Späti da esquina", description: "Some 12 níveis de produto." } },
+		{ era: "spati", goal: { metric: "productLevels", goal: 12, title: "A conveniência da esquina", description: "Some 12 níveis de produto." } },
 		{ era: "quitanda", goal: { metric: "unitsSold", goal: 1_500, title: "Freguesia do bairro", description: "Venda 1.500 unidades no total." } },
 		{ era: "minimercado", goal: { metric: "revenue", goal: 150_000, title: "Caixa cheio", description: "Fature 150.000 moedas no total." } },
 		{ era: "mercadinho", goal: { metric: "productLevels", goal: 30, title: "Mercadinho de respeito", description: "Some 30 níveis de produto." } },

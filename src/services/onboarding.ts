@@ -370,7 +370,7 @@ const emptyCoach = (): CoachView => ({
 	path: [],
 });
 
-const PATH = ["Mesinha", "Tenda", "Banca", "Contêiner", "Späti", "Quitanda", "Minimercado", "Mercadinho", "Supermercado", "Hipermercado", "Rede"];
+const PATH = ["Mesinha", "Tenda", "Banca", "Contêiner", "Conveniência", "Quitanda", "Minimercado", "Mercadinho", "Supermercado", "Hipermercado", "Rede"];
 
 /** The coach card for the page on screen. While the market is closed mid-tutorial it points back at ABRIR. */
 export function getCoachView(state: GameState, route: OnboardingRoute, now: number): CoachView {
