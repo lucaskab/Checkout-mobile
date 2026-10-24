@@ -2,6 +2,7 @@ import { getShopItemPieceId, hasInteriorRoom } from "@/services/interior-room";
 import { getDecorEffects, rollDecorPlays } from "@/services/decor-effects";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { lockSave } from "@/storage/save-guard";
 import type { InteriorState } from "@/@types/interior";
 import type { GameStatistics } from "@/@types/achievement";
 import {
@@ -4632,6 +4633,10 @@ export const useGameStore = create<GameStore>()(
 				onboarding,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
+			// A save that fails to load or migrate is kept on disk untouched (src/storage/save-guard.ts).
+			onRehydrateStorage: () => (_state, error) => {
+				if (error) lockSave(error);
+			},
 			// 35: employees gained tasks/nextTaskNumber/lastPayroll (staff jobs and per-shift pay).
 			// 36: shelves, sectors and fixtures are built over time (interiorConstructions, builtSectorIds).
 			// 37: market eras (era: mesinha → rede); old saves start at the mercadinho or later.
