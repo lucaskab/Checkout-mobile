@@ -159,13 +159,24 @@ namespace Checkout {
     var hits=Physics.RaycastAll(o,Vector3.down,6).Where(h=>!OfPiece(h.transform)).OrderBy(h=>h.distance).ToArray();
     floorHits.Add(hits.Length>0?$"{hits[0].point.y:0.000}({hits[0].collider.name})":"none");
    }
+   // Without colliders: the flat parts of the shop model under the floor's centre (the slab and its boards).
+   if(CheckoutStall.ShopInside){
+    var c0=floor.center;var flats=new List<string>();
+    foreach(var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)){
+     if(!r.enabled||!r.gameObject.activeInHierarchy)continue;var b=r.bounds;
+     if(b.size.y>.6f||b.min.x>c0.x||b.max.x<c0.x||b.min.z>c0.y||b.max.z<c0.y||b.max.y>gy+1.2f||b.max.y<gy-1)continue;
+     if(b.size.x<floor.width*.4f||b.size.z<floor.height*.4f)continue;
+     flats.Add($"{r.name}:{b.min.y:0.000}-{b.max.y:0.000}");
+    }
+    Note($"grid {stage} flat parts under the centre: {string.Join(" ",flats)}");
+   }
    var feet=inside.items.Values.Where(i=>i.root&&!i.outside).Select(i=>{var rs=i.root.GetComponentsInChildren<Renderer>();return rs.Length>0?rs.Min(r=>r.bounds.min.y):i.root.position.y;}).ToList();
    string feetText=feet.Count>0?$"min {feet.Min():0.000} max {feet.Max():0.000} roots {inside.items.Values.Where(i=>i.root&&!i.outside).Select(i=>i.root.position.y).DefaultIfEmpty(0).Min():0.000}":"no pieces";
    Note($"grid {stage}: open={open} small={CheckoutStall.Small} grid y={gy+.012f:0.000} floor hits {string.Join(" ",floorHits)}; feet {feetText}");
    var c=floor.center;var at=new Vector3(c.x,gy,c.y);
    CaptureAt(at,Mathf.Max(floor.width,floor.height)+1.5f,$"grid_{stage}");
    var sel=inside.items.Values.FirstOrDefault(i=>i.root&&i.functional&&!i.outside);
-   if(sel!=null)LowShot(sel.root.position,4.5f,$"grid_{stage}_low");
+   LowShot(sel!=null?sel.root.position:at,sel!=null?4.5f:Mathf.Min(floor.width,floor.height),$"grid_{stage}_low");
    CheckoutBuildMode.QaClose();yield return new WaitForSecondsRealtime(1);
   }
  }

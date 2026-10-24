@@ -362,6 +362,7 @@ namespace Checkout
             // Ctrl + mouse movement turns the selected piece.
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.LeftCommand);
             Vector2 mouse = Input.mousePosition;
+            if (float.IsInfinity(mouse.x) || float.IsInfinity(mouse.y) || float.IsNaN(mouse.x)) return;   // no pointer (editor without focus)
             if (ctrl && selected != null && !Touch)
             {
                 if (dragging != null) Drop();
