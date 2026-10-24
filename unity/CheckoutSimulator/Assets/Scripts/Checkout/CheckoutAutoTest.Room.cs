@@ -148,6 +148,12 @@ namespace Checkout {
    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-grid-"+stage+"\",\"action\":\"devSetMarketEra\",\"args\":[\""+stage+"\"]}");
    yield return new WaitForSecondsRealtime(18);
    inside=CheckoutInterior.Active;if(!inside){Note("no interior");continue;}
+   // A shop with every piece still waiting (the QA save): place one, so the footprint and the feet can be checked.
+   if(!inside.items.Values.Any(i=>i.root&&i.functional&&!i.outside)&&inside.waiting.Count>0){
+    var key=inside.waiting.Keys.FirstOrDefault(k=>k.StartsWith("shelf:"))??inside.waiting.Keys.First();var fr=inside.FloorRect;
+    inside.editing=true;var put=inside.PlaceWaiting(key,new Vector3(fr.center.x,CheckoutInterior.FloorHere,fr.center.y));inside.editing=false;
+    Note($"grid {stage}: placed {key} for the check -> {(put!=null?put.root.position.ToString("F3"):"no room")}");
+   }
    bool open=CheckoutBuildMode.QaOpenAndSelect();yield return new WaitForSecondsRealtime(1.5f);
    float gy=CheckoutInterior.FloorHere;var floor=inside.FloorRect;
    // Highest surface under a few floor points that is not a piece of furniture (the floor itself).
