@@ -15,7 +15,7 @@ namespace Checkout {
  // kind on the same shelf or column glow red. Full rack with no clash = done.
  public partial class CheckoutDesktopHUD {
   static readonly Dictionary<string,(string body,string rind,string spot)> CheeseLook=new Dictionary<string,(string,string,string)>{
-   {"minas",("FBF7EC","E9DDC2","")},{"prato",("F4C34A","E3A72B","")},{"brie",("FFF9EF","D9D3C6","EFE6D3")},{"azul",("E7EEF1","C9D3D8","4F79A6")},{"parmesao",("F1D58A","C99A3D","")},
+   {"minas",("FBF7EC","E9DDC2","")},{"prato",("F5A623","D9821A","")},{"brie",("FFF6E2","F2F0EA","D7CDB8")},{"azul",("E3ECF2","BFD0DC","3F6FA8")},{"parmesao",("E2B865","A8742E","")},
   };
 
   sealed class AgingState {public int n;public int[,] cell;public bool[,] given;public int[,] answer;public Image[,] slot;public RectTransform[,] wheel;public int moves,par;public string[] kinds;public bool hint;}

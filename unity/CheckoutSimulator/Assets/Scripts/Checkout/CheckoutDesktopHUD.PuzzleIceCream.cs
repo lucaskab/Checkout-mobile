@@ -29,11 +29,11 @@ namespace Checkout {
 
    float W=StageW,H=StageH;
    // The cone (centre left): a waffle cone with n slots stacked on it.
-   float scoop=Mathf.Min(96,(H-120)/(n+.6f));var coneAt=new Vector2(-W*.14f,-H/2+scoop*.75f+12);scoopMoves=0;
+   float scoop=Mathf.Min(104,(H-50)/(n*.82f+1.05f));var coneAt=new Vector2(-W*.14f,-H/2+scoop*.75f+12);scoopMoves=0;
    var cone=PImage(kitchenStage,"Cone",K.C("D9A05B"),10,coneAt,new Vector2(scoop*.95f,scoop*1.3f));
    for(int k=0;k<4;k++){var line=N.Image(cone.transform,"Waffle",new Color(.55f,.33f,.12f,.5f),2);line.rectTransform.sizeDelta=new Vector2(4,scoop*1.4f);line.rectTransform.anchoredPosition=new Vector2((k-1.5f)*scoop*.22f,0);line.rectTransform.localRotation=Quaternion.Euler(0,0,30);}
    var slots=new List<Image>();var slotAt=new List<Vector2>();
-   for(int i=0;i<n;i++){var at=coneAt+new Vector2(0,scoop*.7f+i*scoop*.82f);slotAt.Add(at);slots.Add(PImage(kitchenStage,"Slot",new Color(1,1,1,.35f),(int)(scoop/2),at,new Vector2(scoop*.9f,scoop*.9f)));}
+   for(int i=0;i<n;i++){var at=coneAt+new Vector2(0,scoop*.7f+i*scoop*.82f);slotAt.Add(at);slots.Add(PImage(kitchenStage,"Slot",new Color(.55f,.38f,.25f,.22f),(int)(scoop/2),at,new Vector2(scoop*.9f,scoop*.9f)));}
    var placed=new int[n];for(int i=0;i<n;i++)placed[i]=-1;
    var scoopRects=new RectTransform[n];var homes=new Vector2[n];
    // The tubs (a column on the left): one scoop of each flavour to take.
@@ -47,7 +47,7 @@ namespace Checkout {
    // The order slip (right): the clues as little pictures, each with a tick.
    float slipW=Mathf.Min(W*.42f,520);var slipAt=new Vector2(W/2-slipW/2-20,0);
    var slip=PBoard("Order slip",slipAt,new Vector2(slipW,H-40),"C99A5B","FFFDF6");
-   float rowH=Mathf.Min(78,(H-80)/clues.Count);var ticks=new List<Image>();
+   float rowH=Mathf.Min(104,(H-80)/clues.Count);var ticks=new List<Image>();
    for(int c=0;c<clues.Count;c++){
     var y=(H-40)/2-30-(c+.5f)*rowH;var row=PNode(slip,"Clue",new Vector2(0,y),new Vector2(slipW-30,rowH-8));
     DrawClue(row,clues[c],flavors,n,rowH-12);
@@ -126,20 +126,20 @@ namespace Checkout {
   // (touching = right on top; dots between = somewhere above).
   void DrawClue(RectTransform row,ScoopClue c,string[] flavors,int n,float h){
    var back=N.Image(row,"Back",new Color(.96f,.92f,.84f,1),12);back.rectTransform.sizeDelta=row.sizeDelta;
-   float d=Mathf.Min(h/(c.kind==0||c.kind==3?n*.62f+.5f:2.4f),40);
+   float d=Mathf.Min(h/(c.kind==0||c.kind==3?n*.52f+.7f:2.2f),58);
    float x=-row.sizeDelta.x/2+60;
    if(c.kind==0||c.kind==3){
     var mini=N.Node("Mini cone",row);mini.anchoredPosition=new Vector2(x,0);
     var cone=N.Image(mini,"Cone",K.C("D9A05B"),6);cone.rectTransform.sizeDelta=new Vector2(d*.8f,d);cone.rectTransform.anchoredPosition=new Vector2(0,-h/2+d*.5f);
     for(int i=0;i<n;i++){
-     var at=new Vector2(0,-h/2+d*1.0f+i*d*.62f);
+     var at=new Vector2(0,-h/2+d*1.0f+i*d*.52f);
      if(i==c.slot){var sc=N.Node("Scoop",mini);sc.anchoredPosition=at;sc.sizeDelta=new Vector2(d,d);DrawScoop(sc,flavors[c.a],d,c.a);
       if(c.kind==3){var x1=N.Image(sc,"Cross",K.C("D8462A"),3);x1.rectTransform.sizeDelta=new Vector2(d*1.2f,6);x1.rectTransform.localRotation=Quaternion.Euler(0,0,45);var x2=N.Image(sc,"Cross",K.C("D8462A"),3);x2.rectTransform.sizeDelta=new Vector2(d*1.2f,6);x2.rectTransform.localRotation=Quaternion.Euler(0,0,-45);}}
      else{var ghost=N.Image(mini,"Empty",new Color(.75f,.7f,.62f,.45f),(int)(d/2));ghost.rectTransform.sizeDelta=new Vector2(d*.8f,d*.8f);ghost.rectTransform.anchoredPosition=at;}
     }
    }
    else{
-    float big=Mathf.Min(h*.46f,40);
+    float big=Mathf.Min(h*.56f,58);
     var low=N.Node("Below",row);low.anchoredPosition=new Vector2(x,-big*.45f);low.sizeDelta=new Vector2(big,big);DrawScoop(low,flavors[c.b],big,c.b);
     var high=N.Node("Above",row);high.anchoredPosition=new Vector2(x,c.kind==1?big*.4f:big*.62f);high.sizeDelta=new Vector2(big,big);DrawScoop(high,flavors[c.a],big,c.a);
     if(c.kind==2){high.anchoredPosition=new Vector2(x+big*1.2f,big*.55f);low.anchoredPosition=new Vector2(x-big*.2f,-big*.45f);

@@ -36,6 +36,7 @@ BREADS = {"frances": (1, 1), "forma": (1, 2), "baguete": (1, 3), "tranca": (1, 4
 # where each bread lives in the .blend (x offset); raw row at y=0, baked row at y=ROW
 SLOT = {"frances": 0.0, "forma": 0.5, "baguete": 1.0, "tranca": 1.5, "redondo": 2.1}
 ROW = 1.0
+SEEDS = {"frances": 3, "forma": 7, "baguete": 11, "tranca": 5, "redondo": 19}
 
 
 # ============================================================================================ small utilities
@@ -108,9 +109,11 @@ class NB:
         n = self.nt.nodes.new(kind)
         n.location = (self.x, 0)
         self.x += 40
-        for k, v in inputs.items():
+        for k, v in inputs.items():          # node properties first: they change which sockets exist
             if k.startswith("_"):
                 setattr(n, k[1:], v)
+        for k, v in inputs.items():
+            if k.startswith("_"):
                 continue
             sock = next((s for s in n.inputs if s.name == k and s.enabled), None) or n.inputs[k]
             if isinstance(v, bpy.types.NodeSocket):
@@ -176,21 +179,22 @@ CRUST = {   # (position, sRGB hex) — ramp of the baked crust, light -> dark
     "forma":   [(0, "F7D58E"), (.3, "EBA548"), (.55, "CF7A26"), (.8, "A8541A"), (1, "7A3812")],
     "baguete": [(0, "F5CF85"), (.3, "E9A64D"), (.55, "D3822E"), (.8, "A95A1C"), (1, "7C3D13")],
     "tranca":  [(0, "F8D27E"), (.3, "EC9F3E"), (.55, "CD7120"), (.8, "9F4A15"), (1, "6E300D")],
-    "redondo": [(0, "F4D190"), (.3, "E5A755"), (.55, "CC8438"), (.8, "A35E25"), (1, "70391A")],
+    "redondo": [(0, "EFC27E"), (.25, "DB9A4C"), (.5, "BF7634"), (.75, "985423"), (1, "6A3518")],
 }
 DOUGH = {   # raw dough: light, dark
-    "frances": ("F6EBD3", "E9D6B1"),
-    "forma":   ("F7EBD0", "EBD7AE"),
-    "baguete": ("F5E9D0", "E6D2AC"),
-    "tranca":  ("FAE4A9", "EFCF86"),      # egg-enriched dough, yellower
-    "redondo": ("EFE0C2", "DCC59C"),      # a little whole-wheat
+    "frances": ("EFDDBB", "DFC59B"),
+    "forma":   ("F1DEBA", "E1C699"),
+    "baguete": ("EEDAB5", "DDC093"),
+    "tranca":  ("F1DCA8", "E2C184"),      # egg-enriched dough, yellower
+    "redondo": ("E6CFA6", "CFB083"),      # a little whole-wheat
 }
+VIEW = ("Khronos PBR Neutral", "Medium High Contrast", 0.0)       # view transform, look, exposure
 OPTS = {    # per bread: height (m), flour raw/baked, rings, gloss raw/baked (coat), roughness raw/baked, blisters
     "frances": dict(H=.046, flour=(.25, .10), rings=False, coat=(0, .15), rough=(.55, .42), blister=.6, crev=0),
     "forma":   dict(H=.062, flour=(.18, .0), rings=False, coat=(.15, .55), rough=(.5, .33), blister=0, crev=.4),
     "baguete": dict(H=.046, flour=(.30, .14), rings=False, coat=(0, .1), rough=(.55, .45), blister=1.0, crev=0),
-    "tranca":  dict(H=.052, flour=(0, 0), rings=False, coat=(.35, .85), rough=(.42, .22), blister=0, crev=1.0),
-    "redondo": dict(H=.088, flour=(.85, .65), rings=True, coat=(0, 0), rough=(.65, .62), blister=.3, crev=0),
+    "tranca":  dict(H=.052, flour=(0, 0), rings=False, coat=(.12, .85), rough=(.5, .22), blister=0, crev=1.0),
+    "redondo": dict(H=.088, flour=(.85, .85), rings=True, coat=(0, 0), rough=(.65, .62), blister=.3, crev=0),
 }
 
 
@@ -216,12 +220,13 @@ def bread_material(bid, state):
     # ---- base colour
     if baked:
         # browning: higher on top, mottled, darker where it turns down (edges), much darker on the ear lips
-        b = nb.add(nb.mul(hgt, .32), nb.mul(n_broad, .55), nb.mul(n_mid, .25), nb.mul(nb.math("SUBTRACT", 1.0, up), .22),
-                   nb.mul(ear, .55), -.18)
+        b = nb.add(nb.mul(hgt, .32), nb.mul(n_broad, .55), nb.mul(n_mid, .25), nb.mul(n_fine, .12),
+                   nb.mul(nb.math("SUBTRACT", 1.0, up), .22), nb.mul(ear, .55 if bid == "redondo" else .8), -.24)
         crust = nb.ramp(b, [(p, srgb(h)) for p, h in CRUST[bid]])
         # opened score: pale golden "crumb" band with toasty texture
-        crumb = nb.ramp(nb.add(nb.mul(n_mid, .6), nb.mul(n_fine, .3), nb.mul(score, -.25), .05),
-                        [(0, srgb("FBE7B8")), (.45, srgb("F3CC80")), (.8, srgb("E3A452")), (1, srgb("C98236"))])
+        torn = nb.noise(tc, 160, 6, .7, 1.2)
+        crumb = nb.ramp(nb.add(nb.mul(n_mid, .45), nb.mul(torn, .5), nb.mul(score, -.3), .12),
+                        [(0, srgb("F2CD86")), (.4, srgb("E5AE5E")), (.72, srgb("D08D3E")), (1, srgb("A9622A"))])
         base = nb.mix(nb.mapr(score, .12, .5), crust, crumb)
         if o["crev"]:
             ao = nb.node("ShaderNodeAmbientOcclusion", Distance=.012, _samples=12).outputs["AO"]
@@ -241,18 +246,19 @@ def bread_material(bid, state):
     flour = None
     if famt > 0:
         n_fl = nb.noise(tc, 14, 6, .62, .4)
-        patch = nb.mapr(n_fl, .58 - famt * .25, .7 - famt * .12)
+        patch = nb.mapr(n_fl, .5 - famt * .2, .78 - famt * .1)
         if o["rings"]:   # banneton rings: concentric floury bands
             r = nb.node("ShaderNodeVectorMath", Vector=tc, _operation="LENGTH").outputs["Value"]
             ringv = nb.math("SINE", nb.add(nb.mul(r, 2 * math.pi / .0085), nb.mul(n_broad, 3.0)))
-            rings = nb.mapr(ringv, -.25, .65)
+            rings = nb.mapr(ringv, .15, .75)
             patch = nb.math("MAXIMUM", nb.mul(patch, .55), nb.mul(rings, nb.mapr(n_fl, .3, .55)))
-        speck = nb.mapr(nb.noise(tc, 900, 3, .7), .35, .65)
-        flour = nb.mul(nb.mul(nb.mul(patch, up), nb.add(nb.mul(speck, .45), .55)), min(1.0, famt * 1.25))
+        speck = nb.mapr(nb.noise(tc, 900, 3, .7), .3, .7)
+        speck2 = nb.mapr(nb.noise(tc, 260, 4, .7), .35, .7)
+        flour = nb.mul(nb.mul(nb.mul(patch, up), nb.add(nb.mul(speck, .4), nb.mul(speck2, .3), .3)), min(1.0, famt * 1.2))
         if baked:
             flour = nb.mul(flour, nb.math("SUBTRACT", 1.0, nb.mapr(score, .02, .25)))
             flour = nb.mul(flour, nb.math("SUBTRACT", 1.0, nb.mapr(ear, .1, .5)))
-        fcol = srgb("FFFBF2") if not baked else srgb("FBF2E2")
+        fcol = srgb("FFFCF5") if not baked else srgb("FDF8EE")
         base = nb.mix(flour, base, fcol)
 
     # ---- surface relief (bump)
@@ -264,12 +270,16 @@ def bread_material(bid, state):
         base = nb.mix(nb.mul(bl, .25 * o["blister"]), base, srgb("9C5018"))
     if flour is not None:
         h = nb.add(h, nb.mul(flour, .4))
-    bump = nb.node("ShaderNodeBump", Height=h, Strength=.22 if baked else .12, Distance=.0012)
+    if not baked:   # small gas bubbles under the skin of the dough
+        vb = nb.node("ShaderNodeTexVoronoi", Vector=tc, Scale=140, Randomness=1.0, _feature="SMOOTH_F1").outputs["Distance"]
+        bub = nb.mul(nb.mapr(vb, .0, .22, 1, 0), nb.mapr(nb.noise(tc, 18, 3), .5, .62))
+        h = nb.add(h, nb.mul(bub, .8))
+    bump = nb.node("ShaderNodeBump", Height=h, Strength=.3 if baked else .16, Distance=.0012)
 
     rough = o["rough"][1 if baked else 0]
     rough_s = nb.add(rough, nb.mul(n_mid, .12)) if flour is None else nb.mix(flour, (rough,) * 3 + (1,), (.95, .95, .95, 1))
     if flour is not None:
-        rough_s = nb.sep(rough_s)[0] if False else nb.node("ShaderNodeRGBToBW", Color=rough_s).outputs[0]
+        rough_s = nb.node("ShaderNodeRGBToBW", Color=rough_s).outputs[0]
     coat = o["coat"][1 if baked else 0]
     if flour is not None and coat:
         coat = nb.mul(coat, nb.math("SUBTRACT", 1.0, flour))
@@ -285,7 +295,7 @@ def sugar_material():
     nb = NB(mat)
     tc = nb.node("ShaderNodeTexCoord").outputs["Object"]
     n = nb.noise(tc, 1500, 3)
-    nb.bsdf(**{"Base Color": nb.ramp(n, [(0, srgb("FFFFFF")), (1, srgb("F3EEE4"))]), "Roughness": .35,
+    nb.bsdf(**{"Base Color": nb.ramp(n, [(0, srgb("FFFBF2")), (1, srgb("F1E8D6"))]), "Roughness": .5,
                "Subsurface Weight": .4, "Subsurface Radius": (1, 1, 1), "Subsurface Scale": .002,
                "Normal": nb.node("ShaderNodeBump", Height=n, Strength=.5, Distance=.0004).outputs[0]})
     return mat
@@ -324,45 +334,53 @@ def loaf(bm, L, W, H, n=2.0, m=2.0, side=2.0, bottom=.14, lump=.025, seed=0):
     return bm
 
 
-def apply_scores(bm, scores, baked, w_scale=1.0):
-    """scores: list of (p0, p1, width, depth, ear_side) in XY. Grooves + ear lips; writes 'score' / 'ear' attrs."""
+def apply_scores(bm, scores, baked, w_scale=1.0, d_scale=1.0):
+    """scores: list of (p0, p1, width, depth, ear_side) in XY. Grooves + ear lips; writes 'score' / 'ear' attrs.
+    ear_side: +1 / -1 = one raised lip on that side (baguette 'grigne'), 0 = both sides curl up (boule)."""
     ls = bm.verts.layers.float.get("score") or bm.verts.layers.float.new("score")
     le = bm.verts.layers.float.get("ear") or bm.verts.layers.float.new("ear")
     zmax = max(v.co.z for v in bm.verts)
     for v in bm.verts:
         p = v.co
         top = smooth(.25, .6, p.z / zmax)
-        best_g, best_e, dz = 0.0, 0.0, 0.0
+        if top <= 0:
+            continue
+        gs, es, cut_m, lip_m = 0.0, 0.0, 0.0, 0.0
         for (a, b, w, depth, side) in scores:
             a, b = Vector((a[0], a[1], 0)), Vector((b[0], b[1], 0))
             ab = b - a
             ln = ab.length
-            t = (Vector((p.x, p.y, 0)) - a).dot(ab) / (ln * ln)
+            q = Vector((p.x, p.y, 0)) - a
+            t = q.dot(ab) / (ln * ln)
             if t <= 0 or t >= 1:
                 continue
-            nrm = Vector((-ab.y, ab.x, 0)) / ln
-            d = (Vector((p.x, p.y, 0)) - a).dot(nrm)
+            d = q.dot(Vector((-ab.y, ab.x, 0)) / ln)
             fade = math.sin(math.pi * t) ** .55
-            ww = w * w_scale * fade + 1e-6
-            u = d / ww
-            g = max(0.0, 1 - u * u) ** 2 * top
-            # baked: the grigne swells back up a bit in the middle of the groove
-            cut = depth * fade * (g - (.45 * max(0.0, 1 - (u / .55) ** 2) ** 2 * top if baked else 0))
+            # torn, irregular edges: wobble the centre line and the width along the cut
+            jag = noise.fractal(Vector((p.x, p.y, 0)) * 480 + Vector((7.7, 3.3, 1.1)), .7, 2.0, 2)
+            wob = noise.noise(Vector((t * 9.0, ln * 50, 2.2)))
+            ww = w * w_scale * fade * (1 + (.22 * wob + .09 * jag if baked else .08 * wob)) + 1e-6
+            u = (d + w * w_scale * (.12 * wob if baked else .05 * wob)) / ww
+            g = max(0.0, 1 - u * u) ** (1.5 if side == 0 else 2)
+            depth = depth * d_scale
+            cut = depth * fade * top * g
             e = 0.0
             if baked:
                 if side == 0:
-                    e = math.exp(-((abs(u) - 1.05) / .32) ** 2)
+                    e = math.exp(-((abs(u) - 1.05) / .32) ** 2) * (1 + .4 * jag)
                 else:
-                    e = math.exp(-((u * side - 1.0) / .38) ** 2) + .35 * math.exp(-((u * side + 1.05) / .3) ** 2)
+                    cut -= depth * fade * top * .45 * max(0.0, 1 - (u / .55) ** 2) ** 2      # the grigne swells back up
+                    e = (math.exp(-((u * side - 1.0) / .38) ** 2) + .3 * math.exp(-((u * side + 1.05) / .3) ** 2)) * (1 + .35 * jag)
                 e *= fade * top
-            if g > best_g:
-                best_g = g * fade
-            best_e = max(best_e, e)
-            dz = min(dz, -cut) if cut > 0 else dz
-            dz += e * depth * .55 if baked else 0
-        v.co.z += dz
-        v[ls] = best_g
-        v[le] = best_e
+                # rough, torn bottom of the opened cut
+                cut -= depth * .22 * g * fade * top * noise.fractal(Vector((p.x, p.y, p.z)) * 600, .6, 2.0, 3)
+            gs = max(gs, g * fade * top)
+            es = max(es, e)
+            cut_m = max(cut_m, cut)
+            lip_m = max(lip_m, e * depth * (.9 if side == 0 else .55))
+        v.co.z += lip_m - cut_m
+        v[ls] = gs
+        v[le] = es
     return bm
 
 
@@ -373,23 +391,23 @@ def bread_bm(bid, baked, seed=1):
     hs = 1.0 if baked else .72
     H = OPTS[bid]["H"] * hs
     if bid == "frances":
-        bm = loaf(cube_sphere(70), .086 * s, .066 * s, H, n=2.1, m=1.25, side=2.3, lump=.02, seed=seed)
-        sc = [((.004, -.031), (-.003, .031), .0105, .010, 1)]
-        apply_scores(bm, sc, baked, 1.0 if baked else .35)
+        bm = loaf(cube_sphere(80), .088 * s, .074 * s, H, n=2.2, m=1.7, side=2.3, lump=.02, seed=seed)
+        sc = [((.005, -.032), (-.004, .032), .0115, .010, 1)]
+        apply_scores(bm, sc, baked, 1.0 if baked else .35, 1.0 if baked else .6)
     elif bid == "baguete":
-        bm = loaf(cube_sphere(100), .280 * s, .066 * s, H, n=2.6, m=1.4, side=2.2, lump=.02, seed=seed)
+        bm = loaf(cube_sphere(110), .280 * s, .068 * s, H, n=3.2, m=1.5, side=2.2, lump=.02, seed=seed)
         sc = []
         for i, cy in enumerate((-.082, 0.0, .082)):
             a = math.radians(14)
             l = .102
             dx, dy = math.sin(a) * l / 2, math.cos(a) * l / 2
-            sc.append(((-dx, cy - dy), (dx, cy + dy), .0085, .009, 1))
-        apply_scores(bm, sc, baked, 1.0 if baked else .35)
+            sc.append(((-dx, cy - dy), (dx, cy + dy), .0075, .009, 1))
+        apply_scores(bm, sc, baked, 1.0 if baked else .35, 1.0 if baked else .6)
     elif bid == "redondo":
         bm = loaf(cube_sphere(110), .172 * s, .172 * s, H, n=2.0, m=2.0, side=2.6, bottom=.12, lump=.018, seed=seed)
         # sphere: make the planform truly round (loaf() maps the length axis with the same superellipse)
-        sc = [((-.064, 0), (.064, 0), .019, .02, 0), ((0, -.064), (0, .064), .019, .02, 0)]
-        apply_scores(bm, sc, baked, 1.0 if baked else .3)
+        sc = [((-.068, .002), (.066, -.002), .014, .026, 0), ((.002, -.066), (-.002, .068), .014, .026, 0)]
+        apply_scores(bm, sc, baked, 1.0 if baked else .3, 1.0 if baked else .6)
     elif bid == "forma":
         L, W = .184 * s, .088 * s
         bm = loaf(cube_sphere(100), L, W, H, n=5.0, m=3.0, side=3.2, bottom=.12, lump=.015, seed=seed)
@@ -402,16 +420,13 @@ def bread_bm(bid, baked, seed=1):
                 k = max(k, math.exp(-((v.co.y - yk) / (.0075 if baked else .0105)) ** 2))
             lobe = math.cos(3 * math.pi * v.co.y / L) ** 2
             v.co.z -= top * (k * H * (.13 if baked else .2) + (1 - lobe) * H * .03)
-        sl = bm.verts.layers.float.new("score")
-        bm.verts.layers.float.new("ear")
     elif bid == "tranca":
         bm = braid_bm(baked, seed)
     else:
         raise ValueError(bid)
-    if "score" not in bm.verts.layers.float:
-        bm.verts.layers.float.new("score")
-    if "ear" not in bm.verts.layers.float:
-        bm.verts.layers.float.new("ear")
+    for nm in ("score", "ear"):
+        if bm.verts.layers.float.get(nm) is None:
+            bm.verts.layers.float.new(nm)
     return bm
 
 
@@ -529,7 +544,7 @@ def build_breads():
         wipe_collection(c.name)
         for bid in BREADS:
             mat = bread_material(bid, state)
-            bm = bread_bm(bid, state == "baked", seed=hash(bid) % 97)
+            bm = bread_bm(bid, state == "baked", seed=SEEDS[bid])
             ob = mesh_object("%s_%s" % (bid, state), bm, mat, c, subsurf=1)
             ob.location = (SLOT[bid], ROW if state == "baked" else 0.0, 0.0005)
             if bid == "tranca" and state == "baked":
@@ -541,9 +556,7 @@ def build_breads():
     gc = col("Studio")
     sh = bpy.data.objects.get("ShadowCatcher")
     if not sh:
-        bm = bmesh.new()
-        bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=2.0)
-        sh = mesh_object("ShadowCatcher", bm, None, gc, subsurf=0)
+        sh = mesh_object("ShadowCatcher", quad_bm(4.0, 3.0), None, gc, subsurf=0)
     sh.location = (1.2, .5, 0)
     sh.is_shadow_catcher = True
 
@@ -581,12 +594,9 @@ def setup_scene():
     sc.render.image_settings.color_mode = "RGBA"
     sc.render.image_settings.color_depth = "8"
     sc.render.resolution_percentage = 100
-    sc.view_settings.view_transform = "Standard"
-    try:
-        sc.view_settings.look = "Medium High Contrast"
-    except TypeError:
-        pass
-    sc.view_settings.exposure = -.15
+    sc.view_settings.view_transform = VIEW[0]
+    sc.view_settings.look = VIEW[1]
+    sc.view_settings.exposure = VIEW[2]
     sc.unit_settings.system = "METRIC"
     # world: warm soft ambient
     w = bpy.data.worlds.get("Padaria") or bpy.data.worlds.new("Padaria")
@@ -594,13 +604,13 @@ def setup_scene():
     w.use_nodes = True
     bg = w.node_tree.nodes.get("Background") or w.node_tree.nodes.new("ShaderNodeBackground")
     bg.inputs[0].default_value = srgb("F2E6D6")
-    bg.inputs[1].default_value = .55
+    bg.inputs[1].default_value = .5
     gc = col("Studio")
     # key: warm sun from the top-left of the picture (image up = +Y, left = -X)
     sun = bpy.data.objects.get("Sun_TopLeft")
     if not sun:
         sun = link(bpy.data.objects.new("Sun_TopLeft", bpy.data.lights.new("Sun_TopLeft", "SUN")), gc)
-    sun.data.energy = 3.6
+    sun.data.energy = 3.0
     sun.data.color = (1.0, .93, .82)
     sun.data.angle = math.radians(18)
     d = Vector((1.0, -1.15, -2.9)).normalized()      # direction the light travels
@@ -627,8 +637,9 @@ def shoot(center, size_m, res, path, transparent=True, visible=None):
     sc.render.film_transparent = transparent
     keep = set(visible or [])
     saved = {}
+    keep.add("Sun_TopLeft")
     for o in sc.objects:
-        if o.type in {"MESH", "CURVE"}:
+        if o.type in {"MESH", "CURVE", "LIGHT"}:
             saved[o.name] = o.hide_render
             o.hide_render = o.name not in keep
     sc.render.filepath = path
@@ -695,10 +706,7 @@ def tray_material():
 def build_tray():
     c = col("Tray")
     wipe_collection("Tray")
-    bm = bmesh.new()
-    bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1.0)
-    bmesh.ops.scale(bm, vec=(.25 * 1.02, .2 * 1.02, 1), verts=bm.verts)
-    ob = mesh_object("Tray_Sheet", bm, tray_material(), c, subsurf=0)
+    ob = mesh_object("Tray_Sheet", quad_bm(.51, .41), tray_material(), c, subsurf=0)
     ob.location = TRAY_AT
     # soft reflection source for the steel (big warm card above-left, out of frame)
     card = bpy.data.objects.get("Tray_Softbox")
@@ -713,7 +721,7 @@ def build_tray():
 
 
 def render_tray():
-    return shoot((TRAY_AT.x, TRAY_AT.y), (.5, .4), (1000, 800), os.path.join(OUT, "pz_tray.png"), False, ["Tray_Sheet"])
+    return shoot((TRAY_AT.x, TRAY_AT.y), (.5, .4), (1000, 800), os.path.join(OUT, "pz_tray.png"), False, ["Tray_Sheet", "Tray_Softbox"])
 
 
 # ============================================================================================ wood / cloth / props materials
@@ -733,8 +741,7 @@ def wood_material(name, light="D9A15C", dark="A8642E", plank=.11, along="X", sea
                     Scale=4.0, Distortion=1.5, Detail=3.0, **{"Detail Scale": 1.5}, _bands_direction="Y", _wave_profile="SIN").outputs["Factor"]
     fine = nb.noise(nb.node("ShaderNodeCombineXYZ", X=nb.mul(u, 30.0), Y=nb.mul(v, 900.0), Z=rnd).outputs[0], 1.0, 3, .6)
     t = nb.add(nb.mul(grain, .45), nb.mul(fine, .25), nb.mul(rnd, .35), nb.mul(warp, .2), -.2)
-    base = nb.ramp(t, [(0, srgb(light)), (.55, srgb(light if len(light) == 6 else light)), (1, srgb(dark))]) if False else \
-        nb.ramp(t, [(0, srgb(light)), (1, srgb(dark))])
+    base = nb.ramp(t, [(0, srgb(light)), (1, srgb(dark))])
     h = nb.add(nb.mul(grain, .3), nb.mul(fine, .5))
     if seam:
         fv = nb.math("FRACT", nb.math("DIVIDE", v, plank))
@@ -860,6 +867,13 @@ def towel_material():
 
 
 # ============================================================================================ props geometry
+def quad_bm(w, h):
+    bm = bmesh.new()
+    vs = [bm.verts.new((x * w / 2, y * h / 2, 0)) for x, y in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+    bm.faces.new(vs)
+    return bm
+
+
 def lathe_bm(profile, seg=48):
     """profile [(r, z)] bottom->top, revolved around Z; closed with fans where r>0 at the ends."""
     bm = bmesh.new()
@@ -936,10 +950,7 @@ def build_bench():
     W, H = BENCH_SIZE
     o = BENCH_AT
     # worktop
-    bm = bmesh.new()
-    bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1.0)
-    bmesh.ops.scale(bm, vec=(W * .52, H * .52, 1), verts=bm.verts)
-    top = mesh_object("Bench_Top", bm, bench_top_material(), c, subsurf=0)
+    top = mesh_object("Bench_Top", quad_bm(W * 1.04, H * 1.04), bench_top_material(), c, subsurf=0)
     top.location = o
 
     wood_pin = wood_material("M_pin_wood", light="F0C98E", dark="C99055", plank=10, seam=False, scale=3)

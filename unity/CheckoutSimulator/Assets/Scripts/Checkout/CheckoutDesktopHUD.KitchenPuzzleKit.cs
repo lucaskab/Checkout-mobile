@@ -38,7 +38,7 @@ namespace Checkout {
   void PShadow(Transform parent,Vector2 size){var s=N.Image(parent,"Shadow",new Color(.2f,.1f,.03f,.28f),0);s.sprite=U.Glow();var r=s.rectTransform;r.anchorMin=r.anchorMax=r.pivot=new Vector2(.5f,.5f);r.anchoredPosition=new Vector2(0,-size.y*.08f);r.sizeDelta=size*1.15f;}
   // Pointer handle (drag / tap) in stage coordinates.
   TrayHandle PHandle(RectTransform r,Action<Vector2> began,Action<Vector2> moved,Action<Vector2> ended,Action tapped){
-   var img=r.GetComponent<Image>();if(!img)img=r.gameObject.AddComponent<Image>();if(img.color.a<=0)img.color=new Color(1,1,1,.001f);img.raycastTarget=true;
+   var img=r.GetComponent<Image>();if(!img){img=r.gameObject.AddComponent<Image>();img.color=new Color(1,1,1,.001f);}else if(img.color.a<=0)img.color=new Color(1,1,1,.001f);img.raycastTarget=true;
    var h=r.gameObject.AddComponent<TrayHandle>();h.Space=kitchenStage;h.Began=began;h.Moved=moved;h.Ended=ended;h.Tapped=tapped;return h;
   }
   // A small button on the bench (Dica, Desfazer, Recomeçar).

@@ -92,7 +92,7 @@ const games: Record<string, () => KitchenStep[]> = {
 		forno("kt_cake_batter", "kt_cake_baked", "Asse", "Forno a 180 °C. Tire quando o palito sair limpo: nem cru no meio, nem ressecado.", 40, "Palito limpo!"),
 	],
 	// ------------------------------------------------------------ queijaria: the aging rack (a small Latin square)
-	"queijo-minas": () => [maturacao(["minas", "prato", "brie"], 3, "Arraste os queijos para a câmara: cada prateleira e cada coluna com um queijo de cada tipo.")],
+	"queijo-minas": () => [maturacao(["minas", "prato", "azul"], 3, "Arraste os queijos para a câmara: cada prateleira e cada coluna com um queijo de cada tipo.")],
 	"brie-maturado": () => [maturacao(["minas", "prato", "brie", "azul"], 7, "Quatro queijos agora: nenhum tipo pode se repetir na mesma prateleira nem na mesma coluna.")],
 	"tabua-de-queijos": () => [maturacao(["minas", "prato", "brie", "azul"], 5, "A câmara cheia da tábua, com poucas pistas: pense em cada fileira e cada coluna.")],
 	// ------------------------------------------------------------ açougue: cut to weight

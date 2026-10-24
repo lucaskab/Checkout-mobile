@@ -31,9 +31,10 @@ namespace Checkout {
    float sliceW=width/slices;
    var columns=new List<Image>();var fats=new List<Image>();
    for(int i=0;i<slices;i++){
-    float h=height*thick[i]/1.6f;var x=left+(i+.5f)*sliceW;
-    var fat=PImage(kitchenStage,"Fat",K.C("F3E3CF"),4,new Vector2(x,center.y+h/2-5),new Vector2(sliceW+1,10));
-    var meat=PImage(kitchenStage,"Meat",Color.Lerp(K.C("C8423C"),K.C("A8302E"),Noise(i,3)),4,new Vector2(x,center.y-5),new Vector2(sliceW+1,h));
+    // The piece lies on the block: its height is how thick it is there (fat cap on top).
+    float h=height*thick[i]/1.7f;var x=left+(i+.5f)*sliceW;float floorY=center.y-height*.55f;
+    var meat=PImage(kitchenStage,"Meat",Color.Lerp(K.C("C8423C"),K.C("A8302E"),Noise(i,3)),4,new Vector2(x,floorY+h/2),new Vector2(sliceW+1,h));
+    var fat=PImage(kitchenStage,"Fat",K.C("F3E3CF"),4,new Vector2(x,floorY+h-3),new Vector2(sliceW+1,10));
     if(Noise(i,7)>.6f){var marble=N.Image(meat.transform,"Marble",new Color(1,.9f,.85f,.5f),3);marble.rectTransform.sizeDelta=new Vector2(sliceW*.9f,4);marble.rectTransform.anchoredPosition=new Vector2(0,(Noise(i,9)-.5f)*h*.6f);}
     columns.Add(meat);fats.Add(fat);
    }
