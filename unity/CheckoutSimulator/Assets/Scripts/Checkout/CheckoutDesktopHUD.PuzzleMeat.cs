@@ -63,7 +63,9 @@ namespace Checkout {
    }
    // Knives start evenly spaced (which is wrong: the meat is not even).
    var knives=new List<RectTransform>();var cuts=new List<float>();
-   for(int k=1;k<portions;k++)cuts.Add(k/(float)portions);
+   // Knives start bunched towards one end (an even split would already be close on an even cut like the contra-filé).
+   bool towardLeft=Random.value<.5f;
+   for(int k=1;k<portions;k++){float even=k/(float)portions;cuts.Add(towardLeft?Mathf.Pow(even,1.45f):1-Mathf.Pow(1-even,1.45f));}
    var scales=new List<(Image back,TextMeshProUGUI text)>();
    for(int k=0;k<portions;k++){
     var back=PImage(kitchenStage,"Scale",K.C("2E3A4A"),12,Vector2.zero,new Vector2(110,44));
@@ -74,7 +76,7 @@ namespace Checkout {
    float knifeY=center.y+height*.62f+40;
    for(int k=0;k<cuts.Count;k++){
     int index=k;
-    var knife=PNode(kitchenStage,"Knife",new Vector2(left+cuts[k]*width,center.y+10),new Vector2(60,height*1.25f+120));
+    var knife=PNode(kitchenStage,"Knife",new Vector2(left+cuts[k]*width,center.y-(useArt?6:-10)),new Vector2(60,height*1.25f+120));
     var line=N.Image(knife,"Line",new Color(1,1,1,.85f),2);var lr=line.rectTransform;lr.anchorMin=lr.anchorMax=lr.pivot=new Vector2(.5f,.5f);lr.sizeDelta=new Vector2(5,height*1.4f);lr.anchoredPosition=new Vector2(0,-30);
     var dash=N.Image(knife,"Edge",new Color(.2f,.12f,.08f,.6f),2);var dr=dash.rectTransform;dr.anchorMin=dr.anchorMax=dr.pivot=new Vector2(.5f,.5f);dr.sizeDelta=new Vector2(2,height*1.4f);dr.anchoredPosition=new Vector2(0,-30);
     var grip=N.Image(knife,"Handle",K.C("3B2A1E"),14);var gr=grip.rectTransform;gr.anchorMin=gr.anchorMax=gr.pivot=new Vector2(.5f,.5f);gr.sizeDelta=new Vector2(44,64);gr.anchoredPosition=new Vector2(0,height*.62f+28);
@@ -99,7 +101,7 @@ namespace Checkout {
      bool ok=Mathf.Abs(g-target)<=tolerance;if(ok)good++;
      scales[k].back.color=ok?K.C("4F9A2E"):Mathf.Abs(g-target)<=tolerance*2.5f?K.C("E8962B"):K.C("2E3A4A");
      scales[k].text.text=$"{g:0} g";
-     scales[k].back.rectTransform.anchoredPosition=new Vector2(left+(from+to)/2*width,center.y-height*.62f-44);
+     scales[k].back.rectTransform.anchoredPosition=new Vector2(left+(from+to)/2*width,useArt?center.y-height*.55f-28:center.y-height*.62f-44);
      scales[k].back.rectTransform.sizeDelta=new Vector2(Mathf.Clamp((to-from)*width-8,84,130),44);
     }
     PMovesText(moveText,moves,par);KitchenMeter(good/(float)portions);
