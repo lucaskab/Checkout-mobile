@@ -5,6 +5,7 @@ import {
 	formatConstructionCountdown,
 } from "@/data/market-expansions";
 import type { InteriorBuildStatus } from "@/services/interior-construction";
+import { NO_ROOM_HINT } from "@/services/interior-room";
 import { act, button, type Button, type Card, card, decorIcon, fmt, gameIcon, type State } from "../view-kit";
 
 // Things the builders put up inside the market (shelves, sectors, checkouts). Buying one does not
@@ -137,8 +138,9 @@ export function buildCard(state: State, offer: BuildOffer): Card {
 				tone: locked ? "locked" : "",
 				badge: formatBuildDuration(status.durationMs),
 				subtitle: offer.subtitle,
-				lines: locked ? [] : ["Vai para o inventário: você escolhe onde construir."], // locked: the button already says why
-				buttons,
+				// locked: the button already says why; with no room on the floor, what to do about it.
+				lines: status.noRoom ? [NO_ROOM_HINT] : locked ? [] : ["Vai para o inventário: você escolhe onde construir."],
+				buttons: status.noRoom ? [...buttons, placeButton("Organizar a loja")] : buttons,
 			});
 		}
 	}

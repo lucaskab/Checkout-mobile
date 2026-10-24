@@ -19,6 +19,7 @@ import {
 	resolveShelfSlotCounts,
 } from "@/data/shelf-slots";
 import { getSimulatorLayout } from "@/services/simulator-layout";
+import { getShopItemPieceId, hasInteriorRoom, NO_ROOM_REASON } from "@/services/interior-room";
 
 /** Where a buildable thing stands, for the screens:
  * - `locked`: the player's level (or a market wing) is still missing;
@@ -38,6 +39,8 @@ export type InteriorBuildStatus = {
 	remainingMs: number;
 	progress: number;
 	skipCost: number;
+	/** Locked only because the piece does not fit on the shop floor now (src/services/interior-room.ts). */
+	noRoom?: boolean;
 };
 
 type BuildState = Pick<
@@ -106,6 +109,8 @@ export function getSectorBuildStatus(
 		return { status: "locked", reason: `Nível ${sector.requiredLevel}`, ...base, ...works(null, now) };
 	if (!getSimulatorLayout(state.unlockedMarketExpansionIds).sectorIds.includes(sector.id))
 		return { status: "locked", reason: "Precisa de uma expansão", ...base, ...works(null, now) };
+	if (!hasInteriorRoom(`sector:${sector.id}`))
+		return { status: "locked", reason: NO_ROOM_REASON, noRoom: true, ...base, ...works(null, now) };
 	return { status: "available", reason: "", ...base, ...works(null, now) };
 }
 
@@ -130,6 +135,8 @@ export function getNextShelfBuildStatus(state: BuildState, now = Date.now()) {
 		result = { status: "locked", reason: `Chega com: ${getMarketEra(upgrade.eraId).name}`, ...base, ...works(null, now) };
 	else if (state.market.level < upgrade.playerLevel)
 		result = { status: "locked", reason: `Nível ${upgrade.playerLevel}`, ...base, ...works(null, now) };
+	else if (!hasInteriorRoom(`shelf:${shelf.id}`))
+		result = { status: "locked", reason: NO_ROOM_REASON, noRoom: true, ...base, ...works(null, now) };
 	else result = { status: "available", reason: "", ...base, ...works(null, now) };
 	return { shelf, requiredLevel: upgrade?.playerLevel ?? 1, ...result };
 }
@@ -148,6 +155,9 @@ export function getShopItemBuildStatus(
 	const roomEra = getShopItemPlaceEra(itemId);
 	if (roomEra && beforeEra(state, roomEra))
 		return { status: "locked", reason: `Chega com: ${getMarketEra(roomEra).name}`, ...base, ...works(null, now) };
+	const piece = getShopItemPieceId(itemId);
+	if (piece && !hasInteriorRoom(piece))
+		return { status: "locked", reason: NO_ROOM_REASON, noRoom: true, ...base, ...works(null, now) };
 	return { status: "available", reason: "", ...base, ...works(null, now) };
 }
 

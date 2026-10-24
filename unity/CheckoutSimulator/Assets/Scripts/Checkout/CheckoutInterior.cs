@@ -14,7 +14,7 @@ namespace Checkout
     // Positions are stored in the unprojected base map (walls at x ±9.4, z ±7.4) and shown at the projected
     // spot of the bought stage, at their natural size. The shop only ever grows, so a layout that fits once
     // keeps fitting. Pieces without a saved spot start at a default and slide to the nearest free place.
-    public class CheckoutInterior : MonoBehaviour
+    public partial class CheckoutInterior : MonoBehaviour
     {
         public class Item
         {
@@ -222,7 +222,9 @@ namespace Checkout
             // those are not pieces to place or move (CheckoutStall.BuiltIn), and a stall has no room for another
             // checkout. Their saved spots (in the market, in a shop) are kept aside untouched for later.
             var aside = new List<InteriorItem>();
-            if (!designMode && CheckoutStall.Yard)
+            // The Späti and the quitanda sell over their own counter too: their checkouts wait aside as well (they are
+            // never a piece to place there, so the build mode must not ask for them).
+            if (!designMode && (CheckoutStall.Yard || (CheckoutStall.ShopInside && !CheckoutStall.PlacedCounter)))
             {
                 bool Aside(string id, string type) => CheckoutStall.BuiltIn(id) || type == "checkout" || type == "kiosk";
                 aside.AddRange(saved.Where(e => e != null && Aside(e.id, e.type)));

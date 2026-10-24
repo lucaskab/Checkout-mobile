@@ -13,7 +13,7 @@ namespace Checkout {
  // snapshot, plays each mini-game with simulated drags and taps (the same pointer events a finger
  // sends), saves screenshots to Logs/at_*.png and a step log with any exception to
  // Logs/autotest_log.txt, then asks the editor to leave play mode.
- public sealed class CheckoutAutoTest:MonoBehaviour {
+ public sealed partial class CheckoutAutoTest:MonoBehaviour {
   // Started by CheckoutBoot once the game scene is loaded (the Boot scene comes first on Android).
   internal static void Boot(){if(Application.isEditor&&File.Exists("Logs/autotest.txt"))new GameObject("CheckoutAutoTest").AddComponent<CheckoutAutoTest>();}
 
@@ -39,7 +39,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="account"?AccountShots():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsroom")?RoomAudit(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="account"?AccountShots():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     yield return run;
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
@@ -53,6 +53,7 @@ namespace Checkout {
   void Patch(Snapshot s){
    if(s==null)return;
    if(fakePlays!=null)s.decorPlays=fakePlays;
+   PatchRoom(s);
    if(fakeDock!=null&&(s.dock==null||s.dock.All(d=>d.id!=fakeDock.id)))s.dock=(s.dock??Array.Empty<DockEntry>()).Append(fakeDock).ToArray();
    if(fakeSlots!=null&&(s.restockSlots==null||s.restockSlots.All(d=>d.slotId!=fakeSlots[0].slotId)))s.restockSlots=(s.restockSlots??Array.Empty<RestockSlot>()).Concat(fakeSlots).ToArray();
    // "fixtures": every slot a third full with stock in the stockroom (visual check of the REPOR game)

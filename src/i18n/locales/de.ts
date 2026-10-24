@@ -3749,6 +3749,13 @@ const catalog: Catalog = {
 	"Coreto de ferro e madeira com luzinhas.": "Pavillon aus Eisen und Holz mit Lichterketten.",
 	"Mini carrossel": "Mini-Karussell",
 	"Carrossel de cavalinhos que gira.": "Ein sich drehendes Pferdekarussell.",
+	"Refrigeração Eficiente": "Effiziente Kühlung",
+	"Congelamento Rápido": "Schnellgefrieren",
+	"Melhora as geladeiras que você já tem (não é um móvel novo): bebidas, laticínios, frios e queijos rendem +15%.": "Verbessert deine vorhandenen Kühlschränke (kein neues Möbelstück): Getränke, Milchprodukte, Aufschnitt und Käse bringen +15 %.",
+	"Melhora os freezers que você já tem (não é um móvel novo): congelados, sorvetes, carnes e peixes rendem +15%.": "Verbessert deine vorhandenen Gefriertruhen (kein neues Möbelstück): Tiefkühlware, Eis, Fleisch und Fisch bringen +15 %.",
+	"Sem espaço na loja": "Kein Platz im Laden",
+	"Mova ou guarde móveis e decorações no modo construir, ou cresça o mercado.": "Verschiebe oder verstaue Möbel und Deko im Baumodus oder vergrößere den Markt.",
+	"Organizar a loja": "Laden einrichten",
 };
 
 export default catalog;

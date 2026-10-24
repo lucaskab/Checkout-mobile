@@ -45,11 +45,12 @@ export const shopItems: ShopItemDefinition[] = [
 	},
 	{
 		id: "refrigerated-fridge",
-		name: "Geladeira de Bebidas",
+		// Lucas 24/10: an upgrade, not a fixture: a name of its own, so nobody looks for a new fridge to place.
+		name: "Refrigeração Eficiente",
 		category: "equipamentos",
 		level: 12,
 		coinPrice: 10_000,
-		description: "Bebidas, laticínios, frios e queijos rendem +15%.",
+		description: "Melhora as geladeiras que você já tem (não é um móvel novo): bebidas, laticínios, frios e queijos rendem +15%.",
 		effect: { categoryRevenue: { categories: COLD_DRINKS, bonus: 0.15 } },
 	},
 	{
@@ -63,11 +64,12 @@ export const shopItems: ShopItemDefinition[] = [
 	},
 	{
 		id: "vertical-freezer",
-		name: "Freezer Vertical",
+		// Lucas 24/10: a player bought the "Freezer Vertical" and found no freezer to place: it is an upgrade.
+		name: "Congelamento Rápido",
 		category: "equipamentos",
 		level: 16,
 		coinPrice: 18_000,
-		description: "Congelados, sorvetes, carnes e peixes rendem +15%.",
+		description: "Melhora os freezers que você já tem (não é um móvel novo): congelados, sorvetes, carnes e peixes rendem +15%.",
 		effect: { categoryRevenue: { categories: FROZEN, bonus: 0.15 } },
 	},
 	{

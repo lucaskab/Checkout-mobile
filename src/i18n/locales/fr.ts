@@ -3742,6 +3742,13 @@ const catalog: Catalog = {
 	"Coreto de ferro e madeira com luzinhas.": "Un kiosque en fer et bois avec des guirlandes.",
 	"Mini carrossel": "Mini carrousel",
 	"Carrossel de cavalinhos que gira.": "Un manège de petits chevaux qui tourne.",
+	"Refrigeração Eficiente": "Réfrigération efficace",
+	"Congelamento Rápido": "Surgélation rapide",
+	"Melhora as geladeiras que você já tem (não é um móvel novo): bebidas, laticínios, frios e queijos rendem +15%.": "Améliore les réfrigérateurs que vous avez déjà (ce n'est pas un nouveau meuble) : boissons, produits laitiers, charcuterie et fromages rapportent +15 %.",
+	"Melhora os freezers que você já tem (não é um móvel novo): congelados, sorvetes, carnes e peixes rendem +15%.": "Améliore les congélateurs que vous avez déjà (ce n'est pas un nouveau meuble) : surgelés, glaces, viandes et poissons rapportent +15 %.",
+	"Sem espaço na loja": "Pas de place dans la boutique",
+	"Mova ou guarde móveis e decorações no modo construir, ou cresça o mercado.": "Déplacez ou rangez meubles et décorations en mode construction, ou agrandissez le marché.",
+	"Organizar a loja": "Ranger la boutique",
 };
 
 export default catalog;

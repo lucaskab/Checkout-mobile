@@ -1,3 +1,4 @@
+import { getShopItemPieceId, hasInteriorRoom } from "@/services/interior-room";
 import { getDecorEffects, rollDecorPlays } from "@/services/decor-effects";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -1948,6 +1949,10 @@ export const useGameStore = create<GameStore>()(
 				// market has room to place them.
 				const roomEra = getShopItemPlaceEra(item.id);
 				if (roomEra && getEraOrder(get().era.id) < getEraOrder(roomEra)) {
+					return false;
+				}
+				const piece = getShopItemPieceId(item.id);
+				if (piece && !hasInteriorRoom(piece)) {
 					return false;
 				}
 				const installed = isBuiltShopItem(item.id);
@@ -4142,6 +4147,8 @@ export const useGameStore = create<GameStore>()(
 					findInteriorConstruction(state.interiorConstructions, "shelf", nextShelf.id) ||
 					// Each shelf comes with the expansion that has room for it.
 					getEraOrder(state.era.id) < getEraOrder(nextUpgrade.eraId) ||
+					// ...and only while the shop floor has room for it (Unity measures it).
+					!hasInteriorRoom(`shelf:${nextShelf.id}`) ||
 					state.market.level < nextUpgrade.playerLevel ||
 					state.coins < nextUpgrade.coinCost
 				) {
@@ -4173,6 +4180,7 @@ export const useGameStore = create<GameStore>()(
 					getEraOrder(state.era.id) < getEraOrder(sector.eraId) ||
 					// The sector needs the market wing that has room for it.
 					!layout.sectorIds.includes(sector.id) ||
+					!hasInteriorRoom(`sector:${sector.id}`) ||
 					(currency === "coins" && state.coins < plan.coinCost) ||
 					(currency === "diamonds" && !enoughDiamonds(diamondCost))
 				) {

@@ -50,13 +50,19 @@ namespace Checkout
             bridge = owner; map = projection; simulation = FindAnyObjectByType<MarketSimulation>(); instance = this;
             if (!Interior || !Interior.Ready) { enabled = false; return; }
             root = U.Canvas(transform, "CheckoutBuildMode", 60);
-            var b = U.Button(root, "Construir", "primary", Enter, 72, 26);
-            b.Apply(Data("Construir", "primary", true, "Icons/hammer"));
-            U.At((RectTransform)b.transform, new Vector2(0, 0), new Vector2(240, 72), new Vector2(140, 200)); // above the desktop toolbar
+            // Lucas 24/10: just the hammer (the big "Montar loja" button was too much). A square key in the bottom-left
+            // corner, level with the toolbar (same height, same row), with the red counter of pieces to place.
+            float size = CheckoutScreen.Handheld ? 92 : 84, toolbarMid = CheckoutScreen.Handheld ? 6 + 50 : 14 + 52;
+            var b = CheckoutDesktopButton.Create(root, size, 16, 22);
+            b.Apply(Data("", "primary", true, "Icons/hammer"));
+            b.Clicked = _ => Enter();
+            var iconSize = b.transform.Find("Face/Icon")?.GetComponent<UnityEngine.UI.LayoutElement>();
+            if (iconSize) iconSize.preferredWidth = iconSize.preferredHeight = Mathf.Round(size * .62f);
+            U.At((RectTransform)b.transform, new Vector2(0, 0), new Vector2(size, size), new Vector2(16 + size * .5f, toolbarMid));
             buildButton = b.gameObject; buildButtonView = b;
             // Red counter in the corner: bought furniture waiting in the inventory for a spot.
             var pill = CheckoutDesktopCard.Image(b.transform, "Inventory badge", K.C("E15533"), 16);
-            var pr = pill.rectTransform; pr.anchorMin = pr.anchorMax = pr.pivot = Vector2.one; pr.anchoredPosition = new Vector2(10, 12); pr.sizeDelta = new Vector2(34, 34);
+            var pr = pill.rectTransform; pr.anchorMin = pr.anchorMax = pr.pivot = Vector2.one; pr.anchoredPosition = new Vector2(12, 12); pr.sizeDelta = new Vector2(34, 34);
             inventoryBadgeText = CheckoutDesktopCard.Text(pill.transform, "Count", K.Number, 18, Color.white); inventoryBadgeText.alignment = TMPro.TextAlignmentOptions.Center;
             var tr = inventoryBadgeText.rectTransform; tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = tr.offsetMax = Vector2.zero;
             inventoryBadge = pill.gameObject; inventoryBadge.SetActive(false);
@@ -305,14 +311,14 @@ namespace Checkout
             if (buildButton && !CheckoutStartMenu.Showing && buildButton.activeSelf == hidden) buildButton.SetActive(!hidden);
             if (buildButton && CheckoutStartMenu.Showing && buildButton.activeSelf) buildButton.SetActive(false);
             // Furniture waiting to be placed shows on the button (a new shop starts empty).
-            // Bought pieces show as a red counter (the inventory); the starter pieces of a new shop as "Montar loja".
+            // Pieces waiting in the inventory (the starter pieces of a new shop, bought ones) show as a red counter.
             int count = Interior ? Interior.waiting.Count : 0;
             int bought = Interior ? Interior.waiting.Keys.Count(id => Interior.PendingBuild(id) != null) : 0;
             if (buildButtonView && count * 100 + bought != buildButtonCount)
             {
                 buildButtonCount = count * 100 + bought;
-                bool starter = count > bought;
-                buildButtonView.Apply(Data(starter ? "Montar loja" : bought > 0 ? "Colocar" : "Construir", count > 0 ? "success" : "primary", true, "Icons/hammer"));
+                // Icon only: green with the red counter while something waits to be placed.
+                buildButtonView.Apply(Data("", count > 0 ? "success" : "primary", true, "Icons/hammer"));
                 if (inventoryBadge) { inventoryBadge.SetActive(count > 0); inventoryBadgeText.text = count.ToString(); }
             }
             // A gentle pulse so the player notices there is something to place.

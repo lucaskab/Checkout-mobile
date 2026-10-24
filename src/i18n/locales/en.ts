@@ -3729,6 +3729,13 @@ const catalog: Catalog = {
 	"Coreto de ferro e madeira com luzinhas.": "Iron and wood bandstand with fairy lights.",
 	"Mini carrossel": "Mini carousel",
 	"Carrossel de cavalinhos que gira.": "A spinning carousel of little horses.",
+	"Refrigeração Eficiente": "Efficient Cooling",
+	"Congelamento Rápido": "Quick Freeze",
+	"Melhora as geladeiras que você já tem (não é um móvel novo): bebidas, laticínios, frios e queijos rendem +15%.": "Upgrades the fridges you already have (not a new piece of furniture): drinks, dairy, cold cuts and cheese earn +15%.",
+	"Melhora os freezers que você já tem (não é um móvel novo): congelados, sorvetes, carnes e peixes rendem +15%.": "Upgrades the freezers you already have (not a new piece of furniture): frozen food, ice cream, meat and fish earn +15%.",
+	"Sem espaço na loja": "No room in the shop",
+	"Mova ou guarde móveis e decorações no modo construir, ou cresça o mercado.": "Move or store furniture and decorations in build mode, or grow the market.",
+	"Organizar a loja": "Arrange the shop",
 };
 
 export default catalog;
