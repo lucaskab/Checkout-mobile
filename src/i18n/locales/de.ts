@@ -3805,6 +3805,8 @@ const catalog: Catalog = {
 	"Um queijo no lugar certo!": "Ein Käse am richtigen Platz!",
 	"Desfazer": "Rückgängig",
 	"Recomeçar": "Neu starten",
+	"Esta loja já tem o seu balcão: o caixa fica guardado até o mercado crescer.": "Dieser Laden hat schon eine eigene Theke: die Kasse bleibt verstaut, bis der Markt wächst.",
+	"Libere a área dos caixas: afaste o que estiver na faixa azul junto à parede.": "Mach den Kassenbereich frei: räum weg, was auf dem blauen Streifen an der Wand steht.",
 };
 
 export default catalog;

@@ -117,5 +117,25 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(1);
   }
  }
+ // The checkout after an expansion ("eventscounter-spati.quitanda.minimercado.mercadinho", QA save): with the checkout and the
+ // shelves in the inventory (as a new game has them), logs whether the build mode would ask for the checkout and, where
+ // the player places it, whether it finds a spot (a tester got stuck at an expansion, 24/10).
+ IEnumerator CounterCheck(string request){
+  var stages=request.Contains("-")?request.Substring(request.IndexOf('-')+1).Split('.'):new[]{"spati","quitanda","minimercado","mercadinho"};
+  foreach(var stage in stages){
+   int era=System.Array.IndexOf(EraIds,stage);if(era<0)continue;
+   var inside=CheckoutInterior.Active;if(inside)inside.editing=false;
+   roomEra=era;roomExtras=false;
+   CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-counter-"+stage+"\",\"action\":\"devSetMarketEra\",\"args\":[\""+stage+"\"]}");
+   yield return new WaitForSecondsRealtime(18);
+   inside=CheckoutInterior.Active;if(!inside){Note("no interior");continue;}
+   bool ownCounter=CheckoutStall.Small&&!CheckoutStall.PlacedCounter;
+   bool waits=inside.waiting.Values.Any(w=>w.type=="checkout");
+   string placed="-";
+   if(waits&&!ownCounter){inside.editing=true;var z=inside.CheckoutZone;var it=inside.PlaceWaiting("checkout:main",new Vector3(z.center.x,CheckoutInterior.Floor,z.center.y));placed=it!=null?"placed at "+it.root.position:"NO ROOM";inside.editing=false;}
+   Note($"counter {stage}: own counter={ownCounter} checkout waiting={waits} -> {placed}; waiting: {string.Join(",",inside.waiting.Keys)}");
+  }
+  roomEra=-1;
+ }
  }
 }

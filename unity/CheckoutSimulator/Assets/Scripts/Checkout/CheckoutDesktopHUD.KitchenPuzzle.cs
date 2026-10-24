@@ -163,13 +163,13 @@ namespace Checkout {
   void DrawDough(TrayPiece p,float cell){
    var d=BreadPieces[p.id];var size=new Vector2(d.w*cell,d.h*cell);
    var rawArt=K.Icon("Game/pz_bread_"+p.id+"_raw");var bakedArt=K.Icon("Game/pz_bread_"+p.id+"_baked");
-   var shadow=N.Image(p.body,"Shadow",new Color(.2f,.1f,.03f,.28f),0);shadow.sprite=U.Glow();Stretch(shadow.rectTransform,new Vector2(-10,-18),new Vector2(10,0));
-   if(rawArt){
+   if(rawArt){ // the Blender art carries its own soft shadow
     p.art=N.Image(p.body,"Art",Color.white,0);p.art.sprite=rawArt;Stretch(p.art.rectTransform,Vector2.zero,Vector2.zero);
     if(bakedArt){p.artBaked=N.Image(p.body,"Baked",new Color(1,1,1,0),0);p.artBaked.sprite=bakedArt;Stretch(p.artBaked.rectTransform,Vector2.zero,Vector2.zero);}
     return;
    }
    // Drawn dough until the art exists: a soft rounded loaf with a crust layer that fades in when baked, and scores.
+   var shadow=N.Image(p.body,"Shadow",new Color(.2f,.1f,.03f,.28f),0);shadow.sprite=U.Glow();Stretch(shadow.rectTransform,new Vector2(-10,-18),new Vector2(10,0));
    float inset=Mathf.Max(6,cell*.07f);int radius=Mathf.RoundToInt(Mathf.Min(size.x,size.y)*.42f);
    var edge=N.Image(p.body,"Edge",K.C("C99A5B"),Mathf.Clamp(radius+2,8,62));Stretch(edge.rectTransform,new Vector2(inset-3,inset-4),new Vector2(-inset+3,-inset+2));
    p.dough=N.Image(p.body,"Dough",K.C(d.raw),Mathf.Clamp(radius,8,60));Stretch(p.dough.rectTransform,new Vector2(inset,inset),new Vector2(-inset,-inset));

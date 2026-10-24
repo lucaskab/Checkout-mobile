@@ -154,7 +154,10 @@ namespace Checkout
             var misplaced = Interior.items.Values.FirstOrDefault(i => i.root && !i.design && !i.ghost && !Interior.Fits(i, i.root.position, i.rot, out _));
             if (misplaced != null) { Select(misplaced); Say(Name(misplaced) + " não cabe aí. Mova ou gire até a área ficar verde.", true); return; }
             if (!Interior.Reachable(out var blocked)) { Select(blocked); Say(Name(blocked) + " ficou sem passagem. Abra caminho para concluir.", true); return; }
-            if (!Interior.items.Values.Any(i => i.root && i.type == "checkout" && !i.building) && Interior.waiting.Values.Any(w => w.type == "checkout"))
+            // Shops with a counter of their own (the stalls, the Späti, the quitanda) never ask for the checkout (a tester's
+            // shop got stuck here after an expansion, 24/10).
+            bool ownCounter = CheckoutStall.Small && !CheckoutStall.PlacedCounter;
+            if (!ownCounter && !Interior.items.Values.Any(i => i.root && i.type == "checkout" && !i.building) && Interior.waiting.Values.Any(w => w.type == "checkout"))
             { Say("Coloque o caixa na área dos caixas para concluir.", true); return; }
             bridge.Command("saveInteriorLayout", "[" + Interior.ExportJson() + "]");
             Interior.MarkPending();
@@ -240,6 +243,7 @@ namespace Checkout
             if (!Interior.waiting.TryGetValue(id, out var w)) return;
             if (shopZone != "inside") Focus("inside");
             bool counter = w.type == "checkout" || w.type == "kiosk";
+            if (counter && CheckoutStall.Small && !CheckoutStall.PlacedCounter) { Say("Esta loja já tem o seu balcão: o caixa fica guardado até o mercado crescer.", true); return; }
             var zone = Interior.CheckoutZone; var floor = Interior.FloorRect;
             // Counters start in the checkout area, everything else in the free part of the shop in view.
             var ray = simulation.view.ScreenPointToRay(new Vector3(Screen.width * .5f, Screen.height * .5f));
@@ -247,7 +251,7 @@ namespace Checkout
             at.x = counter ? zone.center.x : Mathf.Clamp(at.x, floor.xMin + 1.8f, Mathf.Max(floor.xMin + 1.8f, zone.xMin - 1.8f));
             at.z = Mathf.Clamp(at.z, floor.yMin + 1.5f, floor.yMax - 1.5f);
             var it = Interior.PlaceWaiting(id, at);
-            if (it == null) { Say("Não há espaço livre para isso agora. Afaste algum móvel.", true); return; }
+            if (it == null) { Say(counter ? "Libere a área dos caixas: afaste o que estiver na faixa azul junto à parede." : "Não há espaço livre para isso agora. Afaste algum móvel.", true); return; }
             RefreshTray(); Select(it); map.FurnitureChanged(false);
             Say(counter ? "O caixa fica na área dos caixas, junto à parede do estacionamento. Arraste para ajustar." : "Arraste para o lugar que quiser.");
         }

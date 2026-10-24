@@ -3670,6 +3670,8 @@ const catalog: Catalog = {
 	"Um queijo no lugar certo!": "¡Un queso en su lugar!",
 	"Desfazer": "Deshacer",
 	"Recomeçar": "Reiniciar",
+	"Esta loja já tem o seu balcão: o caixa fica guardado até o mercado crescer.": "Esta tienda ya tiene su mostrador: la caja queda guardada hasta que el mercado crezca.",
+	"Libere a área dos caixas: afaste o que estiver na faixa azul junto à parede.": "Libera la zona de cajas: aparta lo que esté en la franja azul junto a la pared.",
 };
 
 export default catalog;

@@ -175,10 +175,10 @@ class NB:
 
 # ============================================================================================ bread materials
 CRUST = {   # (position, sRGB hex) — ramp of the baked crust, light -> dark
-    "frances": [(0, "F7D58E"), (.3, "EDAE55"), (.55, "D98A33"), (.8, "B5621E"), (1, "8A4316")],
-    "forma":   [(0, "F7D58E"), (.3, "EBA548"), (.55, "CF7A26"), (.8, "A8541A"), (1, "7A3812")],
-    "baguete": [(0, "F5CF85"), (.3, "E9A64D"), (.55, "D3822E"), (.8, "A95A1C"), (1, "7C3D13")],
-    "tranca":  [(0, "F8D27E"), (.3, "EC9F3E"), (.55, "CD7120"), (.8, "9F4A15"), (1, "6E300D")],
+    "frances": [(0, "F5D08A"), (.3, "E7A653"), (.55, "CC8136"), (.8, "A35A23"), (1, "733A17")],
+    "forma":   [(0, "F4CB86"), (.3, "E29C4A"), (.55, "C2702A"), (.8, "984C1C"), (1, "6A3314")],
+    "baguete": [(0, "F2C984"), (.3, "DFA052"), (.55, "C27A34"), (.8, "985323"), (1, "693516")],
+    "tranca":  [(0, "F6CC7E"), (.3, "E39645"), (.55, "C26A25"), (.8, "93461A"), (1, "632C10")],
     "redondo": [(0, "EFC27E"), (.25, "DB9A4C"), (.5, "BF7634"), (.75, "985423"), (1, "6A3518")],
 }
 DOUGH = {   # raw dough: light, dark
@@ -220,8 +220,8 @@ def bread_material(bid, state):
     # ---- base colour
     if baked:
         # browning: higher on top, mottled, darker where it turns down (edges), much darker on the ear lips
-        b = nb.add(nb.mul(hgt, .32), nb.mul(n_broad, .55), nb.mul(n_mid, .25), nb.mul(n_fine, .12),
-                   nb.mul(nb.math("SUBTRACT", 1.0, up), .22), nb.mul(ear, .55 if bid == "redondo" else .8), -.24)
+        b = nb.add(nb.mul(hgt, .32), nb.mul(n_broad, .7), nb.mul(n_mid, .3), nb.mul(n_fine, .14),
+                   nb.mul(nb.math("SUBTRACT", 1.0, up), .22), nb.mul(ear, .3 if bid == "redondo" else .8), -.17)
         crust = nb.ramp(b, [(p, srgb(h)) for p, h in CRUST[bid]])
         # opened score: pale golden "crumb" band with toasty texture
         torn = nb.noise(tc, 160, 6, .7, 1.2)
@@ -255,6 +255,7 @@ def bread_material(bid, state):
         speck = nb.mapr(nb.noise(tc, 900, 3, .7), .3, .7)
         speck2 = nb.mapr(nb.noise(tc, 260, 4, .7), .35, .7)
         flour = nb.mul(nb.mul(nb.mul(patch, up), nb.add(nb.mul(speck, .4), nb.mul(speck2, .3), .3)), min(1.0, famt * 1.2))
+        flour = nb.mapr(flour, .05, .55)
         if baked:
             flour = nb.mul(flour, nb.math("SUBTRACT", 1.0, nb.mapr(score, .02, .25)))
             flour = nb.mul(flour, nb.math("SUBTRACT", 1.0, nb.mapr(ear, .1, .5)))
@@ -406,7 +407,7 @@ def bread_bm(bid, baked, seed=1):
     elif bid == "redondo":
         bm = loaf(cube_sphere(110), .172 * s, .172 * s, H, n=2.0, m=2.0, side=2.6, bottom=.12, lump=.018, seed=seed)
         # sphere: make the planform truly round (loaf() maps the length axis with the same superellipse)
-        sc = [((-.068, .002), (.066, -.002), .014, .026, 0), ((.002, -.066), (-.002, .068), .014, .026, 0)]
+        sc = [((-.068, .002), (.066, -.002), .016, .017, 0), ((.002, -.066), (-.002, .068), .016, .017, 0)]
         apply_scores(bm, sc, baked, 1.0 if baked else .3, 1.0 if baked else .6)
     elif bid == "forma":
         L, W = .184 * s, .088 * s
@@ -674,16 +675,16 @@ def tray_material():
     n1 = nb.noise(tc, 6, 6, .6, .5)
     n2 = nb.noise(tc, 22, 8, .62)
     blot = nb.mapr(nb.add(n1, nb.mul(n2, .35)), .5, .78)
-    steel = nb.ramp(n2, [(0, srgb("1C2129")), (.5, srgb("232A33")), (1, srgb("2B313A"))])
-    patina = nb.ramp(n2, [(0, srgb("2E241C")), (1, srgb("3E2C1E"))])
-    base = nb.mix(nb.mul(blot, .75), steel, patina)
+    steel = nb.ramp(n2, [(0, srgb("15191F")), (.5, srgb("1B2028")), (1, srgb("222831"))])
+    patina = nb.ramp(n2, [(0, srgb("261D16")), (1, srgb("33251A"))])
+    base = nb.mix(nb.mul(blot, .45), steel, patina)
     # scratches: stretched noise along x
     sv = nb.node("ShaderNodeMapping", Vector=tc, Scale=(18, 600, 1)).outputs[0]
     scr = nb.mapr(nb.noise(sv, 1.0, 2, .5), .68, .74)
     sv2 = nb.node("ShaderNodeMapping", Vector=tc, Scale=(500, 14, 1), Rotation=(0, 0, .5)).outputs[0]
     scr = nb.math("MAXIMUM", scr, nb.mapr(nb.noise(sv2, 1.0, 2, .5), .7, .75))
     scr = nb.mul(scr, nb.mapr(nb.noise(tc, 9, 2), .45, .7))
-    base = nb.mix(nb.mul(scr, .35), base, srgb("4A525C"))
+    base = nb.mix(nb.mul(scr, .15), base, srgb("3A424C"))
     # perforations: staggered grid of tiny holes (pitch 25 mm), all identical so the sheet can be stretched
     pitch = .025
     gx = nb.math("DIVIDE", x, pitch)
@@ -692,14 +693,14 @@ def tray_material():
     fx = nb.math("SUBTRACT", nb.math("FRACT", gx), .5)
     fy = nb.math("SUBTRACT", nb.math("FRACT", nb.math("DIVIDE", y, pitch)), .5)
     dist = nb.math("SQRT", nb.add(nb.mul(fx, fx), nb.mul(fy, fy)))
-    hole = nb.mapr(dist, .085, .065)
-    rim = nb.mul(nb.mapr(dist, .065, .1), nb.mapr(dist, .14, .1))
+    hole = nb.mapr(dist, .07, .052)
+    rim = nb.mul(nb.mapr(dist, .052, .085), nb.mapr(dist, .12, .085))
     base = nb.mix(hole, base, srgb("07080A"))
-    rough = nb.add(.42, nb.mul(blot, .2), nb.mul(n2, .1))
+    rough = nb.add(.5, nb.mul(blot, .15), nb.mul(n2, .1))
     bump_h = nb.add(nb.mul(n2, .3), nb.mul(hole, -1.0), nb.mul(rim, .4), nb.mul(scr, -.3))
     bump = nb.node("ShaderNodeBump", Height=bump_h, Strength=.25, Distance=.0006)
-    nb.bsdf(**{"Base Color": base, "Metallic": .75, "Roughness": rough, "Normal": bump.outputs[0],
-               "Coat Weight": .15, "Coat Roughness": .3})
+    nb.bsdf(**{"Base Color": base, "Metallic": .55, "Roughness": rough, "Normal": bump.outputs[0],
+               "Coat Weight": .1, "Coat Roughness": .35})
     return mat
 
 
@@ -714,14 +715,21 @@ def build_tray():
         card = link(bpy.data.objects.new("Tray_Softbox", bpy.data.lights.new("Tray_Softbox", "AREA")), c)
     card.data.shape = "RECTANGLE"
     card.data.size, card.data.size_y = 1.2, 1.2
-    card.data.energy = 60
+    card.data.energy = 25
     card.data.color = (1, .93, .84)
     card.location = TRAY_AT + Vector((-.35, .3, .9))
     card.rotation_euler = (math.radians(-18), math.radians(-20), 0)
 
 
 def render_tray():
-    return shoot((TRAY_AT.x, TRAY_AT.y), (.5, .4), (1000, 800), os.path.join(OUT, "pz_tray.png"), False, ["Tray_Sheet", "Tray_Softbox"])
+    """The sheet is metal: it mirrors the bright warm world, so the world is dimmed for this shot."""
+    bg = bpy.context.scene.world.node_tree.nodes["Background"].inputs[1]
+    old = bg.default_value
+    bg.default_value = .18
+    try:
+        return shoot((TRAY_AT.x, TRAY_AT.y), (.5, .4), (1000, 800), os.path.join(OUT, "pz_tray.png"), False, ["Tray_Sheet", "Tray_Softbox"])
+    finally:
+        bg.default_value = old
 
 
 # ============================================================================================ wood / cloth / props materials
@@ -740,7 +748,8 @@ def wood_material(name, light="D9A15C", dark="A8642E", plank=.11, along="X", sea
     grain = nb.node("ShaderNodeTexWave", Vector=nb.node("ShaderNodeCombineXYZ", X=nb.mul(u, .3 * scale), Y=nb.add(nb.mul(v, 9.0 * scale), nb.mul(warp, 1.6)), Z=0).outputs[0],
                     Scale=4.0, Distortion=1.5, Detail=3.0, **{"Detail Scale": 1.5}, _bands_direction="Y", _wave_profile="SIN").outputs["Factor"]
     fine = nb.noise(nb.node("ShaderNodeCombineXYZ", X=nb.mul(u, 30.0), Y=nb.mul(v, 900.0), Z=rnd).outputs[0], 1.0, 3, .6)
-    t = nb.add(nb.mul(grain, .45), nb.mul(fine, .25), nb.mul(rnd, .35), nb.mul(warp, .2), -.2)
+    lines = nb.mapr(grain, .62, .95)
+    t = nb.add(nb.mul(lines, .38), nb.mul(grain, .12), nb.mul(fine, .22), nb.mul(rnd, .5), nb.mul(warp, .2), -.22)
     base = nb.ramp(t, [(0, srgb(light)), (1, srgb(dark))])
     h = nb.add(nb.mul(grain, .3), nb.mul(fine, .5))
     if seam:
@@ -751,9 +760,9 @@ def wood_material(name, light="D9A15C", dark="A8642E", plank=.11, along="X", sea
         h = nb.add(h, nb.mul(sm, -1.5))
     if paint:
         pn = nb.noise(tc, 7, 5, .6)
-        wear = nb.mapr(nb.add(pn, nb.mul(fine, .2)), .72, .8)
+        wear = nb.mapr(nb.add(pn, nb.mul(fine, .2)), .8, .86)
         pc = nb.ramp(nb.noise(tc, 40, 3), [(0, srgb(paint[0])), (1, srgb(paint[1]))])
-        base = nb.mix(nb.math("SUBTRACT", 1.0, nb.mul(wear, .8)), base, pc)
+        base = nb.mix(nb.math("SUBTRACT", 1.0, nb.mul(wear, .45)), base, pc)
         base = nb.mix(nb.mul(nb.mul(grain, nb.math("SUBTRACT", 1.0, wear)), .07), base, srgb(paint[1]))
     bump = nb.node("ShaderNodeBump", Height=h, Strength=.18, Distance=.001)
     nb.bsdf(**{"Base Color": base, "Roughness": nb.add(.5, nb.mul(fine, .15)), "Normal": bump.outputs[0],
@@ -773,20 +782,21 @@ def bench_top_material():
     x, y, z = nb.sep(tc)
     ex = nb.math("ABSOLUTE", nb.math("DIVIDE", x, .625))
     ey = nb.math("ABSOLUTE", nb.math("DIVIDE", y, .352))
-    edge = nb.math("MAXIMUM", nb.mapr(ex, .6, .98), nb.mapr(ey, .5, 1.0))
+    edge = nb.math("MAXIMUM", nb.mapr(ex, .66, 1.0), nb.mapr(ey, .56, 1.05))
     # extra flour drift around the sack (top-left) and under the rolling pin (bottom-right)
     def blob(cx, cy, r):
         d = nb.node("ShaderNodeVectorMath", Vector=tc, _operation="DISTANCE")
         d.inputs[1].default_value = (cx, cy, 0)
         return nb.mapr(d.outputs["Value"], r, r * .35)
-    edge = nb.math("MAXIMUM", edge, blob(-.42, .25, .22))
-    edge = nb.math("MAXIMUM", edge, nb.mul(blob(.48, -.28, .16), .8))
-    n1 = nb.noise(tc, 9, 6, .62, .5)
-    n2 = nb.noise(tc, 70, 5, .6)
-    speck = nb.mapr(nb.noise(tc, 600, 2, .6), .45, .7)
-    dust = nb.mul(nb.mapr(nb.add(n1, nb.mul(edge, .55), nb.mul(n2, .15)), .82, 1.0), edge)
-    dust = nb.math("MAXIMUM", dust, nb.mul(nb.mul(speck, nb.mapr(n2, .55, .75)), nb.add(nb.mul(edge, .5), .12)))
-    dust = nb.math("MINIMUM", dust, .92)
+    edge = nb.math("MAXIMUM", edge, blob(-.38, .22, .24))
+    edge = nb.math("MAXIMUM", edge, nb.mul(blob(.46, -.27, .14), .7))
+    n1 = nb.noise(tc, 7, 6, .62, .15)
+    n2 = nb.noise(tc, 55, 5, .6)
+    speck = nb.mapr(nb.noise(tc, 650, 2, .6), .5, .72)
+    cloud = nb.mapr(nb.add(nb.mul(n1, .8), nb.mul(n2, .35)), .5, .82)
+    dust = nb.mul(nb.mul(nb.mul(edge, cloud), nb.add(nb.mul(speck, .45), .55)), .8)
+    fine = nb.mul(nb.mul(speck, nb.mapr(n2, .48, .7)), nb.add(nb.mul(edge, .55), .06))
+    dust = nb.math("MINIMUM", nb.math("MAXIMUM", dust, nb.mul(fine, .85)), .8)
     nt.links.new(nb.mix(dust, wood_col, srgb("FAF5EA")), bsdf.inputs["Base Color"])
     rough_src = bsdf.inputs["Roughness"].links[0].from_socket
     nt.links.new(nb.add(rough_src, nb.mul(dust, .45)), bsdf.inputs["Roughness"])
@@ -828,13 +838,13 @@ def burlap_material():
     nb = NB(mat)
     tc = nb.node("ShaderNodeTexCoord").outputs["UV"]
     x, y, z = nb.sep(tc)
-    wx = nb.math("SINE", nb.mul(x, 2 * math.pi * 260))
-    wy = nb.math("SINE", nb.mul(y, 2 * math.pi * 260))
+    wx = nb.math("SINE", nb.mul(x, 2 * math.pi * 110))
+    wy = nb.math("SINE", nb.mul(y, 2 * math.pi * 110))
     weave = nb.add(nb.mul(nb.math("ABSOLUTE", wx), .5), nb.mul(nb.math("ABSOLUTE", wy), .5))
     n = nb.noise(tc, 40, 5, .6)
-    base = nb.ramp(nb.add(nb.mul(weave, .4), nb.mul(n, .6)), [(0, srgb("9C7442")), (.6, srgb("C59E62")), (1, srgb("D9B77A"))])
+    base = nb.ramp(nb.add(nb.mul(weave, .7), nb.mul(n, .5), -.1), [(0, srgb("7E5A30")), (.5, srgb("B48A52")), (1, srgb("D6B57C"))])
     nb.bsdf(**{"Base Color": base, "Roughness": .9,
-               "Normal": nb.node("ShaderNodeBump", Height=weave, Strength=.45, Distance=.001).outputs[0]})
+               "Normal": nb.node("ShaderNodeBump", Height=weave, Strength=.8, Distance=.0015).outputs[0]})
     return mat
 
 
@@ -965,7 +975,7 @@ def build_bench():
     mesh_object("Bench_RollingPin", bm, wood_pin, c, subsurf=1).location = o
 
     # wooden peel, bottom-left: blade in frame corner, handle leaving to the left
-    peel_m = wood_material("M_peel_wood", light="E2B275", dark="B07A42", plank=10, seam=False, scale=2.0)
+    peel_m = wood_material("M_peel_wood", light="DCA266", dark="8E5527", plank=10, seam=False, scale=2.0)
     bm = rounded_slab(.24, .26, .008, .05)
     bm2 = rounded_slab(.32, .034, .016, .014)
     xform(bm2, loc=(-.27, 0, 0))
@@ -1022,7 +1032,7 @@ def build_bench():
         rm.uv_layers[0].data[li].uv = (math.atan2(co.y, co.x) * .4, co.z * 3 + co.x)
     # flour mound inside + a small spill outside
     for name, (cx, cy), (rx, ry, hz), z0 in (("Bench_FlourIn", (0, 0), (.115, .1, .035), .09),
-                                              ("Bench_FlourSpill", (.2, -.11), (.07, .05, .01), 0.0)):
+                                              ):
         bm = cube_sphere(30)
         for v in bm.verts:
             x, y, z = v.co
@@ -1118,7 +1128,7 @@ def build_board():
     c = col("Board")
     wipe_collection("Board")
     m = wood_material("M_board_cream", light="D8A869", dark="B07A42", plank=.09, seam=True, scale=1.5,
-                      paint=("F7EBCB", "EFDDB0"))
+                      paint=("F0D9A2", "E5C98F"))
     bm = rounded_slab(BOARD_SIZE[0] - .04, BOARD_SIZE[1] - .04, .022, .03)
     ob = mesh_object("Board_Cream", bm, m, c, subsurf=1)
     ob.location = BOARD_AT
