@@ -247,7 +247,7 @@ namespace Checkout
             var zone = Interior.CheckoutZone; var floor = Interior.FloorRect;
             // Counters start in the checkout area, everything else in the free part of the shop in view.
             var ray = simulation.view.ScreenPointToRay(new Vector3(Screen.width * .5f, Screen.height * .5f));
-            var at = new Plane(Vector3.up, new Vector3(0, CheckoutInterior.Floor, 0)).Raycast(ray, out var dist) ? ray.GetPoint(dist) : new Vector3(floor.center.x, CheckoutInterior.Floor, floor.center.y);
+            var at = new Plane(Vector3.up, new Vector3(0, CheckoutInterior.FloorHere, 0)).Raycast(ray, out var dist) ? ray.GetPoint(dist) : new Vector3(floor.center.x, CheckoutInterior.FloorHere, floor.center.y);
             at.x = counter ? zone.center.x : Mathf.Clamp(at.x, floor.xMin + 1.8f, Mathf.Max(floor.xMin + 1.8f, zone.xMin - 1.8f));
             at.z = Mathf.Clamp(at.z, floor.yMin + 1.5f, floor.yMax - 1.5f);
             var it = Interior.PlaceWaiting(id, at);
@@ -263,7 +263,7 @@ namespace Checkout
             bool outside = d != null && (d.zone == "outside" || (d.zone == "both" && shopZone == "outside"));
             if ((outside ? "outside" : "inside") != shopZone) Focus(outside ? "outside" : "inside");
             var ray = simulation.view.ScreenPointToRay(new Vector3(Screen.width * .5f, Screen.height * .5f));
-            var plane = new Plane(Vector3.up, new Vector3(0, outside ? CheckoutInterior.Ground : CheckoutInterior.Floor, 0));
+            var plane = new Plane(Vector3.up, new Vector3(0, outside ? CheckoutInterior.Ground : CheckoutInterior.FloorHere, 0));
             var at = plane.Raycast(ray, out var dist) ? ray.GetPoint(dist) : Interior.EntrancePoint;
             var r = outside ? CheckoutInterior.BlockRect : Interior.FloorRect;
             at.x = Mathf.Clamp(at.x, r.xMin + 1, r.xMax - 1); at.z = Mathf.Clamp(at.z, r.yMin + 1.5f, r.yMax - 1);
@@ -409,11 +409,11 @@ namespace Checkout
         void ShowGrid()
         {
             if (!CheckoutInterior.GridOn) { CheckoutGridOverlay.Hide(); return; }
-            if (shopZone == "inside") CheckoutGridOverlay.Show(Interior.FloorRect, CheckoutInterior.Floor + .012f, CheckoutInterior.GridSize, new Color(1, 1, 1, .42f));
+            if (shopZone == "inside") CheckoutGridOverlay.Show(Interior.FloorRect, CheckoutInterior.FloorHere + .012f, CheckoutInterior.GridSize, new Color(1, 1, 1, .42f));
             else CheckoutGridOverlay.Show(CheckoutInterior.BlockRect, CheckoutInterior.Ground + .03f, CheckoutInterior.GridSize * 2, new Color(1, 1, 1, .18f));
         }
 
-        Plane PlaneOf(CheckoutInterior.Item it) => new Plane(Vector3.up, new Vector3(0, it.outside ? CheckoutInterior.Ground : CheckoutInterior.Floor, 0));
+        Plane PlaneOf(CheckoutInterior.Item it) => new Plane(Vector3.up, new Vector3(0, it.outside ? CheckoutInterior.Ground : CheckoutInterior.FloorHere, 0));
 
         void Drop()
         {
@@ -433,7 +433,7 @@ namespace Checkout
         {
             foreach (var s in spots) if (s) s.gameObject.SetActive(false);
             if (selected == null || !selected.root) { footprint.gameObject.SetActive(false); return; }
-            float y = selected.outside ? CheckoutInterior.Ground : CheckoutInterior.Floor;
+            float y = selected.outside ? CheckoutInterior.Ground : CheckoutInterior.FloorHere;
             var position = selected.root.position; position.y = y;
             bool ok = Interior.Fits(selected, position, selected.rot, out var why);
             // A blocked passage is checked once the piece is let go (it walks the whole floor).
@@ -443,14 +443,14 @@ namespace Checkout
             var f = Interior.FootprintAt(selected, position, selected.rot);
             footprint.gameObject.SetActive(true);
             footprint.GetComponent<Renderer>().sharedMaterial = ok ? okMaterial : badMaterial;
-            footprint.SetPositionAndRotation(new Vector3(f.c.x, y + .05f, f.c.y), Quaternion.Euler(90, selected.rot, 0));
+            footprint.SetPositionAndRotation(new Vector3(f.c.x, y + .02f, f.c.y), Quaternion.Euler(90, selected.rot, 0));
             footprint.localScale = new Vector3(f.hx * 2 + .1f, f.hz * 2 + .1f, 1);
             int n = 0;
             foreach (var p in Interior.ServicePoints(selected, position, selected.rot))
             {
                 if (spots.Count <= n) spots.Add(Quad("Build spot", spotMaterial).transform);
                 var s = spots[n++]; s.gameObject.SetActive(true);
-                s.SetPositionAndRotation(new Vector3(p.x, y + .06f, p.z), Quaternion.Euler(90, 45, 0)); s.localScale = Vector3.one * .28f;
+                s.SetPositionAndRotation(new Vector3(p.x, y + .026f, p.z), Quaternion.Euler(90, 45, 0)); s.localScale = Vector3.one * .28f;
             }
         }
 
@@ -458,5 +458,17 @@ namespace Checkout
         void LateUpdate() { if (Open) PlaceFloatBar(); }
 
         void OnDestroy() { Open = false; }
+
+        // QA (autotest "eventsgrid"): opens the build mode and selects the first piece of the shop, so the grid and the
+        // green/red footprint show.
+        public static bool QaOpenAndSelect()
+        {
+            if (!instance) return false;
+            if (!Open) instance.Enter();
+            var it = instance.Interior ? instance.Interior.items.Values.FirstOrDefault(i => i.root && i.functional && !i.outside) : null;
+            if (it != null) instance.Select(it);
+            return Open;
+        }
+        public static void QaClose() { if (instance && Open) instance.Cancel(); }
     }
 }

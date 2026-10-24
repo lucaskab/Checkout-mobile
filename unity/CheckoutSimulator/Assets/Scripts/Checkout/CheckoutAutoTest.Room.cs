@@ -137,5 +137,49 @@ namespace Checkout {
   }
   roomEra=-1;
  }
+  // Build-mode grid on every stage ("eventsgrid-mesinha.tenda...", QA save): opens the build mode with a piece selected and
+ // logs the grid height against the floor under it and the feet of the shop's pieces, with a close and a low shot, so
+ // the grid and the green/red footprint can be checked lying on the floor, under the furniture.
+ IEnumerator GridCheck(string request){
+  var stages=request.Contains("-")?request.Substring(request.IndexOf('-')+1).Split('.'):EraIds;
+  foreach(var stage in stages){
+   int era=System.Array.IndexOf(EraIds,stage);if(era<0)continue;
+   var inside=CheckoutInterior.Active;if(inside)inside.editing=false;
+   CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-grid-"+stage+"\",\"action\":\"devSetMarketEra\",\"args\":[\""+stage+"\"]}");
+   yield return new WaitForSecondsRealtime(18);
+   inside=CheckoutInterior.Active;if(!inside){Note("no interior");continue;}
+   bool open=CheckoutBuildMode.QaOpenAndSelect();yield return new WaitForSecondsRealtime(1.5f);
+   float gy=CheckoutInterior.FloorHere;var floor=inside.FloorRect;
+   // Highest surface under a few floor points that is not a piece of furniture (the floor itself).
+   var pieces=new HashSet<Transform>(inside.items.Values.Where(i=>i.root).Select(i=>i.root));
+   bool OfPiece(Transform t){for(;t;t=t.parent)if(pieces.Contains(t))return true;return false;}
+   var floorHits=new List<string>();
+   foreach(var f in new[]{new Vector2(.3f,.3f),new Vector2(.5f,.5f),new Vector2(.7f,.6f)}){
+    var o=new Vector3(Mathf.Lerp(floor.xMin,floor.xMax,f.x),gy+3,Mathf.Lerp(floor.yMin,floor.yMax,f.y));
+    var hits=Physics.RaycastAll(o,Vector3.down,6).Where(h=>!OfPiece(h.transform)).OrderBy(h=>h.distance).ToArray();
+    floorHits.Add(hits.Length>0?$"{hits[0].point.y:0.000}({hits[0].collider.name})":"none");
+   }
+   var feet=inside.items.Values.Where(i=>i.root&&!i.outside).Select(i=>{var rs=i.root.GetComponentsInChildren<Renderer>();return rs.Length>0?rs.Min(r=>r.bounds.min.y):i.root.position.y;}).ToList();
+   string feetText=feet.Count>0?$"min {feet.Min():0.000} max {feet.Max():0.000} roots {inside.items.Values.Where(i=>i.root&&!i.outside).Select(i=>i.root.position.y).DefaultIfEmpty(0).Min():0.000}":"no pieces";
+   Note($"grid {stage}: open={open} small={CheckoutStall.Small} grid y={gy+.012f:0.000} floor hits {string.Join(" ",floorHits)}; feet {feetText}");
+   var c=floor.center;var at=new Vector3(c.x,gy,c.y);
+   CaptureAt(at,Mathf.Max(floor.width,floor.height)+1.5f,$"grid_{stage}");
+   var sel=inside.items.Values.FirstOrDefault(i=>i.root&&i.functional&&!i.outside);
+   if(sel!=null)LowShot(sel.root.position,4.5f,$"grid_{stage}_low");
+   CheckoutBuildMode.QaClose();yield return new WaitForSecondsRealtime(1);
+  }
+ }
+ // A low camera (about 20 degrees above the floor) looking at a point: shows whether a flat overlay lies on the floor.
+ void LowShot(Vector3 target,float size,string name){
+  var main=Camera.main;if(!main){Note("no camera");return;}
+  var go=new GameObject("QA low camera");var cam=go.AddComponent<Camera>();cam.CopyFrom(main);cam.orthographic=false;
+  var flat=Vector3.ProjectOnPlane(main.transform.forward,Vector3.up).normalized;if(flat.sqrMagnitude<.1f)flat=Vector3.forward;
+  float dist=size*1.8f;var dir=(flat*Mathf.Cos(20*Mathf.Deg2Rad)-Vector3.up*Mathf.Sin(20*Mathf.Deg2Rad)).normalized;
+  go.transform.position=target+Vector3.up*.4f-dir*dist;go.transform.rotation=Quaternion.LookRotation(dir);
+  cam.fieldOfView=2*Mathf.Atan(size*.5f/dist)*Mathf.Rad2Deg;cam.nearClipPlane=.05f;cam.farClipPlane=dist+80;
+  var rt=new RenderTexture(1280,800,24){antiAliasing=4};cam.targetTexture=rt;cam.Render();var active=RenderTexture.active;RenderTexture.active=rt;
+  var image=new Texture2D(1280,800,TextureFormat.RGB24,false);image.ReadPixels(new Rect(0,0,1280,800),0,0);image.Apply();RenderTexture.active=active;
+  File.WriteAllBytes("Logs/"+name+".jpg",image.EncodeToJPG(82));Destroy(image);cam.targetTexture=null;rt.Release();Destroy(rt);Destroy(go);Note("shot "+name);
+ }
  }
 }
