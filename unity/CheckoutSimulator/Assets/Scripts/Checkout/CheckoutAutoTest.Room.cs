@@ -234,6 +234,30 @@ namespace Checkout {
   int c=0;
   foreach(var traffic in FindObjectsByType<CheckoutCityTraffic>(FindObjectsSortMode.None))
    foreach(var v in traffic.vehicles)if(v&&v.gameObject.activeInHierarchy&&c<8){CaptureAt(v.position+Vector3.up*.6f,4,$"look_car_{c++}");Note($"car {c-1}: {TPath(v)} rot {v.eulerAngles} scale {v.lossyScale}");}
+  // The neighbourhood cars (the yellow van among them), each seen from straight above too: the body must line up
+  // with its driving direction (Lucas 25/10: the van looked "italic").
+  foreach(var hood in FindObjectsByType<CheckoutNeighborhoodTraffic>(FindObjectsSortMode.None))
+   foreach(var car in hood.cars){var v=car?.vehicle;if(!v||!v.gameObject.activeInHierarchy)continue;
+    CaptureAt(v.position+Vector3.up*.6f,5,$"look_hood_{c}");ShotFrom(v.position+Vector3.up*9,v.position,$"look_hood_{c}_top",v.forward);
+    Note($"hood car {c}: {TPath(v)} visual {(v.childCount>0?v.GetChild(0).name+" "+v.GetChild(0).localEulerAngles:"-")}");c++;}
+  // The lot clearing scene with the new Casa (the same scene the game builds), far from the map.
+  var lots=FindAnyObjectByType<CheckoutLotSites>();
+  if(lots){
+   var origin=new Vector3(900,0,900);var root=lots.PreviewClearing("casa",origin,24f);
+   var eye=origin+new Vector3(-9f,9.5f,-13.5f);var look=origin+Vector3.up*1.2f;
+   float t0=Time.realtimeSinceStartup;
+   foreach(var at in new[]{.5f,6f,12f,18f,23.5f}){while(Time.realtimeSinceStartup-t0<at)yield return null;ShotFrom(eye,look,$"look_clear_{at:0}",Vector3.up);}
+   if(root)Destroy(root);
+  }else Note("look: no CheckoutLotSites");
+ }
+ // A picture from `eye` towards `look` with its own camera (away from the map: no fog, no main-camera framing).
+ void ShotFrom(Vector3 eye,Vector3 look,string name,Vector3 up){
+  var go=new GameObject("QA free camera");var cam=go.AddComponent<Camera>();
+  go.transform.position=eye;go.transform.rotation=Quaternion.LookRotation(look-eye,up);
+  cam.fieldOfView=42;cam.nearClipPlane=.2f;cam.farClipPlane=200;cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=new Color(.93f,.92f,.88f);
+  var rt=new RenderTexture(1280,800,24){antiAliasing=4};cam.targetTexture=rt;cam.Render();var active=RenderTexture.active;RenderTexture.active=rt;
+  var image=new Texture2D(1280,800,TextureFormat.RGB24,false);image.ReadPixels(new Rect(0,0,1280,800),0,0);image.Apply();RenderTexture.active=active;
+  File.WriteAllBytes("Logs/"+name+".jpg",image.EncodeToJPG(82));Destroy(image);cam.targetTexture=null;rt.Release();Destroy(rt);Destroy(go);Note("shot "+name);
  }
  static string TPath(Transform t){var s=t.name;for(var p=t.parent;p;p=p.parent)s=p.name+"/"+s;return s;}
  }
