@@ -243,10 +243,10 @@ namespace Checkout {
   // The lot clearing scene with the new Casa (the same scene the game builds), far from the map.
   var lots=FindAnyObjectByType<CheckoutLotSites>();
   if(lots){
-   var origin=new Vector3(900,0,900);var root=lots.PreviewClearing("casa",origin,24f);
+   var origin=new Vector3(900,0,900);string ruin=request.Contains("-")?request.Substring(request.IndexOf('-')+1):"casa";var root=lots.PreviewClearing(ruin,origin,24f);
    var eye=origin+new Vector3(-9f,9.5f,-13.5f);var look=origin+Vector3.up*1.2f;
    float t0=Time.realtimeSinceStartup;
-   foreach(var at in new[]{.5f,6f,12f,18f,23.5f}){while(Time.realtimeSinceStartup-t0<at)yield return null;ShotFrom(eye,look,$"look_clear_{at:0}",Vector3.up);}
+   foreach(var at in new[]{.5f,6f,12f,18f,23.5f}){while(Time.realtimeSinceStartup-t0<at)yield return null;ShotFrom(eye,look,$"look_clear_{ruin}_{at:0}",Vector3.up);}
    if(root)Destroy(root);
   }else Note("look: no CheckoutLotSites");
  }
