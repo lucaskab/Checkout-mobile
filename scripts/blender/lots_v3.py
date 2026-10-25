@@ -158,6 +158,54 @@ def old_casa():
     return c
 
 
+def old_lot(name):
+    """Any current Resources/CheckoutLots/<name>.fbx placed exactly like CheckoutLotSites.Ruin() does: turned 90 deg
+    when wider than deep, fitted into the lot (11.5 x 13.25 minus 1.4, scale capped 0.25..1.15), centred, its lowest
+    point at holder +0.02 (world y .04) - i.e. 18 cm under the lot's dirt plane (y .222) - with the _pad hidden.
+    Stage frame: the dirt is drawn at z -0.018, so the lowest point goes to z -0.2."""
+    cname = "OLD " + name
+    c = col(cname)
+    if c.objects:
+        return c
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=os.path.join(UNITY, "Assets", "Resources", "CheckoutLots", name + ".fbx"))
+    objs = [o for o in bpy.data.objects if o not in before]
+    root = bpy.data.objects.new("OLDROOT_" + name, None); c.objects.link(root)
+    for o in objs:
+        for cc in list(o.users_collection): cc.objects.unlink(o)
+        c.objects.link(o)
+        if o.parent is None: o.parent = root
+    img = bpy.data.images.load(os.path.join(UNITY, "Assets", "Resources", "CheckoutLots", name + "_BaseColor.png"), check_existing=False)
+    m = bpy.data.materials.new("OLD_" + name + "_Mat"); m.use_nodes = True
+    t = m.node_tree.nodes.new("ShaderNodeTexImage"); t.image = img
+    m.node_tree.links.new(t.outputs["Color"], m.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
+    meshes = [o for o in objs if o.type == 'MESH']
+    for o in meshes:
+        o.data.materials.clear(); o.data.materials.append(m)
+    root.rotation_euler = (0, 0, math.pi)          # undo export_unity's turn: back to Unity == Blender (x, y)
+    bpy.context.view_layer.update()
+    def bounds():
+        lo = Vector((1e9,) * 3); hi = -lo
+        for o in meshes:
+            for v in o.data.vertices:
+                w = o.matrix_world @ v.co; lo = Vector(map(min, lo, w)); hi = Vector(map(max, hi, w))
+        return lo, hi
+    lo, hi = bounds(); size = hi - lo
+    lw, ld = LOT_W - 1.4, LOT_D - 1.4
+    turn = (size.x >= size.y) != (lw >= ld)
+    mx, mz = (size.y, size.x) if turn else (size.x, size.y)
+    sc = max(.25, min(1.15, min(lw / max(.1, mx), ld / max(.1, mz))))
+    root.scale = (sc,) * 3
+    if turn: root.rotation_euler.z += math.radians(-90)
+    bpy.context.view_layer.update()
+    lo, hi = bounds()
+    root.location += Vector((-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -.2 - lo.z))
+    for o in meshes:
+        if o.name.split(".")[0].endswith("_pad"):
+            o.hide_render = True; o.hide_set(True)
+    return c
+
+
 def reference(name, location, rot_z=0.0, fit=None, cname="REF City"):
     """A MapModels building at the size the city places it (CheckoutCityModelsBuilder: fitted into `fit` = (w, h, d))."""
     c = col(cname)
@@ -550,6 +598,8 @@ class G:
     clip = None
 
     def done(s):
+        ng = [f for f in s.bm.faces if len(f.verts) > 4]      # concave n-gons (stepped parapet, lawn outlines): triangulate here
+        if ng: bmesh.ops.triangulate(s.bm, faces=ng, quad_method='BEAUTY', ngon_method='EAR_CLIP')
         if s.clip is not None:
             bmesh.ops.bisect_plane(s.bm, geom=s.bm.verts[:] + s.bm.edges[:] + s.bm.faces[:], plane_co=(0, 0, s.clip),
                                    plane_no=(0, 0, 1), clear_inner=True)
@@ -1454,13 +1504,17 @@ EXPORT_GROUPS = [
 NAME = "Lot_Casa"
 
 
+# per-lot settings used by make_export / texel_weights (set by make_export)
+LOT = {"groups": None, "default": "CASA_junk", "inside": None, "walls": ()}
+
+
 def _group_of(name):
     best = None
-    for g, prefixes in EXPORT_GROUPS:
+    for g, prefixes in (LOT["groups"] or EXPORT_GROUPS):
         for p in prefixes:
             if name.startswith(p) and (best is None or len(p) > best[1]):
                 best = (g, len(p))
-    return best[0] if best else "CASA_junk"
+    return best[0] if best else LOT["default"]
 
 
 def _apply(o):
@@ -1475,7 +1529,8 @@ def _apply(o):
 # hundreds of tiny islands (each island costs its own margins): this frees most of the atlas for the walls.
 SWATCH = ["V3_Picket", "V3_Glass", "V3_Dark", "V3_Tire", "V3_Rope", "V3_Orange", "V3_Flower", "V3_Gate", "V3_RustMetal",
           "V3_Brick", "V3_FoliageCore", "V3_Grass", "V3_GrassDry", "V3_Ivy", "V3_Leaf", "V3_Fruit", "V3_Concrete",
-          "V3_StepStone", "V3_DirtMound", "V3_Bucket", "V3_Tank", "V3_Barrow", "V3_Ridge"]
+          "V3_StepStone", "V3_DirtMound", "V3_Bucket", "V3_Tank", "V3_Barrow", "V3_Ridge",
+          "V3_CrateRed", "V3_CrateYellow", "V3_Chalkboard", "V3_Cardboard"]
 SWATCH_CELL = .05                      # swatch squares in the band right of the city-tree square
 RESERVED = TREE_BAND + .004
 
@@ -1506,10 +1561,13 @@ def swatch_uvs(o, slot):
             uv[li].uv = (x0 + (ins + su * (1 - 2 * ins)) * w, y0 + (ins + sv * (1 - 2 * ins)) * w)
 
 
-def make_export(src=CASA, name=NAME):
+def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=None, walls=None):
     """Copies of every part with modifiers applied, cut flat at the ground. Painted parts get one smart-UV atlas
     (texel weights per material), leaves and flat-colour bits get reserved template slots, then everything is
     joined into a few named meshes."""
+    LOT["groups"] = groups; LOT["default"] = default
+    LOT["inside"] = inside or (HX0 + WT, HX1 - WT, HY0 + WT, HY1 - WT)
+    LOT["walls"] = walls or ("V3_CasaWall", "V3_CasaGable", "V3_Plinth", "V3_Stone")
     d = col(name + " Export")
     for o in list(d.objects): bpy.data.objects.remove(o)
     show_only(src, name + " Export")
@@ -1572,7 +1630,9 @@ def make_export(src=CASA, name=NAME):
 TEXEL = {"V3_Pad": .02, "V3_Dark": .12, "V3_Deck": .5, "V3_Glass": .45, "V3_Tire": .5, "V3_Grass": .5, "V3_GrassDry": .5,
          "V3_Leaf": .6, "V3_Ivy": .5, "V3_TreeLeaf": .6, "V3_Foliage": .01, "V3_FoliageCore": .15, "V3_Lawn": .45, "V3_Picket": .6, "V3_Orange": .6, "V3_Flower": 1.2, "V3_Rope": .6, "V3_RustMetal": .9,
          "V3_CasaWall": 2.2, "V3_CasaGable": 1.8, "V3_LowWall": 2.6, "V3_Tiles": .8, "V3_Tarp": 1.1, "V3_Chimney": 1.3,
-         "V3_TealWood": 1.15, "V3_Stone": 1.0}
+         "V3_TealWood": 1.15, "V3_Stone": 1.0,
+         "V3_LojaWall": 2.2, "V3_LojaTrim": 1.0, "V3_Shutter": 1.1, "V3_SignPanel": 1.6, "V3_Awning": 1.3, "V3_AwningY": 1.3,
+         "V3_Apron": .9, "V3_RoofTar": .55, "V3_FenceBlue": .5, "V3_FenceRed": .5, "V3_FenceGrey": .5, "V3_Freezer": .8, "V3_Loaf": 1.5}
 
 
 def texel_weights(o):
@@ -1602,8 +1662,9 @@ def texel_weights(o):
         k = TEXEL.get(mname, 1.0)
         cen3 = sum((g.calc_center_median() for g in isl), Vector()) / len(isl)
         nrm = sum((g.normal for g in isl), Vector())
-        inside = (HX0 + WT - .03 < cen3.x < HX1 - WT + .03) and (HY0 + WT - .03 < cen3.y < HY1 - WT + .03)
-        if mname in ("V3_CasaWall", "V3_CasaGable", "V3_Plinth", "V3_Stone") and inside:
+        ix0, ix1, iy0, iy1 = LOT["inside"] or (HX0 + WT, HX1 - WT, HY0 + WT, HY1 - WT)
+        inside = (ix0 - .03 < cen3.x < ix1 + .03) and (iy0 - .03 < cen3.y < iy1 + .03)
+        if mname in (LOT["walls"] or ()) and inside:
             k = .08                                   # inner faces of the walls: never seen
         elif mname in ("V3_Tiles", "V3_Ridge") and nrm.y > .25 * nrm.length:
             k *= .55                                  # back slope: away from the game camera
@@ -1700,7 +1761,7 @@ def export(name=NAME):
             "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objs), "objects": len(objs)}
 
 
-def vs_city(name="casa_v4_vs_city"):
+def vs_city(name="casa_v4_vs_city", lot=NAME):
     """The new Casa between two of the city's own houses (MapModels, sized as CheckoutCityModelsBuilder places them)."""
     c = bpy.data.collections.get("REF City")
     if c:
@@ -1708,7 +1769,509 @@ def vs_city(name="casa_v4_vs_city"):
     info = [reference("StylizedHouse", (-11.0, 0.8), fit=(8, 7.8, 8)), reference("CuteHouse", (11.5, 0.8), fit=(8, 7, 9)),
             reference("StylizedTree", (7.6, -5.2), fit=(3.65, 4.6, 3.8)), reference("StylizedTree", (-7.4, -5.6), rot_z=.8, fit=(3.83, 4.6, 3.8))]
     stage()
-    show_only(NAME + " Export", "REF City")
+    show_only(lot + " Export", "REF City")
     camera((0, -.8, 2.0), 35.0, GAME_DIR, res=(1800, 1000))
     render(name)
     return info
+
+
+# ######################################################################################################################
+# LOJA (lot B1) - a closed-down little bakery / corner shop
+# ######################################################################################################################
+LOJA = "V3 Loja"
+LOJA_NAME = "Lot_Loja"
+LX0, LX1, LY0, LY1, LH = -2.75, 4.45, -2.6, 3.6, 3.4      # outer wall faces, wall height (flat roof)
+LOJA_OPEN = {
+    "F": [("door", -1.9, 1.0, 0.0, 2.3), ("shutter", .7, 2.9, 0.0, 2.65), ("win", 3.4, 1.5, .85, 1.45)],
+    "E": [("win", .4, 1.3, 1.1, 1.1), ("door", 2.55, .95, 0.0, 2.2)],
+    "B": [("win", -1.2, 1.0, 1.4, .8)],
+    "W": [("win", -1.0, 1.1, 1.2, 1.0)],
+}
+LOJA_GROUPS = [
+    ("LOJA_pad", ("LOJA_pad",)),
+    ("LOJA_building", ("LOJA_walls", "LOJA_inside", "LOJA_trim", "LOJA_plinth", "LOJA_parapet", "LOJA_coping", "LOJA_roof",
+                       "LOJA_F", "LOJA_E", "LOJA_B", "LOJA_W", "LOJA_down", "LOJA_ac", "LOJA_meter", "LOJA_tank", "LOJA_sky",
+                       "LOJA_roofWeeds")),
+    ("LOJA_front", ("LOJA_shutter", "LOJA_awning", "LOJA_sign", "LOJA_loaf")),
+    ("LOJA_yard", ("LOJA_apron", "LOJA_kerb", "LOJA_lawn", "LOJA_grass", "LOJA_weeds", "LOJA_tree", "LOJA_bush", "LOJA_fence")),
+]
+
+
+def loja_frame(face):
+    """Wall-local (x along the wall, -y outward, z up) -> world, for the shop's four faces."""
+    if face == "F": return Matrix.Translation((0, LY0, 0))
+    if face == "B": return Matrix.Translation((0, LY1, 0)) @ Matrix.Rotation(math.pi, 4, 'Z')
+    if face == "E": return Matrix.Translation((LX1, 0, 0)) @ Matrix.Rotation(math.pi / 2, 4, 'Z')
+    if face == "W": return Matrix.Translation((LX0, 0, 0)) @ Matrix.Rotation(-math.pi / 2, 4, 'Z')
+
+
+def loja_span(face):
+    """(u0, u1) of the face in its own frame."""
+    if face == "F": return (LX0, LX1)
+    if face == "B": return (-LX1, -LX0)
+    if face == "E": return (LY0, LY1)
+    return (-LY1, -LY0)
+
+
+def m_stripes(name, a, b, width=.32, axis='X', fade=C("FFF6E6")):
+    """Crisp awning stripes along a world axis, sun-faded towards the outer edge and with a few soft stains."""
+    t = NT(name, .85)
+    p = t.pos
+    u = t.math('DIVIDE', t.comp(p, axis), width)
+    st = t.math('GREATER_THAN', t.math('FRACT', u), .5)
+    col = t.mix(a, b, st)
+    col = t.mix(col, fade, t.ramp(t.noise(p, .8, 2, .4), .4, .75, 0, .25))
+    col = t.mix(col, C("9A7C62"), t.ramp(t.noise(p, 2.5, 3, .5), .68, .74, 0, .35))
+    return t.done(col, ao=.35)
+
+
+def m_metal_paint(name, paint, rust=C("A45A30"), amount=.4, ribs=None, rough=.55):
+    """Painted sheet metal (shutter, sign, fence sheets): flat paint, optional rib shading, crisp rust patches."""
+    t = NT(name, rough)
+    p = t.pos
+    col = t.mul(paint, t.ramp(t.noise(p, .5, 2, .4), .3, .7, .95, 1.04))
+    if ribs:
+        axis, pitch = ribs
+        w = t.n.new("ShaderNodeTexWave"); w.wave_type = 'BANDS'; w.bands_direction = axis; w.wave_profile = 'SIN'
+        w.inputs["Scale"].default_value = (2 * math.pi / 10.0) / pitch; w.inputs["Distortion"].default_value = 0
+        t.L.new(p, w.inputs["Vector"])
+        col = t.mul(col, t.ramp(w.outputs["Fac"], 0, 1, .82, 1.06))
+    f = t.math('ADD', t.noise(t.scale(p, 1, 1, .6), 1.1, 2, .5), t.math('MULTIPLY', t.noise(p, 9, 2), .04))
+    thr = .74 - amount * .08
+    r = t.ramp(f, thr, thr + .004)
+    col = t.mix(col, t.mix(rust, C("7A3E22"), t.ramp(t.noise(p, 14, 2), .4, .6)), r)
+    col = t.mix(col, C("D8CDBA"), t.math('SUBTRACT', t.ramp(f, thr - .02, thr - .016), r))      # bare metal rim
+    return t.done(col, r, .2)
+
+
+def m_concrete(name, base=C("CFC6B4"), crack=C("7C7264")):
+    """Pavement slab with crisp hairline cracks and a few darker stains (the shop's front apron)."""
+    t = NT(name, .9)
+    p = t.pos
+    col = t.mul(base, t.ramp(t.noise(p, .6, 2, .4), .3, .7, .93, 1.05))
+    col = t.mix(col, C("B5AC9A"), t.ramp(t.noise(p, 1.6, 2, .5), .66, .7, 0, .5))
+    joints = t.vor(t.scale(p, 1, 1, 1), .55)                                 # slab joints / big cracks
+    col = t.mix(col, crack, t.ramp(joints, .012, .006))
+    cr = t.vor(t.scale(p, 1, 1, 1, (3.1, 1.7, 0)), 2.2)
+    region = t.ramp(t.noise(p, .9, 2), .58, .62)
+    col = t.mix(col, crack, t.math('MULTIPLY', t.ramp(cr, .008, .004), region))
+    return t.done(col, ao=.45)
+
+
+def m_rooftar(name):
+    t = NT(name, .9)
+    p = t.pos
+    col = t.mul(C("B3A994"), t.ramp(t.noise(p, .5, 2, .4), .3, .7, .93, 1.05))
+    col = t.mix(col, C("958B78"), t.ramp(t.noise(p, .8, 2, .4), .64, .66))           # dried puddle marks (crisp)
+    col = t.mix(col, C("8EA84E"), t.ramp(t.noise(p, 1.3, 2, .5), .7, .72, 0, .8))     # moss
+    return t.done(col, ao=.5)
+
+
+LM = {}
+
+
+def loja_mats():
+    mats()
+    LM.clear()
+    LM["wall"] = m_plaster("V3_LojaWall", C("F3A68F"), band=C("A9483B"), band_top=.55, chips=.5, seed=21.)
+    LM["trim"] = m_stone("V3_LojaTrim", C("F7EDD6"), C("E3D3B2"))
+    LM["shutter"] = m_metal_paint("V3_Shutter", C("8FA9AC"), amount=.45, ribs=('Z', .1))
+    LM["sign"] = m_metal_paint("V3_SignPanel", C("3E9F92"), amount=.35)
+    LM["awnA"] = m_stripes("V3_Awning", C("D94B3B"), C("F6EAD2"))
+    LM["awnB"] = m_stripes("V3_AwningY", C("D94B3B"), C("F6EAD2"), axis='Y')
+    LM["loaf"] = m_flat("V3_Loaf", C("E09A45"), .06, 4, .6, ao=.3)
+    LM["apron"] = m_concrete("V3_Apron")
+    LM["roof"] = m_rooftar("V3_RoofTar")
+    LM["fenceA"] = m_metal_paint("V3_FenceBlue", C("5F95B8"), amount=.5, ribs=('X', .12))
+    LM["fenceB"] = m_metal_paint("V3_FenceRed", C("C9614E"), amount=.5, ribs=('X', .12))
+    LM["fenceC"] = m_metal_paint("V3_FenceGrey", C("A8B0A2"), amount=.6, ribs=('X', .12))
+    LM["freezer"] = m_rust("V3_Freezer", C("F2EFE6"), amount=.5)
+    LM["crateR"] = m_flat("V3_CrateRed", C("D9463A"), .06, 5, .5, ao=.3)
+    LM["crateY"] = m_flat("V3_CrateYellow", C("F2C23E"), .06, 5, .5, ao=.3)
+    LM["board"] = m_flat("V3_Chalkboard", C("2F5A48"), .06, 4, .8, ao=.3)
+    LM["cardboard"] = m_flat("V3_Cardboard", C("C99A62"), .08, 6, .9, ao=.4)
+    return LM
+
+
+def loja_walls(c):
+    g = G("LOJA_walls", LM["wall"], c, bevel=.05, seg=2)
+    for face in "FBEW":
+        u0, u1 = loja_span(face)
+        if face in "EW": u0, u1 = u0 + WT, u1 - WT
+        rects = [(u0, 0, u1, LH)]
+        for (kind, u, w, sill, h) in LOJA_OPEN[face]:
+            rects = cut_rects(rects, (u - w / 2, sill, u + w / 2, sill + h))
+        F = loja_frame(face)
+        for (x0, z0, x1, z1) in rects:
+            g.box((x1 - x0, WT, z1 - z0), ((x0 + x1) / 2, WT / 2, (z0 + z1) / 2), M=F, open_bottom=z0 < .01)
+    g.done()
+    d = G("LOJA_inside", M["dark"], c)
+    d.box((LX1 - LX0 - 2 * WT - .02, LY1 - LY0 - 2 * WT - .02, .05), ((LX0 + LX1) / 2, (LY0 + LY1) / 2, .02))
+    d.box((LX1 - LX0 - 2 * WT - .02, .04, LH), ((LX0 + LX1) / 2, LY1 - WT - .03, LH / 2))
+    d.box((LX1 - LX0 - 2 * WT, LY1 - LY0 - 2 * WT, .04), ((LX0 + LX1) / 2, (LY0 + LY1) / 2, LH - .1))
+    d.done()
+    # flat roof slab (tar), parapets: low on three sides, the stepped shop front (platibanda) at the front
+    r = G("LOJA_roof", LM["roof"], c, bevel=.03, seg=1)
+    r.box((LX1 - LX0, LY1 - LY0, .2), ((LX0 + LX1) / 2, (LY0 + LY1) / 2, LH + .1))
+    r.done()
+    pp = G("LOJA_parapet", LM["wall"], c, bevel=.04, seg=2)
+    cp_ = G("LOJA_coping", LM["trim"], c, bevel=.03, seg=2)
+    ph = .55
+    for face in "BEW":
+        u0, u1 = loja_span(face); F = loja_frame(face)
+        if face in "EW": u0 += .25
+        pp.box((u1 - u0, .22, ph), ((u0 + u1) / 2, .11, LH + .2 + ph / 2), M=F)
+        cp_.box((u1 - u0 + .06, .3, .08), ((u0 + u1) / 2, .11, LH + .2 + ph + .04), M=F)
+    steps = [(LX0 - .05, 4.0), (-1.45, 4.0), (-1.45, 4.3), (-1.1, 4.3), (-1.1, 4.7), (2.6, 4.7), (2.6, 4.3), (2.95, 4.3), (2.95, 4.0), (LX1 + .05, 4.0)]
+    pts = [(LX0 - .05, LH - .02)] + steps + [(LX1 + .05, LH - .02)]
+    pp.prism([(u, z) for (u, z) in pts], .26, M=Matrix.Translation((0, LY0 + .13, 0)))
+    for (a, za), (b, zb) in zip(steps, steps[1:]):
+        if abs(za - zb) < 1e-3:
+            cp_.box((b - a + .08, .36, .09), ((a + b) / 2, LY0 + .13, za + .04))
+    pp.done(); cp_.done()
+
+
+def loja_trims(c):
+    t = G("LOJA_trim", LM["trim"], c, bevel=.04, seg=2)
+    # pilasters on the shop front and the corners of the side wall
+    for x in (LX0 + .15, -1.1, 2.4, LX1 - .15):
+        t.box((.32, .1, LH - .55), (x, LY0 - .04, .55 + (LH - .55) / 2))
+        t.box((.4, .14, .14), (x, LY0 - .06, LH - .05))                       # capital
+    for y in (LY0 + .15, LY1 - .15):
+        t.box((.1, .32, LH - .55), (LX1 + .04, y, .55 + (LH - .55) / 2))
+    # cornice band under the parapet (front + east side)
+    t.box((LX1 - LX0 + .24, .16, .2), ((LX0 + LX1) / 2, LY0 - .07, LH + .05))
+    t.box((.16, LY1 - LY0 + .2, .2), (LX1 + .07, (LY0 + LY1) / 2, LH + .05))
+    # surrounds of the shop window and the service door (the boarded windows / front door bring their own)
+    for face, ops in LOJA_OPEN.items():
+        F = loja_frame(face)
+        for i, (kind, u, w, sill, h) in enumerate(ops):
+            if (face, i) not in (("F", 2), ("E", 1)): continue
+            t.box((w + .3, .12, .12), (u, -.03, sill + h + .06), M=F)
+            if kind == "win": t.box((w + .3, .18, .1), (u, -.06, sill - .05), M=F)
+            for sx in (-1, 1): t.box((.14, .1, h), (u + sx * (w / 2 + .07), -.02, sill + h / 2), M=F)
+    t.done()
+    pl = G("LOJA_plinth", LM["trim"], c, bevel=.03, seg=1)
+    pl.box((LX1 - LX0 + .1, .08, .12), ((LX0 + LX1) / 2, LY0 - .03, .58))           # band edge moulding
+    pl.done()
+
+
+def loja_openings(c):
+    rnd = random.Random(3)
+    styles = {("E", 0): "boarded", ("B", 0): "boarded", ("W", 0): "boarded", ("F", 2): "shopwin"}
+    for face, ops in LOJA_OPEN.items():
+        F = loja_frame(face)
+        for i, (kind, u, w, sill, h) in enumerate(ops):
+            nm = f"LOJA_{face}{i}"
+            if kind == "win" and styles.get((face, i)) == "boarded":
+                window(c, nm, "F", 0, w, sill, h, "boarded", seed=i + 7)
+                for o in [o for o in c.objects if o.name.startswith(nm + "_")]:     # built on the Casa front, moved here
+                    o.data.transform(F @ Matrix.Translation((u, -HY0, 0)))
+            elif kind == "win":     # the shop window: metal frame, a broken pane, boards across, an old shelf behind
+                fr = G(nm + "_frame", LM["sign"], c, bevel=.012, seg=1, frame=F)
+                for zz in (sill + .04, sill + h - .04): fr.box((w, .1, .08), (u, .05, zz))
+                for xx in (u - w / 2 + .04, u, u + w / 2 - .04): fr.box((.08, .1, h), (xx, .05, sill + h / 2))
+                fr.done()
+                gl = G(nm + "_glass", M["glass"], c, frame=F)
+                gl.box((w / 2 - .1, .02, h - .1), (u - w / 4, .07, sill + h / 2))
+                gl.prism([(0, 0), (w / 2 - .1, 0), (w / 2 - .1, h * .45)], .02, M=Matrix.Translation((u + .04, .07, sill + .05)))
+                gl.done()
+                pl = G(nm + "_planks", M["wood"], c, bevel=.012, seg=1, frame=F)
+                for k, zz in enumerate((sill + h * .3, sill + h * .72)):
+                    pl.box((w + .3, .045, .18), (u + rnd.uniform(-.05, .05), -.12, zz), rot=(0, rnd.uniform(-.12, .12), 0))
+                pl.done()
+                sh = G(nm + "_shelf", M["wood"], c, bevel=.01, seg=1, frame=F)
+                sh.box((w - .2, .35, .04), (u, .45, sill + .35)); sh.box((w - .2, .35, .04), (u, .45, sill + .85))
+                sh.done()
+            elif kind == "door" and face == "F":
+                door(c, nm, "F", 0, w, h, ajar=0.0)
+                for o in [o for o in c.objects if o.name.startswith(nm + "_")]:
+                    o.data.transform(Matrix.Translation((u, LY0 - HY0, 0)))
+                pl = G(nm + "_planks", M["wood"], c, bevel=.012, seg=1, frame=F)
+                pl.box((math.hypot(w, h) * .95, .045, .17), (u, -.14, h / 2), rot=(0, math.atan2(h, w), 0))
+                pl.box((math.hypot(w, h) * .95, .045, .17), (u, -.17, h / 2), rot=(0, -math.atan2(h, w), 0))
+                pl.done()
+            elif kind == "door":    # service door: grey metal, closed
+                dd = G(nm + "_door", LM["shutter"], c, bevel=.012, seg=2, frame=F)
+                dd.box((w - .04, .06, h - .02), (u, .05, h / 2))
+                dd.box((w - .3, .05, .5), (u, .0, h * .7)); dd.box((w - .3, .05, .5), (u, .0, h * .3))
+                dd.done()
+                kn = G(nm + "_knob", M["rust"], c, frame=F); kn.ball(.045, (u + w / 2 - .14, -.04, h * .5), sub=1); kn.done()
+
+
+def loja_front(c):
+    """Rolled-down shutter, the striped awning (one bay torn), the blank sign panel with a bread pictogram."""
+    u, w, h = .7, 2.9, 2.65
+    F = loja_frame("F")
+    s = G("LOJA_shutter", LM["shutter"], c, bevel=.01, seg=1, frame=F)
+    s.box((w - .04, .04, h - .06), (u, .02, (h - .06) / 2 + .04))
+    n = int((h - .2) / .1)
+    for k in range(n):
+        s.box((w - .06, .03, .045), (u, -.01, .12 + k * .1))
+    s.box((w, .08, .1), (u, -.03, .08))                                              # bottom bar
+    s.box((.3, .06, .06), (u, -.08, .2))                                             # handle
+    for sx in (-1, 1): s.box((.08, .1, h + .1), (u + sx * (w / 2 + .02), -.02, (h + .1) / 2))   # rails
+    s.box((w + .25, .38, .36), (u, -.14, h + .2))                                   # roll box
+    s.done()
+    lk = G("LOJA_shutterLock", M["rust"], c, frame=F)
+    lk.box((.1, .06, .12), (u - .5, -.1, .2)); lk.torus(.04, .012, (u - .5, -.12, .29), rot=(math.pi / 2, 0, 0), seg=10, rseg=4)
+    lk.done()
+    # awning: three bays along the front, sloping out; the right bay torn and hanging
+    x0, x1, zt, out, drop = -.6, 4.3, 3.05, 1.35, .55
+    bay = (x1 - x0) / 3
+    p = math.atan2(drop, out); L = math.hypot(out, drop)
+    aw = G("LOJA_awning", LM["awnA"], c, bevel=.02, seg=1)
+    fr = G("LOJA_awningFrame", M["rust"], c)
+    for i in range(3):
+        bx0 = x0 + i * bay
+        Mb = Matrix.Translation((0, LY0 - .02, zt)) @ Matrix.Rotation(p, 4, 'X')
+        if i < 2:
+            aw.box((bay - .02, L, .04), (bx0 + bay / 2, -L / 2, 0), M=Mb)
+            # scalloped valance hanging at the front edge
+            pts = [(0, 0), (bay - .02, 0)]
+            ns = 5; sw = (bay - .02) / ns
+            val = [(bay - .02, 0)]
+            for k in range(ns, 0, -1):
+                for q in range(5):
+                    a = math.pi * q / 4
+                    val.append((sw * (k - 1) + sw / 2 + sw / 2 * math.cos(a), -.22 - .08 * math.sin(a)))
+            val.append((0, 0))
+            aw.prism(val, .03, M=Matrix.Translation((bx0 + .01, LY0 - .02 - out, zt - drop)) @ Matrix.Rotation(0, 4, 'X'))
+        else:   # torn bay: the cloth has come off its front bar and hangs down along the wall in a crumpled strip
+            Mt = Matrix.Translation((0, LY0 - .05, zt)) @ Matrix.Rotation(1.35, 4, 'X')
+            aw.box((bay * .7, L * .8, .04), (bx0 + bay * .4, -L * .4, 0), rot=(0, .12, .06), M=Mt)
+            aw.box((bay * .35, .5, .04), (bx0 + bay * .8, -.25, 0), rot=(.3, -.2, .3), M=Matrix.Translation((0, LY0 - out + .1, .05)))   # fallen scrap
+        for xx in (bx0 + .03, bx0 + bay - .03) if i < 2 else (bx0 + .03,):
+            fr.tube((xx, LY0 - .02, zt), (xx, LY0 - out, zt - drop), .025, verts=6)
+        fr.tube((bx0, LY0 - out, zt - drop), (bx0 + bay, LY0 - out, zt - drop + (0 if i < 2 else -.35)), .025, verts=6)
+    fr.tube((x1, LY0 - out, zt - drop - .35), (x1, LY0 - out + .3, .05), .025, verts=6)     # the bent arm, down in the weeds
+    aw.done(); fr.done()
+    # sign panel on the stepped parapet: blank faded teal, cream border, bread pictogram; hangs a bit crooked
+    sc, sz, sw2, shh = .75, 4.2, 3.4, .66
+    Ms = Matrix.Translation((sc, LY0 - .08, sz)) @ Matrix.Rotation(.025, 4, 'Y')
+    sg = G("LOJA_sign", LM["sign"], c, bevel=.02, seg=2)
+    sg.box((sw2, .06, shh), (0, 0, 0), M=Ms)
+    sg.done()
+    sb = G("LOJA_signBorder", LM["trim"], c, bevel=.015, seg=1)
+    for (x, z, ww, hh) in ((0, shh / 2, sw2 + .1, .07), (0, -shh / 2, sw2 + .1, .07), (-sw2 / 2, 0, .07, shh), (sw2 / 2, 0, .07, shh)):
+        sb.box((ww, .08, hh), (x, -.02, z), M=Ms)
+    sb.done()
+    lf = G("LOJA_loaf", LM["loaf"], c)
+    lf.ball(1.0, (0, -.06, 0), scale=(.42, .06, .19), sub=3, M=Ms)
+    lf.done()
+    sc_ = G("LOJA_loafScores", LM["trim"], c)
+    for k in (-1, 0, 1):
+        sc_.box((.05, .03, .2), (k * .18, -.12, .01), rot=(0, .5, 0), M=Ms)
+    sc_.done()
+
+
+def loja_details(c):
+    """Downpipe, AC unit and meter box on the east side; water tank, AC condenser, skylight and weeds on the roof."""
+    d = G("LOJA_down", M["rust"], c)
+    d.tube((LX1 + .1, LY1 - .5, LH + .5), (LX1 + .1, LY1 - .5, .25), .06, verts=8)
+    d.tube((LX1 + .1, LY1 - .5, .25), (LX1 + .35, LY1 - .5, .06), .06, verts=8)
+    d.done()
+    ac = G("LOJA_ac", LM["freezer"], c, bevel=.03, seg=1)
+    ac.box((.25, .75, .5), (LX1 + .14, -1.2, 2.55))
+    ac.box((1.0, .75, .7), (.05, 2.5, LH + .55))                                       # roof condenser
+    ac.done()
+    gr = G("LOJA_acGrille", M["dark"], c)
+    gr.cyl(.24, .02, (.05, 2.5 - .38, LH + .55), rot=(math.pi / 2, 0, 0), verts=12)
+    gr.box((.02, .5, .3), (LX1 + .27, -1.2, 2.55))
+    gr.done()
+    mt = G("LOJA_meter", LM["shutter"], c, bevel=.015, seg=1)
+    mt.box((.12, .4, .55), (LX1 + .08, 1.5, 1.5))
+    mt.done()
+    tk = G("LOJA_tank", M["tank"], c, bevel=.03, seg=2)
+    tk.cyl(.55, .8, (2.85, 2.3, LH + .2 + .45), verts=16, r2=.6)
+    tk.cyl(.64, .1, (2.85, 2.3, LH + .2 + .9), verts=16)
+    tk.done()
+    sk = G("LOJA_sky", LM["trim"], c, bevel=.02, seg=1)
+    sk.box((1.2, .9, .2), (-1.35, .5, LH + .3))
+    sk.done()
+    skg = G("LOJA_skyGlass", M["glass"], c)
+    skg.box((.5, .75, .03), (-1.62, .5, LH + .41)); skg.done()
+    skd = G("LOJA_skyHole", M["dark"], c)
+    skd.box((.5, .75, .03), (-1.08, .5, LH + .405)); skd.done()
+    w = G("LOJA_roofWeeds", M["grass"], c, smooth=False)
+    tufts(w, [(LX0 + .4, LY1 - .4), (LX1 - .45, LY0 + .5), (1.6, LY1 - .35), (LX0 + .35, .2)], 77, .8)
+    for o in w.bm.verts: o.co.z += LH + .2
+    w.done()
+
+
+def loja_yard(c):
+    rnd = random.Random(5)
+    # front apron (pavement) with a kerb; the shop stands on it
+    ap = G("LOJA_apron", LM["apron"], c, bevel=.02, seg=1)
+    ap.box((LX1 - LX0 + .5, LY0 + 5.55, .08), ((LX0 + LX1) / 2 + .05, (LY0 - 5.55) / 2, .04), open_bottom=True)
+    ap.done()
+    kb = G("LOJA_kerb", M["stepstone"], c, bevel=.025, seg=1)
+    kb.box((LX1 - LX0 + .5, .22, .14), ((LX0 + LX1) / 2 + .05, -5.55, .07), open_bottom=True)
+    kb.box((.6, .22, .12), (3.55, -5.15, .06), rot=(0, .1, .5))                           # a broken-off piece
+    kb.done()
+    # lawn / weed patches in the side yard and the back
+    t = G("LOJA_lawn", M["lawn"], c, bevel=.025, seg=1)
+    for k, (x, y, sx, sy) in enumerate(((-3.8, -4.4, .9, .9), (-3.7, -1.2, 1.0, 1.4), (-3.6, 2.2, .9, 1.6), (-1.0, 4.7, 1.8, .7), (2.6, 4.75, 1.6, .65))):
+        rr = random.Random(200 + k); n = 22; ph = [rr.uniform(0, 6.3) for _ in range(3)]
+        pts = []
+        for q in range(n):
+            a = 2 * math.pi * q / n
+            rad = 1 + .13 * math.sin(3 * a + ph[0]) + .07 * math.sin(5 * a + ph[1]) + .04 * math.sin(7 * a + ph[2])
+            pts.append((x + sx * rad * math.cos(a), max(-5.75, min(5.75, y + sy * rad * math.sin(a)))))
+        pts = [(max(-4.95, min(4.95, px)), py) for (px, py) in pts]
+        top = [t.bm.verts.new((px, py, .045)) for (px, py) in pts]
+        bot = [t.bm.verts.new((px, py, 0)) for (px, py) in pts]
+        t.bm.faces.new(top)
+        for q in range(n): t.bm.faces.new((bot[q], bot[(q + 1) % n], top[(q + 1) % n], top[q]))
+    t.done()
+    green, dry = [], []
+    pts = [(-2.65, -2.85), (-.95, -2.85), (2.35, -2.85), (4.5, -2.9), (4.55, -.5), (4.55, 1.8), (-2.9, .5), (-2.95, 2.6),
+           (-4.4, -4.6), (-3.3, -3.6), (-4.5, -2.0), (-4.3, .6), (-3.0, 3.4), (-4.4, 4.9), (-1.8, 4.9), (.6, 4.6), (2.0, 4.95), (3.8, 4.7),
+           (.9, -4.1), (2.3, -3.6), (-1.4, -4.6), (3.2, -4.9), (-.1, -5.2), (4.3, -4.1)]
+    for i, p_ in enumerate(pts):
+        (dry if i % 4 == 0 else green).append((p_[0] + rnd.uniform(-.08, .08), p_[1] + rnd.uniform(-.08, .08)))
+    g = G("LOJA_grass", M["grass"], c, smooth=False); tufts(g, green, 31); g.done()
+    g = G("LOJA_grassDry", M["grassdry"], c, smooth=False); tufts(g, dry, 32, 1.1); g.done()
+    g = G("LOJA_weeds", M["grass"], c, smooth=False)
+    for i, (x, y) in enumerate(((-2.5, -5.2), (4.45, -5.15), (-4.5, -3.0))):
+        g.blades((x, y, 0), n=9, h=.85, w=.08, seed=700 + i, lean=(.15, .5))
+    g.done()
+    # the city tree in the side yard, two bushes of its crown
+    city_tree("LOJA_tree", c, (-3.85, -3.6, 0), 1, rot_z=math.radians(-25), tris=7500, width=2.2)
+    for k, (x, y, r, rz) in enumerate(((-4.25, 1.4, .55, .7), (-4.15, 4.6, .6, 2.2), (4.3, 4.85, .5, 4.0))):
+        city_tree(f"LOJA_bush{k}", c, (x, y, 0), 1, rot_z=rz, tris=650, crown_only=True, width=r * 2.1)
+    # corrugated sheet fence (tapume) along the west side and the back: mixed faded colours, a gap, one leaning sheet
+    mats_ = [LM["fenceA"], LM["fenceB"], LM["fenceC"]]
+    gs = [G(f"LOJA_fence{i}", m, c, bevel=.0, smooth=False) for i, m in enumerate(mats_)]
+    posts = G("LOJA_fencePosts", M["wood"], c, bevel=.015, seg=1)
+    runs = [((-4.88, -1.9), (-4.88, 5.66)), ((-4.88, 5.66), (4.95, 5.66))]
+    k = 0
+    for (a, b) in runs:
+        a, b = Vector((*a, 0)), Vector((*b, 0)); d = b - a; Lr = d.length; dv = d.normalized(); ang = math.atan2(dv.y, dv.x)
+        n = int(Lr / 1.05)
+        for i in range(n + 1):
+            pp_ = a + dv * (Lr * i / n)
+            posts.box((.09, .09, 1.95), (pp_.x, pp_.y, .975))
+        for i in range(n):
+            k += 1
+            if k in (4, 11): continue                                                 # missing sheets
+            m0 = a + dv * (Lr * (i + .5) / n)
+            lean = .35 if k == 7 else 0
+            Mf = Matrix.Translation((m0.x, m0.y, 0)) @ Matrix.Rotation(ang, 4, 'Z') @ Matrix.Rotation(lean, 4, 'X')
+            gs[(k * 7) % 3].box((Lr / n - .03, .03, 1.85), (0, 0, .95), rot=(0, rnd.uniform(-.02, .02), 0), M=Mf)
+    for g_ in gs: g_.done()
+    posts.done()
+
+
+def loja_props(c):
+    rnd = random.Random(9)
+    # old chest freezer under the shop window, lid ajar
+    Mf = Matrix.Translation((3.3, LY0 - .55, 0)) @ Matrix.Rotation(.08, 4, 'Z')
+    fz = G("LOJA_freezer", LM["freezer"], c, bevel=.05, seg=2)
+    fz.box((1.35, .68, .82), (0, 0, .43), M=Mf)
+    fz.done()
+    lid = G("LOJA_freezerLid", LM["sign"], c, bevel=.03, seg=2)
+    lid.box((1.35, .7, .08), (0, .35, 0), M=Mf @ Matrix.Translation((0, -.35, .86)) @ Matrix.Rotation(.45, 4, 'X'))
+    lid.done()
+    fd = G("LOJA_freezerIn", M["dark"], c)
+    fd.box((1.2, .55, .02), (0, 0, .84), M=Mf); fd.done()
+    ft = G("LOJA_freezerFeet", M["tire"], c)
+    for sx in (-1, 1):
+        for sy in (-1, 1): ft.cyl(.05, .06, (sx * .55, sy * .25, .03), verts=8, M=Mf)
+    ft.done()
+    # stacks of plastic bottle crates (red / yellow), one fallen
+    for i, (x, y, z, a, m) in enumerate(((-.65, -3.15, 0, .1, "crateR"), (-.65, -3.15, .3, -.05, "crateY"), (-.6, -3.12, .6, .2, "crateR"),
+                                          (0, -3.35, 0, .6, "crateY"), (.2, -4.05, .2, 1.3, "crateR"))):
+        cr = G(f"LOJA_crate{i}", LM[m], c, bevel=.012, seg=1)
+        Mc = Matrix.Translation((x, y, z)) @ Matrix.Rotation(a, 4, 'Z')
+        if i == 4: Mc = Mc @ Matrix.Rotation(1.4, 4, 'X')
+        cr.box((.5, .34, .03), (0, 0, .015), M=Mc)
+        for sy in (-1, 1): cr.box((.5, .03, .28), (0, sy * .155, .14), M=Mc)
+        for sx in (-1, 1): cr.box((.03, .34, .28), (sx * .235, 0, .14), M=Mc)
+        for q in range(1, 3): cr.box((.46, .02, .2), (0, -.17 + q * .113, .1), M=Mc)
+        cr.done()
+    # an abandoned shopping cart tipped on its side on the pavement
+    Mk = Matrix.Translation((1.55, -4.55, 0)) @ Matrix.Rotation(-.5, 4, 'Z') @ Matrix.Translation((0, 0, .32)) @ Matrix.Rotation(math.pi / 2 - .1, 4, 'X')
+    ck = G("LOJA_cart", M["rust"], c)
+    W0, W1, Lc, Hc = .42, .52, .85, .42
+    def P(x, y, z): return Mk @ Vector((x, y, z))
+    corners_b = [(-W0 / 2, 0, 0), (W0 / 2, 0, 0), (W0 / 2, Lc * .85, 0), (-W0 / 2, Lc * .85, 0)]
+    corners_t = [(-W1 / 2, -.05, Hc), (W1 / 2, -.05, Hc), (W1 / 2, Lc, Hc), (-W1 / 2, Lc, Hc)]
+    for q in range(4):
+        ck.tube(P(*corners_b[q]), P(*corners_b[(q + 1) % 4]), .012, verts=4)
+        ck.tube(P(*corners_t[q]), P(*corners_t[(q + 1) % 4]), .014, verts=4)
+        ck.tube(P(*corners_b[q]), P(*corners_t[q]), .012, verts=4)
+    for f in (.25, .5, .75):
+        ck.tube(P(-W1 / 2 + .01, -.05 + Lc * f, Hc), P(-W0 / 2, Lc * .85 * f, 0), .008, verts=4)
+        ck.tube(P(W1 / 2 - .01, -.05 + Lc * f, Hc), P(W0 / 2, Lc * .85 * f, 0), .008, verts=4)
+        ck.tube(P(-W1 / 2 + W1 * f, -.05, Hc), P(-W0 / 2 + W0 * f, 0, 0), .008, verts=4)
+    ck.tube(P(-W1 / 2, Lc + .12, Hc + .08), P(W1 / 2, Lc + .12, Hc + .08), .02, verts=6)     # handle
+    for sx in (-1, 1):
+        ck.tube(P(sx * W1 / 2, Lc, Hc), P(sx * W1 / 2, Lc + .12, Hc + .08), .014, verts=4)
+        ck.tube(P(sx * W0 / 2, 0, 0), P(sx * W0 / 2, 0, -.25), .015, verts=4)
+        ck.tube(P(sx * W0 / 2, Lc * .85, 0), P(sx * W0 / 2, Lc * .85, -.25), .015, verts=4)
+    ck.done()
+    wh = G("LOJA_cartWheels", M["tire"], c)
+    for sx in (-1, 1):
+        for yy in (0, Lc * .85):
+            wh.cyl(.06, .035, P(sx * W0 / 2, yy, -.28), rot=(0, 0, 0), verts=8, M=Mk.to_3x3().to_4x4() @ Matrix.Rotation(math.pi / 2, 4, 'Y') if False else None)
+    wh.done()
+    hd = G("LOJA_cartHandle", LM["crateR"], c)
+    hd.tube(P(-W1 / 2 + .05, Lc + .12, Hc + .08), P(W1 / 2 - .05, Lc + .12, Hc + .08), .028, verts=8)
+    hd.done()
+    # blank chalkboard A-frame knocked flat
+    ab = G("LOJA_aboard", M["wood"], c, bevel=.01, seg=1)
+    Ma = Matrix.Translation((-.25, -4.9, .04)) @ Matrix.Rotation(.4, 4, 'Z')
+    ab.box((.62, .9, .04), (0, 0, 0), M=Ma)
+    ab.done()
+    bd = G("LOJA_aboardFace", LM["board"], c)
+    bd.box((.5, .76, .02), (0, 0, .025), M=Ma); bd.done()
+    # rusty bin with its lid off, cardboard boxes by the door, a broken bench
+    bn = G("LOJA_bin", M["rust"], c, bevel=.015, seg=1)
+    bn.cyl(.27, .78, (-2.4, -3.15, .39), verts=14)
+    bn.cyl(.3, .04, (-2.1, -3.65, .02), rot=(.05, 0, 0), verts=14)
+    bn.done()
+    cb = G("LOJA_boxes", LM["cardboard"], c, bevel=.012, seg=1)
+    for (x, y, z, s, a) in ((-1.35, -3.2, 0, .5, .2), (-1.4, -3.18, .44, .4, -.3), (-.95, -3.55, 0, .38, .9)):
+        cb.box((s, s * .8, s * .85), (x, y, z + s * .425), rot=(0, 0, a))
+        cb.box((s * .9, .02, s * .4), (x, y - s * .4, z + s * .85 + .12), rot=(.9, 0, a))           # open flap
+    cb.done()
+    be = G("LOJA_bench", M["wood"], c, bevel=.012, seg=1)
+    be.box((1.5, .14, .05), (3.8, -4.35, .46)); be.box((.8, .14, .05), (3.45, -4.15, .3), rot=(.0, .55, .1))
+    be.done()
+    bl = G("LOJA_benchLegs", M["concrete"], c, bevel=.02, seg=1)
+    for x in (3.2, 4.4): bl.box((.12, .4, .44), (x, -4.3, .22))
+    bl.done()
+    rb = G("LOJA_rubble", M["brick"], c, smooth=False)
+    for k in range(9):
+        rb.box((.22, .11, .07), (rnd.uniform(-2.65, -1.95), rnd.uniform(-5.2, -4.6), .035 + (k // 5) * .07), rot=(0, 0, rnd.uniform(0, 3)))
+    rb.done()
+
+
+def loja_pad(c):
+    p = G("LOJA_pad", M["pad"], c)
+    p.box((PAD_W, PAD_D, .2), (0, 0, -.1))      # 20 cm below the ground: keeps the model above the lot dirt (see build_pad)
+    o = p.done(); o.hide_render = True
+    return o
+
+
+def build_loja(part="all"):
+    """part: 'all' or 'house' / 'front' / 'yard' (each well inside one MCP call)."""
+    c = col(LOJA)
+    if part in ("all", "house"):
+        for o in list(c.objects): bpy.data.objects.remove(o)
+        for m in list(bpy.data.meshes):
+            if m.users == 0 and not m.use_fake_user: bpy.data.meshes.remove(m)
+    loja_mats()
+    if part in ("all", "house"):
+        loja_pad(c); loja_walls(c); loja_trims(c); loja_openings(c); loja_details(c)
+    if part in ("all", "front"):
+        loja_front(c); loja_props(c)
+    if part in ("all", "yard"):
+        loja_yard(c)
+    return stats(c)
+
+
+def loja_export():
+    return make_export(LOJA, LOJA_NAME, groups=LOJA_GROUPS, default="LOJA_junk",
+                       inside=(LX0 + WT, LX1 - WT, LY0 + WT, LY1 - WT), walls=("V3_LojaWall", "V3_LojaTrim"))
