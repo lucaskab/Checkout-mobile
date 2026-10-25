@@ -46,7 +46,12 @@ namespace Checkout
         internal static void Auto()
         {
             if (System.Environment.GetEnvironmentVariable("CHECKOUT_UI_QA") == "1") Begin();
+            // App Store screenshots (Editor menu Checkout/iPhone/Store screenshots): the flag file holds the stage.
+            else if (Application.isEditor && File.Exists(StoreFlag)) { storeStage = File.ReadAllText(StoreFlag).Trim(); Begin(); }
         }
+
+        const string StoreFlag = "Logs/store_shots.txt";
+        static string storeStage;
 
         string dir;
         readonly StringBuilder report = new StringBuilder();
@@ -67,6 +72,20 @@ namespace Checkout
             yield return new WaitForSecondsRealtime(2f);
 
             if (counterOnly) { yield return CounterPhases(); Finish(); yield break; }
+            if (!string.IsNullOrEmpty(storeStage))
+            {
+                // A showcase market on the QA copy of the save: no tutorial card, the chosen stage built and stocked.
+                var host = CheckoutDesktopHost.Active;
+                host?.Action("skipOnboarding", "[]", "");
+                yield return new WaitForSecondsRealtime(1f);
+                host?.Action("devSetMarketEra", "[\"" + storeStage + "\"]", "");
+                yield return new WaitForSecondsRealtime(3f);
+                host?.Action("devFinishMarketExpansion", "[]", "");
+                host?.Action("devFinishInteriorConstructions", "[]", "");
+                host?.Action("devAdjustCoins", "[250000]", "");
+                host?.Action("devAdjustDiamonds", "[500]", "");
+                yield return new WaitForSecondsRealtime(12f);   // customers walk in
+            }
             foreach (var route in Routes)
             {
                 CloseWindows();
@@ -92,6 +111,7 @@ namespace Checkout
             File.WriteAllText(Path.Combine(dir, "report.txt"), report.ToString());
             Debug.Log("CHECKOUT_UI_QA done: " + index + " screens in Logs/ui_qa");
             Running = false;
+            if (!string.IsNullOrEmpty(storeStage)) { storeStage = null; try { File.Delete(StoreFlag); } catch { } }
             Destroy(gameObject);
         }
 

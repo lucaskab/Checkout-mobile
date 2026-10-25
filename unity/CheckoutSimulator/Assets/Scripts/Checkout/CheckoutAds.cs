@@ -61,7 +61,8 @@ namespace Checkout {
   // The game's rewarded unit in AdMob (app id: Assets › Google Mobile Ads › Settings). Development builds keep Google's
   // test unit: real ads clicked by the developer count as invalid traffic and can get the AdMob account suspended.
 #if UNITY_IOS
-  const string Unit="ca-app-pub-3940256099942544/1712485313"; // TODO: the iOS app's own unit once it exists in AdMob
+  // AdMob app "Checkout (iOS)" ca-app-pub-6635161191872845~9063259268 (23/10), rewarded unit "Diamantes gratis".
+  static string Unit=>Debug.isDebugBuild?"ca-app-pub-3940256099942544/1712485313":"ca-app-pub-6635161191872845/9135411459";
 #else
   static string Unit=>Debug.isDebugBuild?"ca-app-pub-3940256099942544/5224354917":"ca-app-pub-6635161191872845/4528327896";
 #endif

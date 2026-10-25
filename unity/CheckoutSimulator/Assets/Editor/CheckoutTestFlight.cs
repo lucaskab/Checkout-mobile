@@ -11,7 +11,7 @@ using Debug = UnityEngine.Debug;
 // TestFlight from the Mac (Lucas 23/10): after "Checkout/iPhone/Build for TestFlight" generates the Xcode project in
 // unity/builds/iphone-store, these menus run Apple's own command-line tool (xcodebuild) with automatic signing and the
 // Apple account already signed in to Xcode:
-//   1 - Find paid team   reads the teams Xcode knows and puts the paid (non-free) team id in Player Settings
+//   1 - Find paid team   reads the teams Xcode knows and puts Lucas's own paid team id in Player Settings
 //   2 - Archive          xcodebuild archive  -> builds/iphone-store/Checkout.xcarchive (registers the App ID too)
 //   3 - Upload           xcodebuild -exportArchive with destination "upload" -> App Store Connect / TestFlight
 // Each step runs in the background and writes builds/iphone-store/testflight-<step>.log, ending with
@@ -28,7 +28,9 @@ public static class CheckoutTestFlight
         var teams = Teams();
         Directory.CreateDirectory(Root);
         File.WriteAllLines(Path.Combine(Root, "testflight-teams.log"), teams.ConvertAll(t => $"{t.id} | {t.name} | free={t.free}"));
-        var paid = teams.FindAll(t => !t.free);
+        // Lucas's own paid team (individual, "Lucas Lopes Furini" 282CN823D6), never another company's team that the
+        // same Apple ID belongs to (Propstack GmbH).
+        var paid = teams.FindAll(t => !t.free && t.name.Contains("Furini"));
         if (paid.Count == 0) { Debug.LogError("CHECKOUT_TESTFLIGHT no paid team in Xcode › Settings › Accounts (" + teams.Count + " teams)"); return; }
         PlayerSettings.iOS.appleDeveloperTeamID = paid[0].id;
         AssetDatabase.SaveAssets();
