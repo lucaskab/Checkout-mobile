@@ -382,7 +382,7 @@ def m_stone(name, base=C("F5E9CB"), dark=C("DECBA4")):
     return t.done(col, t.noise(p, 9, 3), .2)
 
 
-def m_tiles(name, a=C("EA673B"), b=C("D9572F"), light=C("F49157"), moss=C("8EA84E")):
+def m_tiles(name, a=C("EA673B"), b=C("D9572F"), light=C("F49157"), moss=C("8EA84E"), stain=C("7A4430"), moss_amount=.6):
     t = NT(name, .8)
     p = t.pos
     isl = t.island
@@ -390,8 +390,8 @@ def m_tiles(name, a=C("EA673B"), b=C("D9572F"), light=C("F49157"), moss=C("8EA84
     col = t.mix(col, light, t.ramp(isl, .82, .95))
     col = t.mul(col, t.ramp(t.noise(p, 2.2, 2), .3, .7, .93, 1.05))
     mz = t.math('ADD', t.noise(p, 1.6, 4, .6), t.math('MULTIPLY', isl, .12))
-    col = t.mix(col, moss, t.ramp(mz, .72, .78, 0, .6))
-    col = t.mix(col, C("7A4430"), t.ramp(t.noise(p, 2.4, 4), .72, .86, 0, .2))
+    col = t.mix(col, moss, t.ramp(mz, .72, .78, 0, moss_amount))
+    col = t.mix(col, stain, t.ramp(t.noise(p, 2.4, 4), .72, .86, 0, .2))
     return t.done(col, t.noise(p, 12, 3), .15, ao=.45, ao_dist=.35)
 
 
@@ -1448,6 +1448,7 @@ CASA = "V3 Casa"
 def build_casa(part="all"):
     """part: 'all' or one of 'house', 'roof', 'yard' (each fits well inside an MCP call)."""
     c = col(CASA)
+    show_only(CASA)
     if part in ("all", "house"):
         for o in list(c.objects): bpy.data.objects.remove(o)
         for m in list(bpy.data.meshes):
@@ -1477,14 +1478,15 @@ def stats(c=None):
     return {"objects": len(c.objects), "tris": tris, "lo": [round(x, 2) for x in lo], "hi": [round(x, 2) for x in hi], "heavy": heavy[:12]}
 
 
-def render_views(prefix="casa_v4", views=("iso",), cname=CASA):
+def render_views(prefix="casa_v4", views=("iso",), cname=CASA, z=0.0, grow=1.0, close_at=(.5, -2.2, 2.2)):
+    """z / grow: lift the framing centre and enlarge the frame for taller buildings."""
     show_only(cname)
     out = []
     for v in views:
-        if v == "iso": camera((0, -.1, 2.2), 17.2, GAME_DIR)
-        elif v == "front": camera((0, -.3, 1.9), 13.5, Vector((.18, -1, .42)))
-        elif v == "back": camera((0, .3, 1.9), 13.5, Vector((-.35, 1, .5)))
-        elif v == "close": camera((.5, -2.2, 2.2), 8.5, GAME_DIR)
+        if v == "iso": camera((0, -.1, 2.2 + z), 17.2 * grow, GAME_DIR)
+        elif v == "front": camera((0, -.3, 1.9 + z), 13.5 * grow, Vector((.18, -1, .42)))
+        elif v == "back": camera((0, .3, 1.9 + z), 13.5 * grow, Vector((-.35, 1, .5)))
+        elif v == "close": camera(close_at, 8.5, GAME_DIR)
         out.append(render(f"{prefix}_{v}"))
     return out
 
@@ -1505,7 +1507,7 @@ NAME = "Lot_Casa"
 
 
 # per-lot settings used by make_export / texel_weights (set by make_export)
-LOT = {"groups": None, "default": "CASA_junk", "inside": None, "walls": ()}
+LOT = {"groups": None, "default": "CASA_junk", "inside": None, "walls": (), "texel": {}}
 
 
 def _group_of(name):
@@ -1530,7 +1532,8 @@ def _apply(o):
 SWATCH = ["V3_Picket", "V3_Glass", "V3_Dark", "V3_Tire", "V3_Rope", "V3_Orange", "V3_Flower", "V3_Gate", "V3_RustMetal",
           "V3_Brick", "V3_FoliageCore", "V3_Grass", "V3_GrassDry", "V3_Ivy", "V3_Leaf", "V3_Fruit", "V3_Concrete",
           "V3_StepStone", "V3_DirtMound", "V3_Bucket", "V3_Tank", "V3_Barrow", "V3_Ridge",
-          "V3_CrateRed", "V3_CrateYellow", "V3_Chalkboard", "V3_Cardboard"]
+          "V3_CrateRed", "V3_CrateYellow", "V3_Chalkboard", "V3_Cardboard",
+          "V3_Iron", "V3_ScaffTube", "V3_Bag", "V3_Fabric", "V3_FlowerY", "V3_FlowerW", "V3_Cloth", "V3_ClothB"]
 SWATCH_CELL = .05                      # swatch squares in the band right of the city-tree square
 RESERVED = TREE_BAND + .004
 
@@ -1561,11 +1564,15 @@ def swatch_uvs(o, slot):
             uv[li].uv = (x0 + (ins + su * (1 - 2 * ins)) * w, y0 + (ins + sv * (1 - 2 * ins)) * w)
 
 
-def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=None, walls=None):
+SMART_ANGLE = 66         # (78 merged bevel strips but gave cream patches on the roof tiles: kept 66)
+PACK_MARGIN = .0045        # ~9 px between parts (was 7: colour specks at corners); more costs too much space
+
+
+def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=None, walls=None, texel=None):
     """Copies of every part with modifiers applied, cut flat at the ground. Painted parts get one smart-UV atlas
     (texel weights per material), leaves and flat-colour bits get reserved template slots, then everything is
     joined into a few named meshes."""
-    LOT["groups"] = groups; LOT["default"] = default
+    LOT["groups"] = groups; LOT["default"] = default; LOT["texel"] = texel or {}
     LOT["inside"] = inside or (HX0 + WT, HX1 - WT, HY0 + WT, HY1 - WT)
     LOT["walls"] = walls or ("V3_CasaWall", "V3_CasaGable", "V3_Plinth", "V3_Stone")
     d = col(name + " Export")
@@ -1594,15 +1601,45 @@ def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=No
         j = bpy.context.view_layer.objects.active; j.name = nm; j.data.name = nm
         return j
     pk = [join(objs, "X_" + g) for g, objs in packed.items()]
+    # Inner faces of the walls (only glimpsed through the openings) are split off from the outer faces they share
+    # a UV island with (through the bevels), so texel_weights() can give them almost no texture space.
+    ix0, ix1, iy0, iy1 = LOT["inside"]; cxy = Vector(((ix0 + ix1) / 2, (iy0 + iy1) / 2, 0))
+    wall_names = set(LOT["walls"])
+    for o in pk:
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        names = [m.name.split(".")[0] if m else "" for m in o.data.materials]
+        inner = []
+        for f in bm.faces:
+            if f.material_index >= len(names) or names[f.material_index] not in wall_names: continue
+            p_ = f.calc_center_median()
+            if not (ix0 - .03 < p_.x < ix1 + .03 and iy0 - .03 < p_.y < iy1 + .03): continue
+            d = Vector((p_.x, p_.y, 0)) - cxy
+            if abs(f.normal.z) < .5 and f.normal.dot(d) < 0: inner.append(f)
+        if inner:
+            bmesh.ops.split(bm, geom=inner)
+            bm.to_mesh(o.data)
+        bm.free()
     bpy.ops.object.select_all(action='DESELECT')
     for o in pk: o.select_set(True)
     bpy.context.view_layer.objects.active = pk[0]
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.003, scale_to_bounds=False)
+    bpy.ops.uv.smart_project(angle_limit=math.radians(SMART_ANGLE), island_margin=0.004, scale_to_bounds=False)
     bpy.ops.object.mode_set(mode='OBJECT')
+    # smart_project packs each object on its own: small objects would get far more texels than the walls.
+    # Equalise the texel density of all objects first (UV area == surface area), then apply the TEXEL weights.
+    for o in pk:
+        me = o.data; uv = me.uv_layers.active.data; a3 = a2 = 0.0
+        for pl in me.polygons:
+            us = [uv[i].uv for i in pl.loop_indices]
+            a3 += pl.area
+            a2 += sum(abs((us[k].x - us[0].x) * (us[k + 1].y - us[0].y) - (us[k + 1].x - us[0].x) * (us[k].y - us[0].y)) / 2 for k in range(1, len(us) - 1))
+        f = math.sqrt(a3 / a2) if a2 > 1e-12 else 1.0
+        for l in uv: l.uv = (l.uv[0] * f, l.uv[1] * f)
     for o in pk: texel_weights(o)
+    # (a pinned blocker island over the tree / swatch area was tried: Blender's packer still dropped islands
+    # into it, so the packed islands are squeezed below the reserved band instead)
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.pack_islands(margin=0.0035, rotate=True, scale=True)
+    bpy.ops.uv.pack_islands(margin=PACK_MARGIN, margin_method='FRACTION', rotate=True, scale=True)   # FRACTION: margin in final UV units
     bpy.ops.object.mode_set(mode='OBJECT')
     for o in pk:
         for l in o.data.uv_layers.active.data: l.uv = (l.uv[0], l.uv[1] * (1 - RESERVED))
@@ -1632,7 +1669,8 @@ TEXEL = {"V3_Pad": .02, "V3_Dark": .12, "V3_Deck": .5, "V3_Glass": .45, "V3_Tire
          "V3_CasaWall": 2.2, "V3_CasaGable": 1.8, "V3_LowWall": 2.6, "V3_Tiles": .8, "V3_Tarp": 1.1, "V3_Chimney": 1.3,
          "V3_TealWood": 1.15, "V3_Stone": 1.0,
          "V3_LojaWall": 2.2, "V3_LojaTrim": 1.0, "V3_Shutter": 1.1, "V3_SignPanel": 1.6, "V3_Awning": 1.3, "V3_AwningY": 1.3,
-         "V3_Apron": .9, "V3_RoofTar": .55, "V3_FenceBlue": .5, "V3_FenceRed": .5, "V3_FenceGrey": .5, "V3_Freezer": .8, "V3_Loaf": 1.5}
+         "V3_Apron": .9, "V3_RoofTar": .55, "V3_FenceBlue": .5, "V3_FenceRed": .5, "V3_FenceGrey": .5, "V3_Freezer": .8, "V3_Loaf": 1.5,
+         "V3_SobWall": 3.0, "V3_SlateTiles": .75, "V3_SlateRidge": .5, "V3_OrangeWood": 1.0, "V3_Net": .5, "V3_Mixer": .9}
 
 
 def texel_weights(o):
@@ -1644,22 +1682,17 @@ def texel_weights(o):
     seen = set()
     for f in bm.faces:
         if f.index in seen: continue
-        # flood the UV island of f (faces sharing UV-connected edges)
+        # flood the connected mesh piece of f: a UV island never spans two pieces, so scaling whole pieces
+        # uniformly keeps every island intact (a per-UV-edge flood could split an island -> overlapping UVs)
         isl = []; stack = [f]; seen.add(f.index)
         while stack:
             g = stack.pop(); isl.append(g)
-            for l in g.loops:
-                e = l.edge
-                for lf in e.link_faces:
-                    if lf.index in seen: continue
-                    # same island when the shared edge has the same UVs on both sides
-                    a = [x for x in g.loops if x.edge == e][0]; b = [x for x in lf.loops if x.edge == e]
-                    if not b: continue
-                    b = b[0]
-                    if (a[uv].uv - b.link_loop_next[uv].uv).length < 1e-5 and (a.link_loop_next[uv].uv - b[uv].uv).length < 1e-5:
+            for v in g.verts:
+                for lf in v.link_faces:
+                    if lf.index not in seen:
                         seen.add(lf.index); stack.append(lf)
         mname = names[f.material_index] if f.material_index < len(names) else ""
-        k = TEXEL.get(mname, 1.0)
+        k = LOT["texel"].get(mname, TEXEL.get(mname, 1.0))
         cen3 = sum((g.calc_center_median() for g in isl), Vector()) / len(isl)
         nrm = sum((g.normal for g in isl), Vector())
         ix0, ix1, iy0, iy1 = LOT["inside"] or (HX0 + WT, HX1 - WT, HY0 + WT, HY1 - WT)
@@ -2258,6 +2291,7 @@ def loja_pad(c):
 def build_loja(part="all"):
     """part: 'all' or 'house' / 'front' / 'yard' (each well inside one MCP call)."""
     c = col(LOJA)
+    show_only(LOJA)
     if part in ("all", "house"):
         for o in list(c.objects): bpy.data.objects.remove(o)
         for m in list(bpy.data.meshes):
@@ -2275,3 +2309,611 @@ def build_loja(part="all"):
 def loja_export():
     return make_export(LOJA, LOJA_NAME, groups=LOJA_GROUPS, default="LOJA_junk",
                        inside=(LX0 + WT, LX1 - WT, LY0 + WT, LY1 - WT), walls=("V3_LojaWall", "V3_LojaTrim"))
+
+
+# ######################################################################################################################
+# SOBRADO (lot A2) - an abandoned two-storey townhouse under a stalled renovation
+# ######################################################################################################################
+SOB = "V3 Sobrado"
+SOB_NAME = "Lot_Sobrado"
+SX0, SX1, SY0, SY1 = -3.4, 2.3, -1.6, 4.9          # outer wall faces
+SH1, SH2 = 2.75, 5.5                               # first floor level, top of the walls
+SPITCH = math.radians(36)
+SOB_OPEN = {   # face: (kind, u, w, sill, h, style)
+    "F": [("door", -2.15, 1.0, 0.25, 2.25, "door"), ("win", .75, 1.45, 1.0, 1.35, "boarded"),
+          ("french", -.55, 1.3, SH1 + .25, 2.05, ""), ("win", -2.45, .85, SH1 + .55, 1.3, "shutters"),
+          ("win", 1.45, .85, SH1 + .55, 1.3, "broken")],
+    "E": [("win", .2, 1.1, 1.0, 1.3, "boarded"), ("win", 3.1, 1.1, 1.0, 1.3, "broken"),
+          ("win", .2, 1.0, SH1 + .6, 1.25, "shutters"), ("win", 3.1, 1.0, SH1 + .6, 1.25, "boarded")],
+    "B": [("door", 1.4, .95, 0.0, 2.15, "back"), ("win", -1.0, 1.0, 1.05, 1.2, "boarded"), ("win", .2, 1.0, SH1 + .6, 1.2, "boarded")],
+    "W": [("win", -3.0, 1.0, 1.05, 1.2, "boarded"), ("win", -.6, 1.0, 1.05, 1.2, "boarded"), ("win", -1.8, 1.0, SH1 + .6, 1.2, "shutters")],
+}
+SOB_GROUPS = [
+    ("SOB_pad", ("SOB_pad",)),
+    ("SOB_house", ("SOB_walls", "SOB_inside", "SOB_gable", "SOB_quoin", "SOB_plinth", "SOB_band", "SOB_win", "SOB_balc",
+                   "SOB_oculus", "SOB_steps", "SOB_down")),
+    ("SOB_roof", ("SOB_roof",)),
+    ("SOB_scaffold", ("SOB_scaff", "SOB_net", "SOB_ladder")),
+    ("SOB_yard", ("SOB_lawn", "SOB_grass", "SOB_weeds", "SOB_flower", "SOB_tree", "SOB_bush", "SOB_path", "SOB_rail", "SOB_fence")),
+]
+
+
+def rect_frame(face, x0, x1, y0, y1):
+    if face == "F": return Matrix.Translation((0, y0, 0))
+    if face == "B": return Matrix.Translation((0, y1, 0)) @ Matrix.Rotation(math.pi, 4, 'Z')
+    if face == "E": return Matrix.Translation((x1, 0, 0)) @ Matrix.Rotation(math.pi / 2, 4, 'Z')
+    return Matrix.Translation((x0, 0, 0)) @ Matrix.Rotation(-math.pi / 2, 4, 'Z')
+
+
+def rect_span(face, x0, x1, y0, y1):
+    return {"F": (x0, x1), "B": (-x1, -x0), "E": (y0, y1), "W": (-y1, -y0)}[face]
+
+
+def sob_frame(face): return rect_frame(face, SX0, SX1, SY0, SY1)
+
+
+def sob_span(face): return rect_span(face, SX0, SX1, SY0, SY1)
+
+
+def moved(c, prefix, M_):
+    """Objects built by window()/door() on the Casa front at u=0 -> moved onto another wall (M_ = frame @ T(u, 0, 0))."""
+    for o in [o for o in c.objects if o.name.startswith(prefix + "_")]:
+        o.data.transform(M_ @ Matrix.Translation((0, -HY0, 0)))
+
+
+SM = {}
+
+
+def sob_mats():
+    mats()
+    SM.clear()
+    SM["wall"] = m_plaster("V3_SobWall", C("A8D4D4"), band=C("2E8A80"), band_top=.55, chips=.5, seed=33.)
+    SM["tiles"] = m_tiles("V3_SlateTiles", C("2F8070"), C("266D60"), C("3D9884"), moss=C("6E9E52"), stain=C("1F564C"), moss_amount=.35)
+    SM["ridge"] = m_tiles("V3_SlateRidge", C("24685B"), C("1F5D52"), C("2F7F6E"))
+    SM["orange"] = m_paint_wood("V3_OrangeWood", C("EC8B3A"), C("C9A272"), .45)
+    SM["iron"] = m_rust("V3_Iron", C("2E6670"), amount=.45)
+    SM["tube"] = m_rust("V3_ScaffTube", C("BAC4C2"), amount=.3)
+    SM["net"] = m_tarp("V3_Net", C("49A65B"))
+    SM["mixer"] = m_rust("V3_Mixer", C("F08A2E"), amount=.35)
+    SM["bag"] = m_flat("V3_Bag", C("DCD3C2"), .06, 4, .9, ao=.3)
+    SM["fabric"] = m_flat("V3_Fabric", C("C9607A"), .08, 5, .9, ao=.4)
+    SM["flowerY"] = m_flat("V3_FlowerY", C("F4D24A"), .06, 8, .6, ao=.2)
+    SM["flowerW"] = m_flat("V3_FlowerW", C("F6F1E4"), .04, 8, .6, ao=.2)
+    SM["cloth"] = m_flat("V3_Cloth", C("F2C9D3"), .05, 5, .9, ao=.2)
+    SM["clothB"] = m_flat("V3_ClothB", C("8EC5E8"), .05, 5, .9, ao=.2)
+    return SM
+
+
+def sob_walls(c):
+    g = G("SOB_walls", SM["wall"], c, bevel=.05, seg=1)
+    for face in "FBEW":
+        u0, u1 = sob_span(face)
+        if face in "EW": u0, u1 = u0 + WT, u1 - WT
+        rects = [(u0, 0, u1, SH2)]
+        for (kind, u, w, sill, h, st) in SOB_OPEN[face]:
+            rects = cut_rects(rects, (u - w / 2, sill, u + w / 2, sill + h))
+        F = sob_frame(face)
+        for (x0, z0, x1, z1) in rects:
+            g.box((x1 - x0, WT, z1 - z0), ((x0 + x1) / 2, WT / 2, (z0 + z1) / 2), M=F, open_bottom=z0 < .01)
+    g.done()
+    d = G("SOB_inside", M["dark"], c)
+    cx, cy = (SX0 + SX1) / 2, (SY0 + SY1) / 2
+    d.box((SX1 - SX0 - 2 * WT - .02, SY1 - SY0 - 2 * WT - .02, .05), (cx, cy, .02))
+    d.box((SX1 - SX0 - 2 * WT - .02, SY1 - SY0 - 2 * WT - .02, .05), (cx, cy, SH1 - .05))      # first floor
+    d.box((SX1 - SX0 - 2 * WT - .02, .04, SH2), (cx, SY1 - WT - .03, SH2 / 2))
+    d.box((.04, SY1 - SY0 - 2 * WT, SH2), (SX0 + WT + .03, cy, SH2 / 2))
+    d.done()
+    # front / back gables (the roof ridge runs front-to-back)
+    gg = G("SOB_gable", SM["wall"], c, bevel=.04, seg=2)
+    half = (SX1 - SX0) / 2; z0 = SH2 + .12
+    top = z0 + half * math.tan(SPITCH) - .08
+    pts = [(SX0, SH2 - .02), (SX1, SH2 - .02), (SX1, z0 - .05), (cx, top), (SX0, z0 - .05)]
+    for y in (SY0 + WT / 2, SY1 - WT / 2):
+        gg.prism(pts, WT, M=Matrix.Translation((0, y, 0)))
+    gg.done()
+
+
+def sob_trims(c):
+    q = G("SOB_quoin", M["stone"], c, bevel=.045, seg=1)
+    corners = [(SX0, SY0, -1, -1), (SX1, SY0, 1, -1), (SX1, SY1, 1, 1), (SX0, SY1, -1, 1)]
+    z = .45; i = 0
+    while z < SH2 - .3:
+        h = .5
+        for (cx, cy, sx, sy) in corners:
+            lx, ly = (.55, .34) if i % 2 == 0 else (.34, .55)
+            q.box((lx, ly, h - .05), (cx - sx * (lx / 2 - .05), cy - sy * (ly / 2 - .05), z + h / 2))
+        z += h; i += 1
+    q.done()
+    b = G("SOB_band", M["stone"], c, bevel=.035, seg=1)
+    for face in "FBEW":
+        u0, u1 = sob_span(face); F = sob_frame(face)
+        b.box((u1 - u0 + .2, .14, .16), ((u0 + u1) / 2, -.05, SH1 - .05), M=F)          # string course between the storeys
+        b.box((u1 - u0 + .22, .16, .18), ((u0 + u1) / 2, -.06, SH2 - .04), M=F)         # cornice
+    b.done()
+    p = G("SOB_plinth", M["plinth"], c, bevel=.04, seg=1)
+    ph = .45
+    for face in "FBEW":
+        u0, u1 = sob_span(face); F = sob_frame(face)
+        segs = [(u0 - .06, u1 + .06)]
+        for (kind, u, w, sill, h, st) in SOB_OPEN[face]:
+            if kind == "door":
+                segs = [(a, bb) for (a, bb) in segs for (a, bb) in ((a, min(bb, u - w / 2 - .12)), (max(a, u + w / 2 + .12), bb)) if bb - a > .05]
+        for (a, bb) in segs:
+            x = a; k = 0
+            while x < bb - .05:
+                bw = min(bb - x, (1.1, .85, 1.25, .95)[k % 4]); hh = ph if k % 3 else ph - .06
+                p.box((bw - .04, .1, hh), (x + bw / 2, -.03, hh / 2), M=F, open_bottom=True)
+                x += bw; k += 1
+    p.done()
+
+
+def sob_openings(c):
+    keep = M["teal"]; M["teal"] = SM["orange"]          # window()/door() paint their shutters / door with M["teal"]
+    try:
+        for face, ops in SOB_OPEN.items():
+            F = sob_frame(face)
+            for i, (kind, u, w, sill, h, st) in enumerate(ops):
+                nm = f"SOB_win_{face}{i}"
+                if kind == "win":
+                    window(c, nm, "F", 0, w, sill, h, st, seed=i + 3 * ord(face))
+                    moved(c, nm, F @ Matrix.Translation((u, 0, 0)))
+                elif kind == "door":
+                    door(c, nm, "F", 0, w, h, ajar=.0 if st == "back" else .35)
+                    moved(c, nm, F @ Matrix.Translation((u, 0, sill)))
+                    if st == "back":
+                        pl = G(nm + "_planks", M["wood"], c, bevel=.012, seg=1, frame=F)
+                        for zz in (h * .3, h * .65): pl.box((w + .35, .045, .17), (u, -.14, zz), rot=(0, .1 if zz < 1 else -.08, 0))
+                        pl.done()
+                elif kind == "french":
+                    sob_french(c, nm, F, u, w, sill, h)
+    finally:
+        M["teal"] = keep
+
+
+def sob_french(c, nm, F, u, w, sill, h):
+    """Balcony doors: brown frame, one glazed leaf open, orange shutters folded back (one hanging loose)."""
+    s = G(nm + "_surround", M["stone"], c, bevel=.035, seg=2, frame=F)
+    s.box((w + .34, .16, .16), (u, -.03, sill + h + .08)); s.box((.24, .2, .28), (u, -.07, sill + h + .12))
+    for sx in (-1, 1): s.box((.17, .12, h), (u + sx * (w / 2 + .085), -.02, sill + h / 2))
+    s.done()
+    fr = G(nm + "_frame", M["frame"], c, bevel=.014, seg=1, frame=F)
+    fr.box((w, .1, .07), (u, .06, sill + h - .035))
+    for sx in (-1, 1): fr.box((.07, .1, h), (u + sx * (w / 2 - .035), .06, sill + h / 2))
+    lw = w / 2 - .07
+    fr.box((lw, .06, .07), (u + lw / 2 + .0, .06, sill + .04)); fr.box((.05, .06, h - .1), (u + lw - .02, .06, sill + h / 2))   # right leaf (closed)
+    Ml = Matrix.Translation((u - w / 2 + .07, .05, sill)) @ Matrix.Rotation(1.1, 4, 'Z')                                 # left leaf, open
+    for (x, z, ww, hh) in ((lw / 2, .04, lw, .07), (lw / 2, h - .12, lw, .07), (.03, h / 2 - .04, .06, h - .1), (lw - .03, h / 2 - .04, .06, h - .1), (lw / 2, h * .55, lw, .05)):
+        fr.box((ww, .06, hh), (x, 0, z), M=Ml)
+    fr.done()
+    gl = G(nm + "_glass", M["glass"], c, frame=F)
+    gl.box((lw - .1, .02, h - .25), (u + lw / 2, .07, sill + h / 2 - .02))
+    gl.box((lw - .1, .02, h * .4), (lw / 2, 0, h * .3), M=Ml)
+    gl.done()
+    sh = G(nm + "_shutters", SM["orange"], c, bevel=.012, seg=1, frame=F)
+    sw = w / 2 + .03
+    for k, SMx in enumerate((Matrix.Translation((u - w / 2 - .17 - sw / 2, -.1, sill + h / 2)),
+                             Matrix.Translation((u + w / 2 + .17, -.12, sill + .1)) @ Matrix.Rotation(-.35, 4, 'Y') @ Matrix.Translation((sw / 2, 0, h / 2 - .1)))):
+        sh.box((sw, .06, h), (0, 0, 0), M=SMx)
+        for j in range(6): sh.box((sw - .12, .05, .09), (0, -.04, -h / 2 + .22 + j * (h - .4) / 5), rot=(.35, 0, 0), M=SMx)
+    sh.done()
+
+
+def sob_balcony(c):
+    bx0, bx1, depth, z = -1.85, .75, .95, SH1 + .22
+    s = G("SOB_balcSlab", M["stone"], c, bevel=.04, seg=2)
+    s.box((bx1 - bx0, depth, .18), ((bx0 + bx1) / 2, SY0 - depth / 2, z - .09))
+    s.box((bx1 - bx0 + .1, depth + .05, .06), ((bx0 + bx1) / 2, SY0 - depth / 2 - .02, z - .2))
+    for x in (bx0 + .25, (bx0 + bx1) / 2, bx1 - .25):     # consoles
+        s.prism([(0, 0), (.0, -.5), (-.16, -.5), (-.75, -.06), (-.75, 0)], .18, M=Matrix.Translation((x, SY0, z - .18)) @ Matrix.Rotation(math.pi / 2, 4, 'Z'))
+    s.done()
+    r = G("SOB_balcRail", SM["iron"], c)
+    rh = .95; y1 = SY0 - depth + .06
+    # left side + front left part straight, the front right part bent outwards (a post gave way)
+    r.tube((bx0 + .06, SY0, z + rh), (bx0 + .06, y1, z + rh), .03, verts=6)
+    r.tube((bx0 + .06, SY0, z + .1), (bx0 + .06, y1, z + .1), .022, verts=6)
+    r.tube((bx1 - .06, SY0, z + rh), (bx1 - .06, y1, z + rh), .03, verts=6)
+    r.tube((bx1 - .06, SY0, z + .1), (bx1 - .06, y1, z + .1), .022, verts=6)
+    xm = bx0 + (bx1 - bx0) * .62
+    r.tube((bx0 + .06, y1, z + rh), (xm, y1, z + rh), .03, verts=6)
+    r.tube((bx0 + .06, y1, z + .1), (xm, y1, z + .1), .022, verts=6)
+    bent = Vector((0, -.32, -.12))
+    r.tube((xm, y1, z + rh), Vector((bx1 - .06, y1, z + rh)) + bent, .03, verts=6)
+    r.tube((xm, y1, z + .1), Vector((bx1 - .06, y1, z + .1)) + bent * .4, .022, verts=6)
+    for (a, b) in (((bx0 + .06, SY0), (bx0 + .06, y1)), ((bx0 + .06, y1), (xm, y1)), ((bx1 - .06, SY0), (bx1 - .06, y1))):
+        a, b = Vector((*a, 0)), Vector((*b, 0)); n = max(2, int((b - a).length / .13))
+        for i in range(1, n):
+            p_ = a + (b - a) * (i / n)
+            r.tube((p_.x, p_.y, z + .1), (p_.x, p_.y, z + rh), .012, verts=5)
+    a, b = Vector((xm, y1, 0)), Vector((bx1 - .06, y1, 0)); n = int((b - a).length / .13)
+    for i in range(1, n + 1):
+        f = i / n; p_ = a + (b - a) * f
+        top = Vector((p_.x, p_.y, z + rh)) + bent * f; bot = Vector((p_.x, p_.y, z + .1)) + bent * .4 * f
+        r.tube(bot, top, .012, verts=5)
+    for (x, y) in ((bx0 + .06, y1), (xm, y1)):
+        r.ball(.045, (x, y, z + rh + .03), sub=1)
+    r.done()
+    p = G("SOB_balcPot", M["ridge"], c, bevel=.015, seg=1)
+    p.cyl(.16, .26, (bx0 + .35, SY0 - .3, z + .13), verts=12, r2=.2)
+    p.cyl(.16, .24, (bx1 - .5, SY0 - .55, z + .1), rot=(math.pi / 2 - .05, 0, .8), verts=12, r2=.2)       # knocked over
+    p.done()
+    dr = G("SOB_balcPlant", M["grassdry"], c, smooth=False)
+    dr.blades((bx0 + .35, SY0 - .3, z + .25), n=7, h=.4, w=.05, seed=91)
+    dr.done()
+
+
+def sob_oculus(c):
+    cx = (SX0 + SX1) / 2; z = SH2 + 1.0
+    o = G("SOB_oculus", M["stone"], c)
+    o.torus(.36, .08, (cx, SY0 - .04, z), rot=(math.pi / 2, 0, 0), seg=18, rseg=6)
+    o.box((.22, .14, .26), (cx, SY0 - .07, z + .4))
+    o.done()
+    d = G("SOB_oculusDark", M["dark"], c)
+    d.cyl(.33, .03, (cx, SY0 - .01, z), rot=(math.pi / 2, 0, 0), verts=16)
+    d.done()
+    pl = G("SOB_oculusPlanks", M["wood"], c, bevel=.01, seg=1)
+    pl.box((.85, .04, .13), (cx, SY0 - .1, z), rot=(0, .5, 0)); pl.box((.85, .04, .13), (cx, SY0 - .13, z), rot=(0, -.6, 0))
+    pl.done()
+
+
+def gable_y(c, pfx, x0, x1, y0, y1, z0, pitch, eave_out, gable_out, mt, mr, mf, row=.44, tw=.62, tt=.1, hole=None, seed=0):
+    """Tiled roof with its ridge along Y (gables at the front and back). Slope frames: local x along the ridge,
+    local y up the slope. Returns the two frames (west, east) and the slope length."""
+    rnd = random.Random(seed)
+    W = x1 - x0; xc, yc = (x0 + x1) / 2, (y0 + y1) / 2
+    half = W / 2; RW = (y1 - y0) + 2 * gable_out
+    ze = z0 - eave_out * math.tan(pitch)
+    Ls = (half + eave_out) / math.cos(pitch)
+    base = Matrix.Translation((xc, yc, 0)) @ Matrix.Rotation(-math.pi / 2, 4, 'Z')
+    Mw = base @ Matrix.Translation((0, -(half + eave_out), ze)) @ Matrix.Rotation(pitch, 4, 'X')
+    Me = base @ Matrix.Translation((0, half + eave_out, ze)) @ Matrix.Rotation(math.pi, 4, 'Z') @ Matrix.Rotation(pitch, 4, 'X')
+    dk = G(pfx + "Deck", M["deck"], c, bevel=.03, seg=1)
+    for Mx, holes in ((Mw, []), (Me, [hole] if hole else [])):
+        rects = [(-RW / 2, 0, RW / 2, Ls + .02)]
+        for h in holes: rects = cut_rects(rects, h)
+        for (a0, b0, a1, b1) in rects:
+            dk.box((a1 - a0, b1 - b0, DECK_T), ((a0 + a1) / 2, (b0 + b1) / 2, DECK_T / 2), M=Mx)
+    dk.done()
+    if hole:
+        hx0, hy0, hx1, hy1 = hole
+        bt = G(pfx + "Battens", M["wood"], c, bevel=.01, seg=1)
+        for k in range(3):
+            y = hy0 + .18 + k * row
+            if y < hy1: bt.box((hx1 - hx0 + .3, .07, .06), ((hx0 + hx1) / 2, y, DECK_T * .5), M=Me)
+        bt.box((.11, hy1 - hy0 + .4, .16), (hx0 + (hx1 - hx0) * .55, (hy0 + hy1) / 2, -.04), M=Me)
+        bt.done()
+        hd = G(pfx + "HoleDark", M["dark"], c)
+        hd.box((hx1 - hx0 + .1, hy1 - hy0 + .1, .02), ((hx0 + hx1) / 2, (hy0 + hy1) / 2, -.35), M=Me)
+        hd.done()
+    th = row + .14; dl = math.atan2(tt * .9, th)
+    for side, Mx in (("W", Mw), ("E", Me)):
+        g = G(pfx + "Tiles" + side, mt, c, bevel=.045, seg=1)
+        for r in range(int(Ls / row) + 1):
+            y = r * row - .04
+            if y > Ls - .22: break
+            x = -RW / 2 - (tw / 2 if r % 2 else 0)
+            while x < RW / 2 - .02:
+                xa, xb = max(x, -RW / 2), min(x + tw, RW / 2); w = xb - xa; xm = (xa + xb) / 2; x += tw
+                if w < .18: continue
+                if side == "E" and hole and _in(xm, y + th / 2, hole, -.05): continue
+                if rnd.random() < .025: continue
+                g.box((w - .012, th, tt), (xm + rnd.uniform(-.015, .015), y + th / 2, DECK_T + tt / 2 + .03),
+                      rot=(-dl + rnd.uniform(-.03, .03), rnd.uniform(-.03, .03), rnd.uniform(-.035, .035)), M=Mx, open_bottom=True)
+        if side == "E" and hole:   # slipped tiles below the hole
+            hx0, hy0, hx1, hy1 = hole
+            for (u, v, a) in ((hx0 + .1, hy0 - .4, .5), (hx1 - .2, hy0 - .55, -.3)):
+                g.box((tw - .04, th, tt), (u, v, DECK_T + tt + .1), rot=(-.05, .1, a), M=Mx)
+        g.done()
+    rz = ze + Ls * math.sin(pitch) + DECK_T / math.cos(pitch) + .05
+    rc = G(pfx + "Ridge", mr, c, bevel=.02, seg=1)
+    n = 12; L = RW / n
+    for i in range(n):
+        y = yc - RW / 2 + L * (i + .5)
+        rc.cyl(.19, L + .08, (xc, y, rz), rot=(math.pi / 2, 0, rnd.uniform(-.03, .03)), verts=8, r2=.165)
+    rc.box((.28, RW + .04, .12), (xc, yc, rz - .1))
+    rc.done()
+    fb = G(pfx + "Fascia", mf, c, bevel=.03, seg=2)
+    for Mx in (Mw, Me):
+        for sx in (-1, 1):
+            fb.box((.14, Ls + .1, .3), (sx * (RW / 2 + .04), Ls / 2, .03), M=Mx)
+        fb.box((RW + .16, .12, .26), (0, -.03, .03), M=Mx)
+    fb.done()
+    return Mw, Me, Ls
+
+
+def sob_roof(c):
+    gable_y(c, "SOB_roof", SX0, SX1, SY0, SY1, SH2 + .12, SPITCH, .5, .38, SM["tiles"], SM["ridge"], M["stone"],
+            hole=(1.4, .9, 2.5, 1.85), seed=12)
+    ch = G("SOB_roofChimney", M["chimney"], c, bevel=.05, seg=2)
+    ch.box((.6, .6, 2.6), (-1.95, 3.6, SH2 + 1.6))
+    ch.done()
+    cap = G("SOB_roofChimCap", M["stone"], c, bevel=.04, seg=2)
+    cap.box((.76, .76, .14), (-1.95, 3.6, SH2 + 2.95))
+    cap.done()
+    pots = G("SOB_roofPots", M["ridge"], c, bevel=.015, seg=1)
+    pots.cyl(.12, .3, (-2.05, 3.6, SH2 + 3.17), verts=10, r2=.1)
+    pots.done()
+    # TV aerial, bent
+    ae = G("SOB_roofAerial", SM["tube"], c)
+    ae.tube((-1.75, 3.6, SH2 + 3.0), (-1.7, 3.55, SH2 + 4.0), .02, verts=5)
+    for k in range(4):
+        ae.tube((-1.7, 3.55 - .35 + k * .05, SH2 + 3.55 + k * .12), (-1.7, 3.55 + .35 + k * .05, SH2 + 3.45 + k * .12), .012, verts=4)
+    ae.done()
+    dp = G("SOB_down", M["rust"], c)
+    dp.tube((SX1 + .58, SY0 - .2, SH2 - .05), (SX1 + .1, SY0 + .25, SH2 - .45), .055, verts=8)
+    dp.tube((SX1 + .1, SY0 + .25, SH2 - .45), (SX1 + .1, SY0 + .25, .3), .055, verts=8)
+    dp.done()
+
+
+def sob_scaffold(c):
+    """Stalled renovation: a scaffold along the east wall, green netting, a ladder, a cement mixer and sacks."""
+    xa, xb = SX1 + .3, SX1 + 1.35
+    ys = (-1.25, .7, 2.65, 4.55)
+    lv = (2.55, 4.95)
+    t = G("SOB_scaffTubes", SM["tube"], c)
+    for y in ys:
+        for x in (xa, xb):
+            t.tube((x, y, .02), (x, y, 6.1 if x == xb else 5.6), .032, verts=6)
+            t.box((.16, .16, .02), (x, y, .01))
+    for z in (.15,) + lv + (lv[0] + 1.0, lv[1] + 1.0):
+        for x in (xa, xb):
+            if z in (lv[0] + 1.0, lv[1] + 1.0) and x == xa: continue
+            t.tube((x, ys[0] - .1, z), (x, ys[-1] + .1, z), .028, verts=6)
+        if z in lv or z == .15:
+            for y in ys: t.tube((xa - .08, y, z + .05), (xb + .08, y, z + .05), .026, verts=6)
+    for (y0, y1) in zip(ys, ys[1:]):
+        t.tube((xb + .04, y0, .2), (xb + .04, y1, lv[0] - .1), .024, verts=5)
+        t.tube((xb + .04, y1, lv[0] + .1), (xb + .04, y0, lv[1] - .1), .024, verts=5)
+    t.done()
+    p = G("SOB_scaffBoards", M["wood"], c, bevel=.01, seg=1)
+    rnd = random.Random(4)
+    for z in lv:
+        for k in range(4):
+            if z == lv[1] and k == 3: continue
+            p.box((.24, ys[-1] - ys[0] + .3, .04), (xa + .15 + k * .26, (ys[0] + ys[-1]) / 2 + rnd.uniform(-.1, .1), z + .1))
+        p.box((.03, ys[-1] - ys[0], .18), (xb + .06, (ys[0] + ys[-1]) / 2, z + .2))           # toe board
+    p.box((.25, 1.6, .04), (xb + .35, ys[0] + .4, .05), rot=(0, .15, .3))                    # a fallen board
+    p.done()
+    # green netting hanging on the outer face, the lower corner torn loose
+    nx, nz = 12, 10
+    bm = bmesh.new(); grid = []
+    y0, y1, z0, z1 = .7, 4.55, 2.4, 6.05
+    for j in range(nz + 1):
+        row = []
+        for i in range(nx + 1):
+            u, v = i / nx, j / nz
+            y = y0 + (y1 - y0) * u; z = z0 + (z1 - z0) * v
+            x = xb + .09 + .05 * math.sin(u * 13) * (1 - v) + .03 * rnd.random()
+            if u < .3 and v < .35: x += (.3 - u) * (.35 - v) * 3.5; z += (.35 - v) * .4      # torn corner flapping
+            row.append(bm.verts.new((x, y, z)))
+        grid.append(row)
+    for j in range(nz):
+        for i in range(nx):
+            bm.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
+    me = bpy.data.meshes.new("SOB_net"); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new("SOB_net", me); c.objects.link(o); me.materials.append(SM["net"])
+    for pl in me.polygons: pl.use_smooth = True
+    so = o.modifiers.new("Solid", 'SOLIDIFY'); so.thickness = .02
+    # ladder up to the first deck
+    la = G("SOB_ladder", M["wood"], c, bevel=.008, seg=1)
+    a = Vector((xb + .9, -.6, 0)); b = Vector((xb + .05, -.6, lv[0] + 1.0))
+    d = (b - a); side = Vector((0, .2, 0))
+    for s_ in (-1, 1):
+        la.tube(a + side * s_, b + side * s_, .03, verts=5)
+    for k in range(1, 10):
+        p_ = a + d * (k / 10)
+        la.tube(p_ - side, p_ + side, .02, verts=5)
+    la.done()
+
+
+def sob_mixer(c, at=(3.85, -2.8, 0), rz=.6):
+    M0 = Matrix.Translation(at) @ Matrix.Rotation(rz, 4, 'Z')
+    fr = G("SOB_mixerFrame", M["rust"], c)
+    for sy in (-1, 1):
+        fr.tube(M0 @ Vector((-.55, sy * .3, .32)), M0 @ Vector((.55, sy * .3, .32)), .03, verts=6)
+        fr.tube(M0 @ Vector((.0, sy * .3, .32)), M0 @ Vector((.0, sy * .3, .85)), .03, verts=6)
+    fr.tube(M0 @ Vector((-.55, -.3, .32)), M0 @ Vector((-.75, -.3, .05)), .03, verts=6)
+    fr.tube(M0 @ Vector((-.55, .3, .32)), M0 @ Vector((-.75, .3, .05)), .03, verts=6)
+    fr.done()
+    dr = G("SOB_mixerDrum", SM["mixer"], c, bevel=.02, seg=1)
+    Md = M0 @ Matrix.Translation((.05, 0, .95)) @ Matrix.Rotation(-.6, 4, 'Y')
+    dr.cyl(.42, .5, (0, 0, 0), verts=16, M=Md)
+    dr.cyl(.42, .35, (0, 0, .42), verts=16, r2=.22, M=Md)
+    dr.cyl(.42, .25, (0, 0, -.37), verts=16, r2=.25, M=Md)
+    dr.done()
+    dk = G("SOB_mixerMouth", M["dark"], c)
+    dk.cyl(.2, .02, (0, 0, .6), verts=12, M=Md); dk.done()
+    wh = G("SOB_mixerWheels", M["tire"], c)
+    for sy in (-1, 1):
+        wh.torus(.2, .07, (0, 0, 0), M=M0 @ Matrix.Translation((.55, sy * .38, .22)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), seg=14, rseg=6)
+    wh.done()
+
+
+def sob_yard(c):
+    rnd = random.Random(14)
+    # front railing on a low stone plinth, gate open at the path
+    FY = -5.5; gx0, gx1 = -2.7, -1.6
+    pl = G("SOB_railPlinth", M["stone"], c, bevel=.03, seg=2)
+    rl = G("SOB_railIron", SM["iron"], c)
+    for (a, b) in ((-4.75, gx0), (gx1, 4.75)):
+        pl.box((b - a, .32, .38), ((a + b) / 2, FY, .19), open_bottom=True)
+        n = int((b - a) / .15)
+        for i in range(n + 1):
+            x = a + (b - a) * i / n
+            if a > 0 and 1.0 < x < 1.9: continue                                      # a few bars missing
+            rl.tube((x, FY, .38), (x, FY, 1.25), .014, verts=4)
+            rl.cyl(.035, .1, (x, FY, 1.3), verts=4, r2=0)
+        for z in (.48, 1.15): rl.tube((a, FY, z), (b, FY, z), .022, verts=6)
+    for x in (-4.75, gx0, gx1, 4.75):
+        pl.box((.36, .4, 1.35), (x, FY, .675), open_bottom=True)
+        pl.box((.44, .48, .1), (x, FY, 1.4))
+    Mg = Matrix.Translation((gx0 + .2, FY, .05)) @ Matrix.Rotation(1.25, 4, 'Z')
+    gw = gx1 - gx0 - .4
+    for z in (.1, 1.0): rl.box((gw, .04, .04), (gw / 2, 0, z), M=Mg)
+    for k in range(7):
+        x = gw * (k + .5) / 7
+        rl.cyl(.014, .95, (x, 0, .55), verts=5, M=Mg); rl.cyl(.035, .1, (x, 0, 1.06), verts=5, r2=0, M=Mg)
+    pl.done(); rl.done()
+    # path of stone slabs gate -> door, front steps
+    pa = G("SOB_path", M["stepstone"], c, bevel=.03, seg=1)
+    for k, y in enumerate((-5.05, -4.4, -3.75, -3.1, -2.45)):
+        pa.box((.75, .5, .06), (-2.15 + rnd.uniform(-.08, .08), y, .03), rot=(0, 0, rnd.uniform(-.12, .12)), open_bottom=True)
+    pa.done()
+    st = G("SOB_steps", M["stone"], c, bevel=.03, seg=2)
+    st.box((1.4, .5, .13), (-2.15, SY0 - .25, .065), open_bottom=True)
+    st.box((1.3, .25, .12), (-2.15, SY0 - .1, .19))
+    st.done()
+    # wild lawn
+    t = G("SOB_lawn", M["lawn"], c, bevel=.025, seg=1)
+    for k, (x, y, sx, sy) in enumerate(((-.2, -3.8, 1.7, 1.2), (1.9, -4.5, 1.4, .8), (-3.9, -1.0, .8, 1.6), (-3.9, 2.6, .9, 1.7),
+                                        (-.5, 5.3, 2.4, .45), (3.9, 4.9, .8, .7))):
+        rr = random.Random(300 + k); n = 22; ph = [rr.uniform(0, 6.3) for _ in range(3)]
+        pts = []
+        for q in range(n):
+            a = 2 * math.pi * q / n
+            rad = 1 + .13 * math.sin(3 * a + ph[0]) + .07 * math.sin(5 * a + ph[1]) + .04 * math.sin(7 * a + ph[2])
+            pts.append((max(-4.95, min(4.95, x + sx * rad * math.cos(a))), max(-5.3, min(5.75, y + sy * rad * math.sin(a)))))
+        top = [t.bm.verts.new((px, py, .045)) for (px, py) in pts]
+        bot = [t.bm.verts.new((px, py, 0)) for (px, py) in pts]
+        t.bm.faces.new(top)
+        for q in range(n): t.bm.faces.new((bot[q], bot[(q + 1) % n], top[(q + 1) % n], top[q]))
+    t.done()
+    pts = [(-1.4, -3.4), (-.6, -4.5), (.5, -3.2), (1.2, -4.1), (2.6, -4.8), (1.6, -5.1), (-.9, -5.1), (.2, -2.3), (1.5, -2.3),
+           (-3.0, -2.2), (-4.5, .5), (-3.7, 1.6), (-4.4, 3.8), (-1.0, 5.3), (.8, 5.2), (2.0, 5.4), (3.0, -1.8), (4.6, -.2),
+           (4.6, 2.0), (4.4, 3.9), (-.3, -1.85), (-4.5, -4.8), (3.6, -5.0), (4.5, -3.6)]
+    green, dry = [], []
+    for i, p_ in enumerate(pts): (dry if i % 4 == 0 else green).append(p_)
+    g = G("SOB_grass", M["grass"], c, smooth=False); tufts(g, green, 41, 1.1); g.done()
+    g = G("SOB_grassDry", M["grassdry"], c, smooth=False); tufts(g, dry, 42, 1.2); g.done()
+    w = G("SOB_weeds", M["grass"], c, smooth=False)
+    for i, (x, y) in enumerate(((.9, -3.6), (-.9, -4.2), (2.2, -4.3), (-1.2, -1.95), (1.7, -1.9))):
+        w.blades((x, y, 0), n=9, h=.95, w=.08, seed=800 + i, lean=(.1, .45))
+    w.done()
+    # wildflowers on stalks in the front garden
+    fl = {"SOB_flowerR": M["flower"], "SOB_flowerY": SM["flowerY"], "SOB_flowerW": SM["flowerW"]}
+    stalks = G("SOB_flowerStalks", M["grass"], c)
+    heads = {k: G(k, m, c) for k, m in fl.items()}
+    for i in range(26):
+        x = rnd.uniform(-1.3, 2.9); y = rnd.uniform(-5.0, -2.4)
+        if -2.6 < x < -1.7: continue
+        h = rnd.uniform(.4, .75)
+        top = Vector((x + rnd.uniform(-.08, .08), y + rnd.uniform(-.08, .08), h))
+        stalks.tube((x, y, 0), top, .012, verts=4)
+        heads[list(fl)[i % 3]].ball(.065, top, scale=(1, 1, .7), sub=1)
+    stalks.done()
+    for g_ in heads.values(): g_.done()
+    # the city tree in the front garden, crown bushes along the west side
+    city_tree("SOB_tree", c, (-3.85, -3.7, 0), 1, rot_z=math.radians(40), tris=5200, width=2.4)
+    for k, (x, y, r, rz) in enumerate(((-4.3, -.2, .6, .5), (-4.25, 2.0, .55, 1.9), (-4.25, 4.6, .65, 3.3), (4.35, -4.6, .5, 4.4))):
+        city_tree(f"SOB_bush{k}", c, (x, y, 0), 1, rot_z=rz, tris=650, crown_only=True, width=r * 2.1)
+    # tall plank fence at the back
+    fe = G("SOB_fenceBoards", M["wood"], c, smooth=False)
+    po = G("SOB_fencePosts", M["wood"], c, bevel=.015, seg=1)
+    x = -4.9
+    while x < 4.9:
+        bw = .18
+        if not (-1.2 < x < -.7):
+            h = 1.6 + rnd.uniform(-.06, .06)
+            tilt = .25 if 2.0 < x < 2.6 else 0
+            fe.box((bw - .02, .04, h), (x + bw / 2, 5.6, h / 2), rot=(-tilt, rnd.uniform(-.03, .03), 0))
+        x += bw
+    for x in (-4.85, -2.5, 0, 2.5, 4.85): po.box((.1, .1, 1.7), (x, 5.68, .85))
+    po.box((9.7, .05, .1), (0, 5.66, .4)); po.box((9.7, .05, .1), (0, 5.66, 1.3))
+    fe.done(); po.done()
+
+
+def sob_props(c):
+    rnd = random.Random(21)
+    sob_mixer(c)
+    bg = G("SOB_bags", SM["bag"], c, bevel=.04, seg=1)
+    for (x, y, z, a) in ((4.35, -1.4, 0, .1), (4.4, -.95, 0, -.15), (4.35, -1.2, .2, .4), (3.75, -.55, 0, 1.2)):
+        bg.box((.55, .38, .2), (x, y, z + .1), rot=(0, 0, a))
+    bg.done()
+    pa = G("SOB_pallet", M["wood"], c, bevel=.008, seg=1)
+    for y in (-.45, 0, .45): pa.box((1.1, .1, .09), (4.2, 3.6 + y, .045))
+    for i in range(5): pa.box((.1, 1.0, .02), (3.75 + i * .22, 3.6, .1))
+    pa.done()
+    br = G("SOB_bricks", M["brick"], c, smooth=False)
+    for lay in range(5):
+        for k in range(3):
+            if lay % 2 == 0: br.box((.24, .115, .075), (3.95 + k * .25, 3.6, .15 + lay * .08))
+            else: br.box((.115, .24, .075), (3.92 + k * .27, 3.6, .15 + lay * .08))
+    br.done()
+    sa = G("SOB_sand", M["dirtSand"], c)
+    sa.ball(.8, (3.95, 1.6, 0), scale=(1.0, .9, .45), sub=2); sa.clip = 0.0
+    sa.done()
+    bk = G("SOB_buckets", M["bucket"], c, bevel=.01, seg=1)
+    bk.cyl(.16, .34, (3.6, 2.5, .17), verts=14, r2=.18)
+    bk.cyl(.16, .34, (SX1 + .8, 1.3, lv_z(0) + .3), verts=14, r2=.18)
+    bk.done()
+    # an old armchair dumped in the garden, flowers growing round it
+    Ma = Matrix.Translation((1.25, -3.5, 0)) @ Matrix.Rotation(.55, 4, 'Z')
+    ac = G("SOB_armchair", SM["fabric"], c, bevel=.06, seg=2)
+    ac.box((.8, .75, .35), (0, 0, .3), M=Ma); ac.box((.8, .22, .65), (0, .3, .7), rot=(-.15, 0, 0), M=Ma)
+    for sx in (-1, 1): ac.box((.18, .75, .32), (sx * .38, 0, .55), M=Ma)
+    ac.done()
+    al = G("SOB_armchairLegs", M["wood"], c)
+    for sx in (-1, 1):
+        for sy in (-1, 1): al.cyl(.04, .14, (sx * .32, sy * .28, .07), verts=6, M=Ma)
+    al.done()
+    # birdbath
+    bb = G("SOB_birdbath", M["stone"], c, bevel=.02, seg=1)
+    bb.cyl(.18, .1, (2.9, -2.6, .05), verts=12); bb.cyl(.08, .65, (2.9, -2.6, .42), verts=10)
+    bb.cyl(.38, .12, (2.9, -2.6, .78), verts=14, r2=.42)
+    bb.done()
+    bw_ = G("SOB_birdbathWater", M["glass"], c)
+    bw_.cyl(.33, .02, (2.9, -2.6, .84), verts=14); bw_.done()
+    # clothesline in the back yard with two forgotten cloths
+    cl = G("SOB_clothPosts", M["wood"], c, bevel=.012, seg=1)
+    for x in (-3.6, -.4):
+        cl.box((.1, .1, 1.9), (x, 5.25, .95)); cl.box((.08, .7, .08), (x, 5.25, 1.85))
+    cl.done()
+    rp = G("SOB_clothRope", M["rope"], c)
+    for dy in (-.3, .3):
+        pts_ = [(-3.6 + 3.2 * i / 8, 5.25 + dy, 1.86 - .18 * math.sin(math.pi * i / 8)) for i in range(9)]
+        for a, b in zip(pts_, pts_[1:]): rp.tube(a, b, .01, verts=4)
+    rp.done()
+    c1 = G("SOB_cloth", SM["cloth"], c, bevel=.01, seg=1)
+    c1.box((.55, .02, .7), (-2.7, 4.95, 1.43), rot=(.05, 0, .02))
+    c1.done()
+    c2 = G("SOB_clothB", SM["clothB"], c, bevel=.01, seg=1)
+    c2.box((.45, .02, .55), (-1.6, 4.95, 1.48), rot=(-.08, .1, 0))
+    c2.done()
+    rb = G("SOB_rubble", M["brick"], c, smooth=False)
+    for k in range(8):
+        rb.box((.22, .11, .07), (rnd.uniform(2.9, 3.6), rnd.uniform(-1.6, -.9), .035 + (k // 4) * .07), rot=(0, 0, rnd.uniform(0, 3)))
+    rb.done()
+
+
+def lv_z(i): return (2.55, 4.95)[i] + .12
+
+
+def sob_pad(c):
+    p = G("SOB_pad", M["pad"], c)
+    p.box((PAD_W, PAD_D, .2), (0, 0, -.1))
+    o = p.done(); o.hide_render = True
+    return o
+
+
+def build_sobrado(part="all"):
+    c = col(SOB)
+    show_only(SOB)            # modifiers (decimate / bevel) are only evaluated in a visible collection
+    if part in ("all", "house"):
+        for o in list(c.objects): bpy.data.objects.remove(o)
+        for m in list(bpy.data.meshes):
+            if m.users == 0 and not m.use_fake_user: bpy.data.meshes.remove(m)
+    sob_mats()
+    if "dirtSand" not in M: M["dirtSand"] = m_flat("V3_Sand", C("D9B57A"), .1, 4, .95)
+    if part in ("all", "house"):
+        sob_pad(c); sob_walls(c); sob_trims(c); sob_openings(c); sob_balcony(c); sob_oculus(c)
+    if part in ("all", "roof"):
+        sob_roof(c); sob_scaffold(c)
+    if part in ("all", "yard"):
+        sob_yard(c); sob_props(c)
+    return stats(c)
+
+
+def sobrado_export():
+    return make_export(SOB, SOB_NAME, groups=SOB_GROUPS, default="SOB_junk",
+                       inside=(SX0 + WT, SX1 - WT, SY0 + WT, SY1 - WT), walls=("V3_SobWall", "V3_Stone"),
+                       texel={"V3_SobWall": 3.2, "V3_Stone": .9, "V3_Planks": .55, "V3_Deck": .2, "V3_Frame": .8,
+                              "V3_Plinth": .6, "V3_SlateTiles": .65, "V3_OrangeWood": .9, "V3_Lawn": .3})
