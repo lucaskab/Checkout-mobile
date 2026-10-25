@@ -48,13 +48,11 @@ namespace Checkout
         {
             scene = works; ruin = ruinRoot; style = how; crew = CheckoutWorksKit.Flat(towardCrew);
             if (scene) { scene.Blow += OnBlow; scene.WorkAt = WorkPoint; }
-            var watch = System.Diagnostics.Stopwatch.StartNew();
-            built = Fracture();
-            Debug.Log("CHECKOUT_RUIN_FRACTURE_MS " + (ruin ? ruin.name : "-") + " " + watch.ElapsedMilliseconds);
-            if (!built) return;
-            var b = Bounds();
+            if (!Prepare()) return;
             // Two heaps at the front corners of the ruin, clear of the crew working on its face (the haulers then
-            // never walk into the sledgehammers).
+            // never walk into the sledgehammers). Laid out from the ruin's own box, so they exist (and the haulers can
+            // be set up) while the ruin is still being cut.
+            var b = all;
             var side = Vector3.Cross(Vector3.up, crew);
             float halfFront = Mathf.Abs(Vector3.Dot(b.extents, new Vector3(Mathf.Abs(crew.x), 0, Mathf.Abs(crew.z))));
             float halfSide = Mathf.Abs(Vector3.Dot(b.extents, new Vector3(Mathf.Abs(side.x), 0, Mathf.Abs(side.z))));
@@ -62,12 +60,15 @@ namespace Checkout
             {
                 var at = b.center + crew * (halfFront - .2f) + side * (k * (halfSide + .35f));
                 at.y = ground;
-                var heap = new Heap { at = at, full = totalVolume * .5f };
+                var heap = new Heap { at = at, full = 1 };
                 heap.t = CheckoutWorksKit.Spawn(style == Style.Cut ? "Prop_GreenWaste" : "Prop_DebrisPile", scene ? scene.transform : transform, at, -crew);
                 heap.baseScale = heap.t.localScale;
                 heap.t.gameObject.SetActive(false);
                 Heaps.Add(heap);
             }
+            // The cut runs over a few frames (Lucas 25/10: the new detailed lot models are up to ~100k triangles once cut,
+            // about 0.4 s in one go on the PC: a visible freeze on a phone). The ruin stands whole until it is ready.
+            StartCoroutine(Fracture());
         }
 
         // ------------------------------------------------------------------ the chunks
@@ -96,10 +97,14 @@ namespace Checkout
 
         static Vector3Int Q(Vector3 p) => new Vector3Int(Mathf.RoundToInt(p.x * 500), Mathf.RoundToInt(p.y * 500), Mathf.RoundToInt(p.z * 500));
 
-        bool Fracture()
+        readonly List<MeshFilter> filters = new List<MeshFilter>();
+        Bounds all;
+
+        // The parts of the ruin that will be cut, and its box (cheap: done at once in Begin).
+        bool Prepare()
         {
             if (!ruin) return false;
-            var filters = new List<MeshFilter>();
+            filters.Clear();
             foreach (var mf in ruin.GetComponentsInChildren<MeshFilter>(false))
             {
                 var r = mf.GetComponent<MeshRenderer>();
@@ -109,13 +114,24 @@ namespace Checkout
                 filters.Add(mf);
             }
             if (filters.Count == 0) return false;
-            var all = new Bounds(); bool any = false;
+            all = new Bounds(); bool any = false;
             foreach (var mf in filters)
             {
                 var wb = mf.GetComponent<Renderer>().bounds;
                 if (!any) { all = wb; any = true; } else all.Encapsulate(wb);
             }
             ground = all.min.y; height = Mathf.Max(.5f, all.size.y);
+            return true;
+        }
+
+        // Each frame gets a few milliseconds of cutting; the rest waits for the next frame.
+        const double SliceMs = 6;
+
+        System.Collections.IEnumerator Fracture()
+        {
+            var total = System.Diagnostics.Stopwatch.StartNew();
+            var slice = System.Diagnostics.Stopwatch.StartNew(); int frames = 1;
+            bool Due() => slice.Elapsed.TotalMilliseconds > SliceMs;
             float cell = Mathf.Clamp(Mathf.Max(all.size.x, all.size.z) / 6f, .55f, 1.2f);
             float rise = Mathf.Clamp(all.size.y / 5f, .45f, .95f);
             float piece = Mathf.Min(.32f, cell * .3f);
@@ -142,8 +158,8 @@ namespace Checkout
                     var t = mesh.GetTriangles(sm);
                     for (int i = 0; i < t.Length; i += 3)
                     {
-                        V Vx(int k) => new V { p = m.MultiplyPoint3x4(v[k]), n = n.Length == v.Length ? m.MultiplyVector(n[k]).normalized : Vector3.up, uv = uv.Length > k ? uv[k] : Vector2.zero };
-                        Split(Vx(t[i]), Vx(t[i + 1]), Vx(t[i + 2]), piece * piece, 0, part, thick, tris);
+                        Split(Vx(v, n, uv, m, t[i]), Vx(v, n, uv, m, t[i + 1]), Vx(v, n, uv, m, t[i + 2]), piece * piece, 0, part, thick, tris);
+                        if ((i & 255) == 0 && Due()) { yield return null; if (!ruin) yield break; slice.Restart(); frames++; }
                     }
                 }
             }
@@ -178,6 +194,7 @@ namespace Checkout
             var groups = new Dictionary<Vector3Int, List<int>>();
             for (int i = 0; i < tris.Count; i++)
             {
+                if ((i & 255) == 0 && Due()) { yield return null; if (!ruin) yield break; slice.Restart(); frames++; }
                 var t = tris[i];
                 var fn = Vector3.Cross(t.b.p - t.a.p, t.c.p - t.a.p);
                 fn = fn.sqrMagnitude > 1e-12f ? fn.normalized : t.a.n;
@@ -190,6 +207,7 @@ namespace Checkout
             broken = new GameObject("Broken ruin").transform; broken.SetParent(ruin, false);
             foreach (var pair in groups)
             {
+                if (Due()) { yield return null; if (!ruin || !broken) yield break; slice.Restart(); frames++; }
                 if (pair.Value.Count == 0) continue;
                 var verts = new List<Vector3>(); var norms = new List<Vector3>(); var uvs = new List<Vector2>();
                 var subs = new Dictionary<int, List<int>>();
@@ -266,15 +284,19 @@ namespace Checkout
                     colours = sample, material = mats.Count > 0 ? mats[0] : null, box = cb,
                 });
             }
-            if (chunks.Count == 0) { Destroy(broken.gameObject); foreach (var o in originals) if (o) o.enabled = true; originals.Clear(); return false; }
+            if (chunks.Count == 0) { Destroy(broken.gameObject); foreach (var o in originals) if (o) o.enabled = true; originals.Clear(); yield break; }
             // Order: the highest (and front) pieces come down first; the foundations last, when the lot is all but clear.
             chunks.Sort((a, b) => b.at.CompareTo(a.at));
             totalVolume = 0; foreach (var c in chunks) totalVolume += c.volume;
             for (int i = 0; i < chunks.Count; i++) chunks[i].at = Mathf.Lerp(.03f, .93f, chunks.Count == 1 ? 0 : (float)i / (chunks.Count - 1));
             foreach (var mf in filters) { var r = mf.GetComponent<Renderer>(); r.enabled = false; originals.Add(r); }
-            Debug.Log("CHECKOUT_RUIN_FRACTURE " + ruin.name + " pieces " + chunks.Count + " triangles " + tris.Count);
-            return true;
+            foreach (var h in Heaps) h.full = totalVolume * .5f;
+            built = true;
+            Debug.Log("CHECKOUT_RUIN_FRACTURE " + ruin.name + " pieces " + chunks.Count + " triangles " + tris.Count + " ms " + total.ElapsedMilliseconds + " frames " + frames);
         }
+
+        static V Vx(Vector3[] v, Vector3[] n, Vector2[] uv, Matrix4x4 m, int k) =>
+            new V { p = m.MultiplyPoint3x4(v[k]), n = n.Length == v.Length ? m.MultiplyVector(n[k]).normalized : Vector3.up, uv = uv.Length > k ? uv[k] : Vector2.zero };
 
         Bounds Bounds()
         {
