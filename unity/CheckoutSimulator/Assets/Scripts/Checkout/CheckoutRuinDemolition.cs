@@ -290,8 +290,10 @@ namespace Checkout
             totalVolume = 0; foreach (var c in chunks) totalVolume += c.volume;
             for (int i = 0; i < chunks.Count; i++) chunks[i].at = Mathf.Lerp(.03f, .93f, chunks.Count == 1 ? 0 : (float)i / (chunks.Count - 1));
             foreach (var mf in filters) { var r = mf.GetComponent<Renderer>(); r.enabled = false; originals.Add(r); }
-            foreach (var h in Heaps) h.full = totalVolume * .5f;
+            foreach (var h in Heaps) { h.full = totalVolume * .5f; if (style == Style.Smash) Dress(h.t, 14, .13f, .26f); }
             built = true;
+            // Loads already in the skip (a lot opened half cleared) get their bits now too.
+            foreach (var load in GetComponents<CheckoutSkipLoad>()) load.DressLoads(this);
             Debug.Log("CHECKOUT_RUIN_FRACTURE " + ruin.name + " pieces " + chunks.Count + " triangles " + tris.Count + " ms " + total.ElapsedMilliseconds + " frames " + frames);
         }
 
@@ -370,6 +372,52 @@ namespace Checkout
                     spin = UnityEngine.Random.onUnitSphere * UnityEngine.Random.Range(200f, 600f),
                 });
             }
+        }
+
+        /// <summary>Scatters `count` broken bits of this ruin (its own colours: tiles, plaster, brick, paint) over the top of
+        /// `pile` (a rubble heap, a load in the skip), so what is carried away looks like what came down (Lucas 25/10:
+        /// every lot used to fill the skip with the same grey stones). Sizes are in metres, whatever the pile's scale.</summary>
+        public void Dress(Transform pile, int count, float min, float max)
+        {
+            if (chunks.Count == 0) return;
+            if (!pile || style != Style.Smash || count <= 0) return;
+            var lb = LocalBounds(pile);
+            if (lb.size == Vector3.zero) return;
+            float scale = Mathf.Max(1e-4f, Mathf.Abs(pile.lossyScale.x));
+            for (int i = 0; i < count; i++)
+            {
+                var c = chunks[UnityEngine.Random.Range(0, chunks.Count)];
+                if (!c.material || c.colours == null || c.colours.Length == 0) continue;
+                var uv = c.colours[UnityEngine.Random.Range(0, c.colours.Length)];
+                float size = UnityEngine.Random.Range(min, max);
+                var mesh = Rock(uv, size / scale); meshes.Add(mesh);
+                var go = new GameObject("Ruin rubble"); go.layer = pile.gameObject.layer;
+                go.transform.SetParent(pile, false);
+                // On the mound: nearer the middle, higher up.
+                var r = UnityEngine.Random.insideUnitCircle * .8f;
+                float top = 1 - r.magnitude;
+                go.transform.localPosition = new Vector3(lb.center.x + r.x * lb.extents.x, lb.min.y + lb.size.y * (.35f + .55f * top), lb.center.z + r.y * lb.extents.z);
+                go.transform.localRotation = UnityEngine.Random.rotation;
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterial = c.material; mr.shadowCastingMode = ShadowCastingMode.Off;
+            }
+        }
+
+        // The box of a prop's meshes in its own space (works while it is hidden, unlike Renderer.bounds).
+        static Bounds LocalBounds(Transform root)
+        {
+            var b = new Bounds(); bool any = false; var w2l = root.worldToLocalMatrix;
+            foreach (var mf in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (!mf.sharedMesh || mf.name == "Ruin rubble") continue;
+                var mb = mf.sharedMesh.bounds; var m = w2l * mf.transform.localToWorldMatrix;
+                for (int k = 0; k < 8; k++)
+                {
+                    var p = m.MultiplyPoint3x4(mb.center + Vector3.Scale(mb.extents, new Vector3((k & 1) == 0 ? -1 : 1, (k & 2) == 0 ? -1 : 1, (k & 4) == 0 ? -1 : 1)));
+                    if (!any) { b = new Bounds(p, Vector3.zero); any = true; } else b.Encapsulate(p);
+                }
+            }
+            return b;
         }
 
         // A lumpy little stone: a box with its corners pushed about, flat-shaded, one colour of the texture.

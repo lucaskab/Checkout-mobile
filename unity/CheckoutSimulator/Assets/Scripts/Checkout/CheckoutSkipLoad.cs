@@ -78,11 +78,27 @@ namespace Checkout
             float fit = pb.size.x > 0 ? span * .62f / Mathf.Max(pb.size.x, pb.size.z) : 1;
             piece.localScale = Vector3.one * fit * (.9f + (float)rnd.NextDouble() * .3f);
             piece.name = "Skip rubble " + i;
+            // Bits of the ruin itself on each load (its tiles, plaster, bricks), so the skip fills with that lot.
             lumps.Add(piece);
+            DressLoads(GetComponent<CheckoutRuinDemolition>());
             if (fly && from.HasValue)
             {
                 var to = piece.position; piece.position = from.Value;
                 flying.Add((piece, from.Value, to, Random.rotation, 0));
+            }
+        }
+
+        readonly HashSet<Transform> dressed = new HashSet<Transform>();
+        /// <summary>Puts bits of the ruin on every load not dressed yet (once its pieces exist).</summary>
+        public void DressLoads(CheckoutRuinDemolition demo)
+        {
+            if (!demo) return;
+            foreach (var l in lumps)
+            {
+                if (!l || dressed.Contains(l)) continue;
+                int before = l.childCount;
+                demo.Dress(l, 4, .1f, .22f);
+                if (l.childCount > before) dressed.Add(l);
             }
         }
 
