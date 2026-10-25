@@ -48,7 +48,9 @@ namespace Checkout
         {
             scene = works; ruin = ruinRoot; style = how; crew = CheckoutWorksKit.Flat(towardCrew);
             if (scene) { scene.Blow += OnBlow; scene.WorkAt = WorkPoint; }
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             built = Fracture();
+            Debug.Log("CHECKOUT_RUIN_FRACTURE_MS " + (ruin ? ruin.name : "-") + " " + watch.ElapsedMilliseconds);
             if (!built) return;
             var b = Bounds();
             // Two heaps at the front corners of the ruin, clear of the crew working on its face (the haulers then
