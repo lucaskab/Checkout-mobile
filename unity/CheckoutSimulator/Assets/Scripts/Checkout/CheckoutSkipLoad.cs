@@ -32,7 +32,8 @@ namespace Checkout
             var b = CheckoutWorksKit.Bounds(skip.gameObject);
             load.rim = b.max.y;
             // The inside: the box a little in from the walls, from a floor just above the ground.
-            var size = new Vector3(b.size.x * .74f, b.size.y, b.size.z * .74f);
+            // (the skip's walls taper in towards the floor: the loads keep well inside them)
+            var size = new Vector3(b.size.x * .62f, b.size.y, b.size.z * .62f);
             load.inside = new Bounds(new Vector3(b.center.x, b.min.y + b.size.y * .5f, b.center.z), size);
             scene.OnProgress(load.Progress);
             return load;
@@ -71,11 +72,13 @@ namespace Checkout
             float y = floor + layer * step * .9f;
             // The top layer heaps up in the middle.
             if (layer == Layers - 1) { u *= .7f; v *= .7f; y += step * .25f; }
+            // Narrower near the floor, where the tapered walls come in.
+            float taper = Mathf.Lerp(.72f, 1f, layer / (float)(Layers - 1)); u *= taper; v *= taper;
             var at = new Vector3(inside.center.x + (alongX ? u * inside.size.x : v * inside.size.x), y, inside.center.z + (alongX ? v * inside.size.z : u * inside.size.z));
             var piece = CheckoutWorksKit.Spawn("Prop_Rubble", transform, at, Quaternion.Euler(0, (float)rnd.NextDouble() * 360f, 0) * Vector3.forward);
             float span = Mathf.Min(inside.size.x, inside.size.z);
             var pb = CheckoutWorksKit.Bounds(piece.gameObject);
-            float fit = pb.size.x > 0 ? span * .62f / Mathf.Max(pb.size.x, pb.size.z) : 1;
+            float fit = pb.size.x > 0 ? span * .55f / Mathf.Max(pb.size.x, pb.size.z) : 1;
             piece.localScale = Vector3.one * fit * (.9f + (float)rnd.NextDouble() * .3f);
             piece.name = "Skip rubble " + i;
             // Bits of the ruin itself on each load (its tiles, plaster, bricks), so the skip fills with that lot.

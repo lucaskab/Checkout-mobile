@@ -394,7 +394,7 @@ namespace Checkout
                 var go = new GameObject("Ruin rubble"); go.layer = pile.gameObject.layer;
                 go.transform.SetParent(pile, false);
                 // On the mound: nearer the middle, higher up.
-                var r = UnityEngine.Random.insideUnitCircle * .8f;
+                var r = UnityEngine.Random.insideUnitCircle * .6f;
                 float top = 1 - r.magnitude;
                 go.transform.localPosition = new Vector3(lb.center.x + r.x * lb.extents.x, lb.min.y + lb.size.y * (.35f + .55f * top), lb.center.z + r.y * lb.extents.z);
                 go.transform.localRotation = UnityEngine.Random.rotation;
