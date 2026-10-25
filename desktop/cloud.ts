@@ -1,6 +1,7 @@
 import type { GameStore } from "@/@types/game";
 import { getMarketEra } from "@/data/economy";
 import { useGameStore } from "@/stores/game-store";
+import { isSaveLocked, lockSave, unlockSave } from "@/storage/save-guard";
 
 /**
  * Cloud saves as the host sees them (Lucas 12/10: "o progresso e os diamantes continuam se ele trocar de celular").
@@ -82,12 +83,21 @@ export async function importSave(data: unknown) {
 	const options = useGameStore.persist.getOptions();
 	if (!options.storage || !options.name) return false;
 	const previous = await options.storage.getItem(options.name);
+	const wasLocked = isSaveLocked();
 	try {
+		// Restoring from the cloud is how a locked save (save-guard.ts) gets progress back: let it write.
+		unlockSave();
 		await options.storage.setItem(options.name, { state: parsed.state, version: num(parsed.version) } as never);
 		await useGameStore.persist.rehydrate();
+		if (isSaveLocked()) throw new Error("the cloud save could not be loaded");
 	} catch (error) {
 		// Never leave the device half-replaced: put this device's save back.
-		if (previous) await options.storage.setItem(options.name, previous);
+		unlockSave();
+		if (previous) {
+			await options.storage.setItem(options.name, previous);
+			await useGameStore.persist.rehydrate();
+		}
+		if (wasLocked) lockSave("restored the save that could not be loaded");
 		console.error(`CHECKOUT_CLOUD import failed: ${error}`);
 		return false;
 	}

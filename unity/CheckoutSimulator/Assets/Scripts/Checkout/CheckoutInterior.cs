@@ -14,7 +14,7 @@ namespace Checkout
     // Positions are stored in the unprojected base map (walls at x ±9.4, z ±7.4) and shown at the projected
     // spot of the bought stage, at their natural size. The shop only ever grows, so a layout that fits once
     // keeps fitting. Pieces without a saved spot start at a default and slide to the nearest free place.
-    public class CheckoutInterior : MonoBehaviour
+    public partial class CheckoutInterior : MonoBehaviour
     {
         public class Item
         {
@@ -32,6 +32,9 @@ namespace Checkout
         public struct Footprint { public Vector2 c, ax, az; public float hx, hz; }
 
         public const float Floor = .74f, DoorX = -1.75f, Ground = .13f, RearDoorX = 4.02f;
+        /// <summary>Height of the shop floor the furniture stands on now: the market building's floor, or the floor of the
+        /// stall / small shop of the first expansions (lower). The build grid and the green/red footprint lie on it.</summary>
+        public static float FloorHere => CheckoutStall.Small ? CheckoutStall.FloorY : Floor;
         public static CheckoutInterior Active { get; private set; }
         public readonly Dictionary<string, Item> items = new Dictionary<string, Item>();
         // Shop furniture the player owns but has not placed yet (build-mode inventory "Para colocar"): a new shop
@@ -222,7 +225,9 @@ namespace Checkout
             // those are not pieces to place or move (CheckoutStall.BuiltIn), and a stall has no room for another
             // checkout. Their saved spots (in the market, in a shop) are kept aside untouched for later.
             var aside = new List<InteriorItem>();
-            if (!designMode && CheckoutStall.Yard)
+            // The Späti and the quitanda sell over their own counter too: their checkouts wait aside as well (they are
+            // never a piece to place there, so the build mode must not ask for them).
+            if (!designMode && (CheckoutStall.Yard || (CheckoutStall.ShopInside && !CheckoutStall.PlacedCounter)))
             {
                 bool Aside(string id, string type) => CheckoutStall.BuiltIn(id) || type == "checkout" || type == "kiosk";
                 aside.AddRange(saved.Where(e => e != null && Aside(e.id, e.type)));
@@ -444,7 +449,7 @@ namespace Checkout
                 t.SetPositionAndRotation(new Vector3((x0 + x1) * .5f, y, (z0 + z1) * .5f), Quaternion.Euler(90, 0, 0));
                 t.localScale = new Vector3(x1 - x0, z1 - z0, 1);
             }
-            float fy = CheckoutStall.ShopInside ? CheckoutStall.FloorY : Floor;
+            float fy = FloorHere;
             Put("Band", zone.xMin, zone.yMin, zone.xMax, zone.yMax, fy + .004f);
             Put("Line shadow", zone.xMin - .12f, zone.yMin, zone.xMin + .05f, zone.yMax, fy + .005f);
             Put("Line", zone.xMin - .07f, zone.yMin, zone.xMin + .05f, zone.yMax, fy + .006f);

@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { StateStorage } from "zustand/middleware";
+import { blocksWrite, lockSave } from "@/storage/save-guard";
 
 // Desktop replacement for src/storage/mmkv.ts. The save lives outside the mobile app,
 // so testing on desktop never touches the phone's progress.
@@ -35,6 +36,7 @@ function read(): Record<string, string> {
 		copyFileSync(path, `${path}.unreadable-${Date.now()}`);
 	} catch {}
 	console.error(`CHECKOUT_SAVE could not read ${path}; a copy was kept aside and a new game started`);
+	lockSave("unreadable save file");
 	return {};
 }
 
@@ -58,10 +60,12 @@ const values = read();
 export const mmkvStorage: StateStorage = {
 	getItem: (key) => values[key] ?? null,
 	removeItem: (key) => {
+		if (blocksWrite(key)) return;
 		delete values[key];
 		write(values);
 	},
 	setItem: (key, value) => {
+		if (blocksWrite(key)) return;
 		values[key] = value;
 		write(values);
 	},

@@ -536,7 +536,7 @@ namespace Checkout
             paletteDim.SetActive(false);
             if (paletteFurniture)
             {
-                var r = Interior.FloorRect; var at = ScreenCenterOn(CheckoutInterior.Floor);
+                var r = Interior.FloorRect; var at = ScreenCenterOn(CheckoutInterior.FloorHere);
                 at.x = Mathf.Clamp(at.x, r.xMin + 1, r.xMax - 1); at.z = Mathf.Clamp(at.z, r.yMin + 1.5f, r.yMax - 1);
                 BeginChange();
                 var it = Interior.AddDesign(source.Substring(4), at);
@@ -632,7 +632,7 @@ namespace Checkout
             if (!footprint) return;
             if (piece != null && piece.root)
             {
-                float y = piece.outside ? CheckoutInterior.Ground : CheckoutInterior.Floor;
+                float y = piece.outside ? CheckoutInterior.Ground : CheckoutInterior.FloorHere;
                 var position = piece.root.position; position.y = y;
                 bool ok = Interior.Fits(piece, position, piece.rot, out _);
                 var f = Interior.FootprintAt(piece, position, piece.rot);
@@ -862,7 +862,7 @@ namespace Checkout
                 return;
             }
             if (!CheckoutInterior.GridOn) { CheckoutGridOverlay.Hide(); return; }
-            if (tool == Tool.Furniture) CheckoutGridOverlay.Show(Interior.FloorRect, CheckoutInterior.Floor + .012f, CheckoutInterior.GridSize, new Color(1, 1, 1, .42f));
+            if (tool == Tool.Furniture) CheckoutGridOverlay.Show(Interior.FloorRect, CheckoutInterior.FloorHere + .012f, CheckoutInterior.GridSize, new Color(1, 1, 1, .42f));
             else
             {
                 var f = sim.CameraState.focus; float g = Mathf.Max(.25f, CheckoutInterior.GridSize), half = Mathf.Ceil(sim.CameraState.zoom * 2.2f / g) * g;
@@ -885,7 +885,7 @@ namespace Checkout
                     if (hit != null && !hit.outside)
                     {
                         Select(hit, null);
-                        dragPlane = new Plane(Vector3.up, new Vector3(0, CheckoutInterior.Floor, 0));
+                        dragPlane = new Plane(Vector3.up, new Vector3(0, CheckoutInterior.FloorHere, 0));
                         if (dragPlane.Raycast(ray, out var d)) { dragging = true; dragChanged = false; dragOffset = hit.root.position - ray.GetPoint(d); dragStart = hit.root.position; dragStartRot = hit.rot; sim.cameraLocked = true; }
                     }
                 }

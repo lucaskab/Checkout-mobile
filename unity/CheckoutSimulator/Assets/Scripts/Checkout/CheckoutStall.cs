@@ -52,7 +52,7 @@ namespace Checkout
         }
         static readonly Dictionary<string, ShopPlan> Plans = new Dictionary<string, ShopPlan>
         {
-            ["Era4_Spati"] = new ShopPlan { floor = Rect.MinMaxRect(-2.85f, -1.12f, 2.85f, 2.25f), doorMin = .72f, doorMax = 1.62f, counter = Rect.MinMaxRect(1.3f, .0f, 3.03f, 1.4f), pay = new Vector2(2.15f, -.35f), queueStep = new Vector2(-.75f, 0), floorY = .03f },
+            ["Era4_Spati"] = new ShopPlan { floor = Rect.MinMaxRect(-2.85f, -1.12f, 2.85f, 2.25f), doorMin = .72f, doorMax = 1.62f, counter = Rect.MinMaxRect(1.3f, .0f, 3.03f, 1.4f), pay = new Vector2(2.15f, -.35f), queueStep = new Vector2(-.75f, 0), floorY = .06f },
             ["Era5_Quitanda"] = new ShopPlan { floor = Rect.MinMaxRect(-4.1f, -2.4f, 4.1f, 2.6f), doorMin = -3.45f, doorMax = .55f, counter = Rect.MinMaxRect(1.35f, -1.7f, 3.15f, -.3f), pay = new Vector2(2.25f, -2.0f), queueStep = new Vector2(-.75f, 0), floorY = .06f },
             ["Era6_Minimercado"] = new ShopPlan { floor = Rect.MinMaxRect(-5.65f, -2.9f, 5.65f, 2.95f), doorMin = -1.2f, doorMax = .2f, counter = Rect.MinMaxRect(2.55f, -2.75f, 3.95f, -.75f), pay = new Vector2(2.25f, -1.75f), queueStep = new Vector2(0, .75f), floorY = .16f, placedCounter = true },
         };

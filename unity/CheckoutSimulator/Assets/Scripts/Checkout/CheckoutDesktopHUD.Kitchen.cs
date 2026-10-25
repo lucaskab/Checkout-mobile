@@ -78,7 +78,8 @@ namespace Checkout {
    StopKitchen();kitchenShown=key;kitchen=k;
    kitchenHeader.color=K.C(string.IsNullOrEmpty(k.tint)?"B7682B":k.tint);
    kitchenIcon.sprite=K.Icon(k.icon);kitchenTitle.text=K.Clean(k.title);kitchenSubtitle.text=$"{K.Clean(v.page.subtitle)} · feito à mão · rende {k.output}";
-   kitchenBench.sprite=K.Icon(k.bench);kitchenBench.color=kitchenBench.sprite?Color.white:K.C("C9A277");
+   // The puzzle benches made in Blender (Game/pz_bench_<sector>) win over the old ones.
+   kitchenBench.sprite=K.Icon("Game/pz_bench_"+k.sectorId)??K.Icon(k.bench);kitchenBench.color=kitchenBench.sprite?Color.white:K.C("C9A277");
    while(kitchenChipsUi.Count<k.steps.Length)kitchenChipsUi.Add(KitchenChip.Create(kitchenChips));
    for(int i=0;i<kitchenChipsUi.Count;i++){bool show=i<k.steps.Length;kitchenChipsUi[i].gameObject.SetActive(show);if(show)kitchenChipsUi[i].Apply(i+1,"todo",0);}
    StartCoroutine(U.Pop(kitchenWin.transform.Find("Window"),1.02f,.22f));
@@ -210,6 +211,10 @@ namespace Checkout {
   void KFinish(DesktopKitchenStep s){if(kNext&&kNext.enabled){kTarget.sprite=kNext.sprite;kNext.color=new Color(1,1,1,0);}}
 
   IEnumerator RunStep(DesktopKitchenStep s,int index){
+   // Puzzle steps draw their own board (CheckoutDesktopHUD.KitchenPuzzle.cs).
+   IEnumerator puzzle=s.kind=="tray"?StepTray(s):s.kind=="aging"?StepAging(s):s.kind=="portions"?StepPortions(s):s.kind=="orders"?StepOrders(s)
+    :s.kind=="sort"?StepSort(s):s.kind=="scoops"?StepScoops(s):s.kind=="decant"?StepDecant(s):null;
+   if(puzzle!=null){yield return puzzle;KitchenMeter(1);yield break;}
    KitchenTarget(s);
    kTarget.transform.localScale=Vector3.zero;yield return U.Scale(kTarget.transform,Vector3.one,.25f,true);
    switch(s.kind){

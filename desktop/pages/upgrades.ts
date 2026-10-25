@@ -27,6 +27,7 @@ import {
 import type { Routes } from ".";
 import { getShopItemBuildStatus } from "@/services/interior-construction";
 import { getShopItemPlaceEra } from "@/data/interior-construction";
+import { getShopItemPieceId, hasInteriorRoom, NO_ROOM_REASON } from "@/services/interior-room";
 import { getEraOrder } from "@/data/market-products";
 import {
 	act,
@@ -236,8 +237,12 @@ export const routes: Routes = {
 			const missingRequired = !!required && !ownedItemIds.includes(required.id);
 			// Fixtures that need room in the market (second checkout, self-checkout) arrive with that expansion.
 			const roomEra = getShopItemPlaceEra(item.id);
-			const noRoom = !!roomEra && getEraOrder(state.era.id) < getEraOrder(roomEra);
-			const roomLabel = roomEra ? `Chega com: ${getMarketEra(roomEra).name}` : "";
+			const beforeRoomEra = !!roomEra && getEraOrder(state.era.id) < getEraOrder(roomEra);
+			// ...and while the shop floor has a spot for them (Unity measures it, src/services/interior-room.ts).
+			const piece = getShopItemPieceId(item.id);
+			const floorFull = !isOwned && !!piece && !hasInteriorRoom(piece);
+			const noRoom = beforeRoomEra || floorFull;
+			const roomLabel = beforeRoomEra && roomEra ? `Chega com: ${getMarketEra(roomEra).name}` : NO_ROOM_REASON;
 			const isLocked = level < item.level || missingRequired || noRoom;
 			const consumableAmount = consumableAmounts[item.id] ?? 0;
 			const isDiamond = Boolean(item.diamondPrice);

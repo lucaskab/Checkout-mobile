@@ -1,6 +1,8 @@
+import { getShopItemPieceId, hasInteriorRoom } from "@/services/interior-room";
 import { getDecorEffects, rollDecorPlays } from "@/services/decor-effects";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { lockSave } from "@/storage/save-guard";
 import type { InteriorState } from "@/@types/interior";
 import type { GameStatistics } from "@/@types/achievement";
 import {
@@ -1950,6 +1952,10 @@ export const useGameStore = create<GameStore>()(
 				if (roomEra && getEraOrder(get().era.id) < getEraOrder(roomEra)) {
 					return false;
 				}
+				const piece = getShopItemPieceId(item.id);
+				if (piece && !hasInteriorRoom(piece)) {
+					return false;
+				}
 				const installed = isBuiltShopItem(item.id);
 				const interiorConstructions = get().interiorConstructions;
 				if (installed && findInteriorConstruction(interiorConstructions, "shop", item.id)) {
@@ -3742,7 +3748,11 @@ export const useGameStore = create<GameStore>()(
 				}
 				const firstCustomer =
 					market.customersServed === 0 && market.recentCustomers.length === 0;
-				const nextCustomerDelay = firstCustomer
+				// Opening the shop (every day, not only the first one) brings someone in a few seconds: a long wait
+				// before the first customer made the start of each day feel like nothing was happening (Lucas 24/10).
+				const nextCustomerDelay = isOpening
+					? 3_000 + (Math.abs(market.randomSeed) % 2_000)
+					: firstCustomer
 					? 6_000
 					: getCustomerArrivalDelay(
 							market.level,
@@ -4142,6 +4152,8 @@ export const useGameStore = create<GameStore>()(
 					findInteriorConstruction(state.interiorConstructions, "shelf", nextShelf.id) ||
 					// Each shelf comes with the expansion that has room for it.
 					getEraOrder(state.era.id) < getEraOrder(nextUpgrade.eraId) ||
+					// ...and only while the shop floor has room for it (Unity measures it).
+					!hasInteriorRoom(`shelf:${nextShelf.id}`) ||
 					state.market.level < nextUpgrade.playerLevel ||
 					state.coins < nextUpgrade.coinCost
 				) {
@@ -4173,6 +4185,7 @@ export const useGameStore = create<GameStore>()(
 					getEraOrder(state.era.id) < getEraOrder(sector.eraId) ||
 					// The sector needs the market wing that has room for it.
 					!layout.sectorIds.includes(sector.id) ||
+					!hasInteriorRoom(`sector:${sector.id}`) ||
 					(currency === "coins" && state.coins < plan.coinCost) ||
 					(currency === "diamonds" && !enoughDiamonds(diamondCost))
 				) {
@@ -4620,6 +4633,10 @@ export const useGameStore = create<GameStore>()(
 				onboarding,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
+			// A save that fails to load or migrate is kept on disk untouched (src/storage/save-guard.ts).
+			onRehydrateStorage: () => (_state, error) => {
+				if (error) lockSave(error);
+			},
 			// 35: employees gained tasks/nextTaskNumber/lastPayroll (staff jobs and per-shift pay).
 			// 36: shelves, sectors and fixtures are built over time (interiorConstructions, builtSectorIds).
 			// 37: market eras (era: mesinha → rede); old saves start at the mercadinho or later.

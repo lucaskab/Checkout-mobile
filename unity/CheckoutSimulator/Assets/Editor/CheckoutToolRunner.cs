@@ -58,14 +58,21 @@ public static class CheckoutToolRunner {
   var root=Path.GetFullPath(Path.Combine(Project,"..",".."));
   switch(kind){
    case "sprites":Run(kind,Blender,$"-b --factory-startup --python \"{Path.Combine(root,"scripts","blender","build_ui_sprites.py")}\" -- {rest}",root);Wake("refresh");return;
-   case "tests":Run(kind,"cmd.exe",$"/c bun test {rest}",root);return;
-   case "tsc":Run(kind,"cmd.exe","/c node node_modules/typescript/bin/tsc --noEmit -p .",root);return;
+   case "tests":Shell(kind,$"bun test {rest}",root);return;
+   case "tsc":Shell(kind,"node node_modules/typescript/bin/tsc --noEmit -p .",root);return;
+   // The game logic the phones run (Resources/CheckoutGame/game.txt), before an Android / iPhone build.
+   case "embedded":Shell(kind,"bun scripts/release/build-embedded.ts",root);Wake("refresh");return;
    case "editorlog":WriteEditorLog();return;
    case "play":File.WriteAllText(P("Logs/autotest.txt"),rest);File.WriteAllText(P(PlayPending),rest);Write($"kind=play\nscenario={rest}\nwaiting for the editor");Wake(null);return;
    case "stop":Wake("stop");return;
    case "refresh":Wake("refresh");return;
    case "menu":Write($"kind=menu\nitem={rest}\nwaiting for the editor");Wake("menu:"+rest);return;
   }
+ }
+ // A command line through the system shell: cmd on Windows, a login zsh on the Mac (so bun / node are on the PATH).
+ static void Shell(string kind,string command,string cwd){
+  if(Environment.OSVersion.Platform==PlatformID.Unix||Environment.OSVersion.Platform==PlatformID.MacOSX)Run(kind,"/bin/zsh",$"-lc \"{command}\"",cwd);
+  else Run(kind,"cmd.exe","/c "+command,cwd);
  }
  static void Run(string kind,string exe,string args,string cwd){
   Write($"kind={kind}\nrunning");

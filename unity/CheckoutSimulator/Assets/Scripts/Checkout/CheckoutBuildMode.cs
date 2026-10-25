@@ -50,13 +50,19 @@ namespace Checkout
             bridge = owner; map = projection; simulation = FindAnyObjectByType<MarketSimulation>(); instance = this;
             if (!Interior || !Interior.Ready) { enabled = false; return; }
             root = U.Canvas(transform, "CheckoutBuildMode", 60);
-            var b = U.Button(root, "Construir", "primary", Enter, 72, 26);
-            b.Apply(Data("Construir", "primary", true, "Icons/hammer"));
-            U.At((RectTransform)b.transform, new Vector2(0, 0), new Vector2(240, 72), new Vector2(140, 200)); // above the desktop toolbar
+            // Lucas 24/10: just the hammer (the big "Montar loja" button was too much). A square key in the bottom-left
+            // corner, level with the toolbar (same height, same row), with the red counter of pieces to place.
+            float size = CheckoutScreen.Handheld ? 92 : 84, toolbarMid = CheckoutScreen.Handheld ? 6 + 50 : 14 + 52;
+            var b = CheckoutDesktopButton.Create(root, size, 16, 22);
+            b.Apply(Data("", "primary", true, "Icons/hammer"));
+            b.Clicked = _ => Enter();
+            var iconSize = b.transform.Find("Face/Icon")?.GetComponent<UnityEngine.UI.LayoutElement>();
+            if (iconSize) iconSize.preferredWidth = iconSize.preferredHeight = Mathf.Round(size * .62f);
+            U.At((RectTransform)b.transform, new Vector2(0, 0), new Vector2(size, size), new Vector2(16 + size * .5f, toolbarMid));
             buildButton = b.gameObject; buildButtonView = b;
             // Red counter in the corner: bought furniture waiting in the inventory for a spot.
             var pill = CheckoutDesktopCard.Image(b.transform, "Inventory badge", K.C("E15533"), 16);
-            var pr = pill.rectTransform; pr.anchorMin = pr.anchorMax = pr.pivot = Vector2.one; pr.anchoredPosition = new Vector2(10, 12); pr.sizeDelta = new Vector2(34, 34);
+            var pr = pill.rectTransform; pr.anchorMin = pr.anchorMax = pr.pivot = Vector2.one; pr.anchoredPosition = new Vector2(12, 12); pr.sizeDelta = new Vector2(34, 34);
             inventoryBadgeText = CheckoutDesktopCard.Text(pill.transform, "Count", K.Number, 18, Color.white); inventoryBadgeText.alignment = TMPro.TextAlignmentOptions.Center;
             var tr = inventoryBadgeText.rectTransform; tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = tr.offsetMax = Vector2.zero;
             inventoryBadge = pill.gameObject; inventoryBadge.SetActive(false);
@@ -148,7 +154,10 @@ namespace Checkout
             var misplaced = Interior.items.Values.FirstOrDefault(i => i.root && !i.design && !i.ghost && !Interior.Fits(i, i.root.position, i.rot, out _));
             if (misplaced != null) { Select(misplaced); Say(Name(misplaced) + " não cabe aí. Mova ou gire até a área ficar verde.", true); return; }
             if (!Interior.Reachable(out var blocked)) { Select(blocked); Say(Name(blocked) + " ficou sem passagem. Abra caminho para concluir.", true); return; }
-            if (!Interior.items.Values.Any(i => i.root && i.type == "checkout" && !i.building) && Interior.waiting.Values.Any(w => w.type == "checkout"))
+            // Shops with a counter of their own (the stalls, the Späti, the quitanda) never ask for the checkout (a tester's
+            // shop got stuck here after an expansion, 24/10).
+            bool ownCounter = CheckoutStall.Small && !CheckoutStall.PlacedCounter;
+            if (!ownCounter && !Interior.items.Values.Any(i => i.root && i.type == "checkout" && !i.building) && Interior.waiting.Values.Any(w => w.type == "checkout"))
             { Say("Coloque o caixa na área dos caixas para concluir.", true); return; }
             bridge.Command("saveInteriorLayout", "[" + Interior.ExportJson() + "]");
             Interior.MarkPending();
@@ -234,14 +243,15 @@ namespace Checkout
             if (!Interior.waiting.TryGetValue(id, out var w)) return;
             if (shopZone != "inside") Focus("inside");
             bool counter = w.type == "checkout" || w.type == "kiosk";
+            if (counter && CheckoutStall.Small && !CheckoutStall.PlacedCounter) { Say("Esta loja já tem o seu balcão: o caixa fica guardado até o mercado crescer.", true); return; }
             var zone = Interior.CheckoutZone; var floor = Interior.FloorRect;
             // Counters start in the checkout area, everything else in the free part of the shop in view.
             var ray = simulation.view.ScreenPointToRay(new Vector3(Screen.width * .5f, Screen.height * .5f));
-            var at = new Plane(Vector3.up, new Vector3(0, CheckoutInterior.Floor, 0)).Raycast(ray, out var dist) ? ray.GetPoint(dist) : new Vector3(floor.center.x, CheckoutInterior.Floor, floor.center.y);
+            var at = new Plane(Vector3.up, new Vector3(0, CheckoutInterior.FloorHere, 0)).Raycast(ray, out var dist) ? ray.GetPoint(dist) : new Vector3(floor.center.x, CheckoutInterior.FloorHere, floor.center.y);
             at.x = counter ? zone.center.x : Mathf.Clamp(at.x, floor.xMin + 1.8f, Mathf.Max(floor.xMin + 1.8f, zone.xMin - 1.8f));
             at.z = Mathf.Clamp(at.z, floor.yMin + 1.5f, floor.yMax - 1.5f);
             var it = Interior.PlaceWaiting(id, at);
-            if (it == null) { Say("Não há espaço livre para isso agora. Afaste algum móvel.", true); return; }
+            if (it == null) { Say(counter ? "Libere a área dos caixas: afaste o que estiver na faixa azul junto à parede." : "Não há espaço livre para isso agora. Afaste algum móvel.", true); return; }
             RefreshTray(); Select(it); map.FurnitureChanged(false);
             Say(counter ? "O caixa fica na área dos caixas, junto à parede do estacionamento. Arraste para ajustar." : "Arraste para o lugar que quiser.");
         }
@@ -253,7 +263,7 @@ namespace Checkout
             bool outside = d != null && (d.zone == "outside" || (d.zone == "both" && shopZone == "outside"));
             if ((outside ? "outside" : "inside") != shopZone) Focus(outside ? "outside" : "inside");
             var ray = simulation.view.ScreenPointToRay(new Vector3(Screen.width * .5f, Screen.height * .5f));
-            var plane = new Plane(Vector3.up, new Vector3(0, outside ? CheckoutInterior.Ground : CheckoutInterior.Floor, 0));
+            var plane = new Plane(Vector3.up, new Vector3(0, outside ? CheckoutInterior.Ground : CheckoutInterior.FloorHere, 0));
             var at = plane.Raycast(ray, out var dist) ? ray.GetPoint(dist) : Interior.EntrancePoint;
             var r = outside ? CheckoutInterior.BlockRect : Interior.FloorRect;
             at.x = Mathf.Clamp(at.x, r.xMin + 1, r.xMax - 1); at.z = Mathf.Clamp(at.z, r.yMin + 1.5f, r.yMax - 1);
@@ -305,14 +315,14 @@ namespace Checkout
             if (buildButton && !CheckoutStartMenu.Showing && buildButton.activeSelf == hidden) buildButton.SetActive(!hidden);
             if (buildButton && CheckoutStartMenu.Showing && buildButton.activeSelf) buildButton.SetActive(false);
             // Furniture waiting to be placed shows on the button (a new shop starts empty).
-            // Bought pieces show as a red counter (the inventory); the starter pieces of a new shop as "Montar loja".
+            // Pieces waiting in the inventory (the starter pieces of a new shop, bought ones) show as a red counter.
             int count = Interior ? Interior.waiting.Count : 0;
             int bought = Interior ? Interior.waiting.Keys.Count(id => Interior.PendingBuild(id) != null) : 0;
             if (buildButtonView && count * 100 + bought != buildButtonCount)
             {
                 buildButtonCount = count * 100 + bought;
-                bool starter = count > bought;
-                buildButtonView.Apply(Data(starter ? "Montar loja" : bought > 0 ? "Colocar" : "Construir", count > 0 ? "success" : "primary", true, "Icons/hammer"));
+                // Icon only: green with the red counter while something waits to be placed.
+                buildButtonView.Apply(Data("", count > 0 ? "success" : "primary", true, "Icons/hammer"));
                 if (inventoryBadge) { inventoryBadge.SetActive(count > 0); inventoryBadgeText.text = count.ToString(); }
             }
             // A gentle pulse so the player notices there is something to place.
@@ -352,6 +362,7 @@ namespace Checkout
             // Ctrl + mouse movement turns the selected piece.
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.LeftCommand);
             Vector2 mouse = Input.mousePosition;
+            if (float.IsInfinity(mouse.x) || float.IsInfinity(mouse.y) || float.IsNaN(mouse.x)) return;   // no pointer (editor without focus)
             if (ctrl && selected != null && !Touch)
             {
                 if (dragging != null) Drop();
@@ -399,11 +410,11 @@ namespace Checkout
         void ShowGrid()
         {
             if (!CheckoutInterior.GridOn) { CheckoutGridOverlay.Hide(); return; }
-            if (shopZone == "inside") CheckoutGridOverlay.Show(Interior.FloorRect, CheckoutInterior.Floor + .012f, CheckoutInterior.GridSize, new Color(1, 1, 1, .42f));
+            if (shopZone == "inside") CheckoutGridOverlay.Show(Interior.FloorRect, CheckoutInterior.FloorHere + .012f, CheckoutInterior.GridSize, new Color(1, 1, 1, .42f));
             else CheckoutGridOverlay.Show(CheckoutInterior.BlockRect, CheckoutInterior.Ground + .03f, CheckoutInterior.GridSize * 2, new Color(1, 1, 1, .18f));
         }
 
-        Plane PlaneOf(CheckoutInterior.Item it) => new Plane(Vector3.up, new Vector3(0, it.outside ? CheckoutInterior.Ground : CheckoutInterior.Floor, 0));
+        Plane PlaneOf(CheckoutInterior.Item it) => new Plane(Vector3.up, new Vector3(0, it.outside ? CheckoutInterior.Ground : CheckoutInterior.FloorHere, 0));
 
         void Drop()
         {
@@ -423,7 +434,7 @@ namespace Checkout
         {
             foreach (var s in spots) if (s) s.gameObject.SetActive(false);
             if (selected == null || !selected.root) { footprint.gameObject.SetActive(false); return; }
-            float y = selected.outside ? CheckoutInterior.Ground : CheckoutInterior.Floor;
+            float y = selected.outside ? CheckoutInterior.Ground : CheckoutInterior.FloorHere;
             var position = selected.root.position; position.y = y;
             bool ok = Interior.Fits(selected, position, selected.rot, out var why);
             // A blocked passage is checked once the piece is let go (it walks the whole floor).
@@ -433,14 +444,14 @@ namespace Checkout
             var f = Interior.FootprintAt(selected, position, selected.rot);
             footprint.gameObject.SetActive(true);
             footprint.GetComponent<Renderer>().sharedMaterial = ok ? okMaterial : badMaterial;
-            footprint.SetPositionAndRotation(new Vector3(f.c.x, y + .05f, f.c.y), Quaternion.Euler(90, selected.rot, 0));
+            footprint.SetPositionAndRotation(new Vector3(f.c.x, y + .02f, f.c.y), Quaternion.Euler(90, selected.rot, 0));
             footprint.localScale = new Vector3(f.hx * 2 + .1f, f.hz * 2 + .1f, 1);
             int n = 0;
             foreach (var p in Interior.ServicePoints(selected, position, selected.rot))
             {
                 if (spots.Count <= n) spots.Add(Quad("Build spot", spotMaterial).transform);
                 var s = spots[n++]; s.gameObject.SetActive(true);
-                s.SetPositionAndRotation(new Vector3(p.x, y + .06f, p.z), Quaternion.Euler(90, 45, 0)); s.localScale = Vector3.one * .28f;
+                s.SetPositionAndRotation(new Vector3(p.x, y + .026f, p.z), Quaternion.Euler(90, 45, 0)); s.localScale = Vector3.one * .28f;
             }
         }
 
@@ -448,5 +459,17 @@ namespace Checkout
         void LateUpdate() { if (Open) PlaceFloatBar(); }
 
         void OnDestroy() { Open = false; }
+
+        // QA (autotest "eventsgrid"): opens the build mode and selects the first piece of the shop, so the grid and the
+        // green/red footprint show.
+        public static bool QaOpenAndSelect()
+        {
+            if (!instance) return false;
+            if (!Open) instance.Enter();
+            var it = instance.Interior ? instance.Interior.items.Values.FirstOrDefault(i => i.root && i.functional && !i.outside) : null;
+            if (it != null) instance.Select(it);
+            return Open;
+        }
+        public static void QaClose() { if (instance && Open) instance.Cancel(); }
     }
 }

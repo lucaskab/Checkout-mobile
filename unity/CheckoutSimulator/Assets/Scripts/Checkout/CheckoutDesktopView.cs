@@ -28,6 +28,8 @@ namespace Checkout {
  [Serializable] public class DesktopKitchenStep {
   public string kind,title,hint,art,back,unit,gauge,tool,done;public string[] states;public float[] at,lines,spots,zone,scale;
   public float size,seconds,dir,slow;public int count;public DesktopKitchenItem[] items;
+  // Puzzle steps (kind "tray"): board [columns, rows], the pieces that may be dealt, most 1×1 pieces.
+  public float[] grid;public string[] pieces;public int singles;
  }
  [Serializable] public class DesktopKitchen {
   public string recipeId,sectorId,title,icon,tint,bench,back,reason;public int output,demo=-1;public bool canCook;public DesktopKitchenStep[] steps;

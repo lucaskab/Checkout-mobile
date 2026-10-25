@@ -45,6 +45,8 @@ namespace Checkout {
    // A closed market takes no one new; pending arrivals stay seen so reopening never replays them.
    if(!next.isOpen)visits.Clear();
    bool closing=State!=null&&State.isOpen&&!next.isOpen;
+   // The first shoppers of the day start close by, so the shop comes alive right after opening (CheckoutWalker.ArrivalSpot).
+   if(State!=null&&!State.isOpen&&next.isOpen)CheckoutWalker.MarketOpenedAt=Time.time;
    TestPatch?.Invoke(next);State=next;map.Apply(next);
    if(closing)foreach(var w in walkers)w.MarketClosed();if(seen.Count>2000){seen.Clear();foreach(var c in next.customers??Array.Empty<Customer>())seen.Add(c.id);}
   }catch(Exception ex){Debug.LogError("CHECKOUT_SNAPSHOT_ERROR "+ex.Message);}}

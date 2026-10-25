@@ -7,6 +7,8 @@ import { createSimulatorCommandHandler } from "@/services/simulator-protocol";
 import { getUnlockedSimulatorSectorId } from "@/services/simulator-sector-selection";
 import { getRecentEventOutcome } from "@/services/game-events";
 import { getPiecesToPlaceBeforeOpening } from "@/services/market-era";
+import { getNextShelfBuildStatus, getSectorBuildStatus } from "@/services/interior-construction";
+import { getShopItemPieceId, hasInteriorRoom, NO_ROOM_REASON, setInteriorNoRoom } from "@/services/interior-room";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
 import { useGameStore } from "@/stores/game-store";
 import { getCatalog, getLanguage, localizeSnapshot, localizeView, setLanguage, t } from "@/i18n";
@@ -224,8 +226,15 @@ function openStoreOnShortfall() {
 }
 
 // Why opening the shop / starting a day was refused, in words the player can act on.
-function rejectionReason(action: string) {
+function rejectionReason(action: string, args: unknown[] = []) {
 	const state = useGameStore.getState();
+	// The piece has no spot on the shop floor (src/services/interior-room.ts).
+	if (action === "unlockNextShelf" && getNextShelfBuildStatus(state).noRoom) return t(NO_ROOM_REASON);
+	if (action === "buildSector" && typeof args[0] === "string" && getSectorBuildStatus(state, args[0]).noRoom) return t(NO_ROOM_REASON);
+	if (action === "purchaseShopItem" && typeof args[0] === "string") {
+		const piece = getShopItemPieceId(args[0]);
+		if (piece && !hasInteriorRoom(piece) && !state.shop.ownedItemIds.includes(args[0])) return t(NO_ROOM_REASON);
+	}
 	if (action !== "setMarketOpen" && action !== "startDay") return null;
 	if (getPiecesToPlaceBeforeOpening(state) > 0) return t("Coloque os móveis que estão esperando antes de abrir a loja.");
 	if (state.day.phase === "results") return t("Veja o resultado do dia antes de abrir de novo.");
@@ -315,7 +324,7 @@ function runHudAction(message: {
 			? ""
 			: short
 				? t(short.missing === 1 ? "Falta 1 diamante." : `Faltam ${short.missing} diamantes.`)
-				: rejectionReason(action) ?? "game-rule-rejected";
+				: rejectionReason(action, message.args as unknown[]) ?? "game-rule-rejected";
 		send({ kind: "result", id, action, ok, reason });
 		if (ok && message.after === "back") routes.pop();
 		// "!route" / "~route": the action then opens a page (the level-up celebration's group buttons).
@@ -397,6 +406,9 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 	} else if (message.kind === "iap") {
 		applyIapMessage(message as IapUnityMessage);
 		view();
+	} else if (message.kind === "room") {
+		// Unity measured the shop floor: pieces with no spot cannot be bought for now.
+		if (setInteriorNoRoom(message.blocked)) view();
 	} else if (message.kind === "hud") runHudAction(message);
 	else if (message.kind === "route" && typeof message.route === "string")
 		navigate(message.route);

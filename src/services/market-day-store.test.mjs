@@ -67,6 +67,16 @@ test("the old open button still works and starts a free day", () => {
 	expect(store().day.contract).toBeNull();
 });
 
+test("every day the first customer comes a few seconds after opening, not after a long empty wait", () => {
+	// A save that already served customers (not the very first opening).
+	useGameStore.setState({ market: { ...store().market, customersServed: 40 } });
+	const before = Date.now();
+	store().setMarketOpen(true);
+	const wait = store().market.nextCustomerAt - before;
+	expect(wait).toBeGreaterThanOrEqual(2_900);
+	expect(wait).toBeLessThanOrEqual(5_500);
+});
+
 test("customers are counted in the day and may bring special requests", () => {
 	store().startDay(FREE_DAY_CONTRACT_ID);
 	for (let index = 0; index < 12; index++) {
