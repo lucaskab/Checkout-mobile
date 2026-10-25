@@ -1710,6 +1710,7 @@ def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=No
     bpy.ops.object.mode_set(mode='OBJECT')
     for o in pk:
         for l in o.data.uv_layers.active.data: l.uv = (l.uv[0], l.uv[1] * (1 - RESERVED))
+    for o in pk: fatten_islands(o)
     # reserved parts: leaves into their shade slots, the rest into their material's swatch
     out = {o.name[2:]: o for o in pk}
     for g, objs in reserved.items():
@@ -1728,6 +1729,47 @@ def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=No
         if o.name.endswith("_pad"): o.hide_render = True    # hidden in the game too
     tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in out)
     return {"objects": [o.name for o in out], "tris": tris}
+
+
+def fatten_islands(o, size=2048, min_px=2.5):
+    """UV islands thinner than ~2 px (faces of thin tubes / board edges split apart by smart_project) cover no pixel
+    centre, so the bake never paints them and they showed a neighbour's colour as a thin line. Widen each such island
+    across its narrow axis (about its centre) to min_px; the ~9 px pack margin leaves room for it."""
+    import numpy as np
+    from collections import defaultdict
+    bm = bmesh.new(); bm.from_mesh(o.data); uvl = bm.loops.layers.uv.active
+    bm.faces.ensure_lookup_table()
+    parent = list(range(len(bm.faces)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]; i = parent[i]
+        return i
+    for e in bm.edges:
+        lf = e.link_faces
+        if len(lf) != 2: continue
+        f1, f2 = lf
+        u1 = {l.vert: l[uvl].uv for l in f1.loops}; u2 = {l.vert: l[uvl].uv for l in f2.loops}
+        if all((u1[v] - u2[v]).length < 1e-6 for v in e.verts):
+            parent[find(f1.index)] = find(f2.index)
+    groups = defaultdict(list)
+    for f in bm.faces: groups[find(f.index)].append(f)
+    n = 0
+    for faces in groups.values():
+        loops = [l for f in faces for l in f.loops]
+        pts = np.array([(l[uvl].uv.x, l[uvl].uv.y) for l in loops])
+        c = pts.mean(axis=0); d = pts - c
+        if len(pts) < 3: continue
+        w_, v_ = np.linalg.eigh(d.T @ d)
+        m = v_[:, 0]                                   # minor axis
+        pr = d @ m; width = (pr.max() - pr.min()) * size
+        if width >= min_px: continue
+        k = min(min_px / max(width, .05), 60.0)
+        new = pts + np.outer(pr * (k - 1), m)
+        for l, (x, y) in zip(loops, new): l[uvl].uv = (float(x), float(y))
+        n += 1
+    bm.to_mesh(o.data); bm.free()
+    return n
 
 
 # texture space per material: the painted walls / roof get more pixels, flat colours and hidden faces almost none
@@ -1777,7 +1819,7 @@ def texel_weights(o):
     bm.to_mesh(me); bm.free()
 
 
-def bake(name=NAME, size=2048, part=None, parts=1, samples=32):
+def bake(name=NAME, size=2048, part=None, parts=1, samples=32, ss=2):
     """Bakes the diffuse colour (painted AO included) of the export copies into <EXPORT>/<name>_BaseColor.png.
     Call with part=0..parts-1 to keep each MCP call short (the image is cleared on part 0, saved on the last)."""
     sc = bpy.context.scene
@@ -1786,13 +1828,15 @@ def bake(name=NAME, size=2048, part=None, parts=1, samples=32):
     objs = bakeable if part is None else bakeable[part::parts]
     img_name = name + "_BaseColor"
     first = part in (None, 0)
+    big = size * ss          # baked supersampled, so thin islands get their own pixels; averaged down at the end
     if first:
         for im in list(bpy.data.images):
             if im.name.startswith(img_name): bpy.data.images.remove(im)
-        img = bpy.data.images.new(img_name, size, size, alpha=True)
+        img = bpy.data.images.new(img_name, big, big, alpha=True)
         img.generated_color = (0, 0, 0, 0)
     else:
         img = bpy.data.images[img_name]
+    samples = max(4, samples // (ss * ss))
     added = []
     for m in {m for o in objs for m in o.data.materials if m}:
         n = m.node_tree.nodes.new("ShaderNodeTexImage"); n.image = img; m.node_tree.nodes.active = n; added.append((m, n))
@@ -1803,7 +1847,9 @@ def bake(name=NAME, size=2048, part=None, parts=1, samples=32):
         pass
     b = sc.render.bake
     b.use_pass_direct = False; b.use_pass_indirect = False; b.use_pass_color = True; b.use_clear = first
-    b.margin = 16; b.margin_type = 'EXTEND'
+    # Multi-part bakes: the 'EXTEND' margin of a later part used to paint over islands baked by earlier parts (colour
+    # specks / whole planks in the wrong colour). Parts bake with no margin; the gaps are filled once at the end.
+    b.margin = 16 if parts == 1 else 0; b.margin_type = 'EXTEND'
     b.target = 'IMAGE_TEXTURES'
     bpy.ops.object.select_all(action='DESELECT')
     for o in objs: o.select_set(True)
@@ -1813,13 +1859,42 @@ def bake(name=NAME, size=2048, part=None, parts=1, samples=32):
     sc.render.engine = 'BLENDER_EEVEE'
     if part is not None and part < parts - 1:
         return None
-    # pixels no island covers: the atlas' mean colour (mipmaps of thin islands never fetch black on the phone)
+    # pixels no island covers: pull-push fill from the nearest islands (acts as the bake margin, so mipmaps of thin
+    # islands never fetch a foreign colour on the phone)
     import numpy as np
-    px = np.empty(size * size * 4, dtype=np.float32); img.pixels.foreach_get(px); px = px.reshape(-1, 4)
-    empty = px[:, 3] < .5
-    if (~empty).any():
-        px[empty, :3] = px[~empty, :3].mean(axis=0)
-    px[:, 3] = 1.0
+    bs_ = img.size[0]
+    px = np.empty(bs_ * bs_ * 4, dtype=np.float32); img.pixels.foreach_get(px); px = px.reshape(bs_, bs_, 4)
+    al = (px[:, :, 3] >= .5).astype(np.float32)
+    if bs_ != size:          # average the supersampled bake down (premultiplied: empty pixels don't darken the edges)
+        k = bs_ // size
+        pm = (px[:, :, :3] * al[..., None]).reshape(size, k, size, k, 3).sum(axis=(1, 3))
+        al = al.reshape(size, k, size, k).sum(axis=(1, 3))
+        px = np.zeros((size, size, 4), np.float32)
+        px[:, :, :3] = pm / np.maximum(al, 1e-6)[..., None]
+        bpy.data.images.remove(img)
+        img = bpy.data.images.new(img_name, size, size, alpha=True)
+    a0 = (al > 0).astype(np.float32)
+    rgb = px[:, :, :3] * a0[..., None]
+    for it in range(6):     # first grow every island by a few pixels with its own edge colour (like the 'EXTEND' margin)
+        acc = np.zeros_like(rgb); cnt = np.zeros_like(a0)
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+            acc += np.roll(np.roll(rgb, dy, 0), dx, 1); cnt += np.roll(np.roll(a0, dy, 0), dx, 1)
+        grow = (a0 == 0) & (cnt > 0)
+        rgb[grow] = acc[grow] / cnt[grow][:, None]; a0[grow] = 1.0
+    px[:, :, :3] = rgb
+    if a0.any():
+        C = [px[:, :, :3] * a0[..., None]]; A = [a0]
+        while C[-1].shape[0] > 1:
+            c, a = C[-1], A[-1]
+            C.append(c[0::2, 0::2] + c[1::2, 0::2] + c[0::2, 1::2] + c[1::2, 1::2])
+            A.append(a[0::2, 0::2] + a[1::2, 0::2] + a[0::2, 1::2] + a[1::2, 1::2])
+        colr = C[-1] / np.maximum(A[-1], 1e-6)[..., None]
+        for lv in range(len(C) - 2, -1, -1):
+            up = np.repeat(np.repeat(colr, 2, 0), 2, 1)
+            a = A[lv][..., None]
+            colr = np.where(a > 0, C[lv] / np.maximum(a, 1e-6), up)
+        px[:, :, :3] = colr
+    px[:, :, 3] = 1.0
     img.pixels.foreach_set(px.ravel()); img.update()
     os.makedirs(EXPORT, exist_ok=True)
     img.filepath_raw = os.path.join(EXPORT, img_name + ".png"); img.file_format = 'PNG'; img.save()
@@ -3756,7 +3831,7 @@ def gal_front(c):
     lp.done()
 
 
-def grass_patch(c, name, cx, cy, sx, sy, seed=0, density=1.0, h=(.25, .55), clamp=(-4.95, 4.95, -5.7, 5.7)):
+def grass_patch(c, name, cx, cy, sx, sy, seed=0, density=1.0, h=(.25, .55), clamp=(-4.95, 4.95, -5.7, 5.7), holes=()):
     """A patch of real grass instead of a flat lawn slab: many tufts with volume, three greens mixed, denser and
     taller in the middle, sparse and short at the edge."""
     rnd = random.Random(seed)
@@ -3769,6 +3844,7 @@ def grass_patch(c, name, cx, cy, sx, sy, seed=0, density=1.0, h=(.25, .55), clam
         a = rnd.uniform(0, 2 * math.pi); rr = math.sqrt(rnd.random())
         x = cx + sx * rr * math.cos(a); y = cy + sy * rr * math.sin(a)
         x = max(clamp[0], min(clamp[1], x)); y = max(clamp[2], min(clamp[3], y))
+        if any(h0 < x < h1 and v0 < y < v1 for (h0, h1, v0, v1) in holes): continue
         edge = rr
         k = "dry" if rnd.random() < .18 + .25 * edge else ("lush" if rnd.random() < .5 else "green")
         hh = rnd.uniform(*h) * (1.15 - .5 * edge)
@@ -4420,7 +4496,7 @@ def jagged_wall(g, a, b, t, h_lo, h_hi, seed, gaps=(), z0=0.):
 
 
 # ------------------------------------------------------------------ aged ruin walls (Lucas 25/10 20:43: old, crumbling)
-def m_aged_wall(name, paint, band=None, band_top=.5, seed=0., loss=.5, moss=C("6E8F3E")):
+def m_aged_wall(name, paint, band=None, band_top=.5, seed=0., loss=.5, moss=C("6E8F3E"), top_loss=1.0):
     """Old ruin plaster: faded, dirtier paint with soft streaks, big irregular patches where the plaster came off
     showing uneven brick courses (pale broken rim), damp stain rising from the ground, moss on every upward face,
     crisp hairline cracks."""
@@ -4437,7 +4513,7 @@ def m_aged_wall(name, paint, band=None, band_top=.5, seed=0., loss=.5, moss=C("6
         col = t.mix(bcol, col, bz)
     # plaster loss: large ragged patches (more towards the broken tops and the base) -> uneven brick courses
     f = t.math('ADD', t.noise(t.scale(po, 1, 1, 1.2), .75, 3, .55), t.math('MULTIPLY', t.noise(po, 8, 2, .5), .05))
-    f = t.math('ADD', f, t.math('MULTIPLY', t.ramp(z, .6, 2.4, 0, .1), 1.0))
+    f = t.math('ADD', f, t.math('MULTIPLY', t.ramp(z, .6, 2.4, 0, .1), top_loss))
     f = t.math('ADD', f, t.ramp(z, 0, .5, .06, 0))
     thr = .6 - loss * .1
     hole = t.ramp(f, thr, thr + .006)
@@ -5015,4 +5091,601 @@ def entulho_export():
                        inside=(99, -99, 99, -99), walls=(),
                        texel={"V3_EntWall": 2.6, "V3_Slab": .9, "V3_SlabWarm": .9, "V3_Mound": .4, "V3_Skip": 1.2,
                               "V3_Porcelain": .8, "V3_ConcretePipe": .8, "V3_EntDoor": 1.0, "V3_SignBoard": .8})
-# r84 aged walls
+
+
+# ######################################################################################################################
+# ARMAZEM (lot A4) - an old two-storey brick-and-plaster depot: hipped tiled roof, big wooden double doors, a loft door
+# with its hoist beam, a loading platform, sacks / crates / barrels, a hand cart and a delivery tricycle.
+# Clearing scene (case "armazem"; model (x, y) <-> P(.76 x, 8.33 + .76 y)): the wrecking crane P(-2.4, 1.9) stands in
+# front of the lot and swings its ball at P(-1, 6.2) + 3 m -> model (-1.3, -2.8) at ~4 m: the depot's front, upper
+# floor, left of the loft door (only low props in front of it); the works skip P(3.9, 1.4) and the foreman P(4.9, ..)
+# are outside the model; the shovel worker P(2.6, 3.6..5) -> model (3.4, -6.2..-4.4): kept clear.
+# ######################################################################################################################
+ARM = "V3 Armazem"
+ARM_NAME = "Lot_Armazem"
+AX0, AX1, AY0, AY1 = -4.4, 3.0, -2.6, 3.4          # outer wall faces
+AH1, AH2 = 3.3, 6.1                                # first floor level, top of the walls
+APITCH = math.radians(27)
+AEAVE = .45
+ARM_OPEN = {   # face: (kind, u, w, sill, h, style)
+    "F": [("big", -.3, 2.6, 0.0, 2.9, ""), ("win", -2.9, 1.0, 1.1, 1.4, "boarded"), ("win", 1.95, .85, 1.1, 1.4, "boarded"),
+          ("loft", -.3, 1.3, AH1 + .2, 1.7, ""), ("win", -2.9, .9, AH1 + .6, 1.3, "shutters"), ("win", 1.95, .85, AH1 + .6, 1.3, "broken")],
+    "E": [("door", 1.0, 1.0, 0.0, 2.3, ""), ("win", -1.2, 1.0, 1.1, 1.4, "boarded"),
+          ("win", -1.2, .9, AH1 + .6, 1.3, "broken"), ("win", 1.0, .9, AH1 + .6, 1.3, "shutters")],
+    "B": [("win", -1.5, 1.0, 1.1, 1.4, "boarded"), ("win", 1.0, .9, AH1 + .6, 1.3, "boarded")],
+    "W": [("win", -.4, 1.0, 1.1, 1.4, "boarded"), ("win", -.4, .9, AH1 + .6, 1.3, "shutters")],
+}
+ARM_GROUPS = [
+    ("ARM_pad", ("ARM_pad",)),
+    ("ARM_house", ("ARM_walls", "ARM_inside", "ARM_pilaster", "ARM_band", "ARM_cornice", "ARM_plinth", "ARM_win", "ARM_big",
+                   "ARM_loft", "ARM_hoist", "ARM_down", "ARM_gutter", "ARM_ivy", "ARM_sideStep")),
+    ("ARM_roof", ("ARM_roof",)),
+    ("ARM_green", ("ARM_tree", "ARM_bush", "ARM_grass", "ARM_weed", "ARM_flower")),
+]
+AM = {}
+
+
+def arm_frame(face): return rect_frame(face, AX0, AX1, AY0, AY1)
+
+
+def arm_span(face): return rect_span(face, AX0, AX1, AY0, AY1)
+
+
+def arm_mats():
+    mats()
+    AM.clear()
+    AM["wall"] = m_aged_wall("V3_ArmWall", C("E8C48A"), band=C("5E9C8F"), band_top=.55, seed=91., loss=-.25, top_loss=.3)
+    AM["brick"] = m_brickface("V3_ArmBrick", C("BE6440"), C("A65538"), C("E2D2B4"))
+    AM["door"] = m_paint_wood("V3_ArmDoor", C("2E8C7C"), C("B98A5A"), .55)
+    AM["sack"] = m_flat("V3_Sack", C("D8C095"), .08, 6, .95, island=.08, ao=.5)
+    AM["barrel"] = m_wood("V3_BarrelWood", C("B98552"), C("8B5E37"), C("85735B"))
+    AM["trike"] = m_rust("V3_TrikeFrame", C("24766A"), amount=.35)
+    AM["tbox"] = m_paint_wood("V3_TrikeBox", C("EE8A3C"), C("C9A272"), .45)
+    AM["tiles"] = m_tiles("V3_ArmTiles", moss=C("8E8F4C"), moss_amount=.5)
+    return AM
+
+
+def hip_roof(c, pfx, x0, x1, y0, y1, z0, pitch, eave, mt, mr, mf, row=.44, tw=.62, tt=.1, hole=None, seed=0):
+    """Hipped tiled roof over the rectangle x0..x1 / y0..y1 (outer wall faces), roof plane at z0 over the wall line.
+    Four slope frames (local x along the eave, local y up the slope); the hips are capped with ridge tiles.
+    `hole` = (x0, y0, x1, y1) in the front slope's frame: rotten deck + missing tiles + bare battens."""
+    rnd = random.Random(seed)
+    X0, X1, Y0, Y1 = x0 - eave, x1 + eave, y0 - eave, y1 + eave
+    xc, yc = (X0 + X1) / 2, (Y0 + Y1) / 2
+    hx, hy = (X1 - X0) / 2, (Y1 - Y0) / 2
+    cp = math.cos(pitch); run = min(hx, hy); Ls = run / cp
+    ze = z0 - eave * math.tan(pitch); zr = ze + run * math.tan(pitch)
+    Rx = Matrix.Rotation(pitch, 4, 'X')
+    slopes = {"F": (Matrix.Translation((xc, Y0, ze)) @ Rx, hx),
+              "B": (Matrix.Translation((xc, Y1, ze)) @ Matrix.Rotation(math.pi, 4, 'Z') @ Rx, hx),
+              "E": (Matrix.Translation((X1, yc, ze)) @ Matrix.Rotation(math.pi / 2, 4, 'Z') @ Rx, hy),
+              "W": (Matrix.Translation((X0, yc, ze)) @ Matrix.Rotation(-math.pi / 2, 4, 'Z') @ Rx, hy)}
+    dk = G(pfx + "Deck", M["deck"], c, bevel=.02, seg=1)
+    for k, (Mx, h0) in slopes.items():
+        ht = h0 - run
+        pts = [(-h0, 0), (h0, 0)] + ([(ht, Ls), (-ht, Ls)] if ht > .01 else [(0, Ls)])
+        dk.prism(pts, DECK_T, M=Mx @ Matrix.Translation((0, 0, DECK_T / 2)) @ Matrix.Rotation(-math.pi / 2, 4, 'X'))
+    dk.done()
+    th = row + .14; dl = math.atan2(tt * .9, th)
+    for k, (Mx, h0) in slopes.items():
+        g = G(pfx + "Tiles" + k, mt, c, bevel=.04, seg=1)
+        for r in range(int(Ls / row) + 1):
+            y = r * row - .04
+            if y > Ls - .2: break
+            hw = h0 - (y + th * .55) * cp + .04
+            x = -hw - (tw / 2 if r % 2 else 0)
+            while x < hw - .02:
+                xa, xb = max(x, -hw), min(x + tw, hw); w = xb - xa; xm = (xa + xb) / 2; x += tw
+                if w < .16: continue
+                if k == "F" and hole and _in(xm, y + th / 2, hole, -.05): continue
+                if rnd.random() < .02: continue
+                g.box((w - .012, th, tt), (xm + rnd.uniform(-.015, .015), y + th / 2, DECK_T + tt / 2 + .03),
+                      rot=(-dl + rnd.uniform(-.03, .03), rnd.uniform(-.03, .03), rnd.uniform(-.035, .035)), M=Mx, open_bottom=True)
+        if k == "F" and hole:   # slipped tiles below the hole
+            hx0, hy0, hx1, hy1 = hole
+            for (u, v, a) in ((hx0 + .15, hy0 - .45, .5), (hx1 - .25, hy0 - .6, -.3)):
+                g.box((tw - .04, th, tt), (u, v, DECK_T + tt + .1), rot=(-.05, .1, a), M=Mx)
+        g.done()
+    if hole:
+        Mf = slopes["F"][0]; hx0, hy0, hx1, hy1 = hole
+        hd = G(pfx + "HoleDark", M["dark"], c)
+        hd.box((hx1 - hx0 + .1, hy1 - hy0 + .1, .02), ((hx0 + hx1) / 2, (hy0 + hy1) / 2, DECK_T + .012), M=Mf)
+        hd.done()
+        bt = G(pfx + "Battens", M["wood"], c, bevel=.01, seg=1)
+        for q in range(3):
+            yy = hy0 + .2 + q * row
+            if yy < hy1: bt.box((hx1 - hx0 + .3, .07, .06), ((hx0 + hx1) / 2, yy, DECK_T + .06), M=Mf)
+        bt.box((.11, hy1 - hy0 + .3, .1), (hx0 + (hx1 - hx0) * .55, (hy0 + hy1) / 2, DECK_T + .07), M=Mf)
+        bt.done()
+    lift = DECK_T / cp + .1
+    rc = G(pfx + "Ridge", mr, c)
+    along_x = hx >= hy
+    ra = Vector((xc - (hx - run), yc, zr + lift)) if along_x else Vector((xc, yc - (hy - run), zr + lift))
+    rb = Vector((xc + (hx - run), yc, zr + lift)) if along_x else Vector((xc, yc + (hy - run), zr + lift))
+    for (a, b) in ((Vector((X0, Y0, ze + lift)), ra), (Vector((X1, Y0, ze + lift)), rb if along_x else ra),
+                   (Vector((X1, Y1, ze + lift)), rb), (Vector((X0, Y1, ze + lift)), ra if along_x else rb)) + (((ra, rb),) if (rb - ra).length > .1 else ()):
+        n = max(1, int((b - a).length / .5))
+        for i in range(n):
+            p0 = a + (b - a) * (i / n); p1 = a + (b - a) * ((i + 1) / n) + (b - a).normalized() * .06
+            rc.tube(p0, p1, .17, verts=8, r2=.15)
+    rc.done()
+    fb = G(pfx + "Fascia", mf, c, bevel=.03, seg=1)
+    for k, (Mx, h0) in slopes.items():
+        fb.box((2 * h0 + .02, .12, .26), (0, -.03, .03), M=Mx)
+    fb.done()
+    return slopes, ze, zr
+
+
+def arm_walls(c):
+    g = G("ARM_walls", AM["wall"], c, smooth=False)
+    for face in "FBEW":
+        u0, u1 = arm_span(face)
+        if face in "EW": u0, u1 = u0 + WT, u1 - WT
+        rects = [(u0, 0, u1, AH2)]
+        for (kind, u, w, sill, h, st) in ARM_OPEN[face]:
+            rects = cut_rects(rects, (u - w / 2, sill, u + w / 2, sill + h))
+        F = arm_frame(face)
+        for (x0, z0, x1, z1) in rects:
+            g.box((x1 - x0, WT, z1 - z0), ((x0 + x1) / 2, WT / 2, (z0 + z1) / 2), M=F, open_bottom=z0 < .01)
+    g.done()
+    d = G("ARM_inside", M["dark"], c)
+    cx, cy = (AX0 + AX1) / 2, (AY0 + AY1) / 2
+    iw, idp = AX1 - AX0 - 2 * WT - .02, AY1 - AY0 - 2 * WT - .02
+    d.box((iw, idp, .05), (cx, cy, .025)); d.box((iw, idp, .06), (cx, cy, AH1 - .03))
+    d.box((iw, .04, AH2 - .1), (cx, AY1 - WT - .03, AH2 / 2)); d.box((.04, idp, AH2 - .1), (AX0 + WT + .03, cy, AH2 / 2))
+    d.box((iw, idp, .04), (cx, cy, AH2 - .08))
+    d.done()
+
+
+def arm_trims(c):
+    p = G("ARM_pilaster", AM["brick"], c, bevel=.03, seg=1)
+    for (x, y, sx, sy) in ((AX0, AY0, -1, -1), (AX1, AY0, 1, -1), (AX1, AY1, 1, 1), (AX0, AY1, -1, 1)):
+        p.box((.42, .42, AH2 - .45), (x - sx * .15, y - sy * .15, (AH2 - .45) / 2), open_bottom=True)
+    p.done()
+    b = G("ARM_band", AM["brick"], c, bevel=.025, seg=1)
+    cr = G("ARM_cornice", AM["brick"], c, bevel=.025, seg=1)
+    dn = G("ARM_corniceDentils", AM["brick"], c, smooth=False)
+    for face in "FBEW":
+        u0, u1 = arm_span(face); F = arm_frame(face)
+        segs = [(u0 + .37, u1 - .37)]
+        for (kind, u, w, sill, h, st) in ARM_OPEN[face]:
+            if kind == "loft": segs = [(a, bb) for (a, bb) in segs for (a, bb) in ((a, u - w / 2 - .2), (u + w / 2 + .2, bb)) if bb - a > .05]
+        for (a, bb) in segs:
+            b.box((bb - a, .12, .18), ((a + bb) / 2, -.04, AH1), M=F)          # string course between the storeys
+        cr.box((u1 - u0 + .3, .2, .13), ((u0 + u1) / 2, -.07, AH2 - .1), M=F)
+        cr.box((u1 - u0 + .2, .12, .13), ((u0 + u1) / 2, -.03, AH2 - .24), M=F)
+        # brick dentils under the cornice
+        n = int((u1 - u0) / .36)
+        for i in range(n):
+            dn.box((.13, .1, .1), (u0 + .16 + i * (u1 - u0 - .32) / max(1, n - 1), -.06, AH2 - .36), M=F)
+    b.done(); cr.done(); dn.done()
+    pl = G("ARM_plinth", M["plinth"], c, bevel=.035, seg=1)
+    ph = .5
+    for face in "FBEW":
+        u0, u1 = arm_span(face); F = arm_frame(face)
+        segs = [(u0 + .37, u1 - .37)]
+        for (kind, u, w, sill, h, st) in ARM_OPEN[face]:
+            if kind in ("door", "big"):
+                segs = [(a, bb) for (a, bb) in segs for (a, bb) in ((a, min(bb, u - w / 2 - .32)), (max(a, u + w / 2 + .32), bb)) if bb - a > .05]
+        for (a, bb) in segs:
+            x = a; k = 0
+            while x < bb - .05:
+                bw = min(bb - x, (1.1, .85, 1.25, .95)[k % 4]); hh = ph if k % 3 else ph - .06
+                pl.box((bw - .04, .1, hh), (x + bw / 2, -.03, hh / 2), M=F, open_bottom=True)
+                x += bw; k += 1
+    pl.done()
+
+
+def arm_leaf(g, hw, M_, w, h, planks=5, brace=True):
+    """One ledged-and-braced plank leaf, hinge at its local x=0, extending to -x (w wide, h tall), outer face -y."""
+    pw = w / planks
+    for i in range(planks):
+        g.box((pw - .014, .06, h - .03 * (i % 2)), (-pw * (i + .5), 0, h / 2), M=M_)
+    for z in (.32, h / 2, h - .32):
+        g.box((w - .14, .05, .17), (-w / 2, -.05, z), M=M_)
+    if brace:
+        L = math.hypot(w - .3, h / 2 - .45)
+        for (za, zb) in ((.32, h / 2), (h / 2, h - .32)):
+            g.box((L, .045, .14), (-w / 2, -.05, (za + zb) / 2), rot=(0, math.atan2(zb - za - .2, w - .3), 0), M=M_)
+    for z in (.32, h - .32):     # strap hinges
+        hw.box((w * .55, .02, .06), (-w * .275 + .02, -.085, z), M=M_)
+        hw.cyl(.03, .1, (0, -.06, z), verts=8, M=M_)
+
+
+def arm_openings(c):
+    for face, ops in ARM_OPEN.items():
+        F = arm_frame(face)
+        for i, (kind, u, w, sill, h, st) in enumerate(ops):
+            nm = f"ARM_win_{face}{i}"
+            if kind == "win":
+                window(c, nm, "F", 0, w, sill, h, st, seed=i + 5 * ord(face))
+                moved(c, nm, F @ Matrix.Translation((u, 0, 0)))
+            elif kind == "door":
+                keep = M["teal"]; M["teal"] = AM["door"]
+                try:
+                    door(c, nm, "F", 0, w, h, ajar=.5)
+                finally:
+                    M["teal"] = keep
+                moved(c, nm, F @ Matrix.Translation((u, 0, sill)))
+                stp = G("ARM_sideStep", M["stepstone"], c, bevel=.03, seg=1, frame=F)
+                stp.box((w + .5, .4, .16), (u, -.36, .08), open_bottom=True)
+                stp.done()
+            elif kind == "big":
+                arm_bigdoor(c, F, u, w, h)
+            elif kind == "loft":
+                arm_loft(c, F, u, w, sill, h)
+
+
+def arm_bigdoor(c, F, u, w, h):
+    """Barn-style double doors: brick jambs, a heavy timber lintel, the left leaf shut, the right one swung open."""
+    j = G("ARM_bigJambs", AM["brick"], c, bevel=.03, seg=1, frame=F)
+    for sx in (-1, 1): j.box((.3, .14, h + .02), (u + sx * (w / 2 + .15), -.05, (h + .02) / 2), open_bottom=True)
+    j.done()
+    lt = G("ARM_bigLintel", M["deck"], c, bevel=.025, seg=1, frame=F)
+    lt.box((w + .8, .34, .26), (u, .05, h + .13))
+    lt.done()
+    th = G("ARM_bigSill", M["stepstone"], c, bevel=.02, seg=1, frame=F)
+    th.box((w + .1, .5, .05), (u, .05, .025), open_bottom=True)
+    th.done()
+    lv = G("ARM_bigLeaves", AM["door"], c, bevel=.012, seg=1, frame=F)
+    hw = G("ARM_bigIron", M["rust"], c, frame=F)
+    lw = w / 2 - .02
+    arm_leaf(lv, hw, Matrix.Translation((u - w / 2 + .01, .1, .06)) @ Matrix.Diagonal((-1, 1, 1, 1)), lw, h - .1)          # shut
+    arm_leaf(lv, hw, Matrix.Translation((u + w / 2 - .01, .04, .06)) @ Matrix.Rotation(1.15, 4, 'Z'), lw, h - .1)
+    lv.done()
+    hw.box((.04, .04, .5), (u - .12, .02, 1.3))           # the bolt on the shut leaf
+    hw.done()
+
+
+def arm_loft(c, F, u, w, sill, h):
+    """Upper loading door: timber frame and sill, one leaf folded back flat on the wall, the other hanging askew;
+    above it the hoist beam with its pulley, the rope and a hook still holding a sack."""
+    fr = G("ARM_loftFrame", M["deck"], c, bevel=.02, seg=1, frame=F)
+    fr.box((w + .3, .45, .14), (u, .08, sill - .07))
+    for sx in (-1, 1): fr.box((.14, .2, h), (u + sx * (w / 2 + .07), .0, sill + h / 2))
+    fr.box((w + .3, .22, .16), (u, .0, sill + h + .08))
+    fr.done()
+    lv = G("ARM_loftLeaves", AM["door"], c, bevel=.012, seg=1, frame=F)
+    hw = G("ARM_loftIron", M["rust"], c, frame=F)
+    lw = w / 2
+    # left leaf swung right round, lying against the wall left of the opening
+    arm_leaf(lv, hw, Matrix.Translation((u - w / 2 - .15, -.05, sill + .05)), lw, h - .1, planks=4)
+    # right leaf hanging from its lower hinge, swung out
+    arm_leaf(lv, hw, Matrix.Translation((u + w / 2 + .02, -.1, sill + .05)) @ Matrix.Rotation(.85, 4, 'Z') @ Matrix.Rotation(-.14, 4, 'Y'), lw, h - .1, planks=4)
+    lv.done(); hw.done()
+    # hoist beam (enters the wall above the opening), iron strap, pulley block, rope, hook + sack
+    zb = sill + h + .3
+    yb = -1.4
+    hb = G("ARM_hoistBeam", M["deck"], c, bevel=.025, seg=1, frame=F)
+    hb.box((.2, 1.75, .22), (u, yb / 2 + .15, zb))
+    hb.box((.24, .12, .3), (u, yb + .06, zb - .02))
+    hb.done()
+    ir = G("ARM_hoistIron", M["rust"], c, frame=F)
+    ir.box((.24, .03, .3), (u, yb + .3, zb)); ir.box((.24, .03, .3), (u, -.3, zb))
+    ir.tube((u, yb + .22, zb - .11), (u, yb + .22, zb - .42), .02, verts=6)
+    ir.cyl(.06, .14, (u, yb + .22, zb - .55), rot=(0, math.pi / 2, 0), verts=12)
+    ir.torus(.07, .016, (u, yb + .22, zb - 1.45), rot=(0, math.pi / 2, 0), seg=12, rseg=5)
+    ir.tube((u, yb + .22, zb - 1.38), (u, yb + .22, zb - 1.52), .02, verts=6)
+    ir.done()
+    pu = G("ARM_hoistPulley", M["deck"], c, bevel=.01, seg=1, frame=F)
+    pu.cyl(.16, .07, (u, yb + .22, zb - .55), rot=(0, math.pi / 2, 0), verts=16)
+    pu.done()
+    rp = G("ARM_hoistRope", M["rope"], c, frame=F)
+    rp.tube((u + .02, yb + .07, zb - .55), (u + .02, yb + .2, zb - 1.38), .022, verts=6)
+    rp.tube((u - .02, yb + .37, zb - .55), (u - .45, -.25, sill + .5), .022, verts=6)      # tail tied off inside the loft
+    rp.done()
+    sk = G("ARM_hoistSack", AM["sack"], c, bevel=.07, seg=2, frame=F)
+    sk.box((.42, .3, .62), (u, yb + .22, zb - 1.95), rot=(.06, .1, .2))
+    sk.box((.12, .1, .14), (u, yb + .22, zb - 1.6))
+    sk.done()
+
+
+def arm_roof(c):
+    hip_roof(c, "ARM_roof", AX0, AX1, AY0, AY1, AH2 + .1, APITCH, AEAVE, AM["tiles"], M["ridge"], M["fascia"],
+             hole=(1.5, 1.1, 2.6, 2.1), seed=21)
+    X0, X1, Y0 = AX0 - AEAVE, AX1 + AEAVE, AY0 - AEAVE
+    ze = AH2 + .1 - AEAVE * math.tan(APITCH)
+    ch = G("ARM_roofChimney", AM["brick"], c, bevel=.03, seg=1)
+    ch.box((.6, .6, 2.5), (.6, 1.9, 6.2 + 1.25), open_bottom=True)
+    ch.done()
+    cap = G("ARM_roofChimCap", M["stone"], c, bevel=.03, seg=2)
+    cap.box((.78, .78, .14), (.6, 1.9, 8.77))
+    cap.done()
+    pots = G("ARM_roofPots", M["ridge"], c, bevel=.015, seg=1)
+    pots.cyl(.12, .32, (.52, 1.9, 9.0), verts=10, r2=.1); pots.cyl(.11, .26, (.76, 1.95, 8.97), verts=10, r2=.09)
+    pots.done()
+    gu = G("ARM_gutter", M["rust"], c)
+    gu.tube((X0 + .15, Y0 - .19, ze - .05), (X1 - .1, Y0 - .19, ze - .05), .07, verts=8)
+    gu.done()
+    dp = G("ARM_gutterDown", M["rust"], c)
+    dp.tube((X1 - .15, Y0 - .19, ze - .08), (AX1 + .14, AY0 - .14, ze - .6), .055, verts=8)
+    dp.tube((AX1 + .14, AY0 - .14, ze - .6), (AX1 + .14, AY0 - .14, .3), .055, verts=8)
+    dp.tube((AX1 + .14, AY0 - .14, .3), (AX1 + .14, AY0 - .45, .08), .055, verts=8)
+    dp.done()
+
+
+def sack(g, x, y, z, a=0., tilt=(0, 0), L=.62, W=.4, H=.24):
+    g.box((L, W, H), (x, y, z + H / 2), rot=(tilt[0], tilt[1], a))
+    ca, sa = math.cos(a), math.sin(a)
+    g.box((.1, W * .45, H * .5), (x + ca * (L / 2 + .02), y + sa * (L / 2 + .02), z + H * .55), rot=(tilt[0], tilt[1], a))   # tied neck
+
+
+def barrel(g, hoops, M0, r=.3, h=.86):
+    g.cyl(r * .86, h * .3, (0, 0, h * .15), verts=16, r2=r, M=M0)
+    g.cyl(r, h * .4, (0, 0, h * .5), verts=16, M=M0)
+    g.cyl(r, h * .3, (0, 0, h * .85), verts=16, r2=r * .86, M=M0)
+    for (z, rr) in ((.1, .9), (.3, .985), (.7, .985), (.9, .9)):
+        hoops.torus(r * rr + .005, .018, (0, 0, h * z), seg=14, rseg=3, M=M0)
+
+
+def crate(g, M0, s=.6):
+    for zz in (.1, .3, .5):
+        for sy in (-1, 1): g.box((s, .025, .16), (0, sy * (s / 2 - .012), zz * s / .6), M=M0)
+        for sx in (-1, 1): g.box((.025, s - .05, .16), (sx * (s / 2 - .012), 0, zz * s / .6), M=M0)
+    for sx in (-1, 1):
+        for sy in (-1, 1): g.box((.05, .05, s), (sx * (s / 2 - .04), sy * (s / 2 - .04), s / 2), M=M0)
+    g.box((s - .04, s - .04, .02), (0, 0, .015), M=M0)
+
+
+def spoked(g, rim, M0, R=.25, n=10, tyre_g=None):
+    """Thin bicycle wheel (axis local Z): rubber tyre, steel rim ring, hub and spokes."""
+    if tyre_g is not None: tyre_g.tyre(R=R, r=.03, w=.03, M=M0, seg=28, rseg=6)
+    rim.torus(R - .035, .012, (0, 0, 0), seg=24, rseg=4, M=M0)
+    rim.cyl(.035, .1, (0, 0, 0), verts=8, M=M0)
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        p0 = M0 @ Vector((.03 * math.cos(a), .03 * math.sin(a), (.04 if k % 2 else -.04)))
+        p1 = M0 @ Vector(((R - .04) * math.cos(a + .25), (R - .04) * math.sin(a + .25), 0))
+        rim.tube(p0, p1, .005, verts=3)
+
+
+def arm_platform(c):
+    """Loading platform along the front left: brick front, plank deck, stone steps; sacks and a crate on it."""
+    x0, x1, y0, y1, h = -4.3, -2.0, -3.6, -2.7, .75
+    b = G("ARM_platform", AM["brick"], c, bevel=.03, seg=1)
+    b.box((x1 - x0, y1 - y0, h - .06), ((x0 + x1) / 2, (y0 + y1) / 2, (h - .06) / 2), open_bottom=True)
+    b.done()
+    d = G("ARM_platformDeck", M["deck"], c, bevel=.012, seg=1)
+    n = 6
+    for i in range(n):
+        y = y0 - .04 + (i + .5) * (y1 - y0 + .04) / n
+        d.box((x1 - x0 + .08, (y1 - y0 + .04) / n - .015, .06), ((x0 + x1) / 2, y, h - .03))
+    d.box((x1 - x0 + .1, .1, .14), ((x0 + x1) / 2, y0 - .06, h - .1))                     # edge beam
+    d.done()
+    st = G("ARM_platformSteps", M["stepstone"], c, bevel=.03, seg=1)
+    st.box((.75, .32, .25), (-3.85, y0 - .5, .125), open_bottom=True)
+    st.box((.75, .3, .5), (-3.85, y0 - .17, .25), open_bottom=True)
+    st.done()
+    sk = G("ARM_sacks", AM["sack"], c, bevel=.07, seg=2)
+    for (x, y, z, a) in ((-3.5, -2.95, h, .05), (-2.91, -2.97, h, math.pi - .08), (-3.3, -3.38, h, .1),
+                         (-3.2, -3.1, h + .24, .25), (-3.7, -3.15, h + .24, -.1), (-3.4, -3.1, h + .48, .5)):
+        sack(sk, x, y, z + .01, a)
+    sack(sk, -3.02, -3.97, 0, .15, tilt=(.08, 0))                                                 # one fell off
+    sk.done()
+    cr = G("ARM_crates", M["wood"], c, smooth=False)
+    crate(cr, Matrix.Translation((-2.27, -3.1, h + .005)) @ Matrix.Rotation(.15, 4, 'Z'), .5)
+    crate(cr, Matrix.Translation((4.15, 2.45, 0)) @ Matrix.Rotation(.2, 4, 'Z'), .62)
+    crate(cr, Matrix.Translation((4.2, 2.45, .62)) @ Matrix.Rotation(-.15, 4, 'Z'), .55)
+    crate(cr, Matrix.Translation((3.72, 3.38, 0)) @ Matrix.Rotation(.7, 4, 'Z'), .55)
+    cr.done()
+    cb = G("ARM_crateBroken", M["wood"], c, bevel=.008, seg=1)
+    Mb = Matrix.Translation((4.45, 3.35, 0)) @ Matrix.Rotation(-.4, 4, 'Z')
+    for k in range(4): cb.box((.6, .1, .025), (-.05 + .05 * k, -.25 + .17 * k, .02 + .026 * (k % 2)), rot=(0, 0, .25 * k), M=Mb)
+    cb.box((.6, .025, .16), (0, .3, .1), rot=(.5, 0, 0), M=Mb)
+    cb.done()
+
+
+def arm_trike(c):
+    """An old delivery tricycle: orange cargo box between two front wheels, teal frame, saddle, crank and chain."""
+    Mt = Matrix.Translation((1.6, -4.75, 0)) @ Matrix.Rotation(-.35, 4, 'Z')
+    fr = G("ARM_trikeFrame", AM["trike"], c)
+    R = .27
+    T = lambda x, y, z: Mt @ Vector((x, y, z))
+    fr.tube(T(.75, -.5, R), T(.75, .5, R), .03, verts=8)                          # front axle
+    fr.tube(T(.35, 0, .55), T(-.05, 0, .62), .03, verts=8)                        # box to steering
+    fr.tube(T(-.05, 0, .62), T(.1, 0, 1.0), .028, verts=8)                        # steering column
+    fr.tube(T(.1, -.28, 1.04), T(.1, .28, 1.04), .022, verts=8)                   # handlebar
+    fr.tube(T(-.05, 0, .62), T(-.32, 0, .95), .03, verts=8)                       # top tube to the saddle
+    fr.tube(T(-.05, 0, .62), T(-.08, 0, .33), .03, verts=8)                       # down tube to the crank
+    fr.tube(T(-.08, 0, .33), T(-.32, 0, .95), .03, verts=8)                       # seat tube
+    for sy in (-1, 1):
+        fr.tube(T(-.08, sy * .03, .33), T(-.75, sy * .06, R + .02), .02, verts=6)  # chain stays
+        fr.tube(T(-.3, sy * .03, .9), T(-.75, sy * .06, R + .02), .018, verts=6)   # seat stays
+    fr.tube(T(-.75, -.07, R + .02), T(-.75, .07, R + .02), .02, verts=6)
+    fr.cyl(.07, .04, (0, 0, 0), M=Mt @ Matrix.Translation((-.08, -.05, .33)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), verts=12)   # chainring
+    for sy, a in ((-1, .9), (1, -2.24)):
+        p = T(-.08 + .15 * math.cos(a), sy * .1, .33 + .15 * math.sin(a))
+        fr.tube(T(-.08, sy * .07, .33), p, .015, verts=5)
+    fr.done()
+    tg = G("ARM_trikeTyres", OM["rubber"], c)
+    rim = G("ARM_trikeRims", M["rust"], c)
+    for sy in (-1, 1):
+        spoked(rim, rim, Mt @ Matrix.Translation((.75, sy * .53, R)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), R=R, tyre_g=tg)
+    spoked(rim, rim, Mt @ Matrix.Translation((-.75, 0, R + .02)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), R=R + .02, tyre_g=tg)
+    tg.done(); rim.done()
+    dk = G("ARM_trikeDark", M["dark"], c, bevel=.02, seg=1)
+    dk.box((.26, .14, .06), (0, 0, 0), M=Mt @ Matrix.Translation((-.34, 0, .98)) @ Matrix.Rotation(-.1, 4, 'Y'))   # saddle
+    for sy in (-1, 1): dk.tube(T(.1, sy * .24, 1.04), T(.1, sy * .34, 1.04), .03, verts=8)                    # grips
+    for sy, a in ((-1, .9), (1, -2.24)):
+        p = Mt @ Vector((-.08 + .15 * math.cos(a), sy * .14, .33 + .15 * math.sin(a)))
+        dk.box((.1, .08, .025), (0, 0, 0), M=Matrix.Translation(p) @ Mt.to_3x3().to_4x4())                    # pedals
+    dk.tube(T(-.08, -.05, .4), T(-.75, -.08, R + .06), .012, verts=4); dk.tube(T(-.08, -.05, .26), T(-.75, -.08, R - .02), .012, verts=4)
+    dk.done()
+    bx = G("ARM_trikeBox", AM["tbox"], c, bevel=.02, seg=1)
+    b0, b1, bw, z0, bh = .33, 1.17, .9, .5, .5
+    bx.box((b1 - b0, bw, .04), ((b0 + b1) / 2, 0, z0 + .02), M=Mt)
+    for sy in (-1, 1): bx.box((b1 - b0, .04, bh), ((b0 + b1) / 2, sy * (bw / 2 - .02), z0 + bh / 2), M=Mt)
+    for x in (b0 + .02, b1 - .02): bx.box((.04, bw - .08, bh), (x, 0, z0 + bh / 2), M=Mt)
+    bx.done()
+    bt = G("ARM_trikeBoxTrim", M["deck"], c, bevel=.01, seg=1)
+    for sy in (-1, 1): bt.box((b1 - b0 + .06, .07, .06), ((b0 + b1) / 2, sy * (bw / 2 - .02), z0 + bh + .02), M=Mt)
+    for x in (b0, b1): bt.box((.07, bw + .04, .06), (x, 0, z0 + bh + .02), M=Mt)
+    for x in (b0 + .02, b1 - .02):
+        for sy in (-1, 1): bt.box((.06, .06, bh + .06), (x, sy * (bw / 2 - .02), z0 + bh / 2 + .01), M=Mt)
+    bt.done()
+    sk = G("ARM_trikeSacks", AM["sack"], c, bevel=.06, seg=2)
+    for (x, y, a) in ((.62, -.18, .1), (.88, .17, -.2)):
+        p = Mt @ Vector((x, y, z0 + .04))
+        sack(sk, p.x, p.y, p.z, a - .35, L=.5, W=.34, H=.22)
+    sk.done()
+
+
+def arm_cart(c):
+    """Two-wheeled wooden hand cart, shafts down on the ground, a barrel lying in it and a sack."""
+    Mc = Matrix.Translation((-3.55, -5.0, 0)) @ Matrix.Rotation(.12, 4, 'Z')
+    R = .45; zb = R + .08
+    cw = G("ARM_cartBody", M["deck"], c, bevel=.012, seg=1)
+    for i in range(5): cw.box((1.3, .17, .04), (0, -.36 + i * .18, zb), M=Mc)
+    for sy in (-1, 1): cw.box((1.34, .04, .26), (0, sy * .45, zb + .15), M=Mc)
+    cw.box((.04, .94, .2), (-.66, 0, zb + .12), M=Mc)
+    for sy in (-1, 1):
+        a = Mc @ Vector((-.6, sy * .32, zb - .05)); b = Mc @ Vector((1.75, sy * .27, .06))
+        cw.tube(a, b, .04, verts=6, r2=.03)
+    cw.tube(Mc @ Vector((.9, -.3, .3)), Mc @ Vector((.9, .3, .3)), .025, verts=5)
+    cw.tube(Mc @ Vector((-.55, 0, zb - .04)), Mc @ Vector((-.62, 0, .0)), .035, verts=6)    # rest leg
+    cw.done()
+    wh = G("ARM_cartWheels", M["deck"], c, bevel=.0)
+    ir = G("ARM_cartIron", M["rust"], c)
+    for sy in (-1, 1):
+        Mw = Mc @ Matrix.Translation((.05, sy * .56, R)) @ Matrix.Rotation(math.pi / 2, 4, 'X')
+        wh.torus(R - .04, .04, (0, 0, 0), seg=24, rseg=6, M=Mw)
+        ir.torus(R - .005, .018, (0, 0, 0), seg=24, rseg=4, M=Mw)
+        wh.cyl(.08, .14, (0, 0, 0), verts=10, M=Mw)
+        for k in range(8):
+            a = 2 * math.pi * k / 8
+            wh.tube(Mw @ Vector((.06 * math.cos(a), .06 * math.sin(a), 0)), Mw @ Vector(((R - .06) * math.cos(a), (R - .06) * math.sin(a), 0)), .022, verts=5)
+    ir.tube(Mc @ Vector((.05, -.62, R)), Mc @ Vector((.05, .62, R)), .025, verts=6)        # axle
+    wh.done(); ir.done()
+    bl = G("ARM_cartBarrel", AM["barrel"], c, bevel=.0)
+    bh = G("ARM_cartBarrelHoops", M["rust"], c)
+    barrel(bl, bh, Mc @ Matrix.Translation((-.38, 0, zb + .02 + .27)) @ Matrix.Rotation(math.pi / 2, 4, 'X') @ Matrix.Translation((0, 0, -.38)), r=.27, h=.76)
+    bl.done(); bh.done()
+    sk = G("ARM_cartSack", AM["sack"], c, bevel=.06, seg=2)
+    p = Mc @ Vector((.3, .05, zb + .02))
+    sack(sk, p.x, p.y, p.z, .12 + 1.4, L=.55, W=.36, H=.22)
+    sk.done()
+
+
+def arm_yard(c):
+    rnd = random.Random(29)
+    # barrels by the east wall: three standing (one with a lid off), one lying
+    bl = G("ARM_barrelBodies", AM["barrel"], c, bevel=.0)
+    bh = G("ARM_barrelHoops", M["rust"], c)
+    for (x, y, a) in ((3.65, -1.95, .3), (4.3, -1.7, 1.1), (3.85, -1.25, 2.0)):
+        barrel(bl, bh, Matrix.Translation((x, y, 0)) @ Matrix.Rotation(a, 4, 'Z'))
+    barrel(bl, bh, Matrix.Translation((4.35, -.65, .3)) @ Matrix.Rotation(.4, 4, 'Z') @ Matrix.Rotation(math.pi / 2, 4, 'X') @ Matrix.Translation((0, 0, -.43)))
+    bl.done(); bh.done()
+    lid = G("ARM_barrelLid", AM["barrel"], c, bevel=.01, seg=1)
+    lid.cyl(.25, .03, (4.25, -2.35, .02), rot=(.05, 0, 0), verts=14)
+    lid.done()
+    # worn flagstone apron in front of the big doors
+    ap = G("ARM_apron", M["stepstone"], c, bevel=.02, seg=1)
+    y = AY0 - .08; row = 0
+    while y > -4.35:
+        dy = rnd.uniform(.38, .55); x = -1.55 + (.2 if row % 2 else 0)
+        while x < 1.5:
+            dx = rnd.uniform(.45, .75)
+            if rnd.random() > .14 and not (row > 2 and abs(x) > 1.1):
+                ap.box((dx - .06, dy - .06, .05), (x + dx / 2, y - dy / 2, .02), rot=(0, 0, rnd.uniform(-.04, .04)), open_bottom=True)
+            x += dx
+        y -= dy; row += 1
+    ap.done()
+    # stack of spare roof tiles by the back wall, planks and an old pallet in the back yard
+    st = G("ARM_tileStack", AM["tiles"], c, bevel=.03, seg=1)
+    for i in range(6): st.box((.6, .5, .07), (2.25 + rnd.uniform(-.03, .03), 3.95, .04 + i * .075), rot=(0, 0, .2 + rnd.uniform(-.08, .08)))
+    st.box((.6, .5, .07), (1.7, 4.15, .1), rot=(.05, -.35, -.3))
+    st.done()
+    pl = G("ARM_planks", M["wood"], c, bevel=.012, seg=1)
+    for k in range(4): pl.box((2.0, .18, .05), (.2 + k * .04, 4.6 + k * .2, .03 + k * .05), rot=(0, 0, .12 + k * .06))
+    pl.done()
+    pa = G("ARM_pallet", M["wood"], c, bevel=.006, seg=1)
+    Mp = Matrix.Translation((-1.65, 4.7, 0)) @ Matrix.Rotation(-.25, 4, 'Z')
+    for yy in (-.5, 0, .5): pa.box((1.2, .1, .1), (0, yy, .05), M=Mp)
+    for i in range(6):
+        if i != 2: pa.box((.11, 1.15, .025), (-.53 + i * .212, 0, .115), M=Mp)
+    pa.done()
+    # hand truck leaning on the platform
+    Mh = Matrix.Translation((-2.3, -4.0, 0)) @ Matrix.Rotation(-.2, 4, 'Z') @ Matrix.Rotation(-.32, 4, 'X')
+    hf = G("ARM_handTruck", AM["trike"], c)
+    for sy in (-1, 1): hf.tube(Mh @ Vector((sy * .18, 0, .1)), Mh @ Vector((sy * .16, 0, 1.25)), .022, verts=6)
+    for z in (.45, .8, 1.15): hf.tube(Mh @ Vector((-.18, 0, z)), Mh @ Vector((.18, 0, z)), .015, verts=5)
+    hf.tube(Mh @ Vector((-.16, 0, 1.25)), Mh @ Vector((-.1, .05, 1.38)), .02, verts=6); hf.tube(Mh @ Vector((.16, 0, 1.25)), Mh @ Vector((.1, .05, 1.38)), .02, verts=6)
+    hf.tube(Mh @ Vector((-.1, .05, 1.38)), Mh @ Vector((.1, .05, 1.38)), .02, verts=6)
+    hf.box((.4, .22, .02), (0, 0, 0), M=Mh @ Matrix.Translation((0, -.12, .04)))
+    hf.tube(Mh @ Vector((-.26, .06, .13)), Mh @ Vector((.26, .06, .13)), .015, verts=5)
+    hf.done()
+    ht = G("ARM_handTruckTyres", OM["rubber"], c)
+    hr = G("ARM_handTruckRims", M["rust"], c)
+    for sx in (-1, 1):
+        Mw = Mh @ Matrix.Translation((sx * .27, .06, .13)) @ Matrix.Rotation(math.pi / 2, 4, 'Y')
+        ht.tyre(R=.09, r=.04, w=.04, M=Mw, seg=20, rseg=6); hr.rim(R=.065, w=.025, lugs=0, M=Mw)
+    ht.done(); hr.done()
+    # ivy up the east wall by the back corner
+    vn = G("ARM_ivyVines", M["bark"], c)
+    iv = G("ARM_ivy", M["ivy"], c)
+    pts = [(2.35, 0.)]
+    for k in range(5): pts.append((max(2.15, min(2.85, pts[-1][0] + rnd.uniform(-.3, .3))), 3.6 * (k + 1) / 5))
+    for (u0, z0), (u1, z1) in zip(pts, pts[1:]):
+        vn.tube((AX1 + .13, u0, z0), (AX1 + .13, u1, z1), .025, verts=5)
+        for q in range(5):
+            f = q / 5; u = u0 + (u1 - u0) * f + rnd.uniform(-.2, .2); z = z0 + (z1 - z0) * f + rnd.uniform(-.1, .1)
+            if z < .6 or abs(z - AH1) < .2 or u < 1.95: continue
+            r = rnd.uniform(.11, .17)
+            iv.ball(r, (AX1 + .1 + r * .42, u, z), scale=(.4, 1, .75), rot=(rnd.uniform(-.6, .6), 0, 0), sub=1)
+    vn.done(); iv.done()
+
+
+def arm_green(c):
+    rnd = random.Random(67)
+    house = (AX0 - .15, AX1 + .15, AY0 - .15, AY1 + .15)
+    city_tree("ARM_tree", c, (-3.6, 4.85, 0), 1, rot_z=math.radians(30), tris=4200, width=2.0)
+    for k, (x, y, r, rz) in enumerate(((4.45, 4.9, .55, .3), (2.9, 5.15, .45, 1.4), (-1.9, 5.3, .42, 2.5), (4.5, -5.2, .45, 3.3),
+                                       (-1.0, -5.4, .34, .7))):
+        city_tree(f"ARM_bush{k}", c, (x, y, 0), 1, rot_z=rz, tris=650, crown_only=True, width=r * 2.1)
+    for k, (x, y, sx, sy, d) in enumerate(((-.2, -5.1, 2.6, .55, 1.0), (4.4, -3.6, .5, 1.0, 1.0), (4.5, .9, .45, 1.2, 1.0),
+                                           (-4.65, 1.5, .3, 2.0, .9), (-1.0, 4.4, 3.0, .7, 1.0), (3.4, 4.6, 1.0, .6, .9),
+                                           (2.6, -3.0, .5, .3, .9))):
+        grass_patch(c, f"ARM_grass{k}", x, y, sx, sy, seed=500 + k, density=d, h=(.25, .55), holes=(house,))
+    tw = G("ARM_weeds", M["grass"], c, smooth=False)
+    for i, (x, y) in enumerate(((AX0 - .15, -2.2), (AX0 - .12, -.8), (AX0 - .15, 2.6), (AX1 + .2, -2.3), (AX1 + .18, .3), (AX1 + .2, 3.1),
+                                (-4.55, -3.3), (2.6, AY0 - .25), (-1.4, AY1 + .2), (1.2, AY1 + .2), (-1.55, -2.85), (1.6, -3.3))):
+        tw.blades((x, y, 0), n=rnd.randint(6, 9), h=rnd.uniform(.35, .6), w=.065, seed=1700 + i, spread=.08, lean=(.15, .5))
+    tw.done()
+    st = G("ARM_flowerStalks", M["grass"], c)
+    fh = G("ARM_flowerHeads", M["flower"], c)
+    for (cx_, cy_) in ((-.8, -5.2), (4.4, .4), (-2.8, 3.95)):
+        for i in range(6):
+            x = cx_ + rnd.uniform(-.35, .35); y = cy_ + rnd.uniform(-.35, .35); h = rnd.uniform(.3, .55)
+            st.tube((x, y, 0), (x, y, h), .012, verts=4); fh.ball(.055, (x, y, h), scale=(1, 1, .7), sub=1)
+    st.done(); fh.done()
+
+
+def arm_pad(c):
+    p = G("ARM_pad", M["pad"], c)
+    p.box((PAD_W, PAD_D, .2), (0, 0, -.1))
+    o = p.done(); o.hide_render = True
+    return o
+
+
+def build_armazem(part="all"):
+    c = col(ARM)
+    show_only(ARM)
+    if part in ("all", "house"):
+        for o in list(c.objects): bpy.data.objects.remove(o)
+        for m in list(bpy.data.meshes):
+            if m.users == 0 and not m.use_fake_user: bpy.data.meshes.remove(m)
+    arm_mats()
+    if not OM: ofi_mats()
+    if part in ("all", "house"):
+        arm_pad(c); arm_walls(c); arm_trims(c); arm_openings(c); arm_roof(c)
+    if part in ("all", "yard"):
+        arm_platform(c); arm_trike(c); arm_cart(c); arm_yard(c); arm_green(c)
+    return stats(c)
+
+
+def armazem_export():
+    return make_export(ARM, ARM_NAME, groups=ARM_GROUPS, default="ARM_junk",
+                       inside=(AX0 + WT, AX1 - WT, AY0 + WT, AY1 - WT), walls=("V3_ArmWall",),
+                       texel={"V3_ArmWall": 1.5, "V3_ArmBrick": .9, "V3_ArmTiles": .55, "V3_ArmDoor": 1.1, "V3_Sack": .7,
+                              "V3_BarrelWood": .8, "V3_TrikeBox": 1.0, "V3_Deck": .6, "V3_Planks": .6})
+# r97 uvfix
