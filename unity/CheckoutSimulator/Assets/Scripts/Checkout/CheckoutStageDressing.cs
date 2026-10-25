@@ -46,9 +46,9 @@ namespace Checkout
         static readonly string[] Retired = { "S3 clock tower", "S4 tower east", "S4 tower west" };
         public static bool IsRetired(CheckoutStageItem item) => System.Array.IndexOf(Retired, item.name) >= 0;
 
-        // The big entrance canopies (supermercado, hipermercado) are see-through, so the door and the people going
-        // in and out stay visible under them.
-        static readonly string[] SeeThrough = { "S2 entrance canopy", "S4 glass canopy" };
+        // The entrance canopies (the mercadinho's striped awning, supermercado, hipermercado) are see-through, so the
+        // door and the people going in and out stay visible under them.
+        static readonly string[] SeeThrough = { "S0 door awning", "S2 entrance canopy", "S4 glass canopy" };
         public const float CanopyOpacity = .5f;
         static readonly Dictionary<Material, Material> faded = new Dictionary<Material, Material>();
         readonly HashSet<CheckoutStageItem> fadedItems = new HashSet<CheckoutStageItem>();

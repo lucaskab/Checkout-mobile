@@ -211,11 +211,16 @@ namespace Checkout
         // The entrance portal (pillars, header, "BEM-VINDO" sign, gold trims) is see-through like the entrance
         // canopies, so the door and the people going in and out stay visible behind it.
         static readonly string[] PortalParts = { "Portal jamb L", "Portal jamb R", "Portal header", "Portal trim top", "Portal trim low", "Portal light", "Portal sign", "Portal sign trim", "Mullion L", "Mullion R", "Sidelight kick L", "Sidelight kick R" };
+        static readonly string[] DoorLeaves = { "Anim_Door_Left", "Anim_Door_Right" };
         void FadePortal()
         {
             // Only while playing: in the editor the builders save the shell into the scene with its real materials.
             if (!Application.isPlaying) return;
             foreach (var n in PortalParts) { var t = walls.Find(n); if (t) CheckoutStageDressing.FadeRenderer(t.GetComponent<Renderer>()); }
+            // The sliding door leaves in the middle of the portal too (Lucas 25/10: the portal faded but the door glass
+            // between the sidelights still hid the people at the door).
+            var world = transform.parent;
+            if (world) foreach (var n in DoorLeaves) { var t = world.Find(n); if (t) foreach (var r in t.GetComponentsInChildren<Renderer>(true)) CheckoutStageDressing.FadeRenderer(r); }
             var label = walls.Find("Portal label");
             var text = label ? label.GetComponent<TextMesh>() : null;
             if (text) { var c = text.color; c.a = CheckoutStageDressing.CanopyOpacity; text.color = c; }
