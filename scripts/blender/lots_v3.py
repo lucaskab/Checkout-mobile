@@ -1600,7 +1600,7 @@ SWATCH = ["V3_Picket", "V3_Glass", "V3_Dark", "V3_Tire", "V3_Rope", "V3_Orange",
           "V3_HoistRed", "V3_DrumBlue", "V3_DrumRed", "V3_Chrome", "V3_Engine", "V3_Toolbox",
           "V3_GalSteel", "V3_Bumper", "V3_Sack", "V3_PalletJack", "V3_Drum", "V3_Moto", "V3_CaravanStripe", "V3_Fridge",
           "V3_GrassLush", "V3_Rubber", "V3_RimSteel", "V3_Taillight", "V3_Headlight", "V3_Seat",
-          "V3_TallGrass", "V3_FlowerP", "V3_SwingSeat", "V3_Swing"]
+          "V3_TallGrass", "V3_FlowerP", "V3_SwingSeat", "V3_Swing", "V3_PVC", "V3_SignRim"]
 SWATCH_CELL = .05                      # swatch squares in the band right of the city-tree square
 RESERVED = TREE_BAND + .004
 
@@ -4385,7 +4385,9 @@ def m_water(name):
 def mato_mats():
     mats()
     MM.clear()
-    MM["wall"] = m_plaster("V3_MatoWall", C("F2D8A6"), band=C("3FAA9B"), band_top=.22, chips=.2, seed=71., chip_scale=1.2, fine=.03)
+    MM["wall"] = m_aged_wall("V3_MatoWall", C("D9C7A0"), band=C("7FA096"), band_top=.3, seed=71., loss=.15)
+    MM["chimney"] = m_aged_wall("V3_MatoChimney", C("CDB894"), seed=73., loss=1.6)
+    MM["oldbrick"] = m_flat("V3_OldBrick", C("A85B45"), .06, 6, .9, island=.14, ao=.5)
     MM["tiles"] = m_floortiles("V3_FloorTiles")
     MM["water"] = m_water("V3_Puddle")
     MM["shed"] = m_wood("V3_ShedPlanks", C("B79A70"), C("8D6E4C"), C("9C9384"))
@@ -4417,36 +4419,137 @@ def jagged_wall(g, a, b, t, h_lo, h_hi, seed, gaps=(), z0=0.):
         x += w
 
 
+# ------------------------------------------------------------------ aged ruin walls (Lucas 25/10 20:43: old, crumbling)
+def m_aged_wall(name, paint, band=None, band_top=.5, seed=0., loss=.5, moss=C("6E8F3E")):
+    """Old ruin plaster: faded, dirtier paint with soft streaks, big irregular patches where the plaster came off
+    showing uneven brick courses (pale broken rim), damp stain rising from the ground, moss on every upward face,
+    crisp hairline cracks."""
+    t = NT(name, .92)
+    p = t.pos; z = t.comp(p, "Z")
+    po = t.scale(p, 1, 1, 1, (seed, seed * .7, 0))
+    col = t.mul(paint, t.ramp(t.noise(po, .7, 3, .55), .3, .7, .86, 1.04))
+    streak = t.noise(t.scale(po, 3.5, 3.5, .25), 1.2, 3, .5)                      # rain streaks running down
+    col = t.mix(col, C("9A9078"), .2)                                             # faded, dirty
+    col = t.mix(col, C("7E7562"), t.ramp(streak, .5, .72, 0, .45))
+    if band is not None:
+        bz = t.ramp(t.math('ADD', z, t.math('MULTIPLY', t.noise(po, 4, 2), .08)), band_top - .01, band_top + .01)
+        bcol = t.mul(band, t.ramp(t.noise(po, .9, 3, .5), .3, .7, .82, 1.02))
+        col = t.mix(bcol, col, bz)
+    # plaster loss: large ragged patches (more towards the broken tops and the base) -> uneven brick courses
+    f = t.math('ADD', t.noise(t.scale(po, 1, 1, 1.2), .75, 3, .55), t.math('MULTIPLY', t.noise(po, 8, 2, .5), .05))
+    f = t.math('ADD', f, t.math('MULTIPLY', t.ramp(z, .6, 2.4, 0, .1), 1.0))
+    f = t.math('ADD', f, t.ramp(z, 0, .5, .06, 0))
+    thr = .6 - loss * .1
+    hole = t.ramp(f, thr, thr + .006)
+    rim = t.math('SUBTRACT', t.ramp(f, thr - .03, thr - .024), hole)
+    bcol, bfac = brick_tex(t, t.scale(p, 1, 1, 1, (0, 0, 0)), c1=C("B4624A"), c2=C("9C5442"), mortar=C("CDBFA6"), bw=.24, rh=.082, msize=.016, smooth=.2)
+    bcol = t.tint(bcol, .12)
+    bcol = t.mul(bcol, t.ramp(f, thr, thr + .06, .75, 1.0))
+    col = t.mix(col, C("EDE2CC"), rim)
+    col = t.mix(col, bcol, hole)
+    # damp rising from the ground (irregular tide line), grime
+    damp = t.ramp(t.math('ADD', z, t.math('MULTIPLY', t.noise(po, 1.8, 3, .6), .35)), .3, .85, .62, 0)
+    col = t.mix(col, C("5E5A44"), damp)
+    # cracks: thin, crisp, only in some regions
+    cr = t.vor(t.scale(po, 1, 1, 1, (2.3, 1.1, 0)), 1.6)
+    region = t.ramp(t.noise(po, .8, 2), .55, .6)
+    col = t.mix(col, C("4A4036"), t.math('MULTIPLY', t.ramp(cr, .012, .006), region))
+    # moss on every upward face (broken tops, ledges) and in patches at the foot
+    nz = t.comp(t.geo.outputs["Normal"], "Z")
+    mz = t.math('MULTIPLY', t.ramp(nz, .45, .8), t.ramp(t.noise(po, 3, 2), .3, .45))
+    col = t.mix(col, moss, mz)
+    col = t.mix(col, (moss[0] * .8, moss[1] * .8, moss[2] * .8, 1), t.math('MULTIPLY', t.ramp(z, 0, .3, .8, 0), t.ramp(t.noise(po, 2.5, 2), .6, .64)))
+    return t.done(col, t.math('MULTIPLY', hole, -1.0), .3, ao=.6)
+
+
+def aged_wall(g, a, b, t, h_lo, h_hi, seed, gaps=(), step=.17, bricks=None, chunks=None, z0=0., avoid=(), raise_in=None):
+    """A crumbling wall from a to b: one solid per run (between `gaps`), its top an irregular broken line (random
+    walk with sudden drops), ends crumbled down next to openings; optional loose bricks along the broken top
+    (`bricks` G) and fallen lumps at its foot (`chunks` G)."""
+    rnd = random.Random(seed)
+    a, b = Vector((*a, 0)), Vector((*b, 0)); d = b - a; L = d.length; dv = d.normalized()
+    F = Matrix.Translation(a) @ Matrix.Rotation(math.atan2(dv.y, dv.x), 4, 'Z')
+    cuts = [0.0]
+    for (g0, g1) in sorted(gaps): cuts += [g0 * L, g1 * L]
+    cuts.append(L)
+    course = .082
+    h = rnd.uniform(h_lo, h_hi)
+    for r in range(0, len(cuts), 2):
+        u0, u1 = cuts[r], cuts[r + 1]
+        if u1 - u0 < .12: continue
+        open_l, open_r = r > 0, r + 2 < len(cuts) - 1
+        # broken top = brick-course steps (flat runs, vertical drops), now and then a sheared slope
+        tops = []; u = u0
+        while u < u1 - 1e-4:
+            u2 = min(u1, u + rnd.uniform(.14, .4) * step / .17)
+            if u1 - u2 < .1: u2 = u1
+            h += rnd.choice((-3, -2, -1, -1, 1, 1, 2, 3)) * course + .2 * ((h_lo + h_hi) / 2 - h)
+            if rnd.random() < .1: h -= rnd.randint(4, 7) * course
+            h = max(h_lo, min(h_hi, h))
+            k = 1.0
+            for (op, dd) in ((open_l, (u + u2) / 2 - u0), (open_r, u1 - (u + u2) / 2)):
+                if op and dd < .45: k = min(k, .3 + .7 * dd / .45)
+            ha = max(.16, round(h * k / course) * course)
+            hb = ha - (rnd.uniform(.06, .22) if rnd.random() < .3 else 0)
+            if tops and abs(tops[-1][1] - z0 - ha) < .01: ha += course
+            tops += [(u, ha + z0), (u2, max(.12, hb) + z0)]
+            u = u2
+        pts = [(u0, z0), (u1, z0)] + list(reversed(tops))
+        g.prism(pts, t, M=F)
+        if bricks is not None:
+            for q in range(0, len(tops) - 1, 2):
+                (ua, za), (ub, zb) = tops[q], tops[q + 1]
+                u, zz = (ua + ub) / 2, max(za, zb)
+                if abs(za - zb) < .01 and rnd.random() < .4:
+                    bricks.box((.22, .11, .07), (u + rnd.uniform(-.05, .05), rnd.uniform(-t / 3, t / 3), zz + .02),
+                               rot=(rnd.uniform(-.25, .25), rnd.uniform(-.3, .3), rnd.uniform(-.3, .3)), M=F)
+        if chunks is not None:
+            for k in range(int((u1 - u0) / .8) + 1):
+                u = rnd.uniform(u0, u1); side = rnd.choice((-1, 1)); s = rnd.uniform(.16, .32)
+                off = side * (t / 2 + rnd.uniform(.08, .35)); wp = F @ Vector((u, off, 0))
+                if any((wp.x - ax) ** 2 + (wp.y - ay) ** 2 < ar * ar for (ax, ay, ar) in avoid): continue
+                dz = raise_in[4] if raise_in and raise_in[0] < wp.x < raise_in[1] and raise_in[2] < wp.y < raise_in[3] else 0.
+                chunks.box((s, s * .8, s * .55), (u, off, s * .22 + dz),
+                           rot=(rnd.uniform(-.3, .3), rnd.uniform(-.3, .3), rnd.uniform(0, 3)), M=F)
+
+
 def mato_ruin(c):
     rnd = random.Random(8)
-    # the long-gone house: low ruined walls (plaster outside, brick showing), a doorway gap and a window gap
+    # the long-gone house: crumbling low walls (old faded plaster coming off the brick), a doorway and a window gap
     x0, x1, y0, y1 = -1.4, 3.9, .6, 4.7
-    g = G("MATO_ruinWalls", MM["wall"], c, bevel=.03, seg=1)
-    jagged_wall(g, (x0, y0), (x1, y0), .26, .35, 1.25, 1, gaps=((.2, .36),))          # front: doorway
-    jagged_wall(g, (x1, y0), (x1, y1), .26, .6, 1.7, 2, gaps=((.45, .62),))
-    jagged_wall(g, (x1, y1), (x0, y1), .26, .9, 2.1, 3)
-    jagged_wall(g, (x0, y1), (x0, y0), .26, .25, .9, 4, gaps=((.6, .78),))
-    jagged_wall(g, (1.2, y0 + .2), (1.2, y1 - .2), .18, .3, .8, 5, gaps=((.3, .55),))   # an inner partition
-    g.done()
+    g = G("MATO_ruinWalls", MM["wall"], c, bevel=.025, seg=1)
+    lb = G("MATO_ruinLooseBricks", MM["oldbrick"], c, bevel=.01, seg=1)
+    lc = G("MATO_ruinChunks", MM["wall"], c, bevel=.03, seg=1)
+    aged_wall(g, (x0, y0), (x1, y0), .26, .3, 1.3, 1, gaps=((.2, .36),), bricks=lb, chunks=lc, raise_in=(x0 + .1, x1 - .1, y0 + .1, y1 - .1, .04))
+    aged_wall(g, (x1, y0), (x1, y1), .26, .5, 1.75, 2, gaps=((.45, .62),), bricks=lb, chunks=lc, raise_in=(x0 + .1, x1 - .1, y0 + .1, y1 - .1, .04))
+    aged_wall(g, (x1, y1), (x0, y1), .26, .8, 2.15, 3, bricks=lb, chunks=lc, raise_in=(x0 + .1, x1 - .1, y0 + .1, y1 - .1, .04))
+    aged_wall(g, (x0, y1), (x0, y0), .26, .22, .95, 4, gaps=((.6, .78),), bricks=lb, chunks=lc, raise_in=(x0 + .1, x1 - .1, y0 + .1, y1 - .1, .04))
+    aged_wall(g, (1.2, y0 + .2), (1.2, y1 - .2), .18, .25, .85, 5, gaps=((.3, .55),), bricks=lb)
+    g.done(); lb.done(); lc.done()
     st = G("MATO_ruinThreshold", M["stone"], c, bevel=.03, seg=1)
     st.box((1.0, .4, .1), (x0 + (x1 - x0) * .28, y0 - .1, .05), open_bottom=True)
     st.done()
     fl = G("MATO_floor", MM["tiles"], c, bevel=.0)
     fl.box((x1 - x0 - .3, y1 - y0 - .3, .04), ((x0 + x1) / 2, (y0 + y1) / 2, .02), open_bottom=True)
     fl.done()
-    ch = G("MATO_chimney", M["brick"], c, bevel=.03, seg=1)
-    ch.box((.55, .55, 2.6), (x1 - .35, y1 - .35, 1.3), open_bottom=True)
-    ch.box((.62, .62, .1), (x1 - .35, y1 - .35, 2.65))
+    # chimney stump: crumbling, plaster mostly gone, broken stepped top with loose bricks
+    ch = G("MATO_chimney", MM["chimney"], c, bevel=.025, seg=1)
+    cx, cy = x1 - .35, y1 - .35
+    ch.box((.55, .55, 1.6), (cx, cy, .8), open_bottom=True)
+    for (dx, dy, h) in ((-.14, -.14, .9), (.14, -.14, .55), (-.14, .14, 1.0), (.14, .14, .7)):
+        ch.box((.27, .27, h), (cx + dx, cy + dy, 1.6 + h / 2))
     ch.done()
-    rb = G("MATO_ruinRubble", M["brick"], c, smooth=False)
+    cb = G("MATO_chimneyBricks", MM["oldbrick"], c, bevel=.01, seg=1)
+    for k in range(9):
+        cb.box((.22, .11, .07), (cx + rnd.uniform(-.25, .25), cy + rnd.uniform(-.25, .25), 2.2 + rnd.uniform(0, .45)), rot=(rnd.uniform(-.3, .3), 0, rnd.uniform(0, 3)))
+    for k in range(6):
+        cb.box((.22, .11, .07), (cx + rnd.uniform(-.7, -.3), cy + rnd.uniform(-.7, -.3), .08 + (k % 2) * .07), rot=(0, 0, rnd.uniform(0, 3)))
+    cb.done()
+    rb = G("MATO_ruinRubble", MM["oldbrick"], c, smooth=False)
     for k in range(18):
         x = rnd.uniform(x0 + .2, x1 - .2); y = rnd.uniform(y0 + .2, y1 - .2)
-        rb.box((.22, .11, .07), (x, y, .07 + (k % 3) * .06), rot=(rnd.uniform(-.3, .3), 0, rnd.uniform(0, 3)))
+        rb.box((.22, .11, .07), (x, y, .085 + (k % 3) * .06), rot=(rnd.uniform(-.3, .3), 0, rnd.uniform(0, 3)))
     rb.done()
-    ch2 = G("MATO_ruinChunks", MM["wall"], c, bevel=.03, seg=1)
-    for (x, y, s) in ((x1 + .4, 2.2, .35), (x0 - .35, 1.6, .3), (2.4, y0 - .4, .28), (.2, 3.0, .32)):
-        ch2.box((s, s * .8, s * .6), (x, y, s * .3), rot=(.1, .2, rnd.uniform(0, 3)))
-    ch2.done()
 
 
 def mato_shed(c):
@@ -4595,19 +4698,32 @@ def mato_green(c):
             heads[kk].ball(.065, top, scale=(1, 1, .7), sub=1)
     stalks.done()
     for g in heads.values(): g.done()
-    # ivy climbing the back ruin wall and the chimney: vines with clustered leaves
+    # ivy climbing the back ruin wall and the chimney: vines with clustered leaves that follow the broken tops
     vn = G("MATO_ivyVines", M["bark"], c)
     iv = G("MATO_ivy", M["ivy"], c)
-    for (x0_, top, side) in ((-.9, 1.5, 0), (.5, 1.9, 0), (2.2, 1.7, 0), (3.2, 2.3, 1)):
+    walls_o, chim_o = bpy.data.objects.get("MATO_ruinWalls"), bpy.data.objects.get("MATO_chimney")
+
+    def top_at(o, x, y):
+        if o is None: return 0.
+        hit, loc, *_ = o.ray_cast(Vector((x, y, 6.)), Vector((0, 0, -1)))
+        return loc.z if hit else 0.
+    for (x0_, top, yy, ry, o, drift) in ((-.9, 1.5, 4.53, 4.7, walls_o, .35), (.5, 1.9, 4.53, 4.7, walls_o, .35),
+                                         (2.2, 1.7, 4.53, 4.7, walls_o, .35), (3.55, 2.3, 4.05, 4.35, chim_o, .12)):
+        lim = lambda u: top_at(o, u, ry) - .05
+        if lim(x0_) < .4: continue
         pts = [(x0_, 0.)]
-        for k in range(4): pts.append((pts[-1][0] + rnd.uniform(-.35, .35), top * (k + 1) / 4))
+        for k in range(4):
+            u = pts[-1][0] + rnd.uniform(-drift, drift)
+            if lim(u) < .3: u = pts[-1][0]
+            pts.append((u, min(top * (k + 1) / 4, lim(u))))
         for (u0, z0_), (u1, z1_) in zip(pts, pts[1:]):
-            yy = 4.7 - .15
+            if z1_ - z0_ < .05: continue
             vn.tube((u0, yy, z0_), (u1, yy, z1_), .025, verts=5)
             for q in range(5):
-                f = q / 5; u = u0 + (u1 - u0) * f + rnd.uniform(-.18, .18); z = z0_ + (z1_ - z0_) * f + rnd.uniform(-.1, .1)
-                if z < .1: continue
+                f = q / 5; u = u0 + (u1 - u0) * f + rnd.uniform(-.18, .18) * drift / .35
+                z = z0_ + (z1_ - z0_) * f + rnd.uniform(-.1, .1)
                 r = rnd.uniform(.11, .17)
+                if z < .1 or z + r * .75 > lim(u) + .12: continue
                 iv.ball(r, (u, yy - r * .3, z), scale=(1, .4, .75), rot=(0, rnd.uniform(-.6, .6), 0), sub=1)
     vn.done(); iv.done()
 
@@ -4643,5 +4759,260 @@ def build_mato(part="all"):
 def mato_export():
     return make_export(MATO, MATO_NAME, groups=MATO_GROUPS, default="MATO_junk",
                        inside=(99, -99, 99, -99), walls=(),
-                       texel={"V3_MatoWall": 2.4, "V3_FloorTiles": 1.4, "V3_ShedPlanks": 1.0, "V3_ShedRoof": .9,
+                       texel={"V3_MatoWall": 2.6, "V3_MatoChimney": 1.8, "V3_FloorTiles": 1.4, "V3_ShedPlanks": 1.0, "V3_ShedRoof": .9,
                               "V3_Mattress": 1.4, "V3_Puddle": .3, "V3_Bark": .5, "V3_Brick": .5})
+
+
+# ######################################################################################################################
+# ENTULHO (lot C3) - a rubble dump: chunky concrete / brick heaps with rebar, a skip, a half-demolished wall, junk
+# Clearing scene (case "entulho", Style.Cut; model (x, y) <-> P(.76 x, 8.33 + .76 y)): the shovel worker P(-.4,
+# 3.9..5.2) -> model (-.5, -5.8..-4.1): only low scattered bits and grass there; skid loader P(-3.6, 3.4) -> model
+# (-4.7, -6.5) and its run to the works skip P(3.6, 1.5), the broom worker P(-4.8, 1..2.4): in front of / beside it.
+# ######################################################################################################################
+ENT = "V3 Entulho"
+ENT_NAME = "Lot_Entulho"
+ENT_GROUPS = [
+    ("ENT_pad", ("ENT_pad",)),
+    ("ENT_wall", ("ENT_wall", "ENT_sign")),
+    ("ENT_rubble", ("ENT_heap", "ENT_slab", "ENT_rebar", "ENT_bricks", "ENT_skip")),
+    ("ENT_green", ("ENT_tree", "ENT_bush", "ENT_grass", "ENT_tall", "ENT_weed", "ENT_flower")),
+]
+EM = {}
+
+
+def ent_mats():
+    mats()
+    EM.clear()
+    EM["wall"] = m_aged_wall("V3_EntWall", C("A9C4BC"), band=C("B9826A"), band_top=.5, seed=81., loss=.5)
+    EM["oldbrick"] = m_flat("V3_OldBrick", C("A85B45"), .06, 6, .9, island=.14, ao=.5)
+    EM["slab"] = m_flat("V3_Slab", C("D3CDBF"), .05, 2, .9, island=.07, ao=.55)
+    EM["slabW"] = m_flat("V3_SlabWarm", C("E4D3AE"), .05, 2, .9, island=.07, ao=.55)
+    EM["mound"] = m_flat("V3_Mound", C("8E7253"), .08, 1.5, .95, ao=.5)
+    EM["skip"] = m_metal_paint("V3_Skip", C("F2B63C"), amount=.5)
+    EM["porcelain"] = m_flat("V3_Porcelain", C("F6F3EC"), .03, 3, .3, ao=.5)
+    EM["pipe"] = m_flat("V3_ConcretePipe", C("C3BBAA"), .05, 3, .9, ao=.5)
+    EM["pvc"] = m_flat("V3_PVC", C("E07A3C"), .04, 4, .5, ao=.3)
+    EM["door"] = m_paint_wood("V3_EntDoor", C("2F7FB8"), C("C9A272"), .5)
+    EM["frame"] = m_paint_wood("V3_EntFrame", C("F1E9D6"), C("A98560"), .55)
+    EM["board"] = m_flat("V3_SignBoard", C("F4EEDD"), .04, 3, .7, ao=.3)
+    EM["boardRim"] = m_flat("V3_SignRim", C("D9443A"), .04, 3, .6, ao=.3)
+    return EM
+
+
+def rubble_heap(c, name, cx, cy, R, H, n, seed, mats_=None, rebars=4):
+    """Chunky rubble heap: an earth mound with big bevelled concrete slabs and blocks lying on its slope, bricks
+    tucked between them, rebar bent out of the bigger pieces. Pieces are kept few and large (no noisy speckle)."""
+    rnd = random.Random(seed)
+    md = G(name + "Mound", EM["mound"], c)
+    md.ball(1.0, (cx, cy, 0), scale=(R, R * .85, H * .75), sub=3); md.clip = 0.0
+    md.done()
+    def zat(x, y):
+        d = math.hypot((x - cx) / R, (y - cy) / (R * .85))
+        return max(0.0, H * .75 * math.sqrt(max(0, 1 - d * d)))
+    gs = [G(name + "Slab", EM["slab"], c, bevel=.035, seg=1), G(name + "SlabW", EM["slabW"], c, bevel=.035, seg=1)]
+    br = G(name + "Bricks", M["brick"], c, bevel=.012, seg=1)
+    rb = G(name + "Rebar", M["rust"], c)
+    for i in range(n):
+        a = rnd.uniform(0, 6.28); d = R * math.sqrt(rnd.uniform(0, .9))
+        x = cx + d * math.cos(a); y = cy + d * math.sin(a) * .85
+        z = zat(x, y)
+        big = rnd.random() < .45
+        sx, sy, sz = (rnd.uniform(.6, 1.1), rnd.uniform(.4, .8), rnd.uniform(.14, .22)) if big else (rnd.uniform(.25, .45), rnd.uniform(.2, .4), rnd.uniform(.15, .3))
+        tilt = (rnd.uniform(-.5, .5), rnd.uniform(-.5, .5), rnd.uniform(0, 3.14))
+        M0 = Matrix.Translation((x, y, z + sz * .25)) @ Euler(tilt).to_matrix().to_4x4()
+        gs[i % 2].box((sx, sy, sz), (0, 0, 0), M=M0)
+        if big and rebars > 0 and rnd.random() < .6:
+            rebars -= 1
+            for k in range(2):
+                p0 = M0 @ Vector((sx * rnd.uniform(-.3, .3), sy * rnd.uniform(-.3, .3), sz / 2))
+                mid = p0 + Vector((rnd.uniform(-.1, .1), rnd.uniform(-.1, .1), rnd.uniform(.25, .45)))
+                tip = mid + Vector((rnd.uniform(-.3, .3), rnd.uniform(-.3, .3), rnd.uniform(-.05, .15)))
+                rb.tube(p0, mid, .018, verts=5); rb.tube(mid, tip, .018, verts=5)
+        if rnd.random() < .5:
+            for k in range(rnd.randint(1, 3)):
+                bx = x + rnd.uniform(-.35, .35); by = y + rnd.uniform(-.35, .35)
+                br.box((.22, .11, .07), (bx, by, zat(bx, by) + .05), rot=(rnd.uniform(-.4, .4), rnd.uniform(-.4, .4), rnd.uniform(0, 3)))
+    for g in gs: g.done()
+    br.done(); rb.done()
+
+
+def ent_wall(c):
+    """Half-demolished wall at the back: plastered both sides, ragged broken top, a window opening with its frame
+    still hanging, brick exposed where it was knocked through."""
+    g = G("ENT_wall", EM["wall"], c, bevel=.025, seg=1)
+    lb = G("ENT_wallLooseBricks", EM["oldbrick"], c, bevel=.01, seg=1)
+    lc = G("ENT_wallChunks", EM["wall"], c, bevel=.03, seg=1)
+    aged_wall(g, (-4.6, 4.9), (2.4, 4.9), .28, .7, 2.9, 31, gaps=((.55, .7),), bricks=lb, chunks=lc, avoid=((-1.7, 3.3, 1.55),))
+    aged_wall(g, (-4.6, 2.2), (-4.6, 4.9), .28, .4, 2.2, 32, bricks=lb, chunks=lc)
+    g.done(); lb.done(); lc.done()
+    # protruding bricks along the broken ends
+    br = G("ENT_wallBricks", M["brick"], c, bevel=.01, seg=1)
+    rnd = random.Random(33)
+    for k in range(6):
+        br.box((.22, .11, .07), (2.45 + rnd.uniform(-.05, .1), 4.9 + rnd.uniform(-.1, .1), .2 + k * .14), rot=(0, 0, rnd.uniform(-.3, .3)))
+    br.done()
+
+
+def ent_skip(c):
+    """A full builder's skip (yellow, tapered, lifting lugs), debris piled above its rim."""
+    Ms = Matrix.Translation((3.1, 2.2, 0)) @ Matrix.Rotation(1.35, 4, 'Z')
+    sk = G("ENT_skip", EM["skip"], c, bevel=.04, seg=1)
+    L0, L1, W, H = 2.0, 3.0, 1.6, 1.15
+    pts = [(-L0 / 2, 0), (L0 / 2, 0), (L1 / 2, H), (-L1 / 2, H)]
+    for sy in (-1, 1):
+        sk.prism(pts, .08, M=Ms @ Matrix.Translation((0, sy * W / 2, 0)))
+    sk.box((L0, W, .08), (0, 0, .06), M=Ms)
+    for sx in (-1, 1):
+        a = math.atan2((L1 - L0) / 2, H)
+        sk.box((.08, W, H / math.cos(a)), (sx * (L0 + L1) / 4, 0, H / 2), rot=(0, sx * a, 0), M=Ms)
+    for sx in (-1, 1):
+        sk.box((.1, W + .18, .1), (sx * L0 / 2, 0, .05), M=Ms)                                      # skids
+    sk.done()
+    lg = G("ENT_skipLugs", M["rust"], c)
+    for sy in (-1, 1):
+        for sx in (-.95, .95):
+            lg.torus(.08, .025, (sx, sy * (W / 2 + .06), H - .2), rot=(math.pi / 2, 0, 0), seg=10, rseg=4, M=Ms)
+    lg.done()
+    fill = G("ENT_skipFill", EM["slab"], c, bevel=.03, seg=1)
+    rnd = random.Random(41)
+    for k in range(12):
+        x = rnd.uniform(-1.1, 1.1); y = rnd.uniform(-.55, .55)
+        s = rnd.uniform(.25, .55)
+        fill.box((s, s * .7, s * .5), (x, y, H - .1 + rnd.uniform(0, .3)), rot=(rnd.uniform(-.5, .5), rnd.uniform(-.5, .5), rnd.uniform(0, 3)), M=Ms)
+    fill.done()
+    fd = G("ENT_skipFillDirt", EM["mound"], c)
+    fd.box((L1 - .2, W - .1, .2), (0, 0, H - .15), M=Ms)
+    fd.done()
+    wd = G("ENT_skipPlanks", M["wood"], c, bevel=.01, seg=1)
+    for k in range(3): wd.box((1.8, .15, .04), (rnd.uniform(-.3, .3), rnd.uniform(-.4, .4), H + .15 + k * .05), rot=(rnd.uniform(-.3, .3), .2, rnd.uniform(0, 3)), M=Ms)
+    wd.done()
+
+
+def ent_junk(c):
+    rnd = random.Random(51)
+    # bathtub (white, rounded, dark inside) tipped on the ground
+    Mb = Matrix.Translation((-3.2, -1.8, .02)) @ Matrix.Rotation(.5, 4, 'Z') @ Matrix.Rotation(.12, 4, 'X')
+    bt = G("ENT_bathtub", EM["porcelain"], c, bevel=.08, seg=2)
+    bt.box((1.4, .6, .4), (0, 0, .22), M=Mb)                                   # tapered body
+    bt.box((1.62, .78, .1), (0, 0, .48), M=Mb)                                 # rolled rim
+    bt.done()
+    bi = G("ENT_bathtubIn", M["dark"], c, bevel=.08, seg=2)
+    bi.box((1.36, .52, .05), (0, 0, .52), M=Mb)
+    bi.done()
+    bp = G("ENT_bathtubTaps", OM["chrome"], c)
+    bp.tube(Mb @ Vector((-.7, .12, .53)), Mb @ Vector((-.7, .12, .68)), .02, verts=6); bp.tube(Mb @ Vector((-.7, -.12, .53)), Mb @ Vector((-.7, -.12, .68)), .02, verts=6)
+    bp.done()
+    bf = G("ENT_bathtubFeet", M["rust"], c)
+    for sx in (-.6, .6):
+        for sy in (-.28, .28): bf.ball(.06, (sx, sy, .02), sub=1, M=Mb)
+    bf.done()
+    # toilet
+    Mt = Matrix.Translation((.3, -3.4, 0)) @ Matrix.Rotation(-.7, 4, 'Z')
+    tl = G("ENT_toilet", EM["porcelain"], c, bevel=.05, seg=2)
+    tl.cyl(.16, .25, (0, 0, .12), verts=14, r2=.2, M=Mt)
+    tl.ball(.24, (0, .05, .33), scale=(1, 1.25, .45), sub=2, M=Mt)
+    tl.box((.42, .18, .38), (0, -.28, .55), M=Mt)
+    tl.done()
+    ti = G("ENT_toiletIn", M["dark"], c)
+    ti.ball(.17, (0, .06, .4), scale=(1, 1.25, .25), sub=2, M=Mt)
+    ti.done()
+    # concrete pipe sections and orange PVC pipes
+    pp = G("ENT_pipe", EM["pipe"], c, bevel=.02, seg=1)
+    for (x, y, a) in ((.25, 3.35, .3), (1.25, 3.7, .25)):
+        Mp = Matrix.Translation((x, y, .45)) @ Matrix.Rotation(a, 4, 'Z') @ Matrix.Rotation(math.pi / 2, 4, 'Y')
+        pp.cyl(.45, 1.1, (0, 0, 0), verts=18, M=Mp)
+        pp.torus(.42, .06, (0, 0, .55), seg=18, rseg=5, M=Mp)
+    pp.done()
+    pi = G("ENT_pipeIn", M["dark"], c)
+    for (x, y, a) in ((.25, 3.35, .3), (1.25, 3.7, .25)):
+        Mp = Matrix.Translation((x, y, .45)) @ Matrix.Rotation(a, 4, 'Z') @ Matrix.Rotation(math.pi / 2, 4, 'Y')
+        pi.cyl(.36, 1.12, (0, 0, 0), verts=16, M=Mp)
+    pi.done()
+    pv = G("ENT_pvc", EM["pvc"], c)
+    for k in range(4):
+        pv.tube((-2.3 + k * .1, -2.7 + k * .16, .07 + (k % 2) * .1), (-.5 + k * .08, -2.4 + k * .16, .07 + (k % 2) * .1), .07, verts=10)
+    pv.done()
+    # a door and a window frame leaning on the wall end / lying on a heap
+    dr = G("ENT_door", EM["door"], c, bevel=.015, seg=1)
+    Md = Matrix.Translation((3.15, 4.5, 0)) @ Matrix.Rotation(.1, 4, 'Z') @ Matrix.Rotation(-.22, 4, 'X')
+    dr.box((.85, .05, 2.0), (0, 0, 1.0), M=Md)
+    for z in (.55, 1.4): dr.box((.6, .06, .55), (0, -.02, z), M=Md)
+    dr.done()
+    wf = G("ENT_frame", EM["frame"], c, bevel=.012, seg=1)
+    Mw = Matrix.Translation((-3.75, 1.15, .1)) @ Matrix.Rotation(1.1, 4, 'Z') @ Matrix.Rotation(1.35, 4, 'X')
+    for (x, z, w, h) in ((0, .55, 1.0, .07), (0, -.55, 1.0, .07), (-.5, 0, .07, 1.1), (.5, 0, .07, 1.1), (0, 0, .05, 1.0)):
+        wf.box((w, .07, h), (x, 0, z), M=Mw)
+    wf.done()
+    wg = G("ENT_frameGlass", M["glass"], c)
+    wg.prism([(0, 0), (.4, 0), (0, .45)], .02, M=Mw @ Matrix.Translation((-.45, 0, -.5)))
+    wg.done()
+    # sign post with a blank board (no text)
+    sp = G("ENT_signPost", M["rust"], c)
+    for x in (-4.2, -3.1): sp.tube((x, -4.8, 0), (x, -4.8, 2.2), .045, verts=8)
+    sp.done()
+    sb = G("ENT_signBoard", EM["board"], c, bevel=.02, seg=1)
+    sb.box((1.4, .05, .8), (-3.65, -4.85, 1.85), rot=(0, .05, 0))
+    sb.done()
+    sr = G("ENT_signRim", EM["boardRim"], c, bevel=.01, seg=1)
+    for (x, z, w, h) in ((0, .43, 1.48, .06), (0, -.43, 1.48, .06), (-.72, 0, .06, .86), (.72, 0, .06, .86)):
+        sr.box((w, .06, h), (-3.65 + x, -4.87, 1.85 + z), rot=(0, .05, 0))
+    sr.done()
+
+
+def ent_green(c):
+    rnd = random.Random(61)
+    city_tree("ENT_tree", c, (-3.5, 3.4, 0), 1, rot_z=math.radians(50), tris=5200, width=2.4)
+    for k, (x, y, r, rz) in enumerate(((4.4, -4.9, .5, .3), (-4.45, -3.2, .45, 1.4), (4.4, 4.9, .55, 2.5), (.9, 5.0, .45, 3.3))):
+        city_tree(f"ENT_bush{k}", c, (x, y, 0), 1, rot_z=rz, tris=650, crown_only=True, width=r * 2.1)
+    for k, (x, y, sx, sy, d) in enumerate(((-2.4, -4.6, 2.0, .9, 1.1), (2.2, -4.6, 2.2, .9, 1.1), (-4.4, 0.0, .5, 2.4, 1.0),
+                                           (4.5, -1.2, .45, 2.4, 1.0), (-1.0, 4.2, 2.4, .5, .9), (.3, -.3, 1.0, .5, .6))):
+        grass_patch(c, f"ENT_grass{k}", x, y, sx, sy, seed=400 + k, density=d, h=(.25, .55))
+    tw = G("ENT_tallWeeds", M["tall"] if "tall" in M else M["grass"], c, smooth=False)
+    for i, (x, y) in enumerate(((-1.4, -.5), (1.5, .9), (-.2, 3.6), (2.0, -3.4), (-3.8, -1.0), (3.9, .2), (-2.3, 1.2), (.6, 1.6),
+                                (-4.3, 4.6), (2.9, 4.3))):
+        tw.blades((x, y, 0), n=rnd.randint(8, 11), h=rnd.uniform(.7, 1.1), w=.07, seed=1500 + i, spread=.15, lean=(.08, .4))
+    tw.done()
+    st = G("ENT_flowerStalks", M["grass"], c)
+    fh = G("ENT_flowerHeads", MM.get("flowerY") or M["flower"], c)
+    for cl in range(5):
+        cx_ = rnd.uniform(-4.2, 4.2); cy_ = rnd.uniform(-4.0, 4.5)
+        for i in range(6):
+            x = cx_ + rnd.uniform(-.4, .4); y = cy_ + rnd.uniform(-.4, .4); h = rnd.uniform(.35, .6)
+            st.tube((x, y, 0), (x, y, h), .012, verts=4); fh.ball(.06, (x, y, h), scale=(1, 1, .7), sub=1)
+    st.done(); fh.done()
+
+
+def ent_pad(c):
+    p = G("ENT_pad", M["pad"], c)
+    p.box((PAD_W, PAD_D, .2), (0, 0, -.1))
+    o = p.done(); o.hide_render = True
+    return o
+
+
+def build_entulho(part="all"):
+    c = col(ENT)
+    show_only(ENT)
+    if part in ("all", "house"):
+        for o in list(c.objects): bpy.data.objects.remove(o)
+        for m in list(bpy.data.meshes):
+            if m.users == 0 and not m.use_fake_user: bpy.data.meshes.remove(m)
+    ent_mats()
+    if not MM: mato_mats()
+    if not OM: ofi_mats()
+    if part in ("all", "house"):
+        ent_pad(c); ent_wall(c); ent_skip(c)
+        rubble_heap(c, "ENT_heap0", -.6, .4, 2.0, 1.5, 58, 1, rebars=5)
+        rubble_heap(c, "ENT_heap1", 2.3, -1.9, 1.3, 1.0, 30, 2, rebars=3)
+        rubble_heap(c, "ENT_heap2", -1.7, 3.3, 1.1, .85, 24, 3, rebars=2)
+        ent_junk(c)
+    if part in ("all", "yard"):
+        ent_green(c)
+    return stats(c)
+
+
+def entulho_export():
+    return make_export(ENT, ENT_NAME, groups=ENT_GROUPS, default="ENT_junk",
+                       inside=(99, -99, 99, -99), walls=(),
+                       texel={"V3_EntWall": 2.6, "V3_Slab": .9, "V3_SlabWarm": .9, "V3_Mound": .4, "V3_Skip": 1.2,
+                              "V3_Porcelain": .8, "V3_ConcretePipe": .8, "V3_EntDoor": 1.0, "V3_SignBoard": .8})
+# r84 aged walls
