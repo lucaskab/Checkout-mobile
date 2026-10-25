@@ -84,8 +84,11 @@ def stage(lot_center=(0, -.25), extra=()):
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     g.data.materials.append(pav); k.link(g, c)
     for cx, cy in [lot_center] + list(extra):
-        bpy.ops.mesh.primitive_plane_add(size=1, location=(cx, cy, -.012))
-        d = bpy.context.active_object; d.name = "STAGE_Lot"; d.scale = (LOT_W, LOT_D, 1); d.data.materials.append(dirt); k.link(d, c)
+        # the game's lot ground: Game/lot_dirt.png, 7 m tile in world metres, drawn ~2 cm under the ruin's ground
+        bpy.ops.mesh.primitive_plane_add(size=1, location=(cx, cy, -.018))
+        d = bpy.context.active_object; d.name = "STAGE_Lot"; d.scale = (LOT_W, LOT_D, 1)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        d.data.materials.append(dirt); k.link(d, c)
     sc.render.engine = "BLENDER_EEVEE"
     try:
         sc.eevee.use_shadows = True
@@ -280,11 +283,11 @@ class NT:
         return s.m
 
 
-def brick_tex(t, vec, scale=1.0, c1=C("C8673F"), c2=C("B1543A"), mortar=C("DCCBAA"), bw=.25, rh=.085, msize=.012):
+def brick_tex(t, vec, scale=1.0, c1=C("D2683F"), c2=C("BC5636"), mortar=C("EBDDC2"), bw=.25, rh=.085, msize=.012, smooth=.4):
     """Brick courses along world X+Y (so it wraps both wall directions), rows in Z."""
     br = t.n.new("ShaderNodeTexBrick")
     br.inputs["Scale"].default_value = scale; br.inputs["Mortar Size"].default_value = msize
-    br.inputs["Mortar Smooth"].default_value = .4; br.inputs["Bias"].default_value = 0
+    br.inputs["Mortar Smooth"].default_value = smooth; br.inputs["Bias"].default_value = 0
     br.inputs["Color1"].default_value = c1; br.inputs["Color2"].default_value = c2; br.inputs["Mortar"].default_value = mortar
     br.inputs["Brick Width"].default_value = bw; br.inputs["Row Height"].default_value = rh
     u = t.math('ADD', t.comp(vec, "X"), t.comp(vec, "Y"))
@@ -294,35 +297,32 @@ def brick_tex(t, vec, scale=1.0, c1=C("C8673F"), c2=C("B1543A"), mortar=C("DCCBA
 
 
 # ================================================================== materials
-def m_plaster(name, paint, band=None, band_top=.85, peel=.5, stains=True):
-    """Hand-painted weathered plaster: faded paint, peeled patches showing bricks, darker splash zone at the
-    bottom, rain streaks, a faded painted band (barrado) at the bottom. World-space so walls line up."""
+def m_plaster(name, paint, band=None, band_top=.85, chips=.5, seed=0.):
+    """Clean painted plaster like the city houses: flat paint with a very soft tone shift, a crisp painted band
+    (barrado) at the foot, and a few deliberate chipped patches with sharp edges and a pale plaster rim showing
+    neat bricks. World-space so neighbouring walls line up. (v4: no smears / rain streaks.)"""
     t = NT(name, .9)
     p = t.pos; z = t.comp(p, "Z")
-    n1 = t.noise(p, .55, 5, .6)
-    n2 = t.noise(p, 2.2, 3, .5)
-    fade = t.ramp(n1, .35, .7, .93, 1.05)
-    col = t.mul(paint, fade)
-    lightp = (min(1, paint[0] * 1.12), min(1, paint[1] * 1.12), min(1, paint[2] * 1.1), 1)
-    col = t.mix(col, lightp, t.ramp(n2, .55, .75, 0, .35))
+    po = t.scale(p, 1, 1, 1, (seed, seed * .7, 0))
+    col = t.mul(paint, t.ramp(t.noise(po, .3, 2, .4), .3, .7, .965, 1.035))
     if band is not None:
-        bz = t.ramp(t.math('ADD', z, t.math('MULTIPLY', n2, .12)), band_top - .02, band_top + .02)
-        bcol = t.mul(band, t.ramp(n1, .3, .7, .88, 1.08))
+        bz = t.ramp(z, band_top - .004, band_top + .004)
+        bcol = t.mul(band, t.ramp(t.noise(po, .4, 2, .4), .3, .7, .95, 1.04))
         col = t.mix(bcol, col, bz)
-    # peeled patches (bigger near the ground) -> brick underneath with a pale rim of old plaster
-    low = t.ramp(z, 0, 2.2, .10, 0)
-    pf = t.math('ADD', t.noise(p, .9, 4, .62), low)
-    hole = t.ramp(pf, .66 - peel * .08, .69 - peel * .07)
-    rim = t.ramp(pf, .62 - peel * .08, .655 - peel * .08)
-    bcol, bfac = brick_tex(t, p)
-    col = t.mix(col, C("E9DCC4"), t.math('SUBTRACT', rim, hole))
+        # darker painted edge line on top of the band
+        col = t.mix(col, (band[0] * .62, band[1] * .62, band[2] * .62, 1), t.math('MULTIPLY', t.ramp(z, band_top - .035, band_top - .028), t.ramp(z, band_top + .001, band_top - .006)))
+    # chipped patches: smooth blobs with a slightly ragged but crisp outline
+    f = t.math('ADD', t.noise(t.scale(po, 1, 1, 1.35), .62, 1.5, .4), t.math('MULTIPLY', t.noise(po, 7, 2, .5), .045))
+    f = t.math('ADD', f, t.ramp(z, 0, 1.4, .05, 0))
+    thr = .72 - chips * .06
+    hole = t.ramp(f, thr, thr + .004)
+    rim = t.math('SUBTRACT', t.ramp(f, thr - .028, thr - .024), hole)
+    bcol, bfac = brick_tex(t, p, smooth=.05)
+    bcol = t.mul(bcol, t.ramp(f, thr, thr + .05, .82, 1.0))          # soft shadow under the broken edge
+    col = t.mix(col, C("FBF1DC"), rim)
     col = t.mix(col, bcol, hole)
-    if stains:
-        sv = t.scale(p, 3.0, 3.0, .22)
-        st = t.ramp(t.noise(sv, 2.5, 3, .5), .58, .78, 0, .22)
-        col = t.mix(col, C("8A7A62"), t.math('MULTIPLY', st, .7))
-    col = t.mix(col, C("7E6A52"), t.ramp(z, 0, .45, .25, 0))      # splash dirt at the foot
-    return t.done(col, t.math('MULTIPLY', hole, -1.0), .25)
+    col = t.mul(col, t.ramp(z, 0, .35, .9, 1.0))                     # a touch darker at the foot
+    return t.done(col, t.math('MULTIPLY', hole, -1.0), .2)
 
 
 def m_stone(name, base=C("F5E9CB"), dark=C("DECBA4")):
@@ -330,7 +330,7 @@ def m_stone(name, base=C("F5E9CB"), dark=C("DECBA4")):
     p = t.pos
     col = t.mix(base, dark, t.ramp(t.noise(p, 3.5, 4, .55), .4, .7))
     col = t.tint(col, .07)
-    col = t.mix(col, C("8C7B62"), t.ramp(t.noise(p, 1.4, 3), .62, .78, 0, .35))
+    col = t.mix(col, C("B7A27E"), t.ramp(t.noise(p, 1.4, 2), .66, .74, 0, .25))   # a few soft weathered spots
     return t.done(col, t.noise(p, 9, 3), .2)
 
 
@@ -404,15 +404,34 @@ def m_tarp(name, col=C("3F8ED3")):
     return t.done(c, t.noise(p, 5, 2), .3)
 
 
+def m_lawn(name, a=C("6DB33F"), b=C("8FCB4C"), edge=C("4E9A35")):
+    t = NT(name, .85)
+    p = t.pos
+    col = t.mix(a, b, t.ramp(t.noise(p, .9, 2, .4), .35, .65))
+    col = t.mix(col, C("A9D95C"), t.ramp(t.noise(p, 3.0, 2, .5), .62, .7, 0, .5))      # sunny dapples
+    col = t.mix(col, edge, t.ramp(t.comp(t.geo.outputs["Normal"], "Z"), .8, .3))          # darker rounded rim
+    return t.done(col, ao=.35)
+
+
+def m_bark(name, light=C("C87638"), dark=C("8E4B24")):
+    """The city trees' warm orange-brown trunk with soft vertical grooves."""
+    t = NT(name, .8)
+    p = t.pos
+    g = t.noise(t.scale(p, 9, 9, 1.2), 1.4, 3, .5)
+    col = t.mix(light, dark, t.ramp(g, .4, .7))
+    col = t.mix(col, C("DB8F4E"), t.ramp(t.comp(t.geo.outputs["Normal"], "Z"), .3, .9, 0, .4))
+    return t.done(col, g, .3)
+
+
 M = {}
 
 
 def mats():
     M.clear()
-    M["wall"] = m_plaster("V3_CasaWall", C("F7D893"), band=C("3FAA9B"), band_top=.9, peel=.55)
-    M["gable"] = m_plaster("V3_CasaGable", C("F7D893"), peel=.35)
-    M["lowwall"] = m_plaster("V3_LowWall", C("EFE3C8"), band=C("4FA397"), band_top=.32, peel=.6)
-    M["chimney"] = m_plaster("V3_Chimney", C("EFE3C8"), peel=.9, stains=False)
+    M["wall"] = m_plaster("V3_CasaWall", C("F7D893"), band=C("3FAA9B"), band_top=.9, chips=.5)
+    M["gable"] = m_plaster("V3_CasaGable", C("F7D893"), chips=.3, seed=3.)
+    M["lowwall"] = m_plaster("V3_LowWall", C("F6ECD6"), band=C("3FAA9B"), band_top=.3, chips=.55, seed=7.)
+    M["chimney"] = m_plaster("V3_Chimney", C("F6ECD6"), chips=.8, seed=11.)
     M["stone"] = m_stone("V3_Stone")
     M["plinth"] = m_stone("V3_Plinth", C("D6C39F"), C("B8A27C"))
     M["tiles"] = m_tiles("V3_Tiles", moss=C("8E8F4C"))
@@ -439,12 +458,13 @@ def mats():
     M["leaf"] = m_green("V3_Leaf", C("3E7A2F"), C("8CC04A"), .2, 2.4)
     M["ivy"] = m_green("V3_Ivy", C("2F6B2E"), C("6FA843"), 0, 4.5)
     M["treeleaf"] = m_green("V3_TreeLeaf", C("3D7A2E"), C("93C452"), 2.0, 4.6)
-    M["bark"] = m_wood("V3_Bark", C("8A5E3B"), C("6B4529"), C("7D6A55"))
+    M["bark"] = m_bark("V3_Bark")
     M["fruit"] = m_flat("V3_Orange", C("F59A26"), .08, 10, .5, ao=.2)
     M["flower"] = m_flat("V3_Flower", C("E8443A"), .1, 10, .6, ao=.2)
     M["stepstone"] = m_stone("V3_StepStone", C("D3CBB8"), C("B3A991"))
     M["dirt"] = m_flat("V3_DirtMound", C("9E7652"), .15, 3, .95)
     M["picket"] = m_paint_wood("V3_Picket", C("F1E9D6"), C("A98560"), .6)
+    M["lawn"] = m_lawn("V3_Lawn")
     M["tank"] = m_rust("V3_Tank", C("3C86C9"), C("8FB6D9"), .3)
     M["pad"] = m_flat("V3_Pad", C("A88661"), .1, 2, .95, ao=0)
     return M
@@ -1139,23 +1159,26 @@ def build_plants(c):
     for i, (x, y) in enumerate(((1.6, -5.25), (2.3, -5.3), (4.4, -2.0), (-4.3, -1.6))):
         g.blades((x, y, 0), n=9, h=.9, w=.08, seed=500 + i, lean=(.15, .5))
     g.done()
-    # turf patches (low, overgrown ground) -> clipped flat at the bottom
-    t = G("CASA_turf", M["grass"], c)
-    for (x, y, sx, sy) in ((-3.6, -4.4, 1.1, .8), (3.6, -4.2, 1.0, .9), (.6, -4.5, 1.3, .7), (-.9, -4.6, .7, .5), (3.9, -1.0, .6, 1.4),
-                           (-4.0, -.6, .6, 1.2), (2.4, -2.7, .8, .5), (-4.1, 3.6, .7, 1.4), (3.3, 4.7, 1.2, .7), (-1.0, 4.7, 1.6, .6)):
-        t.ball(1.0, (x, y, -.02), scale=(sx, sy, .16), sub=2)
-    t.clip = 0.0
+    # lawn patches: crisp painted shapes with a soft rounded edge (like the city's park lawns), tufts on top
+    t = G("CASA_lawn", M["lawn"], c, bevel=.025, seg=1)
+    for k, (x, y, sx, sy) in enumerate(((-3.6, -4.4, 1.0, .75), (3.5, -4.2, .95, .8), (.6, -4.55, 1.2, .55), (-.9, -4.7, .6, .4), (3.95, -1.0, .55, 1.3),
+                                        (-4.05, -.6, .5, 1.1), (2.4, -2.75, .75, .45), (-4.05, 3.6, .6, 1.3), (3.3, 4.75, 1.1, .6), (-1.0, 4.8, 1.5, .5))):
+        rr = random.Random(100 + k); n = 22; ph = [rr.uniform(0, 6.3) for _ in range(3)]
+        pts = []
+        for q in range(n):
+            a = 2 * math.pi * q / n
+            rad = 1 + .13 * math.sin(3 * a + ph[0]) + .07 * math.sin(5 * a + ph[1]) + .04 * math.sin(7 * a + ph[2])
+            pts.append((x + sx * rad * math.cos(a), y + sy * rad * math.sin(a)))
+        top = [t.bm.verts.new((px, py, .045)) for (px, py) in pts]
+        bot = [t.bm.verts.new((px, py, 0)) for (px, py) in pts]
+        t.bm.faces.new(top)
+        for q in range(n):
+            t.bm.faces.new((bot[q], bot[(q + 1) % n], top[(q + 1) % n], top[q]))
     t.done()
-    # bushes: clusters of puffy balls
-    b = G("CASA_bushes", M["leaf"], c)
-    for (x, y, r, n, sd) in ((-4.15, -4.55, .62, 5, 1), (4.12, -4.5, .68, 5, 2), (-4.2, -1.1, .48, 4, 3), (2.95, -1.95, .36, 3, 4),
-                             (-4.1, 2.6, .55, 4, 5), (-3.8, 4.8, .6, 4, 6), (.3, 4.9, .5, 4, 7)):
-        rr = random.Random(sd)
-        for k in range(n):
-            a = 2 * math.pi * k / n + rr.uniform(-.3, .3); d = r * rr.uniform(.35, .7)
-            b.ball(r * rr.uniform(.5, .72), (x + math.cos(a) * d * .8, y + math.sin(a) * d * .8, r * rr.uniform(.45, .85)), scale=(1, 1, .9), sub=2)
-        b.ball(r * .7, (x, y, r * 1.0), sub=2)
-    b.done()
+    # bushes: leaf clusters of the city tree's own crown (same painted texture), small and low on the ground
+    for k, (x, y, r, rz) in enumerate(((-4.15, -4.55, .62, .4), (4.1, -4.5, .66, 2.1), (-4.2, -1.1, .5, 3.3), (2.95, -1.95, .38, 1.2),
+                                        (-4.1, 2.6, .55, 4.4), (-3.8, 4.75, .62, .9), (.3, 4.9, .52, 5.1))):
+        city_tree(f"CASA_bush{k}", c, (x, y, 0), 1, rot_z=rz, tris=650, crown_only=True, width=r * 2.1)
 
 
 def build_ivy(c):
@@ -1179,36 +1202,101 @@ def build_ivy(c):
     v.done(); lv.done()
 
 
+# ------------------------------------------------------------------ the city's own tree (MapModels/StylizedTree)
+CITY_TREE = os.path.join(UNITY, "Assets", "Art", "Models", "MapModels", "StylizedTree")
+TREE_BAND = .25          # top band of the atlas: [0, TREE_BAND] x [1 - TREE_BAND, 1] holds the city tree's own texture
+
+
+def m_citytree():
+    """The city tree's painted texture read through its own UVs ('TreeUV'); baking copies it into the Casa atlas."""
+    m = bpy.data.materials.get("V3_CityTree") or bpy.data.materials.new("V3_CityTree")
+    m.use_nodes = True; nt = m.node_tree; nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial"); b = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    nt.links.new(b.outputs[0], out.inputs["Surface"]); b.inputs["Roughness"].default_value = .8
+    uvn = nt.nodes.new("ShaderNodeUVMap"); uvn.uv_map = "TreeUV"
+    t = nt.nodes.new("ShaderNodeTexImage")
+    t.image = bpy.data.images.load(os.path.join(CITY_TREE, "StylizedTree_BaseColor.png"), check_existing=True)
+    nt.links.new(uvn.outputs[0], t.inputs["Vector"]); nt.links.new(t.outputs["Color"], b.inputs["Base Color"])
+    return m
+
+
+def city_tree_source():
+    """StylizedTree.fbx as one mesh (kept with a fake user), upright, base centred at the origin, 1 m tall."""
+    me = bpy.data.meshes.get("CITYTREE_src")
+    if me: return me
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=os.path.join(CITY_TREE, "StylizedTree.fbx"))
+    objs = [o for o in bpy.data.objects if o not in before]
+    meshes = [o for o in objs if o.type == 'MESH']
+    bpy.context.view_layer.update()
+    bm = bmesh.new()
+    for o in meshes:
+        t = o.data.copy(); t.transform(o.matrix_world); bm.from_mesh(t); bpy.data.meshes.remove(t)
+    lo = Vector((min(v.co.x for v in bm.verts), min(v.co.y for v in bm.verts), min(v.co.z for v in bm.verts)))
+    hi = Vector((max(v.co.x for v in bm.verts), max(v.co.y for v in bm.verts), max(v.co.z for v in bm.verts)))
+    h = hi.z - lo.z
+    bmesh.ops.transform(bm, matrix=Matrix.Scale(1 / h, 4) @ Matrix.Translation((-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -lo.z)), verts=bm.verts)
+    me = bpy.data.meshes.new("CITYTREE_src"); bm.to_mesh(me); bm.free()
+    if me.uv_layers: me.uv_layers[0].name = "TreeUV"
+    me.use_fake_user = True
+    for o in objs: bpy.data.objects.remove(o)
+    return me
+
+
+def city_tree(name, c, loc, height, rot_z=0., tris=7000, crown_only=False, width=None):
+    """A copy of the city tree, decimated (collapse) to about `tris` triangles, `height` tall at `loc`.
+    crown_only: just its leaf clusters, sunk into the ground a little (used as bushes)."""
+    src = city_tree_source()
+    bm = bmesh.new(); bm.from_mesh(src)
+    if crown_only:   # drop the trunk: keep the upper crown, then sit it on the ground
+        cut = .45
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, cut), plane_no=(0, 0, 1), clear_inner=True)
+        top = max(v.co.z for v in bm.verts)
+        bmesh.ops.transform(bm, matrix=Matrix.Scale(1 / (top - cut), 4) @ Matrix.Translation((0, 0, -cut - .06 * (top - cut))), verts=bm.verts)
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); c.objects.link(o)
+    o.location = loc; o.rotation_euler = (0, 0, rot_z); o.scale = (height,) * 3
+    if width:   # size by footprint instead of height (bushes)
+        xs = [v.co.x for v in me.vertices]; ys = [v.co.y for v in me.vertices]
+        o.scale = (width / max(max(xs) - min(xs), max(ys) - min(ys)),) * 3
+    me.materials.clear(); me.materials.append(m_citytree())
+    n0 = sum(len(p.vertices) - 2 for p in me.polygons)
+    d = o.modifiers.new("Decimate", 'DECIMATE'); d.decimate_type = 'COLLAPSE'; d.ratio = min(1.0, tris / max(1, n0))
+    d.use_collapse_triangulate = True
+    _apply(o)
+    for p in o.data.polygons: p.use_smooth = True
+    # atlas UVs: the tree's own layout squeezed into the TREE_BAND square (baking then copies its texture there)
+    me = o.data
+    tuv = me.uv_layers["TreeUV"]
+    if "UVMap" not in me.uv_layers: me.uv_layers.new(name="UVMap")
+    au = me.uv_layers["UVMap"]
+    ins = .004
+    for a, b in zip(au.data, tuv.data):
+        a.uv = (ins + b.uv[0] * (TREE_BAND - 2 * ins), 1 - TREE_BAND + ins + b.uv[1] * (TREE_BAND - 2 * ins))
+    me.uv_layers.active = au
+    # keep it inside the lot (the pad: |x| <= 5, |y| <= 5.8)
+    bpy.context.view_layer.update()
+    ws = [o.matrix_world @ v.co for v in me.vertices]
+    o.location.x += min(0, 4.97 - max(w.x for w in ws)) + max(0, -4.97 - min(w.x for w in ws))
+    o.location.y += min(0, 5.77 - max(w.y for w in ws)) + max(0, -5.77 - min(w.y for w in ws))
+    bpy.context.view_layer.update()
+    return o
+
+
 def build_tree(c):
-    """A small orange tree in the back-right corner: its round crown shows above the roof line."""
-    tx, ty = 3.85, 4.65
-    tr = G("CASA_treeTrunk", M["bark"], c)
-    pts = [(tx, ty, 0), (tx - .05, ty + .02, .9), (tx - .2, ty - .05, 1.7), (tx - .3, ty - .1, 2.4)]
-    for i, (p0, p1) in enumerate(zip(pts, pts[1:])):
-        tr.tube(p0, p1, .15 - i * .03, verts=8, r2=.13 - i * .03)
-    tr.tube(pts[2], (tx + .35, ty + .15, 2.6), .07, verts=6)
-    tr.cyl(.22, .12, (tx, ty, .06), verts=8, r2=.15)
-    tr.done()
-    cr = G("CASA_treeCrown", M["treeleaf"], c)
-    rnd = random.Random(61)
-    ctr = Vector((tx - .25, ty - .15, 3.1))
-    cr.ball(.95, ctr, scale=(1, 1, .85), sub=2)
-    for k in range(7):
-        a = 2 * math.pi * k / 7; e = rnd.uniform(-.3, .5)
-        d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e) * .8))
-        p = ctr + d * .7
-        p.x = min(p.x, 4.95 - .55); p.y = min(p.y, 5.75 - .55)
-        cr.ball(rnd.uniform(.45, .6), p, sub=2)
-    cr.done()
+    """The city's street tree (MapModels/StylizedTree, as the street trees use it) in the back-right corner,
+    decimated for the lot, plus a couple of oranges (it is an old fruit tree nobody picks)."""
+    o = city_tree("CASA_tree", c, (3.62, 4.62, 0), 1, rot_z=math.radians(10), tris=7500, width=2.95)
+    ws = [o.matrix_world @ v.co for v in o.data.vertices]
+    # two oranges on the crown's sunny side (towards the game camera), and two fallen ones
+    cand = sorted((w for w in ws if w.z > 1.7), key=lambda w: -(w.x * .55 - w.y * .75 + w.z * .4))
     fr = G("CASA_oranges", M["fruit"], c)
-    for k in range(12):
-        a = rnd.uniform(0, 6.28); e = rnd.uniform(-.5, .6)
-        p = ctr + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e) * .8)) * 1.0
-        if p.x < 4.9 and p.y < 5.7:
-            fr.ball(.085, p, sub=1)
-    for (x, y) in ((3.3, 4.2), (3.6, 4.0), (4.3, 3.9)):     # fallen fruit
-        fr.ball(.085, (x, y, .08), sub=1)
+    for w in (cand[0], cand[min(len(cand) - 1, 40)]):
+        fr.ball(.1, w + Vector((.03, -.05, -.02)), sub=2)
+    for (x, y) in ((3.0, 4.0), (4.3, 3.85)):
+        fr.ball(.1, (x, y, .1), sub=2)
     fr.done()
+    return o
 
 
 def build_props(c):
@@ -1296,7 +1384,9 @@ def build_props(c):
 def build_pad(c):
     """Invisible in the game (Ruin() hides *_pad): only sets the model's bounds/scale and orientation in the lot."""
     p = G("CASA_pad", M["pad"], c)
-    p.box((PAD_W, PAD_D, .04), (0, 0, .015))
+    # 20 cm thick below the ground: Ruin() sets the model's lowest point 2 cm above the holder (world y .04) while the
+    # lot's dirt plane is drawn at y .222, so without this the bottom ~18 cm of the ruin sat under the dirt.
+    p.box((PAD_W, PAD_D, .2), (0, 0, -.1))
     o = p.done(); o.hide_render = True
     return o
 
@@ -1337,7 +1427,7 @@ def stats(c=None):
     return {"objects": len(c.objects), "tris": tris, "lo": [round(x, 2) for x in lo], "hi": [round(x, 2) for x in hi], "heavy": heavy[:12]}
 
 
-def render_views(prefix="casa_v3", views=("iso",), cname=CASA):
+def render_views(prefix="casa_v4", views=("iso",), cname=CASA):
     show_only(cname)
     out = []
     for v in views:
@@ -1357,7 +1447,7 @@ EXPORT_GROUPS = [
     ("CASA_roof", ("CASA_roofDeck", "CASA_battens", "CASA_holeDark", "CASA_tiles", "CASA_ridge", "CASA_fascia", "CASA_tarp")),
     ("CASA_porch", ("CASA_porch", "CASA_chair", "CASA_pot")),
     ("CASA_boundary", ("CASA_lowWall", "CASA_finials", "CASA_wallRubble", "CASA_wallChunks", "CASA_gate", "CASA_fence")),
-    ("CASA_garden", ("CASA_path", "CASA_grass", "CASA_weeds", "CASA_turf", "CASA_bushes", "CASA_tree", "CASA_oranges")),
+    ("CASA_garden", ("CASA_tree", "CASA_bush", "CASA_path", "CASA_lawn", "CASA_grass", "CASA_weeds", "CASA_turf", "CASA_bushes", "CASA_tree", "CASA_oranges")),
     ("CASA_junk", ("CASA_tyres", "CASA_barrow", "CASA_bricks", "CASA_crates", "CASA_tileStack", "CASA_fallenShutter", "CASA_buckets",
                    "CASA_paintSpill", "CASA_waterTank", "CASA_dirtSpill")),
 ]
@@ -1381,13 +1471,49 @@ def _apply(o):
     if old.users == 0: bpy.data.meshes.remove(old)
 
 
+# Small parts in (nearly) flat colours share one "swatch" square each in a reserved row of the atlas instead of
+# hundreds of tiny islands (each island costs its own margins): this frees most of the atlas for the walls.
+SWATCH = ["V3_Picket", "V3_Glass", "V3_Dark", "V3_Tire", "V3_Rope", "V3_Orange", "V3_Flower", "V3_Gate", "V3_RustMetal",
+          "V3_Brick", "V3_FoliageCore", "V3_Grass", "V3_GrassDry", "V3_Ivy", "V3_Leaf", "V3_Fruit", "V3_Concrete",
+          "V3_StepStone", "V3_DirtMound", "V3_Bucket", "V3_Tank", "V3_Barrow", "V3_Ridge"]
+SWATCH_CELL = .05                      # swatch squares in the band right of the city-tree square
+RESERVED = TREE_BAND + .004
+
+
+def _mat0(o):
+    m = o.data.materials[0] if o.data.materials else None
+    return m.name.split(".")[0] if m else ""
+
+
+def swatch_uvs(o, slot):
+    """Every face of `o` mapped onto the same square (its material's swatch): u across the face, v up the face
+    (so a dark-foot / light-tip gradient survives), each face normalised to its own bounds."""
+    me = o.data
+    if not me.uv_layers: me.uv_layers.new(name="UVMap")
+    uv = me.uv_layers.active.data
+    cols = int((1 - TREE_BAND - .006) / SWATCH_CELL); w = SWATCH_CELL; ins = .16
+    x0 = TREE_BAND + .006 + (slot % cols) * w; y0 = 1 - (slot // cols + 1) * w
+    for p in me.polygons:
+        nrm = p.normal
+        if abs(nrm.z) > .7: ax, ay = Vector((1, 0, 0)), Vector((0, 1, 0))
+        else:
+            ax = Vector((0, 0, 1)).cross(nrm).normalized(); ay = Vector((0, 0, 1))
+        pts = [(me.vertices[me.loops[li].vertex_index].co.dot(ax), me.vertices[me.loops[li].vertex_index].co.dot(ay)) for li in p.loop_indices]
+        xs = [q[0] for q in pts]; ys = [q[1] for q in pts]
+        dx = max(xs) - min(xs) or 1; dy = max(ys) - min(ys) or 1
+        for li, (a, b) in zip(p.loop_indices, pts):
+            su = (a - min(xs)) / dx; sv = (b - min(ys)) / dy
+            uv[li].uv = (x0 + (ins + su * (1 - 2 * ins)) * w, y0 + (ins + sv * (1 - 2 * ins)) * w)
+
+
 def make_export(src=CASA, name=NAME):
-    """Copies of every part with modifiers applied, cut flat at the ground, joined into a few named meshes,
-    then one smart-UV atlas across all of them."""
+    """Copies of every part with modifiers applied, cut flat at the ground. Painted parts get one smart-UV atlas
+    (texel weights per material), leaves and flat-colour bits get reserved template slots, then everything is
+    joined into a few named meshes."""
     d = col(name + " Export")
     for o in list(d.objects): bpy.data.objects.remove(o)
     show_only(src, name + " Export")
-    groups = {}
+    packed, reserved = {}, {}
     for o in bpy.data.collections[src].objects:
         if o.type != 'MESH': continue
         n = o.copy(); n.data = o.data.copy(); n.name = "tmp_" + o.name; d.objects.link(n)
@@ -1399,35 +1525,53 @@ def make_export(src=CASA, name=NAME):
             if min((v.co.z for v in bm.verts), default=0) < -.004:
                 bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, -.004), plane_no=(0, 0, 1), clear_inner=True)
             bm.to_mesh(n.data); bm.free()
-        groups.setdefault(_group_of(o.name), []).append(n)
-    out = []
-    for g, objs in groups.items():
+        g = _group_of(o.name); m0 = _mat0(n)
+        (reserved if (m0 == "V3_CityTree" or m0 in SWATCH) else packed).setdefault(g, []).append(n)
+
+    def join(objs, nm):
         bpy.ops.object.select_all(action='DESELECT')
         for o in objs: o.select_set(True)
         bpy.context.view_layer.objects.active = objs[0]
         if len(objs) > 1: bpy.ops.object.join()
-        j = bpy.context.view_layer.objects.active; j.name = "X_" + g; j.data.name = g
-        out.append(j)
+        j = bpy.context.view_layer.objects.active; j.name = nm; j.data.name = nm
+        return j
+    pk = [join(objs, "X_" + g) for g, objs in packed.items()]
     bpy.ops.object.select_all(action='DESELECT')
-    for o in out: o.select_set(True)
-    bpy.context.view_layer.objects.active = out[0]
+    for o in pk: o.select_set(True)
+    bpy.context.view_layer.objects.active = pk[0]
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.004, scale_to_bounds=False)
+    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.003, scale_to_bounds=False)
     bpy.ops.object.mode_set(mode='OBJECT')
-    for o in out: texel_weights(o)
+    for o in pk: texel_weights(o)
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.pack_islands(margin=0.0045, rotate=True, scale=True)
+    bpy.ops.uv.pack_islands(margin=0.0035, rotate=True, scale=True)
     bpy.ops.object.mode_set(mode='OBJECT')
+    for o in pk:
+        for l in o.data.uv_layers.active.data: l.uv = (l.uv[0], l.uv[1] * (1 - RESERVED))
+    # reserved parts: leaves into their shade slots, the rest into their material's swatch
+    out = {o.name[2:]: o for o in pk}
+    for g, objs in reserved.items():
+        for o in objs:
+            if _mat0(o) == "V3_CityTree":
+                o.data.uv_layers.active = o.data.uv_layers["UVMap"]       # already in the tree band
+            else:
+                swatch_uvs(o, SWATCH.index(_mat0(o)))
+        objs = ([out[g]] if g in out else []) + objs
+        out[g] = join(objs, "X_" + g)
+        if "UVMap" in out[g].data.uv_layers: out[g].data.uv_layers.active = out[g].data.uv_layers["UVMap"]
+    out = list(out.values())
     for o in out:
+        for nm in ("leaf_u", "leaf_v"):
+            if o.data.attributes.get(nm): o.data.attributes.remove(o.data.attributes[nm])
         if o.name.endswith("_pad"): o.hide_render = True    # hidden in the game too
     tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in out)
     return {"objects": [o.name for o in out], "tris": tris}
 
 
 # texture space per material: the painted walls / roof get more pixels, flat colours and hidden faces almost none
-TEXEL = {"V3_Pad": .02, "V3_Dark": .12, "V3_Deck": .5, "V3_Glass": .45, "V3_Tire": .5, "V3_Grass": .75, "V3_GrassDry": .75,
-         "V3_Leaf": .6, "V3_Ivy": .6, "V3_TreeLeaf": .6, "V3_Orange": .6, "V3_Flower": 1.2, "V3_Rope": .6, "V3_RustMetal": .9,
-         "V3_CasaWall": 1.9, "V3_CasaGable": 1.7, "V3_LowWall": 1.5, "V3_Tiles": 1.15, "V3_Tarp": 1.1, "V3_Chimney": 1.3,
+TEXEL = {"V3_Pad": .02, "V3_Dark": .12, "V3_Deck": .5, "V3_Glass": .45, "V3_Tire": .5, "V3_Grass": .5, "V3_GrassDry": .5,
+         "V3_Leaf": .6, "V3_Ivy": .5, "V3_TreeLeaf": .6, "V3_Foliage": .01, "V3_FoliageCore": .15, "V3_Lawn": .45, "V3_Picket": .6, "V3_Orange": .6, "V3_Flower": 1.2, "V3_Rope": .6, "V3_RustMetal": .9,
+         "V3_CasaWall": 2.2, "V3_CasaGable": 1.8, "V3_LowWall": 2.6, "V3_Tiles": .8, "V3_Tarp": 1.1, "V3_Chimney": 1.3,
          "V3_TealWood": 1.15, "V3_Stone": 1.0}
 
 
@@ -1463,6 +1607,8 @@ def texel_weights(o):
             k = .08                                   # inner faces of the walls: never seen
         elif mname in ("V3_Tiles", "V3_Ridge") and nrm.y > .25 * nrm.length:
             k *= .55                                  # back slope: away from the game camera
+        elif mname == "V3_LowWall" and (nrm.y > .5 * nrm.length or nrm.z > .5 * nrm.length):
+            k = .5                                    # inner side / top under the cap of the front wall
         if abs(k - 1) < 1e-3: continue
         ls = [l for g in isl for l in g.loops]
         cen = sum((l[uv].uv for l in ls), Vector((0, 0))) / len(ls)
@@ -1532,6 +1678,8 @@ def export(name=NAME):
     """FBX like the current Resources/CheckoutLots ones (export_unity: turned 180, -Z fwd, Y up, scale 1)."""
     objs = list(bpy.data.collections[name + " Export"].objects)
     show_only(name + " Export")
+    for o in objs:   # the city tree's own UVs were only needed to bake its texture into the atlas
+        if "TreeUV" in o.data.uv_layers: o.data.uv_layers.remove(o.data.uv_layers["TreeUV"])
     clash = {}
     for o in objs:
         final = o.name[2:]
@@ -1552,14 +1700,15 @@ def export(name=NAME):
             "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objs), "objects": len(objs)}
 
 
-def vs_city(name="casa_v3_vs_city"):
+def vs_city(name="casa_v4_vs_city"):
     """The new Casa between two of the city's own houses (MapModels, sized as CheckoutCityModelsBuilder places them)."""
     c = bpy.data.collections.get("REF City")
     if c:
         for o in list(c.objects): bpy.data.objects.remove(o)
-    info = [reference("StylizedHouse", (-10.0, 0.4), fit=(8, 7.8, 8)), reference("CuteHouse", (10.0, 0.4), fit=(8, 7, 9))]
+    info = [reference("StylizedHouse", (-11.0, 0.8), fit=(8, 7.8, 8)), reference("CuteHouse", (11.5, 0.8), fit=(8, 7, 9)),
+            reference("StylizedTree", (7.6, -5.2), fit=(3.65, 4.6, 3.8)), reference("StylizedTree", (-7.4, -5.6), rot_z=.8, fit=(3.83, 4.6, 3.8))]
     stage()
     show_only(NAME + " Export", "REF City")
-    camera((0, -.5, 2.0), 33.0, GAME_DIR, res=(1800, 1000))
+    camera((0, -.8, 2.0), 35.0, GAME_DIR, res=(1800, 1000))
     render(name)
     return info
