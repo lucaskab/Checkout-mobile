@@ -5691,12 +5691,14 @@ def armazem_export():
 
 
 # ######################################################################################################################
-# FABRICA (lot B4) - an abandoned small factory: brick hall under a three-tooth sawtooth (north-light) roof with steel
-# glazing, a tall square brick chimney stack, big multi-pane steel windows with broken panes, a loading bay with a
-# half-down shutter and a concrete dock, rusty pipes, a water tank on stilts, a gantry, a roller conveyor, machinery.
+# FABRICA (lot B4) - an abandoned small factory: brick hall under a three-tooth sawtooth (north-light) roof - the
+# teeth run front-to-back, so the plastered front wall shows the stepped sawtooth gables, the corrugated slopes rise
+# to the east and the tall steel glazing faces east (camera side) -, a tall square brick chimney stack, big multi-pane
+# steel windows with broken panes, a loading bay with a half-down shutter and a concrete dock, rusty pipes, a water
+# tank on stilts, a gantry, a roller conveyor, machinery.
 # Clearing scene (case "fabrica"; model (x, y) <-> P(.76 x, 8.33 + .76 y)): the wrecking crane P(-2, 1.9) stands in
-# front of the lot and swings at P(1, 6.8) + 4 m -> model (1.3, -2.0) at ~5.3 m: the first glazing tooth of the
-# sawtooth roof over the loading bay; the sledge worker P(3.4, 3.8..5) -> model (4.5, -6..-4.4): kept clear;
+# front of the lot and swings at P(1, 6.8) + 4 m -> model (1.3, -2.0) at ~5.3 m: just above the eastern tooth's front
+# gable and its sheets, over the loading bay; the sledge worker P(3.4, 3.8..5) -> model (4.5, -6..-4.4): kept clear;
 # the debris pile P(4, 1.4) and the foreman P(4.9..1.6, .6) are outside the model.
 # ######################################################################################################################
 FAB = "V3 Fabrica"
@@ -6146,4 +6148,564 @@ def fabrica_export():
                        inside=(FX0 + WT, FX1 - WT, FY0 + WT, FY1 - WT), walls=("V3_FabWall", "V3_FabBrick"),
                        texel={"V3_FabWall": 1.4, "V3_FabBrick": .9, "V3_FabRoof": .7, "V3_SteelWin": .7, "V3_FabConcrete": .6,
                               "V3_FabShutter": .9, "V3_FabTank": .9, "V3_Gantry": .9, "V3_GearSteel": .8, "V3_Engine": .8})
-# r104 fabrica
+
+
+# ######################################################################################################################
+# PATIO (lot C4) - a disused transport / storage yard: chain-link fence on concrete posts with barbed wire, a guard
+# booth (aged plaster) on bolted plinth with its barrier arm left up, a stranded flatbed semi-trailer on blocks with a
+# tarp-covered load, a prefab site cabin, an old forklift holding a pallet, sand / gravel bays of concrete blocks, a
+# floodlight mast, cracked concrete paving with weeds.
+# Clearing scene (case "patio"; model (x, y) <-> P(.76 x, 8.33 + .76 y)): the scene's own old 20 ft container
+# (Works_Container, 6.1 x 2.44 m, long side along x) is spawned at P(-1.6, 3.9) -> model x -6.1..1.9, y -7.4..-4.2:
+# that front-left strip (y < -4.0, x < 2.1) is kept empty, it is the yard entrance the container blocks; the crane
+# truck P(1.6, 1.6) is outside the model; the wrench worker P(4, 3.8..5) -> model (5.3, -6..-4.4) unbolts the guard
+# booth from its east side (booth at (4.0, -4.6), nothing east of it); the cones P(+-4.8, .6) are outside the model.
+# ######################################################################################################################
+PAT = "V3 Patio"
+PAT_NAME = "Lot_Patio"
+PAT_GROUPS = [
+    ("PAT_pad", ("PAT_pad",)),
+    ("PAT_fence", ("PAT_fence",)),
+    ("PAT_build", ("PAT_booth", "PAT_cabin", "PAT_barrier", "PAT_bay", "PAT_mast")),
+    ("PAT_green", ("PAT_tree", "PAT_bush", "PAT_grass", "PAT_weed", "PAT_flower")),
+]
+PM = {}
+PAT_KEEP = (-5.2, 2.1, -6.0, -4.0)        # the container's footprint at the front: nothing here
+
+
+def pat_mats():
+    mats()
+    PM.clear()
+    PM["booth"] = m_aged_wall("V3_BoothWall", C("E6D7B4"), band=C("3F9A8C"), band_top=.7, seed=121., loss=-.05, top_loss=.4)
+    PM["slab"] = m_flat("V3_YardSlab", C("D2CBBA"), .06, 2, .9, island=.09, ao=.55)     # crisp slabs: the breaks are geometry
+    PM["post"] = m_flat("V3_FencePost", C("CFC8B6"), .06, 4, .9, island=.06, ao=.5)
+    PM["wire"] = m_rust("V3_ChainLink", C("A8B4B0"), amount=.35)
+    PM["cabin"] = m_metal_paint("V3_Cabin", C("E9E0C8"), amount=.4, ribs=('Z', .14))
+    PM["trim"] = m_metal_paint("V3_CabinTrim", C("2F8F7E"), amount=.4)
+    PM["trailer"] = m_rust("V3_Trailer", C("2F6E8A"), amount=.55)
+    PM["fork"] = m_metal_paint("V3_Forklift", C("F0A43A"), amount=.45)
+    PM["arm"] = m_stripes("V3_BarrierArm", C("E8483A"), C("F6F0E2"), width=.3, axis='Z')
+    PM["sand"] = m_flat("V3_Sand", C("E2C27E"), .08, 3, .95, ao=.5)
+    PM["gravel"] = m_flat("V3_Gravel", C("A9A59B"), .14, 14, .95, ao=.5)
+    PM["steel"] = m_rust("V3_PatSteel", C("7E8A8C"), amount=.5)
+    return PM
+
+
+def pat_fence(c):
+    """Chain-link panels between concrete posts, angled arms with three strands of barbed wire; two panels sagging,
+    one torn down and lying on the ground."""
+    po = G("PAT_fencePosts", PM["post"], c, bevel=.015, seg=1)
+    wi = G("PAT_fenceWire", PM["wire"], c)
+    runs = [((-4.62, -4.0), (-4.62, 5.4), (-1, 0)), ((-4.62, 5.4), (4.62, 5.4), (0, 1)), ((4.62, 5.4), (4.62, -3.6), (1, 0))]
+    for ri, (a, b, o) in enumerate(runs):
+        a, b = Vector((*a, 0)), Vector((*b, 0)); L = (b - a).length; d = (b - a).normalized(); out = Vector((*o, 0))
+        n = max(1, int(round(L / 2.0)))
+        for i in range(n + 1):
+            p = a + d * (L * i / n)
+            po.box((.13, .13, 2.15), (p.x, p.y, 1.075), open_bottom=True)
+            po.tube(p + Vector((0, 0, 2.1)), p + out * .3 + Vector((0, 0, 2.48)), .035, verts=4)
+        for k, h in enumerate((2.22, 2.34, 2.45)):
+            off = out * (.08 + .1 * k)
+            wi.tube(a + off + Vector((0, 0, h)), b + off + Vector((0, 0, h)), .008, verts=3)
+        for i in range(n):
+            p0 = a + d * (L * i / n); p1 = a + d * (L * (i + 1) / n)
+            state = "torn" if (ri, i) == (1, 2) else ("sag" if (ri, i) in ((0, 3), (2, 1)) else "ok")
+            w = L / n - .16; hh = 1.9
+            if state == "torn":     # torn off its top tension wire, folded over into the yard
+                pts = lambda x, z, p0=p0, w=w, d=d, out=out: p0 + d * (.08 + x) - out * (z * .72) + Vector((0, 0, .08 + z * .69))
+            else:
+                lean = .22 if state == "sag" else 0
+                pts = lambda x, z, p0=p0, lean=lean, w=w, d=d, out=out: p0 + d * (.08 + x) + out * (lean * (z / 1.9) ** 2) + Vector((0, 0, .08 + z))
+            step = .2
+            cc = -hh
+            while cc < w:
+                x0, x1 = max(0, cc), min(w, cc + hh)
+                if x1 - x0 > .02: wi.tube(pts(x0, x0 - cc), pts(x1, x1 - cc), .006, verts=3)
+                cc += step
+            cc = step / 2
+            while cc < w + hh:
+                x0, x1 = max(0, cc - hh), min(w, cc)
+                if x1 - x0 > .02: wi.tube(pts(x0, cc - x0), pts(x1, cc - x1), .006, verts=3)
+                cc += step
+            for z in (0, hh): wi.tube(pts(0, z), pts(w, z), .014, verts=4)
+    po.done(); wi.done()
+
+
+def pat_booth(c):
+    """Guard booth: aged plaster on a bolted concrete plinth, windows on three sides (one broken), door to the yard,
+    flat concrete roof with an overhang, a lamp; the barrier arm beside it left standing up."""
+    rnd = random.Random(31)
+    x0, x1, y0, y1, h = 3.35, 4.65, -5.25, -3.95, 2.3
+    pl = G("PAT_boothPlinth", PM["slab"], c, bevel=.02, seg=1)
+    pl.box((x1 - x0 + .3, y1 - y0 + .3, .15), ((x0 + x1) / 2, (y0 + y1) / 2, .075), open_bottom=True)
+    pl.done()
+    bo = G("PAT_boothBolts", M["rust"], c)
+    for (bx, by) in ((x0 - .08, y0 - .08), (x1 + .08, y0 - .08), (x1 + .08, y1 + .08), (x0 - .08, y1 + .08), (x1 + .08, (y0 + y1) / 2)):
+        bo.cyl(.035, .06, (bx, by, .17), verts=6); bo.cyl(.05, .015, (bx, by, .152), verts=8)
+    bo.done()
+    w = G("PAT_boothWalls", PM["booth"], c, smooth=False)
+    t = .14; z0 = .15
+    ops = {"S": (0, .8, 1.0, .9), "E": (0, .8, 1.0, .9), "W": (0, .8, 1.0, .9), "N": (-.15, .75, 0, 2.0)}
+    for face, (u, ow, sill, oh) in ops.items():
+        F = rect_frame({"S": "F", "N": "B", "E": "E", "W": "W"}[face], x0, x1, y0, y1)
+        uu0, uu1 = rect_span({"S": "F", "N": "B", "E": "E", "W": "W"}[face], x0, x1, y0, y1)
+        if face in "EW": uu0, uu1 = uu0 + t, uu1 - t
+        uc = (uu0 + uu1) / 2 + u
+        rects = cut_rects([(uu0, 0, uu1, h)], (uc - ow / 2, sill, uc + ow / 2, sill + oh))
+        for (a0, b0, a1, b1) in rects:
+            w.box((a1 - a0, t, b1 - b0), ((a0 + a1) / 2, t / 2, z0 + (b0 + b1) / 2), M=F)
+        if face != "N":
+            st = G(f"PAT_boothWin{face}", PM["steel"], c, bevel=.006, seg=1)
+            gl = G(f"PAT_boothGlass{face}", M["glass"], c)
+            steel_grid(st, gl, F, uc - ow / 2 + .02, uc + ow / 2 - .02, z0 + sill + .02, z0 + sill + oh - .02, 2, 2, rnd, broken=.5 if face == "S" else .0, y=.07, hopper=False)
+            st.done(); gl.done()
+            sl = G(f"PAT_boothSill{face}", PM["slab"], c, bevel=.015, seg=1)
+            sl.box((ow + .16, .14, .05), (uc, -.03, z0 + sill - .03), M=F)
+            sl.done()
+        else:
+            dr = G("PAT_boothDoor", PM["trim"], c, bevel=.01, seg=1)
+            Md = F @ Matrix.Translation((uc + ow / 2 - .02, .03, z0 + .02)) @ Matrix.Rotation(-.9, 4, 'Z')
+            dr.box((ow - .04, .04, oh - .04), (-(ow - .04) / 2, 0, (oh - .04) / 2), M=Md)
+            dr.box((ow - .2, .03, .5), (-(ow - .04) / 2, -.03, oh * .62), M=Md)
+            dr.done()
+    w.done()
+    ins = G("PAT_boothInside", M["dark"], c)
+    ins.box((x1 - x0 - 2 * t - .02, y1 - y0 - 2 * t - .02, .02), ((x0 + x1) / 2, (y0 + y1) / 2, z0 + .01))
+    ins.box((x1 - x0 - 2 * t - .02, y1 - y0 - 2 * t - .02, .02), ((x0 + x1) / 2, (y0 + y1) / 2, z0 + h - .01))
+    ins.done()
+    rf = G("PAT_boothRoof", PM["slab"], c, bevel=.03, seg=1)
+    rf.box((x1 - x0 + .5, y1 - y0 + .5, .16), ((x0 + x1) / 2, (y0 + y1) / 2, z0 + h + .08))
+    rf.done()
+    lp = G("PAT_boothLamp", PM["steel"], c, bevel=.01, seg=1)
+    lp.tube((x0 - .02, (y0 + y1) / 2, z0 + h - .3), (x0 - .35, (y0 + y1) / 2, z0 + h - .2), .025, verts=6)
+    lp.cyl(.13, .12, (x0 - .4, (y0 + y1) / 2, z0 + h - .26), verts=12, r2=.05)
+    lp.done()
+    # barrier: post with counterweight, the striped arm left standing almost upright
+    bp = G("PAT_barrierPost", PM["trim"], c, bevel=.02, seg=1)
+    bp.box((.26, .26, .95), (3.0, -4.8, .475), open_bottom=True)
+    bp.box((.32, .32, .08), (3.0, -4.8, .99))
+    bp.done()
+    Ma = Matrix.Translation((3.0, -4.8, 1.05)) @ Matrix.Rotation(math.radians(78), 4, 'Y')
+    ba = G("PAT_barrierArm", PM["arm"], c, bevel=.02, seg=1)
+    ba.box((3.0, .1, .12), (-1.5 + .1, 0, 0), M=Ma)
+    ba.done()
+    bw = G("PAT_barrierWeight", M["rust"], c, bevel=.01, seg=1)
+    bw.box((.4, .14, .22), (.35, 0, 0), M=Ma)
+    bw.cyl(.07, .36, (0, 0, 0), rot=(math.pi / 2, 0, 0), verts=10, M=Ma)
+    bw.done()
+
+
+def pat_trailer(c):
+    """Stranded flatbed semi-trailer: steel chassis, plank deck, landing legs, a tandem axle with one wheel gone
+    (that corner propped on concrete blocks), a tarp-covered load roped down."""
+    Mt = Matrix.Translation((-3.2, 1.45, 0))
+    L, W, zd = 5.5, 2.2, 1.22
+    ch = G("PAT_trailerFrame", PM["trailer"], c, bevel=.012, seg=1)
+    for sx in (-1, 1):
+        ch.box((.14, L, .3), (sx * .45, 0, zd - .25), M=Mt)                     # main beams
+        ch.box((.06, L, .18), (sx * (W / 2 - .03), 0, zd - .02), M=Mt)          # side rails
+    for k in range(9): ch.box((W - .1, .08, .1), (0, -L / 2 + .2 + k * (L - .4) / 8, zd - .14), M=Mt)
+    for sx in (-1, 1):                                                           # landing legs + feet
+        ch.box((.12, .12, zd - .3), (sx * .45, L / 2 - 1.0, (zd - .3) / 2 + .05), M=Mt)
+        ch.box((.3, .3, .05), (sx * .45, L / 2 - 1.0, .03), M=Mt)
+    ch.box((.9, .08, .08), (0, L / 2 - 1.0, .6), M=Mt)
+    for yy in (-1.85, -1.0):
+        ch.box((W - .3, .12, .12), (0, yy, .5), M=Mt)                            # axles
+        for sx in (-1, 1): ch.box((.1, .9, .08), (sx * .6, yy, .72), M=Mt)        # springs
+    ch.done()
+    dk = G("PAT_trailerDeck", M["deck"], c, bevel=.01, seg=1)
+    for k in range(9):
+        if k == 6: continue
+        dk.box((W - .14, L / 9 - .025, .05), (0, -L / 2 + (k + .5) * L / 9, zd + .04), M=Mt)
+    dk.done()
+    ty = G("PAT_trailerTyres", OM["rubber"], c)
+    rm = G("PAT_trailerRims", OM["rimSteel"], c)
+    for yy in (-1.85, -1.0):
+        for sx in (-1, 1):
+            if (yy, sx) == (-1.85, 1): continue                                   # this wheel is gone
+            Mw = Mt @ Matrix.Translation((sx * (W / 2 - .2), yy, .5)) @ Matrix.Rotation(math.pi / 2, 4, 'Y')
+            ty.tyre(R=.36, r=.13, w=.12, M=Mw, seg=28, rseg=8, worn=.5); rm.rim(R=.24, w=.1, M=Mw, lugs=6)
+    ty.done(); rm.done()
+    bl = G("PAT_trailerBlocks", OM["blocks"], c, bevel=.015, seg=1)
+    for k in range(2): bl.box((.42, .22, .2), (W / 2 - .2, -1.85, .1 + k * .2), rot=(0, 0, .2 * k), M=Mt)
+    bl.done()
+    tp = G("PAT_trailerTarp", M["tarp"], c, bevel=.04, seg=2)
+    tp.box((1.75, 1.7, .78), (0, 1.15, zd + .45), M=Mt); tp.box((1.45, 1.05, .5), (0, -.3, zd + .31), rot=(0, 0, .05), M=Mt)
+    tp.done()
+    rp = G("PAT_trailerRopes", M["rope"], c)
+    for yy in (.6, 1.15, 1.7):
+        rp.tube(Mt @ Vector((-W / 2 + .03, yy, zd + .1)), Mt @ Vector((-.89, yy, zd + .86)), .02, verts=4)
+        rp.tube(Mt @ Vector((-.89, yy, zd + .86)), Mt @ Vector((.89, yy, zd + .86)), .02, verts=4)
+        rp.tube(Mt @ Vector((.89, yy, zd + .86)), Mt @ Vector((W / 2 - .03, yy, zd + .1)), .02, verts=4)
+    rp.done()
+
+
+def pat_cabin(c):
+    """Prefab site cabin on concrete blocks: ribbed panels, trims, two barred windows, a door with steel steps."""
+    rnd = random.Random(41)
+    x0, x1, y0, y1, zb, h = 1.02, 4.3, 2.65, 4.85, .32, 2.45
+    bl = G("PAT_cabinBlocks", OM["blocks"], c, bevel=.015, seg=1)
+    for (bx, by) in ((x0 + .3, y0 + .3), (x1 - .3, y0 + .3), (x0 + .3, y1 - .3), (x1 - .3, y1 - .3), ((x0 + x1) / 2, y0 + .3), ((x0 + x1) / 2, y1 - .3)):
+        bl.box((.4, .4, zb), (bx, by, zb / 2), open_bottom=True)
+    bl.done()
+    wl = G("PAT_cabinWalls", PM["cabin"], c, smooth=False)
+    t = .08
+    ops = {"F": [("win", 2.0 - .0, 1.0, .9, .9), ("door", 3.6, .85, 0, 2.0)], "E": [("win", 0, .9, .9, .9)], "B": [], "W": []}
+    for face in "FBEW":
+        F = rect_frame(face, x0, x1, y0, y1); u0, u1 = rect_span(face, x0, x1, y0, y1)
+        if face in "EW": u0, u1 = u0 + t, u1 - t
+        rects = [(u0, 0, u1, h)]
+        for (kind, u, w_, sill, oh) in ops[face]:
+            uc = u if face != "E" else (y0 + y1) / 2
+            rects = cut_rects(rects, (uc - w_ / 2, sill, uc + w_ / 2, sill + oh))
+        for (a0, b0, a1, b1) in rects:
+            wl.box((a1 - a0, t, b1 - b0), ((a0 + a1) / 2, t / 2, zb + (b0 + b1) / 2), M=F)
+    wl.done()
+    tr = G("PAT_cabinTrim", PM["trim"], c, bevel=.012, seg=1)
+    for (cx, cy) in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)): tr.box((.12, .12, h + .05), (cx, cy, zb + h / 2))
+    tr.box((x1 - x0 + .2, y1 - y0 + .2, .12), ((x0 + x1) / 2, (y0 + y1) / 2, zb + h + .06))
+    tr.box((x1 - x0 + .12, y1 - y0 + .12, .1), ((x0 + x1) / 2, (y0 + y1) / 2, zb + .05))
+    tr.done()
+    ins = G("PAT_cabinInside", M["dark"], c)
+    ins.box((x1 - x0 - .2, y1 - y0 - .2, .02), ((x0 + x1) / 2, (y0 + y1) / 2, zb + .02))
+    ins.box((x1 - x0 - .2, .02, h - .1), ((x0 + x1) / 2, y1 - .12, zb + h / 2))
+    ins.done()
+    st = G("PAT_cabinWinSteel", PM["steel"], c, bevel=.006, seg=1)
+    gl = G("PAT_cabinGlass", M["glass"], c)
+    bars = G("PAT_cabinBars", M["rust"], c)
+    for face, (u, w_, sill, oh) in (("F", (2.0, 1.0, .9, .9)), ("E", ((y0 + y1) / 2, .9, .9, .9))):
+        F = rect_frame(face, x0, x1, y0, y1)
+        steel_grid(st, gl, F, u - w_ / 2 + .02, u + w_ / 2 - .02, zb + sill + .02, zb + sill + oh - .02, 2, 2, rnd, broken=.3, y=.04, hopper=False)
+        for k in range(5): bars.tube(F @ Vector((u - w_ / 2 + .1 + k * (w_ - .2) / 4, -.06, zb + sill - .05)), F @ Vector((u - w_ / 2 + .1 + k * (w_ - .2) / 4, -.06, zb + sill + oh + .05)), .015, verts=4)
+    st.done(); gl.done(); bars.done()
+    F = rect_frame("F", x0, x1, y0, y1)
+    dr = G("PAT_cabinDoor", PM["trim"], c, bevel=.01, seg=1)
+    dr.box((.81, .05, 1.96), (3.6, .03, zb + 1.0), M=F)
+    dr.box((.6, .03, .5), (3.6, -.01, zb + 1.4), M=F)
+    dr.done()
+    sp = G("PAT_cabinSteps", PM["steel"], c, bevel=.008, seg=1)
+    for k in range(2): sp.box((.9, .3, .04), (3.6, -.25 - .3 * (1 - k), .12 + k * .14), M=F)
+    for sx in (-1, 1): sp.box((.04, .7, .3), (3.6 + sx * .45, -.4, .15), rot=(.4, 0, 0), M=F)
+    sp.done()
+    ac = G("PAT_cabinAC", PM["slab"], c, bevel=.02, seg=1)
+    ac.box((.7, .35, .5), (1.3, -.2, zb + 1.2), M=rect_frame("B", x0, x1, y0, y1))
+    ac.done()
+
+
+def pat_forklift(c):
+    """Old forklift left with a pallet up on its forks: body + counterweight, overhead guard, mast, seat, wheel."""
+    Mf = Matrix.Translation((.35, .1, .065)) @ Matrix.Rotation(math.radians(-100), 4, 'Z')     # local +x = forward
+    f = G("PAT_forkBody", PM["fork"], c, bevel=.03, seg=1)
+    f.box((1.35, .95, .55), (0, 0, .6), M=Mf)
+    f.box((.45, 1.0, .7), (-.75, 0, .7), M=Mf)                                   # counterweight
+    f.box((.9, .9, .12), (-.05, 0, .95), M=Mf)
+    for sx in (-1, 1):
+        for xx in (.45, -.55): f.tube(Mf @ Vector((xx, sx * .42, .95)), Mf @ Vector((xx * .92, sx * .42, 2.05)), .035, verts=6)
+    for xx in (.42, -.52): f.tube(Mf @ Vector((xx, -.42, 2.05)), Mf @ Vector((xx, .42, 2.05)), .03, verts=6)
+    for sx in (-1, 1): f.tube(Mf @ Vector((.42, sx * .42, 2.05)), Mf @ Vector((-.52, sx * .42, 2.05)), .03, verts=6)
+    for k in range(4): f.box((.92, .05, .03), (-.05, -.3 + k * .2, 2.07), M=Mf)
+    f.done()
+    ms = G("PAT_forkMast", PM["steel"], c, bevel=.01, seg=1)
+    for sx in (-1, 1): ms.box((.1, .1, 2.2), (.78, sx * .32, 1.15), M=Mf)
+    for z in (.4, 1.3, 2.2): ms.box((.08, .74, .08), (.78, 0, z), M=Mf)
+    ms.box((.08, .9, .45), (.86, 0, .92), M=Mf)                                 # carriage, raised
+    for sx in (-1, 1):
+        ms.box((.06, .1, .5), (.9, sx * .25, .95), M=Mf)
+        ms.box((1.0, .1, .05), (1.4, sx * .25, .72), M=Mf)                       # forks
+    ms.done()
+    pa = G("PAT_forkPallet", M["wood"], c, bevel=.006, seg=1)
+    Mp = Mf @ Matrix.Translation((1.42, 0, .62))
+    for yy in (-.5, 0, .5): pa.box((1.15, .1, .1), (0, yy, .05), M=Mp)
+    for i in range(6): pa.box((.11, 1.15, .025), (-.53 + i * .212, 0, .115), M=Mp)
+    pa.done()
+    bx = G("PAT_forkCrate", M["wood"], c, smooth=False)
+    crate(bx, Mp @ Matrix.Translation((.05, -.2, .13)) @ Matrix.Rotation(.1, 4, 'Z'), .55)
+    bx.done()
+    se = G("PAT_forkSeat", M["dark"], c, bevel=.02, seg=1)
+    se.box((.4, .45, .1), (-.35, 0, 1.06), M=Mf); se.box((.1, .45, .4), (-.55, 0, 1.25), M=Mf)
+    se.torus(.16, .02, (0, 0, 0), seg=14, rseg=4, M=Mf @ Matrix.Translation((.15, 0, 1.3)) @ Matrix.Rotation(-.5, 4, 'Y'))
+    se.tube(Mf @ Vector((.3, 0, 1.0)), Mf @ Vector((.15, 0, 1.3)), .025, verts=5)
+    se.done()
+    ty = G("PAT_forkTyres", OM["rubber"], c)
+    rm = G("PAT_forkRims", OM["rimSteel"], c)
+    for (xx, R, wv) in ((.45, .3, .14), (-.55, .24, .12)):
+        for sx in (-1, 1):
+            Mw = Mf @ Matrix.Translation((xx, sx * .5, R)) @ Matrix.Rotation(math.pi / 2, 4, 'X')
+            ty.tyre(R=R - .09, r=.09, w=wv / 2, M=Mw, seg=24, rseg=8, worn=.6); rm.rim(R=(R - .09) * .8, w=.06, M=Mw, lugs=5)
+    ty.done(); rm.done()
+
+
+def pat_bays(c):
+    """Two open bays of concrete blocks: sand in one (a shovel stuck in it), gravel in the other, some spilled out."""
+    x0, x1 = 3.15, 4.55
+    ys = (-3.3, -1.05, 1.2)
+    bw = G("PAT_bayWalls", OM["blocks"], c, bevel=.02, seg=1)
+    bw.box((.25, ys[-1] - ys[0] + .25, 1.0), (x1 - .125, (ys[0] + ys[-1]) / 2, .5), open_bottom=True)
+    for y in ys: bw.box((x1 - x0 - .25, .25, 1.0), ((x0 + x1 - .25) / 2, y, .5), open_bottom=True)
+    bw.done()
+    for k, (nm, mat) in enumerate((("PAT_baySand", PM["sand"]), ("PAT_bayGravel", PM["gravel"]))):
+        yc = (ys[k] + ys[k + 1]) / 2
+        g = G(nm, mat, c)
+        g.ball(1.0, (x1 - .55, yc, 0), scale=(.52, .9, .78), sub=3)
+        g.ball(1.0, (x0 + .05, yc + .1, 0), scale=(.25, .5, .14), sub=2)
+        g.clip = 0.0
+        g.done()
+    sh = G("PAT_bayShovel", PM["steel"], c, bevel=.005, seg=1)
+    Ms = Matrix.Translation((3.75, -2.1, .55)) @ Matrix.Rotation(.5, 4, 'Y') @ Matrix.Rotation(.3, 4, 'X')
+    sh.box((.24, .03, .3), (0, 0, 0), M=Ms)
+    sh.done()
+    sw = G("PAT_bayShovelHandle", M["wood"], c)
+    sw.tube(Ms @ Vector((0, 0, .15)), Ms @ Vector((0, 0, 1.25)), .022, verts=6)
+    sw.done()
+
+
+def pat_mast(c):
+    x, y = -1.55, 3.05
+    b = G("PAT_mastBase", PM["slab"], c, bevel=.02, seg=1)
+    b.box((.6, .6, .3), (x, y, .15), open_bottom=True); b.done()
+    m = G("PAT_mastPole", PM["steel"], c, bevel=.0)
+    m.cyl(.1, 6.2, (x, y, 3.4), verts=10, r2=.065)
+    m.box((1.2, .08, .08), (x, y, 6.4))
+    m.done()
+    lh = G("PAT_mastLamps", PM["trim"], c, bevel=.015, seg=1)
+    for sx in (-1, 1):
+        lh.box((.38, .22, .28), (x + sx * .45, y - .1, 6.25), rot=(.5, 0, 0))
+    lh.done()
+    gl = G("PAT_mastGlass", M["glass"], c)
+    for sx in (-1, 1): gl.box((.32, .02, .22), (x + sx * .45, y - .22, 6.18), rot=(.5, 0, 0))
+    gl.done()
+    cb = G("PAT_mastCable", M["dark"], c)
+    cb.tube((x + .1, y, .3), (x + .1, y, 6.1), .015, verts=4)
+    cb.done()
+
+
+def pat_paving(c):
+    """Cracked concrete slabs over the middle of the yard: a few missing, a few broken in two and tilted."""
+    rnd = random.Random(13)
+    g = G("PAT_paving", PM["slab"], c, bevel=.02, seg=1)
+    xa, xb, ya, yb, s = -2.0, 2.75, -3.9, 2.55, 1.5
+    nx, ny = int(round((xb - xa) / s)), int(round((yb - ya) / s))
+    sx, sy = (xb - xa) / nx, (yb - ya) / ny
+    for i in range(nx):
+        for j in range(ny):
+            cx, cy = xa + (i + .5) * sx, ya + (j + .5) * sy
+            r = rnd.random()
+            if r < .1: continue
+            if r < .25:
+                g.box((sx / 2 - .06, sy - .06, .06), (cx - sx / 4, cy, .03), rot=(0, .03, .04), open_bottom=True)
+                g.box((sx / 2 - .06, sy - .06, .06), (cx + sx / 4, cy, .05), rot=(.02, -.06, -.05), open_bottom=True)
+                continue
+            g.box((sx - .05, sy - .05, .06), (cx, cy, .03), rot=(0, 0, rnd.uniform(-.01, .01)), open_bottom=True)
+    g.done()
+
+
+def pat_green(c):
+    rnd = random.Random(83)
+    pave = (-2.05, 2.8, -3.95, 2.6)
+    keep = PAT_KEEP
+    holes = (pave, keep, (-4.4, -2.0, -1.4, 4.3), (.8, 4.45, 2.55, 4.95), (3.1, 4.6, -3.45, 1.35), (3.2, 4.8, -5.4, -3.8))
+    city_tree("PAT_tree", c, (-4.0, 4.85, 0), 1, rot_z=math.radians(20), tris=4000, width=1.6)
+    for k, (x, y, r, rz) in enumerate(((4.4, 1.9, .42, .3), (-.3, 4.95, .45, 1.4), (-4.4, -3.3, .4, 2.5))):
+        city_tree(f"PAT_bush{k}", c, (x, y, 0), 1, rot_z=rz, tris=650, crown_only=True, width=r * 2.1)
+    for k, (x, y, sx, sy, d) in enumerate(((-4.45, 0.5, .4, 4.5, .9), (0, 4.6, 4.6, .55, .9), (4.5, -1.0, .35, 3.0, .7),
+                                           (-3.2, -3.0, 1.2, .8, 1.0), (3.0, -3.3, .3, .6, .8), (-1.2, -1.0, .6, 3.2, .4))):
+        grass_patch(c, f"PAT_grass{k}", x, y, sx, sy, seed=700 + k, density=d, h=(.25, .55), holes=holes)
+    tw = G("PAT_weeds", M["grass"], c, smooth=False)
+    pts = []
+    xa, xb, ya, yb = -2.0, 2.75, -3.9, 2.55
+    for i in range(1, 4):
+        for j in range(1, 5):
+            if rnd.random() < .55: pts.append((xa + i * (xb - xa) / 3 + rnd.uniform(-.05, .05), ya + j * (yb - ya) / 4 + rnd.uniform(-.4, .4)))
+    for i, (x, y) in enumerate(pts + [(-4.6, -3.8), (4.6, -3.3), (-4.6, 5.3), (4.6, 5.3), (.5, 5.3)]):
+        tw.blades((x, y, 0), n=rnd.randint(5, 8), h=rnd.uniform(.3, .55), w=.06, seed=2100 + i, spread=.06, lean=(.15, .5))
+    tw.done()
+    st = G("PAT_flowerStalks", M["grass"], c)
+    fh = G("PAT_flowerHeads", MM.get("flowerY") or M["flower"], c)
+    for (cx_, cy_) in ((-4.4, 2.6), (-3.6, -2.0), (-2.8, -3.2)):
+        for i in range(6):
+            x = cx_ + rnd.uniform(-.3, .3); y = cy_ + rnd.uniform(-.35, .35); h = rnd.uniform(.3, .55)
+            st.tube((x, y, 0), (x, y, h), .012, verts=4); fh.ball(.055, (x, y, h), scale=(1, 1, .7), sub=1)
+    st.done(); fh.done()
+
+
+def pat_pad(c):
+    p = G("PAT_pad", M["pad"], c)
+    p.box((PAD_W, PAD_D, .2), (0, 0, -.1))
+    o = p.done(); o.hide_render = True
+    return o
+
+
+def build_patio(part="all"):
+    c = col(PAT)
+    show_only(PAT)
+    if part in ("all", "house"):
+        for o in list(c.objects): bpy.data.objects.remove(o)
+        for m in list(bpy.data.meshes):
+            if m.users == 0 and not m.use_fake_user: bpy.data.meshes.remove(m)
+    pat_mats()
+    if not OM: ofi_mats()
+    if part in ("all", "house"):
+        pat_pad(c); pat_fence(c); pat_booth(c); pat_cabin(c); pat_bays(c); pat_mast(c); pat_paving(c)
+    if part in ("all", "yard"):
+        pat_trailer(c); pat_forklift(c); pat_green(c)
+    return stats(c)
+
+
+def patio_export():
+    return make_export(PAT, PAT_NAME, groups=PAT_GROUPS, default="PAT_junk",
+                       inside=(99, -99, 99, -99), walls=(),
+                       texel={"V3_BoothWall": 1.8, "V3_YardSlab": .5, "V3_FencePost": .6, "V3_ChainLink": .5, "V3_Cabin": 1.0,
+                              "V3_CabinTrim": .9, "V3_Trailer": .9, "V3_Forklift": 1.1, "V3_BarrierArm": 1.2, "V3_Sand": .4,
+                              "V3_Gravel": .5, "V3_PatSteel": .7})
+
+
+# ------------------------------------------------------------------ re-bake check: before | after, side by side
+REBAKE = {   # lot: (export fn name or None for Casa, export collection name, close-up centre)
+    "casa": (None, "Lot_Casa", (.5, -2.2, 2.2)), "loja": ("loja_export", "Lot_Loja", (0, -2.5, 1.8)),
+    "sobrado": ("sobrado_export", "Lot_Sobrado", (-.5, -2.0, 2.5)), "oficina": ("oficina_export", "Lot_Oficina", (0, -2.0, 1.5)),
+    "galpao": ("galpao_export", "Lot_Galpao", (0, -2.5, 1.5)), "garagem": ("garagem_export", "Lot_Garagem", (0, -2.0, 1.2)),
+    "mato": ("mato_export", "Lot_Mato", (1.3, 2.6, 1.0)), "entulho": ("entulho_export", "Lot_Entulho", (-1.4, 2.6, 1.0)),
+}
+
+
+def side_by_side(a, b, out, gap=8):
+    import numpy as np
+    ims = [bpy.data.images.load(p, check_existing=False) for p in (a, b)]
+    w, h = ims[0].size
+    px = []
+    for im in ims:
+        arr = np.empty(w * h * 4, np.float32); im.pixels.foreach_get(arr); px.append(arr.reshape(h, w, 4))
+    W = 2 * w + gap
+    big = np.ones((h, W, 4), np.float32)
+    big[:, :w] = px[0]; big[:, w + gap:] = px[1]
+    o = bpy.data.images.new("cmp_tmp", W, h, alpha=False)
+    o.pixels.foreach_set(big.ravel()); o.filepath_raw = out; o.file_format = 'PNG'; o.save()
+    for im in ims + [o]: bpy.data.images.remove(im)
+    for p in (a, b):
+        try: os.remove(p)
+        except OSError: pass
+    return out
+
+
+def reuse_uvs(name, src_fbx):
+    """Re-bake without re-layout: after make_export() (fresh copies with their procedural materials), copy the atlas
+    UVs of the previously delivered FBX back onto them (same meshes, same polygon / loop order), so only the bake fix
+    changes; then widen the sub-pixel islands. Returns per-object (polygons, max centre mismatch)."""
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=src_fbx)
+    imp = [o for o in bpy.data.objects if o not in before]
+    bpy.context.view_layer.update()
+    rep = {}
+    try:
+        for o in bpy.data.collections[name + " Export"].objects:
+            key = o.name[2:]
+            src = next((s for s in imp if s.type == 'MESH' and s.name.split(".")[0] == key), None)
+            if src is None or len(src.data.polygons) != len(o.data.polygons) or len(src.data.loops) != len(o.data.loops):
+                rep[key] = ("MISMATCH", len(src.data.polygons) if src else None, len(o.data.polygons)); continue
+            Ms = src.matrix_world; err = 0.0
+            for i in range(0, len(o.data.polygons), max(1, len(o.data.polygons) // 50)):
+                a = Ms @ src.data.polygons[i].center; b = o.matrix_world @ o.data.polygons[i].center
+                err = max(err, min((Vector((-a.x, -a.y, a.z)) - b).length, (a - b).length))
+            su = src.data.uv_layers.active.data
+            du = o.data.uv_layers["UVMap"].data if "UVMap" in o.data.uv_layers else o.data.uv_layers.active.data
+            if err <= .02:
+                for i in range(len(su)): du[i].uv = su[i].uv
+            else:                    # same faces, different order: match each polygon by centre, each corner by position
+                from mathutils.kdtree import KDTree
+                flip = lambda v: Vector((-v.x, -v.y, v.z))
+                sp = src.data.polygons; sv = src.data.vertices
+                kd = KDTree(len(sp))
+                for i, pl in enumerate(sp): kd.insert(flip(Ms @ pl.center), i)
+                kd.balance()
+                miss = 0; worst = 0.0
+                for pl in o.data.polygons:
+                    c = o.matrix_world @ pl.center
+                    best = None
+                    for (co, j, dist) in kd.find_n(c, 4):
+                        if len(sp[j].loop_indices) == len(pl.loop_indices) and (best is None or dist < best[1]): best = (j, dist)
+                    if best is None or best[1] > .01: miss += 1; continue
+                    worst = max(worst, best[1]); q = sp[best[0]]
+                    sl = [(flip(Ms @ sv[src.data.loops[li].vertex_index].co), li) for li in q.loop_indices]
+                    for li in pl.loop_indices:
+                        pv = o.matrix_world @ o.data.vertices[o.data.loops[li].vertex_index].co
+                        du[li].uv = su[min(sl, key=lambda e: (e[0] - pv).length)[1]].uv
+                err = ("matched", miss, round(worst, 4))
+            if not o.hide_render: fatten_islands(o) if "TreeUV" not in o.data.uv_layers else _fatten_layer(o, "UVMap")
+            rep[key] = (len(o.data.polygons), err if isinstance(err, tuple) else round(err, 4))
+    finally:
+        for s in imp: bpy.data.objects.remove(s)
+    return rep
+
+
+def _fatten_layer(o, layer):
+    keep = o.data.uv_layers.active.name
+    o.data.uv_layers.active = o.data.uv_layers[layer]
+    fatten_islands(o)
+    o.data.uv_layers.active = o.data.uv_layers[keep]
+
+
+def before_from_backup(lot, prefix, close_at):
+    """The delivered (pre re-bake) FBX + texture from export/pre_rebake, turned back into the stage frame, rendered
+    with the same close-up camera as the re-baked export collection."""
+    cname = "TMP rebake before"
+    c = col(cname)
+    for o in list(c.objects): bpy.data.objects.remove(o)
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=os.path.join(EXPORT, "pre_rebake", lot + ".fbx"))
+    imp = [o for o in bpy.data.objects if o not in before]
+    img = bpy.data.images.load(os.path.join(EXPORT, "pre_rebake", lot + "_BaseColor.png"), check_existing=False)
+    mat = bpy.data.materials.new("TMP_before_mat"); mat.use_nodes = True
+    tex = mat.node_tree.nodes.new("ShaderNodeTexImage"); tex.image = img
+    mat.node_tree.links.new(tex.outputs["Color"], mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
+    mat.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = .85
+    root = bpy.data.objects.new("TMP_before_root", None); c.objects.link(root)
+    for o in imp:
+        for cc in list(o.users_collection): cc.objects.unlink(o)
+        c.objects.link(o)
+        if o.parent is None: o.parent = root
+        if o.type == 'MESH':
+            o.data.materials.clear(); o.data.materials.append(mat)
+            if o.name.split(".")[0].endswith("_pad"): o.hide_render = True
+    root.rotation_euler = (0, 0, math.pi)
+    bpy.context.view_layer.update()
+    r = render_views(prefix, ("close",), cname=cname, close_at=close_at)[0]
+    for o in list(c.objects): bpy.data.objects.remove(o)
+    bpy.data.materials.remove(mat); bpy.data.images.remove(img)
+    return r
+
+
+REBAKE_STATE = {}
+
+
+def rebake_step(lot, budget=12.0):
+    """One short MCP call of a lot's re-bake: first call renders the 'before', re-creates the export copies and puts the
+    delivered UVs back; later calls bake as many parts as fit the time budget; the last one exports the FBX + PNG
+    (same names), renders the 'after' and writes <lot>_rebake_cmp.png."""
+    import time as _t
+    fn, nm, ca = REBAKE[lot]
+    st = REBAKE_STATE.setdefault(lot, {"next": None})
+    t0 = _t.time()
+    if st["next"] is None:
+        before_from_backup(nm, f"{lot}_rb_before", ca)
+        globals()[fn]() if fn else make_export()
+        rep = reuse_uvs(nm, os.path.join(EXPORT, "pre_rebake", nm + ".fbx"))
+        bad = {k: v for k, v in rep.items() if isinstance(v[0], str)}
+        st["parts"] = len([o for o in bpy.data.collections[nm + " Export"].objects if not o.hide_render])
+        if bad:
+            st["next"] = "blocked"; return {"lot": lot, "stage": "BLOCKED", "bad": bad}
+        st["next"] = 0
+        return {"lot": lot, "stage": "prepared", "parts": st["parts"], "rep": rep, "t": round(_t.time() - t0, 1)}
+    if st["next"] == "blocked": return {"lot": lot, "stage": "BLOCKED"}
+    done = []
+    while st["next"] < st["parts"] and (not done or _t.time() - t0 < budget):
+        a = _t.time(); bake(nm, part=st["next"], parts=st["parts"]); done.append((st["next"], round(_t.time() - a, 1))); st["next"] += 1
+    out = {"lot": lot, "stage": "baking", "done": done, "t": round(_t.time() - t0, 1)}
+    if st["next"] >= st["parts"]:
+        e = export(nm)
+        aft = render_views(f"{lot}_rb_after", ("close",), cname=nm + " Export", close_at=ca)[0]
+        q = os.path.dirname(aft)
+        side_by_side(os.path.join(q, f"{lot}_rb_before_close.png"), aft, os.path.join(q, f"{lot}_rebake_cmp.png"))
+        out.update(stage="done", tris=e.get("tris") if isinstance(e, dict) else str(e)[:120])
+        st["next"] = "done"
+    return out
+# r116 rebake
