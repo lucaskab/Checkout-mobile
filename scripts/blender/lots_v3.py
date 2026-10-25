@@ -608,7 +608,7 @@ class G:
         vs = [v for r in top + bot for v in r]
         s._put(vs, (M or Matrix.Identity(4)) @ _M(loc, rot)); return s
 
-    def tyre(s, R=.34, r=.13, w=.12, loc=(0, 0, 0), rot=(0, 0, 0), seg=44, rseg=10, M=None, worn=0.):
+    def tyre(s, R=.34, r=.13, w=.12, loc=(0, 0, 0), rot=(0, 0, 0), seg=44, rseg=10, M=None, worn=0., deep=1.0):
         """Car tyre: squarish rounded cross-section, tread blocks + grooves on the running surface, a raised
         bead ring on both sidewalls. Lies flat (axis Z) before `rot`. R = centre radius of the section."""
         rings = []; vs = []
@@ -620,11 +620,11 @@ class G:
                 cb, sb = math.cos(bb), math.sin(bb)
                 rho = r * math.copysign(abs(cb) ** .55, cb); zz = w * math.copysign(abs(sb) ** .55, sb)
                 if cb > .55:                                         # running surface: blocks and grooves
-                    blk = (i + (1 if sb > 0 else 0)) % 2 == 0      # staggered blocks either side of the groove
-                    rho += (.012 if blk else -.007) * (1 - worn)
-                    if abs(sb) < .2: rho -= .012                     # centre groove
+                    blk = ((i // 2 if deep > 1 else i) + (1 if sb > 0 else 0)) % 2 == 0      # staggered blocks (deep: 2 segments wide, flat tops)
+                    rho += (.012 if blk else -.007) * (1 - worn) * deep
+                    if abs(sb) < .2: rho -= .012 * deep                     # centre groove
                 elif abs(sb) > .85 and cb > -.3:                     # sidewall bead
-                    zz += math.copysign(.006, sb)
+                    zz += math.copysign(.006 * deep, sb)
                 v = s.bm.verts.new(((R + rho) * math.cos(a), (R + rho) * math.sin(a), zz))
                 ring.append(v); vs.append(v)
             rings.append(ring)
@@ -1635,7 +1635,7 @@ SMART_ANGLE = 66         # (78 merged bevel strips but gave cream patches on the
 PACK_MARGIN = .0045        # ~9 px between parts (was 7: colour specks at corners); more costs too much space
 
 
-def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=None, walls=None, texel=None):
+def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=None, walls=None, texel=None, cut=True):
     """Copies of every part with modifiers applied, cut flat at the ground. Painted parts get one smart-UV atlas
     (texel weights per material), leaves and flat-colour bits get reserved template slots, then everything is
     joined into a few named meshes."""
@@ -1652,7 +1652,7 @@ def make_export(src=CASA, name=NAME, groups=None, default="CASA_junk", inside=No
         n.hide_render = False
         _apply(n)
         n.data.transform(n.matrix_world); n.matrix_world = Matrix.Identity(4)
-        if not o.name.endswith("_pad"):
+        if cut and not o.name.endswith("_pad"):
             bm = bmesh.new(); bm.from_mesh(n.data)
             if min((v.co.z for v in bm.verts), default=0) < -.004:
                 bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, -.004), plane_no=(0, 0, 1), clear_inner=True)
