@@ -243,8 +243,8 @@ namespace Checkout {
   // The lot clearing scene with the new Casa (the same scene the game builds), far from the map.
   var lots=FindAnyObjectByType<CheckoutLotSites>();
   if(lots){
-   // "eventslook-casa,loja,oficina": one clearing scene after the other.
-   var ruins=(request.Contains("-")?request.Substring(request.IndexOf('-')+1):"casa").Split(',');
+   // "eventslook-casa.loja.oficina" (dots: commas split the scenarios): one clearing scene after the other.
+   var ruins=(request.Contains("-")?request.Substring(request.IndexOf('-')+1):"casa").Split('.');
    foreach(var ruin in ruins){
    var origin=new Vector3(900,0,900);var root=lots.PreviewClearing(ruin,origin,24f);
    var eye=origin+new Vector3(-9f,9.5f,-13.5f);var look=origin+Vector3.up*1.2f;
