@@ -247,7 +247,15 @@ namespace Checkout {
    var eye=origin+new Vector3(-9f,9.5f,-13.5f);var look=origin+Vector3.up*1.2f;
    float t0=Time.realtimeSinceStartup;
    foreach(var at in new[]{.5f,6f,12f,18f,23.5f}){while(Time.realtimeSinceStartup-t0<at)yield return null;ShotFrom(eye,look,$"look_clear_{ruin}_{at:0}",Vector3.up);}
-   if(root)Destroy(root);
+   // Close-ups of what is carried away: the skip and a rubble heap (bits of the ruin itself on them).
+   if(root){
+    var skipLoad=root.GetComponentsInChildren<Transform>(true).FirstOrDefault(t=>t.name.StartsWith("Skip rubble"));
+    if(skipLoad){var at2=skipLoad.parent?skipLoad.position:skipLoad.position;ShotFrom(at2+new Vector3(-1.6f,2.2f,-2.2f),at2,$"look_clear_{ruin}_skip",Vector3.up);}
+    int dressedCount=root.GetComponentsInChildren<Transform>(true).Count(t=>t.name=="Ruin rubble");Note($"clear {ruin}: ruin rubble bits {dressedCount}");
+    var heapBit=root.GetComponentsInChildren<Transform>(false).FirstOrDefault(t=>t.name=="Ruin rubble"&&t.parent&&!t.parent.name.StartsWith("Skip rubble"));
+    if(heapBit){var hp=heapBit.parent.position;ShotFrom(hp+new Vector3(-1.4f,1.8f,-2f),hp,$"look_clear_{ruin}_heap",Vector3.up);}
+    Destroy(root);
+   }
   }else Note("look: no CheckoutLotSites");
  }
  // A picture from `eye` towards `look` with its own camera (away from the map: no fog, no main-camera framing).
