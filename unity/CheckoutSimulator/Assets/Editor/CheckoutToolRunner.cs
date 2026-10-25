@@ -22,6 +22,7 @@ using UnityEditor;
 [InitializeOnLoad]
 public static class CheckoutToolRunner {
  const string Request="Logs/tool_request.txt",Result="Logs/tool_result.txt";
+ static readonly string[] Inboxes={Request,"Logs/tool_request_2.txt"};
  const string Blender=@"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe";
  static readonly string Project=Directory.GetCurrentDirectory();
  static string P(string relative)=>Path.Combine(Project,relative);
@@ -43,10 +44,12 @@ public static class CheckoutToolRunner {
    try{
     // A pending play survives the domain reload of a recompile; keep nudging the editor until it starts.
     if(File.Exists(P(PlayPending))&&(DateTime.Now-lastNudge).TotalSeconds>6){lastNudge=DateTime.Now;Wake(null);}
-    if(mainThreadWork==null&&File.Exists(P(Request))){
-     var lines=File.ReadAllLines(P(Request));File.Delete(P(Request));
-     if(lines.Length>0)Handle(lines[0].Trim());
-    }
+    // Two inboxes, so two sessions driving the editor at once don't overwrite each other's request.
+    foreach(var inbox in Inboxes)
+     if(mainThreadWork==null&&File.Exists(P(inbox))){
+      var lines=File.ReadAllLines(P(inbox));File.Delete(P(inbox));
+      if(lines.Length>0)Handle(lines[0].Trim());
+     }
    }catch(Exception e){Write($"runner error\n{e}");}
    Thread.Sleep(1000);
   }
