@@ -200,5 +200,41 @@ namespace Checkout {
   var image=new Texture2D(1280,800,TextureFormat.RGB24,false);image.ReadPixels(new Rect(0,0,1280,800),0,0);image.Apply();RenderTexture.active=active;
   File.WriteAllBytes("Logs/"+name+".jpg",image.EncodeToJPG(82));Destroy(image);cam.targetTexture=null;rt.Release();Destroy(rt);Destroy(go);Note("shot "+name);
  }
+  // A look at what Lucas asked about on 25/10 ("eventslook", QA save): every ruin on the locked lots, the mercadinho's
+ // entrance (which parts are see-through) and any renderer whose transform is sheared (a skewed car).
+ IEnumerator LookAround(string request){
+  yield return new WaitForSecondsRealtime(6);
+  int n=0;
+  foreach(var b in CheckoutLotSites.Obstacles.ToList()){
+   CaptureAt(b.center,Mathf.Max(b.size.x,b.size.z)*1.5f+2,$"look_lot_{n}");
+   LowShot(new Vector3(b.center.x,b.min.y,b.center.z),Mathf.Max(b.size.x,b.size.z)*1.2f,$"look_lot_{n}_low");n++;
+  }
+  Note($"look: {n} ruins");
+  var awning=GameObject.Find("S0 door awning");
+  if(awning){
+   var at=awning.transform.position;CaptureAt(at,9,"look_front");CaptureAt(at,5,"look_front_close");
+   foreach(var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)){
+    if(!r.enabled||!r.gameObject.activeInHierarchy||Vector3.Distance(r.bounds.center,at)>6)continue;
+    var shaders=string.Join("/",r.sharedMaterials.Where(m=>m).Select(m=>m.shader.name+(m.HasProperty("_Fade")?"("+m.GetFloat("_Fade").ToString("0.0")+")":"")));
+    Note($"front {TPath(r.transform)}: {shaders}");
+   }
+  }else Note("look: no S0 door awning");
+  // Sheared transforms: the world axes of the object are not at right angles (a rotated child under a parent
+  // scaled unevenly). Logged once per top object.
+  var seen=new HashSet<Transform>();
+  foreach(var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)){
+   if(!r.gameObject.activeInHierarchy)continue;var m=r.transform.localToWorldMatrix;
+   Vector3 x=((Vector3)m.GetColumn(0)).normalized,y=((Vector3)m.GetColumn(1)).normalized,z=((Vector3)m.GetColumn(2)).normalized;
+   float shear=Mathf.Max(Mathf.Abs(Vector3.Dot(x,y)),Mathf.Abs(Vector3.Dot(y,z)),Mathf.Abs(Vector3.Dot(x,z)));
+   if(shear<.02f)continue;var top=r.transform;while(top.parent&&top.parent.parent)top=top.parent;
+   if(!seen.Add(top)&&seen.Count>60)continue;
+   Note($"shear {shear:0.000} {TPath(r.transform)}");
+  }
+  // The city's cars: a close shot of each one that is out on the road.
+  int c=0;
+  foreach(var traffic in FindObjectsByType<CheckoutCityTraffic>(FindObjectsSortMode.None))
+   foreach(var v in traffic.vehicles)if(v&&v.gameObject.activeInHierarchy&&c<8){CaptureAt(v.position+Vector3.up*.6f,4,$"look_car_{c++}");Note($"car {c-1}: {TPath(v)} rot {v.eulerAngles} scale {v.lossyScale}");}
+ }
+ static string TPath(Transform t){var s=t.name;for(var p=t.parent;p;p=p.parent)s=p.name+"/"+s;return s;}
  }
 }
