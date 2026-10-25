@@ -1599,7 +1599,8 @@ SWATCH = ["V3_Picket", "V3_Glass", "V3_Dark", "V3_Tire", "V3_Rope", "V3_Orange",
           "V3_Iron", "V3_ScaffTube", "V3_Bag", "V3_Fabric", "V3_FlowerY", "V3_FlowerW", "V3_Cloth", "V3_ClothB",
           "V3_HoistRed", "V3_DrumBlue", "V3_DrumRed", "V3_Chrome", "V3_Engine", "V3_Toolbox",
           "V3_GalSteel", "V3_Bumper", "V3_Sack", "V3_PalletJack", "V3_Drum", "V3_Moto", "V3_CaravanStripe", "V3_Fridge",
-          "V3_GrassLush", "V3_Rubber", "V3_RimSteel", "V3_Taillight", "V3_Headlight", "V3_Seat"]
+          "V3_GrassLush", "V3_Rubber", "V3_RimSteel", "V3_Taillight", "V3_Headlight", "V3_Seat",
+          "V3_TallGrass", "V3_FlowerP", "V3_SwingSeat", "V3_Swing"]
 SWATCH_CELL = .05                      # swatch squares in the band right of the city-tree square
 RESERVED = TREE_BAND + .004
 
@@ -3759,7 +3760,8 @@ def grass_patch(c, name, cx, cy, sx, sy, seed=0, density=1.0, h=(.25, .55), clam
     """A patch of real grass instead of a flat lawn slab: many tufts with volume, three greens mixed, denser and
     taller in the middle, sparse and short at the edge."""
     rnd = random.Random(seed)
-    groups = {"lush": G(name + "Lush", GM.get("grassLush") or M["grass"], c, smooth=False),
+    if "grassLush" not in M: M["grassLush"] = m_green("V3_GrassLush", C("2F7A32"), C("8FCB4C"), 0, .5)
+    groups = {"lush": G(name + "Lush", M["grassLush"], c, smooth=False),
               "green": G(name + "Green", M["grass"], c, smooth=False),
               "dry": G(name + "Dry", M["grassdry"], c, smooth=False)}
     n = int(density * 10 * sx * sy) + 4
@@ -3937,6 +3939,8 @@ def m_brickface(name, c1=C("C9673F"), c2=C("B35A3A"), mortar=C("EAD9BC")):
     col, fac = brick_tex(t, p, scale=1.0, c1=c1, c2=c2, mortar=mortar, bw=.34, rh=.13, msize=.016, smooth=.15)
     col = t.tint(col, .08)
     col = t.mix(col, C("DE8A5E"), t.ramp(t.noise(p, 2.2, 2, .5), .68, .7, 0, .5))
+    sp = t.ramp(t.math('ADD', t.noise(p, 1.6, 1.5, .4), t.math('MULTIPLY', t.noise(p, 12, 2), .04)), .76, .765)   # a few crisp spalled spots
+    col = t.mix(col, C("8E4A35"), t.math('MULTIPLY', sp, .85))
     col = t.mul(col, t.ramp(t.comp(p, "Z"), 0, .4, .86, 1.0))
     return t.done(col, t.math('MULTIPLY', fac, -1.0), .15)
 
@@ -4039,8 +4043,8 @@ def gar_roof(c):
     ds = G("GAR_roofDish", M["stone"], c, bevel=.0)
     ds.cyl(.36, .12, (0, 0, 0), verts=16, r2=.08, M=Matrix.Translation((-.9, .1, RHF + .6)) @ Matrix.Rotation(-1.0, 4, 'X') @ Matrix.Rotation(.3, 4, 'Z'))
     ds.done()
-    rt = G("GAR_roofJunk", M["tire"], c)
-    rt.torus(.34, .12, (3.8, .2, RHF - .05), seg=14, rseg=7)
+    rt = G("GAR_roofJunk", OM["rubber"], c)
+    rt.tyre(loc=(3.8, .0, RHF + .1), worn=.6)
     rt.done()
     rb = G("GAR_roofBricks", M["brick"], c, smooth=False)
     for k in range(4): rb.box((.22, .11, .07), (-2.0 + k * .3, -2.6 + (k % 2) * .2, RHF + .02), rot=(0, 0, k))
@@ -4089,28 +4093,10 @@ def gar_doors(c):
         lp.tube((x, RY0 - .1, RHF - .1), (x, RY0 - .5, RHF + .02), .02, verts=5)
         lp.cyl(.15, .1, (x, RY0 - .55, RHF - .05), verts=10, r2=.04)
     lp.done()
-    # the wrecked car inside bay 3: front end out of the opening, bonnet crumpled, one headlight gone
+    # the wrecked car inside bay 3 (front out of the opening, smashed), on two flat tyres
     x = RBAYS[2]
-    Mc = Matrix.Translation((x, RY0 + 1.2, .38)) @ Matrix.Rotation(math.pi / 2 + .05, 4, 'Z')
-    L_, W_ = 3.4, 1.5
-    car = G("GAR_carBody", RM["car"], c, bevel=.12, seg=2)
-    car.box((L_, W_, .5), (0, 0, .25), M=Mc)
-    car.box((L_ * .48, W_ * .9, .45), (.2, 0, .7), M=Mc)
-    car.box((L_ * .3, W_ * .96, .12), (-L_ * .35, 0, .55), rot=(0, .22, .05), M=Mc)                 # crumpled bonnet
-    car.done()
-    cw = G("GAR_carWin", M["glass"], c)
-    cw.box((.02, W_ * .78, .3), (-.25, 0, .72), rot=(0, -.35, 0), M=Mc)
-    for sy in (-1, 1): cw.box((L_ * .4, .02, .28), (.2, sy * W_ * .45, .72), M=Mc)
-    cw.done()
-    ch = G("GAR_carChrome", OM["chrome"] if OM else M["frame"], c, bevel=.02, seg=1)
-    ch.box((.08, W_ + .05, .12), (-L_ / 2 - .02, 0, .1), rot=(0, 0, .12), M=Mc)
-    ch.cyl(.1, .05, (-L_ / 2 - .01, .45, .32), rot=(0, math.pi / 2, 0), verts=10, M=Mc)
-    ch.done()
-    tw = G("GAR_carTyres", M["tire"], c)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            tw.torus(.24, .1, (sx * L_ * .32, sy * (W_ / 2 - .05), -.06 if sx < 0 else -.1), rot=(math.pi / 2, 0, 0), seg=12, rseg=6, M=Mc)
-    tw.done()
+    car_detailed(c, "GAR_car", Matrix.Translation((x, RY0 + 1.55, .36)) @ Matrix.Rotation(-math.pi / 2 + .05, 4, 'Z'),
+                 RM["car"], L=3.4, Wd=1.55, crumpled=True, flat=(0, 3))
 
 
 def gar_yard(c):
@@ -4119,19 +4105,8 @@ def gar_yard(c):
     ap.box((RX1 - RX0 + .3, RY0 + 5.75, .07), ((RX0 + RX1) / 2, (RY0 - 5.75) / 2, .035), open_bottom=True)
     ap.done()
     # back yard: overgrown lawn, a broken low wall, tree, caravan, scrap
-    t = G("GAR_lawn", M["lawn"], c, bevel=.025, seg=1)
-    for k, (x, y, sx, sy) in enumerate(((-2.3, 3.9, 2.4, 1.5), (2.6, 4.9, 2.0, .7), (-4.6, -1.5, .35, 1.6), (4.6, -2.0, .35, 1.3))):
-        rr = random.Random(600 + k); n = 24; ph = [rr.uniform(0, 6.3) for _ in range(3)]
-        pts = []
-        for q in range(n):
-            a = 2 * math.pi * q / n
-            rad = 1 + .13 * math.sin(3 * a + ph[0]) + .07 * math.sin(5 * a + ph[1]) + .04 * math.sin(7 * a + ph[2])
-            pts.append((max(-4.95, min(4.95, x + sx * rad * math.cos(a))), max(1.7, min(5.6, y + sy * rad * math.sin(a))) if k < 2 else max(-5.6, min(5.6, y + sy * rad * math.sin(a)))))
-        top = [t.bm.verts.new((px, py, .045)) for (px, py) in pts]
-        bot = [t.bm.verts.new((px, py, 0)) for (px, py) in pts]
-        t.bm.faces.new(top)
-        for q in range(n): t.bm.faces.new((bot[q], bot[(q + 1) % n], top[(q + 1) % n], top[q]))
-    t.done()
+    for k, (x, y, sx, sy) in enumerate(((-2.3, 3.6, 2.2, 1.2), (2.6, 5.0, 1.8, .5), (-4.6, -1.5, .35, 1.6), (4.6, -2.0, .35, 1.3))):
+        grass_patch(c, f"GAR_lawn{k}", x, y, sx, sy, seed=90 + k, clamp=(-4.95, 4.95, (1.3 if k < 2 else -5.6), 5.6))
     pts = [(-4.5, -5.3), (-3.0, -4.4), (-1.7, -5.2), (.3, -4.3), (2.4, -5.3), (4.5, -4.4), (-4.6, -3.2), (4.6, -1.0), (-4.5, .8),
            (4.5, 1.3), (-4.4, 2.6), (-3.4, 5.2), (-1.3, 4.6), (.4, 3.2), (-2.9, 2.2), (4.6, 3.0), (1.3, 5.4), (-.6, 5.5)]
     green, dry = [], []
@@ -4178,8 +4153,8 @@ def gar_caravan(c):
         for sy in (-1, 1): bl.box((.3, .3, .4), (sx * 1.2, sy * .6, -.2), M=Mv)
     bl.box((.12, 1.2, .1), (-L_ / 2 - .5, 0, -.25), M=Mv)                                    # tow bar
     bl.done()
-    tw = G("GAR_caravanWheel", M["tire"], c)
-    tw.torus(.28, .1, (0, -W_ / 2 + .1, -.05), rot=(math.pi / 2, 0, 0), seg=12, rseg=6, M=Mv)
+    tw = G("GAR_caravanWheel", OM["rubber"], c)
+    tw.tyre(R=.26, r=.1, w=.1, loc=(0, -W_ / 2 + .08, -.05), rot=(math.pi / 2, 0, 0), seg=32, M=Mv)
     tw.done()
 
 
@@ -4198,13 +4173,16 @@ def gar_props(c):
     mf.tube(Mm @ Vector((.42, -.32, .85)), Mm @ Vector((.42, .32, .85)), .02, verts=5)  # handlebar
     mf.tube(Mm @ Vector((-.3, .14, .32)), Mm @ Vector((-.75, .14, .38)), .035, verts=6)  # exhaust
     mf.done()
-    mw = G("GAR_motoWheels", M["tire"], c)
-    for xx in (.62, -.62): mw.torus(.26, .07, (xx, 0, .3), rot=(math.pi / 2, 0, 0), seg=14, rseg=6, M=Mm)
+    mw = G("GAR_motoWheels", OM["rubber"], c)
+    for xx in (.62, -.62): mw.tyre(R=.24, r=.06, w=.055, loc=(xx, 0, .3), rot=(math.pi / 2, 0, 0), seg=32, M=Mm)
+    mw.done()
+    mw = G("GAR_motoRims", OM["rimSteel"], c)
+    for xx in (.62, -.62): mw.rim(R=.17, w=.03, loc=(xx, 0, .3), rot=(math.pi / 2, 0, 0), lugs=0, M=Mm)
     mw.done()
     # tyre pile, a fridge, oil drum, jerrycans, scrap sheets in the back yard
-    ty = G("GAR_tyres", M["tire"], c)
-    for k in range(3): ty.torus(.34, .12, (-4.3, -4.55, .13 + k * .24), rot=(rnd.uniform(-.05, .05), 0, 0), seg=14, rseg=7)
-    ty.torus(.34, .12, (.9, 2.4, .12), seg=14, rseg=7)
+    ty = G("GAR_tyres", OM["rubber"], c)
+    for k in range(3): ty.tyre(loc=(-4.3, -4.55, .13 + k * .25), rot=(rnd.uniform(-.05, .05), 0, rnd.uniform(0, 3)))
+    ty.tyre(loc=(.9, 2.4, .13), worn=.6)
     ty.done()
     fz = G("GAR_fridge", RM["fridge"], c, bevel=.06, seg=2)
     fz.box((.7, .65, 1.6), (-.6, 2.3, .8), rot=(0, .12, .3))
@@ -4212,14 +4190,103 @@ def gar_props(c):
     fh = G("GAR_fridgeHandle", OM["chrome"] if OM else M["frame"], c)
     fh.box((.04, .04, .4), (-.85, 1.96, 1.1), rot=(0, .12, .3)); fh.done()
     jc = G("GAR_jerry", OM["drumR"] if OM else M["drum"], c, bevel=.03, seg=1)
-    jc.box((.35, .18, .45), (-1.8, -4.45, .3), rot=(0, 0, .5)); jc.box((.35, .18, .45), (-1.4, -4.6, .12), rot=(math.pi / 2, 0, -.2))
+    jc.box((.35, .18, .45), (-.5, -4.45, .3), rot=(0, 0, .5)); jc.box((.35, .18, .45), (-.1, -4.6, .1), rot=(math.pi / 2, 0, -.2))
     jc.done()
     sh = G("GAR_scrapSheets", RM["roof"], c)
     for k in range(3):
-        sh.corrugated(.9, 2.0, (1.6, 2.6 + k * .05, .03 + k * .06), rot=(0, 0, 1.2 + k * .1), pitch=.24, amp=.03, seg=4)
+        sh.corrugated(.9, 2.0, (-1.75, 2.45 + k * .05, .03 + k * .06), rot=(0, 0, .3 + k * .1), pitch=.24, amp=.03, seg=4)
     sh.done()
-    dr = G("GAR_drum", M["drum"], c, bevel=.012, seg=1)
-    dr.cyl(.29, .88, (4.4, -3.4, .44), verts=16); dr.done()
+    drum_detailed(c, "GAR_drum", M["drum"], Matrix.Translation((4.4, -3.4, 0)), seed=5)
+
+
+def car_detailed(c, pfx, Mc, body, L=3.4, Wd=1.55, crumpled=False, wheels=True, flat=(), broken_side=True):
+    """A detailed old saloon (same detail level as the Oficina car): body with wheel arches, pillars + roof,
+    framed glass, chrome bumpers / grille / headlight rings, taillights, door lines, handles, mirrors, interior,
+    painted rust (the body material) and a dent. Local frame of Mc: x forward, y left, z up, z 0 = body bottom.
+    crumpled: front end smashed (bonnet buckled, bumper hanging, one headlight gone). wheels: real tyres + rims
+    (indices in `flat` are flat tyres)."""
+    zb = .58
+    car = G(pfx + "Body", body, c, bevel=.09, seg=2)
+    car.box((L, Wd, .5), (0, 0, .33), M=Mc)
+    car.box((.5, Wd - .1, .12), (-L / 2 + .3, 0, zb + .02), M=Mc)
+    if crumpled:
+        car.box((L * .26, Wd * .96, .14), (L * .36, 0, zb + .02), rot=(0, .28, .06), M=Mc)          # buckled bonnet
+        car.box((L * .14, Wd * .7, .1), (L * .4, .1, zb + .1), rot=(.2, -.35, .1), M=Mc)
+    else:
+        car.box((L * .3, Wd - .1, .1), (L * .34, 0, zb + .0), M=Mc)
+    car.done()
+    rf = G(pfx + "Roof", body, c, bevel=.06, seg=2)
+    rf.box((L * .4, Wd * .82, .07), (-.25, 0, zb + .5), M=Mc)
+    for sy in (-1, 1):
+        for (xa, xb) in ((.62, .36), (-.2, -.2), (-1.12, -.86)):
+            rf.tube(Mc @ Vector((xa, sy * Wd * .41, zb)), Mc @ Vector((xb, sy * Wd * .41, zb + .48)), .035, verts=6)
+    rf.done()
+    dent = G(pfx + "Dent", body, c)
+    dent.ball(.18, (-.9, -Wd / 2 + .06, .36), scale=(1.2, .25, .8), sub=2, M=Mc)
+    dent.done()
+    gl = G(pfx + "Glass", M["glass"], c)
+    if not crumpled: gl.box((.02, Wd * .76, .44), (.45, 0, zb + .24), rot=(0, -.42, 0), M=Mc)
+    else: gl.prism([(0, 0), (Wd * .5, 0), (Wd * .2, .3)], .02, M=Mc @ Matrix.Translation((.5, -Wd * .38, zb + .04)) @ Matrix.Rotation(math.pi / 2, 4, 'Z') @ Matrix.Rotation(-.42, 4, 'X'))
+    gl.box((.02, Wd * .76, .42), (-.95, 0, zb + .24), rot=(0, .42, 0), M=Mc)
+    for (x0, x1) in ((.32, -.16), (-.24, -.8)):
+        gl.box((x0 - x1, .02, .36), ((x0 + x1) / 2, Wd * .41, zb + .24), M=Mc)
+    gl.box((.48, .02, .36), (.08, -Wd * .41, zb + .24), M=Mc)
+    if broken_side: gl.prism([(0, 0), (.3, 0), (0, .22)], .02, M=Mc @ Matrix.Translation((-.78, -Wd * .41, zb + .06)))
+    else: gl.box((.56, .02, .36), (-.52, -Wd * .41, zb + .24), M=Mc)
+    gl.done()
+    fr = G(pfx + "Chrome", OM["chrome"], c, bevel=.02, seg=1)
+    for sy in (-1, 1):
+        fr.box((L * .44, .03, .03), (-.2, sy * Wd * .42, zb + .03), M=Mc)
+        fr.box((L * .38, .03, .03), (-.25, sy * Wd * .42, zb + .47), M=Mc)
+    if crumpled: fr.box((.12, Wd + .1, .14), (L / 2 + .02, .05, .12), rot=(.35, .25, .12), M=Mc)       # bumper hanging
+    else: fr.box((.12, Wd + .12, .14), (L / 2 + .03, 0, .2), M=Mc)
+    fr.box((.12, Wd + .12, .14), (-L / 2 - .03, 0, .2), M=Mc)
+    for sy in (-1, 1):
+        fr.box((.3, .1, .14), (-L / 2 + .1, sy * (Wd / 2 + .02), .2), M=Mc)
+        if not (crumpled and sy < 0):
+            fr.torus(.085, .018, (L / 2 + .01, sy * Wd * .34, .42), rot=(0, math.pi / 2, 0), seg=12, rseg=4, M=Mc)
+        fr.box((.08, .02, .02), (.3, sy * (Wd / 2 + .01), .5), M=Mc); fr.box((.08, .02, .02), (-.45, sy * (Wd / 2 + .01), .5), M=Mc)
+        fr.tube(Mc @ Vector((.42, sy * Wd * .42, zb + .06)), Mc @ Vector((.42, sy * (Wd / 2 + .12), zb + .1)), .015, verts=5)
+        if not (crumpled and sy > 0): fr.box((.05, .14, .09), (.42, sy * (Wd / 2 + .17), zb + .12), M=Mc)
+    fr.box((.04, Wd * .5, .2), (L / 2 + .01, 0, .42), M=Mc)
+    fr.done()
+    gr = G(pfx + "Grille", M["dark"], c)
+    for k in range(4): gr.box((.03, Wd * .46, .025), (L / 2 + .025, 0, .35 + k * .045), M=Mc)
+    for sy in (-1, 1):
+        for x in (.33, -.55): gr.box((.02, .015, .42), (x, sy * (Wd / 2 + .005), .34), M=Mc)
+        for x in (L * .31, -L * .31):
+            gr.cyl(.36, .02, (x, sy * (Wd / 2 + .004), .1), rot=(math.pi / 2, 0, 0), verts=16, M=Mc)
+    gr.done()
+    lt = G(pfx + "Lights", OM["headlight"], c)
+    for sy in (-1, 1):
+        if not (crumpled and sy < 0): lt.cyl(.07, .03, (L / 2 + .02, sy * Wd * .34, .42), rot=(0, math.pi / 2, 0), verts=12, M=Mc)
+    lt.done()
+    tl = G(pfx + "Taillights", OM["taillight"], c, bevel=.01, seg=1)
+    for sy in (-1, 1): tl.box((.04, .26, .12), (-L / 2 - .01, sy * Wd * .33, .44), M=Mc)
+    tl.done()
+    it = G(pfx + "Interior", OM["seat"], c, bevel=.03, seg=1)
+    for sy in (-.35, .35):
+        it.box((.45, .48, .14), (-.1, sy, zb - .02), M=Mc); it.box((.12, .46, .5), (-.32, sy, zb + .2), rot=(0, .18, 0), M=Mc)
+    it.box((.45, Wd * .8, .14), (-.82, 0, zb - .02), M=Mc); it.box((.12, Wd * .8, .45), (-1.02, 0, zb + .18), rot=(0, .2, 0), M=Mc)
+    it.done()
+    db = G(pfx + "Dash", M["dark"], c, bevel=.02, seg=1)
+    db.box((.2, Wd * .8, .16), (.33, 0, zb + .05), M=Mc)
+    db.torus(.15, .02, (.18, .35, zb + .2), rot=(0, 1.15, 0), seg=14, rseg=5, M=Mc)
+    db.tube(Mc @ Vector((.18, .35, zb + .2)), Mc @ Vector((.33, .35, zb + .08)), .015, verts=5)
+    db.done()
+    if wheels:
+        ty = G(pfx + "Tyres", OM["rubber"], c)
+        rm = G(pfx + "Rims", OM["rimSteel"], c)
+        k = 0
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                fl = k in flat
+                z = -.1 if fl else -.04
+                Mw = Mc @ Matrix.Translation((sx * L * .31, sy * (Wd / 2 - .07), z)) @ Matrix.Rotation(math.pi / 2, 4, 'X')
+                ty.tyre(R=.22, r=.1 if not fl else .07, w=.1, M=Mw @ (Matrix.Diagonal((1, .86, 1, 1)) if fl else Matrix.Identity(4)), seg=32)
+                rm.rim(R=.15, w=.06, M=Mw)
+                k += 1
+        ty.done(); rm.done()
 
 
 def gar_pad(c):
@@ -4254,23 +4321,327 @@ def garagem_export():
 
 
 
-def overlaps(cname, skip=("walls", "inside", "lawn", "apron", "grass", "weeds", "pad", "tree", "bush", "Lush", "Green", "Dry")):
-    """Pairs of objects whose world bounding boxes intersect by more than a few cm (a coarse interpenetration check
-    for props; walls, ground and plants are skipped)."""
+def overlaps(cname, skip=("walls", "inside", "lawn", "apron", "grass", "Grass", "weeds", "pad", "tree", "bush", "Lush", "Green", "Dry"),
+             family=None, min_pairs=3):
+    """Real interpenetration check: triangle-level BVH overlap between objects (props); parts of the same
+    assembly (same name family, e.g. GAR_car*) and ground / plants / walls are skipped."""
+    from mathutils.bvhtree import BVHTree
+    import re
     dg = bpy.context.evaluated_depsgraph_get()
-    boxes = []
-    for o in bpy.data.collections[cname].objects:
-        if o.type != 'MESH' or any(k in o.name for k in skip): continue
-        me = o.evaluated_get(dg).data
-        ws = [o.matrix_world @ v.co for v in me.vertices]
-        if not ws: continue
-        lo = Vector(map(min, *[(w.x, w.y, w.z) for w in ws])) if False else Vector((min(w.x for w in ws), min(w.y for w in ws), min(w.z for w in ws)))
-        hi = Vector((max(w.x for w in ws), max(w.y for w in ws), max(w.z for w in ws)))
-        boxes.append((o.name, lo, hi))
+    objs = [o for o in bpy.data.collections[cname].objects if o.type == 'MESH' and not any(k in o.name for k in skip)]
+    trees = {o.name: BVHTree.FromObject(o, dg) for o in objs}
+    fam = family or (lambda n: re.match(r"[A-Z]+_[a-z]+", n).group(0) if re.match(r"[A-Z]+_[a-z]+", n) else n)
     out = []
-    for i in range(len(boxes)):
-        for j in range(i + 1, len(boxes)):
-            a, b = boxes[i], boxes[j]
-            d = [min(a[2][k], b[2][k]) - max(a[1][k], b[1][k]) for k in range(3)]
-            if min(d) > .04: out.append((a[0], b[0], [round(x, 2) for x in d]))
+    names = list(trees)
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            a, b = names[i], names[j]
+            if fam(a) == fam(b): continue
+            n = len(trees[a].overlap(trees[b]))
+            if n >= min_pairs: out.append((a, b, n))
     return out
+
+
+# ######################################################################################################################
+# MATO (lot A3) - an overgrown empty plot: the ruined low walls of a long-gone house, a collapsed shed, a rusty swing
+# Clearing scene (case "mato", Style.Cut; model (x, y) <-> P(.76 x, 8.33 + .76 y)): the trimmer workers at P(-2.6,
+# 3.6..5.2) and P(.8, 4.0..5.6) -> model (-3.4, -6.2..-4.1) and (1.05, -5.7..-3.6): only grass and wildflowers there
+# (what they cut); carrier, green-waste heap, wheelbarrow and broom worker are outside the model.
+# ######################################################################################################################
+MATO = "V3 Mato"
+MATO_NAME = "Lot_Mato"
+MATO_GROUPS = [
+    ("MATO_pad", ("MATO_pad",)),
+    ("MATO_ruin", ("MATO_ruin", "MATO_floor", "MATO_chimney", "MATO_shed")),
+    ("MATO_green", ("MATO_tree", "MATO_bush", "MATO_grass", "MATO_tall", "MATO_flower", "MATO_reed", "MATO_ivy")),
+]
+MM = {}
+
+
+def m_floortiles(name):
+    """Old hydraulic floor tiles (ladrilho): two-colour checker with crisp joints, worn and stained."""
+    t = NT(name, .8)
+    p = t.pos
+    br = t.n.new("ShaderNodeTexChecker"); br.inputs["Scale"].default_value = 3.3
+    br.inputs["Color1"].default_value = C("C8553D"); br.inputs["Color2"].default_value = C("EFE1C2")
+    t.L.new(p, br.inputs["Vector"])
+    col = br.outputs["Color"]
+    b2 = t.n.new("ShaderNodeTexBrick"); b2.inputs["Scale"].default_value = 1.0
+    b2.inputs["Brick Width"].default_value = .303; b2.inputs["Row Height"].default_value = .303
+    b2.inputs["Mortar Size"].default_value = .01; b2.inputs["Bias"].default_value = 0; b2.offset = 0.0
+    t.L.new(p, b2.inputs["Vector"])
+    col = t.mix(col, C("8C7D68"), t.math('SUBTRACT', 1.0, b2.outputs["Fac"]))
+    col = t.mix(col, C("9C8A70"), t.ramp(t.noise(p, 1.2, 2, .5), .62, .66, 0, .6))           # worn / dirty patches
+    return t.done(col, ao=.5)
+
+
+def m_water(name):
+    t = NT(name, .08)
+    p = t.pos
+    col = t.mix(C("5FA9C2"), C("A9DCE6"), t.ramp(t.noise(p, 2.0, 2, .4), .4, .65))
+    return t.done(col, ao=0)
+
+
+def mato_mats():
+    mats()
+    MM.clear()
+    MM["wall"] = m_plaster("V3_MatoWall", C("F2D8A6"), band=C("3FAA9B"), band_top=.22, chips=.2, seed=71., chip_scale=1.2, fine=.03)
+    MM["tiles"] = m_floortiles("V3_FloorTiles")
+    MM["water"] = m_water("V3_Puddle")
+    MM["shed"] = m_wood("V3_ShedPlanks", C("B79A70"), C("8D6E4C"), C("9C9384"))
+    MM["shedroof"] = m_metal_paint("V3_ShedRoof", C("C9604A"), amount=.6)
+    MM["swing"] = m_rust("V3_Swing", C("E9B53A"), amount=.55)
+    MM["seat"] = m_flat("V3_SwingSeat", C("3AA597"), .06, 5, .6, ao=.3)
+    MM["mattress"] = m_stripes("V3_Mattress", C("F1E5C8"), C("8EC5E8"), width=.12, axis='X')
+    MM["flowerP"] = m_flat("V3_FlowerP", C("C77ED9"), .06, 8, .6, ao=.2)
+    MM["flowerY"] = m_flat("V3_FlowerY", C("F4D24A"), .06, 8, .6, ao=.2)
+    MM["flowerW"] = m_flat("V3_FlowerW", C("F6F1E4"), .04, 8, .6, ao=.2)
+    if "grassLush" not in M: M["grassLush"] = m_green("V3_GrassLush", C("2F7A32"), C("8FCB4C"), 0, .5)
+    M["tall"] = m_green("V3_TallGrass", C("4F8A2C"), C("D8D86A"), 0, 1.1)
+    return MM
+
+
+def jagged_wall(g, a, b, t, h_lo, h_hi, seed, gaps=(), z0=0.):
+    """Ruined wall from a to b (2D): pieces of random height (stepped broken top), `gaps` = (f0, f1) fractions."""
+    rnd = random.Random(seed)
+    a, b = Vector((*a, 0)), Vector((*b, 0)); d = b - a; L = d.length; dv = d.normalized()
+    ang = math.atan2(dv.y, dv.x)
+    x = 0.0
+    while x < L - .02:
+        w = min(L - x, rnd.uniform(.35, .7))
+        f = (x + w / 2) / L
+        if not any(g0 < f < g1 for (g0, g1) in gaps):
+            h = rnd.uniform(h_lo, h_hi)
+            p = a + dv * (x + w / 2)
+            g.box((w + .01, t, h), (0, 0, h / 2 + z0), M=Matrix.Translation((p.x, p.y, 0)) @ Matrix.Rotation(ang, 4, 'Z'), open_bottom=True)
+        x += w
+
+
+def mato_ruin(c):
+    rnd = random.Random(8)
+    # the long-gone house: low ruined walls (plaster outside, brick showing), a doorway gap and a window gap
+    x0, x1, y0, y1 = -1.4, 3.9, .6, 4.7
+    g = G("MATO_ruinWalls", MM["wall"], c, bevel=.03, seg=1)
+    jagged_wall(g, (x0, y0), (x1, y0), .26, .35, 1.25, 1, gaps=((.2, .36),))          # front: doorway
+    jagged_wall(g, (x1, y0), (x1, y1), .26, .6, 1.7, 2, gaps=((.45, .62),))
+    jagged_wall(g, (x1, y1), (x0, y1), .26, .9, 2.1, 3)
+    jagged_wall(g, (x0, y1), (x0, y0), .26, .25, .9, 4, gaps=((.6, .78),))
+    jagged_wall(g, (1.2, y0 + .2), (1.2, y1 - .2), .18, .3, .8, 5, gaps=((.3, .55),))   # an inner partition
+    g.done()
+    st = G("MATO_ruinThreshold", M["stone"], c, bevel=.03, seg=1)
+    st.box((1.0, .4, .1), (x0 + (x1 - x0) * .28, y0 - .1, .05), open_bottom=True)
+    st.done()
+    fl = G("MATO_floor", MM["tiles"], c, bevel=.0)
+    fl.box((x1 - x0 - .3, y1 - y0 - .3, .04), ((x0 + x1) / 2, (y0 + y1) / 2, .02), open_bottom=True)
+    fl.done()
+    ch = G("MATO_chimney", M["brick"], c, bevel=.03, seg=1)
+    ch.box((.55, .55, 2.6), (x1 - .35, y1 - .35, 1.3), open_bottom=True)
+    ch.box((.62, .62, .1), (x1 - .35, y1 - .35, 2.65))
+    ch.done()
+    rb = G("MATO_ruinRubble", M["brick"], c, smooth=False)
+    for k in range(18):
+        x = rnd.uniform(x0 + .2, x1 - .2); y = rnd.uniform(y0 + .2, y1 - .2)
+        rb.box((.22, .11, .07), (x, y, .07 + (k % 3) * .06), rot=(rnd.uniform(-.3, .3), 0, rnd.uniform(0, 3)))
+    rb.done()
+    ch2 = G("MATO_ruinChunks", MM["wall"], c, bevel=.03, seg=1)
+    for (x, y, s) in ((x1 + .4, 2.2, .35), (x0 - .35, 1.6, .3), (2.4, y0 - .4, .28), (.2, 3.0, .32)):
+        ch2.box((s, s * .8, s * .6), (x, y, s * .3), rot=(.1, .2, rnd.uniform(0, 3)))
+    ch2.done()
+
+
+def mato_shed(c):
+    """A collapsed garden shed: three plank walls, the roof sheet slid off to one side, its door on the ground."""
+    x0, x1, y0, y1 = -4.5, -2.6, 3.0, 4.9
+    g = G("MATO_shedWalls", MM["shed"], c, bevel=.01, seg=1)
+    rnd = random.Random(9)
+    for (a, b, lean) in (((x0, y1), (x1, y1), 0), ((x0, y0), (x0, y1), .0), ((x1, y0), (x1, y1), -.35)):
+        a, b = Vector((*a, 0)), Vector((*b, 0)); dv = (b - a).normalized(); L = (b - a).length; ang = math.atan2(dv.y, dv.x)
+        n = int(L / .17)
+        for k in range(n):
+            if rnd.random() < .12: continue
+            p = a + dv * (L * (k + .5) / n)
+            h = 1.8 + rnd.uniform(-.25, .1) if lean == 0 else 1.6 + rnd.uniform(-.3, .1)
+            Mk = Matrix.Translation((p.x, p.y, 0)) @ Matrix.Rotation(ang, 4, 'Z') @ Matrix.Rotation(lean, 4, 'X')
+            g.box((.15, .04, h), (0, 0, h / 2), rot=(0, rnd.uniform(-.04, .04), 0), M=Mk)
+    g.done()
+    po = G("MATO_shedPosts", M["wood"], c, bevel=.01, seg=1)
+    for (x, y) in ((x0, y1), (x1, y1), (x0, y0)): po.box((.1, .1, 1.9), (x, y, .95))
+    po.box((x1 - x0, .08, .1), ((x0 + x1) / 2, y1, 1.85))
+    po.done()
+    rf = G("MATO_shedRoof", MM["shedroof"], c)
+    Mr = Matrix.Translation(((x0 + x1) / 2 + .4, (y0 + y1) / 2 - .2, 1.0)) @ Matrix.Rotation(.2, 4, 'Z') @ Matrix.Rotation(.55, 4, 'X')
+    rf.corrugated(2.3, 2.2, (0, 0, 0), M=Mr, pitch=.2, amp=.03, seg=4)
+    rf.done()
+    dr = G("MATO_shedDoor", MM["shed"], c, bevel=.01, seg=1)
+    Md = Matrix.Translation((-3.45, 2.25, .03)) @ Matrix.Rotation(1.57, 4, 'Z')
+    for k in range(5): dr.box((.17, 1.7, .03), (-.36 + k * .18, 0, 0), M=Md)
+    for y in (-.6, .6): dr.box((.9, .1, .03), (0, y, .03), M=Md)
+    dr.done()
+
+
+def mato_swing(c):
+    """Rusty yellow swing set: A-frames, top beam, one seat hanging on its chains, the other fallen."""
+    cx, cy, L, H = -2.2, -1.2, 2.3, 2.0
+    sw = G("MATO_swingFrame", MM["swing"], c)
+    for sx in (-1, 1):
+        x = cx + sx * L / 2
+        sw.tube((x, cy - .7, 0), (x, cy, H), .05, verts=8)
+        sw.tube((x, cy + .7, 0), (x, cy, H), .05, verts=8)
+        sw.tube((x, cy - .35, H * .5), (x, cy + .35, H * .5), .03, verts=6)
+    sw.tube((cx - L / 2 - .1, cy, H), (cx + L / 2 + .1, cy, H), .055, verts=10)
+    sw.done()
+    ch = G("MATO_swingChains", M["rust"], c)
+    for xs in (-.75, -.35):
+        ch.tube((cx + xs, cy - .04, H - .03), (cx + xs + .05, cy - .1, .55), .012, verts=4)
+    ch.tube((cx + .35, cy, H - .03), (cx + .38, cy, 1.1), .012, verts=4)             # broken chains
+    ch.tube((cx + .75, cy, H - .03), (cx + .55, cy - .3, .1), .012, verts=4)
+    ch.done()
+    se = G("MATO_swingSeats", MM["seat"], c, bevel=.02, seg=1)
+    se.box((.5, .2, .04), (cx - .52, cy - .1, .55), rot=(0, .08, 0))
+    se.box((.5, .2, .04), (cx + .5, cy - .45, .03), rot=(0, 0, .5))
+    se.done()
+
+
+def mato_props(c):
+    rnd = random.Random(12)
+    # dumped mattress (bowed), an old armchair, a tyre, a rusty wheelbarrow, branch piles, puddles
+    mt = G("MATO_mattress", MM["mattress"], c, bevel=.06, seg=2)
+    mt.box((1.9, 1.35, .2), (0, 0, 0), M=Matrix.Translation((2.5, -2.3, .14)) @ Matrix.Rotation(.35, 4, 'Z') @ Matrix.Rotation(.06, 4, 'X'))
+    mt.done()
+    ac = G("MATO_armchair", SM.get("fabric") or m_flat("V3_Fabric", C("C9607A"), .08, 5, .9, ao=.4), c, bevel=.06, seg=2)
+    Ma = Matrix.Translation((-1.0, -3.4, 0)) @ Matrix.Rotation(.4, 4, 'Z') @ Matrix.Rotation(.12, 4, 'Y')
+    ac.box((.8, .75, .35), (0, 0, .3), M=Ma); ac.box((.8, .22, .65), (0, .3, .7), rot=(-.15, 0, 0), M=Ma)
+    for sx in (-1, 1): ac.box((.18, .75, .32), (sx * .38, 0, .55), M=Ma)
+    ac.done()
+    if not OM: ofi_mats()
+    ty = G("MATO_tyre", OM["rubber"], c)
+    ty.tyre(loc=(.1, -2.4, .13), worn=.6)
+    ty.tyre(loc=(.2, -2.5, .37), rot=(.2, 0, 1), worn=.6)
+    ty.done()
+    Mw = Matrix.Translation((3.5, -3.4, 0)) @ Matrix.Rotation(-.4, 4, 'Z')
+    wb = G("MATO_barrow", M["barrow"], c, bevel=.03, seg=2)
+    wb.prism([(-.38, .28), (.22, .28), (.62, .7), (-.6, .7)], .62, M=Mw)
+    wb.done()
+    wf = G("MATO_barrowFrame", M["rust"], c)
+    for sy in (-1, 1):
+        wf.tube(Mw @ Vector((-1.25, sy * .27, .58)), Mw @ Vector((.55, sy * .14, .2)), .026, verts=6)
+        wf.tube(Mw @ Vector((-.32, sy * .24, .33)), Mw @ Vector((-.42, sy * .26, 0)), .022, verts=5)
+    wf.done()
+    ww = G("MATO_barrowWheel", OM["rubber"], c)
+    ww.tyre(R=.13, r=.05, w=.05, M=Mw @ Matrix.Translation((.55, 0, .2)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), seg=24)
+    ww.done()
+    br = G("MATO_branches", M["bark"], c)
+    for (cx, cy, n, sd) in ((.6, -1.0, 14, 1), (-4.3, -1.3, 10, 2), (-2.05, 2.25, 6, 3)):
+        r2 = random.Random(sd)
+        for k in range(n):
+            a = r2.uniform(0, 3.14); ln = r2.uniform(.8, 1.6) * (.6 if sd == 3 else 1); z = .06 + r2.uniform(0, .3)
+            p0 = Vector((cx - math.cos(a) * ln / 2, cy - math.sin(a) * ln / 2, z)); p1 = Vector((cx + math.cos(a) * ln / 2, cy + math.sin(a) * ln / 2, z + r2.uniform(-.1, .2)))
+            br.tube(p0, p1, r2.uniform(.025, .05), verts=5)
+            mid = p0.lerp(p1, .6)
+            br.tube(mid, mid + Vector((r2.uniform(-.3, .3), r2.uniform(-.3, .3), r2.uniform(.1, .3))), .018, verts=4)
+    br.done()
+    dl = G("MATO_deadLeaves", M["grassdry"], c)
+    for (cx, cy) in ((.6, -1.0), (-4.3, -1.3), (-2.05, 2.25)):
+        for k in range(6):
+            dl.ball(.16, (cx + rnd.uniform(-.5, .5), cy + rnd.uniform(-.4, .4), .08), scale=(1, 1, .4), sub=1)
+    dl.done()
+    pd = G("MATO_puddle", MM["water"], c)
+    for (x, y, sx, sy) in ((-.2, -3.0, .7, .45), (3.0, -.9, .5, .35), (-2.9, 1.0, .45, .3)):
+        n = 18; pts = []
+        for q in range(n):
+            a = 2 * math.pi * q / n; rad = 1 + .15 * math.sin(3 * a + x) + .08 * math.sin(5 * a + y)
+            pts.append(pd.bm.verts.new((x + sx * rad * math.cos(a), y + sy * rad * math.sin(a), .012)))
+        pd.bm.faces.new(pts)
+    pd.done()
+
+
+def mato_green(c):
+    rnd = random.Random(21)
+    # trees: a big city tree (left back) and a smaller one (right front), bushes of all sizes from its crown
+    city_tree("MATO_tree0", c, (-3.55, 1.3, 0), 1, rot_z=math.radians(20), tris=5200, width=2.8)
+    city_tree("MATO_tree1", c, (4.0, -1.9, 0), 1, rot_z=math.radians(-60), tris=4200, width=2.0)
+    for k, (x, y, r, rz) in enumerate(((-4.4, -4.6, .55, .2), (4.35, 3.0, .7, 1.2), (.0, 5.1, .6, 2.2), (-1.7, 5.1, .5, 3.0),
+                                        (4.4, -5.1, .45, 4.0), (-.9, .2, .45, 5.1), (2.1, 2.6, .5, .7), (4.45, 5.1, .5, 1.6))):
+        city_tree(f"MATO_bush{k}", c, (x, y, 0), 1, rot_z=rz, tris=650, crown_only=True, width=r * 2.1)
+    # meadow: tufts everywhere (denser in the open, sparse on the ruin floor), tall grass clumps and reeds
+    for k, (x, y, sx, sy, d) in enumerate(((-2.4, -4.2, 2.2, 1.4, 1.3), (1.7, -4.3, 2.4, 1.3, 1.3), (0, -1.6, 4.6, 1.3, 1.0),
+                                           (-3.6, 2.5, 1.2, 2.3, .9), (1.2, 2.6, 2.4, 1.8, .45), (2.6, 5.2, 2.2, .5, 1.0),
+                                           (-1.2, 5.25, 1.8, .45, 1.0), (4.5, 1.3, .45, 3.8, 1.1))):
+        grass_patch(c, f"MATO_grass{k}", x, y, sx, sy, seed=300 + k, density=d, h=(.3, .7))
+    tg = G("MATO_tallGrass", M["tall"], c, smooth=False)
+    for i in range(34):
+        x = rnd.uniform(-4.7, 4.7); y = rnd.uniform(-5.3, 5.4)
+        if -1.5 < x < 4.0 and .5 < y < 4.8 and rnd.random() < .7: continue
+        tg.blades((x, y, 0), n=rnd.randint(8, 12), h=rnd.uniform(.8, 1.3), w=.07, seed=1300 + i, spread=.15, lean=(.08, .4))
+    tg.done()
+    rd = G("MATO_reeds", M["grassdry"], c)
+    for i in range(16):     # seed-heads on long stalks
+        x = rnd.uniform(-4.6, 4.6); y = rnd.uniform(-5.2, 5.3)
+        h = rnd.uniform(.9, 1.4); top = Vector((x + rnd.uniform(-.1, .1), y + rnd.uniform(-.1, .1), h))
+        rd.tube((x, y, 0), top, .01, verts=4)
+        rd.cyl(.035, .2, top + Vector((0, 0, .08)), verts=6, r2=.015)
+    rd.done()
+    # wildflowers in clusters
+    stalks = G("MATO_flowerStalks", M["grass"], c)
+    heads = {"MATO_flowerY": G("MATO_flowerY", MM["flowerY"], c), "MATO_flowerW": G("MATO_flowerW", MM["flowerW"], c),
+             "MATO_flowerP": G("MATO_flowerP", MM["flowerP"], c), "MATO_flowerR": G("MATO_flowerR", M["flower"], c)}
+    keys = list(heads)
+    for cl in range(12):
+        cx = rnd.uniform(-4.4, 4.4); cy = rnd.uniform(-5.2, 5.2); kk = keys[cl % 4]
+        for i in range(7):
+            x = cx + rnd.uniform(-.45, .45); y = cy + rnd.uniform(-.45, .45)
+            h = rnd.uniform(.35, .7); top = Vector((x, y, h))
+            stalks.tube((x, y, 0), top, .012, verts=4)
+            heads[kk].ball(.065, top, scale=(1, 1, .7), sub=1)
+    stalks.done()
+    for g in heads.values(): g.done()
+    # ivy climbing the back ruin wall and the chimney: vines with clustered leaves
+    vn = G("MATO_ivyVines", M["bark"], c)
+    iv = G("MATO_ivy", M["ivy"], c)
+    for (x0_, top, side) in ((-.9, 1.5, 0), (.5, 1.9, 0), (2.2, 1.7, 0), (3.2, 2.3, 1)):
+        pts = [(x0_, 0.)]
+        for k in range(4): pts.append((pts[-1][0] + rnd.uniform(-.35, .35), top * (k + 1) / 4))
+        for (u0, z0_), (u1, z1_) in zip(pts, pts[1:]):
+            yy = 4.7 - .15
+            vn.tube((u0, yy, z0_), (u1, yy, z1_), .025, verts=5)
+            for q in range(5):
+                f = q / 5; u = u0 + (u1 - u0) * f + rnd.uniform(-.18, .18); z = z0_ + (z1_ - z0_) * f + rnd.uniform(-.1, .1)
+                if z < .1: continue
+                r = rnd.uniform(.11, .17)
+                iv.ball(r, (u, yy - r * .3, z), scale=(1, .4, .75), rot=(0, rnd.uniform(-.6, .6), 0), sub=1)
+    vn.done(); iv.done()
+
+
+def mato_fence(c):
+    picket_fence(c, "MATO_fenceF", (-4.85, -5.55), (4.85, -5.55), seed=13, states=['ok', 'gappy', 'fallen', 'ok', 'lean'])
+    picket_fence(c, "MATO_fenceE", (4.85, -5.55), (4.85, 1.5), seed=14, states=['gappy', 'ok', 'fallen', 'lean'])
+
+
+def mato_pad(c):
+    p = G("MATO_pad", M["pad"], c)
+    p.box((PAD_W, PAD_D, .2), (0, 0, -.1))
+    o = p.done(); o.hide_render = True
+    return o
+
+
+def build_mato(part="all"):
+    c = col(MATO)
+    show_only(MATO)
+    if part in ("all", "house"):
+        for o in list(c.objects): bpy.data.objects.remove(o)
+        for m in list(bpy.data.meshes):
+            if m.users == 0 and not m.use_fake_user: bpy.data.meshes.remove(m)
+    mato_mats()
+    if not OM: ofi_mats()
+    if part in ("all", "house"):
+        mato_pad(c); mato_ruin(c); mato_shed(c); mato_swing(c); mato_fence(c); mato_props(c)
+    if part in ("all", "yard"):
+        mato_green(c)
+    return stats(c)
+
+
+def mato_export():
+    return make_export(MATO, MATO_NAME, groups=MATO_GROUPS, default="MATO_junk",
+                       inside=(99, -99, 99, -99), walls=(),
+                       texel={"V3_MatoWall": 2.4, "V3_FloorTiles": 1.4, "V3_ShedPlanks": 1.0, "V3_ShedRoof": .9,
+                              "V3_Mattress": 1.4, "V3_Puddle": .3, "V3_Bark": .5, "V3_Brick": .5})
