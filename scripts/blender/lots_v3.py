@@ -5688,4 +5688,462 @@ def armazem_export():
                        inside=(AX0 + WT, AX1 - WT, AY0 + WT, AY1 - WT), walls=("V3_ArmWall",),
                        texel={"V3_ArmWall": 1.5, "V3_ArmBrick": .9, "V3_ArmTiles": .55, "V3_ArmDoor": 1.1, "V3_Sack": .7,
                               "V3_BarrelWood": .8, "V3_TrikeBox": 1.0, "V3_Deck": .6, "V3_Planks": .6})
-# r97 uvfix
+
+
+# ######################################################################################################################
+# FABRICA (lot B4) - an abandoned small factory: brick hall under a three-tooth sawtooth (north-light) roof with steel
+# glazing, a tall square brick chimney stack, big multi-pane steel windows with broken panes, a loading bay with a
+# half-down shutter and a concrete dock, rusty pipes, a water tank on stilts, a gantry, a roller conveyor, machinery.
+# Clearing scene (case "fabrica"; model (x, y) <-> P(.76 x, 8.33 + .76 y)): the wrecking crane P(-2, 1.9) stands in
+# front of the lot and swings at P(1, 6.8) + 4 m -> model (1.3, -2.0) at ~5.3 m: the first glazing tooth of the
+# sawtooth roof over the loading bay; the sledge worker P(3.4, 3.8..5) -> model (4.5, -6..-4.4): kept clear;
+# the debris pile P(4, 1.4) and the foreman P(4.9..1.6, .6) are outside the model.
+# ######################################################################################################################
+FAB = "V3 Fabrica"
+FAB_NAME = "Lot_Fabrica"
+FX0, FX1, FY0, FY1 = -4.0, 3.0, -2.2, 3.6          # outer wall faces
+FH, FGH, FN = 4.2, 1.7, 3                          # eaves, glazing height, teeth
+FD = (FX1 - FX0) / FN                             # the teeth run front-to-back: sawtooth gables on the front / back,
+FA = math.atan2(FGH, FD)                           # slopes rising to the east, glazing facing east (both seen by the camera)
+FXK = [FX0 + k * FD for k in range(FN + 1)]
+FAB_OPEN = {   # face: (kind, u, w, sill, h)
+    "F": [("bay", 1.15, 2.4, 0.0, 3.0), ("win", -1.95, 2.6, 1.0, 2.4)],
+    "E": [("win", -1.2, .9, 1.0, 2.4), ("win", .54, .9, 1.0, 2.4), ("win", 2.48, .9, 1.0, 2.4)],
+    "W": [("win", 1.2, .9, 1.0, 2.4), ("door", -.54, .9, 0.0, 2.2), ("win", -2.48, .9, 1.0, 2.4)],
+    "B": [("win", -.5, 2.2, 1.0, 2.4), ("win", 2.3, 1.6, 1.0, 2.4)],
+}
+FAB_GROUPS = [
+    ("FAB_pad", ("FAB_pad",)),
+    ("FAB_house", ("FAB_walls", "FAB_front", "FAB_gable", "FAB_inside", "FAB_pilaster", "FAB_beam", "FAB_win", "FAB_bay",
+                   "FAB_glaze", "FAB_door", "FAB_pipe", "FAB_plinth", "FAB_dock")),
+    ("FAB_roof", ("FAB_roof",)),
+    ("FAB_stack", ("FAB_stack", "FAB_tank")),
+    ("FAB_green", ("FAB_tree", "FAB_bush", "FAB_grass", "FAB_weed", "FAB_flower")),
+]
+FM = {}
+
+
+def fab_frame(face): return rect_frame(face, FX0, FX1, FY0, FY1)
+
+
+def fab_span(face): return rect_span(face, FX0, FX1, FY0, FY1)
+
+
+def fab_mats():
+    mats()
+    FM.clear()
+    FM["plaster"] = m_aged_wall("V3_FabWall", C("DCCBA8"), band=C("4E8F86"), band_top=.9, seed=101., loss=-.15, top_loss=.3)
+    FM["brick"] = m_brickface("V3_FabBrick", C("B05A3C"), C("9A4C33"), C("DCCDB0"))
+    FM["roof"] = m_metal_paint("V3_FabRoof", C("8FAAA8"), amount=.42)
+    FM["steel"] = m_rust("V3_SteelWin", C("3E6B6E"), amount=.4)
+    FM["concrete"] = m_concrete("V3_FabConcrete")
+    FM["shutter"] = m_metal_paint("V3_FabShutter", C("6E9A9C"), amount=.6, ribs=('Z', .11))
+    FM["tank"] = m_metal_paint("V3_FabTank", C("4F8F8A"), amount=.55)
+    FM["gantry"] = m_rust("V3_Gantry", C("E9A23B"), amount=.5)
+    FM["gear"] = m_rust("V3_GearSteel", C("7E8A8C"), amount=.6)
+    return FM
+
+
+def steel_grid(st, gl, F, xa, xb, za, zb, cols, rows, rnd, broken=.22, y=.12, hopper=True):
+    """Steel-framed multi-pane glazing in frame F (local x along the wall, y into it): outer frame, glazing bars,
+    panes, some missing (a jagged shard left in a corner now and then), one hopper pane tipped open."""
+    cw, ch = (xb - xa) / cols, (zb - za) / rows
+    st.box((xb - xa + .08, .09, .06), ((xa + xb) / 2, y, za), M=F); st.box((xb - xa + .08, .09, .06), ((xa + xb) / 2, y, zb), M=F)
+    for i in range(cols + 1): st.box((.045 if 0 < i < cols else .06, .08, zb - za), (xa + i * cw, y, (za + zb) / 2), M=F)
+    for j in range(1, rows): st.box((xb - xa, .07, .035), ((xa + xb) / 2, y, za + j * ch), M=F)
+    hop = (rnd.randrange(cols), rows // 2) if (rows > 1 and hopper) else None
+    for i in range(cols):
+        for j in range(rows):
+            x, z = xa + (i + .5) * cw, za + (j + .5) * ch
+            if (i, j) == hop:
+                Mh = F @ Matrix.Translation((x, y - .03, za + j * ch + .02)) @ Matrix.Rotation(-.55, 4, 'X')
+                st.box((cw - .04, .04, .035), (0, 0, ch - .06), M=Mh)
+                for sx in (-1, 1): st.box((.035, .04, ch - .06), (sx * (cw / 2 - .02), 0, (ch - .06) / 2), M=Mh)
+                gl.box((cw - .08, .012, ch - .1), (0, 0, (ch - .06) / 2), M=Mh)
+                continue
+            r = rnd.random()
+            if r < broken:
+                if r < broken * .45:
+                    gl.prism([(0, 0), (cw * .55, 0), (0, ch * .6)], .012, M=F @ Matrix.Translation((x - cw / 2 + .03, y + .005, z - ch / 2 + .03)))
+                continue
+            gl.box((cw - .03, .012, ch - .03), (x, y + .005, z), M=F)
+
+
+def fab_walls(c):
+    gb = G("FAB_walls", FM["brick"], c, smooth=False)
+    gf = G("FAB_wallsFront", FM["plaster"], c, smooth=False)
+    for face in "FBEW":
+        u0, u1 = fab_span(face)
+        if face in "EW": u0, u1 = u0 + WT, u1 - WT
+        top = FH - .43 if face == "E" else FH
+        rects = [(u0, 0, u1, top)]
+        for (kind, u, w, sill, h) in FAB_OPEN[face]:
+            rects = cut_rects(rects, (u - w / 2, sill, u + w / 2, sill + h))
+        F = fab_frame(face)
+        g = gf if face == "F" else gb
+        for (x0, z0, x1, z1) in rects:
+            g.box((x1 - x0, WT, z1 - z0), ((x0 + x1) / 2, WT / 2, (z0 + z1) / 2), M=F, open_bottom=z0 < .01)
+    # sawtooth gables on the front and back walls
+    for face in "FB":
+        F = fab_frame(face); sgn = 1 if face == "F" else -1
+        g = gf if face == "F" else gb
+        for k in range(FN):
+            xa, xb = FXK[k], FXK[k + 1]
+            pts = [(xa, FH), (xb, FH), (xb, FH + FGH)]
+            g.prism([(sgn * u, z) for (u, z) in pts], WT, M=F @ Matrix.Translation((0, WT / 2, 0)))
+    gf.done(); gb.done()
+    d = G("FAB_inside", M["dark"], c)
+    cx, cy = (FX0 + FX1) / 2, (FY0 + FY1) / 2
+    iw, idp = FX1 - FX0 - 2 * WT - .02, FY1 - FY0 - 2 * WT - .02
+    d.box((iw, idp, .05), (cx, cy, .025))
+    d.box((iw, .04, FH - .1), (cx, FY1 - WT - .03, FH / 2)); d.box((.04, idp, FH - .1), (FX0 + WT + .03, cy, FH / 2))
+    d.done()
+
+
+def fab_trims(c):
+    p = G("FAB_pilaster", FM["brick"], c, bevel=.03, seg=1)
+    for (x, sx) in ((FX0, -1), (FX1, 1)):
+        for (y, sy) in ((FY0, -1), (FY1, 1)):
+            hh = FH - .15 if sx < 0 else FH + FGH - .4
+            p.box((.36, .36, hh), (x - sx * .12, y - sy * .12, hh / 2), open_bottom=True)
+    p.done()
+    b = G("FAB_beam", FM["concrete"], c, bevel=.025, seg=1)
+    b.box((.42, FY1 - FY0 - .72, .35), (FX1 - .14, (FY0 + FY1) / 2, FH - .255))          # ring beam under the east glazing
+    b.done()
+    pl = G("FAB_plinth", FM["concrete"], c, bevel=.03, seg=1)
+    for face in "FBEW":
+        u0, u1 = fab_span(face); F = fab_frame(face)
+        segs = [(u0 + .31, u1 - .31)]
+        cuts = [(u - w / 2 - .3, u + w / 2 + .3) for (kind, u, w, sill, h) in FAB_OPEN[face] if kind in ("door", "bay")]
+        for (ca, cb) in cuts:
+            segs = [(a, bb) for (a, bb) in segs for (a, bb) in ((a, min(bb, ca)), (max(a, cb), bb)) if bb - a > .05]
+        for (a, bb) in segs:
+            pl.box((bb - a, .08, .55), ((a + bb) / 2, -.03, .275), M=F, open_bottom=True)
+    pl.done()
+
+
+def fab_openings(c):
+    rnd = random.Random(5)
+    st = G("FAB_winSteel", FM["steel"], c, bevel=.008, seg=1)
+    gl = G("FAB_winGlass", M["glass"], c)
+    cs = G("FAB_winSurround", FM["concrete"], c, bevel=.025, seg=1)
+    for face, ops in FAB_OPEN.items():
+        F = fab_frame(face)
+        for (kind, u, w, sill, h) in ops:
+            if kind == "win":
+                cs.box((w + .3, .22, .2), (u, -.02, sill + h + .1), M=F)
+                cs.box((w + .3, .3, .08), (u, -.07, sill - .04), M=F)
+                cols = max(2, int(round(w / .5))); rows = 4
+                steel_grid(st, gl, F, u - w / 2 + .03, u + w / 2 - .03, sill + .03, sill + h - .03, cols, rows, rnd)
+            elif kind == "door":
+                cs.box((w + .3, .22, .2), (u, -.02, sill + h + .1), M=F)
+                dr = G("FAB_door", FM["steel"], c, bevel=.012, seg=1, frame=F)
+                Md = Matrix.Translation((u + w / 2 - .02, .08, .02)) @ Matrix.Rotation(-.35, 4, 'Z')
+                dr.box((w - .04, .05, h - .04), (-(w - .04) / 2, 0, (h - .04) / 2), M=Md)
+                for z in (.5, 1.1, 1.7): dr.box((w - .14, .04, .05), (-(w - .04) / 2, -.04, z), M=Md)
+                dr.done()
+            elif kind == "bay":
+                fab_bay(c, F, u, w, h)
+    # glazing bands of the sawtooth (facing east): the last one is the top of the east wall, on its ring beam
+    for k in range(FN):
+        last = k == FN - 1
+        x = FXK[k + 1] - (.15 if last else 0)
+        Fb = Matrix.Translation((x + .12, 0, 0)) @ Matrix.Rotation(math.pi / 2, 4, 'Z')
+        ya, yb = (FY0 + .38, FY1 - .38) if last else (FY0 + WT + .05, FY1 - WT - .05)
+        za = FH + (.02 if last else .1)
+        steel_grid(st, gl, Fb, ya, yb, za, FH + FGH - (.25 if last else .1), int(round((yb - ya) / .62)), 2, rnd, broken=.28, hopper=False)
+    st.done(); gl.done(); cs.done()
+
+
+def fab_bay(c, F, u, w, h):
+    j = G("FAB_bayFrame", FM["concrete"], c, bevel=.025, seg=1, frame=F)
+    for sx in (-1, 1): j.box((.24, .16, h + .02), (u + sx * (w / 2 + .12), -.04, (h + .02) / 2), open_bottom=True)
+    j.box((w + .4, .3, .3), (u, -.06, h + .15))
+    j.done()
+    sh = G("FAB_bayShutter", FM["shutter"], c, bevel=.01, seg=1, frame=F)
+    z0 = 1.75
+    sh.box((w - .04, .05, h - z0), (u, .1, (h + z0) / 2), rot=(0, .03, 0))
+    sh.box((w - .02, .08, .07), (u, .08, z0 + .02), rot=(0, .03, 0))
+    sh.done()
+    hs = G("FAB_bayHousing", FM["steel"], c, bevel=.02, seg=1, frame=F)
+    hs.box((w + .1, .3, .32), (u, -.1, h + .45))
+    for sx in (-1, 1): hs.box((.06, .1, h), (u + sx * (w / 2 - .02), .05, h / 2))
+    hs.done()
+    # concrete dock with a steel nosing, rubber bumpers and steps
+    dk = G("FAB_dock", FM["concrete"], c, bevel=.03, seg=1)
+    x0, x1, y0, hd = -.2, 2.5, FY0 - 1.3, .9
+    dk.box((x1 - x0, FY0 - .14 - y0, hd), ((x0 + x1) / 2, (y0 + FY0 - .14) / 2, hd / 2), open_bottom=True)
+    dk.box((.5, .38, .6), (2.25, y0 - .19, .3), open_bottom=True); dk.box((.5, .38, .3), (2.25, y0 - .57, .15), open_bottom=True)
+    dk.done()
+    no = G("FAB_dockNosing", M["rust"], c, bevel=.005, seg=1)
+    no.box((x1 - x0 + .02, .06, .06), ((x0 + x1) / 2, y0 + .02, hd - .02))
+    no.done()
+    bu = G("FAB_dockBumpers", OM["rubber"], c, bevel=.02, seg=1)
+    for x in (.3, 1.4): bu.box((.25, .12, .35), (x, y0 - .06, hd - .3))
+    bu.done()
+
+
+def fab_roof(c):
+    """Sawtooth roof: corrugated sheets on each tooth (rising to the east; three missing, one lifted), purlins under
+    them, valley gutters behind the glazing, the west eave gutter with its downpipe, mushroom vents, weeds."""
+    sh = G("FAB_roofSheets", FM["roof"], c)
+    pu = G("FAB_roofPurlins", FM["steel"], c, bevel=.01, seg=1)
+    gu = G("FAB_roofGutters", M["rust"], c, bevel=.01, seg=1)
+    ya, yb = FY0 - .25, FY1 + .25
+    n = int(math.ceil((yb - ya) / .9))
+    pos = [ya + .45 + i * (yb - ya - .9) / (n - 1) for i in range(n)]
+    missing = {(1, 2), (2, 4), (2, 5)}
+    Ms_ = lambda k: Matrix.Translation((FXK[k], 0, FH + .06)) @ Matrix.Rotation(-math.pi / 2, 4, 'Z') @ Matrix.Rotation(FA, 4, 'X')
+    for k in range(FN):
+        x0 = FXK[k] + (-.3 if k == 0 else .12)
+        x1 = FXK[k + 1] + .05
+        Ms = Ms_(k)
+        s0, s1 = (x0 - FXK[k]) / math.cos(FA), (x1 - FXK[k]) / math.cos(FA)
+        L = s1 - s0
+        for i, y in enumerate(pos):
+            if (k, i) in missing: continue
+            if (k, i) == (0, 1):      # the wind lifted the low end of this one
+                sh.corrugated(.95, L, (0, L / 2, .03), M=Ms @ Matrix.Translation((-y, s1, 0)) @ Matrix.Rotation(-.12, 4, 'X') @ Matrix.Translation((0, -L, 0)), pitch=.19, amp=.035, seg=4)
+                continue
+            sh.corrugated(.95, L, (-y, s0 + L / 2, .01 * (i % 2)), M=Ms, pitch=.19, amp=.035, seg=4)
+        for s in (.45, 1.25, 2.05):
+            pu.box((FY1 - FY0 - 2 * WT - .04, .08, .12), (-(FY0 + FY1) / 2, s, -.12), M=Ms)
+        if k < FN - 1:
+            gu.box((.22, FY1 - FY0 - .1, .1), (FXK[k + 1] + .17, (FY0 + FY1) / 2, FH + .05))
+    sh.done(); pu.done(); gu.done()
+    bg = G("FAB_roofGutterEave", M["rust"], c)
+    bg.tube((FX0 - .42, FY0 - .2, FH - .25), (FX0 - .42, FY1 + .2, FH - .25), .075, verts=8)
+    bg.tube((FX0 - .42, FY0 - .15, FH - .25), (FX0 - .42, FY0 - .15, .25), .055, verts=8)
+    bg.done()
+    hd = G("FAB_roofHoleDark", M["dark"], c)
+    for (k, i) in missing:
+        hd.box((.92, (FD - .8) / math.cos(FA), .02), (-pos[i], (FD - .5) / math.cos(FA) / 2, -.45), M=Ms_(k))
+    hd.done()
+    vt = G("FAB_roofVents", FM["steel"], c, bevel=.015, seg=1)
+    for (k, y, s) in ((1, .4, 1.0), (2, 2.4, 1.3)):
+        p = Ms_(k) @ Vector((-y, s, 0))
+        vt.cyl(.16, .7, (p.x, p.y, p.z + .25), verts=12)
+        vt.cyl(.3, .18, (p.x, p.y, p.z + .66), verts=12, r2=.06)
+    vt.done()
+    wd = G("FAB_roofWeeds", M["grass"], c, smooth=False)
+    for i, (y, k) in enumerate(((-1.2, 1), (1.8, 1), (2.9, 2))):
+        wd.blades((FXK[k] + .17, y, FH + .1), n=6, h=.3, w=.05, seed=3100 + i, spread=.05, lean=(.15, .5))
+    wd.done()
+
+
+def fab_stack(c):
+    """Square tapering brick chimney stack behind the hall: concrete base, iron bands, corbelled top, flue duct."""
+    x, y = 2.2, 4.8
+    b = G("FAB_stackBase", FM["concrete"], c, bevel=.03, seg=1)
+    b.box((1.5, 1.5, 1.0), (x, y, .5), open_bottom=True)
+    b.box((1.62, 1.62, .12), (x, y, 1.02))
+    b.done()
+    r0, r1, z0, h = .78, .56, 1.08, 8.3
+    ch = G("FAB_stackBrick", FM["brick"], c)
+    ch.cyl(r0, h, (x, y, z0 + h / 2), rot=(0, 0, math.pi / 4), verts=4, r2=r1)
+    ch.cyl(r1 + .1, .32, (x, y, z0 + h + .1), rot=(0, 0, math.pi / 4), verts=4, r2=r1 + .12)
+    ch.done()
+    rg = G("FAB_stackBands", M["rust"], c)
+    for z in (3.0, 5.4, 7.6):
+        rr = r0 - (r0 - r1) * (z - z0) / h + .025
+        rg.cyl(rr, .07, (x, y, z), rot=(0, 0, math.pi / 4), verts=4)
+    rg.done()
+    cp = G("FAB_stackCap", FM["concrete"], c, bevel=.02, seg=1)
+    cp.cyl(r1 + .16, .1, (x, y, z0 + h + .31), rot=(0, 0, math.pi / 4), verts=4)
+    cp.done()
+    dk = G("FAB_stackDark", M["dark"], c)
+    dk.cyl(r1 - .12, .02, (x, y, z0 + h + .365), rot=(0, 0, math.pi / 4), verts=4)
+    dk.done()
+    fl = G("FAB_stackFlue", FM["brick"], c, bevel=.02, seg=1)
+    fl.box((.7, y - .75 - FY1 - .1, .8), (x, (FY1 + .1 + y - .75) / 2, .4), open_bottom=True)
+    fl.done()
+
+
+def fab_tank(c):
+    """Water tank on four steel stilts with cross bracing, a plank deck, a ladder and the outlet pipe to the hall."""
+    x, y = -3.2, 4.85
+    st = G("FAB_tankLegs", FM["steel"], c, bevel=.01, seg=1)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            st.box((.12, .12, 3.42), (x + sx * .6, y + sy * .6, 1.71), open_bottom=True)
+            st.box((.26, .26, .04), (x + sx * .6, y + sy * .6, .02))
+    st.done()
+    br = G("FAB_tankBraces", M["rust"], c)
+    for (a, b) in (((-1, -1), (1, -1)), ((1, -1), (1, 1)), ((1, 1), (-1, 1)), ((-1, 1), (-1, -1))):
+        for (za, zb) in ((.3, 1.75), (1.75, 3.2)):
+            br.tube((x + a[0] * .6, y + a[1] * .6, za), (x + b[0] * .6, y + b[1] * .6, zb), .022, verts=5)
+            br.tube((x + b[0] * .6, y + b[1] * .6, za), (x + a[0] * .6, y + a[1] * .6, zb), .022, verts=5)
+    br.done()
+    dk = G("FAB_tankDeck", M["deck"], c, bevel=.01, seg=1)
+    for i in range(6): dk.box((1.55, .24, .06), (x, y - .63 + i * .252, 3.45))
+    dk.done()
+    tk = G("FAB_tankBody", FM["tank"], c, bevel=.0)
+    tk.cyl(.8, 1.4, (x, y, 4.2), verts=22)
+    tk.cyl(.84, .42, (x, y, 5.11), verts=22, r2=.12)
+    tk.done()
+    hp = G("FAB_tankHoops", M["rust"], c)
+    for z in (3.62, 4.2, 4.78): hp.torus(.81, .022, (x, y, z), seg=22, rseg=4)
+    hp.cyl(.1, .1, (x, y, 5.36), verts=8)
+    hp.done()
+    ld = G("FAB_tankLadder", M["rust"], c)
+    lx = x - .9
+    for sy in (-.2, .2): ld.tube((lx, y + sy, 0), (lx, y + sy, 5.0), .022, verts=5)
+    for i in range(16): ld.tube((lx, y - .2, .3 + i * .3), (lx, y + .2, .3 + i * .3), .015, verts=4)
+    ld.done()
+    pp = G("FAB_tankPipe", M["rust"], c)
+    pp.tube((x + .25, y - .2, 3.5), (x + .25, y - .2, .45), .06, verts=8)
+    pp.tube((x + .25, y - .2, .45), (x + .25, FY1 + .1, .45), .06, verts=8)
+    pp.cyl(.11, .05, (x + .25, FY1 + .12, .45), rot=(math.pi / 2, 0, 0), verts=10)
+    pp.done()
+
+
+def fab_pipes(c):
+    """Two rusty pipes on brackets along the east wall, the lower one dropping to a valve; broken-off front ends."""
+    g = G("FAB_pipeRuns", M["rust"], c)
+    xs = (FX1 + .2, FX1 + .4); zs = (3.8, 4.04)
+    for xx, z in zip(xs, zs):
+        g.tube((xx, -1.7, z), (xx, 3.3, z), .07, verts=10)
+        for yy in (-1.7, 3.3): g.cyl(.11, .05, (xx, yy, z), rot=(math.pi / 2, 0, 0), verts=10)
+    g.tube((xs[0], 1.48, zs[0]), (xs[0], 1.48, .35), .07, verts=10)
+    g.cyl(.11, .05, (xs[0], 1.48, 1.2), verts=10); g.cyl(.11, .05, (xs[0], 1.48, .35), verts=10)
+    g.done()
+    bk = G("FAB_pipeBrackets", FM["steel"], c, bevel=.005, seg=1)
+    for yy in (-1.5, .3, 1.0, 2.2):
+        bk.box((.4, .06, .05), (FX1 + .3, yy, 3.7)); bk.box((.06, .06, .45), (FX1 + .11, yy, 3.92))
+    bk.done()
+    vw = G("FAB_pipeValve", FM["gantry"], c)
+    vw.torus(.15, .02, (xs[0] + .14, 1.48, 1.0), rot=(0, math.pi / 2, 0), seg=14, rseg=4)
+    vw.tube((xs[0] + .02, 1.48, 1.0), (xs[0] + .15, 1.48, 1.0), .02, verts=5)
+    for a in (0, math.pi / 2): vw.tube((xs[0] + .14, 1.48 - .14 * math.cos(a), 1.0 - .14 * math.sin(a)), (xs[0] + .14, 1.48 + .14 * math.cos(a), 1.0 + .14 * math.sin(a)), .012, verts=4)
+    vw.done()
+
+
+def fab_yard(c):
+    rnd = random.Random(23)
+    # gantry with a chain hoist over an old electric motor on skids
+    gy = G("FAB_gantry", FM["gantry"], c, bevel=.015, seg=1)
+    for x in (-3.85, -1.55):
+        for yy in (-3.95, -5.25):
+            gy.tube((x, yy, 0), (x, -4.6, 3.0), .07, verts=6)
+            gy.box((.25, .25, .03), (x, yy, .015))
+        gy.tube((x, -4.15, .9), (x, -5.05, .9), .04, verts=6)
+    gy.box((2.8, .18, .3), (-2.7, -4.6, 3.12))
+    for x in (-4.0, -1.4): gy.box((.06, .22, .14), (x, -4.6, 2.9))
+    gy.done()
+    hk = G("FAB_gantryHoist", M["rust"], c, bevel=.01, seg=1)
+    hk.box((.32, .3, .18), (-2.45, -4.6, 2.87))
+    hk.tube((-2.45, -4.6, 2.78), (-2.45, -4.6, 1.3), .022, verts=5)
+    hk.box((.12, .1, .14), (-2.45, -4.6, 1.24))
+    hk.torus(.08, .018, (-2.45, -4.6, 1.08), rot=(math.pi / 2, 0, 0), seg=12, rseg=4)
+    hk.done()
+    mo = G("FAB_motor", OM["engine"], c, bevel=.01, seg=1)
+    Mm = Matrix.Translation((-2.6, -4.6, 0)) @ Matrix.Rotation(.1, 4, 'Z')
+    mo.box((.85, .5, .1), (0, 0, .17), M=Mm)
+    mo.cyl(.3, .8, (0, 0, .55), rot=(0, math.pi / 2, 0), verts=18, M=Mm)
+    for xx in (-.45, .45): mo.cyl(.26, .1, (xx, 0, .55), rot=(0, math.pi / 2, 0), verts=18, M=Mm)
+    for k in range(5): mo.torus(.3, .022, (-.3 + k * .15, 0, .55), rot=(0, math.pi / 2, 0), seg=18, rseg=4, M=Mm)
+    mo.box((.22, .2, .16), (.05, 0, .9), M=Mm)
+    mo.cyl(.04, .3, (.62, 0, .55), rot=(0, math.pi / 2, 0), verts=8, M=Mm)
+    mo.cyl(.15, .1, (.78, 0, .55), rot=(0, math.pi / 2, 0), verts=16, M=Mm)
+    mo.done()
+    sk = G("FAB_motorSkids", M["deck"], c, bevel=.01, seg=1)
+    for sy in (-.2, .2): sk.box((1.15, .12, .12), (0, sy, .06), M=Mm)
+    sk.done()
+    # big gear lying on the ground
+    Mg = Matrix.Translation((-.85, -4.15, .1)) @ Matrix.Rotation(.07, 4, 'X') @ Matrix.Rotation(.3, 4, 'Z')
+    gr = G("FAB_gear", FM["gear"], c, bevel=.008, seg=1)
+    gr.cyl(.48, .1, (0, 0, 0), verts=28, M=Mg)
+    for k in range(22):
+        a = 2 * math.pi * k / 22
+        gr.box((.09, .08, .1), (.52 * math.cos(a), .52 * math.sin(a), 0), rot=(0, 0, a), M=Mg)
+    gr.cyl(.13, .2, (0, 0, .02), verts=12, M=Mg)
+    gr.done()
+    gh = G("FAB_gearHoles", M["dark"], c)
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + .4
+        gh.cyl(.09, .104, (.29 * math.cos(a), .29 * math.sin(a), 0), verts=10, M=Mg)
+    gh.done()
+    # roller conveyor coming down off the dock, one roller missing, a crate stuck on it, a bent leg
+    Mc = Matrix.Translation((.75, FY0 - 1.38, .93)) @ Matrix.Rotation(math.pi, 4, 'Z') @ Matrix.Rotation(-.32, 4, 'X')
+    cv = G("FAB_conveyor", FM["steel"], c, bevel=.008, seg=1)
+    for sx in (-1, 1): cv.box((.06, 1.9, .14), (sx * .31, .95, 0), M=Mc)
+    cv.done()
+    rl = G("FAB_conveyorRollers", M["rust"], c)
+    for i in range(10):
+        if i == 4: continue
+        rl.cyl(.045, .56, (0, .1 + i * .19, .04), rot=(0, math.pi / 2, 0), verts=10, M=Mc)
+    for sx in (-1, 1):
+        for s_ in (.75, 1.6):
+            p = Mc @ Vector((sx * .31, s_, -.07))
+            q = Vector((p.x + (.12 if (sx, s_) == (1, .75) else 0), p.y, 0))
+            rl.tube(p, q, .03, verts=6)
+    rl.done()
+    cr = G("FAB_conveyorCrate", M["wood"], c, smooth=False)
+    crate(cr, Mc @ Matrix.Translation((0, 1.05, .1)) @ Matrix.Rotation(.12, 4, 'Z'), .42)
+    cr.done()
+    # oil drums by the dock, steel sections stacked by the west wall
+    drum_detailed(c, "FAB_drumA", OM["drumB"], Matrix.Translation((3.55, -2.75, 0)) @ Matrix.Rotation(.3, 4, 'Z'), seed=1)
+    drum_detailed(c, "FAB_drumB", OM["drumR"], Matrix.Translation((4.15, -3.0, 0)) @ Matrix.Rotation(1.2, 4, 'Z'), seed=2)
+    drum_detailed(c, "FAB_drumC", OM["drumB"], Matrix.Translation((3.75, -3.75, .29)) @ Matrix.Rotation(.5, 4, 'Z') @ Matrix.Rotation(math.pi / 2, 4, 'X') @ Matrix.Translation((0, 0, -.45)), seed=3, dented=False)
+    ss = G("FAB_steelPile", FM["steel"], c, bevel=.01, seg=1)
+    for k, (dx, z, a) in enumerate(((0, .1, .02), (.2, .1, -.03), (.1, .3, .05))):
+        Mi = Matrix.Translation((-4.5 + dx, .3, z)) @ Matrix.Rotation(a, 4, 'Z')
+        ss.box((.14, 2.6, .02), (0, 0, .09), M=Mi); ss.box((.14, 2.6, .02), (0, 0, -.09), M=Mi); ss.box((.02, 2.6, .18), (0, 0, 0), M=Mi)
+    ss.done()
+
+
+def fab_green(c):
+    rnd = random.Random(71)
+    house = (FX0 - .15, FX1 + .15, FY0 - .15, FY1 + .15)
+    dock = (-.3, 2.6, FY0 - 2.1, FY0)
+    stack = (1.4, 3.0, 3.6, 5.6)
+    city_tree("FAB_tree", c, (4.3, .7, 0), 1, rot_z=math.radians(80), tris=4000, width=1.5)
+    for k, (x, y, r, rz) in enumerate(((4.5, 4.9, .5, .3), (.3, 5.2, .42, 1.4), (-4.55, -3.3, .38, 2.5))):
+        city_tree(f"FAB_bush{k}", c, (x, y, 0), 1, rot_z=rz, tris=650, crown_only=True, width=r * 2.1)
+    for k, (x, y, sx, sy, d) in enumerate(((-2.4, -5.2, 2.4, .5, 1.0), (2.0, -5.25, 1.1, .4, .9), (4.5, -1.2, .45, 1.4, 1.0),
+                                           (4.45, 2.7, .5, 1.0, .9), (-4.6, 2.6, .35, 1.0, .9), (-1.0, 4.9, 2.0, .6, 1.0),
+                                           (-4.55, -1.6, .4, .6, .8))):
+        grass_patch(c, f"FAB_grass{k}", x, y, sx, sy, seed=600 + k, density=d, h=(.25, .55), holes=(house, dock, stack))
+    tw = G("FAB_weeds", M["grass"], c, smooth=False)
+    for i, (x, y) in enumerate(((FX0 - .15, -1.9), (FX0 - .12, 1.6), (FX1 + .2, -2.0), (FX1 + .15, 3.35), (-3.4, FY0 - .2),
+                                (-.4, FY0 - .25), (2.7, FY0 - .3), (-1.5, FY1 + .2), (.8, FY1 + .25), (-.2, -3.0), (2.8, -3.9))):
+        tw.blades((x, y, 0), n=rnd.randint(6, 9), h=rnd.uniform(.35, .6), w=.065, seed=1900 + i, spread=.08, lean=(.15, .5))
+    tw.done()
+    st = G("FAB_flowerStalks", M["grass"], c)
+    fh = G("FAB_flowerHeads", MM.get("flowerY") or M["flower"], c)
+    for (cx_, cy_) in ((-1.6, -5.3), (4.5, -.4), (-1.8, 4.7)):
+        for i in range(6):
+            x = cx_ + rnd.uniform(-.35, .35); y = cy_ + rnd.uniform(-.3, .3); h = rnd.uniform(.3, .55)
+            st.tube((x, y, 0), (x, y, h), .012, verts=4); fh.ball(.055, (x, y, h), scale=(1, 1, .7), sub=1)
+    st.done(); fh.done()
+
+
+def fab_pad(c):
+    p = G("FAB_pad", M["pad"], c)
+    p.box((PAD_W, PAD_D, .2), (0, 0, -.1))
+    o = p.done(); o.hide_render = True
+    return o
+
+
+def build_fabrica(part="all"):
+    c = col(FAB)
+    show_only(FAB)
+    if part in ("all", "house"):
+        for o in list(c.objects): bpy.data.objects.remove(o)
+        for m in list(bpy.data.meshes):
+            if m.users == 0 and not m.use_fake_user: bpy.data.meshes.remove(m)
+    fab_mats()
+    if not OM: ofi_mats()
+    if part in ("all", "house"):
+        fab_pad(c); fab_walls(c); fab_trims(c); fab_openings(c); fab_roof(c); fab_stack(c); fab_tank(c); fab_pipes(c)
+    if part in ("all", "yard"):
+        fab_yard(c); fab_green(c)
+    return stats(c)
+
+
+def fabrica_export():
+    return make_export(FAB, FAB_NAME, groups=FAB_GROUPS, default="FAB_junk",
+                       inside=(FX0 + WT, FX1 - WT, FY0 + WT, FY1 - WT), walls=("V3_FabWall", "V3_FabBrick"),
+                       texel={"V3_FabWall": 1.4, "V3_FabBrick": .9, "V3_FabRoof": .7, "V3_SteelWin": .7, "V3_FabConcrete": .6,
+                              "V3_FabShutter": .9, "V3_FabTank": .9, "V3_Gantry": .9, "V3_GearSteel": .8, "V3_Engine": .8})
+# r104 fabrica
