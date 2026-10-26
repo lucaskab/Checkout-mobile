@@ -96,13 +96,16 @@ def bounds(objs):
     return lo, hi
 
 
+CUT_SRC = ("CON_shellTop", "CON_awn", "CON_signTop")      # source names that become CUT_* objects in the export
+
+
 def game_objs(cname):
     """What the game draws of a collection (CUT_* and ERA1_Bread* are switched off by CheckoutStall.Load)."""
     out = []
     for o in bpy.data.collections[cname].all_objects:
         if o.type != 'MESH' or o.hide_render: continue
         n = o.name[4:] if o.name.startswith(("OLD_", "NEW_")) else o.name[2:] if o.name.startswith("X_") else o.name
-        if n.startswith("CUT_") or n.startswith("ERA1_Bread"): continue
+        if n.startswith("CUT_") or n.startswith("ERA1_Bread") or n.startswith(CUT_SRC): continue
         out.append(o)
     return out
 
@@ -235,7 +238,7 @@ def game_hidden(cname):
     out = []
     for o in bpy.data.collections[cname].all_objects:
         n = o.name[4:] if o.name.startswith(("OLD_", "NEW_")) else o.name
-        if n.startswith("CUT_") or n.startswith("ERA1_Bread"): out.append(o)
+        if n.startswith("CUT_") or n.startswith("ERA1_Bread") or n.startswith(CUT_SRC): out.append(o)
     return out
 
 
@@ -1510,6 +1513,7 @@ def mats_v2():
     E["creamB"] = m_canvas("E2_CanvasCreamBrand", C("F7F3EA"), .02)
     E["gold"] = V.m_flat("E2_Gold", C("D6A83E"), .05, 6, .35, ao=0)
     E["navyP"] = V.m_paint_wood("E2_NavyPaint", C("1D2B4F"), C("C9A170"), .1)
+    E["navyF"] = V.m_flat("E2_NavyFlat", C("1D2B4F"), .03, 3, .45, ao=.3)
     E["peg"] = V.m_flat("E2_Peg", C("8C9196"), .03, 9, .4, ao=0)
     # produce skins (packed in the atlas, not swatches: they carry detail)
     E["tomato"] = m_fruit("E2_Tomato", C("E3311F"), C("A51E14"), C("FFC7B0"), "tomato", .6)
@@ -1537,7 +1541,8 @@ TEXEL_V2 = dict(TEXEL, **{"E2_Tomato": 1.1, "E2_OrangeFruit": 1.1, "E2_Lime": 1.
                           "E2_PlasticGreen": .9, "E2_PlasticYellow": .9, "E2_CoolerRed": .9, "E2_CoolerBlue": .9,
                           "E2_FrameBlue": .6, "E2_BucketBlue": .6, "E2_RedPaint": 1.0, "E2_YellowPaint": 1.0,
                           "E2_BluePaint": 1.0, "E2_GreenPaint": 1.0, "E2_CanvasNavy": 1.4, "E2_CanvasCreamBrand": 1.4,
-                          "E2_NavyPaint": 1.0})
+                          "E2_NavyPaint": 1.0, "E2_NavyFlat": 1.0, "E2_ContainerYellow": 1.0, "E2_ContainerNavy": .8,
+                          "E2_LinerCream": .5})
 
 
 # ------------------------------------------------------------------ produce geometry
@@ -1809,7 +1814,7 @@ def build_banca(scheme="A"):
         gh.cyl(.02, .03, (bx, BYF, 1.715), verts=8)
         for k in range(3):
             banana_bunch(gbn, gbt, _T(bx, BYF, 1.70, .6 + k * 2.1) @ Matrix.Rotation(math.pi / 2 - .25, 4, 'Y'), 4, .17, 61 + k + int(abs(bx) * 10))
-    gsf = NG("BAN_signFrame", E["gold"], bevel=.006); gsb = NG("BAN_signBoard", E["navyP"], bevel=.004)
+    gsf = NG("BAN_signFrame", E["gold"], bevel=.006); gsb = NG("BAN_signBoard", E["navyF"], bevel=.004)
     gsr = NG("BAN_postRope", E["rope"])
     sx0, sx1, sz0, sz1, sy = -.45, .75, 1.42, 1.7, BYF - .02
     gsb.box((sx1 - sx0, .025, sz1 - sz0), ((sx0 + sx1) / 2, sy, (sz0 + sz1) / 2))
@@ -1869,8 +1874,8 @@ def step(name, st):
 # above 1.1 m (upper walls, roof, awning, sign) is CUT_* so the game hides it and the camera sees inside.
 CON = "E2 Conteiner"
 CON_GROUPS = [
-    ("ERA3_Shell", ("CON_shell", "CON_floor", "CON_post", "CON_base", "CON_cap")),
-    ("CUT_ERA3_ShellTop", ("CON_shellTop", "CON_postTop")),
+    ("ERA3_Shell", ("CON_shell",)),
+    ("CUT_ERA3_ShellTop", ("CON_shellTop",)),
     ("CUT_ERA3_Awning", ("CON_awn",)),
     ("CUT_ERA3_Sign", ("CON_signTop",)),
     ("ERA3_Counter", ("CON_counter",)),
@@ -1896,8 +1901,8 @@ def snack_bag(g, gw, M, w=.11, h=.15, d=.045):
 def build_conteiner():
     mats_v2()
     E = EM
-    E["contY"] = V.m_metal_paint("E2_ContainerYellow", C("F4B532"), amount=.08)
-    E["contN"] = V.m_metal_paint("E2_ContainerNavy", C("1D2B4F"), amount=.06)
+    E["contY"] = V.m_flat("E2_ContainerYellow", C("F4B532"), .03, 2, .45, ao=.4)      # clean paint (no rust blotches)
+    E["contN"] = V.m_flat("E2_ContainerNavy", C("1D2B4F"), .03, 3, .45, ao=.3)
     E["liner"] = V.m_flat("E2_LinerCream", C("F3E7CF"), .03, 3, .8, ao=.45)
     E["fridgeIn"] = V.m_flat("E2_FridgeInside", C("D8ECF4"), .02, 6, .4, ao=.35)
     E["milk"] = V.m_flat("E2_Milk", C("F7F4EC"), .02, 9, .5, ao=0)
@@ -1916,10 +1921,10 @@ def build_conteiner():
         g = G(name, mat, c, **kw); todo.append(g); return g
     # ---- container: navy base rails, corner posts and castings, corrugated yellow walls (lower / upper CUT),
     #      cream liner inside, plank floor, a gold cap on the low walls (the edge the game shows)
-    gb = NG("CON_base", E["contN"], bevel=.01)
-    for y in (CY0 + .05, CY1 - .05): gb.box((CX1 - CX0, .1, CFL), (0, y, CFL / 2))
-    for x in (CX0 + .05, CX1 - .05): gb.box((.1, CY1 - CY0 - .2, CFL), (x, (CY0 + CY1) / 2, CFL / 2))
-    gpo = NG("CON_post", E["contN"], bevel=.01); gpt = NG("CON_postTop", E["contN"], bevel=.01)
+    gb = NG("CON_shellBase", E["contN"], bevel=.01)
+    for y in (CY0 + .05, CY1 - .05): gb.box((CX1 - CX0 - .26, .1, CFL - .03), (0, y, (CFL - .03) / 2))
+    for x in (CX0 + .05, CX1 - .05): gb.box((.1, CY1 - CY0 - .26, CFL - .03), (x, (CY0 + CY1) / 2, (CFL - .03) / 2))
+    gpo = NG("CON_shellPost", E["contN"], bevel=.01); gpt = NG("CON_shellTopPost", E["contN"], bevel=.01)
     for sx in (-1, 1):
         for sy in (-1, 1):
             x, y = sx * (CX1 - .06), (CY1 - .06) if sy > 0 else (CY0 + .06)
@@ -1930,54 +1935,56 @@ def build_conteiner():
     def wall(gw, gl, axis, pos, a0, a1, z0, z1, side):
         L = z1 - z0; w = a1 - a0; mid = (a0 + a1) / 2
         if axis == 'y':        # front / back wall (normal +-y)
-            gw.corrugated(w, L, (mid, pos, (z0 + z1) / 2), rot=(math.pi / 2, 0, 0), pitch=.16, amp=.018, seg=4, t=.01)
+            gw.corrugated(w, L, (mid, pos, (z0 + z1) / 2), rot=(math.pi / 2, 0, 0), pitch=.16, amp=.018, seg=3, t=.01)
             gl.box((w, .02, L), (mid, pos - side * .05, (z0 + z1) / 2))
         else:
-            gw.corrugated(w, L, (pos, mid, (z0 + z1) / 2), rot=(math.pi / 2, 0, math.pi / 2), pitch=.16, amp=.018, seg=4, t=.01)
+            gw.corrugated(w, L, (pos, mid, (z0 + z1) / 2), rot=(math.pi / 2, 0, math.pi / 2), pitch=.16, amp=.018, seg=3, t=.01)
             gl.box((.02, w, L), (pos - side * .05, mid, (z0 + z1) / 2))
     ox, oy0, oy1 = CX1 - .02, CY0 + .02, CY1 - .02
-    for gw, gl, z0, z1 in ((gS, gL, CFL, CCUT - .01), (gST, gLT, CCUT + .01, CTOP - .14)):
+    for gw, gl, z0, z1 in ((gS, gL, CFL - .03, CCUT - .01), (gST, gLT, CCUT + .01, CTOP - .14)):
         wall(gw, gl, 'y', oy1, CX0 + .13, CX1 - .13, z0, z1, 1)                                 # back
         for sx in (-1, 1): wall(gw, gl, 'x', sx * ox, CY0 + .13, CY1 - .13, z0, z1, sx)        # sides
-    wall(gS, gL, 'y', oy0, CX0 + .13, CX1 - .13, CFL, .95, -1)                                   # front, under the hatch
+    wall(gS, gL, 'y', oy0, CX0 + .13, CX1 - .13, CFL - .03, .965, -1)                            # front, under the hatch
     for sx in (-1, 1):                                                                          # beside the hatch
         a0, a1 = (CX0 + .13, -1.3) if sx < 0 else (1.3, CX1 - .13)
-        wall(gS, gL, 'y', oy0, a0, a1, .95, CCUT - .01, -1); wall(gST, gLT, 'y', oy0, a0, a1, CCUT + .01, 2.1, -1)
+        wall(gS, gL, 'y', oy0, a0, a1, .965, CCUT - .01, -1); wall(gST, gLT, 'y', oy0, a0, a1, CCUT + .01, 2.1, -1)
     wall(gST, gLT, 'y', oy0, CX0 + .13, CX1 - .13, 2.1, CTOP - .14, -1)                           # over the hatch
     gST.corrugated(CX1 - CX0 - .04, CY1 - CY0 - .04, (0, (CY0 + CY1) / 2, CTOP - .06), pitch=.2, amp=.02, seg=4, t=.01)   # roof
     gtr = NG("CON_shellTopRail", E["contN"], bevel=.01)
     for y in (CY0 + .05, CY1 - .05): gtr.box((CX1 - CX0 - .24, .1, .1), (0, y, CTOP - .09))
     for x in (CX0 + .05, CX1 - .05): gtr.box((.1, CY1 - CY0 - .2, .1), (x, (CY0 + CY1) / 2, CTOP - .09))
-    gcap = NG("CON_cap", E["gold"], bevel=.004)                                                 # cap of the low walls
-    for y in (CY1 - .055,): gcap.box((CX1 - CX0 - .26, .09, .018), (0, y, CCUT - .001))
-    for sx in (-1, 1): gcap.box((.09, CY1 - CY0 - .26, .018), (sx * (CX1 - .055), (CY0 + CY1) / 2, CCUT - .001))
-    for a0, a1 in ((CX0 + .13, -1.3), (1.3, CX1 - .13)): gcap.box((a1 - a0, .09, .018), ((a0 + a1) / 2, CY0 + .055, CCUT - .001))
-    gfl = NG("CON_floor", E["wood"], bevel=.004, seg=1)
+    gcap = NG("CON_shellCap", E["gold"], bevel=.004)                                                 # cap of the low walls
+    for y in (CY1 - .035,): gcap.box((CX1 - CX0 - .26, .08, .018), (0, y, CCUT + .0005))
+    for sx in (-1, 1): gcap.box((.09, CY1 - CY0 - .26, .018), (sx * (CX1 - .055), (CY0 + CY1) / 2, CCUT + .0005))
+    for a0, a1 in ((CX0 + .13, -1.3), (1.3, CX1 - .13)): gcap.box((a1 - a0, .09, .018), ((a0 + a1) / 2, CY0 + .055, CCUT + .0005))
+    gfl = NG("CON_shellFloor", E["wood"], bevel=.004, seg=1)
     for k in range(10):
         y0_ = CY0 + .1 + k * (CY1 - CY0 - .2) / 10
-        gfl.box((CX1 - CX0 - .2, (CY1 - CY0 - .2) / 10 - .006, .03), (0, y0_ + (CY1 - CY0 - .2) / 20, CFL - .015))
+        gfl.box((CX1 - CX0 - .2, (CY1 - CY0 - .2) / 10 - .006, .03), (0, y0_ + (CY1 - CY0 - .2) / 20, CFL - .016))
     # ---- hatch counter + register
     gct = NG("CON_counterTop", E["wood"], bevel=.008); gce = NG("CON_counterEdge", E["gold"], bevel=.003)
-    gct.box((2.62, .48, .06), (0, -.66, 1.0))
-    gce.box((2.64, .012, .03), (0, -.906, 1.0))
+    gct.box((2.58, .48, .06), (0, -.66, 1.0))
+    gce.box((2.6, .012, .03), (0, -.906, 1.0))
     rb = NG("CON_regBody", E["regBody"], bevel=.008); rk = NG("CON_regKey", E["regKey"], bevel=.004, seg=1)
     rd = NG("CON_regDark", E["dark"], bevel=.004); rc = NG("CON_regCoin", E["coin"]); rn = NG("CON_regNote", E["note"])
     retro_register(rb, rk, rd, rc, rn, _T(.86, -.6, 1.031, math.pi + .1))
     # ---- produce rack under the counter, outside (front left), three tilted crates with heaped produce
     gra = NG("CON_rack", E["wood"], bevel=.005, seg=1)
-    rx0, rx1, ry0, ry1, rz = -1.3, .22, -1.27, -.9, .4
+    rx0, rx1, ry0, ry1, rz = -1.12, .4, -1.27, -.92, .4
     for x in (rx0 + .03, rx1 - .03):
-        for y in (ry0 + .03, ry1 - .03): gra.box((.045, .045, rz + (.06 if y > ry0 + .1 else 0)), (x, y, (rz + (.06 if y > ry0 + .1 else 0)) / 2))
-    for k in range(5): gra.box((rx1 - rx0, (ry1 - ry0) / 5 - .01, .02), ((rx0 + rx1) / 2, ry0 + (k + .5) * (ry1 - ry0) / 5, rz + .01 + .06 * k / 4 + .0))
+        for y in (ry0 + .03, ry1 - .03): gra.box((.045, .045, rz), (x, y, rz / 2))
+    for k in range(5): gra.box((rx1 - rx0, (ry1 - ry0) / 5 - .01, .02), ((rx0 + rx1) / 2, ry0 + (k + .5) * (ry1 - ry0) / 5, rz + .01))
+    gra.box((rx1 - rx0 - .06, .03, .03), ((rx0 + rx1) / 2, ry0 + .03, .12)); gra.box((rx1 - rx0 - .06, .03, .03), ((rx0 + rx1) / 2, ry1 - .03, .12))
     crates = {"pine": NG("CON_crate", E["pine"], bevel=.004, seg=1), "plR": NG("CON_crateRed", E["plR"], bevel=.005, seg=1),
               "plB": NG("CON_crateBlue", E["plB"], bevel=.005, seg=1)}
     gw = NG("CON_wedge", E["wood"], bevel=.003, seg=1); gtg = NG("CON_tagCard", E["chalk"])
     PG = pg_factory(NG, "CON_fruit")
     tilt = math.radians(12); cw, cd, ch = .46, .32, .18
-    for k, (x, kind, cm, nn, lod) in enumerate(((-1.03, "tomato", "pine", 20, 1), (-.54, "orange", "plB", 18, 0), (-.05, "lime", "plR", 22, 0))):
+    for k, (x, kind, cm, nn, lod) in enumerate(((-.85, "tomato", "pine", 20, 0), (-.36, "orange", "plB", 18, 0), (.13, "lime", "plR", 22, 0))):
         yf_ = ry0 + .025
         M0 = _T(x, yf_, rz + .021) @ Matrix.Rotation(tilt, 4, 'X') @ Matrix.Translation((0, cd / 2, 0))
         crate_rect(crates[cm], M0, cw, cd, ch)
+        gw.box((cw - .1, .03, .058), (x, yf_ + cd - .02, rz + .021 + .029))
         gw.box((cw - .09, cd - .046, .012), (0, 0, .044), M=M0)
         heap(PG, M0, cw - .044, cd - .044, .05, kind, 70 + k, nn, lod=lod)
         tag(gtg, None, M0 @ Matrix.Translation((cw / 2 - .085, -cd / 2, ch)))
@@ -1991,7 +1998,7 @@ def build_conteiner():
         gsh.box((sx1 - sx0 - .03, sy1 - sy0 - .02, .025), ((sx0 + sx1) / 2, (sy0 + sy1) / 2 - .01, z))
         glp.box((sx1 - sx0 - .03, .012, .04), ((sx0 + sx1) / 2, sy0 - .004, z + .005))
     rnd = random.Random(9)
-    gsn = [NG("CON_snack" + str(i), snack[i], bevel=.016, seg=2) for i in range(len(snack))]
+    gsn = [NG("CON_snack" + str(i), snack[i], bevel=.014, seg=1) for i in range(len(snack))]
     gwin = NG("CON_snackWindow", E["milk"])
     for li, z in enumerate(levels[:-1]):
         x = sx0 + .07
@@ -1999,8 +2006,8 @@ def build_conteiner():
             kind = rnd.random()
             if kind < .7:
                 w = rnd.uniform(.09, .12); i = rnd.randrange(len(snack))
-                for r in range(2):
-                    snack_bag(gsn[i], gwin, _T(x + w / 2, sy0 + .05 + r * .1, z + .013, rnd.uniform(-.08, .08)) @ Matrix.Rotation(-.12, 4, 'X'), w, rnd.uniform(.13, .17))
+                for r in range(1):
+                    snack_bag(gsn[i], gwin, _T(x + w / 2, sy0 + .08, z + .013, rnd.uniform(-.08, .08)) @ Matrix.Rotation(-.1, 4, 'X'), w, rnd.uniform(.14, .18), .085)
                 x += w + .015
             else:
                 w = .1; i = rnd.randrange(len(snack))
@@ -2009,7 +2016,7 @@ def build_conteiner():
                 x += w + .015
     # drinks fridge: red body, yellow header, light inside, glass door (EraGlass), bottles and cans on 4 shelves
     fx0, fx1, fy0, fy1, fz1 = .58, 1.34, .52, 1.28, 1.86
-    gfb = NG("CON_fridgeBody", E["coolR"], bevel=.012); gfh = NG("CON_fridgeHeader", E["yelP"], bevel=.006)
+    gfb = NG("CON_fridgeBody", E["coolR"], bevel=.012); gfh = NG("CON_fridgeHeader", E["contY"], bevel=.006)
     gfi = NG("CON_fridgeIn", E["fridgeIn"]); gfg = NG("CON_fridgeHandle", E["gold"], bevel=.004)
     t = .05
     gfb.box((fx1 - fx0, t, fz1 - CFL), ((fx0 + fx1) / 2, fy1 - t / 2, (fz1 + CFL) / 2))
@@ -2051,28 +2058,28 @@ def build_conteiner():
     gsl.cyl(.15, .04, (.15, -.05, .62), verts=20)
     for k in range(4):
         a = math.pi / 4 + k * math.pi / 2
-        gsl.tube((.15 + .13 * math.cos(a), -.05 + .13 * math.sin(a), CFL), (.15 + .09 * math.cos(a), -.05 + .09 * math.sin(a), .6), .016, verts=6)
+        gsl.tube((.15 + .13 * math.cos(a), -.05 + .13 * math.sin(a), CFL + .002), (.15 + .09 * math.cos(a), -.05 + .09 * math.sin(a), .6), .016, verts=6)
     gbx = NG("CON_box", E["card"], bevel=.008)
-    gbx.box((.4, .32, .3), (.2, 1.05, CFL + .15), rot=(0, 0, .05)); gbx.box((.36, .3, .26), (.2, 1.05, CFL + .3 + .13), rot=(0, 0, -.08))
+    gbx.box((.38, .3, .3), (.34, .98, CFL + .15), rot=(0, 0, .05)); gbx.box((.34, .28, .26), (.34, .98, CFL + .3 + .131), rot=(0, 0, -.08))
     # ---- potted bushes at the front corners (the city tree's crown)
-    gpot = NG("CON_bushPot", E["pot"], bevel=.01); gsoil = NG("CON_bushSoil", E["dirt"])
+    gpot = NG("CON_bushPot", E["pot"], bevel=.01, seg=1); gsoil = NG("CON_bushSoil", V.M["dirt"])
     for k, sx in enumerate((-1, 1)):
         px, py = sx * 1.36, -1.04
         gpot.cyl(.15, .28, (px, py, .14), r2=.18, verts=20); gpot.torus(.18, .015, (px, py, .28), seg=20, rseg=5)
         gsoil.cyl(.165, .02, (px, py, .265), verts=20)
-        V.city_tree("CON_bush" + str(k), c, (px, py, .24), 1, rot_z=k * 2.1, tris=650, crown_only=True, width=.4)
+        V.city_tree("CON_bush" + str(k), c, (px, py, .24), 1, rot_z=k * 2.1, tris=1200, crown_only=True, width=.46)
     # ---- CUT_: awning over the hatch (red / white stripes, gold piping) on two gold arms, the sign on the roof
     gA = NG("CON_awnRed", E["canR"]); gB = NG("CON_awnWhite", E["canW"]); gT = NG("CON_awnTrim", E["gold"])
     slope_awning((gA, gB), gT, -1.42, 1.42, CY0 - .03, 2.3, -1.27, 1.98, n=8, sag=0., hem=True)
     for x in (-1.3, 1.3): gT.tube((x, CY0 - .035, 1.95), (x, -1.2, 2.0), .012, verts=6)
-    gsg = NG("CON_signTopBoard", E["navyP"], bevel=.006); gsf = NG("CON_signTopFrame", E["gold"], bevel=.005)
-    gsg.box((2.3, .05, .5), (0, CY0 + .2, CTOP + .29)); gsf.box((2.36, .06, .04), (0, CY0 + .2, CTOP + .03)); gsf.box((2.36, .06, .04), (0, CY0 + .2, CTOP + .55))
-    for x in (-1.16, 1.16): gsf.box((.04, .06, .56), (x, CY0 + .2, CTOP + .29))
-    for x in (-.8, .8): gsf.box((.05, .3, .04), (x, CY0 + .32, CTOP + .025))
+    gsg = NG("CON_signTopBoard", E["contN"], bevel=.006); gsf = NG("CON_signTopFrame", E["gold"], bevel=.005)
+    gsg.box((2.3, .05, .5), (0, CY0 + .2, CTOP + .32)); gsf.box((2.36, .06, .04), (0, CY0 + .2, CTOP + .06)); gsf.box((2.36, .06, .04), (0, CY0 + .2, CTOP + .58))
+    for x in (-1.16, 1.16): gsf.box((.04, .06, .56), (x, CY0 + .2, CTOP + .32))
+    for x in (-.8, .8): gsf.box((.05, .3, .08), (x, CY0 + .32, CTOP + .01))
     pm = picto_mats()
     gp = {k: NG("CON_signTop" + k.capitalize(), pm[k]) for k in pm}
     for k, kind in enumerate(("apple", "milk", "carrot", "cheese")):
-        pict(gp, Matrix.Translation((-.75 + k * .5, CY0 + .2 - .026, CTOP + .29)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), kind, 1.6)
+        pict(gp, Matrix.Translation((-.75 + k * .5, CY0 + .2 - .026, CTOP + .32)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), kind, 1.6)
     for gg in todo:
         if len(gg.bm.verts): gg.done()
         else: gg.bm.free()
