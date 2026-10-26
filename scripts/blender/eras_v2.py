@@ -1850,7 +1850,8 @@ def build_banca(scheme="A"):
 
 
 ERAS = {"Era0_Mesinha": ("E2 Mesinha", "MES_GROUPS", "ERA0_Produce", None), "Era1_Tenda": ("E2 Tenda", "TEN_GROUPS", "ERA1_Stock", None),
-        "Era2_Banca": ("E2 Banca", "BAN_GROUPS", "ERA2_Stock", "BAN_GLASS")}
+        "Era2_Banca": ("E2 Banca", "BAN_GROUPS", "ERA2_Stock", "BAN_GLASS"),
+        "Era3_Conteiner": ("E2 Conteiner", "CON_GROUPS", "ERA3_Stock", "CON_GLASS")}
 
 
 def step(name, st):
@@ -1859,3 +1860,223 @@ def step(name, st):
     if st == "fbx" and glass:
         print("glass:", add_glass(src, name, globals()[glass]))
     return export_era(src, name, globals()[groups], default, st)
+
+
+# ================================================================== ERA 3 - CONTÊINER (container kiosk)
+# Same plan as the old Era3_Conteiner: a 3.04 x 2.04 container (x +-1.52, y -.67 .. 1.37) on the lot, service hatch
+# in the front wall over a counter (y -.9 .. -.42, top 1.03), produce rack under the counter outside, snacks shelf
+# (built-in "shelf:snacks" from era 3), a drinks fridge and a dairy chest inside. As the old model: everything
+# above 1.1 m (upper walls, roof, awning, sign) is CUT_* so the game hides it and the camera sees inside.
+CON = "E2 Conteiner"
+CON_GROUPS = [
+    ("ERA3_Shell", ("CON_shell", "CON_floor", "CON_post", "CON_base", "CON_cap")),
+    ("CUT_ERA3_ShellTop", ("CON_shellTop", "CON_postTop")),
+    ("CUT_ERA3_Awning", ("CON_awn",)),
+    ("CUT_ERA3_Sign", ("CON_signTop",)),
+    ("ERA3_Counter", ("CON_counter",)),
+    ("ERA3_Register", ("CON_reg",)),
+    ("ERA3_Produce", ("CON_rack", "CON_crate", "CON_fruit", "CON_wedge", "CON_tag")),
+    ("ERA3_Shelf", ("CON_snack",)),
+    ("ERA3_Fridge", ("CON_fridge",)),
+    ("ERA3_Dairy", ("CON_dairy",)),
+    ("ERA3_Plants", ("CON_bush",)),
+    ("ERA3_Stock", ("CON_stool", "CON_box")),
+]
+CON_GLASS = {"CON_fridgeGlass": "ERA3_FridgeGlass", "CON_dairyGlass": "ERA3_DairyGlass"}
+CX0, CX1, CY0, CY1, CFL, CCUT, CTOP = -1.52, 1.52, -.67, 1.37, .14, 1.1, 2.6
+
+
+def snack_bag(g, gw, M, w=.11, h=.15, d=.045):
+    """Crinkly snack bag (pillow) standing up; gw: the white window stripe (no print)."""
+    g.box((w, d, h), (0, 0, h / 2), M=M)
+    g.box((w * 1.02, d * .5, .012), (0, 0, h + .004), M=M)
+    gw.box((w * .55, .004, h * .22), (0, -d / 2 - .001, h * .5), M=M)
+
+
+def build_conteiner():
+    mats_v2()
+    E = EM
+    E["contY"] = V.m_metal_paint("E2_ContainerYellow", C("F4B532"), amount=.08)
+    E["contN"] = V.m_metal_paint("E2_ContainerNavy", C("1D2B4F"), amount=.06)
+    E["liner"] = V.m_flat("E2_LinerCream", C("F3E7CF"), .03, 3, .8, ao=.45)
+    E["fridgeIn"] = V.m_flat("E2_FridgeInside", C("D8ECF4"), .02, 6, .4, ao=.35)
+    E["milk"] = V.m_flat("E2_Milk", C("F7F4EC"), .02, 9, .5, ao=0)
+    E["cheese"] = m_fruit("E2_Cheese", C("F7C548"), C("D99A22"), C("FFF0BE"), "", .2, .04)
+    E["butter"] = V.m_flat("E2_Butter", C("F8E28C"), .03, 9, .5, ao=0)
+    E["yog"] = V.m_flat("E2_Yoghurt", C("F29BB4"), .03, 9, .4, ao=0)
+    E["well"] = V.m_flat("E2_DairyWell", C("BFE3F2"), .03, 9, .5, ao=.3)
+    snack = [m_plastic("E2_Snack" + k, C(h)) for k, h in (("Red", "E5372C"), ("Yellow", "F8C531"), ("Blue", "2E6FD6"),
+                                                           ("Green", "3DAA47"), ("Orange", "F7841D"), ("Purple", "8B4BB8"))]
+    c = col(CON)
+    for o in list(c.all_objects): bpy.data.objects.remove(o)
+    gcl = glass_col(CON)
+    todo = []
+
+    def NG(name, mat, **kw):
+        g = G(name, mat, c, **kw); todo.append(g); return g
+    # ---- container: navy base rails, corner posts and castings, corrugated yellow walls (lower / upper CUT),
+    #      cream liner inside, plank floor, a gold cap on the low walls (the edge the game shows)
+    gb = NG("CON_base", E["contN"], bevel=.01)
+    for y in (CY0 + .05, CY1 - .05): gb.box((CX1 - CX0, .1, CFL), (0, y, CFL / 2))
+    for x in (CX0 + .05, CX1 - .05): gb.box((.1, CY1 - CY0 - .2, CFL), (x, (CY0 + CY1) / 2, CFL / 2))
+    gpo = NG("CON_post", E["contN"], bevel=.01); gpt = NG("CON_postTop", E["contN"], bevel=.01)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            x, y = sx * (CX1 - .06), (CY1 - .06) if sy > 0 else (CY0 + .06)
+            gpo.box((.12, .12, CCUT - .01), (x, y, (CCUT - .01) / 2))
+            gpt.box((.12, .12, CTOP - CCUT - .01), (x, y, CCUT + .005 + (CTOP - CCUT - .01) / 2))
+    gS = NG("CON_shellWall", E["contY"]); gST = NG("CON_shellTopWall", E["contY"])
+    gL = NG("CON_shellLiner", E["liner"]); gLT = NG("CON_shellTopLiner", E["liner"])
+    def wall(gw, gl, axis, pos, a0, a1, z0, z1, side):
+        L = z1 - z0; w = a1 - a0; mid = (a0 + a1) / 2
+        if axis == 'y':        # front / back wall (normal +-y)
+            gw.corrugated(w, L, (mid, pos, (z0 + z1) / 2), rot=(math.pi / 2, 0, 0), pitch=.16, amp=.018, seg=4, t=.01)
+            gl.box((w, .02, L), (mid, pos - side * .05, (z0 + z1) / 2))
+        else:
+            gw.corrugated(w, L, (pos, mid, (z0 + z1) / 2), rot=(math.pi / 2, 0, math.pi / 2), pitch=.16, amp=.018, seg=4, t=.01)
+            gl.box((.02, w, L), (pos - side * .05, mid, (z0 + z1) / 2))
+    ox, oy0, oy1 = CX1 - .02, CY0 + .02, CY1 - .02
+    for gw, gl, z0, z1 in ((gS, gL, CFL, CCUT - .01), (gST, gLT, CCUT + .01, CTOP - .14)):
+        wall(gw, gl, 'y', oy1, CX0 + .13, CX1 - .13, z0, z1, 1)                                 # back
+        for sx in (-1, 1): wall(gw, gl, 'x', sx * ox, CY0 + .13, CY1 - .13, z0, z1, sx)        # sides
+    wall(gS, gL, 'y', oy0, CX0 + .13, CX1 - .13, CFL, .95, -1)                                   # front, under the hatch
+    for sx in (-1, 1):                                                                          # beside the hatch
+        a0, a1 = (CX0 + .13, -1.3) if sx < 0 else (1.3, CX1 - .13)
+        wall(gS, gL, 'y', oy0, a0, a1, .95, CCUT - .01, -1); wall(gST, gLT, 'y', oy0, a0, a1, CCUT + .01, 2.1, -1)
+    wall(gST, gLT, 'y', oy0, CX0 + .13, CX1 - .13, 2.1, CTOP - .14, -1)                           # over the hatch
+    gST.corrugated(CX1 - CX0 - .04, CY1 - CY0 - .04, (0, (CY0 + CY1) / 2, CTOP - .06), pitch=.2, amp=.02, seg=4, t=.01)   # roof
+    gtr = NG("CON_shellTopRail", E["contN"], bevel=.01)
+    for y in (CY0 + .05, CY1 - .05): gtr.box((CX1 - CX0 - .24, .1, .1), (0, y, CTOP - .09))
+    for x in (CX0 + .05, CX1 - .05): gtr.box((.1, CY1 - CY0 - .2, .1), (x, (CY0 + CY1) / 2, CTOP - .09))
+    gcap = NG("CON_cap", E["gold"], bevel=.004)                                                 # cap of the low walls
+    for y in (CY1 - .055,): gcap.box((CX1 - CX0 - .26, .09, .018), (0, y, CCUT - .001))
+    for sx in (-1, 1): gcap.box((.09, CY1 - CY0 - .26, .018), (sx * (CX1 - .055), (CY0 + CY1) / 2, CCUT - .001))
+    for a0, a1 in ((CX0 + .13, -1.3), (1.3, CX1 - .13)): gcap.box((a1 - a0, .09, .018), ((a0 + a1) / 2, CY0 + .055, CCUT - .001))
+    gfl = NG("CON_floor", E["wood"], bevel=.004, seg=1)
+    for k in range(10):
+        y0_ = CY0 + .1 + k * (CY1 - CY0 - .2) / 10
+        gfl.box((CX1 - CX0 - .2, (CY1 - CY0 - .2) / 10 - .006, .03), (0, y0_ + (CY1 - CY0 - .2) / 20, CFL - .015))
+    # ---- hatch counter + register
+    gct = NG("CON_counterTop", E["wood"], bevel=.008); gce = NG("CON_counterEdge", E["gold"], bevel=.003)
+    gct.box((2.62, .48, .06), (0, -.66, 1.0))
+    gce.box((2.64, .012, .03), (0, -.906, 1.0))
+    rb = NG("CON_regBody", E["regBody"], bevel=.008); rk = NG("CON_regKey", E["regKey"], bevel=.004, seg=1)
+    rd = NG("CON_regDark", E["dark"], bevel=.004); rc = NG("CON_regCoin", E["coin"]); rn = NG("CON_regNote", E["note"])
+    retro_register(rb, rk, rd, rc, rn, _T(.86, -.6, 1.031, math.pi + .1))
+    # ---- produce rack under the counter, outside (front left), three tilted crates with heaped produce
+    gra = NG("CON_rack", E["wood"], bevel=.005, seg=1)
+    rx0, rx1, ry0, ry1, rz = -1.3, .22, -1.27, -.9, .4
+    for x in (rx0 + .03, rx1 - .03):
+        for y in (ry0 + .03, ry1 - .03): gra.box((.045, .045, rz + (.06 if y > ry0 + .1 else 0)), (x, y, (rz + (.06 if y > ry0 + .1 else 0)) / 2))
+    for k in range(5): gra.box((rx1 - rx0, (ry1 - ry0) / 5 - .01, .02), ((rx0 + rx1) / 2, ry0 + (k + .5) * (ry1 - ry0) / 5, rz + .01 + .06 * k / 4 + .0))
+    crates = {"pine": NG("CON_crate", E["pine"], bevel=.004, seg=1), "plR": NG("CON_crateRed", E["plR"], bevel=.005, seg=1),
+              "plB": NG("CON_crateBlue", E["plB"], bevel=.005, seg=1)}
+    gw = NG("CON_wedge", E["wood"], bevel=.003, seg=1); gtg = NG("CON_tagCard", E["chalk"])
+    PG = pg_factory(NG, "CON_fruit")
+    tilt = math.radians(12); cw, cd, ch = .46, .32, .18
+    for k, (x, kind, cm, nn, lod) in enumerate(((-1.03, "tomato", "pine", 20, 1), (-.54, "orange", "plB", 18, 0), (-.05, "lime", "plR", 22, 0))):
+        yf_ = ry0 + .025
+        M0 = _T(x, yf_, rz + .021) @ Matrix.Rotation(tilt, 4, 'X') @ Matrix.Translation((0, cd / 2, 0))
+        crate_rect(crates[cm], M0, cw, cd, ch)
+        gw.box((cw - .09, cd - .046, .012), (0, 0, .044), M=M0)
+        heap(PG, M0, cw - .044, cd - .044, .05, kind, 70 + k, nn, lod=lod)
+        tag(gtg, None, M0 @ Matrix.Translation((cw / 2 - .085, -cd / 2, ch)))
+    # ---- inside: snacks shelf on the back wall (left), drinks fridge (right), dairy chest (left), stool, boxes
+    gsh = NG("CON_snackShelf", E["pine"], bevel=.005, seg=1); glp = NG("CON_snackLip", E["redP"], bevel=.003, seg=1)
+    sx0, sx1, sy0, sy1 = -1.36, .1, 1.02, 1.28
+    for x in (sx0, sx1): gsh.box((.03, sy1 - sy0, 1.68), (x, (sy0 + sy1) / 2, CFL + .84))
+    gsh.box((sx1 - sx0, .02, 1.68), ((sx0 + sx1) / 2, sy1 - .01, CFL + .84))
+    levels = [CFL + .08, .52, .88, 1.24, 1.6]
+    for z in levels:
+        gsh.box((sx1 - sx0 - .03, sy1 - sy0 - .02, .025), ((sx0 + sx1) / 2, (sy0 + sy1) / 2 - .01, z))
+        glp.box((sx1 - sx0 - .03, .012, .04), ((sx0 + sx1) / 2, sy0 - .004, z + .005))
+    rnd = random.Random(9)
+    gsn = [NG("CON_snack" + str(i), snack[i], bevel=.016, seg=2) for i in range(len(snack))]
+    gwin = NG("CON_snackWindow", E["milk"])
+    for li, z in enumerate(levels[:-1]):
+        x = sx0 + .07
+        while x < sx1 - .08:
+            kind = rnd.random()
+            if kind < .7:
+                w = rnd.uniform(.09, .12); i = rnd.randrange(len(snack))
+                for r in range(2):
+                    snack_bag(gsn[i], gwin, _T(x + w / 2, sy0 + .05 + r * .1, z + .013, rnd.uniform(-.08, .08)) @ Matrix.Rotation(-.12, 4, 'X'), w, rnd.uniform(.13, .17))
+                x += w + .015
+            else:
+                w = .1; i = rnd.randrange(len(snack))
+                gsn[i].box((w, .16, .22), (x + w / 2, sy0 + .11, z + .013 + .11))
+                gwin.box((w * .5, .004, .05), (x + w / 2, sy0 + .029, z + .013 + .13))
+                x += w + .015
+    # drinks fridge: red body, yellow header, light inside, glass door (EraGlass), bottles and cans on 4 shelves
+    fx0, fx1, fy0, fy1, fz1 = .58, 1.34, .52, 1.28, 1.86
+    gfb = NG("CON_fridgeBody", E["coolR"], bevel=.012); gfh = NG("CON_fridgeHeader", E["yelP"], bevel=.006)
+    gfi = NG("CON_fridgeIn", E["fridgeIn"]); gfg = NG("CON_fridgeHandle", E["gold"], bevel=.004)
+    t = .05
+    gfb.box((fx1 - fx0, t, fz1 - CFL), ((fx0 + fx1) / 2, fy1 - t / 2, (fz1 + CFL) / 2))
+    for x in (fx0 + t / 2, fx1 - t / 2): gfb.box((t, fy1 - fy0 - t, fz1 - CFL), (x, (fy0 + fy1) / 2 - t / 2 + .0, (fz1 + CFL) / 2))
+    gfb.box((fx1 - fx0 - 2 * t, fy1 - fy0 - t, .12), ((fx0 + fx1) / 2, (fy0 + fy1) / 2 - t / 2, CFL + .06))
+    gfh.box((fx1 - fx0, fy1 - fy0, .14), ((fx0 + fx1) / 2, (fy0 + fy1) / 2, fz1 - .07))
+    gfi.box((fx1 - fx0 - 2 * t, .01, fz1 - CFL - .26), ((fx0 + fx1) / 2, fy1 - t - .005, CFL + .12 + (fz1 - CFL - .26) / 2))
+    shelves = [CFL + .12 + .02, .62, .98, 1.33]
+    canm = {k: NG("CON_fridgeCan" + k.capitalize(), E[k]) for k in ("canR", "canT", "canY", "alu", "bottle", "cap")}
+    for z in shelves[1:]: gfi.box((fx1 - fx0 - 2 * t - .004, fy1 - fy0 - t - .08, .015), ((fx0 + fx1) / 2, (fy0 + fy1) / 2 - t / 2 + .02, z))
+    for si, z in enumerate(shelves):
+        zz = z + .008 + (.0 if si == 0 else .0)
+        for k in range(5):
+            x = fx0 + t + .06 + k * .125
+            for r in range(2):
+                y = fy0 + .14 + r * .2
+                if (si + k) % 2 == 0:
+                    Mb = Matrix.Translation((x, y, zz + .0))
+                    canm["bottle"].cyl(.032, .17, (0, 0, .085), verts=10, M=Mb)
+                    canm["bottle"].cyl(.032, .05, (0, 0, .195), r2=.013, verts=10, M=Mb)
+                    canm["cap"].cyl(.015, .02, (0, 0, .23), verts=8, M=Mb)
+                else:
+                    canm[("canR", "canT", "canY")[(k + r + si) % 3]].cyl(.033, .12, (x, y, zz + .06), verts=12)
+                    canm["alu"].cyl(.029, .006, (x, y, zz + .123), verts=12)
+    gglass = G("CON_fridgeGlass", m_eraglass(), gcl); todo.append(gglass)
+    gglass.box((fx1 - fx0 - .1, .012, fz1 - CFL - .3), ((fx0 + fx1) / 2, fy0 + .01, CFL + .14 + (fz1 - CFL - .3) / 2))
+    for z in (CFL + .13, fz1 - .155): gfb.box((fx1 - fx0, .03, .03), ((fx0 + fx1) / 2, fy0 + .01, z))
+    for x in (fx0 + .03, fx1 - .03): gfb.box((.05, .03, fz1 - CFL - .3), (x, fy0 + .01, CFL + .14 + (fz1 - CFL - .3) / 2))
+    gfg.box((.025, .03, .5), (fx0 + .09, fy0 - .02, 1.0))
+    # dairy chest (built-in from era 2) inside on the left
+    gx = {"milk": NG("CON_dairyMilk", E["milk"]), "milkBand": NG("CON_dairyBandB", E["coolB"]), "milkBand2": NG("CON_dairyBandR", E["coolR"]),
+          "cheese": NG("CON_dairyCheese", E["cheese"]), "butter": NG("CON_dairyButter", E["butter"]), "yog": NG("CON_dairyYog", E["yog"]),
+          "yog2": NG("CON_dairyYogW", E["milk"]), "lid": NG("CON_dairyLid", E["alu"])}
+    gdg = G("CON_dairyGlass", m_eraglass(), gcl); todo.append(gdg)
+    dairy_chest(NG("CON_dairyBody", E["coolB"], bevel=.012, seg=2), NG("CON_dairyBand", E["yelP"], bevel=.006, seg=1),
+                NG("CON_dairyRim", E["rubber"], bevel=.004, seg=1), NG("CON_dairyWell", E["well"]), gdg, gx,
+                _T(-1.0, .42, CFL) @ Matrix.Diagonal((.72, .9, 1, 1)))
+    gsl = NG("CON_stool", E["redP"])
+    gsl.cyl(.15, .04, (.15, -.05, .62), verts=20)
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        gsl.tube((.15 + .13 * math.cos(a), -.05 + .13 * math.sin(a), CFL), (.15 + .09 * math.cos(a), -.05 + .09 * math.sin(a), .6), .016, verts=6)
+    gbx = NG("CON_box", E["card"], bevel=.008)
+    gbx.box((.4, .32, .3), (.2, 1.05, CFL + .15), rot=(0, 0, .05)); gbx.box((.36, .3, .26), (.2, 1.05, CFL + .3 + .13), rot=(0, 0, -.08))
+    # ---- potted bushes at the front corners (the city tree's crown)
+    gpot = NG("CON_bushPot", E["pot"], bevel=.01); gsoil = NG("CON_bushSoil", E["dirt"])
+    for k, sx in enumerate((-1, 1)):
+        px, py = sx * 1.36, -1.04
+        gpot.cyl(.15, .28, (px, py, .14), r2=.18, verts=20); gpot.torus(.18, .015, (px, py, .28), seg=20, rseg=5)
+        gsoil.cyl(.165, .02, (px, py, .265), verts=20)
+        V.city_tree("CON_bush" + str(k), c, (px, py, .24), 1, rot_z=k * 2.1, tris=650, crown_only=True, width=.4)
+    # ---- CUT_: awning over the hatch (red / white stripes, gold piping) on two gold arms, the sign on the roof
+    gA = NG("CON_awnRed", E["canR"]); gB = NG("CON_awnWhite", E["canW"]); gT = NG("CON_awnTrim", E["gold"])
+    slope_awning((gA, gB), gT, -1.42, 1.42, CY0 - .03, 2.3, -1.27, 1.98, n=8, sag=0., hem=True)
+    for x in (-1.3, 1.3): gT.tube((x, CY0 - .035, 1.95), (x, -1.2, 2.0), .012, verts=6)
+    gsg = NG("CON_signTopBoard", E["navyP"], bevel=.006); gsf = NG("CON_signTopFrame", E["gold"], bevel=.005)
+    gsg.box((2.3, .05, .5), (0, CY0 + .2, CTOP + .29)); gsf.box((2.36, .06, .04), (0, CY0 + .2, CTOP + .03)); gsf.box((2.36, .06, .04), (0, CY0 + .2, CTOP + .55))
+    for x in (-1.16, 1.16): gsf.box((.04, .06, .56), (x, CY0 + .2, CTOP + .29))
+    for x in (-.8, .8): gsf.box((.05, .3, .04), (x, CY0 + .32, CTOP + .025))
+    pm = picto_mats()
+    gp = {k: NG("CON_signTop" + k.capitalize(), pm[k]) for k in pm}
+    for k, kind in enumerate(("apple", "milk", "carrot", "cheese")):
+        pict(gp, Matrix.Translation((-.75 + k * .5, CY0 + .2 - .026, CTOP + .29)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), kind, 1.6)
+    for gg in todo:
+        if len(gg.bm.verts): gg.done()
+        else: gg.bm.free()
+    for o in c.all_objects:
+        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "Can", "reg", "dairy", "snack", "Wall", "awn")):
+            for p in o.data.polygons: p.use_smooth = True
+    return V.stats(c)
