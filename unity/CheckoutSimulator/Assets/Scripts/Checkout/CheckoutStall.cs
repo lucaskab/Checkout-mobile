@@ -355,7 +355,14 @@ namespace Checkout
             var click = new GameObject("Stall checkout");
             click.transform.SetParent(go.transform, false);
             click.transform.localPosition = new Vector3(1.25f, .8f, -.6f);
-            click.AddComponent<BoxCollider>().size = new Vector3(1.2f, 1.6f, 1.2f);
+            var box = click.AddComponent<BoxCollider>(); box.size = new Vector3(1.2f, 1.6f, 1.2f);
+            // A shop's own counter (Späti, quitanda) is further in: the box covers that counter and its register.
+            if (Plans.TryGetValue(name, out var shop))
+            {
+                var c = shop.counter;
+                click.transform.localPosition = new Vector3(c.center.x, shop.floorY + .8f, c.center.y);
+                box.size = new Vector3(c.width + .2f, 1.6f, c.height + .2f);
+            }
             click.AddComponent<CheckoutTarget>().panel = "checkout";
             return go;
         }

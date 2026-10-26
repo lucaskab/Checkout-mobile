@@ -2430,11 +2430,17 @@ def shop_check(cname, plan):
     def ray(o, d):
         h = bvh.ray_cast(Vector(o), Vector(d)); return None if h[0] is None else round(h[3], 3)
     yr = y1 - .2                                    # (behind the counter and the open door leaf)
-    out["wall -x"] = round(cx - ray((cx, yr, .5), (-1, 0, 0)), 3)
-    out["wall +x"] = round(cx + ray((cx, yr, .5), (1, 0, 0)), 3)
-    out["wall back"] = round(cy + ray((-1.5, cy, .5), (0, 1, 0)), 3)
-    out["wall front"] = round(cy - ray((-1.5, cy, .5), (0, -1, 0)), 3)
-    out["floor top"] = round(.5 - ray((-1.5, cy, .5), (0, 0, -1)), 3)
+    out["wall -x"] = round(cx - (ray((cx, yr, .5), (-1, 0, 0)) or float('nan')), 3)
+    out["wall +x"] = round(cx + (ray((cx, yr, .5), (1, 0, 0)) or float('nan')), 3)
+    # an x clear of the door gap and of the counter, for the front / back / floor rays
+    d0_, d1_ = plan["door"]; cr = plan.get("counter") or (99, 99, 99, 99)
+    xs = [x0 + .3 + .1 * i for i in range(int((x1 - x0 - .6) / .1))]
+    xf = next(x for x in xs if not (d0_ - .2 < x < d1_ + .2) and not (cr[0] - .2 < x < cr[2] + .2))
+    r_ = lambda o, d: ray(o, d) if ray(o, d) is not None else float('nan')
+    out["ray x"] = round(xf, 2)
+    out["wall back"] = round(cy + r_((xf, cy, .5), (0, 1, 0)), 3)
+    out["wall front"] = round(cy - r_((xf, cy, .5), (0, -1, 0)), 3)
+    out["floor top"] = round(.5 - r_((xf, cy, .5), (0, 0, -1)), 3)
     # door gap: march along x on the front wall's centre line at 0.5 m
     fy = y0 - .09; free = []
     for i in range(int((x1 - x0) / .01) + 1):
@@ -2449,3 +2455,203 @@ def shop_check(cname, plan):
     for k, (x, y) in pts.items():
         h = ray((x, y, 2.0), (0, 0, -1)); out[k] = round(2.0 - h, 3) if h is not None else None     # height of what is there
     return out
+
+
+# ================================================================== ERA 5 - QUITANDA (greengrocer): a bigger walk-in shop
+# CheckoutStall.Plans["Era5_Quitanda"] (model metres): inner floor x -4.1..4.1, y -2.4..2.6; door (a wide open shop
+# front, the shutter rolled up) x -3.45..0.55 in the front wall; counter rect x 1.35..3.15, y -1.7..-.3 (behind the
+# shop window); pay point (2.25, -2.0), queue towards -x; floor top .06. Bounds as the old model: x +-4.29,
+# y -3.25..2.79 (a paved apron in front, the produce rack under the window outside). Walls below 1.28 m show in the
+# game (as the old model), everything above is CUT_*.
+QUI = "E2 Quitanda"
+QUI_PLAN = {"floor": (-4.1, -2.4, 4.1, 2.6), "door": (-3.45, .55), "counter": (1.35, -1.7, 3.15, -.3), "pay": (2.25, -2.0),
+            "queue": (-.75, 0.), "floorY": .06}
+QUI_GROUPS = [
+    ("ERA5_Shell", ("QUI_wall", "QUI_base", "QUI_cap", "QUI_floor", "QUI_frame", "QUI_apron", "QUI_bush", "QUI_pier")),
+    ("CUT_ERA5_ShellTop", ("QUI_top",)),
+    ("CUT_ERA5_Awning", ("QUI_awn",)),
+    ("CUT_ERA5_Sign", ("QUI_sign",)),
+    ("ERA5_Counter", ("QUI_counter",)),
+    ("ERA5_Counter_Register", ("QUI_reg",)),
+    ("ERA5_Counter_Stool", ("QUI_stool",)),
+    ("ERA5_Produce", ("QUI_rack", "QUI_crate", "QUI_fruit", "QUI_wedge", "QUI_tag", "QUI_banana")),
+]
+QUI_GLASS = {"QUI_glassWin": "ERA5_Glass_win", "QUI_topGlass": "CUT_ERA5_Glass_winTop"}
+CUT_SRC = CUT_SRC + ("QUI_top", "QUI_awn", "QUI_sign")
+
+
+def build_quitanda():
+    mats_v2()
+    E = EM
+    E["wallN"] = V.m_flat("E2N_SpatiWallNavy", NAVY, .03, 1.2, .8, ao=.35)
+    E["wallC"] = V.m_flat("E2N_SpatiWallCream", CREAM, .02, 1.2, .8, ao=.35)
+    E["stone"] = V.m_flat("E2N_SpatiBase", C("ECE1CA"), .04, 2, .85, island=.03, ao=.35)
+    E["tile"] = V.m_flat("E2N_FloorTile", C("F1E8D5"), .03, 3, .7, island=.05, ao=.35)
+    E["tileN"] = V.m_flat("E2N_FloorTileNavy", NAVY2, .03, 3, .7, island=.05, ao=.35)
+    E["apron"] = V.m_flat("E2N_ApronPaver", C("E2D7BF"), .05, 3, .9, island=.06, ao=.4)
+    E["shutter"] = V.m_metal_paint("E2N_Shutter", C("2B3E66"), amount=0., ribs=('Z', .08))
+    c = col(QUI)
+    for o in list(c.all_objects): bpy.data.objects.remove(o)
+    lc = bpy.context.view_layer.layer_collection.children.get(QUI)
+    if lc: lc.exclude = False
+    gcl = glass_col(QUI)
+    todo = []
+
+    def NG(name, mat, **kw):
+        g = G(name, mat, c, **kw); todo.append(g); return g
+    fx0, fy0, fx1, fy1 = QUI_PLAN["floor"]; d0, d1 = QUI_PLAN["door"]
+    T = .19
+    ox0, ox1, oy0, oy1 = fx0 - T, fx1 + T, fy0 - T, fy1 + T          # x +-4.29, y -2.59..2.79
+    LOW, TOP = 1.28, 3.1
+    FL = QUI_PLAN["floorY"]
+    win = (.81, 3.49, .9)
+    # ---- floor: slab, tiles (cream with a navy checker band all round), apron pavers in front
+    gfs = NG("QUI_floorSlab", E["stone"], bevel=.01)
+    gfs.box((ox1 - ox0, oy1 - oy0, FL - .002), (0, (oy0 + oy1) / 2, (FL - .002) / 2))
+    gft = NG("QUI_floorTile", E["tile"]); gfn = NG("QUI_floorTileNavy", E["tileN"])
+    nx, ny = 20, 12; sx, sy = (fx1 - fx0) / nx, (fy1 - fy0) / ny
+    for i in range(nx):
+        for j in range(ny):
+            band = i in (0, nx - 1) or j in (0, ny - 1)
+            g = gfn if band and (i + j) % 2 == 0 else gft                          # navy / cream checker band
+            g.box((sx - .008, sy - .008, .004), (fx0 + (i + .5) * sx, fy0 + (j + .5) * sy, FL - .002))
+    gfs.box((d1 - d0, T, .004), ((d0 + d1) / 2, fy0 - T / 2, FL - .002))                       # threshold
+    gap = NG("QUI_apronPaver", E["apron"])
+    ay0, ay1 = -3.25, oy0 - .005
+    n = int((ox1 - ox0) / .5)
+    for i in range(n):
+        for j in range(2):
+            gap.box(((ox1 - ox0) / n - .01, (ay1 - ay0) / 2 - .01, .02), (ox0 + (i + .5) * (ox1 - ox0) / n, ay0 + (j + .5) * (ay1 - ay0) / 2, .01))
+    # ---- walls: navy outside, cream inside (lower part shown, upper CUT), cream piers framing the open front
+    gw = NG("QUI_wallNavy", E["wallN"]); gwi = NG("QUI_wallCream", E["wallC"])
+    gtw = NG("QUI_topWallNavy", E["wallN"]); gtwi = NG("QUI_topWallCream", E["wallC"])
+    def run(axis, a0, a1, outer, inner, z0, z1, top=False):
+        gO, gI = (gtw, gtwi) if top else (gw, gwi)
+        t_ = abs(outer - inner); mid = (outer + inner) / 2
+        if axis == 'x':          # along x, the outer face at y = outer
+            gO.box((a1 - a0, t_ * .55, z1 - z0), ((a0 + a1) / 2, outer + (inner - outer) * .275, (z0 + z1) / 2))
+            gI.box((a1 - a0, t_ * .45, z1 - z0), ((a0 + a1) / 2, inner - (inner - outer) * .225, (z0 + z1) / 2))
+        else:
+            gO.box((t_ * .55, a1 - a0, z1 - z0), (outer + (inner - outer) * .275, (a0 + a1) / 2, (z0 + z1) / 2))
+            gI.box((t_ * .45, a1 - a0, z1 - z0), (inner - (inner - outer) * .225, (a0 + a1) / 2, (z0 + z1) / 2))
+    for (z0, z1, top) in ((FL, LOW, False), (LOW + .04, TOP, True)):
+        run('x', ox0 + T, ox1 - T, oy1, fy1, z0, z1, top)                                         # back
+        run('y', oy0, oy1, ox0, fx0, z0, z1, top); run('y', oy0, oy1, ox1, fx1, z0, z1, top)        # sides
+        run('x', d1 + .06, win[0], oy0, fy0, z0, z1, top); run('x', win[1], fx1, oy0, fy0, z0, z1, top)
+        run('x', fx0, d0 - .06, oy0, fy0, z0, z1, top)
+    run('x', win[0], win[1], oy0, fy0, FL, win[2], False)
+    run('x', d0 - .06, d1 + .06, oy0, fy0, 2.45, TOP, True)                                       # over the open front
+    run('x', win[0], win[1], oy0, fy0, 2.3, TOP, True)                                           # over the window
+    # cream piers at the corners and both sides of the open front (pilasters), split at the cut
+    gpi = NG("QUI_pierStone", E["stone"], bevel=.01); gpt = NG("QUI_topPier", E["stone"], bevel=.01)
+    piers = [(ox0 + .12, .3), (d0 - .06 - .12, .3), ((d1 + win[0]) / 2 - .03, .2), (ox1 - .12, .3)]      # (x, width) on the front
+    pz0 = .022                                                                     # standing on the apron pavers
+    for x, w in piers:
+        gpi.box((w, .07, LOW - .02 - pz0), (x, oy0 - .037, (pz0 + LOW - .02) / 2)); gpt.box((w, .07, TOP - LOW - .06), (x, oy0 - .037, (LOW + .04 + TOP) / 2))
+        gpi.box((w + .04, .11, .03), (x, oy0 - .057, LOW - .005))                    # pier cap
+    for sxx in (-1, 1):
+        for y in (oy0 + .12, oy1 - .12):
+            gpi.box((.07, .3, LOW - .02), (sxx * (ox1 + .037), y, (LOW - .02) / 2)); gpt.box((.07, .3, TOP - LOW - .06), (sxx * (ox1 + .037), y, (LOW + .04 + TOP) / 2))
+            gpi.box((.11, .34, .03), (sxx * (ox1 + .057), y, LOW - .005))
+    # stone base and a cream coping with a thin gold bead at the cut
+    gb = NG("QUI_baseStone", E["stone"], bevel=.006)
+    for (x0, x1) in ((ox0 + .275, d0 - .06 - .275), ((d1 + win[0]) / 2 + .075, ox1 - .275)): gb.box((x1 - x0, .03, .3), ((x0 + x1) / 2, oy0 - .0155, .022 + .15))
+    for sxx in (-1, 1): gb.box((.03, oy1 - oy0 - .55, .32), (sxx * (ox1 + .0155), (oy0 + oy1) / 2, FL + .16))
+    gcap = NG("QUI_capStone", E["stone"], bevel=.004); gbead = NG("QUI_capBead", E["gold"], bevel=.002)
+    capz = LOW + .01
+    segs = [((ox0 + .275, d0 - .335), 'f'), ((win[1], ox1 - .275), 'f')]
+    for (x0, x1), _ in segs:
+        gcap.box((x1 - x0, T, .016), ((x0 + x1) / 2, (oy0 + fy0) / 2, capz)); gbead.box((x1 - x0, .018, .018), ((x0 + x1) / 2, oy0 - .009, capz + .017))
+    for sxx in (-1, 1):
+        gcap.box((T, oy1 - oy0 - .55, .016), (sxx * (fx1 + T / 2), (oy0 + oy1) / 2, capz)); gbead.box((.018, oy1 - oy0 - .55, .018), (sxx * (ox1 + .009), (oy0 + oy1) / 2, capz + .017))
+    gcap.box((ox1 - ox0 - .55, T, .016), (0, (fy1 + oy1) / 2, capz)); gbead.box((ox1 - ox0 - .55, .018, .018), (0, oy1 + .009, capz + .017))
+    # ---- shop window over the counter (navy frame, cream sill), glass EraGlass
+    gfr = NG("QUI_frameNavy", E["navyF"], bevel=.006); gtf = NG("QUI_topFrame", E["navyF"], bevel=.006)
+    gsill = NG("QUI_frameSill", E["stone"], bevel=.004)
+    wy = (oy0 + fy0) / 2
+    gsill.box((win[1] - win[0] - .006, T + .04, .03), ((win[0] + win[1]) / 2, wy - .04, win[2] + .015))
+    for x in (win[0] + .03, win[1] - .03, (win[0] + win[1]) / 2):
+        gfr.box((.05, .07, LOW - win[2] - .03), (x, wy, (win[2] + .03 + LOW) / 2))
+        gtf.box((.05, .07, 2.3 - LOW - .04), (x, wy, (LOW + .04 + 2.3) / 2))
+    gtf.box((win[1] - win[0], .07, .06), ((win[0] + win[1]) / 2, wy, 2.27))
+    gwg = G("QUI_glassWin", m_eraglass(), gcl); todo.append(gwg)
+    gwg.box((win[1] - win[0] - .06, .012, LOW - win[2] - .04), ((win[0] + win[1]) / 2, wy, (win[2] + .03 + LOW) / 2))
+    gtg = G("QUI_topGlass", m_eraglass(), gcl); todo.append(gtg)
+    gtg.box((win[1] - win[0] - .06, .012, 2.24 - LOW - .04), ((win[0] + win[1]) / 2, wy, (LOW + .04 + 2.24) / 2))
+    # ---- the open front: a rolled-up navy shutter in its box and the guide rails (above the cut)
+    gsh = NG("QUI_topShutter", E["shutter"], bevel=.01)
+    gsh.box((d1 - d0 + .2, .32, .32), ((d0 + d1) / 2, oy0 - .1, 2.6))
+    # ---- counter behind the window: wood top, navy front with a gold kick strip; register; stool
+    cx0, cy0, cx1, cy1 = 1.42, -1.62, 3.08, -.9
+    gcb = NG("QUI_counterBody", E["navyF"], bevel=.006, seg=1); gct = NG("QUI_counterTop", E["wood"], bevel=.008)
+    gck = NG("QUI_counterKick", E["gold"], bevel=.003)
+    gcb.box((cx1 - cx0, cy1 - cy0 - .02, .9), ((cx0 + cx1) / 2, (cy0 + .02 + cy1) / 2, FL + .45))
+    for k in range(4):
+        x0 = cx0 + .06 + k * (cx1 - cx0 - .12) / 4
+        gcb.box(((cx1 - cx0 - .12) / 4 - .04, .02, .6), (x0 + (cx1 - cx0 - .12) / 8, cy0 + .009, FL + .45))
+    gck.box((cx1 - cx0, .02, .05), ((cx0 + cx1) / 2, cy0 + .009, FL + .07))
+    gct.box((cx1 - cx0 + .04, cy1 - cy0 + .06, .05), ((cx0 + cx1) / 2, (cy0 + cy1) / 2 - .02, FL + .925))
+    rb = NG("QUI_regBody", E["regBody"], bevel=.008); rk = NG("QUI_regKey", E["regKey"], bevel=.004, seg=1)
+    rd = NG("QUI_regDark", E["dark"], bevel=.004); rc = NG("QUI_regCoin", E["coin"]); rn = NG("QUI_regNote", E["note"])
+    retro_register(rb, rk, rd, rc, rn, _T(2.6, -1.22, FL + .951, math.pi + .1))
+    gsl = NG("QUI_stool", E["navyF"])
+    gsl.cyl(.16, .04, (2.7, -.52, FL + .7), verts=20)
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        gsl.tube((2.7 + .14 * math.cos(a), -.52 + .14 * math.sin(a), FL + .002), (2.7 + .1 * math.cos(a), -.52 + .1 * math.sin(a), FL + .68), .016, verts=6)
+    # ---- outside under the window: a stepped wooden rack of vegetable crates on the apron (natural colours)
+    grk = NG("QUI_rack", E["wood"], bevel=.005, seg=1)
+    rx0, rx1, ry0, ry1 = .78, 3.52, -3.22, -2.66
+    tilt = math.radians(14); zb_ = .5
+    ym = (ry0 + ry1) / 2; bt = .03
+    ztop = lambda y: zb_ + bt / 2 / math.cos(tilt) + (y - ym) * math.tan(tilt)
+    grk.box((rx1 - rx0, (ry1 - ry0) / math.cos(tilt), bt), ((rx0 + rx1) / 2, ym, zb_), rot=(tilt, 0, 0))
+    for x in (rx0 + .04, (rx0 + rx1) / 2, rx1 - .04):
+        for y in (ry0 + .05, ry1 - .05):
+            h = ztop(y) - bt / math.cos(tilt) - .002; grk.box((.05, .05, h - .022), (x, y, .022 + (h - .022) / 2))
+    for y in (ry0 + .05, ry1 - .05):
+        for (xa, xb) in ((rx0 + .065, (rx0 + rx1) / 2 - .025), ((rx0 + rx1) / 2 + .025, rx1 - .065)): grk.box((xb - xa, .03, .03), ((xa + xb) / 2, y, .16))
+    crates = NG("QUI_crate", E["crateN"], bevel=.005, seg=1); gwd = NG("QUI_wedge", E["wood"], bevel=.003, seg=1)
+    gtc = NG("QUI_tagCard", E["chalk"]); PG = pg_factory(NG, "QUI_fruit")
+    cw, cd, ch = .62, .5, .17
+    for k, (kind, n, lod) in enumerate((("tomato", 26, 0), ("pepperR", 18, 0), ("onion", 22, 0), ("potato", 18, 0))):
+        x = rx0 + .05 + cw / 2 + k * (cw + .045)
+        yb = ry0 + .03
+        M0 = _T(x, yb, ztop(yb) + .002) @ Matrix.Rotation(tilt, 4, 'X') @ Matrix.Translation((0, cd / 2, 0))
+        crate_rect(crates, M0, cw, cd, ch)
+        gwd.box((cw - .09, cd - .046, .012), (0, 0, .044), M=M0)
+        heap(PG, M0, cw - .044, cd - .044, .05, kind, 110 + k, n, lod=lod)
+        tag(gtc, None, M0 @ Matrix.Translation((cw / 2 - .085, -cd / 2, ch)))
+    # ---- potted bushes at the two outer corners of the front
+    gpot = NG("QUI_bushPot", E["pot"], bevel=.01, seg=1); gsoil = NG("QUI_bushSoil", V.M["dirt"])
+    for k, (px, py) in enumerate(((-4.0, -2.95), (.25, -2.95))):
+        gpot.cyl(.16, .34, (px, py, .17 + .022), r2=.2, verts=20); gpot.torus(.2, .015, (px, py, .362), seg=20, rseg=5)
+        gsoil.cyl(.185, .02, (px, py, .345), verts=20)
+        V.city_tree("QUI_bush" + str(k), c, (px, py, .32), 1, rot_z=k * 2.4, tris=1200, crown_only=True, width=.5)
+    # ---- CUT_: roof with gold coping, the awning over the window and rack, the sign over the open front
+    gro = NG("QUI_topRoof", E["creamF"], bevel=.01)
+    gro.box((ox1 - ox0, oy1 - oy0, .12), (0, (oy0 + oy1) / 2, TOP + .06))
+    gco = NG("QUI_topCoping", E["gold"], bevel=.004)
+    gco.box((ox1 - ox0 + .04, .06, .05), (0, oy0 - .01, TOP + .145)); gco.box((ox1 - ox0 + .04, .06, .05), (0, oy1 + .01, TOP + .145))
+    for sxx in (-1, 1): gco.box((.06, oy1 - oy0 + .04, .05), (sxx * (ox1 + .01), (oy0 + oy1) / 2, TOP + .145))
+    gA = NG("QUI_awnNavy", E["navy"]); gB = NG("QUI_awnCream", E["creamB"]); gT = NG("QUI_awnTrim", E["gold"])
+    slope_awning((gA, gB), gT, win[0] - .01, win[1] + .12, oy0 - .02, 2.42, -3.25 + .02, 2.0, n=10, sag=0., hem=True)
+    for x in (win[0] + .04, win[1] + .05): gT.tube((x, oy0 - .025, 1.95), (x, -3.15, 2.02), .012, verts=6)
+    gsg = NG("QUI_signBoard", E["navyF"], bevel=.006); gsf = NG("QUI_signFrame", E["gold"], bevel=.005)
+    sx0_, sx1_, sz0_, sz1_ = d0 + .4, d1 - .4, 2.86, 3.0
+    gsg.box((sx1_ - sx0_, .05, sz1_ - sz0_ + .14), ((sx0_ + sx1_) / 2, oy0 - .04, (sz0_ + sz1_) / 2))
+    for z in (sz0_ - .07, sz1_ + .07): gsf.box((sx1_ - sx0_ + .05, .06, .035), ((sx0_ + sx1_) / 2, oy0 - .045, z))
+    for x in (sx0_, sx1_): gsf.box((.035, .06, sz1_ - sz0_ + .14), (x, oy0 - .045, (sz0_ + sz1_) / 2))
+    pm = picto_mats(); gp = {k: NG("QUI_sign" + k.capitalize(), pm[k]) for k in pm}
+    for k, kind in enumerate(("apple", "carrot", "cheese", "milk")):
+        pict(gp, Matrix.Translation((sx0_ + (k + .5) * (sx1_ - sx0_) / 4, oy0 - .066, (sz0_ + sz1_) / 2)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), kind, 1.2)
+    for gg in todo:
+        if len(gg.bm.verts): gg.done()
+        else: gg.bm.free()
+    for o in c.all_objects:
+        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "reg", "Pot", "banana")):
+            for p in o.data.polygons: p.use_smooth = True
+    return V.stats(c)
+
+
+ERAS["Era5_Quitanda"] = ("E2 Quitanda", "QUI_GROUPS", "ERA5_Shell", "QUI_GLASS")
