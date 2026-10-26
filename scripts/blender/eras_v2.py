@@ -747,7 +747,7 @@ def build_mesinha():
     # ---- spare stock box under the table
     tied_box(NG("MES_box", E["card"], bevel=.006), None, _T(.12, .2, 0, .08), .4, .3, .28, tape=False)
     # ---- three crates tilted towards the customers on wooden wedges
-    gcr = NG("MES_crate", E["pine"], bevel=.004, seg=1)
+    gcr = NG("MES_crate", E["crateN" if PALETTE == "navy" else "pine"], bevel=.004, seg=1)
     crates = {"pine": gcr, "plG": NG("MES_crateGreen", E["plG"], bevel=.005, seg=1), "plR": NG("MES_crateRed", E["plR"], bevel=.005, seg=1),
               "plB": NG("MES_crateBlue", E["plB"], bevel=.005, seg=1)}
     PG = pg_factory(NG, "MES_fruit")
@@ -785,7 +785,7 @@ def build_mesinha():
     gco = NG("MES_cashCoin", E["coin"]); gno = NG("MES_cashNote", E["note"])
     cash_tin(gm, gd, gco, gno, _T(1.06, .12, .522, .2))
     gco2 = NG("MES_coolerBox", E["coolR"], bevel=.012, seg=3)
-    gli = NG("MES_coolerLid", E["coolR"], bevel=.012, seg=3)
+    gli = NG("MES_coolerLid", E["creamF" if PALETTE == "navy" else "coolR"], bevel=.012, seg=3)
     gic = NG("MES_coolerIce", E["ice"])
     cans = {k: NG("MES_coolerCan" + k.capitalize(), E[k]) for k in ("canR", "canT", "canY", "alu", "bottle", "cap")}
     Mc = _T(1.0, -.4, 0, -.12)
@@ -809,14 +809,14 @@ def build_mesinha():
         a = math.radians(10) + 2 * math.pi * k / 8
         gR.tube((px + .03 * math.cos(a), py + .03 * math.sin(a), 1.62), (px + .5 * math.cos(a), py + .5 * math.sin(a), 2.12), .005, verts=4)
     # ---- A-frame board with a painted apple in front
-    gp = {"red": NG("MES_signRed", E["apple"]), "green": NG("MES_signGreen", E["stem"]),
-          "brown": NG("MES_signBrown", E["brown"]), "white": NG("MES_signWhite", E["chalk"])}
+    pm = picto_mats()
+    gp = {k: NG("MES_sign" + k.capitalize(), pm[k]) for k in ("red", "green", "brown", "white")}
     ab_board(NG("MES_signFrame", E["wood"], bevel=.004), NG("MES_signBoard", E["board"]), gp, _T(.2, -.6, .54, -.1))
     for gg in todo:
         if len(gg.bm.verts): gg.done()
         else: gg.bm.free()
     for o in c.objects:
-        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "melon", "banana", "can", "stem", "sign", "ice", "cash")):
+        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "melon", "banana", "can", "stem", "ice", "cash")):
             for p in o.data.polygons: p.use_smooth = True
     return V.stats(c)
 
@@ -1151,7 +1151,7 @@ def build_tenda(scheme="N"):
     trestle_table(gtt, gtl, -1.8, -.28, -1.0, -.4, .8)
     trestle_table(gtt, gtl, -.2, .62, -1.0, -.4, .8)
     # ---- crates tilted towards the customers on wedges; a hanging hand of bananas
-    gcr = NG("TEN_crate", E["pine"], bevel=.004, seg=1); gw = NG("TEN_wedge", E["wood"], bevel=.003, seg=1)
+    gcr = NG("TEN_crate", E["crateN" if PALETTE == "navy" else "pine"], bevel=.004, seg=1); gw = NG("TEN_wedge", E["wood"], bevel=.003, seg=1)
     crates = {"pine": gcr, "plB": NG("TEN_crateBlue", E["plB"], bevel=.005, seg=1), "plG": NG("TEN_crateGreen", E["plG"], bevel=.005, seg=1),
               "plY": NG("TEN_crateYellow", E["plY"], bevel=.005, seg=1)}
     PG = pg_factory(NG, "TEN_fruit")
@@ -1186,7 +1186,7 @@ def build_tenda(scheme="N"):
     rd = NG("TEN_regDark", E["dark"], bevel=.004); rc = NG("TEN_regCoin", E["coin"]); rn = NG("TEN_regNote", E["note"])
     retro_register(rb, rk, rd, rc, rn, _T(.9, -.66, .574, math.pi + .12))
     # ---- drinks: teal picnic cooler at the front right
-    gct = NG("TEN_coolerBody", E["coolB"], bevel=.015, seg=2); gcw = NG("TEN_coolerLid", E["coolB"], bevel=.012, seg=2)
+    gct = NG("TEN_coolerBody", E["coolB"], bevel=.015, seg=2); gcw = NG("TEN_coolerLid", E["creamF" if PALETTE == "navy" else "coolB"], bevel=.012, seg=2)
     gci = NG("TEN_coolerIce", E["ice"])
     cans = {k: NG("TEN_coolerCan" + k.capitalize(), E[k]) for k in ("canR", "canT", "canY", "alu", "bottle", "cap")}
     picnic_cooler(gct, gcw, gci, cans, _T(1.5, -.78, 0, -.1))
@@ -1210,14 +1210,14 @@ def build_tenda(scheme="N"):
         a = math.pi / 4 + k * math.pi / 2
         gsl.tube((.2 + .15 * math.cos(a), .15 + .15 * math.sin(a), 0), (.2 + .1 * math.cos(a), .15 + .1 * math.sin(a), .46), .018, verts=6)
     # ---- A-frame board with a painted apple at the left front corner
-    gp = {"red": NG("TEN_signRed", E["apple"]), "green": NG("TEN_signGreen", E["stem"]),
-          "brown": NG("TEN_signBrown", E["brown"]), "white": NG("TEN_signWhite", E["chalk"])}
+    pm = picto_mats()
+    gp = {k: NG("TEN_sign" + k.capitalize(), pm[k]) for k in ("red", "green", "brown", "white")}
     ab_board(NG("TEN_signFrame", E["wood"], bevel=.004), NG("TEN_signBoard", E["board"]), gp, _T(-1.98, -.25, .54, -.35))
     for gg in todo:
         if len(gg.bm.verts): gg.done()
         else: gg.bm.free()
     for o in c.objects:
-        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "melon", "banana", "Can", "Bulb", "sign", "Ice", "reg")):
+        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "melon", "banana", "Can", "Bulb", "Ice", "reg")):
             for p in o.data.polygons: p.use_smooth = True
     return V.stats(c)
 
@@ -1253,6 +1253,8 @@ def import_export(name):
     cname = "NEW " + name
     c = col(cname)
     for o in list(c.objects): bpy.data.objects.remove(o)
+    lc = bpy.context.view_layer.layer_collection.children.get(cname)
+    if lc: lc.exclude = False          # (an excluded collection is not evaluated: stale matrix_world)
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=p)
     objs = [o for o in bpy.data.objects if o not in before]
@@ -1528,6 +1530,7 @@ def mats_v2():
     E["calyx"] = V.m_flat("E2_Calyx", C("3F8A2A"), .06, 9, .7, ao=0)
     E["leafO"] = V.m_flat("E2_FruitLeaf", C("3C8F33"), .06, 9, .6, ao=0)
     E["onionTop"] = V.m_flat("E2_OnionTop", C("C9A26E"), .05, 9, .9, ao=0)
+    if PALETTE == "navy": mats_navy(E)
     return E
 
 
@@ -1543,6 +1546,47 @@ TEXEL_V2 = dict(TEXEL, **{"E2_Tomato": 1.1, "E2_OrangeFruit": 1.1, "E2_Lime": 1.
                           "E2_BluePaint": 1.0, "E2_GreenPaint": 1.0, "E2_CanvasNavy": 1.4, "E2_CanvasCreamBrand": 1.4,
                           "E2_NavyPaint": 1.0, "E2_NavyFlat": 1.0, "E2_ContainerYellow": 1.0, "E2_ContainerNavy": .8,
                           "E2_LinerCream": .5})
+
+
+# ------------------------------------------------------------------ the brand palette (v4)
+PALETTE = "navy"            # Lucas 26/10 19:57: everything navy-led; "v2" restores the multi-colour palette
+NAVY, NAVY2, CREAM, GOLD = C("1D2B4F"), C("2E4A7D"), C("F4EBD8"), C("D3A53D")
+
+
+def mats_navy(E):
+    """Closed palette: navy #1D2B4F dominant, a mid navy #2E4A7D for volumes, cream, gold #D3A53D only on thin details,
+    natural wood for tables and racks. Produce keeps its natural colours (the only colour allowed). Drinks / dairy
+    in soft tones of the same family. The keys keep their old names so every builder picks the new colours."""
+    nf = V.m_flat("E2N_Navy", NAVY, .03, 3, .45, ao=.35)
+    n2f = V.m_flat("E2N_Navy2", NAVY2, .03, 3, .45, ao=.35)
+    crf = V.m_flat("E2N_Cream", CREAM, .02, 3, .6, ao=0)
+    E["navyF"] = nf; E["navy2F"] = n2f; E["creamF"] = crf
+    E["navy"] = m_canvas("E2_CanvasNavy", NAVY, .04)
+    E["creamB"] = m_canvas("E2_CanvasCreamBrand", CREAM, .02)
+    E["canR"] = E["navy"]; E["canW"] = E["creamB"]                       # (also the cooler's cans: navy / cream / gold)
+    E["canY"] = m_canvas("E2N_CanvasGold", GOLD, .03)
+    E["canOr"] = E["canBl"] = m_canvas("E2N_CanvasNavy2", NAVY2, .04)
+    E["canT"] = V.m_flat("E2N_CanCream", C("EDE3CF"), .02, 9, .35, ao=.1)
+    E["ginghamB"] = E["ginghamR"] = m_gingham("E2N_GinghamNavy", a=CREAM, b=NAVY, w=.07)
+    crate = m_plastic("E2N_CrateNavy", NAVY2)
+    for k in ("plR", "plB", "plG", "plY", "crateN"): E[k] = crate
+    np_ = V.m_paint_wood("E2_NavyPaint", NAVY, C("C9A170"), .06)
+    E["navyP"] = np_
+    for k in ("redP", "grnP", "teal"): E[k] = np_
+    E["yelP"] = E["cream"] = V.m_paint_wood("E2N_CreamPaint", CREAM, C("C9A170"), .06)
+    E["bluP"] = E["orangeP"] = V.m_paint_wood("E2N_Navy2Paint", NAVY2, C("C9A170"), .06)
+    for k in ("coolR", "coolB", "bucketB", "bucket", "frameB"): E[k] = nf
+    E["regBody"] = E["metalT"] = V.m_metal_paint("E2N_RegNavy", NAVY, amount=.04)
+    E["board"] = V.m_flat("E2N_Slate", C("22325A"), .04, 3, .85, ao=.3)
+    E["bottle"] = V.m_flat("E2N_BottleSoft", C("A9BCD4"), .03, 9, .2, ao=.1)
+    E["cap"] = E["gold"]
+    E["sand"] = V.m_flat("E2N_Sandbag", C("E4D9C1"), .05, 7, .9, island=.05, ao=.45)
+    E["pot"] = n2f
+    E["note"] = V.m_flat("E2N_Note", C("E9DFC8"), .03, 9, .8, ao=0)
+    E["chestBody"] = nf
+    E["yog"] = V.m_flat("E2N_Yoghurt", C("C9D5E6"), .03, 9, .4, ao=0)
+    E["milkBand"] = n2f
+    return E
 
 
 # ------------------------------------------------------------------ produce geometry
@@ -1725,14 +1769,21 @@ BPX, BYF, BYB = 1.65, -.95, .92
 
 
 def picto_mats():
-    """Clean flat colours for painted pictograms (swatch cells, no painted AO: no speckles)."""
+    """Clean flat colours for painted pictograms (swatch cells, no painted AO: no speckles). Navy palette: the
+    pictograms are painted in cream and gold only (no colour outside the brand on signs)."""
+    if PALETTE == "navy":
+        cr, gd, n2 = C("F4EBD8"), C("D3A53D"), C("2E4A7D")
+        return {"red": V.m_flat("E2_PictoRed", cr, .0, 9, .6, ao=0), "green": V.m_flat("E2_PictoGreen", gd, .0, 9, .6, ao=0),
+                "brown": V.m_flat("E2_PictoBrown", gd, .0, 9, .6, ao=0), "white": V.m_flat("E2_PictoWhite", cr, .0, 9, .6, ao=0),
+                "yellow": V.m_flat("E2_PictoYellow", gd, .0, 9, .6, ao=0), "blue": V.m_flat("E2_PictoBlue", n2, .0, 9, .6, ao=0),
+                "orange": V.m_flat("E2_PictoOrange", gd, .0, 9, .6, ao=0)}
     return {"red": V.m_flat("E2_PictoRed", C("E23B2E"), .0, 9, .6, ao=0), "green": V.m_flat("E2_PictoGreen", C("3FA548"), .0, 9, .6, ao=0),
             "brown": V.m_flat("E2_PictoBrown", C("7A4E2A"), .0, 9, .6, ao=0), "white": V.m_flat("E2_PictoWhite", C("FBF8F0"), .0, 9, .6, ao=0),
             "yellow": V.m_flat("E2_PictoYellow", C("F7C531"), .0, 9, .6, ao=0), "blue": V.m_flat("E2_PictoBlue", C("2E73CF"), .0, 9, .6, ao=0),
             "orange": V.m_flat("E2_PictoOrange", C("F7861E"), .0, 9, .6, ao=0)}
 
 
-def build_banca(scheme="A"):
+def build_banca(scheme="N"):
     mats_v2()
     E = EM
     E["milk"] = V.m_flat("E2_Milk", C("F7F4EC"), .02, 9, .5, ao=0)
@@ -1741,6 +1792,7 @@ def build_banca(scheme="A"):
     E["yog"] = V.m_flat("E2_Yoghurt", C("F29BB4"), .03, 9, .4, ao=0)
     E["well"] = V.m_flat("E2_DairyWell", C("BFE3F2"), .03, 9, .5, ao=.3)
     E["chestBody"] = V.m_flat("E2_ChestRed", C("D93A30"), .03, 5, .45, ao=.4)
+    if PALETTE == "navy": mats_navy(E)
     c = col(BAN)
     for o in list(c.all_objects): bpy.data.objects.remove(o)
     gcl = glass_col(BAN)
@@ -1748,7 +1800,7 @@ def build_banca(scheme="A"):
 
     def NG(name, mat, **kw):
         g = G(name, mat, c, **kw); todo.append(g); return g
-    ca, cb, ct = {"A": ("grnP", "creamB", "gold"), "B": ("canR", "canW", "gold")}[scheme]
+    ca, cb, ct = {"A": ("grnP", "creamB", "gold"), "B": ("canR", "canW", "gold"), "N": ("navy", "creamB", "gold")}[scheme]
     if scheme == "A": E["awnGreen"] = m_canvas("E2_CanvasGreen", C("2E9E4A"), .04); ca = "awnGreen"
     # ---- frame: posts, beams, rafters (natural wood)
     gpo = NG("BAN_post", E["wood"], bevel=.008)
@@ -1765,8 +1817,8 @@ def build_banca(scheme="A"):
     gA = NG("BAN_awnA", E[ca]); gB = NG("BAN_awnB", E[cb]); gT = NG("BAN_awnTrim", E[ct])
     slope_awning((gA, gB), gT, x0, x1, yb, zb, yf, zf, n=10, sag=.0, hem=True)
     # ---- counter: plank front painted blue, yellow frame, red kick plate, natural wood top, inner shelf
-    gcb = NG("BAN_counterBody", E["wood"], bevel=.006, seg=1); gcy = NG("BAN_counterTrim", E["yelP"], bevel=.004, seg=1)
-    gcr_ = NG("BAN_counterKick", E["redP"], bevel=.004, seg=1); gct = NG("BAN_counterTop", E["wood"], bevel=.008)
+    gcb = NG("BAN_counterBody", E["wood"], bevel=.006, seg=1); gcy = NG("BAN_counterTrim", E["navyP" if PALETTE == "navy" else "yelP"], bevel=.004, seg=1)
+    gcr_ = NG("BAN_counterKick", E["wood" if PALETTE == "navy" else "redP"], bevel=.004, seg=1); gct = NG("BAN_counterTop", E["wood"], bevel=.008)
     CX, CY0, CY1, CH = 1.42, -.75, .04, .88
     n = 12
     for k in range(n):
@@ -1781,7 +1833,7 @@ def build_banca(scheme="A"):
     gct.box((2 * CX - .1, .3, .025), (0, -.12, .36))                          # inner shelf (stock side)
     # ---- crates tilted towards the customers on wedges, heaped produce
     tilt = math.radians(12); cw, cd, ch = .48, .34, .19
-    crates = {"pine": NG("BAN_crate", E["pine"], bevel=.004, seg=1), "plG": NG("BAN_crateGreen", E["plG"], bevel=.005, seg=1),
+    crates = {"pine": NG("BAN_crate", E["crateN" if PALETTE == "navy" else "pine"], bevel=.004, seg=1), "plG": NG("BAN_crateGreen", E["plG"], bevel=.005, seg=1),
               "plB": NG("BAN_crateBlue", E["plB"], bevel=.005, seg=1), "plY": NG("BAN_crateYellow", E["plY"], bevel=.005, seg=1)}
     gw = NG("BAN_wedge", E["wood"], bevel=.003, seg=1); gtg = NG("BAN_tagCard", E["chalk"])
     PG = pg_factory(NG, "BAN_fruit")
@@ -1827,8 +1879,7 @@ def build_banca(scheme="A"):
         Mp = Matrix.Translation((sx0 + (k + .5) * (sx1 - sx0) / 4, sy - .0125, (sz0 + sz1) / 2)) @ Matrix.Rotation(math.pi / 2, 4, 'X')
         pict(gp, Mp, kind, 1.05)
     # ---- A-frame board (front left) with a cheese pictogram... an apple
-    gp2 = {"red": NG("BAN_boardRed", E["redP"]), "green": NG("BAN_boardGreen", E["stem"]), "brown": NG("BAN_boardBrown", E["brown"]),
-           "white": NG("BAN_boardWhite", E["chalk"])}
+    gp2 = {k: NG("BAN_board" + k.capitalize(), pm[k]) for k in ("red", "green", "brown", "white")}
     ab_board(NG("BAN_boardFrame", E["wood"], bevel=.004), NG("BAN_boardSlate", E["board"]), gp2, _T(-1.0, -.98, .54, -.12))
     # ---- back: stock crates with watermelons (right), box + sack (left), stool for the seller
     gs2 = NG("BAN_stockCrate", E["plR"], bevel=.005, seg=1)
@@ -1849,7 +1900,7 @@ def build_banca(scheme="A"):
         if len(gg.bm.verts): gg.done()
         else: gg.bm.free()
     for o in c.all_objects:
-        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "melon", "banana", "Can", "sign", "reg", "dairy", "scale")):
+        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "melon", "banana", "Can", "reg", "dairy", "scale")):
             for p in o.data.polygons: p.use_smooth = True
     return V.stats(c)
 
@@ -1912,8 +1963,16 @@ def build_conteiner():
     E["well"] = V.m_flat("E2_DairyWell", C("BFE3F2"), .03, 9, .5, ao=.3)
     snack = [m_plastic("E2_Snack" + k, C(h)) for k, h in (("Red", "E5372C"), ("Yellow", "F8C531"), ("Blue", "2E6FD6"),
                                                            ("Green", "3DAA47"), ("Orange", "F7841D"), ("Purple", "8B4BB8"))]
+    if PALETTE == "navy":
+        mats_navy(E)
+        E["contY"] = V.m_flat("E2N_ContainerNavy", NAVY, .03, 2, .45, ao=.4)
+        E["contN"] = V.m_flat("E2N_ContainerCream", C("EFE5CF"), .02, 3, .5, ao=.3)
+        snack = [m_plastic("E2N_Snack" + k, C(h)) for k, h in (("Navy", "2E4A7D"), ("Cream", "F1E6CF"), ("Gold", "D3A53D"),
+                                                                ("NavyB", "3A5890"), ("CreamB", "E6D8BA"), ("GoldB", "C8993A"))]
     c = col(CON)
     for o in list(c.all_objects): bpy.data.objects.remove(o)
+    lc = bpy.context.view_layer.layer_collection.children.get(CON)
+    if lc: lc.exclude = False          # (city_tree() applies its Decimate through the depsgraph: must be evaluated)
     gcl = glass_col(CON)
     todo = []
 
@@ -1954,9 +2013,9 @@ def build_conteiner():
     for y in (CY0 + .05, CY1 - .05): gtr.box((CX1 - CX0 - .24, .1, .1), (0, y, CTOP - .09))
     for x in (CX0 + .05, CX1 - .05): gtr.box((.1, CY1 - CY0 - .2, .1), (x, (CY0 + CY1) / 2, CTOP - .09))
     gcap = NG("CON_shellCap", E["gold"], bevel=.004)                                                 # cap of the low walls
-    for y in (CY1 - .035,): gcap.box((CX1 - CX0 - .26, .08, .018), (0, y, CCUT + .0005))
-    for sx in (-1, 1): gcap.box((.09, CY1 - CY0 - .26, .018), (sx * (CX1 - .055), (CY0 + CY1) / 2, CCUT + .0005))
-    for a0, a1 in ((CX0 + .13, -1.3), (1.3, CX1 - .13)): gcap.box((a1 - a0, .09, .018), ((a0 + a1) / 2, CY0 + .055, CCUT + .0005))
+    for y in (CY1 - .035,): gcap.box((CX1 - CX0 - .26, .05, .014), (0, y, CCUT + .0005))
+    for sx in (-1, 1): gcap.box((.05, CY1 - CY0 - .26, .014), (sx * (CX1 - .05), (CY0 + CY1) / 2, CCUT + .0005))
+    for a0, a1 in ((CX0 + .13, -1.3), (1.3, CX1 - .13)): gcap.box((a1 - a0, .05, .014), ((a0 + a1) / 2, CY0 + .045, CCUT + .0005))
     gfl = NG("CON_shellFloor", E["wood"], bevel=.004, seg=1)
     for k in range(10):
         y0_ = CY0 + .1 + k * (CY1 - CY0 - .2) / 10
@@ -1975,7 +2034,7 @@ def build_conteiner():
         for y in (ry0 + .03, ry1 - .03): gra.box((.045, .045, rz), (x, y, rz / 2))
     for k in range(5): gra.box((rx1 - rx0, (ry1 - ry0) / 5 - .01, .02), ((rx0 + rx1) / 2, ry0 + (k + .5) * (ry1 - ry0) / 5, rz + .01))
     gra.box((rx1 - rx0 - .06, .03, .03), ((rx0 + rx1) / 2, ry0 + .03, .12)); gra.box((rx1 - rx0 - .06, .03, .03), ((rx0 + rx1) / 2, ry1 - .03, .12))
-    crates = {"pine": NG("CON_crate", E["pine"], bevel=.004, seg=1), "plR": NG("CON_crateRed", E["plR"], bevel=.005, seg=1),
+    crates = {"pine": NG("CON_crate", E["crateN" if PALETTE == "navy" else "pine"], bevel=.004, seg=1), "plR": NG("CON_crateRed", E["plR"], bevel=.005, seg=1),
               "plB": NG("CON_crateBlue", E["plB"], bevel=.005, seg=1)}
     gw = NG("CON_wedge", E["wood"], bevel=.003, seg=1); gtg = NG("CON_tagCard", E["chalk"])
     PG = pg_factory(NG, "CON_fruit")
@@ -2016,7 +2075,7 @@ def build_conteiner():
                 x += w + .015
     # drinks fridge: red body, yellow header, light inside, glass door (EraGlass), bottles and cans on 4 shelves
     fx0, fx1, fy0, fy1, fz1 = .58, 1.34, .52, 1.28, 1.86
-    gfb = NG("CON_fridgeBody", E["coolR"], bevel=.012); gfh = NG("CON_fridgeHeader", E["contY"], bevel=.006)
+    gfb = NG("CON_fridgeBody", E["coolR"], bevel=.012); gfh = NG("CON_fridgeHeader", E["creamF" if PALETTE == "navy" else "contY"], bevel=.006)
     gfi = NG("CON_fridgeIn", E["fridgeIn"]); gfg = NG("CON_fridgeHandle", E["gold"], bevel=.004)
     t = .05
     gfb.box((fx1 - fx0, t, fz1 - CFL), ((fx0 + fx1) / 2, fy1 - t / 2, (fz1 + CFL) / 2))
@@ -2072,7 +2131,7 @@ def build_conteiner():
     gA = NG("CON_awnRed", E["canR"]); gB = NG("CON_awnWhite", E["canW"]); gT = NG("CON_awnTrim", E["gold"])
     slope_awning((gA, gB), gT, -1.42, 1.42, CY0 - .03, 2.3, -1.27, 1.98, n=8, sag=0., hem=True)
     for x in (-1.3, 1.3): gT.tube((x, CY0 - .035, 1.95), (x, -1.2, 2.0), .012, verts=6)
-    gsg = NG("CON_signTopBoard", E["contN"], bevel=.006); gsf = NG("CON_signTopFrame", E["gold"], bevel=.005)
+    gsg = NG("CON_signTopBoard", E["navyF" if PALETTE == "navy" else "contN"], bevel=.006); gsf = NG("CON_signTopFrame", E["gold"], bevel=.005)
     gsg.box((2.3, .05, .5), (0, CY0 + .2, CTOP + .32)); gsf.box((2.36, .06, .04), (0, CY0 + .2, CTOP + .06)); gsf.box((2.36, .06, .04), (0, CY0 + .2, CTOP + .58))
     for x in (-1.16, 1.16): gsf.box((.04, .06, .56), (x, CY0 + .2, CTOP + .32))
     for x in (-.8, .8): gsf.box((.05, .3, .08), (x, CY0 + .32, CTOP + .01))
@@ -2087,3 +2146,28 @@ def build_conteiner():
         if o.type == 'MESH' and any(k in o.name for k in ("fruit", "Can", "reg", "dairy", "snack", "Wall", "awn")):
             for p in o.data.polygons: p.use_smooth = True
     return V.stats(c)
+
+
+def sheet(names=("Era0_Mesinha", "Era1_Tenda", "Era2_Banca", "Era3_Conteiner"), out="eras_palette_navy_all", gap=1.4):
+    """The re-imported exports side by side (fronts on one line, as the game shows them: CUT_* off), one iso camera."""
+    stage(); stage_pavers()
+    show_only(*["NEW " + n for n in names])
+    roots = []; x = 0.
+    for n in names:
+        objs = game_objs("NEW " + n); lo, hi = bounds(objs)
+        r = bpy.data.objects["NEWROOT_" + n]
+        r.location = (r.location.x + x - lo.x, r.location.y - lo.y, 0); roots.append((r, n))
+        x += (hi.x - lo.x) + gap
+    bpy.context.view_layer.update()
+    show_only(*["NEW " + n for n in names])
+    cut = [o for n in names for o in game_hidden("NEW " + n)]
+    for o in cut: o.hide_render = True
+    try:
+        allo = [o for n in names for o in game_objs("NEW " + n)]
+        lo, hi = bounds(allo); cc = (lo + hi) / 2
+        camera((cc.x, cc.y, .9), (hi.x - lo.x) * .9, GAME_DIR, res=(2600, 1300))
+        p = render(out)
+    finally:
+        for o in cut: o.hide_render = False
+        for r, n in roots: r.location = (0, 0, 0)
+    return p
