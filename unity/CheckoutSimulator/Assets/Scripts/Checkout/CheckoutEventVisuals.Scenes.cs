@@ -215,7 +215,8 @@ namespace Checkout {
   // A bus or truck path from the east end of the avenue to a curbside stop (front at frontX) in the westbound lane.
   static Vector3[] ArriveWest(float stopX) => new[] { Road(37f, LaneW), Road(stopX, LaneW) };
   // From a westbound curbside stop out through the roundabout and up the west street.
-  static Vector3[] LeaveWest(float fromX) => CheckoutRoundabout.Route(new[] { Road(fromX, LaneW), Road(-22.4f, LaneW), Road(-22.4f, 37f) });
+  // (the drive bends it round the roundabout's island: CheckoutVehiclePath)
+  static Vector3[] LeaveWest(float fromX) => new[] { Road(fromX, LaneW), Road(-22.4f, LaneW), Road(-22.4f, 37f) };
 
   // ================================================================ hora do rush
   // A city bus pulls up at the stop, opens its doors onto the curb, a crowd of workers gets off and walks to the
@@ -699,19 +700,20 @@ namespace Checkout {
    var director = this.director;   // the stories run later: they keep this scene's director
    jams.Add(building); Focus(Road(doorW.x + 3f, -14.5f));
    string[] cars = { "Rig_JamCar", "Rig_CarBlue", "Rig_CarWhite", "Rig_JamCar", "Rig_CarYellow", "Rig_CarTeal", "Rig_CarGreen" };
-   var lanes = new List<Vector3[]> {
-    CheckoutRoundabout.Route(new[] { Road(37, LaneW), Road(-22.4f, LaneW), Road(-22.4f, 37) }),
-    CheckoutRoundabout.Route(new[] { Road(37, LaneW2), Road(-37, LaneW2) }),
-    CheckoutRoundabout.Route(new[] { Road(-37, LaneE2), Road(37, LaneE2) }),
+   // each lane one smooth path (round the roundabout's island, its corners rounded: CheckoutVehiclePath)
+   var lanes = new List<CheckoutVehiclePath> {
+    new CheckoutVehiclePath().Build(new[] { Road(37, LaneW), Road(-22.4f, LaneW), Road(-22.4f, 37) }),
+    new CheckoutVehiclePath().Build(new[] { Road(37, LaneW2), Road(-37, LaneW2) }),
+    new CheckoutVehiclePath().Build(new[] { Road(-37, LaneE2), Road(37, LaneE2) }),
    };
    var all = new List<JamCar>();
    int k = 0;
    for (int l = 0; l < lanes.Count; l++) {
-    var path = lanes[l]; float length = PathLength(path);
+    var path = lanes[l]; float length = path.Length;
     int n = Mathf.FloorToInt(length / 7.2f);
     for (int i = 0; i < n; i++) {
      var rig = cars[(k++) % cars.Length];
-     var v = Vehicle(rig, path[0], 0);
+     var v = Vehicle(rig, path.Sample(0, out _), 0);
      // the driver forward to the window he talks through, and a little lower in his seat: leaning out to wave or to
      // take the bottle his head reached 3 cm into the roof's edge in the rig itself (measured in Blender)
      if (rig == "Rig_JamCar") CheckoutBoneNudge.Add(CheckoutEventAssets.Bone(v.transform, "Driver_Root"), v.transform, new Vector3(.3f, -.08f, 0));
@@ -748,7 +750,7 @@ namespace Checkout {
     }
    }
   }
-  sealed class JamCar { public CheckoutEventVehicle car; public int lane; public Vector3[] path; public float length, s, speed, phase, waited; public bool window; }
+  sealed class JamCar { public CheckoutEventVehicle car; public int lane; public CheckoutVehiclePath path; public float length, s, speed, phase, waited; public bool window; }
   List<JamCar> jamCars;
   static bool HeldAhead(List<JamCar> all, JamCar j) {
    var at = j.car.transform.position; var heading = j.car.Forward;
@@ -761,14 +763,10 @@ namespace Checkout {
    return false;
   }
   static float PathLength(Vector3[] p) { float l = 0; for (int i = 1; i < p.Length; i++) l += Vector3.Distance(p[i - 1], p[i]); return l; }
-  static Vector3 AlongPath(Vector3[] p, float s, out Vector3 dir) {
-   for (int i = 1; i < p.Length; i++) { float l = Vector3.Distance(p[i - 1], p[i]); if (s <= l || i == p.Length - 1) { dir = (p[i] - p[i - 1]).normalized; return Vector3.Lerp(p[i - 1], p[i], l > 0 ? Mathf.Clamp01(s / l) : 0); } s -= l; }
-   dir = Vector3.right; return p[p.Length - 1];
-  }
   static bool OnRing(Vector3 p) { var c = CheckoutRoundabout.Current; return c && Vector2.Distance(new Vector2(p.x, p.z), new Vector2(c.center.x, c.center.z)) < c.clipRadius + .4f; }
   IEnumerator Creep(List<JamCar> all) {
    // stop-and-go: every lane breathes on a slow wave; each car keeps its gap to whatever is ahead
-   foreach (var j in all) { var p = AlongPath(j.path, Mathf.Repeat(j.s, j.length), out var d); j.car.transform.position = p; j.car.Face(d); }
+   foreach (var j in all) { var p = j.path.Sample(Mathf.Repeat(j.s, j.length), out var d); j.car.transform.position = p; j.car.Face(d); }
    while (true) {
     float dt = Time.deltaTime, now = Time.time;
     foreach (var j in all) {
@@ -784,10 +782,9 @@ namespace Checkout {
      j.speed = Mathf.MoveTowards(j.speed, target, (target < j.speed ? 4f : 1.4f) * dt);
      float step = j.speed * dt; j.s += step;
      bool wrapped = j.s > j.length; if (wrapped) j.s -= j.length;   // off the map's edge, back in at the other end
-     var p = AlongPath(j.path, j.s, out var d);
-     j.car.transform.position = p;
-     var want = Quaternion.Euler(0, CheckoutEventVehicle.YawFor(d), 0);
-     j.car.transform.rotation = wrapped ? want : Quaternion.RotateTowards(j.car.transform.rotation, want, dt * 120f);
+     // on the smooth lane path the car always faces the way it moves (Lucas 26/10: no more sliding round the ring)
+     var p = j.path.Sample(j.s, out var d);
+     j.car.transform.position = p; j.car.Face(d);
      j.car.Moved(step, dt);
     }
     yield return null;
@@ -965,7 +962,7 @@ namespace Checkout {
    // to the outer half of the eastbound inner lane
    const float vanLane = LaneE2 - .55f;
    var van = Vehicle("Rig_SoundVan", Road(-37, vanLane), East);
-   var path = CheckoutRoundabout.Route(new[] { Road(-37, vanLane), Road(37, vanLane) }); Focus(Road(doorW.x, -17f));
+   var path = new[] { Road(-37, vanLane), Road(37, vanLane) }; Focus(Road(doorW.x, -17f));   // Drive bends it round the roundabout
    director.OnReset(() => { van.transform.position = path[0]; van.Face(EastDir); });
    Story(() => Tour());
    IEnumerator Tour() {

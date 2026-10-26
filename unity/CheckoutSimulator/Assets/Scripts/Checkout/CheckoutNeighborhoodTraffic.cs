@@ -26,7 +26,16 @@ namespace Checkout
             [System.NonSerialized] public Renderer[] body;
             [System.NonSerialized] public int destination=-1;
             [System.NonSerialized] public bool passengerWalking, toMarket;
+            // Lucas 26/10 (smooth turns): the stretch of the route it is driving, as one smooth path, the route stops on it
+            // (plan[k] is passed at path.WaypointAt(k + 1); point 0 is where the car stood) and how far along it is.
+            [System.NonSerialized] public CheckoutVehiclePath path;
+            [System.NonSerialized] public List<int> plan;
+            [System.NonSerialized] public int planNext, planSig;
+            [System.NonSerialized] public bool planned;
+            [System.NonSerialized] public float s, speed;
         }
+        const float Cruise=3.4f,Accel=2.2f,Brake=2.6f,HardBrake=6f;
+        readonly List<Vector3> planPoints=new List<Vector3>();
         const float MarketStopX=8.5f; // Past the road works, so a car dropping off never blocks them.
         public Visit[] route;
         public Car[] cars;
@@ -89,35 +98,9 @@ namespace Checkout
             foreach(var car in cars)
             {
                 UpdatePassenger(car);
-                var stop=route[car.waypoint];
                 if(car.phase==0)
                 {
-                    var delta=stop.road-car.vehicle.position;delta.y=0;
-                    if(delta.sqrMagnitude>.04f)
-                    {
-                        var direction=delta.normalized;
-                        // event vehicles (a bus at its stop, the sound car…) are waited for, never crept through
-                        if(CheckoutEventTraffic.Blocks(car.vehicle.position+direction*1.9f,direction,2.6f,.9f))continue;
-                        if(CheckoutTrafficJunctions.Hold(car.vehicle,direction,Blocked(car,direction)))continue;
-                        var heading=Quaternion.LookRotation(direction);
-                        float speed=3.4f*Mathf.Lerp(.25f,1,1-Mathf.Clamp01(Quaternion.Angle(car.vehicle.rotation,heading)/70));
-                        car.vehicle.rotation=Quaternion.RotateTowards(car.vehicle.rotation,heading,Time.deltaTime*110);
-                        car.vehicle.position=Vector3.MoveTowards(car.vehicle.position,stop.road,Time.deltaTime*speed);
-                        continue;
-                    }
-                    if(stop.entrance==Vector3.zero||car.waypoint!=car.destination||(car.waypoint==marketStop&&!MarketOpen)){Next(car);continue;}
-                    car.destination=-1; // Consume the sole stop before starting the drop-off.
-                    car.visitor.gameObject.SetActive(true);
-                    car.visitor.updateRotation=false;
-                    car.visitor.updateUpAxis=false;
-                    if(!NavMesh.SamplePosition(stop.sidewalk,out var hit,1,NavMesh.AllAreas)||!car.visitor.Warp(hit.position))
-                    {car.visitor.gameObject.SetActive(false);Next(car);continue;}
-                    var path=new NavMeshPath();
-                    if(!car.visitor.CalculatePath(stop.entrance,path)||path.status!=NavMeshPathStatus.PathComplete)
-                    {car.visitor.gameObject.SetActive(false);Next(car);continue;}
-                    var facing=path.corners.Length>1?path.corners[1]-hit.position:stop.entrance-hit.position;facing.y=0;
-                    if(facing.sqrMagnitude>.001f)car.visitor.transform.rotation=Quaternion.LookRotation(-facing);
-                    car.visitor.SetPath(path);car.visitor.isStopped=false;car.passengerWalking=true;car.toMarket=car.waypoint==marketStop;car.phase=1;car.wait=0;car.visits++;
+                    Drive(car);
                 }
                 else if(car.phase==2)
                 {
@@ -125,7 +108,7 @@ namespace Checkout
                     if(car.wait<0||cars.Any(o=>o!=car&&o.vehicle.gameObject.activeSelf&&(o.vehicle.position-car.vehicle.position).sqrMagnitude<25))continue;
                     var ahead=route[(car.waypoint+1)%route.Length].road-car.vehicle.position;ahead.y=0;
                     if(ahead.sqrMagnitude>.01f)car.vehicle.rotation=Quaternion.LookRotation(ahead);
-                    car.vehicle.gameObject.SetActive(true);car.phase=0;car.wait=0;
+                    car.vehicle.gameObject.SetActive(true);car.phase=0;car.wait=0;car.planned=false;car.speed=Cruise; // comes in at road speed
                 }
                 else
                 {
@@ -133,6 +116,85 @@ namespace Checkout
                     if(car.wait>1.2f)Next(car); // Leave while the passenger continues on foot.
                 }
             }
+        }
+        // Drives along the planned stretch, passing its stops; plans the next one when it has none (or the road works it
+        // swerves round have moved). Speed: road speed, slower into the bends ahead, braking for whatever is ahead.
+        void Drive(Car car)
+        {
+            // what the plan depends on: the stretch the road works block (the swerve follows it), the market being open (a drop-off there)
+            int sig=(CheckoutEventTraffic.HasCurbBlock?Mathf.RoundToInt(CheckoutEventTraffic.BlockFrom*10)*7919+Mathf.RoundToInt(CheckoutEventTraffic.BlockTo*10):int.MinValue)^(MarketOpen?1:0);
+            var circle=CheckoutRoundabout.Current;
+            if(car.planned&&car.planSig!=sig&&!(circle&&circle.Inside(car.vehicle.position)))car.planned=false; // never re-plan on the ring
+            if(!car.planned&&!Plan(car,sig))return;
+            float dt=Time.deltaTime;var path=car.path;
+            var position=path.Sample(car.s,out var direction);
+            float reach=car.speed*car.speed/(2*HardBrake);
+            // event vehicles (a bus at its stop, the sound car…) are waited for, never crept through
+            bool held=CheckoutEventTraffic.Blocks(car.vehicle.position+direction*1.9f,direction,2.6f+reach,.9f);
+            held|=CheckoutTrafficJunctions.Hold(car.vehicle,direction,Blocked(car,direction,reach),reach);
+            float top=Mathf.Min(Cruise,path.Allowed(car.s,Cruise,Brake));
+            bool dropOff=car.plan.Count>0&&!route[car.plan[car.plan.Count-1]].edge;
+            if(dropOff)top=Mathf.Min(top,Mathf.Max(.35f,path.StopSpeed(car.s,Brake)));
+            if(held)top=0;
+            car.speed=car.speed<top?Mathf.Min(top,car.speed+Accel*dt):Mathf.Max(top,car.speed-(held?HardBrake:Brake)*dt);
+            car.s=Mathf.Min(path.Length,car.s+car.speed*dt);
+            position=path.Sample(car.s,out var heading);
+            car.vehicle.SetPositionAndRotation(position,Quaternion.LookRotation(heading));
+            // the stops it has reached
+            while(car.planned&&car.phase==0&&car.planNext<car.plan.Count&&car.s>=path.WaypointAt(car.planNext+1)-.02f)
+            {
+                if(car.plan[car.planNext]!=car.waypoint){car.planned=false;break;} // the way on changed (a destination, the road works)
+                car.planNext++;
+                if(!Arrive(car)){car.planned=false;break;}
+            }
+            if(car.planned&&car.planNext>=car.plan.Count)car.planned=false;
+        }
+        // The stretch from where the car is, through the stops it just passes, to the next one where it stops (its
+        // drop-off) or leaves the map; with the same rules as Next().
+        bool Plan(Car car,int sig)
+        {
+            if(car.path==null){car.path=new CheckoutVehiclePath();car.plan=new List<int>();}
+            // standing on its stop already (it just came in at the map edge, or was placed there)
+            for(int guard=0;guard<route.Length&&car.phase==0;guard++)
+            {
+                var gap=route[car.waypoint].road-car.vehicle.position;gap.y=0;
+                if(gap.sqrMagnitude>.09f)break;
+                if(!Arrive(car))return false;
+            }
+            if(car.phase!=0)return false;
+            car.plan.Clear();planPoints.Clear();planPoints.Add(car.vehicle.position);
+            int index=car.waypoint;
+            for(int k=0;k<48;k++)
+            {
+                car.plan.Add(index);planPoints.Add(route[index].road);
+                var stop=route[index];
+                if(stop.edge||(stop.entrance!=Vector3.zero&&index==car.destination&&!(index==marketStop&&!MarketOpen)))break;
+                index=(index+1)%route.Length;
+                while(route[index].detour&&!CheckoutEventTraffic.HasCurbBlock)index=(index+1)%route.Length;
+            }
+            car.path.Build(planPoints,CheckoutVehiclePath.StreetRadius,car.vehicle.forward);
+            car.s=0;car.planNext=0;car.planSig=sig;car.planned=true;
+            return true;
+        }
+        // At the stop car.waypoint: drives on (true), or stops there to drop someone off / leaves the map (false).
+        bool Arrive(Car car)
+        {
+            var stop=route[car.waypoint];
+            if(stop.entrance==Vector3.zero||car.waypoint!=car.destination||(car.waypoint==marketStop&&!MarketOpen)){Next(car);return car.phase==0;}
+            car.destination=-1; // Consume the sole stop before starting the drop-off.
+            car.speed=0;
+            car.visitor.gameObject.SetActive(true);
+            car.visitor.updateRotation=false;
+            car.visitor.updateUpAxis=false;
+            if(!NavMesh.SamplePosition(stop.sidewalk,out var hit,1,NavMesh.AllAreas)||!car.visitor.Warp(hit.position))
+            {car.visitor.gameObject.SetActive(false);Next(car);return car.phase==0;}
+            var path=new NavMeshPath();
+            if(!car.visitor.CalculatePath(stop.entrance,path)||path.status!=NavMeshPathStatus.PathComplete)
+            {car.visitor.gameObject.SetActive(false);Next(car);return car.phase==0;}
+            var facing=path.corners.Length>1?path.corners[1]-hit.position:stop.entrance-hit.position;facing.y=0;
+            if(facing.sqrMagnitude>.001f)car.visitor.transform.rotation=Quaternion.LookRotation(-facing);
+            car.visitor.SetPath(path);car.visitor.isStopped=false;car.passengerWalking=true;car.toMarket=car.waypoint==marketStop;car.phase=1;car.wait=0;car.visits++;
+            return false;
         }
         void UpdatePassenger(Car car)
         {
@@ -207,29 +269,10 @@ namespace Checkout
             Road(b.min.x+3,-20);Edge(b.max.x-3,-20);
             Road(b.max.x-3,-17);Edge(b.min.x+3,-17);
             Road(b.min.x+3,-23);Edge(b.max.x-3,-23);
-            route=AroundRoundabout(stops).ToArray();
+            // The stops inside the roundabout stay: every path through it is bent round the island (CheckoutVehiclePath).
+            route=stops.ToArray();
         }
-        // Bends every drive through the west roundabout around its island. Stops inside the circle
-        // are plain corners, so they are replaced by the arc; edges (teleports) are never joined.
-        static List<Visit> AroundRoundabout(List<Visit> stops)
-        {
-            var circle=CheckoutRoundabout.Current;if(!circle)return stops;
-            bool Corner(Visit v)=>circle.Inside(v.road)&&v.entrance==Vector3.zero&&!v.edge;
-            var result=new List<Visit>();int n=stops.Count;
-            for(int i=0;i<n;i++)
-            {
-                var current=stops[i];
-                if(Corner(current))continue;
-                result.Add(current);
-                if(current.edge)continue;
-                var inner=new List<Vector3>();int j=(i+1)%n,guard=0;
-                while(Corner(stops[j])&&guard++<n){inner.Add(stops[j].road);j=(j+1)%n;}
-                foreach(var p in circle.Arc(current.road,inner,stops[j].road))
-                    result.Add(new Visit{road=p,detour=current.detour&&stops[j].detour});
-            }
-            return result;
-        }
-        bool Blocked(Car car,Vector3 direction)
+        bool Blocked(Car car,Vector3 direction,float reach)
         {
             bool Ahead(Vector3 position,float distance)
             {
@@ -237,9 +280,9 @@ namespace Checkout
                 float forward=Vector3.Dot(delta,direction);
                 return forward>0 && forward<distance && (delta-direction*forward).sqrMagnitude<1.6f;
             }
-            foreach(var other in cars)if(other!=car&&other.vehicle.gameObject.activeSelf&&Ahead(other.vehicle.position,4.4f))return true;
-            if(marketTraffic&&marketTraffic.enabled)foreach(var other in marketTraffic.vehicles)if(other.gameObject.activeInHierarchy&&Ahead(other.position,4.4f))return true;
-            foreach(var person in pedestrians)if(person&&person.gameObject.activeInHierarchy&&Ahead(person.transform.position,2.8f))return true;
+            foreach(var other in cars)if(other!=car&&other.vehicle.gameObject.activeSelf&&Ahead(other.vehicle.position,4.4f+reach))return true;
+            if(marketTraffic&&marketTraffic.enabled)foreach(var other in marketTraffic.vehicles)if(other.gameObject.activeInHierarchy&&Ahead(other.position,4.4f+reach))return true;
+            foreach(var person in pedestrians)if(person&&person.gameObject.activeInHierarchy&&Ahead(person.transform.position,2.8f+reach))return true;
             return false;
         }
     }

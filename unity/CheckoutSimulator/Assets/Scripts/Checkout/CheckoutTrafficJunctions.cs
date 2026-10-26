@@ -338,6 +338,7 @@ namespace Checkout
             }
             return false;
         }
+        public static string QaBody(Transform car)=>table.TryGetValue(car,out var d)?$"front {d.bodyFront:0.00} rear {d.bodyRear:0.00} half width {d.half:0.00}":"not tracked";
         public static List<Transform> QaVehicles(){var list=new List<Transform>();foreach(var d in drivers)if(Live(d))list.Add(d.t);return list;}
         public static bool QaOnCrossing(Transform car)
         {

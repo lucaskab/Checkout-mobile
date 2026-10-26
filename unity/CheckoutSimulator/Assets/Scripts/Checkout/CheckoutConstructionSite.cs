@@ -52,6 +52,9 @@ namespace Checkout
         ParticleSystem sparks, pour; Vector3[] deckSpots = Array.Empty<Vector3>();
         Transform truck, drum, chute, gateL, gateR; Transform[] truckWheels = Array.Empty<Transform>();
         int truckState; float truckClock, drumSpeed = 40, gateOpen;
+        // Lucas 26/10 (smooth turns): the mixer backs in and drives out along a smooth path (its turn at the gate rounded)
+        // facing along it, instead of turning on the spot while it slides.
+        readonly CheckoutVehiclePath truckPath = new CheckoutVehiclePath(); float truckS; int truckLeg;
         Plan plan; string key;
         CheckoutStageConstruction art;
         Material fallback;
@@ -394,10 +397,11 @@ namespace Checkout
                     if (truckClock > 0) return;
                     truck.position = from; truck.rotation = Quaternion.LookRotation((from - gate).normalized);
                     truck.gameObject.SetActive(true); truckState = 1; drumSpeed = 60;
+                    if (parkOutside) truckPath.Build(new[] { from, park }, 3f, null, false); else truckPath.Build(new[] { from, gate, park }, 3f, null, false);
+                    truckS = 0; truckLeg = 1;
                     break;
                 case 1: // backing in through the gate
-                    if (Drive(!parkOutside && Horizontal(truck.position - gate) > .3f && Vector3.Dot(truck.position - gate, from - gate) > 0 ? gate : park, dt, false, 2.4f) && Horizontal(truck.position - park) < .05f)
-                    { truckState = 2; truckClock = 8f; if (pour) pour.Play(); }
+                    if (Drive(dt, false, 2.4f)) { truckState = 2; truckClock = 8f; if (pour) pour.Play(); }
                     break;
                 case 2: // pouring
                     drumSpeed = Mathf.MoveTowards(drumSpeed, -160, dt * 120);
@@ -407,22 +411,27 @@ namespace Checkout
                 case 3: // driving out
                     drumSpeed = Mathf.MoveTowards(drumSpeed, 40, dt * 120);
                     if (chute) chute.localRotation = Quaternion.RotateTowards(chute.localRotation, Quaternion.identity, dt * 40);
-                    bool pastGate = parkOutside || Vector3.Dot(truck.position - gate, from - gate) > -.1f;
-                    if (Drive(pastGate ? from : gate, dt, true, 3.2f) && pastGate && Horizontal(truck.position - from) < .05f)
+                    if (truckLeg != 3)
+                    {
+                        var at = truck.position;
+                        if (parkOutside) truckPath.Build(new[] { at, from }, 3f, truck.forward, false); else truckPath.Build(new[] { at, gate, from }, 3f, truck.forward, false);
+                        truckS = 0; truckLeg = 3;
+                    }
+                    if (Drive(dt, true, 3.2f))
                     { truck.gameObject.SetActive(false); truckState = 0; truckClock = UnityEngine.Random.Range(9f, 16f); }
                     break;
             }
         }
 
-        // Moves the truck towards `target`; it faces away from the site the whole time (reverses in, drives out).
-        bool Drive(Vector3 target, float dt, bool forward, float speed)
+        // Moves the truck along truckPath, backing up (in) or forwards (out), easing off at both ends; true at the end.
+        bool Drive(float dt, bool forward, float speed)
         {
-            var delta = target - truck.position; delta.y = 0;
-            if (delta.magnitude < .05f) { truck.position = new Vector3(target.x, truck.position.y, target.z); return true; }
-            var facing = forward ? delta.normalized : -delta.normalized;
-            truck.rotation = Quaternion.RotateTowards(truck.rotation, Quaternion.LookRotation(facing), 60 * dt);
-            float step = Mathf.Min(delta.magnitude, speed * dt);
-            truck.position += delta.normalized * step;
+            float left = truckPath.Length - truckS;
+            if (left < .01f) return true;
+            float v = speed * Mathf.Clamp(Mathf.Min(truckS + .4f, left + .2f) / 1.6f, .25f, 1f);
+            float step = Mathf.Min(left, v * dt); truckS += step;
+            var p = truckPath.Sample(truckS, out var dir); p.y = truck.position.y;
+            truck.SetPositionAndRotation(p, Quaternion.LookRotation(forward ? dir : -dir));
             foreach (var w in truckWheels) if (w) w.Rotate(step / .5f * Mathf.Rad2Deg * (forward ? 1 : -1), 0, 0, Space.Self);
             return false;
         }

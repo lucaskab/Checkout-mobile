@@ -5,14 +5,16 @@ using UnityEngine;
 namespace Checkout {
  // An event vehicle rig (EventRigs/Rig_<Vehicle>: Body + Wheel_* bones, buses also Door_*): drives along a path at
  // road speed, slows down and stops for whatever is ahead (city cars, pedestrians on a crossing, other event
- // vehicles), rolls its wheels by the distance driven and pitches its body when braking or pulling away. While it
+ // vehicles), rolls its wheels by the distance driven, pitches its body when braking or pulling away and leans it a
+ // little out of the bends (Lucas 26/10: the turns follow a smooth path, CheckoutVehiclePath). While it
  // exists it is an obstacle the city's cars queue behind (CheckoutEventTraffic).
  // The rigs face +X at yaw 0 (the front wheels are Wheel_F_*).
  public sealed class CheckoutEventVehicle : MonoBehaviour {
   struct Wheel { public Transform bone; public Quaternion rest; public float radius; }
   readonly List<Wheel> wheels = new List<Wheel>();
   Transform body; Quaternion bodyRest; Animation anim; Bounds box;
-  float roll, pitch, lastSpeed;
+  float roll, pitch, lean, lastSpeed, lastYaw;
+  readonly CheckoutVehiclePath route = new CheckoutVehiclePath();
   public float Speed { get; private set; }
   public float HalfLength => box.extents.x;
   /// <summary>Distance from the rig's origin to its front / back / side (its own axes).</summary>
@@ -76,30 +78,21 @@ namespace Checkout {
    return ExtraBlock != null && ExtraBlock(front, direction);
   }
 
-  /// <summary>Drives along `path` (world points, the first is where it starts) and stops at the last point.</summary>
+  /// <summary>Drives along `path` (world points, the first is where it starts; its corners rounded, round the roundabout's
+  /// island) and stops at the last point. It always faces the way it moves, slows down before the bends.</summary>
   public IEnumerator Drive(IList<Vector3> path, float cruise = 6f, bool stop = true, float accel = 2.2f, float brake = 2.6f) {
    if (path == null || path.Count < 2) yield break;
-   transform.position = path[0]; Face(path[1] - path[0]);
-   float remaining = 0; for (int i = 1; i < path.Count; i++) remaining += Vector3.Distance(path[i - 1], path[i]);
-   int next = 1; float speed = Speed;
-   while (next < path.Count) {
-    var target = path[next]; var delta = target - transform.position; delta.y = 0;
-    float dist = delta.magnitude;
-    if (dist < .05f) { next++; continue; }
-    var direction = delta / dist;
-    // ease the heading round corners
-    var want = Quaternion.Euler(0, YawFor(direction), 0);
-    transform.rotation = Quaternion.RotateTowards(transform.rotation, want, Time.deltaTime * 90f * Mathf.Max(.4f, speed / 3f));
-    var heading = transform.right; heading.y = 0; heading.Normalize();
-    float left = remaining;
-    float limit = stop ? Mathf.Sqrt(2 * brake * Mathf.Max(0, left - .05f)) : cruise;
-    float turn = Quaternion.Angle(transform.rotation, want);
-    float top = Mathf.Min(cruise, limit, Mathf.Lerp(cruise, 1.6f, Mathf.Clamp01(turn / 60f)));
+   route.Build(path);
+   float y = path[0].y, s = 0, speed = Speed;
+   var p = route.Sample(0, out var direction); p.y = y; transform.position = p; Face(direction);
+   while (s < route.Length - .01f) {
+    float top = Mathf.Min(cruise, route.Allowed(s, cruise, brake));
+    if (stop) top = Mathf.Min(top, Mathf.Max(.3f, route.StopSpeed(s, brake)));
     float look = 1.2f + speed * speed / (2 * brake);
-    if (Blocked(heading, look)) top = 0;
+    if (Blocked(direction, look)) top = 0;
     speed = speed < top ? Mathf.Min(top, speed + accel * Time.deltaTime) : Mathf.Max(top, speed - brake * 1.6f * Time.deltaTime);
-    float step = Mathf.Min(speed * Time.deltaTime, dist);
-    transform.position += direction * step; remaining -= step;
+    s = Mathf.Min(route.Length, s + speed * Time.deltaTime);
+    p = route.Sample(s, out direction); p.y = y; transform.position = p; Face(direction);
     Speed = speed;
     yield return null;
    }
@@ -131,10 +124,14 @@ namespace Checkout {
    }
    // nose dips when braking, lifts when pulling away (a few degrees, smoothed)
    pitch = Mathf.Lerp(pitch, Mathf.Clamp(-accel * .9f, -2.5f, 2.5f), 1 - Mathf.Exp(-dt * 5));
+   // leans out of a bend by its sideways acceleration (speed x yaw rate; a right turn tips it to the left)
+   float yaw = transform.eulerAngles.y, rate = Mathf.DeltaAngle(lastYaw, yaw) * Mathf.Deg2Rad / dt; lastYaw = yaw;
+   if (Mathf.Abs(rate) > 3f) rate = 0;   // placed somewhere else (a new lap, a reset), not a bend
+   lean = Mathf.Lerp(lean, Mathf.Clamp(Speed * rate * .7f, -2.5f, 2.5f), 1 - Mathf.Exp(-dt * 4));
    bool animated = anim && anim.isPlaying;
    if (body && !animated) {
     body.localRotation = bodyRest;
-    body.rotation = Quaternion.AngleAxis(pitch, axis) * body.rotation;   // +angle about up x heading dips the nose
+    body.rotation = Quaternion.AngleAxis(lean, heading.normalized) * Quaternion.AngleAxis(pitch, axis) * body.rotation;   // +angle about up x heading dips the nose
    }
   }
  }

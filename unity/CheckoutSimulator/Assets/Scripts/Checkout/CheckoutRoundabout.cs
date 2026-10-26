@@ -6,6 +6,8 @@ namespace Checkout
     // Columbus Circle style roundabout at the west avenue junction. Vehicles circulate
     // counter-clockwise seen from above (right-hand traffic): any route that passes through the
     // circle is bent around the central island instead of crossing it.
+    // Lucas 26/10: the driven vehicles now bend their own smooth paths round it (CheckoutVehiclePath: a bend onto the
+    // ring, a true circle at travelRadius, a bend off it); Route / Arc below give the older polyline version.
     public class CheckoutRoundabout : MonoBehaviour
     {
         public Vector3 center = new Vector3(-23.5f, 0, -18.5f);

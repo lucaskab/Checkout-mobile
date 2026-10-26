@@ -1060,26 +1060,18 @@ namespace Checkout
 
         class Shuttle : Machine
         {
-            readonly Vector3[] path; readonly float wait; readonly List<Transform> wheels = new List<Transform>(); readonly List<Quaternion> rest = new List<Quaternion>();
+            // Lucas 26/10 (smooth turns): the path's corners are rounded (CheckoutVehiclePath) and the truck faces along it,
+            // instead of snapping round at every corner.
+            readonly CheckoutVehiclePath path = new CheckoutVehiclePath(); readonly float wait; readonly List<Transform> wheels = new List<Transform>(); readonly List<Quaternion> rest = new List<Quaternion>();
             float total; float spin;
             public Shuttle(Transform r, Vector3[] path, float wait)
             {
-                root = r; this.path = path; this.wait = wait;
+                root = r; this.wait = wait;
                 for (int i = 0; i < 8; i++) { var w = CheckoutWorksKit.FindPart(r, "Wheel_" + i); if (w) { wheels.Add(w); rest.Add(w.localRotation); } }
-                for (int i = 1; i < path.Length; i++) total += Vector3.Distance(path[i - 1], path[i]);
+                this.path.Build(path, CheckoutVehiclePath.StreetRadius, null, false);
+                total = this.path.Length;
             }
-            Vector3 At(float d, out Vector3 dir)
-            {
-                dir = Vector3.forward;
-                for (int i = 1; i < path.Length; i++)
-                {
-                    float seg = Vector3.Distance(path[i - 1], path[i]);
-                    dir = (path[i] - path[i - 1]).normalized;
-                    if (d <= seg) return Vector3.Lerp(path[i - 1], path[i], seg < .001f ? 1 : d / seg);
-                    d -= seg;
-                }
-                return path[path.Length - 1];
-            }
+            Vector3 At(float d, out Vector3 dir) => path.Sample(d, out dir);
             public override void Tick(CheckoutWorksScene s, float dt)
             {
                 clock += dt;

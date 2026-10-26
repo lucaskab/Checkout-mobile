@@ -19,9 +19,20 @@ namespace Checkout
             public Customer customer;
             public CheckoutWalker walker;
             public Vector3[] route;
-            public int waypoint;
             public float delay;
+            // Lucas 26/10 (smooth turns): the car drives along a smooth path (CheckoutVehiclePath) at distance s; leaving,
+            // it first backs out of the bay along `path` (reverse) and then drives on along `next`.
+            public CheckoutVehiclePath path = new CheckoutVehiclePath(), next = new CheckoutVehiclePath();
+            public float s, speed;
+            public bool reverse;
         }
+        // Driving: m/s and m/s^2. A held car brakes hard (the checks ahead reach as far as it needs to stop).
+        const float Cruise = 4.2f, LotCruise = 1.6f, ReverseCruise = 1.2f, Accel = 2.4f, Brake = 2.6f, HardBrake = 6f;
+        // Backing out of a bay (Lucas 26/10, instead of turning on the spot in the aisle) the car backs straight into the
+        // aisle and swings its tail 45 degrees up it on this radius, stops, and drives off turning the other 45 degrees: it
+        // needs no more room up the aisle than the old turn on the spot (the bays by the depot's truck drive) and keeps its
+        // tail clear of the cars parked across the aisle (it turns BackOutShift short of the aisle's centre line).
+        const float BackOutRadius = 1.6f, BackOutShift = .4f;
         Trip[] trips;
         CheckoutCityPedestrian[] pedestrians;
         CheckoutNeighborhoodTraffic neighborhood;
@@ -45,9 +56,11 @@ namespace Checkout
                 var trip = trips[i];
                 if (trip.phase != Phase.Available) continue;
                 trip.customer = customer; trip.walker = walker; walker.Reserve();
-                trip.phase = Phase.Arriving; trip.waypoint = 0; maneuverOwner = i;
-                trip.route = Smooth(CheckoutRoundabout.Route(ArriveRoute(i)));
-                vehicles[i].SetPositionAndRotation(trip.route[0], Quaternion.LookRotation(Vector3.right));
+                trip.phase = Phase.Arriving; maneuverOwner = i;
+                trip.route = ArriveRoute(i);
+                trip.path.Build(trip.route); trip.next.Clear(); trip.reverse = false; trip.s = 0; trip.speed = Cruise;
+                var start = trip.path.Sample(0, out var heading);
+                vehicles[i].SetPositionAndRotation(start, Quaternion.LookRotation(heading));
                 vehicles[i].gameObject.SetActive(true); nextArrival = Time.time + 6f;
                 return true;
             }
@@ -70,69 +83,87 @@ namespace Checkout
                     maneuverOwner = i;
                 }
                 else if (trip.phase == Phase.Leaving && maneuverOwner == i) maneuverOwner = -1;
-                if (trip.waypoint >= trip.route.Length)
+                if (trip.s >= trip.path.Length - .01f)
                 {
+                    // Out of the bay: change gear (it stands still a moment) and drive on.
+                    if (trip.reverse && trip.next.Ready) { var done = trip.path; trip.path = trip.next; trip.next = done; done.Clear(); trip.reverse = false; trip.s = 0; trip.speed = 0; continue; }
                     if (trip.phase == Phase.Arriving)
                     {
-                        trip.phase = Phase.Shopping; ParkedVisits++; maneuverOwner = -1;
+                        trip.phase = Phase.Shopping; ParkedVisits++; maneuverOwner = -1; trip.speed = 0;
                         int slot = i;
                         trip.walker.BeginFromCar(trip.customer, Door(i), walker => ReturnToCar(slot,walker));
                     }
                     else { if(maneuverOwner==i)maneuverOwner=-1;trip.phase = Phase.Available; trip.walker = null; trip.customer = null; car.gameObject.SetActive(false); CompletedVisits++; Debug.Log("CITY_VISIT_COMPLETE car="+i+" total="+CompletedVisits); }
                     continue;
                 }
-                Vector3 delta = trip.route[trip.waypoint] - car.position;
-                if (delta.magnitude < .06f) { trip.waypoint++; continue; }
-                Vector3 direction = delta.normalized;
-                // Backing out of the bay (nose first in, so the first stretch of the way out is in reverse).
-                bool reverse = trip.phase == Phase.Leaving && Vector3.Distance(car.position, Bay(i)) < BackOut(i) - .05f && trip.waypoint < 12;
-                float speed = InLot(car.position) ? 1.6f : 4.2f;
-                // Keep a safe following gap, and yield to customers crossing the parking aisle.
+                float dt = Time.deltaTime;
+                trip.path.Sample(trip.s, out var direction);   // the way it moves (backwards out of the bay)
+                bool reverse = trip.reverse;
+                float speed = trip.speed, reach = speed * speed / (2 * HardBrake);
+                // Keep a safe following gap, and yield to customers crossing the parking aisle (looking as far ahead as
+                // it needs to stop).
                 bool blocked = false;
                 for (int j = 0; j < trips.Length; j++)
                 {
                     if (j != i && trips[j].phase != Phase.Available && vehicles[j])
-                    {
-                        var separation=vehicles[j].position-car.position;
-                        if(CheckoutTrafficJunctions.Ahead(car.position,direction,vehicles[j].position,4.1f))blocked=true;
-                    }
+                        if(CheckoutTrafficJunctions.Ahead(car.position,direction,vehicles[j].position,4.1f+reach))blocked=true;
                     var pedestrian=trips[j].walker;
                     if(pedestrian&&pedestrian.gameObject.activeSelf)
                     {
                         var separation=pedestrian.transform.position-car.position;separation.y=0;
-                        if(separation.magnitude<2.5f&&Vector3.Dot(direction,separation.normalized)>.35f)blocked=true;
+                        if(separation.magnitude<2.5f+reach&&Vector3.Dot(direction,separation.normalized)>.35f)blocked=true;
                     }
                 }
                 if(pedestrians!=null)foreach(var pedestrian in pedestrians)
                 {
                     if(!pedestrian||!pedestrian.gameObject.activeInHierarchy)continue;
-                    var gap=pedestrian.transform.position-car.position;gap.y=0;
-                    if(CheckoutTrafficJunctions.Ahead(car.position,direction,pedestrian.transform.position,2.8f,.7f))blocked=true;
+                    if(CheckoutTrafficJunctions.Ahead(car.position,direction,pedestrian.transform.position,2.8f+reach,.7f))blocked=true;
                 }
                 if(neighborhood&&neighborhood.cars!=null)foreach(var other in neighborhood.cars)
                 {
                     if(other==null||!other.vehicle||!other.vehicle.gameObject.activeSelf)continue;
                     var gap=other.vehicle.position-car.position;gap.y=0;
                     float ahead=Vector3.Dot(direction,gap);
-                    if(ahead>0&&ahead<4.4f&&(gap-direction*ahead).sqrMagnitude<1.6f)blocked=true;
+                    if(ahead>0&&ahead<4.4f+reach&&(gap-direction*ahead).sqrMagnitude<1.6f)blocked=true;
                 }
                 // event vehicles (a bus at its stop, the jam's queues…) are waited for, never crept through
-                if (!reverse && CheckoutEventTraffic.Blocks(car.position+direction*1.9f,direction,2.6f,.9f)) continue;
-                if (CheckoutTrafficJunctions.Hold(car,direction,blocked)) continue;
-                var heading=Quaternion.LookRotation(reverse?-direction:direction);
-                speed*=Mathf.Lerp(.3f,1f,1-Mathf.Clamp01(Quaternion.Angle(car.rotation,heading)/70));
-                car.rotation = Quaternion.RotateTowards(car.rotation,heading,Time.deltaTime*130);
-                car.position = Vector3.MoveTowards(car.position,trip.route[trip.waypoint],speed*Time.deltaTime);
+                bool held = !reverse && CheckoutEventTraffic.Blocks(car.position+direction*1.9f,direction,2.6f+reach,.9f);
+                held |= CheckoutTrafficJunctions.Hold(car,direction,blocked,reach);
+                // Its speed: the street or the lot, slower into the bends ahead, to a stop at the bay / where it changes gear.
+                float cruise = reverse ? ReverseCruise : InLot(car.position) ? LotCruise : Cruise;
+                float top = Mathf.Min(cruise, trip.path.Allowed(trip.s, cruise, Brake));
+                if (reverse || trip.phase == Phase.Arriving) top = Mathf.Min(top, Mathf.Max(.35f, trip.path.StopSpeed(trip.s, Brake)));
+                if (held) top = 0;
+                speed = speed < top ? Mathf.Min(top, speed + Accel * dt) : Mathf.Max(top, speed - (held ? HardBrake : Brake) * dt);
+                trip.speed = speed;
+                trip.s = Mathf.Min(trip.path.Length, trip.s + speed * dt);
+                var at = trip.path.Sample(trip.s, out var heading);
+                car.SetPositionAndRotation(at, Quaternion.LookRotation(reverse ? -heading : heading));
             }
         }
+        /// <summary>QA (trafficturns): the customers of the parked cars stop shopping and drive off, backing out of their bays.</summary>
+        public int QaSendBack(){int n=0;for(int i=0;i<trips.Length;i++){var trip=trips[i];if(trip.phase!=Phase.Shopping||!trip.walker)continue;var w=trip.walker;w.CancelVisit();ReturnToCar(i,w);n++;}return n;}
         void ReturnToCar(int index, CheckoutWalker walker)
         {
             var trip = trips[index];
             if (walker.HasPaid) PaidVisits++;
             trip.walker=null;
-            trip.phase = Phase.Leaving; trip.waypoint = 0; trip.delay = .8f;
-            trip.route=Smooth(CheckoutRoundabout.Route(LeaveRoute(index)));
+            trip.phase = Phase.Leaving; trip.delay = .8f;
+            trip.route=LeaveRoute(index);
+            // The route's first leg (bay -> aisle) is driven backwards: see BackOutRadius.
+            var route=trip.route;
+            var back=route[1]-route[0];back.y=0;back.Normalize();          // the way it backs out
+            var outward=route[2]-route[1];outward.y=0;outward.Normalize(); // the way out along the aisle
+            var turn=route[1]-back*BackOutShift;
+            float leg=BackOutRadius*Mathf.Tan(22.5f*Mathf.Deg2Rad);
+            var cusp=turn+(back-outward).normalized*leg;
+            backOut[0]=route[0];backOut[1]=turn;backOut[2]=cusp;turnRadii[1]=BackOutRadius;
+            trip.path.Build(backOut,BackOutRadius,null,false,turnRadii);
+            onward.Clear();onward.Add(cusp);onward.Add(turn);onward.Add(turn+outward*2f);for(int k=2;k<route.Length;k++)onward.Add(route[k]);
+            trip.next.Build(onward,CheckoutVehiclePath.StreetRadius,null,true,turnRadii);
+            trip.reverse=true;trip.s=0;trip.speed=0;
         }
+        static readonly Vector3[] backOut=new Vector3[3];static readonly float[] turnRadii=new float[2];static readonly List<Vector3> onward=new List<Vector3>();
 
         // ------------------------------------------------------------------ the market's parking lot
         // The block is a grid of lots (src/data/market-lots.ts) and the market fills them from the corner on the
@@ -204,18 +235,5 @@ namespace Checkout
             return new[] { bay,P(FrontAisle,bay.z),P(FrontAisle,-13),P(8.8f,-14),P(-38,-14) };
         }
         static Vector3 P(float x,float z) => new Vector3(x,.15f,z);
-        // Rounded waypoint corners avoid snapping the vehicle by ninety degrees at a junction.
-        static Vector3[] Smooth(Vector3[] points)
-        {
-            var route=new List<Vector3>{points[0]};
-            for(int i=1;i<points.Length-1;i++)
-            {
-                float radius=Mathf.Min(1.1f,Vector3.Distance(points[i-1],points[i])*.3f,Vector3.Distance(points[i],points[i+1])*.3f);
-                var a=points[i]+(points[i-1]-points[i]).normalized*radius;
-                var b=points[i]+(points[i+1]-points[i]).normalized*radius;
-                for(int step=0;step<=8;step++){float t=step/8f;route.Add((1-t)*(1-t)*a+2*(1-t)*t*points[i]+t*t*b);}
-            }
-            route.Add(points[points.Length-1]);return route.ToArray();
-        }
     }
 }

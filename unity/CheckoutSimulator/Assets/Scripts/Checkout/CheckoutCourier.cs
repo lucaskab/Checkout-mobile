@@ -42,7 +42,9 @@ namespace Checkout
             public Transform bubbleEdge, bubbleBody;
             public Phase phase;
             public readonly List<Vector3> path = new List<Vector3>();
-            public int index;
+            // Lucas 26/10 (smooth turns): `path` as one smooth path the bike rides at distance s, facing where it goes.
+            public readonly CheckoutVehiclePath track = new CheckoutVehiclePath();
+            public float s;
             public float speed, cruise, spotX, wheelAngle, lean, yaw, bubbleUntil, nextHorn, handedAt, pulse, doorUntil, routeLength;
             public double startAt;
             public bool greeted, announced, dirty, hurry, dropped;
@@ -129,8 +131,8 @@ namespace Checkout
         {
             if (bike.phase == Phase.Deliver)
             {
-                if (bike.index >= bike.path.Count || bike.routeLength <= .01f) return 0f;
-                return Mathf.Clamp01(1f - (float)StopDistance(bike) / bike.routeLength);
+                if (!bike.track.Ready || bike.routeLength <= .01f) return 0f;
+                return Mathf.Clamp01(1f - (bike.track.Length - bike.s) / bike.routeLength);
             }
             if (bike.phase == Phase.Parked || bike.phase == Phase.Approach) return 0f;
             return bike.dropped ? 1f : 0f;
@@ -140,12 +142,15 @@ namespace Checkout
         {
             if (!previews.TryGetValue(orderId, out var list))
             {
-                list = RideRoute(StoreCurb(), CheckoutCityViews.CustomerDoor(orderId));
+                // drawn as it will be ridden: corners rounded, round the roundabout's island
+                list = new List<Vector3>();
+                preview.Build(RideRoute(StoreCurb(), CheckoutCityViews.CustomerDoor(orderId))).Points(list);
                 previews[orderId] = list;
             }
             return list;
         }
 
+        readonly CheckoutVehiclePath preview = new CheckoutVehiclePath();
         Vector3 StoreCurb() => new Vector3(map.Entrance.x + .6f, Ground, ParkZ);
 
         // ------------------------------------------------------------------ snapshot sync
@@ -245,6 +250,7 @@ namespace Checkout
             bike.spotX = ChooseSpot(bike);
             var spot = Spot(bike);
             bike.path.AddRange(ApproachPath(bike));
+            bike.track.Build(bike.path, CheckoutVehiclePath.StreetRadius); bike.s = 0;
             if (parkedNow)
             {
                 // Already at the door when the store opened (or loaded): no drive, no horn.
@@ -263,13 +269,13 @@ namespace Checkout
         void UpdateWaiting(Bike bike)
         {
             double arriveAt = ArriveAt(bike);
-            double length = PathLength(bike.path);
+            double length = bike.track.Length;
             double lead = length / Cruise * 1000.0;
             if (arriveAt > 0 && CheckoutBridge.Now < arriveAt - lead) return;
             double remaining = arriveAt > 0 ? (arriveAt - CheckoutBridge.Now) / 1000.0 : length / Cruise;
             bike.cruise = Mathf.Clamp((float)(length / System.Math.Max(1.0, remaining)), 4f, 9f);
-            bike.index = 1; bike.speed = 0; bike.phase = Phase.Approach;
-            bike.root.position = bike.path[0];
+            bike.s = 0; bike.speed = 0; bike.phase = Phase.Approach;
+            bike.root.SetPositionAndRotation(bike.track.Sample(0, out var heading), Quaternion.LookRotation(heading));
             bike.root.gameObject.SetActive(true);
             PlayOne(bike, CheckoutDeliverySound.BikeArrive, ArriveVolume);
         }
@@ -322,16 +328,13 @@ namespace Checkout
 
         void BeginLeave(Bike bike, bool announce)
         {
-            bike.phase = Phase.Leave; bike.index = 1; bike.speed = 0;
+            bike.phase = Phase.Leave; bike.speed = 0;
             bike.path.Clear();
             var from = bike.root.position; from.y = Ground;
             bike.path.Add(from);
             if (Mathf.Abs(from.z - InnerLane) > .6f) bike.path.Add(new Vector3(from.x - 4f, Ground, InnerLane));
             bike.path.Add(despawnWest);
-            var routed = CheckoutRoundabout.Route(bike.path.ToArray());
-            bike.path.Clear();
-            bike.path.AddRange(Smooth(routed, 3.2f));
-            bike.index = 1;
+            Track(bike);
             ShowParkedModel(bike, false);
             if (announce)
             {
@@ -351,10 +354,9 @@ namespace Checkout
             var door = CheckoutCityViews.CustomerDoor(bike.orderId);
             bike.path.Clear();
             bike.path.AddRange(RideRoute(from, door));
-            bike.route.Clear();
-            bike.route.AddRange(bike.path);
-            bike.routeLength = (float)PathLength(bike.path);
-            bike.index = 1;
+            Track(bike);
+            bike.track.Points(bike.route);
+            bike.routeLength = bike.track.Length;
             bike.cruise = Cruise;
             bike.hurry = false; bike.dropped = false; bike.greeted = false;
             bike.phase = Phase.Deliver;
@@ -374,12 +376,12 @@ namespace Checkout
         float DeliveryCruise(Bike bike)
         {
             if (bike.hurry) return MaxCruise;
-            if (bike.index >= bike.path.Count) return Cruise;
+            if (bike.s >= bike.track.Length) return Cruise;
             var order = FindOrder(bike.orderId);
             double at = order != null ? order.deliverAt : 0;
             if (at <= 0) return Cruise;
             double seconds = (at - CheckoutBridge.Now) / 1000.0;
-            double meters = StopDistance(bike);
+            double meters = bike.track.Length - bike.s;
             float need = (float)(meters / System.Math.Max(.5, seconds));
             return Mathf.Clamp(need, MinCruise, MaxCruise);
         }
@@ -407,14 +409,19 @@ namespace Checkout
             var from = Flat(bike.root.position); from.y = Ground;
             bike.path.Clear();
             bike.path.AddRange(RideRoute(from, EdgePoint(from)));
-            bike.index = 1; bike.speed = 0; bike.cruise = Cruise;
+            Track(bike);
+            bike.speed = 0; bike.cruise = Cruise;
             bike.phase = Phase.Leave;
             ShowParkedModel(bike, false);
             Say(bike, bike.leave[Random.Range(0, bike.leave.Length)], 3f);
             PlayOne(bike, CheckoutDeliverySound.BikeLeave, LeaveVolume);
         }
 
-        // Road route from one point to another as a smooth polyline at ground level. Always at least two points.
+        // The smooth path of a new bike.path, setting off the way the bike faces.
+        static void Track(Bike bike) { bike.track.Build(bike.path, CheckoutVehiclePath.StreetRadius, bike.root ? bike.root.forward : (Vector3?)null); bike.s = 0; }
+
+        // Road route from one point to another as a polyline at ground level (its corners are rounded by the path the
+        // bike rides). Always at least two points.
         List<Vector3> RideRoute(Vector3 from, Vector3 to)
         {
             from.y = Ground; to.y = Ground;
@@ -429,7 +436,7 @@ namespace Checkout
                 }
             if (Flat(to - points[points.Count - 1]).magnitude > .02f) points.Add(to);
             while (points.Count < 2) points.Add(to);
-            return Smooth(points.ToArray(), 2.4f);
+            return points;
         }
 
         // The nearest point on the city's outer edge (the bike leaves the map there).
@@ -454,39 +461,28 @@ namespace Checkout
         }
 
         // ------------------------------------------------------------------ driving
-        // Follows the bike's path; true once the last point is reached.
+        // Rides the bike's smooth path; true once its end is reached.
         bool Drive(Bike bike, float dt, float cruise)
         {
             if (dt <= 0) return false;
-            var t = bike.root;
-            var path = bike.path;
-            while (bike.index < path.Count && Flat(path[bike.index] - t.position).magnitude < .06f) bike.index++;
-            if (bike.index >= path.Count) return true;
-            var delta = Flat(path[bike.index] - t.position);
-            float dist = delta.magnitude; var dir = delta / dist;
-            var want = Quaternion.LookRotation(dir);
-            float turn = Quaternion.Angle(t.rotation, want);
-            float stop = StopDistance(bike);
-            float limit = Mathf.Max(.35f, Mathf.Sqrt(2 * Brake * Mathf.Max(0, stop - .05f)));
-            float top = Mathf.Min(cruise, limit, Mathf.Lerp(cruise, 1.5f, Mathf.Clamp01(turn / 50f)));
+            var t = bike.root; var track = bike.track;
+            if (!track.Ready || bike.s >= track.Length - .02f) return true;
+            track.Sample(bike.s, out var dir);
+            float limit = Mathf.Max(.35f, track.StopSpeed(bike.s, Brake));
+            // a bike leans into its bends and takes them a little quicker than a car
+            float top = Mathf.Min(cruise, limit, track.Allowed(bike.s, cruise, Brake, 3f));
             bool blocked = Blocked(bike, dir);
             if (CheckoutTrafficJunctions.Hold(t, dir, blocked, bike.speed * bike.speed / (2 * Brake * 1.8f))) top = 0;
             bike.speed = bike.speed < top ? Mathf.Min(top, bike.speed + Accel * dt) : Mathf.Max(top, bike.speed - Brake * 1.8f * dt);
-            float step = Mathf.Min(bike.speed * dt, dist);
+            float step = Mathf.Min(bike.speed * dt, track.Length - bike.s);
+            bike.s += step;
             float yawBefore = t.eulerAngles.y;
-            t.rotation = Quaternion.RotateTowards(t.rotation, want, dt * Mathf.Lerp(60f, 140f, Mathf.Clamp01(bike.speed / 3f)) * (bike.speed > .05f ? 1 : .2f));
+            var p = track.Sample(bike.s, out var heading); p.y = Ground;
+            t.SetPositionAndRotation(p, Quaternion.LookRotation(heading));
             float yawRate = Mathf.DeltaAngle(yawBefore, t.eulerAngles.y) / dt;
             bike.lean = Mathf.Lerp(bike.lean, Mathf.Clamp(-yawRate * .1f * Mathf.Clamp01(bike.speed / 4f), -14f, 14f), Mathf.Clamp01(dt * 6f));
-            var p = t.position + dir * step; p.y = Ground; t.position = p;
             bike.wheelAngle += step / Wheel * Mathf.Rad2Deg;
             return false;
-        }
-
-        float StopDistance(Bike bike)
-        {
-            float d = Flat(bike.path[bike.index] - bike.root.position).magnitude;
-            for (int i = bike.index + 1; i < bike.path.Count; i++) d += Flat(bike.path[i] - bike.path[i - 1]).magnitude;
-            return d;
         }
 
         // Anything ahead in the same lane: cars, trucks, other couriers.
@@ -517,34 +513,15 @@ namespace Checkout
             {
                 spawnEast,
                 new Vector3(sx + 12f, Ground, InnerLane),
-                new Vector3(sx + 4f, Ground, InnerLane),
+                new Vector3(sx + 6f, Ground, InnerLane),
+                // the last metres along the kerb, so it pulls up already facing the way it stands parked
+                new Vector3(sx + 2.5f, Ground, ParkZ),
                 new Vector3(sx, Ground, ParkZ),
             };
-            return Smooth(points.ToArray(), 2.6f);
-        }
-
-        static double PathLength(List<Vector3> path)
-        {
-            double sum = 0;
-            for (int i = 1; i < path.Count; i++) sum += Flat(path[i] - path[i - 1]).magnitude;
-            return sum;
+            return points;
         }
 
         static Vector3 Flat(Vector3 v) { v.y = 0; return v; }
-
-        static List<Vector3> Smooth(Vector3[] points, float maxRadius)
-        {
-            var route = new List<Vector3> { points[0] };
-            for (int i = 1; i < points.Length - 1; i++)
-            {
-                float radius = Mathf.Min(maxRadius, Vector3.Distance(points[i - 1], points[i]) * .45f, Vector3.Distance(points[i], points[i + 1]) * .45f);
-                var a = points[i] + (points[i - 1] - points[i]).normalized * radius;
-                var b = points[i] + (points[i + 1] - points[i]).normalized * radius;
-                for (int step = 0; step <= 8; step++) { float t = step / 8f; route.Add((1 - t) * (1 - t) * a + 2 * (1 - t) * t * points[i] + t * t * b); }
-            }
-            if (points.Length > 1) route.Add(points[points.Length - 1]);
-            return route;
-        }
 
         // ------------------------------------------------------------------ curb spots
         Vector3 Spot(Bike bike) => new Vector3(bike.spotX, Ground, ParkZ);

@@ -35,7 +35,12 @@ namespace Checkout
             public State state;
             public readonly List<Vector3> path = new List<Vector3>();
             public readonly List<bool> back = new List<bool>();
-            public int index; public float speed; public float since;
+            // Lucas 26/10 (smooth turns): the legs as runs driven one way (forwards / backing up), each a smooth path the
+            // truck follows at distance s, facing where it goes (backwards on a reverse run); it stops between runs.
+            public readonly List<CheckoutVehiclePath> runs = new List<CheckoutVehiclePath>();
+            public readonly List<bool> runBack = new List<bool>();
+            public int runCount, run;
+            public float s, speed, since;
             public Vector3 RearLocal => new Vector3(box.center.x, 0, box.min.z);
             public float Length => box.size.z * Mathf.Abs(t.lossyScale.z);
         }
@@ -227,13 +232,12 @@ namespace Checkout
                 ConfigureWorker(FindAnyObjectByType<CheckoutMarketLayout>(), layout);
             }
             BuildArrival(tr);
-            if (tr.path.Count < 2) { Dock(tr); }
+            if (tr.runCount == 0) { Dock(tr); }
             else
             {
-                t.position = tr.path[0];
-                var first = tr.path[1] - tr.path[0]; first.y = 0;
-                t.rotation = Quaternion.LookRotation(tr.back[1] ? -first : first);
-                tr.index = 1; tr.speed = 0; tr.state = State.Arriving; tr.since = Time.time;
+                var start = tr.runs[0].Sample(0, out var first); start.y = tr.y;
+                t.SetPositionAndRotation(start, Quaternion.LookRotation(tr.runBack[0] ? -first : first));
+                tr.run = 0; tr.s = 0; tr.speed = 0; tr.state = State.Arriving; tr.since = Time.time;
             }
             t.gameObject.SetActive(true);
             CheckoutEventTraffic.Register(t, tr.box);
@@ -248,7 +252,7 @@ namespace Checkout
             if (tr.state == State.Leaving) return;
             if (Kind == Yard.Curb) CheckoutEventTraffic.ClearDeliveryBlock();
             BuildDeparture(tr);
-            tr.index = 1; tr.speed = 0; tr.state = State.Leaving; tr.since = Time.time;
+            tr.run = 0; tr.s = 0; tr.speed = 0; tr.state = State.Leaving; tr.since = Time.time;
         }
 
         public void ReleaseAll() { foreach (var tr in trucks.Values) Release(tr.t); }
@@ -395,42 +399,33 @@ namespace Checkout
             Round(tr);
         }
 
-        // Rounds the corners of every forward stretch and bends anything through the roundabout round its island.
+        // Splits the legs into runs driven the same way (a run's ends are where the truck stops to change gear) and makes
+        // each run one smooth path: corners rounded, anything through the roundabout bent round its island (forwards only).
         void Round(Truck tr)
         {
-            // back[k] tells how the leg that ends on path[k] is driven; legs driven the same way make a run, and a
-            // run's ends are where the truck stops (to change gear), so only the corners inside a run are rounded.
+            // back[k] tells how the leg that ends on path[k] is driven.
+            tr.runCount = 0; tr.runBack.Clear();
             if (tr.path.Count < 2) return;
-            var points = new List<Vector3> { tr.path[0] }; var flags = new List<bool> { false };
             int i = 1;
             while (i < tr.path.Count)
             {
                 bool reverse = tr.back[i]; int j = i;
                 while (j + 1 < tr.path.Count && tr.back[j + 1] == reverse) j++;
-                var run = new List<Vector3> { tr.path[i - 1] };
-                for (int k = i; k <= j; k++) run.Add(tr.path[k]);
-                var array = run.ToArray();
-                if (!reverse) array = CheckoutRoundabout.Route(array);
-                var smooth = Smooth(array, reverse ? 2.2f : 3.2f);
-                for (int k = 1; k < smooth.Count; k++) { points.Add(smooth[k]); flags.Add(reverse); }
+                runPoints.Clear(); for (int k = i - 1; k <= j; k++) runPoints.Add(tr.path[k]);
+                if (tr.runs.Count <= tr.runCount) tr.runs.Add(new CheckoutVehiclePath());
+                // Every run sets off the way the truck faces (where the last one left it, or where it stands), so changing
+                // gear never turns it on the spot: backing away from a forward run it first backs straight, then curves.
+                Vector3? body = tr.runCount > 0 ? (tr.runBack[tr.runCount - 1] ? -tr.runs[tr.runCount - 1].EndTangent : tr.runs[tr.runCount - 1].EndTangent)
+                    : tr.state != State.Away && tr.t.gameObject.activeSelf ? tr.t.forward : (Vector3?)null;
+                Vector3? facing = body.HasValue ? (reverse ? -body.Value : body.Value) : (Vector3?)null;
+                tr.runs[tr.runCount++].Build(runPoints, reverse ? ReverseRadius : ForwardRadius, facing, !reverse);
+                tr.runBack.Add(reverse);
                 i = j + 1;
             }
-            tr.path.Clear(); tr.path.AddRange(points); tr.back.Clear(); tr.back.AddRange(flags);
         }
-
-        static List<Vector3> Smooth(Vector3[] points, float maxRadius)
-        {
-            var route = new List<Vector3> { points[0] };
-            for (int i = 1; i < points.Length - 1; i++)
-            {
-                float radius = Mathf.Min(maxRadius, Vector3.Distance(points[i - 1], points[i]) * .45f, Vector3.Distance(points[i], points[i + 1]) * .45f);
-                var a = points[i] + (points[i - 1] - points[i]).normalized * radius;
-                var b = points[i] + (points[i + 1] - points[i]).normalized * radius;
-                for (int step = 0; step <= 8; step++) { float t = step / 8f; route.Add((1 - t) * (1 - t) * a + 2 * (1 - t) * t * points[i] + t * t * b); }
-            }
-            if (points.Length > 1) route.Add(points[points.Length - 1]);
-            return route;
-        }
+        // Corner radii: a long truck swings a bit wider than a car going forwards, backing up it turns tighter.
+        const float ForwardRadius = 4.5f, ReverseRadius = 3f;
+        static readonly List<Vector3> runPoints = new List<Vector3>();
 
         // ------------------------------------------------------------------ driving
         void Update()
@@ -442,39 +437,27 @@ namespace Checkout
             }
         }
 
-        // Distance left before the truck has to stop (end of the path or where it changes direction).
-        float StopDistance(Truck tr)
-        {
-            float d = Flat(tr.path[tr.index] - tr.t.position).magnitude;
-            bool reverse = tr.back[tr.index];
-            for (int i = tr.index + 1; i < tr.path.Count && tr.back[i] == reverse; i++) d += Flat(tr.path[i] - tr.path[i - 1]).magnitude;
-            return d;
-        }
         static Vector3 Flat(Vector3 v) { v.y = 0; return v; }
 
         void Drive(Truck tr)
         {
             float dt = Time.deltaTime; if (dt <= 0) return;
             var t = tr.t;
-            while (tr.index < tr.path.Count && Flat(tr.path[tr.index] - t.position).magnitude < .06f) tr.index++;
-            if (tr.index >= tr.path.Count)
+            // the end of a run: change gear (it has stopped there) or it has arrived / gone
+            while (tr.run < tr.runCount && tr.s >= tr.runs[tr.run].Length - .02f) { tr.run++; tr.s = 0; tr.speed = 0; }
+            if (tr.run >= tr.runCount)
             {
                 if (tr.state == State.Arriving) Dock(tr);
                 else { tr.state = State.Away; tr.speed = 0; CheckoutEventTraffic.Unregister(t); t.gameObject.SetActive(false); }
                 return;
             }
-            var delta = Flat(tr.path[tr.index] - t.position);
-            float dist = delta.magnitude; var dir = delta / dist;
-            bool reverse = tr.back[tr.index];
-            var heading = reverse ? -dir : dir;
-            bool last = tr.state == State.Arriving && tr.index == tr.path.Count - 1;
-            var want = last && dist < 3f ? tr.rotation : Quaternion.LookRotation(heading);
-            float turn = Quaternion.Angle(t.rotation, want);
+            var path = tr.runs[tr.run]; bool reverse = tr.runBack[tr.run];
+            path.Sample(tr.s, out var dir);   // the way it moves
             const float accel = 2f, brake = 2.6f;
             float cruise = reverse ? 1.7f : InYard(t.position) ? 3f : 6f;
-            float stop = StopDistance(tr);
-            float limit = Mathf.Max(.35f, Mathf.Sqrt(2 * brake * Mathf.Max(0, stop - .05f)));
-            float top = Mathf.Min(cruise, limit, Mathf.Lerp(cruise, 1.2f, Mathf.Clamp01(turn / 50f)));
+            // stops at the end of every run; a long truck takes its bends gently
+            float limit = Mathf.Max(.35f, path.StopSpeed(tr.s, brake));
+            float top = Mathf.Min(cruise, limit, path.Allowed(tr.s, cruise, brake, 1.8f));
             // Wait for whatever is ahead (or behind, backing up): cars, pedestrians, event vehicles, junctions.
             float scale = Mathf.Abs(t.lossyScale.z);
             var nose = reverse ? t.position + t.rotation * new Vector3(0, 0, tr.box.min.z * scale) : t.position + t.rotation * new Vector3(0, 0, tr.box.max.z * scale);
@@ -483,9 +466,9 @@ namespace Checkout
             if (!reverse && CheckoutTrafficJunctions.Hold(t, dir, blocked, tr.speed * tr.speed / (2 * brake * 1.8f))) top = 0;
             else if (blocked && Time.time - tr.since < 40f) top = 0;   // never stuck for ever
             tr.speed = tr.speed < top ? Mathf.Min(top, tr.speed + accel * dt) : Mathf.Max(top, tr.speed - brake * 1.8f * dt);
-            float step = Mathf.Min(tr.speed * dt, dist);
-            t.rotation = Quaternion.RotateTowards(t.rotation, want, dt * Mathf.Lerp(40f, 110f, Mathf.Clamp01(tr.speed / 3f)) * (tr.speed > .05f ? 1 : .2f));
-            var p = t.position + dir * step; p.y = tr.y; t.position = p;
+            tr.s = Mathf.Min(path.Length, tr.s + tr.speed * dt);
+            var p = path.Sample(tr.s, out var heading); p.y = tr.y;
+            t.SetPositionAndRotation(p, Quaternion.LookRotation(reverse ? -heading : heading));
             if (tr.speed > .3f) tr.since = Time.time;
         }
 
