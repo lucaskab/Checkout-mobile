@@ -2206,9 +2206,9 @@ def m_plaster_navy(name, paint):
 def build_spati():
     mats_v2()
     E = EM
-    E["wallN"] = m_plaster_navy("E2N_SpatiWallNavy", NAVY)
-    E["wallC"] = m_plaster_navy("E2N_SpatiWallCream", CREAM)
-    E["stone"] = V.m_stone("E2N_SpatiBase", C("EEE4CF"), C("DCCFB3"))
+    E["wallN"] = V.m_flat("E2N_SpatiWallNavy", NAVY, .03, 1.2, .8, ao=.35)       # clean new paint, no chips
+    E["wallC"] = V.m_flat("E2N_SpatiWallCream", CREAM, .02, 1.2, .8, ao=.35)
+    E["stone"] = V.m_flat("E2N_SpatiBase", C("ECE1CA"), .04, 2, .85, island=.03, ao=.35)
     E["tile"] = V.m_flat("E2N_FloorTile", C("F1E8D5"), .03, 3, .7, island=.05, ao=.35)
     E["tileN"] = V.m_flat("E2N_FloorTileNavy", NAVY2, .03, 3, .7, island=.05, ao=.35)
     E["mat"] = V.m_flat("E2N_Doormat", C("3A4F78"), .05, 30, .95, ao=.3)
@@ -2241,7 +2241,8 @@ def build_spati():
     gw = NG("SPA_wallNavy", E["wallN"]); gwi = NG("SPA_wallCream", E["wallC"])
     gtw = NG("SPA_topWallNavy", E["wallN"]); gtwi = NG("SPA_topWallCream", E["wallC"])
     gb = NG("SPA_baseStone", E["stone"], bevel=.006)
-    gcap = NG("SPA_capGold", E["gold"], bevel=.003)
+    gcap = NG("SPA_capStone", E["stone"], bevel=.004)                   # cream coping with a thin gold bead outside
+    gbead = NG("SPA_capBead", E["gold"], bevel=.002)
     win = (-2.8, .6, .55)                              # shop window x range and sill height (front wall)
     def seg(x0, x1, y0, y1, z0, z1, top=False):
         """A wall block: its outer skin navy, inner skin cream (two boxes)."""
@@ -2258,7 +2259,7 @@ def build_spati():
             gO.box((t_ * .55, y1 - y0, z1 - z0), ((xm - t_ * .225) if inner_right else (xm + t_ * .225), (y0 + y1) / 2, (z0 + z1) / 2))
             gI.box((t_ * .45, y1 - y0, z1 - z0), ((xm + t_ * .275) if inner_right else (xm - t_ * .275), (y0 + y1) / 2, (z0 + z1) / 2))
     # back wall and sides (full length; the corners are owned by the side walls)
-    for (z0, z1, top) in ((FL, LOW, False), (LOW + .016, TOP, True)):
+    for (z0, z1, top) in ((FL, LOW, False), (LOW + .04, TOP, True)):
         seg(ox0 + T, ox1 - T, fy1, oy1, z0, z1, top)
         seg(ox0, fx0, oy0, oy1, z0, z1, top); seg(fx1, ox1, oy0, oy1, z0, z1, top)
         # front: left of the window, under the window (low only), between window and door, right of the door
@@ -2271,7 +2272,7 @@ def build_spati():
     gtw.box((win[1] - win[0] + .02, T * .55, TOP - 2.3), ((win[0] + win[1]) / 2, oy0 + T * .275, (2.3 + TOP) / 2))
     gtwi.box((win[1] - win[0] + .02, T * .45, TOP - 2.3), ((win[0] + win[1]) / 2, fy0 - T * .225, (2.3 + TOP) / 2))
     # stone base outside (front and right side, the sides the camera sees) and the gold cap at the cut
-    for (x0, x1) in ((ox0, d0 - .06), (d1 + .06, ox1)):
+    for (x0, x1) in ((ox0, d0 - .075), (d1 + .075, ox1)):
         gb.box((x1 - x0, .03, .32), ((x0 + x1) / 2, oy0 - .0155, FL + .16))
     for sxx in (-1, 1): gb.box((.03, oy1 - oy0 + .062, .32), (sxx * (ox1 + .0155), (oy0 + oy1) / 2, FL + .16))
     gb.box((ox1 - ox0, .03, .32), (0, oy1 + .0155, FL + .16))
@@ -2279,11 +2280,15 @@ def build_spati():
     for (x0, x1) in ((ox0 + T, win[0]), (win[1], d0 - .06), (d1 + .06, ox1 - T)): gcap.box((x1 - x0, T + .02, .016), ((x0 + x1) / 2, (oy0 + fy0) / 2, capz))
     for sxx in (-1, 1): gcap.box((T + .02, oy1 - oy0 + .02, .016), (sxx * (fx1 + T / 2), (oy0 + oy1) / 2, capz))
     gcap.box((ox1 - ox0 - 2 * T, T + .02, .016), (0, (fy1 + oy1) / 2, capz))
+    bz = capz + .008 + .009                                                     # the bead sits on the coping's outer edge
+    for (x0, x1) in ((ox0 + T, win[0]), (win[1], d0 - .06), (d1 + .06, ox1 - T)): gbead.box((x1 - x0, .018, .018), ((x0 + x1) / 2, oy0 + .0, bz))
+    for sxx in (-1, 1): gbead.box((.018, oy1 - oy0 + .02, .018), (sxx * (ox1 + .0), (oy0 + oy1) / 2, bz))
+    gbead.box((ox1 - ox0 - 2 * T, .018, .018), (0, oy1, bz))
     # ---- shop window (navy frame, gold sill), the glass in EraGlass (visible below 1.1 m, CUT above)
     gfr = NG("SPA_frameNavy", E["navyF"], bevel=.006); gtf = NG("SPA_topFrame", E["navyF"], bevel=.006)
-    gsill = NG("SPA_capSill", E["gold"], bevel=.004)
+    gsill = NG("SPA_capSill", E["stone"], bevel=.004)
     wy = (oy0 + fy0) / 2
-    gsill.box((win[1] - win[0] + .06, T + .08, .03), ((win[0] + win[1]) / 2, wy - .03, win[2] + .03))
+    gsill.box((win[1] - win[0] - .006, T + .04, .03), ((win[0] + win[1]) / 2, wy - .04, win[2] + .03))
     for x in (win[0] + .03, win[1] - .03, (win[0] + win[1]) / 2):
         gfr.box((.05, .07, LOW - win[2] - .06), (x, wy, (win[2] + .045 + LOW) / 2))
         gtf.box((.05, .07, 2.3 - LOW), (x, wy, (LOW + 2.3) / 2))
@@ -2297,21 +2302,23 @@ def build_spati():
     for x in (d0 - .03, d1 + .03):
         gfr.box((.06, T + .04, LOW - FL), (x, wy, (FL + LOW) / 2)); gtf.box((.06, T + .04, 2.2 - LOW), (x, wy, (LOW + 2.2) / 2))
     gtf.box((d1 - d0 + .1, T + .04, .08), ((d0 + d1) / 2, wy, 2.2))
+    # the leaf is swung all the way open, flat against the inside of the front wall right of the door (out of the
+    # customers' way: the pay point and the queue are at y -.35)
     gdl = NG("SPA_doorLeaf", E["navyF"], bevel=.006); gdh = NG("SPA_doorHandle", E["gold"], bevel=.003)
-    lx = d1 + .09; ly0, ly1 = fy0 + .02, fy0 + .02 + (d1 - d0) - .04
-    for y in (ly0 + .025, ly1 - .025): gdl.box((.045, .05, LOW - FL - .02), (lx, y, (FL + .02 + LOW) / 2))
-    gdl.box((.045, ly1 - ly0, .1), (lx, (ly0 + ly1) / 2, FL + .07))
-    gdh.box((.02, .02, .3), (lx - .035, ly1 - .08, .95)); gdh.box((.02, .02, .3), (lx + .035, ly1 - .08, .95))
+    ly = fy0 + .045; lx0, lx1 = d1 + .02, d1 + .02 + (d1 - d0) - .04
+    for x in (lx0 + .025, lx1 - .025): gdl.box((.05, .045, LOW - FL - .02), (x, ly, (FL + .02 + LOW) / 2))
+    gdl.box((lx1 - lx0, .045, .1), ((lx0 + lx1) / 2, ly, FL + .07))
+    gdh.box((.02, .02, .3), (lx1 - .08, ly + .035, .95))
     gdg = G("SPA_glassDoor", m_eraglass(), gcl); todo.append(gdg)
-    gdg.box((.012, ly1 - ly0 - .1, LOW - FL - .16), (lx, (ly0 + ly1) / 2, (FL + .12 + LOW) / 2))
+    gdg.box((lx1 - lx0 - .1, .012, LOW - FL - .16), ((lx0 + lx1) / 2, ly, (FL + .12 + LOW) / 2))
     gtd = NG("SPA_topDoorLeaf", E["navyF"], bevel=.006)
-    for y in (ly0 + .025, ly1 - .025): gtd.box((.045, .05, 2.12 - LOW), (lx, y, (LOW + 2.12) / 2))
-    gtd.box((.045, ly1 - ly0, .06), (lx, (ly0 + ly1) / 2, 2.1))
+    for x in (lx0 + .025, lx1 - .025): gtd.box((.05, .045, 2.12 - LOW - .04), (x, ly, (LOW + .04 + 2.12) / 2))
+    gtd.box((lx1 - lx0, .045, .06), ((lx0 + lx1) / 2, ly, 2.1))
     gmat = NG("SPA_mat", E["mat"], bevel=.006)
     gmat.box((d1 - d0 - .1, .5, .014), ((d0 + d1) / 2, oy0 - .3, .007))
     # ---- counter: wood top, navy front panels with a gold kick strip; retro register; navy stool behind
     cx0, cy0, cx1, cy1 = 1.36, .06, fx1 - .01, .8
-    gcb = NG("SPA_counterBody", E["navyP"], bevel=.006, seg=1); gct = NG("SPA_counterTop", E["wood"], bevel=.008)
+    gcb = NG("SPA_counterBody", E["navyF"], bevel=.006, seg=1); gct = NG("SPA_counterTop", E["wood"], bevel=.008)
     gck = NG("SPA_counterKick", E["gold"], bevel=.003)
     gcb.box((cx1 - cx0, cy1 - cy0 - .02, .9), ((cx0 + cx1) / 2, (cy0 + .02 + cy1) / 2, FL + .45))
     for k in range(4):
@@ -2322,7 +2329,7 @@ def build_spati():
     rb = NG("SPA_regBody", E["regBody"], bevel=.008); rk = NG("SPA_regKey", E["regKey"], bevel=.004, seg=1)
     rd = NG("SPA_regDark", E["dark"], bevel=.004); rc = NG("SPA_regCoin", E["coin"]); rn = NG("SPA_regNote", E["note"])
     retro_register(rb, rk, rd, rc, rn, _T(2.45, .42, FL + .951, math.pi + .1))
-    gsl = NG("SPA_stool", E["navyP"])
+    gsl = NG("SPA_stool", E["navyF"])
     gsl.cyl(.16, .04, (2.4, 1.12, FL + .7), verts=20)
     for k in range(4):
         a = math.pi / 4 + k * math.pi / 2
@@ -2355,7 +2362,7 @@ def build_spati():
         gsoil.cyl(.185, .02, (px, py, .325), verts=20)
         V.city_tree("SPA_bush" + str(k), c, (px, py, .3), 1, rot_z=k * 2.4, tris=1200, crown_only=True, width=.5)
     # ---- CUT_: flat roof with a parapet and gold coping, awning over the window, the sign over the door
-    gro = NG("SPA_topRoof", E["stone"], bevel=.01)
+    gro = NG("SPA_topRoof", E["creamF"], bevel=.01)
     gro.box((ox1 - ox0, oy1 - oy0, .12), (0, (oy0 + oy1) / 2, TOP + .06))
     gco = NG("SPA_topCoping", E["gold"], bevel=.004)
     gco.box((ox1 - ox0 + .04, .06, .05), (0, oy0 - .01, TOP + .145)); gco.box((ox1 - ox0 + .04, .06, .05), (0, oy1 + .01, TOP + .145))
@@ -2364,7 +2371,7 @@ def build_spati():
     slope_awning((gA, gB), gT, win[0] - .05, win[1] + .05, oy0 - .02, 2.48, oy0 - .72, 2.12, n=8, sag=0., hem=True)
     for x in (win[0] + .05, win[1] - .05): gT.tube((x, oy0 - .025, 2.05), (x, oy0 - .66, 2.1), .012, verts=6)
     gsg = NG("SPA_signBoard", E["navyF"], bevel=.006); gsf = NG("SPA_signFrame", E["gold"], bevel=.005)
-    sx0_, sx1_, sz0_, sz1_ = d0 - .05, d1 + .95, 2.32, 2.66
+    sx0_, sx1_, sz0_, sz1_ = d0 + .02, d1 + .95, 2.32, 2.66
     gsg.box((sx1_ - sx0_, .05, sz1_ - sz0_), ((sx0_ + sx1_) / 2, oy0 - .04, (sz0_ + sz1_) / 2))
     for z in (sz0_, sz1_): gsf.box((sx1_ - sx0_ + .05, .06, .035), ((sx0_ + sx1_) / 2, oy0 - .045, z))
     for x in (sx0_, sx1_): gsf.box((.035, .06, sz1_ - sz0_), (x, oy0 - .045, (sz0_ + sz1_) / 2))
@@ -2422,8 +2429,9 @@ def shop_check(cname, plan):
     out = {}
     def ray(o, d):
         h = bvh.ray_cast(Vector(o), Vector(d)); return None if h[0] is None else round(h[3], 3)
-    out["wall -x"] = round(cx - ray((cx, cy, .5), (-1, 0, 0)), 3)
-    out["wall +x"] = round(cx + ray((cx, cy, .5), (1, 0, 0)), 3)
+    yr = y1 - .2                                    # (behind the counter and the open door leaf)
+    out["wall -x"] = round(cx - ray((cx, yr, .5), (-1, 0, 0)), 3)
+    out["wall +x"] = round(cx + ray((cx, yr, .5), (1, 0, 0)), 3)
     out["wall back"] = round(cy + ray((-1.5, cy, .5), (0, 1, 0)), 3)
     out["wall front"] = round(cy - ray((-1.5, cy, .5), (0, -1, 0)), 3)
     out["floor top"] = round(.5 - ray((-1.5, cy, .5), (0, 0, -1)), 3)
@@ -2431,9 +2439,10 @@ def shop_check(cname, plan):
     fy = y0 - .09; free = []
     for i in range(int((x1 - x0) / .01) + 1):
         x = x0 + i * .01
-        h = ray((x, fy, 1.05), (0, 0, -1))
-        if h is None or 1.05 - h < .1: free.append(round(x, 2))
+        h = ray((x, fy, 1.4), (0, 0, -1))
+        if h is None or 1.4 - h < .1: free.append(round(x, 2))
     out["door gap"] = (free[0], free[-1]) if free else None
+    out["door gap runs"] = len([1 for a, b in zip(free, free[1:]) if b - a > .015]) + (1 if free else 0)
     pts = {"pay": plan["pay"]}
     qx, qy = plan["queue"]
     for k in range(1, 4): pts["queue%d" % k] = (plan["pay"][0] + qx * k, plan["pay"][1] + qy * k)
