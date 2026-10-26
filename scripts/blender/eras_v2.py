@@ -1907,7 +1907,8 @@ def build_banca(scheme="N"):
 
 ERAS = {"Era0_Mesinha": ("E2 Mesinha", "MES_GROUPS", "ERA0_Produce", None), "Era1_Tenda": ("E2 Tenda", "TEN_GROUPS", "ERA1_Stock", None),
         "Era2_Banca": ("E2 Banca", "BAN_GROUPS", "ERA2_Stock", "BAN_GLASS"),
-        "Era3_Conteiner": ("E2 Conteiner", "CON_GROUPS", "ERA3_Stock", "CON_GLASS")}
+        "Era3_Conteiner": ("E2 Conteiner", "CON_GROUPS", "ERA3_Stock", "CON_GLASS"),
+        "Era4_Spati": ("E2 Spati", "SPA_GROUPS", "ERA4_Facade", "SPA_GLASS")}
 
 
 def step(name, st):
@@ -2171,3 +2172,271 @@ def sheet(names=("Era0_Mesinha", "Era1_Tenda", "Era2_Banca", "Era3_Conteiner"), 
         for o in cut: o.hide_render = False
         for r, n in roots: r.location = (0, 0, 0)
     return p
+
+
+# ================================================================== ERA 4 - CONVENIÊNCIA (Späti): a small walk-in shop
+# CheckoutStall.Plans["Era4_Spati"] (model metres, x right, y = Unity z, front -y): inner floor x -2.85..2.85,
+# y -1.12..2.25 (wall to wall), door opening x .72..1.62 in the front wall, the fixed counter in x 1.3..3.03,
+# y 0..1.4 (register + clerk's stool), pay point (2.15, -.35), queue towards -x, floor top .06. The model's bounds
+# must stay x +-3.03, y -2.12..2.42 (Place() puts their min y on the front line and centres them in x): the produce
+# stand outside the shop window reaches y -2.12 as the old table did. Everything above 1.1 m is CUT_* (hidden in the
+# game so the camera sees the interior, which stays empty for the player's shelves).
+SPA = "E2 Spati"
+SPA_PLAN = {"floor": (-2.85, -1.12, 2.85, 2.25), "door": (.72, 1.62), "counter": (1.3, 0., 3.03, 1.4), "pay": (2.15, -.35),
+            "queue": (-.75, 0.), "floorY": .06}
+SPA_GROUPS = [
+    ("ERA4_Facade", ("SPA_wall", "SPA_base", "SPA_cap", "SPA_floor", "SPA_frame", "SPA_door", "SPA_mat", "SPA_bush")),
+    ("CUT_ERA4_FacadeTop", ("SPA_top",)),
+    ("CUT_ERA4_Awning", ("SPA_awn",)),
+    ("CUT_ERA4_Sign", ("SPA_sign",)),
+    ("ERA4_Counter", ("SPA_counter",)),
+    ("ERA4_Counter_Register", ("SPA_reg",)),
+    ("ERA4_Counter_Stool", ("SPA_stool",)),
+    ("ERA4_Table", ("SPA_stand", "SPA_crate", "SPA_fruit", "SPA_wedge", "SPA_tag")),
+]
+SPA_GLASS = {"SPA_glassWin": "ERA4_Glass_win", "SPA_glassDoor": "ERA4_Glass_door", "SPA_topGlass": "CUT_ERA4_Glass_winTop"}
+CUT_SRC = CUT_SRC + ("SPA_top", "SPA_awn", "SPA_sign")
+
+
+def m_plaster_navy(name, paint):
+    """Clean painted plaster for the shop walls (lots_v3 plaster without chips), world-space soft tone shift."""
+    return V.m_plaster(name, paint, chips=0., fine=.012)
+
+
+def build_spati():
+    mats_v2()
+    E = EM
+    E["wallN"] = m_plaster_navy("E2N_SpatiWallNavy", NAVY)
+    E["wallC"] = m_plaster_navy("E2N_SpatiWallCream", CREAM)
+    E["stone"] = V.m_stone("E2N_SpatiBase", C("EEE4CF"), C("DCCFB3"))
+    E["tile"] = V.m_flat("E2N_FloorTile", C("F1E8D5"), .03, 3, .7, island=.05, ao=.35)
+    E["tileN"] = V.m_flat("E2N_FloorTileNavy", NAVY2, .03, 3, .7, island=.05, ao=.35)
+    E["mat"] = V.m_flat("E2N_Doormat", C("3A4F78"), .05, 30, .95, ao=.3)
+    c = col(SPA)
+    for o in list(c.all_objects): bpy.data.objects.remove(o)
+    lc = bpy.context.view_layer.layer_collection.children.get(SPA)
+    if lc: lc.exclude = False
+    gcl = glass_col(SPA)
+    todo = []
+
+    def NG(name, mat, **kw):
+        g = G(name, mat, c, **kw); todo.append(g); return g
+    fx0, fy0, fx1, fy1 = SPA_PLAN["floor"]; d0, d1 = SPA_PLAN["door"]
+    T = .15                                            # wall thickness: outer faces x +-3.0 (+ the stone base to 3.03)
+    ox0, ox1, oy0, oy1 = fx0 - T, fx1 + T, fy0 - T, fy1 + T
+    LOW, TOP = 1.1, 2.75
+    FL = SPA_PLAN["floorY"]
+    # ---- floor: slab under everything, cream tiles with a navy border row inside
+    gfs = NG("SPA_floorSlab", E["stone"], bevel=.01)
+    gfs.box((ox1 - ox0, oy1 - oy0, FL - .002), (0, (oy0 + oy1) / 2, (FL - .002) / 2))
+    gft = NG("SPA_floorTile", E["tile"]); gfn = NG("SPA_floorTileNavy", E["tileN"])
+    ts = .4; nx = int(round((fx1 - fx0) / ts)); ny = int(round((fy1 - fy0) / ts))
+    sx, sy = (fx1 - fx0) / nx, (fy1 - fy0) / ny
+    for i in range(nx):
+        for j in range(ny):
+            g = gfn if (i in (0, nx - 1) or j in (0, ny - 1)) else gft
+            g.box((sx - .008, sy - .008, .004), (fx0 + (i + .5) * sx, fy0 + (j + .5) * sy, FL - .002))
+    gfs.box((d1 - d0, T, .004), ((d0 + d1) / 2, fy0 - T / 2, FL - .002))                       # threshold
+    # ---- walls: navy outside, cream inside, a cream stone base outside, a thin gold cap at the cut (1.1 m)
+    gw = NG("SPA_wallNavy", E["wallN"]); gwi = NG("SPA_wallCream", E["wallC"])
+    gtw = NG("SPA_topWallNavy", E["wallN"]); gtwi = NG("SPA_topWallCream", E["wallC"])
+    gb = NG("SPA_baseStone", E["stone"], bevel=.006)
+    gcap = NG("SPA_capGold", E["gold"], bevel=.003)
+    win = (-2.8, .6, .55)                              # shop window x range and sill height (front wall)
+    def seg(x0, x1, y0, y1, z0, z1, top=False):
+        """A wall block: its outer skin navy, inner skin cream (two boxes)."""
+        gO, gI = (gtw, gtwi) if top else (gw, gwi)
+        if abs(x1 - x0) > abs(y1 - y0):            # runs along x
+            ym = (y0 + y1) / 2; inner_up = ym < (fy0 + fy1) / 2
+            yo, yi = (y0 + .02, y1 - .02) if inner_up else (y1 - .02, y0 + .02)
+            t_ = abs(y1 - y0)
+            gO.box((x1 - x0, t_ * .55, z1 - z0), ((x0 + x1) / 2, (ym - t_ * .225) if inner_up else (ym + t_ * .225), (z0 + z1) / 2))
+            gI.box((x1 - x0 - (0 if top else 0), t_ * .45, z1 - z0), ((x0 + x1) / 2, (ym + t_ * .275) if inner_up else (ym - t_ * .275), (z0 + z1) / 2))
+        else:
+            xm = (x0 + x1) / 2; inner_right = xm < 0
+            t_ = abs(x1 - x0)
+            gO.box((t_ * .55, y1 - y0, z1 - z0), ((xm - t_ * .225) if inner_right else (xm + t_ * .225), (y0 + y1) / 2, (z0 + z1) / 2))
+            gI.box((t_ * .45, y1 - y0, z1 - z0), ((xm + t_ * .275) if inner_right else (xm - t_ * .275), (y0 + y1) / 2, (z0 + z1) / 2))
+    # back wall and sides (full length; the corners are owned by the side walls)
+    for (z0, z1, top) in ((FL, LOW, False), (LOW + .016, TOP, True)):
+        seg(ox0 + T, ox1 - T, fy1, oy1, z0, z1, top)
+        seg(ox0, fx0, oy0, oy1, z0, z1, top); seg(fx1, ox1, oy0, oy1, z0, z1, top)
+        # front: left of the window, under the window (low only), between window and door, right of the door
+        seg(fx0, win[0], oy0, fy0, z0, z1, top)
+        seg(win[1], d0 - .06, oy0, fy0, z0, z1, top)
+        seg(d1 + .06, fx1, oy0, fy0, z0, z1, top)
+    seg(win[0], win[1], oy0, fy0, FL, win[2], False)
+    gtw.box((d1 - d0 + .02, T * .55, TOP - 2.2), ((d0 + d1) / 2, oy0 + T * .275, (2.2 + TOP) / 2))   # over the door
+    gtwi.box((d1 - d0 + .02, T * .45, TOP - 2.2), ((d0 + d1) / 2, fy0 - T * .225, (2.2 + TOP) / 2))
+    gtw.box((win[1] - win[0] + .02, T * .55, TOP - 2.3), ((win[0] + win[1]) / 2, oy0 + T * .275, (2.3 + TOP) / 2))
+    gtwi.box((win[1] - win[0] + .02, T * .45, TOP - 2.3), ((win[0] + win[1]) / 2, fy0 - T * .225, (2.3 + TOP) / 2))
+    # stone base outside (front and right side, the sides the camera sees) and the gold cap at the cut
+    for (x0, x1) in ((ox0, d0 - .06), (d1 + .06, ox1)):
+        gb.box((x1 - x0, .03, .32), ((x0 + x1) / 2, oy0 - .0155, FL + .16))
+    for sxx in (-1, 1): gb.box((.03, oy1 - oy0 + .062, .32), (sxx * (ox1 + .0155), (oy0 + oy1) / 2, FL + .16))
+    gb.box((ox1 - ox0, .03, .32), (0, oy1 + .0155, FL + .16))
+    capz = LOW + .008
+    for (x0, x1) in ((ox0 + T, win[0]), (win[1], d0 - .06), (d1 + .06, ox1 - T)): gcap.box((x1 - x0, T + .02, .016), ((x0 + x1) / 2, (oy0 + fy0) / 2, capz))
+    for sxx in (-1, 1): gcap.box((T + .02, oy1 - oy0 + .02, .016), (sxx * (fx1 + T / 2), (oy0 + oy1) / 2, capz))
+    gcap.box((ox1 - ox0 - 2 * T, T + .02, .016), (0, (fy1 + oy1) / 2, capz))
+    # ---- shop window (navy frame, gold sill), the glass in EraGlass (visible below 1.1 m, CUT above)
+    gfr = NG("SPA_frameNavy", E["navyF"], bevel=.006); gtf = NG("SPA_topFrame", E["navyF"], bevel=.006)
+    gsill = NG("SPA_capSill", E["gold"], bevel=.004)
+    wy = (oy0 + fy0) / 2
+    gsill.box((win[1] - win[0] + .06, T + .08, .03), ((win[0] + win[1]) / 2, wy - .03, win[2] + .03))
+    for x in (win[0] + .03, win[1] - .03, (win[0] + win[1]) / 2):
+        gfr.box((.05, .07, LOW - win[2] - .06), (x, wy, (win[2] + .045 + LOW) / 2))
+        gtf.box((.05, .07, 2.3 - LOW), (x, wy, (LOW + 2.3) / 2))
+    gtf.box((win[1] - win[0], .07, .06), ((win[0] + win[1]) / 2, wy, 2.27))
+    gtf.box((win[1] - win[0], .05, .04), ((win[0] + win[1]) / 2, wy, 1.75))
+    gwg = G("SPA_glassWin", m_eraglass(), gcl); todo.append(gwg)
+    gwg.box((win[1] - win[0] - .06, .012, LOW - win[2] - .05), ((win[0] + win[1]) / 2, wy, (win[2] + .045 + LOW) / 2))
+    gtg = G("SPA_topGlass", m_eraglass(), gcl); todo.append(gtg)
+    gtg.box((win[1] - win[0] - .06, .012, 2.24 - LOW), ((win[0] + win[1]) / 2, wy, (LOW + 2.24) / 2))
+    # ---- door: navy frame posts (lower part visible), the glass leaf swung open inside against the right jamb
+    for x in (d0 - .03, d1 + .03):
+        gfr.box((.06, T + .04, LOW - FL), (x, wy, (FL + LOW) / 2)); gtf.box((.06, T + .04, 2.2 - LOW), (x, wy, (LOW + 2.2) / 2))
+    gtf.box((d1 - d0 + .1, T + .04, .08), ((d0 + d1) / 2, wy, 2.2))
+    gdl = NG("SPA_doorLeaf", E["navyF"], bevel=.006); gdh = NG("SPA_doorHandle", E["gold"], bevel=.003)
+    lx = d1 + .09; ly0, ly1 = fy0 + .02, fy0 + .02 + (d1 - d0) - .04
+    for y in (ly0 + .025, ly1 - .025): gdl.box((.045, .05, LOW - FL - .02), (lx, y, (FL + .02 + LOW) / 2))
+    gdl.box((.045, ly1 - ly0, .1), (lx, (ly0 + ly1) / 2, FL + .07))
+    gdh.box((.02, .02, .3), (lx - .035, ly1 - .08, .95)); gdh.box((.02, .02, .3), (lx + .035, ly1 - .08, .95))
+    gdg = G("SPA_glassDoor", m_eraglass(), gcl); todo.append(gdg)
+    gdg.box((.012, ly1 - ly0 - .1, LOW - FL - .16), (lx, (ly0 + ly1) / 2, (FL + .12 + LOW) / 2))
+    gtd = NG("SPA_topDoorLeaf", E["navyF"], bevel=.006)
+    for y in (ly0 + .025, ly1 - .025): gtd.box((.045, .05, 2.12 - LOW), (lx, y, (LOW + 2.12) / 2))
+    gtd.box((.045, ly1 - ly0, .06), (lx, (ly0 + ly1) / 2, 2.1))
+    gmat = NG("SPA_mat", E["mat"], bevel=.006)
+    gmat.box((d1 - d0 - .1, .5, .014), ((d0 + d1) / 2, oy0 - .3, .007))
+    # ---- counter: wood top, navy front panels with a gold kick strip; retro register; navy stool behind
+    cx0, cy0, cx1, cy1 = 1.36, .06, fx1 - .01, .8
+    gcb = NG("SPA_counterBody", E["navyP"], bevel=.006, seg=1); gct = NG("SPA_counterTop", E["wood"], bevel=.008)
+    gck = NG("SPA_counterKick", E["gold"], bevel=.003)
+    gcb.box((cx1 - cx0, cy1 - cy0 - .02, .9), ((cx0 + cx1) / 2, (cy0 + .02 + cy1) / 2, FL + .45))
+    for k in range(4):
+        x0 = cx0 + .06 + k * (cx1 - cx0 - .12) / 4
+        gcb.box(((cx1 - cx0 - .12) / 4 - .04, .02, .6), (x0 + (cx1 - cx0 - .12) / 8, cy0 + .009, FL + .45))
+    gck.box((cx1 - cx0, .02, .05), ((cx0 + cx1) / 2, cy0 + .009, FL + .07))
+    gct.box((cx1 - cx0 + .03, cy1 - cy0 + .06, .05), ((cx0 - .03 + cx1) / 2, (cy0 + cy1) / 2 - .02, FL + .925))
+    rb = NG("SPA_regBody", E["regBody"], bevel=.008); rk = NG("SPA_regKey", E["regKey"], bevel=.004, seg=1)
+    rd = NG("SPA_regDark", E["dark"], bevel=.004); rc = NG("SPA_regCoin", E["coin"]); rn = NG("SPA_regNote", E["note"])
+    retro_register(rb, rk, rd, rc, rn, _T(2.45, .42, FL + .951, math.pi + .1))
+    gsl = NG("SPA_stool", E["navyP"])
+    gsl.cyl(.16, .04, (2.4, 1.12, FL + .7), verts=20)
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        gsl.tube((2.4 + .14 * math.cos(a), 1.12 + .14 * math.sin(a), FL + .002), (2.4 + .1 * math.cos(a), 1.12 + .1 * math.sin(a), FL + .68), .016, verts=6)
+    # ---- produce stand outside under the window (front left, reaching y -2.12 like the old table)
+    gst = NG("SPA_stand", E["wood"], bevel=.005, seg=1)
+    sx0, sx1, sy0, sy1, sz = -2.8, -1.0, -2.12, -1.52, .62
+    tilt = math.atan2(.12, sy1 - sy0); bt = .03
+    ym = (sy0 + sy1) / 2; zb = sz + .06                                         # board centre
+    ztop = lambda y: zb + bt / 2 / math.cos(tilt) + (y - ym) * math.tan(tilt)  # board top along y
+    gst.box((sx1 - sx0, (sy1 - sy0) / math.cos(tilt), bt), ((sx0 + sx1) / 2, ym, zb), rot=(tilt, 0, 0))
+    for x in (sx0 + .04, sx1 - .04):
+        for y in (sy0 + .05, sy1 - .05):
+            h = ztop(y) - bt / math.cos(tilt) - .002; gst.box((.05, .05, h), (x, y, h / 2))
+    gst.box((sx1 - sx0 - .14, .03, .03), ((sx0 + sx1) / 2, sy0 + .05, .15)); gst.box((sx1 - sx0 - .14, .03, .03), ((sx0 + sx1) / 2, sy1 - .05, .15))
+    crates = NG("SPA_crate", E["crateN"], bevel=.005, seg=1); gwd = NG("SPA_wedge", E["wood"], bevel=.003, seg=1)
+    gtc = NG("SPA_tagCard", E["chalk"]); PG = pg_factory(NG, "SPA_fruit")
+    cw, cd, ch = .54, .5, .17
+    for k, (x, kind, n, lod) in enumerate(((-2.5, "apple", 24, 0), (-1.9, "orange", 22, 0), (-1.3, "lime", 30, 0))):
+        yb = sy0 + .04
+        M0 = _T(x, yb, ztop(yb) + .002) @ Matrix.Rotation(tilt, 4, 'X') @ Matrix.Translation((0, cd / 2, 0))
+        crate_rect(crates, M0, cw, cd, ch)
+        gwd.box((cw - .09, cd - .046, .012), (0, 0, .044), M=M0)
+        heap(PG, M0, cw - .044, cd - .044, .05, kind, 90 + k, n, lod=lod)
+        tag(gtc, None, M0 @ Matrix.Translation((cw / 2 - .085, -cd / 2, ch)))
+    # ---- potted bushes beside the door (the city tree's crown), navy pots
+    gpot = NG("SPA_bushPot", E["pot"], bevel=.01, seg=1); gsoil = NG("SPA_bushSoil", V.M["dirt"])
+    for k, (px, py) in enumerate(((d0 - .3, oy0 - .32), (d1 + .55, oy0 - .32))):
+        gpot.cyl(.16, .34, (px, py, .17), r2=.2, verts=20); gpot.torus(.2, .015, (px, py, .34), seg=20, rseg=5)
+        gsoil.cyl(.185, .02, (px, py, .325), verts=20)
+        V.city_tree("SPA_bush" + str(k), c, (px, py, .3), 1, rot_z=k * 2.4, tris=1200, crown_only=True, width=.5)
+    # ---- CUT_: flat roof with a parapet and gold coping, awning over the window, the sign over the door
+    gro = NG("SPA_topRoof", E["stone"], bevel=.01)
+    gro.box((ox1 - ox0, oy1 - oy0, .12), (0, (oy0 + oy1) / 2, TOP + .06))
+    gco = NG("SPA_topCoping", E["gold"], bevel=.004)
+    gco.box((ox1 - ox0 + .04, .06, .05), (0, oy0 - .01, TOP + .145)); gco.box((ox1 - ox0 + .04, .06, .05), (0, oy1 + .01, TOP + .145))
+    for sxx in (-1, 1): gco.box((.06, oy1 - oy0 + .04, .05), (sxx * (ox1 + .01), (oy0 + oy1) / 2, TOP + .145))
+    gA = NG("SPA_awnNavy", E["navy"]); gB = NG("SPA_awnCream", E["creamB"]); gT = NG("SPA_awnTrim", E["gold"])
+    slope_awning((gA, gB), gT, win[0] - .05, win[1] + .05, oy0 - .02, 2.48, oy0 - .72, 2.12, n=8, sag=0., hem=True)
+    for x in (win[0] + .05, win[1] - .05): gT.tube((x, oy0 - .025, 2.05), (x, oy0 - .66, 2.1), .012, verts=6)
+    gsg = NG("SPA_signBoard", E["navyF"], bevel=.006); gsf = NG("SPA_signFrame", E["gold"], bevel=.005)
+    sx0_, sx1_, sz0_, sz1_ = d0 - .05, d1 + .95, 2.32, 2.66
+    gsg.box((sx1_ - sx0_, .05, sz1_ - sz0_), ((sx0_ + sx1_) / 2, oy0 - .04, (sz0_ + sz1_) / 2))
+    for z in (sz0_, sz1_): gsf.box((sx1_ - sx0_ + .05, .06, .035), ((sx0_ + sx1_) / 2, oy0 - .045, z))
+    for x in (sx0_, sx1_): gsf.box((.035, .06, sz1_ - sz0_), (x, oy0 - .045, (sz0_ + sz1_) / 2))
+    pm = picto_mats(); gp = {k: NG("SPA_sign" + k.capitalize(), pm[k]) for k in pm}
+    for k, kind in enumerate(("apple", "milk", "cheese")):
+        pict(gp, Matrix.Translation((sx0_ + (k + .5) * (sx1_ - sx0_) / 3, oy0 - .066, (sz0_ + sz1_) / 2)) @ Matrix.Rotation(math.pi / 2, 4, 'X'), kind, 1.2)
+    for gg in todo:
+        if len(gg.bm.verts): gg.done()
+        else: gg.bm.free()
+    for o in c.all_objects:
+        if o.type == 'MESH' and any(k in o.name for k in ("fruit", "reg", "Pot")):
+            for p in o.data.polygons: p.use_smooth = True
+    return V.stats(c)
+
+
+def shop_markers(cname, plan, old=None, tag="MK"):
+    """Top-view markers for a walk-in shop (CheckoutStall.Plans): white = inner floor, cyan = door gap, magenta =
+    counter rect, red = pay point, blue = queue spots, yellow = the model's bounds (and the old model's in orange)."""
+    mc = col("Markers")
+    for o in list(mc.objects): bpy.data.objects.remove(o)
+    lo, hi = bounds(game_objs(cname)); top = hi.z + .3
+    x0, y0, x1, y1 = plan["floor"]
+    g = G(tag + "_floor", _emit("MK_White", (1, 1, 1, 1)), mc, smooth=False); _outline(g, x0, y0, x1, y1, top, .03); g.done()
+    g = G(tag + "_door", _emit("MK_Cyan", (0, .9, 1, 1)), mc, smooth=False)
+    d0, d1 = plan["door"]; g.box((d1 - d0, .08, .03), ((d0 + d1) / 2, y0, top + .01)); g.done()
+    if plan.get("counter"):
+        cx0, cy0, cx1, cy1 = plan["counter"]
+        g = G(tag + "_counter", _emit("MK_Magenta", (1, .1, 1, 1)), mc, smooth=False); _outline(g, cx0, cy0, cx1, cy1, top + .02, .025); g.done()
+    g = G(tag + "_pay", _emit("MK_Red", (1, .05, .1, 1)), mc, smooth=False)
+    px, py = plan["pay"]; g.cyl(.1, .03, (px, py, top + .03), verts=20); g.done()
+    g = G(tag + "_queue", _emit("MK_Blue", (.1, .35, 1, 1)), mc, smooth=False)
+    qx, qy = plan["queue"]
+    for k in range(1, 4): g.cyl(.07, .03, (px + qx * k, py + qy * k, top + .03), verts=12)
+    g.done()
+    g = G(tag + "_bounds", _emit("MK_Yellow", (1, .9, 0, 1)), mc, smooth=False); _outline(g, lo.x, lo.y, hi.x, hi.y, .02, .02); g.done()
+    if old:
+        olo, ohi = bounds(game_objs(old))
+        g = G(tag + "_oldbounds", _emit("MK_Orange", (1, .45, 0, 1)), mc, smooth=False); _outline(g, olo.x, olo.y, ohi.x, ohi.y, .03, .015); g.done()
+
+
+def shop_check(cname, plan):
+    """The plan against the geometry the game shows: inner wall faces (rays from the floor centre at 0.5 m), the
+    door gap (rays along the front wall line), the floor top, what stands on the pay point / queue spots, and the
+    counter's footprint against its rect."""
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    objs = game_objs(cname)
+    vs, ts = [], []
+    for o in objs:
+        m = o.evaluated_get(dg).to_mesh(); m.calc_loop_triangles(); b = len(vs)
+        vs += [o.matrix_world @ v.co for v in m.vertices]; ts += [tuple(b + i for i in t.vertices) for t in m.loop_triangles]
+        o.evaluated_get(dg).to_mesh_clear()
+    bvh = BVHTree.FromPolygons(vs, ts, all_triangles=True)
+    x0, y0, x1, y1 = plan["floor"]; cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    out = {}
+    def ray(o, d):
+        h = bvh.ray_cast(Vector(o), Vector(d)); return None if h[0] is None else round(h[3], 3)
+    out["wall -x"] = round(cx - ray((cx, cy, .5), (-1, 0, 0)), 3)
+    out["wall +x"] = round(cx + ray((cx, cy, .5), (1, 0, 0)), 3)
+    out["wall back"] = round(cy + ray((-1.5, cy, .5), (0, 1, 0)), 3)
+    out["wall front"] = round(cy - ray((-1.5, cy, .5), (0, -1, 0)), 3)
+    out["floor top"] = round(.5 - ray((-1.5, cy, .5), (0, 0, -1)), 3)
+    # door gap: march along x on the front wall's centre line at 0.5 m
+    fy = y0 - .09; free = []
+    for i in range(int((x1 - x0) / .01) + 1):
+        x = x0 + i * .01
+        h = ray((x, fy, 1.05), (0, 0, -1))
+        if h is None or 1.05 - h < .1: free.append(round(x, 2))
+    out["door gap"] = (free[0], free[-1]) if free else None
+    pts = {"pay": plan["pay"]}
+    qx, qy = plan["queue"]
+    for k in range(1, 4): pts["queue%d" % k] = (plan["pay"][0] + qx * k, plan["pay"][1] + qy * k)
+    for k, (x, y) in pts.items():
+        h = ray((x, y, 2.0), (0, 0, -1)); out[k] = round(2.0 - h, 3) if h is not None else None     # height of what is there
+    return out
