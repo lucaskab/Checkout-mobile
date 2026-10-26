@@ -40,6 +40,7 @@ namespace Checkout
         class Worker
         {
             public Transform body, handL, handR, prop; public Animation anim; public string clip; public Job job;
+            public readonly CheckoutStride stride = new CheckoutStride(false);
             public Vector3 a, b, target; public int phase; public float clock, wait; public bool released;
         }
         class Wall { public Transform wall; public float full; public Transform[] columns; public Transform[] rebars; }
@@ -521,22 +522,24 @@ namespace Checkout
 
         float Length(Worker w, string clip) => w.anim && w.anim[clip] ? w.anim[clip].length : 1.5f;
 
+        // Lucas 26/10 (smooth turns): walks the way people do (CheckoutStride): along the way he faces, easing round
+        // towards the spot, turning on the spot (eased) only when it is behind him; the steps as quick as the walk.
         bool Walk(Worker w, Vector3 target, float dt, bool loaded)
         {
-            var delta = target - w.body.position; delta.y = 0;
-            if (delta.magnitude < .05f) return true;
-            w.body.rotation = Quaternion.RotateTowards(w.body.rotation, Quaternion.LookRotation(delta), dt * 260);
-            if (Vector3.Angle(w.body.forward, delta) > 35) { Play(w, loaded ? "CarryIdle" : "Idle"); return false; }
-            Play(w, loaded ? "CarryWalking" : "Walking");
-            var step = Vector3.MoveTowards(w.body.position, new Vector3(target.x, w.body.position.y, target.z), dt * (loaded ? 1.05f : 1.25f));
-            w.body.position = step;
+            float speed = loaded ? 1.05f : 1.25f;
+            var before = w.body.position;
+            if (w.stride.WalkTo(w.body, target, speed, dt)) return true;
+            var moved = w.body.position - before; moved.y = 0;
+            bool stepping = moved.magnitude > speed * dt * .3f;
+            Play(w, stepping ? (loaded ? "CarryWalking" : "Walking") : (loaded ? "CarryIdle" : "Idle"));
+            if (stepping && w.anim && w.anim[w.clip] && dt > 0) w.anim[w.clip].speed = Mathf.Clamp(moved.magnitude / dt / speed, .4f, 1.2f);
             return false;
         }
 
         void Face(Worker w, Vector3 point, float dt)
         {
             var d = point - w.body.position; d.y = 0;
-            if (d.sqrMagnitude > .001f) w.body.rotation = Quaternion.RotateTowards(w.body.rotation, Quaternion.LookRotation(d), dt * 200);
+            if (d.sqrMagnitude > .001f) w.stride.Face(w.body, d, dt, false);
         }
 
         void AnimateCrew(float dt)

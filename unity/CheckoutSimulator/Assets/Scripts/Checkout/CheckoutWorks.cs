@@ -164,6 +164,7 @@ namespace Checkout
         class Worker
         {
             public Transform body, handL, handR, upperL, upperR, foreR, tool, prop, ride, toolHand, otherHand;
+            public readonly CheckoutStride stride = new CheckoutStride(false);
             public float blow;          // last cycle position of the Sledge clip (dust at the blow)
             // Hauler (lot clearing): loads from the rubble heaps (source), tips the load into the skip (dumped).
             public Func<Vector3> source; public Func<Vector3, Vector3> heapAt; public Action<Vector3> picked; public Action<Transform> dumped; public Vector3 dumpLook, loadedAt;
@@ -480,21 +481,24 @@ namespace Checkout
         }
         float Length(Worker w, string clip) => w.anim && w.anim[clip] ? w.anim[clip].length : 1.5f;
 
+        // Lucas 26/10 (smooth turns): walks the way people do (CheckoutStride): along the way he faces, easing round
+        // towards the spot, turning on the spot (eased) only when it is behind him; the steps as quick as the walk.
         bool Walk(Worker w, Vector3 target, float dt, bool loaded)
         {
-            var delta = target - w.body.position; delta.y = 0;
-            if (delta.magnitude < .06f) return true;
-            w.body.rotation = Quaternion.RotateTowards(w.body.rotation, Quaternion.LookRotation(delta), dt * 260);
-            if (Vector3.Angle(w.body.forward, delta) > 35) { Play(w, loaded && !w.shoulder ? "CarryIdle" : "Idle"); return false; }
-            Play(w, loaded && !w.shoulder ? "CarryWalking" : "Walking");
-            w.body.position = Vector3.MoveTowards(w.body.position, new Vector3(target.x, w.body.position.y, target.z), dt * (loaded ? 1.05f : 1.25f));
+            float speed = loaded ? 1.05f : 1.25f;
+            var before = w.body.position;
+            if (w.stride.WalkTo(w.body, target, speed, dt)) return true;
+            var moved = w.body.position - before; moved.y = 0;
+            bool stepping = moved.magnitude > speed * dt * .3f;
+            Play(w, stepping ? (loaded && !w.shoulder ? "CarryWalking" : "Walking") : (loaded && !w.shoulder ? "CarryIdle" : "Idle"));
+            if (stepping && w.anim && w.anim[w.clip] && dt > 0) w.anim[w.clip].speed = Mathf.Clamp(moved.magnitude / dt / speed, .4f, 1.2f);
             return false;
         }
 
         void Face(Worker w, Vector3 point, float dt)
         {
             var d = point - w.body.position; d.y = 0;
-            if (d.sqrMagnitude > .001f) w.body.rotation = Quaternion.RotateTowards(w.body.rotation, Quaternion.LookRotation(d), dt * 200);
+            if (d.sqrMagnitude > .001f) w.stride.Face(w.body, d, dt, false);
         }
 
         void Crew(float dt)
