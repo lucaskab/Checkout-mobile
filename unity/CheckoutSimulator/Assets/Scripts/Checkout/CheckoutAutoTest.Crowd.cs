@@ -158,7 +158,9 @@ namespace Checkout {
      if (w.VisitPhase == 18) outWait++;
      var agent = w.GetComponent<NavMeshAgent>(); if (!agent || !agent.isOnNavMesh) continue;
      float speed = new Vector2(agent.velocity.x, agent.velocity.z).magnitude;
-     bool walking = !agent.isStopped && agent.hasPath && Vector3.Distance(agent.nextPosition, w.QaTarget) > .6f;
+     // (only near the shop: people leaving along the city's sidewalks are not part of it)
+     var near = CheckoutStall.Footprint; bool atShop = Mathf.Abs(p.x - near.center.x) < near.size.x * .5f + 4 && Mathf.Abs(p.z - near.center.z) < near.size.z * .5f + 4;
+     bool walking = atShop && !agent.isStopped && agent.hasPath && Vector3.Distance(agent.nextPosition, w.QaTarget) > .6f;
      if (walking && speed < .08f) {
       jam.TryGetValue(w, out var j); j += dt; jam[w] = j;
       if (j > 3 && flagged3.Add(w)) stops3++;

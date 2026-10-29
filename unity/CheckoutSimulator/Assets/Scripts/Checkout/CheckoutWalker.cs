@@ -25,7 +25,9 @@ namespace Checkout {
   // A little shop (Späti, quitanda, minimercado) lets in only as many people as it has room for (CheckoutStall.Capacity,
   // Lucas 29/10: a tester saw them jam in a packed Conveniência): the next ones wait outside by the door, in the order
   // they came (phase 18), and go in as others leave. `admitted`: this visit is inside (or the shop had room).
-  static readonly List<CheckoutWalker> waitLine=new List<CheckoutWalker>();bool admitted;
+  static readonly List<CheckoutWalker> waitLine=new List<CheckoutWalker>();bool admitted;int waitSlot;
+  // A place outside is kept until its customer goes in (nobody shuffles along in the crowd); the first who came goes first.
+  void JoinWaitLine(){if(waitLine.Contains(this))return;waitSlot=0;while(waitLine.Exists(w=>w!=this&&w.waitSlot==waitSlot))waitSlot++;waitLine.Add(this);}
   static int InsideCount(){int n=0;foreach(var w in All)if(w&&w.gameObject.activeInHierarchy&&w.admitted&&(w.phase<=4||w.phase==8||w.phase==30))n++;return n;}
   /// <summary>Two rows already wait outside the full little shop: no one else sets off for it until there is room.</summary>
   public static bool ShopCrowded=>CheckoutStall.ShopInside&&waitLine.Count>=6;
@@ -137,7 +139,7 @@ namespace Checkout {
   }
   void NextShelf(){
    if(!admitted){
-    if(MustWait()){if(!waitLine.Contains(this))waitLine.Add(this);phase=18;CheckoutShoppingProps.SetVisible(transform,false);Go(CheckoutStall.WaitSpot(waitLine.IndexOf(this)));return;}
+    if(MustWait()){JoinWaitLine();phase=18;CheckoutShoppingProps.SetVisible(transform,false);Go(CheckoutStall.WaitSpot(waitSlot));return;}
     admitted=true;waitLine.Remove(this);}
    CheckoutShoppingProps.SetVisible(transform,customer.purchases!=null&&customer.purchases.Length>0);if(customer.purchases!=null&&index<customer.purchases.Length){phase=0;Go(map.Approach(customer.purchases[index].shelfId));}else {lane=CheckoutStall.Small&&map.Lanes.lanes.Count>0?map.Lanes.lanes[0]:map.Lanes.Pick();if(lane.places==null&&lane.itemId==null){phase=2;Go(map.Point(new Vector3(-7.2f,.74f,-3.4f)));}else{Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}}}
   // Safety net: a customer who is off the NavMesh (the floor was rebuilt under them) or makes no progress is put back
@@ -173,9 +175,9 @@ namespace Checkout {
     return;}
    if(phase==18){ // Waiting outside the full little shop: their place by the door; in as soon as there is room.
     if(!CheckoutStall.ShopInside){waitLine.Remove(this);admitted=true;NextShelf();return;}
-    int at=waitLine.IndexOf(this);if(at<0){waitLine.Add(this);at=waitLine.Count-1;}
-    if(at==0&&InsideCount()<CheckoutStall.Capacity){waitLine.Remove(this);admitted=true;NextShelf();snapHeading=true;return;}
-    var spot=CheckoutStall.WaitSpot(at);if(NavMesh.SamplePosition(spot,out var near,1.5f,NavMesh.AllAreas))spot=near.position;
+    if(!waitLine.Contains(this))JoinWaitLine();
+    if(waitLine[0]==this&&InsideCount()<CheckoutStall.Capacity){waitLine.Remove(this);admitted=true;NextShelf();snapHeading=true;return;}
+    var spot=CheckoutStall.WaitSpot(waitSlot);if(NavMesh.SamplePosition(spot,out var near,1.5f,NavMesh.AllAreas))spot=near.position;
     if((spot-target).sqrMagnitude>.05f)Go(spot);
     else if(!agent.pathPending&&Vector3.Distance(agent.nextPosition,target)<.4f){agent.isStopped=true;var look=new Vector3(CheckoutStall.Door.x,0,CheckoutStall.Door.y)-transform.position;look.y=0;if(look.sqrMagnitude>.01f)stride.Face(transform,look,Time.deltaTime,false);Hold();return;}}
    if(phase==16){ // In the event's line (the ATM): follow the slot; when the scene lets them go, walk in.

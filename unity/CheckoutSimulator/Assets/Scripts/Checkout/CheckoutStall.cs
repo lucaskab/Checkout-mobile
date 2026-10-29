@@ -65,7 +65,7 @@ namespace Checkout
             ["Era4_Spati"] = new ShopPlan
             {
                 floor = Rect.MinMaxRect(-3.25f, -1.12f, 3.85f, 2.95f), doorMin = .58f, doorMax = 1.78f, keepMin = .72f, keepMax = 1.62f, oldFloor = Rect.MinMaxRect(-2.85f, -1.12f, 2.85f, 2.25f),
-                counter = Rect.MinMaxRect(1.3f, .0f, 3.03f, 1.4f), floorY = .06f, wait = new Vector2(2.75f, -1.9f),
+                counter = Rect.MinMaxRect(1.3f, .0f, 3.03f, 1.4f), floorY = .06f, wait = new Vector2(2.6f, -1.9f),
                 queue = new[] { new Vector2(2.15f, -.35f), new Vector2(2.9f, -.5f), new Vector2(3.45f, -.05f), new Vector2(3.45f, .7f), new Vector2(3.45f, 1.45f), new Vector2(3.45f, 2.2f), new Vector2(2.75f, 2.5f), new Vector2(2.0f, 2.5f) },
                 solids = new[] { ("ERA4_Table", Rect.MinMaxRect(-2.8f, -2.12f, -1.0f, -1.52f)) },
             },

@@ -2189,7 +2189,7 @@ SPA = "E2 Spati"
 # game stands the model with its origin on CheckoutStall.Centre.x (no longer the bounds centre).
 SPA_PLAN = {"floor": (-3.25, -1.12, 3.85, 2.95), "door": (.58, 1.78), "counter": (1.3, 0., 3.03, 1.4), "pay": (2.15, -.35),
             "queue": [(2.15, -.35), (2.9, -.5), (3.45, -.05), (3.45, .7), (3.45, 1.45), (3.45, 2.2), (2.75, 2.5), (2.0, 2.5)],
-            "wait": (2.75, -1.9), "floorY": .06}
+            "wait": (2.6, -1.9), "floorY": .06}
 SPA_OLD_PLAN = {"floor": (-2.85, -1.12, 2.85, 2.25), "door": (.72, 1.62), "counter": (1.3, 0., 3.03, 1.4), "pay": (2.15, -.35),
                 "queue": [(2.15, -.35), (1.4, -.35), (.65, -.35), (-.1, -.35)], "floorY": .06}
 SPA_GROUPS = [
