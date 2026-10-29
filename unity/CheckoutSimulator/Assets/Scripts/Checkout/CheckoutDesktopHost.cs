@@ -131,7 +131,7 @@ namespace Checkout {
    // The release build (sent to testers) keeps its own save, so trying it on the dev machine never touches the real game.
    var save=Path.Combine(Application.persistentDataPath,CheckoutStartMenu.EditMode?"checkout-editor-save.json":bundled!=null?"checkout-release-save.json":"checkout-desktop-save.json");
    // QA runs play a fresh copy of the player's save (they switch stages with the dev tools).
-   if(CheckoutStartMenu.QaMode){var qa=Path.Combine(Application.persistentDataPath,"checkout-qa-save.json");try{if(File.Exists(save))File.Copy(save,qa,true);}catch{}save=qa;}
+   if(CheckoutStartMenu.QaMode){var qa=Path.Combine(Application.persistentDataPath,"checkout-qa-save.json");try{if(CheckoutStartMenu.QaFresh){if(File.Exists(qa))File.Delete(qa);}else if(File.Exists(save))File.Copy(save,qa,true);}catch{}save=qa;}
    start.EnvironmentVariables["CHECKOUT_DESKTOP_SAVE"]=save;
    // App Store screenshots: no Dev tab in the HUD (the dev actions that set up the market still work).
    if(Application.isEditor&&File.Exists("Logs/store_shots.txt"))start.EnvironmentVariables["CHECKOUT_HIDE_DEV"]="1";

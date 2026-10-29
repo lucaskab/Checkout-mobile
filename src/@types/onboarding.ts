@@ -46,5 +46,8 @@ export type OnboardingState = {
  *   fab:caixa | fab:repor | fab:entrega   the floating game buttons on the left
  *   help                        the "?" button of the top bar
  *   settings                    the gear (Opções) of the top bar (the toolbar on phones)
+ *   close                       the X of the open page window
+ * A target only counts when a finger on it reaches it (not scrolled away, not under a window); when the page window covers
+ * it, Unity points at the page's X instead.
  */
 export type OnboardingTarget = string;

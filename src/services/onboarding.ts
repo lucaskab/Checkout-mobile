@@ -123,7 +123,9 @@ export function isStepDone(id: OnboardingStepId, state: GameState, route: Onboar
 			// Closing the shelf window also moves on.
 			return name !== "shelf" && name !== "store" && now - o.stepStartedAt > READ_MS;
 		case "abrir":
-			return name === "day" || state.market.isOpen;
+			// The ABRIR button opens the contract list (route "day" while planning). With a finished day waiting the same
+			// route shows the results, which is not the contract list (the "Resultado" button, QA 29/10).
+			return (name === "day" && state.day.phase === "planning") || state.market.isOpen;
 		case "dia-livre":
 			return state.market.isOpen;
 		case "primeiro-cliente":
@@ -386,8 +388,9 @@ export function getCoachView(state: GameState, route: OnboardingRoute, now: numb
 			.filter(Boolean)
 			.join("  ");
 	}
-	// The day's results come first: they need a tap before anything else.
-	if (state.day.phase === "results" && o.status === "active" && stepIndex(o.step) > stepIndex("dia-livre")) {
+	// The day's results come first: they need a tap before anything else. This holds for every step after the welcome:
+	// a save that ended a day before "abrir" showed "Hora de abrir!" pointing at the "Resultado" button (QA 29/10).
+	if (state.day.phase === "results" && o.status === "active" && stepIndex(o.step) > stepIndex("boas-vindas")) {
 		const tip = onboardingTips.find((item) => item.id === "fim-do-dia");
 		if (tip)
 			return { ...view, key: "fim-do-dia", mode: "spotlight", title: tip.title, text: tip.text, target: tip.target, isTip: true };
@@ -422,6 +425,8 @@ export function getCoachView(state: GameState, route: OnboardingRoute, now: numb
 		if (def.id === "pedir" && name !== "suppliers") return { ...base, target: "route:!suppliers|tool:!store|tool:!products", text: "Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado." };
 		if (def.id === "caixa" && !readyAtRegister(state, now)) return { ...base, mode: "bubble", target: "", text: "O cliente está escolhendo... já já ele vai para o caixa." };
 		if (def.id === "descarregar" && !trucksAtDock(state)) return { ...base, mode: "bubble", target: "" };
+		// "Feche a janela": the hand shows the page's X (the card only sat in a corner with no way on, QA 29/10).
+		if ((def.id === "vitrine" || def.id === "deposito") && route) return { ...base, target: "close" };
 		return base;
 	}
 	if (o.tip) {

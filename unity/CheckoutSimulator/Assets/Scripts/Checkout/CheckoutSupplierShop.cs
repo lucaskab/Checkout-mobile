@@ -403,6 +403,10 @@ namespace Checkout {
    int added=AddBoxes(productId,1,out var why);
    if(added==0)Toast(why,"C0401F");else Sfx(clipAdd,.35f);
   }
+  // QA (CheckoutAutoTest "onboarding"): the buttons a player taps to order, and the window's close.
+  public CheckoutDesktopButton QaAddButton(){foreach(var c in cards.Values)if(c.root&&c.root.gameObject.activeInHierarchy&&c.button&&c.button.isActiveAndEnabled&&c.button.Data!=null&&c.button.Data.enabled)return c.button;return null;}
+  public CheckoutDesktopButton QaBuyButton=>buyButton;public bool QaBusy=>busy;public int QaCartBoxes=>TotalBoxes();
+  public void QaClose()=>Close();
   void Close(){
    if(!IsOpen||busy)return;
    StartCoroutine(CloseAnim());

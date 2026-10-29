@@ -56,12 +56,18 @@ namespace Checkout {
    if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open){var walker=NextAvailableWalker();if(walker){if(EventVisit(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}else if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(WalkersClearOfEntrance()){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
    if(Input.GetMouseButtonDown(0)){pointerStart=Input.mousePosition;pointerDragged=false;}
    if(Input.touchCount>1||(Input.GetMouseButton(0)&&Vector2.Distance(pointerStart,Input.mousePosition)>10))pointerDragged=true;
-   if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutPointer.OverUi){
-    if(Physics.Raycast(simulation.view.ScreenPointToRay(Input.mousePosition),out var hit,150)){var action=hit.collider.GetComponent<CheckoutTarget>();if(action){if(action.panel=="checkout")CheckoutCounterGame.Show(this,action.requestId);
-     // Works boards: finish a build inside the market (or the expansion) right now for diamonds.
-     else if(action.panel=="finishBuild"&&!string.IsNullOrEmpty(action.requestId))Command("finishInteriorConstructionNow","[\""+action.requestId+"\"]");
-     else if(action.panel=="finishWorks")Command("finishMarketExpansionNow","[]");else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="windowSale"){var fx=GetComponent<CheckoutEventVisuals>();if(fx)fx.ServeWindow(action.requestId);}else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);}}
-   }
+   if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutPointer.OverUi)WorldTap(Input.mousePosition);
+  }
+  /// <summary>A tap on the map at this screen point: the clickable thing under it (CheckoutTarget) opens its window.
+  /// Returns what was hit (the onboarding test taps where the guide's hand points).</summary>
+  public CheckoutTarget WorldTap(Vector2 screen){
+   if(!Physics.Raycast(simulation.view.ScreenPointToRay(screen),out var hit,150))return null;
+   var action=hit.collider.GetComponent<CheckoutTarget>();if(!action)return null;
+   if(action.panel=="checkout")CheckoutCounterGame.Show(this,action.requestId);
+   // Works boards: finish a build inside the market (or the expansion) right now for diamonds.
+   else if(action.panel=="finishBuild"&&!string.IsNullOrEmpty(action.requestId))Command("finishInteriorConstructionNow","[\""+action.requestId+"\"]");
+   else if(action.panel=="finishWorks")Command("finishMarketExpansionNow","[]");else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="windowSale"){var fx=GetComponent<CheckoutEventVisuals>();if(fx)fx.ServeWindow(action.requestId);}else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);
+   return action;
   }
   // A customer the running event brought (Customer.origin): their walk starts in the event's scene (the ATM queue on
   // payday, the bus at rush hour, the street fair…) instead of the parking lot or a random sidewalk spot.

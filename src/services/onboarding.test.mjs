@@ -67,6 +67,8 @@ test("the guided first day is finished by playing, step by step", () => {
 	// The shelf window opens: next step explains it, closing the window moves on.
 	tick("shelf:produce");
 	expect(step()).toBe("vitrine");
+	// While the window is open the hand shows its X.
+	expect(getCoachView(store(), "shelf:produce", clock).target).toBe("close");
 	tick("shelf:produce");
 	expect(step()).toBe("vitrine");
 	tick("", 2_000);
@@ -103,6 +105,7 @@ test("the guided first day is finished by playing, step by step", () => {
 
 	tick("products");
 	expect(step()).toBe("deposito");
+	expect(getCoachView(store(), "products", clock).target).toBe("close");
 	expect(store().onboardingNext()).toBe(true);
 	expect(step()).toBe("entregas");
 	tick("suppliers");
@@ -174,6 +177,26 @@ test("the day's results interrupt the tutorial with a pointer to collect them", 
 	const coach = getCoachView(store(), "", clock);
 	expect(coach.key).toBe("fim-do-dia");
 	expect(coach.target).toContain("claimDayResult");
+});
+
+test("a finished day before ABRIR: collect the results first, and the results page does not count as the contract list", () => {
+	// QA 29/10: "Hora de abrir!" pointed at the "Resultado" button and tapping it skipped to "Seu primeiro dia".
+	useGameStore.setState({
+		onboarding: { ...store().onboarding, step: "abrir", stepStartedAt: clock },
+		day: { ...store().day, phase: "results" },
+	});
+	const coach = getCoachView(store(), "", clock);
+	expect(coach.key).toBe("fim-do-dia");
+	expect(coach.target).toContain("claimDayResult");
+	tick("day");
+	expect(step()).toBe("abrir");
+	tick("day-result");
+	expect(step()).toBe("abrir");
+	// Collected: the next day is planned, the ABRIR button opens the contract list and that finishes the step.
+	useGameStore.setState({ day: { ...store().day, phase: "planning" } });
+	expect(getCoachView(store(), "", clock).key).toBe("abrir");
+	tick("day");
+	expect(step()).toBe("dia-livre");
 });
 
 test("every step has a title and text, and steps that end by tapping a button have one", () => {

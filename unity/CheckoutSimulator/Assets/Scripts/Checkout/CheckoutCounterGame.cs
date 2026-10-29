@@ -91,6 +91,12 @@ namespace Checkout {
   public IEnumerator QaScanAll(){foreach(var token in tokens.ToList()){while(busy)yield return null;if(token&&tokenItems.TryGetValue(token,out var item))StartCoroutine(Scan(token,item));yield return new WaitForSecondsRealtime(.15f);}while(busy)yield return null;}
   public void QaPayAll()=>PayAll();
   public void QaGive(int value)=>GiveChange(value);
+  // The onboarding test plays a real customer: what the register asks for now.
+  public bool QaPaying=>paying&&!finished;public bool QaChanging=>changing&&!finished&&ChangeLeft>0;public int QaNextChange=>NextChangeValue();
+  public bool QaFinished=>finished;public RectTransform QaCardSlot=>machine&&slotRect?slotRect:null;
+  public string QaPhase=>entry==null?"none":finished?"finished":changing?"change "+ChangeLeft:paying?"pay":machine?"card":"scan";
+  public string QaEntryId=>entry?.id??"";public float QaPatience=>patience?patience.fillAmount:-1;
+  public RectTransform QaCard(){if(!stage)return null;foreach(var d in stage.GetComponentsInChildren<CheckoutDragToken>())if(d&&!d.Locked&&d.name=="Card")return (RectTransform)d.transform;return null;}
   void Clear(){foreach(var o in scene)if(o)Destroy(o);scene.Clear();tokenItems.Clear();if(hint)Destroy(hint);machine=null;register=null;tokens.Clear();changePanel=null;bins.Clear();binShade.Clear();customerNotes.Clear();handNotes.Clear();paying=changing=false;counterCleared=false;receiptDone=false;drawerRect=null;keys.Clear();}
   T Keep<T>(T c) where T:Component{scene.Add(c.gameObject);return c;}
   // Transparent grab area holding a shadow and the art, so the shadow can sit underneath.

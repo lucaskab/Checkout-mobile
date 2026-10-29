@@ -94,6 +94,18 @@ namespace Checkout {
    return dock.Where(d=>d.orderId==first.orderId).ToArray();
   }
   void Close(){StopAllCoroutines();Clear();window.SetActive(false);}
+  // QA (CheckoutAutoTest "onboarding"): the next box on the truck and a rack with a free spot of its zone.
+  public bool QaNextDrop(out RectTransform box,out RectTransform rack){
+   box=rack=null;
+   foreach(var b in truckBoxes){
+    if(b==null||b.stored||!b.rect||!b.rect.gameObject.activeInHierarchy||(b.drag&&b.drag.Locked))continue;
+    Fixture best=null;foreach(var f in fixtures)if(f.root&&f.places.Exists(p=>p.box==null&&p.zone==b.zone)){best=f;break;}
+    if(best==null)foreach(var f in fixtures)if(f.root&&f.places.Exists(p=>p.box==null)){best=f;break;}
+    if(best==null)return false;box=b.rect;rack=best.root;return true;
+   }
+   return false;
+  }
+  public void QaClose()=>Close();
   void Clear(){
    foreach(var o in scene)if(o)Destroy(o);scene.Clear();if(hint)Destroy(hint);hint=null;toast=null;
    fixtures.Clear();truckBoxes.Clear();notes.Clear();roomLeft.Clear();truckRoot=cargo=clipboard=null;truckFade=null;ghost=null;ghostPlace=null;

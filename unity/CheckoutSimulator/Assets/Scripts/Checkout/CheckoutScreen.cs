@@ -15,7 +15,10 @@ namespace Checkout
 #if UNITY_EDITOR
         public const string PreviewKey = "Checkout.PreviewPhoneUi";
         // The Device Simulator reports the simulated phone through UnityEngine.Device: it shows the phone layout too.
-        public static bool Handheld => Application.isMobilePlatform || UnityEngine.Device.Application.isMobilePlatform || UnityEditor.EditorPrefs.GetBool(PreviewKey, false);
+        public static bool Handheld => QaHandheld ?? (Application.isMobilePlatform || UnityEngine.Device.Application.isMobilePlatform || UnityEditor.EditorPrefs.GetBool(PreviewKey, false));
+        /// <summary>QA runs (CheckoutAutoTest "onboarding-…-phone/-desk") pick the phone or desktop UI for the session
+        /// without touching the Editor preference.</summary>
+        public static bool? QaHandheld;
 #else
         public static bool Handheld => Application.isMobilePlatform || SystemInfo.deviceType == DeviceType.Handheld;
 #endif

@@ -17,6 +17,8 @@ namespace Checkout
         public static bool EditMode { get; private set; }
         // Visual QA runs (Logs/autotest.txt asks for "events…"): no menu, and a copy of the save so the player's game is untouched.
         public static bool QaMode { get; private set; }
+        /// <summary>The QA copy starts empty (a new player) instead of copying the player's save.</summary>
+        public static bool QaFresh { get; private set; }
         public static bool Chosen { get; private set; }
         public static bool Showing => current;
         static CheckoutStartMenu current;
@@ -29,7 +31,14 @@ namespace Checkout
             Chosen = false;
             var env = Environment.GetEnvironmentVariable("CHECKOUT_START");
             if (env == "play" || env == "edit") { Launch(bridge, env == "edit"); return; }
-            try { QaMode = System.IO.File.Exists("Logs/autotest.txt") && System.IO.File.ReadAllText("Logs/autotest.txt").Contains("events"); } catch { QaMode = false; }
+            string qa = "";
+            try { qa = System.IO.File.Exists("Logs/autotest.txt") ? System.IO.File.ReadAllText("Logs/autotest.txt") : ""; } catch { qa = ""; }
+            // "onboarding…" plays the tutorial on a brand-new QA save (never the player's), in the phone or desktop UI.
+            QaFresh = Application.isEditor && qa.Contains("onboarding");
+            QaMode = qa.Contains("events") || QaFresh;
+#if UNITY_EDITOR
+            CheckoutScreen.QaHandheld = QaFresh ? !qa.Contains("-desk") : (bool?)null; // reset too (play mode without a domain reload)
+#endif
             // App Store screenshots (Checkout/iPhone/Store screenshots): also on the QA copy of the save, straight into the game.
             if (Application.isEditor && System.IO.File.Exists("Logs/store_shots.txt")) QaMode = true;
             if (QaMode) { Launch(bridge, false); return; }
