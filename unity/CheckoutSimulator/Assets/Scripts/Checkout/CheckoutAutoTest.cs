@@ -102,14 +102,20 @@ namespace Checkout {
   }
   // Opções › Conta and the Guia's "Conta e nuvem" (sign in with Google, Apple on the iPhone) and the contract list
   // without the "Dia livre" card ("account"). Nothing is signed in or bought. Shots Logs/at_account_*.png.
+  // 29/10 (App Store review): in English, the Opções footer (privacy policy, support) on two tabs, the Conta page's
+  // "Privacy and support" card and the diamond store as the store reports itself; the language goes back after.
   IEnumerator AccountShots(){
    void Route(string r)=>CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\""+r+"\"}");
-   Route("");yield return new WaitForSecondsRealtime(1f);
+   void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
+   var before=CheckoutI18n.Language;Lang("en");
+   Route("");yield return new WaitForSecondsRealtime(2.5f);
    CheckoutSettings.Show("conta");yield return new WaitForSecondsRealtime(1f);yield return Shot("account_tab");
+   CheckoutSettings.Show("sons");yield return new WaitForSecondsRealtime(.8f);yield return Shot("account_opcoes_sons");
    var cloud=CheckoutCloud.Active;Note("account: cloud "+(cloud?cloud.State+" provider '"+cloud.Provider+"' providers "+string.Join(",",CheckoutCloud.Providers):"none"));
    CheckoutSettings.Hide();Route("!conta");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("account_page");
+   Route("!currency");yield return new WaitForSecondsRealtime(1.6f);yield return Shot("account_store");
    Route("!day");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("account_contracts");
-   Route("");
+   Route("");Lang(before);yield return new WaitForSecondsRealtime(1.5f);Note("account: language back to "+CheckoutI18n.Language);
   }
   // The tidier HUD (Lucas 19/10, "hudtidy"): the corner Bônus button and its menu, the Produtos and Missões windows with
   // their header tabs, the Opções window on both tabs, and the game switched to English and back from Opções › Idioma.
