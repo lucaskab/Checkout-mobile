@@ -32,8 +32,9 @@ export function readSession(token: string | undefined, secret: string, now = Dat
 
 export type GoogleIdentity = { sub: string; email?: string; name?: string };
 export type GoogleVerifier = (idToken: string) => Promise<GoogleIdentity | null>;
-/** Apple's identity token carries no name (the phone sends it once, on the first login). */
-export type AppleIdentity = { sub: string; email?: string };
+/** Apple's identity token carries no name (the phone sends it once, on the first login). `nonce`: the SHA-256 (hex)
+ * of the login's one-time nonce, when the phone asked for one (builds from 29/10 on). */
+export type AppleIdentity = { sub: string; email?: string; nonce?: string };
 export type AppleVerifier = (idToken: string) => Promise<AppleIdentity | null>;
 type Jwk = { kid: string; kty: string; n: string; e: string; alg?: string };
 type KeySet = { keys: Jwk[] };
@@ -122,7 +123,9 @@ export function appleVerifier(
 	const check = idTokenChecker(["https://appleid.apple.com"], bundleIds, fetchKeys, clock);
 	return async (idToken) => {
 		const claims = await check(idToken);
-		return claims ? { sub: claims.sub as string, email: text(claims.email) } : null;
+		if (!claims) return null;
+		const nonce = text(claims.nonce);
+		return { sub: claims.sub as string, email: text(claims.email), ...(nonce ? { nonce } : {}) };
 	};
 }
 

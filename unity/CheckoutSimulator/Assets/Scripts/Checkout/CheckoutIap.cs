@@ -61,6 +61,14 @@ namespace Checkout {
    catch(Exception ex){Debug.LogWarning("CHECKOUT_IAP purchase not started: "+ex.Message);flow.ReportEvent("failed",id,ex.Message);}
   }
 
+  /// <summary>Host line <c>iap-retry</c>: "Tentar de novo" on the diamond store when the store did not answer.</summary>
+  public void RetryNow(){
+   if(!StoreSupported){flow.ReportStatus(false,null,null,"no store on this platform");return;}
+   if(!connected){CancelInvoke(nameof(Reconnect));Connect();}
+   else if(flow.HasCatalog)Fetch();
+   else ReportPrices();
+  }
+
   // A real store (or the Editor's fake one for testing): never the FakeStore of a desktop build.
   static bool StoreSupported=>Application.isEditor||Application.platform==RuntimePlatform.IPhonePlayer||Application.platform==RuntimePlatform.Android;
 

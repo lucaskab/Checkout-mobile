@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, describe, test } from "node:test";
@@ -96,6 +96,8 @@ describe("Apple identity tokens", () => {
 	test("accepts Apple's token for the game's bundle ids", async () => {
 		assert.deepEqual(await verify(make(good)), { sub: "001234.abcd", email: "x@privaterelay.appleid.com" });
 		assert.equal((await verify(make({ ...good, aud: "com.lucasfurini.checkout.dev", email: undefined })))?.sub, "001234.abcd");
+		// The login's nonce (SHA-256 hex), when the phone asked Apple for one.
+		assert.equal((await verify(make({ ...good, nonce: "ab12" })))?.nonce, "ab12");
 	});
 
 	test("refuses Google's issuer, other apps and expired tokens", async () => {
@@ -149,7 +151,14 @@ describe("the API", () => {
 			verifyGoogle: async (t) => identities[t] ?? null,
 			exchangeCode: async (code, verifier, uri) => (code === "code-ana" && verifier === "v" && uri.startsWith("http://127.0.0.1:") ? "token-ana" : null),
 			exchangeIosCode: async (code, verifier, uri) => (code === "ios-ana" && verifier === "v" && uri.endsWith(":/oauth2redirect") ? "token-ana" : null),
-			verifyApple: async (t) => (t === "apple-cris" ? { sub: "001.cris", email: "cris@privaterelay.appleid.com" } : t === "apple-dani" ? { sub: "001.dani" } : null),
+			verifyApple: async (t) =>
+				t === "apple-cris"
+					? { sub: "001.cris", email: "cris@privaterelay.appleid.com" }
+					: t === "apple-dani"
+						? { sub: "001.dani" }
+						: t === "apple-eva"
+							? { sub: "001.eva", nonce: createHash("sha256").update("raw-nonce-1").digest("hex") }
+							: null,
 			apple: {
 				exchange: async (code) => (code === "auth-code" ? "refresh-cris" : null),
 				revoke: async (token) => (revoked.push(token), true),
@@ -217,6 +226,14 @@ describe("the API", () => {
 		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-dani" })).status, 200);
 		assert.equal((await call("DELETE", "/v1/account", undefined, again.token)).status, 204);
 		assert.deepEqual(revoked, ["refresh-cris"]);
+	});
+
+	test("Sign in with Apple: the nonce sent with the login must match the token's (older builds send none)", async () => {
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva", nonce: "raw-nonce-1" })).status, 200);
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva", nonce: "another-nonce" })).status, 401);
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva", nonce: "" })).status, 401);
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-dani", nonce: "raw-nonce-1" })).status, 401, "a token without a nonce");
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva" })).status, 200, "builds before 29/10 send no nonce");
 	});
 
 	test("Sign in with Apple not configured → 404", async () => {

@@ -92,7 +92,7 @@ namespace Checkout {
    order=o;orderId=id;sealing=false;ended=false;ready=false;streak=0;lastDrop=-99;bannerGone=false;running=false;elapsed=0;
    lastInput=Time.unscaledTime;hoveredBox=null;hoveredBagRef=null;hintBox=null;substMistakes=0;pendingSubst=false;
    window.SetActive(true);window.transform.SetAsLastSibling();StopAllCoroutines();Clear();
-   title.text="Montar pedido · "+(string.IsNullOrEmpty(o.customerName)?"Cliente":o.customerName);
+   title.text=string.IsNullOrEmpty(o.customerName)?"Montar pedido · Cliente":string.Format("Montar pedido · {0}",o.customerName);
    Canvas.ForceUpdateCanvases();
    board=Node("Board",stage);U.Stretch(board,Vector2.zero,Vector2.one);
    fx=Node("Fx",board);U.Stretch(fx,Vector2.zero,Vector2.one);
@@ -223,7 +223,7 @@ namespace Checkout {
    clipboard=img.rectTransform;U.At(clipboard,Mid,new Vector2(w,h),StagePos(margin+w*.5f,H-margin-h*.5f));clipboard.localRotation=Quaternion.Euler(0,0,2);
    var sheet=d?.sheet!=null&&d.sheet.Length>=4?Rect.MinMaxRect(d.sheet[0],d.sheet[1],d.sheet[2],d.sheet[3]):new Rect(.1f,.07f,.8f,.78f);
    var head=U.Label(clipboard,"Heading",K.Headline,h*.06f,"FFFFFF");U.Stretch(head.rectTransform,new Vector2(sheet.xMin,sheet.yMax-.08f),new Vector2(sheet.xMax,sheet.yMax-.005f));
-   head.text="PEDIDO · "+(string.IsNullOrEmpty(order.customerName)?"Cliente":order.customerName);
+   head.text=string.IsNullOrEmpty(order.customerName)?"PEDIDO · Cliente":string.Format("PEDIDO · {0}",order.customerName);
    head.enableAutoSizing=true;head.fontSizeMin=11;head.fontSizeMax=h*.065f;
    var slots=d?.lines??new RoomClipLine[0];
    bool hasNote=!string.IsNullOrEmpty(order.note);
@@ -403,7 +403,7 @@ namespace Checkout {
    if(elapsed>parSec)timerFill.color=Color.Lerp(alarm,K.C("F2B03D"),red);
    else if(elapsed>parSec*.8f)timerFill.color=Color.Lerp(green,alarm,red*(elapsed-parSec*.8f)/(parSec*.2f+.01f));
    else timerFill.color=green;
-   if(timerLabel)timerLabel.text=(elapsed>parSec?"Passou da meta · ":"Meta "+Clock(parSec)+" · ")+Clock(elapsed);
+   if(timerLabel)timerLabel.text=elapsed>parSec?string.Format("Passou da meta · {0}",Clock(elapsed)):string.Format("Meta {0} · {1}",Clock(parSec),Clock(elapsed));
   }
   // ------------------------------------------------------------------ frame update
   void Update(){
@@ -525,7 +525,7 @@ namespace Checkout {
    RefreshTops(bag);
    if(rip){Rip(t,bag);return;}
    if(t.kind==KindWrong)FeedbackWrong(t);
-   else if(t.kind==KindExtra)Toast(t.name+" já está completo: devolva a sobra para a caixa.");
+   else if(t.kind==KindExtra)Toast(string.Format("{0} já está completo: devolva a sobra para a caixa.",t.name));
    else Tick(t);
    Combo();
    if(t.kind==KindOrdered){

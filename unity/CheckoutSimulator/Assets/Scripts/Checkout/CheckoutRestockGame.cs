@@ -99,7 +99,7 @@ namespace Checkout {
    window.SetActive(true);window.transform.SetAsLastSibling();
    finished=false;placed=mistakes=streak=bestStreak=totalBoxes=0;startedAt=lastInput=Time.unscaledTime;lastGood=-99;
    promptAt=0;coverDoneAt=0;
-   var g=groups[groupIndex];title.text="Repor · "+g.name;
+   var g=groups[groupIndex];title.text=string.Format("Repor · {0}",g.name);
    BuildFixture(g);
    BuildTabs();
    // First box: a hand shows the tap that opens it.
@@ -499,7 +499,7 @@ namespace Checkout {
    if(!view.Reachable(lane.geo)){BlockedByCover(u.rect,lane);return false;}
    if(lane.productId!=u.productId){WrongLane(lane,u.productId);return false;}
    if(RoomFor(lane)<=0){Play(wrong,1,.7f);StartCoroutine(U.Shake(lane.tag.rectTransform,.3f,8));Toast("Essa vaga está cheia");return false;}
-   if(ReserveLeft(u.productId)<=0){Play(wrong,1,.7f);Toast("Sem mais "+lane.slot.productName+" no depósito");return false;}
+   if(ReserveLeft(u.productId)<=0){Play(wrong,1,.7f);Toast(string.Format("Sem mais {0} no depósito",lane.slot.productName));return false;}
    Place(u,lane,0);
    return true;
   }
@@ -514,7 +514,7 @@ namespace Checkout {
    int n=Mathf.Min(c.pile.Count,Mathf.Min(room,reserve));
    if(n<=0){
     Play(wrong,1,.7f);StartCoroutine(U.Shake(lane.tag.rectTransform,.3f,8));
-    Toast(room<=0?"Essa vaga está cheia":"Sem mais "+lane.slot.productName+" no depósito");
+    Toast(room<=0?"Essa vaga está cheia":string.Format("Sem mais {0} no depósito",lane.slot.productName));
     return false;
    }
    for(int i=0;i<n;i++){

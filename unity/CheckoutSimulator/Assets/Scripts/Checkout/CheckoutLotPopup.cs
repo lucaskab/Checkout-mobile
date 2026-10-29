@@ -104,8 +104,8 @@ namespace Checkout
         static void Fill(LotRect lot)
         {
             title.text = lot.label;
-            subtitle.text = string.IsNullOrEmpty(lot.ruinName) ? "" : "Tem: " + lot.ruinName.ToLowerInvariant();
-            needed.text = string.IsNullOrEmpty(lot.neededBy) ? "" : "Necessário para: " + lot.neededBy;
+            subtitle.text = string.IsNullOrEmpty(lot.ruinName) ? "" : string.Format("Tem: {0}", lot.ruinName.ToLowerInvariant());
+            needed.text = string.IsNullOrEmpty(lot.neededBy) ? "" : string.Format("Necessário para: {0}", lot.neededBy);
             note.text = "";
             double coins = owner ? owner.Coins : 0, gems = owner ? owner.Diamonds : 0;
             string time = CheckoutConstructionSite.Countdown(lot.clearDurationMs);
@@ -114,32 +114,32 @@ namespace Checkout
             {
                 case "bloqueado":
                     Badge("BLOQUEADO", "E7DCCB", "8A7560");
-                    status.text = "Compre antes um terreno vizinho do seu. Preço: " + CheckoutLotSites.Money(lot.price) + " moedas.";
+                    status.text = string.Format("Compre antes um terreno vizinho do seu. Preço: {0} moedas.", CheckoutLotSites.Money(lot.price));
                     Button("Ver terrenos", "secondary", true); route = "~loja:terrenos";
                     break;
                 case "venda":
                     Badge("À VENDA", "FFF1CF", "8A5A00");
-                    status.text = "Depois de comprar, a equipe limpa o terreno (" + CheckoutLotSites.Money(lot.clearCost) + " moedas · " + time + ").";
-                    Button("Comprar · " + CheckoutLotSites.Money(lot.price), "coin", coins >= lot.price); act = "buyLot";
-                    if (coins < lot.price) note.text = "Faltam " + CheckoutLotSites.Money(lot.price - coins) + " moedas";
+                    status.text = string.Format("Depois de comprar, a equipe limpa o terreno ({0} moedas · {1}).", CheckoutLotSites.Money(lot.clearCost), time);
+                    Button(string.Format("Comprar · {0}", CheckoutLotSites.Money(lot.price)), "coin", coins >= lot.price); act = "buyLot";
+                    if (coins < lot.price) note.text = string.Format("Faltam {0} moedas", CheckoutLotSites.Money(lot.price - coins));
                     break;
                 case "comprado":
                     Badge("FALTA LIMPAR", "FCE4DC", "C0401F");
-                    status.text = "O terreno é seu. A equipe tira tudo em " + time + ".";
+                    status.text = string.Format("O terreno é seu. A equipe tira tudo em {0}.", time);
                     bool busy = owner && owner.ClearingBusy;
-                    Button(busy ? "Equipe ocupada" : "Limpar · " + CheckoutLotSites.Money(lot.clearCost), "coin", !busy && coins >= lot.clearCost); act = "clearLot";
+                    Button(busy ? "Equipe ocupada" : string.Format("Limpar · {0}", CheckoutLotSites.Money(lot.clearCost)), "coin", !busy && coins >= lot.clearCost); act = "clearLot";
                     if (busy) note.text = "A equipe está limpando outro terreno";
-                    else if (coins < lot.clearCost) note.text = "Faltam " + CheckoutLotSites.Money(lot.clearCost - coins) + " moedas";
+                    else if (coins < lot.clearCost) note.text = string.Format("Faltam {0} moedas", CheckoutLotSites.Money(lot.clearCost - coins));
                     break;
                 case "limpando":
                     Badge("LIMPANDO", "EAF6DF", "427A24");
                     double left = lot.clearEndsAt - CheckoutConstructionSite.Now;
-                    status.text = "A equipe está trabalhando: falta " + CheckoutConstructionSite.Countdown(left) + ".";
+                    status.text = string.Format("A equipe está trabalhando: falta {0}.", CheckoutConstructionSite.Countdown(left));
                     // Live price (it drops as the clearing runs down). Always pressable: too few diamonds opens the
                     // diamond store (desktop/host.ts).
                     int skip = CheckoutSkipPrice.Cost(left);
                     Button("Acelerar · " + skip + " diamantes", "gem", skip > 0); act = "finishLotClearingNow"; actArgs = new string[0];
-                    if (gems < skip) note.text = "Faltam " + (skip - (int)gems) + " diamantes";
+                    if (gems < skip) note.text = string.Format("Faltam {0} diamantes", skip - (int)gems);
                     break;
                 default:
                     Hide(); break;

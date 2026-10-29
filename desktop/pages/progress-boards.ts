@@ -292,7 +292,9 @@ function missionsBoard(state: State, args: string[]) {
 					: [go("Ver conquistas", "!achievements", { icon: gameIcon("crown") })]),
 			],
 			tip: claimable.length
-				? `${claimable.length} ${claimable.length === 1 ? "missão pronta" : "missões prontas"}! Resgate para ganhar ${fmt(prize)} moedas.`
+				? claimable.length === 1
+					? `1 missão pronta! Resgate para ganhar ${fmt(prize)} moedas.`
+					: `${claimable.length} missões prontas! Resgate para ganhar ${fmt(prize)} moedas.`
 				: giftReady
 					? "Seu presente do dia está esperando na aba Presentes!"
 					: "Cada missão concluída aproxima você do próximo troféu da jornada.",

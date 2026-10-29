@@ -107,7 +107,7 @@ namespace Checkout {
    // Courier and customer text.
    v.courierName.text=courierName;
    v.info.text=InfoText(o,now);
-   v.meta.text="Cliente "+(o.customerName??"")+" · "+(o.neighborhood??"")+" · "+Km(o.distanceKm);
+   v.meta.text=string.Format("Cliente {0} · {1} · {2}",o.customerName??"",o.neighborhood??"",Km(o.distanceKm));
    v.status.text=StatusText(o.status);
    PaintAvatar(v.courierDisc,v.courierInitials,courierSeed,courierName);
    if(stage!=v.lastStage){
@@ -184,16 +184,16 @@ namespace Checkout {
   static string InfoText(DeliveryOrder o,double now){
    string who=o.courier!=null&&!string.IsNullOrEmpty(o.courier.name)?o.courier.name:"O motoboy";
    switch(o.status){
-    case "aceito":return o.packBy>0?"Embale em "+Clock(Secs(o.packBy,now))+" · o embalo vale estrelas":"Embale o pedido";
-    case "aguardando-moto":return o.arriveAt>0?who+" chega em "+Clock(Secs(o.arriveAt,now)):who+" a caminho da loja";
+    case "aceito":return o.packBy>0?string.Format("Embale em {0} · o embalo vale estrelas",Clock(Secs(o.packBy,now))):"Embale o pedido";
+    case "aguardando-moto":return o.arriveAt>0?string.Format("{0} chega em {1}",who,Clock(Secs(o.arriveAt,now))):string.Format("{0} a caminho da loja",who);
     case "moto-na-porta":
      string phrase=Pick(o.courier!=null&&o.courier.phrases!=null?o.courier.phrases.arrive:null,o.id);
-     string auto=o.doorSince>0?" · automática em "+Clock(Secs(o.doorSince+MoneyDoorWait,now)):"";
+     string auto=o.doorSince>0?" · "+string.Format("automática em {0}",Clock(Secs(o.doorSince+MoneyDoorWait,now))):"";
      return "\""+CheckoutI18n.T(phrase)+"\""+auto;
     case "a-caminho":
      // The bike got to the door ahead of time: it is ringing the bell, the customer is coming down.
-     if(AtDoor(o))return who+" tocou a campainha · "+Clock(Secs(o.deliverAt,now));
-     return o.deliverAt>0?"Entrega em "+Clock(Secs(o.deliverAt,now))+" · "+Km(o.distanceKm):"Saiu para entrega · "+Km(o.distanceKm);
+     if(AtDoor(o))return string.Format("{0} tocou a campainha · {1}",who,Clock(Secs(o.deliverAt,now)));
+     return o.deliverAt>0?string.Format("Entrega em {0} · {1}",Clock(Secs(o.deliverAt,now)),Km(o.distanceKm)):string.Format("Saiu para entrega · {0}",Km(o.distanceKm));
     default:return "";
    }
   }

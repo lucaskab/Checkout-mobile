@@ -152,8 +152,8 @@ namespace Checkout
         void Finish()
         {
             var misplaced = Interior.items.Values.FirstOrDefault(i => i.root && !i.design && !i.ghost && !Interior.Fits(i, i.root.position, i.rot, out _));
-            if (misplaced != null) { Select(misplaced); Say(Name(misplaced) + " não cabe aí. Mova ou gire até a área ficar verde.", true); return; }
-            if (!Interior.Reachable(out var blocked)) { Select(blocked); Say(Name(blocked) + " ficou sem passagem. Abra caminho para concluir.", true); return; }
+            if (misplaced != null) { Select(misplaced); Say(string.Format("{0} não cabe aí. Mova ou gire até a área ficar verde.", Name(misplaced)), true); return; }
+            if (!Interior.Reachable(out var blocked)) { Select(blocked); Say(string.Format("{0} ficou sem passagem. Abra caminho para concluir.", Name(blocked)), true); return; }
             // Shops with a counter of their own (the stalls, the Späti, the quitanda) never ask for the checkout (a tester's
             // shop got stuck here after an expansion, 24/10).
             bool ownCounter = CheckoutStall.Small && !CheckoutStall.PlacedCounter;
@@ -423,7 +423,7 @@ namespace Checkout
             if (pointerMoved)
             {
                 if (!Interior.Fits(it, it.root.position, it.rot, out var why)) { Interior.MoveTo(it, dragStartPosition); Say(why + ". Voltou para o lugar anterior.", true); }
-                else if (!it.outside && !Interior.Reachable(out var blocked)) { Interior.MoveTo(it, dragStartPosition); Say("Assim " + Name(blocked) + " fica sem passagem.", true); }
+                else if (!it.outside && !Interior.Reachable(out var blocked)) { Interior.MoveTo(it, dragStartPosition); Say(string.Format("Assim {0} fica sem passagem.", Name(blocked)), true); }
             }
             pointerMoved = false;
             ShowFootprint();
@@ -439,7 +439,7 @@ namespace Checkout
             bool ok = Interior.Fits(selected, position, selected.rot, out var why);
             // A blocked passage is checked once the piece is let go (it walks the whole floor).
             if (ok && !selected.outside && dragging == null && !rotating && !Interior.Reachable(out var blocked))
-            { ok = false; why = "Assim " + Name(blocked) + " fica sem passagem"; }
+            { ok = false; why = string.Format("Assim {0} fica sem passagem", Name(blocked)); }
             if (!ok) Say(why, true);
             var f = Interior.FootprintAt(selected, position, selected.rot);
             footprint.gameObject.SetActive(true);

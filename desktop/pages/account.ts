@@ -25,6 +25,19 @@ export function accountStatusLine(now = Date.now()) {
 	}
 }
 
+/** "Política de privacidade" and "Suporte" (App Store rule 5.1.1(i)): on this page and in the Guia. */
+export function linksCard() {
+	return card("Privacidade e suporte", {
+		icon: gameIcon("clipboard"),
+		eyebrow: "SOBRE O JOGO",
+		lines: ["Como o jogo cuida dos seus dados e como falar com a gente."],
+		buttons: [
+			act("Política de privacidade", "openLink", ["privacy"], { variant: "secondary", ok: "Abrindo no navegador…" }),
+			act("Suporte", "openLink", ["support"], { variant: "secondary", ok: "Abrindo no navegador…" }),
+		],
+	});
+}
+
 export const routes: Routes = {
 	conta: () => {
 		const now = Date.now();
@@ -43,7 +56,7 @@ export const routes: Routes = {
 					tone: "warning",
 					lines: [
 						cloudStore.conflict.otherAccount
-							? "O progresso deste aparelho é de outra conta Google. Esta conta já tem um progresso na nuvem."
+							? "O progresso deste aparelho é de outra conta. Esta conta já tem um progresso na nuvem."
 							: "Este aparelho e a sua conta têm progressos diferentes (você jogou em outro aparelho).",
 						"O que você não escolher é substituído. Por segurança, o servidor guarda cópias recentes.",
 					],
@@ -73,9 +86,12 @@ export const routes: Routes = {
 					eyebrow: "CONTA",
 					tone: status === "unavailable" ? "locked" : "info",
 					lines: [
-						providers.includes("apple")
+						// The text names only the buttons this device shows (the iPhone has just Apple for now).
+						providers.includes("apple") && providers.includes("google")
 							? "Entre com a Apple ou com o Google para guardar o mercado, as moedas e os diamantes na nuvem."
-							: "Entre com o Google para guardar o mercado, as moedas e os diamantes na nuvem.",
+							: providers.includes("apple")
+								? "Entre com a Apple para guardar o mercado, as moedas e os diamantes na nuvem."
+								: "Entre com o Google para guardar o mercado, as moedas e os diamantes na nuvem.",
 						"Trocou de celular? É só entrar com a mesma conta e continuar de onde parou.",
 						accountStatusLine(now),
 					],
@@ -117,6 +133,7 @@ export const routes: Routes = {
 				}),
 			);
 		}
+		cards.push(linksCard());
 		return page("conta", "Conta e nuvem", cards, { icon, subtitle: "Seu progresso em qualquer celular" });
 	},
 };

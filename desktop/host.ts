@@ -16,6 +16,7 @@ import { createDesktopView } from "./view.ts";
 import {
 	applyIapMessage,
 	createIapCatalogMessage,
+	iapStore,
 	type IapUnityMessage,
 	noteGrantedPack,
 	requestPackPurchase,
@@ -29,6 +30,7 @@ import {
 	importSave,
 	requestCloudAction,
 } from "./cloud.ts";
+import { isGameLink } from "./links.ts";
 import { type AdPlacement, adPlacements, type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
@@ -278,6 +280,25 @@ function runHudAction(message: {
 		if (request.ok) send(request.message);
 		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "" : t(request.reason) });
 		view();
+		return;
+	}
+	// "Tentar de novo" on the diamond store when the App Store / Google Play did not answer: Unity connects again.
+	if (message.action === "retryIapStore") {
+		const ok = iapStore.status !== "ready";
+		if (ok) {
+			iapStore.status = "starting";
+			send({ kind: "iap-retry" });
+		}
+		send({ kind: "result", id, action: message.action, ok, reason: "" });
+		view();
+		return;
+	}
+	// "Política de privacidade" / "Suporte" (Conta, Guia): Unity opens the page in the browser (only these two).
+	if (message.action === "openLink") {
+		const link = Array.isArray(message.args) ? message.args[0] : "";
+		const ok = isGameLink(link);
+		if (ok) send({ kind: "open-link", link });
+		send({ kind: "result", id, action: message.action, ok, reason: ok ? "" : t("Não foi possível agora.") });
 		return;
 	}
 	// "Privacidade dos anúncios": Unity reopens Google's consent form (GDPR).

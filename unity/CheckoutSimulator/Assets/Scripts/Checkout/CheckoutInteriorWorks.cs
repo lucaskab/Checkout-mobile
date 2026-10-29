@@ -312,7 +312,7 @@ namespace Checkout
             // Placed while the builders were busy elsewhere: it waits its turn in the queue.
             bool waitingTurn = queued && Now < startedAt;
             if (caption) caption.text = ((waitingTurn ? "NA FILA · " : "OBRA · ") + title).ToUpperInvariant();
-            string label = waitingTurn ? "COMEÇA EM " + CheckoutConstructionSite.Countdown(startedAt - Now) : remaining > 0 ? CheckoutConstructionSite.Countdown(remaining) : "FINALIZANDO...";
+            string label = waitingTurn ? string.Format("COMEÇA EM {0}", CheckoutConstructionSite.Countdown(startedAt - Now)) : remaining > 0 ? CheckoutConstructionSite.Countdown(remaining) : "FINALIZANDO...";
             if (countdown) { countdown.text = label; countdownShadow.text = label; }
             int cost = remaining <= 0 ? 0 : waitingTurn ? skipCost : CheckoutSkipPrice.Cost(remaining);
             if (speedUp) speedUp.gameObject.SetActive(remaining > 0);

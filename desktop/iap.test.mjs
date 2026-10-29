@@ -70,21 +70,44 @@ describe("the host side of a purchase", () => {
 		expect(iap.requestPackPurchase(store(), "bundle-starter")).toEqual({ ok: false, reason: "Esta oferta já foi comprada." });
 	});
 
-	test("prices follow the player's country until the store answers with its own (Brazil cheaper)", () => {
+	test("no price until the store answers; then the store's own (the region's table only off the phones)", () => {
 		const id = getCurrencyPack("diamonds-pouch").productId;
-		expect(iap.getPackPrice(id)).toBe("4,99 €");
+		// Never a price of our own table as if the pack could be bought (App Store review 29/10).
+		iap.applyIapMessage({ kind: "iap", status: "", region: "BR" });
+		expect(iap.getPackPrice(id)).toBe("");
+		iap.applyIapMessage({ kind: "iap", status: "unavailable" });
+		expect(iap.getPackPrice(id)).toBe("");
+		// The Editor's test store (ready, no prices): the region's table, to see the screens.
+		iap.applyIapMessage({ kind: "iap", status: "ready", productIds: [id], prices: [""] });
+		expect(iap.getPackPrice(id)).toBe("R$ 16,90");
 		iap.applyIapMessage({ kind: "iap", status: "", region: "US" });
 		expect(iap.getPackPrice(id)).toBe("$4.99");
-		iap.applyIapMessage({ kind: "iap", status: "", region: "BR" });
-		expect(iap.getPackPrice(id)).toBe("R$ 16,90");
-		iap.applyIapMessage({ kind: "iap", status: "", region: "DE" });
-		expect(iap.getPackPrice(id)).toBe("4,99 €");
 		// The store's own price wins, and event messages (empty lists) keep it.
 		iap.applyIapMessage({ kind: "iap", status: "ready", productIds: [id], prices: ["R$ 24,90"] });
 		expect(iap.getPackPrice(id)).toBe("R$ 24,90");
 		iap.applyIapMessage({ kind: "iap", status: "", event: "failed", productId: id, productIds: [], prices: [] });
 		expect(iap.getPackPrice(id)).toBe("R$ 24,90");
 		expect(iap.iapStore.status).toBe("ready");
+		// A pack the store did not list has no price and cannot be bought.
+		const other = getCurrencyPack("diamonds-chest").productId;
+		expect(iap.getPackPrice(other)).toBe("");
+		expect(iap.requestPackPurchase(store(), "diamonds-chest").ok).toBe(false);
+	});
+
+	test("on a phone only the store's own price shows", () => {
+		const id = getCurrencyPack("diamonds-pouch").productId;
+		const platform = Object.getOwnPropertyDescriptor(process, "platform");
+		try {
+			Object.defineProperty(process, "platform", { value: "ios", configurable: true });
+			expect(iap.storePlatform()).toBe("ios");
+			iap.applyIapMessage({ kind: "iap", status: "ready", productIds: [id], prices: [""], region: "BR" });
+			expect(iap.getPackPrice(id)).toBe("");
+			Object.defineProperty(process, "platform", { value: "android", configurable: true });
+			expect(iap.storePlatform()).toBe("android");
+		} finally {
+			Object.defineProperty(process, "platform", platform);
+		}
+		expect(iap.storePlatform()).toBe("other");
 	});
 
 	test("Brazil's prices are below the euro prices converted at any realistic rate", () => {
@@ -123,7 +146,7 @@ describe("the host side of a purchase", () => {
 
 describe("the diamond store page", () => {
 	test("each pack has one button that shows just its price and buys it (no free credit button)", () => {
-		iap.applyIapMessage({ kind: "iap", status: "", region: "BR" });
+		iap.applyIapMessage({ kind: "iap", status: "ready", region: "BR" });
 		const page = pages(store(), "currency:diamonds");
 		const all = buttons(page);
 		expect(all.some((b) => b.action === "grantCurrencyPurchase")).toBe(false);
@@ -133,6 +156,38 @@ describe("the diamond store page", () => {
 		expect(all.filter((b) => b.action !== "watchRewardedAd").length).toBe(buy.length);
 		expect(JSON.parse(buy[0].args)[0]).toBe("diamonds-handful");
 		expect(buy[0].label).toBe("R$ 6,90");
+	});
+
+	test("until the store answers: no prices, no buying, and the store of this device only", () => {
+		let page = pages(store(), "currency:diamonds");
+		expect(page.cards.some((c) => c.title === "Conectando à loja…")).toBe(true);
+		let buy = buttons(page).filter((b) => b.action === "buyCurrencyPack");
+		expect(buy.length).toBeGreaterThan(0);
+		expect(buy.every((b) => b.label === "—" && b.enabled === false)).toBe(true);
+		iap.applyIapMessage({ kind: "iap", status: "unavailable", region: "BR" });
+		page = pages(store(), "currency:diamonds");
+		const closed = page.cards.find((c) => c.title === "Loja indisponível");
+		// Off the phones (this test): no store named, nothing to retry.
+		expect(closed.subtitle).toBe("As compras não estão disponíveis nesta versão do jogo.");
+		expect(closed.buttons.length).toBe(0);
+		expect(JSON.stringify(page)).not.toContain("Google Play");
+		buy = buttons(page).filter((b) => b.action === "buyCurrencyPack");
+		expect(buy.every((b) => b.label === "—" && b.enabled === false)).toBe(true);
+		const platform = Object.getOwnPropertyDescriptor(process, "platform");
+		try {
+			Object.defineProperty(process, "platform", { value: "ios", configurable: true });
+			page = pages(store(), "currency:diamonds");
+			const text = JSON.stringify(page);
+			expect(text).toContain("App Store");
+			expect(text).not.toContain("Google Play");
+			expect(page.cards.find((c) => c.title === "Loja indisponível").buttons[0].action).toBe("retryIapStore");
+			Object.defineProperty(process, "platform", { value: "android", configurable: true });
+			page = pages(store(), "currency:diamonds");
+			expect(JSON.stringify(page)).toContain("Google Play");
+			expect(JSON.stringify(page)).not.toContain("App Store");
+		} finally {
+			Object.defineProperty(process, "platform", platform);
+		}
 	});
 
 	test("opened for a shortfall it says how many are missing and recommends the pack that covers it", () => {

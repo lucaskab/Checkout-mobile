@@ -163,7 +163,9 @@ export function getSupplierCartQuote(
 		);
 		if (boxes > free)
 			return fail(
-				`Sem espaço no depósito para ${boxes === 1 ? "1 caixa" : `${boxes} caixas`} de ${product.name}.`,
+				boxes === 1
+					? `Sem espaço no depósito para 1 caixa de ${product.name}.`
+					: `Sem espaço no depósito para ${boxes} caixas de ${product.name}.`,
 			);
 		const cost = getSupplierCost(state, productId, units, now);
 		if (cost <= 0) return fail(`${product.name} não tem preço de fornecedor.`);

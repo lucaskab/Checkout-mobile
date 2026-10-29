@@ -74,7 +74,7 @@ namespace Checkout {
   }
 
   void ApplyTop(DesktopView v){
-   levelText.text="NÍVEL "+v.level;xpText.text=v.xp+"/"+v.xpGoal+(Phone?"":" XP");progressText.text=v.progressLabel;
+   levelText.text=string.Format("NÍVEL {0}",v.level);xpText.text=v.xp+"/"+v.xpGoal+(Phone?"":" XP");progressText.text=v.progressLabel;
    xpFill.anchorMax=new Vector2(Mathf.Clamp01(v.xp/(float)Mathf.Max(1,v.xpGoal)),1);
    dailyText.text=v.goalDone?"CUMPRIDA":v.daily;dailyText.color=v.goalDone?K.C("427A24"):K.Muted;
    goalText.text=K.Clean(v.goalText);var gi=K.Icon(v.goalIcon);if(gi)goalIcon.sprite=gi;

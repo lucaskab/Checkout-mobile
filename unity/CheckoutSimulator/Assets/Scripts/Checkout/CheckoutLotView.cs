@@ -103,7 +103,7 @@ namespace Checkout
                     Frame(lot.id, lot.x0, lot.z0, lw, ld);
                     string price = lot.price.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
                     string tag = st == "seu" ? "SEU" : st == "praca" ? "GRATUITA" : st == "comprado" ? "COMPRADO · LIMPAR"
-                        : st == "limpando" ? "LIMPANDO" : st == "venda" ? "À VENDA · " + price : st == "bloqueado" ? price
+                        : st == "limpando" ? "LIMPANDO" : st == "venda" ? string.Format("À VENDA · {0}", price) : st == "bloqueado" ? price
                         : owned.Contains(lot.id) ? "SEU" : next.Contains(lot.id) ? "PRÓXIMA" : plaza.Contains(lot.id) ? "GRATUITA" : "";
                     float size = Mathf.Clamp(Mathf.Min(lw, ld) * .55f, 1.6f, 4.2f);
                     Label(lot.label, tag, new Vector3((lot.x0 + lot.x1) * .5f, Height + .05f, (lot.z0 + lot.z1) * .5f), size);
@@ -183,10 +183,10 @@ namespace Checkout
             var bar = U.Shape(ui, "Bar", "1D2B4F", 22, new Vector2(.5f, 1), new Vector2(980, 120), new Vector2(0, -80));
             var title = U.Label(bar.transform, "Title", K.Headline, 30, "FFFFFF", TextAlignmentOptions.Left);
             U.Stretch(title.rectTransform, new Vector2(0, .5f), Vector2.one).offsetMin = new Vector2(28, 0);
-            title.text = "Lotes do quarteirão · " + era.name;
+            title.text = string.Format("Lotes do quarteirão · {0}", era.name);
             var legend = U.Label(bar.transform, "Legend", K.Body, 18, "E8DFC8", TextAlignmentOptions.Left);
             var lr = U.Stretch(legend.rectTransform, Vector2.zero, new Vector2(1, .5f)); lr.offsetMin = new Vector2(28, 10); lr.offsetMax = new Vector2(-380, 0);
-            legend.text = "<color=#F9BD2E>■</color> seus   <color=#F26A3A>■</color> comprados (limpar)   <color=#4DD973>■</color> " + era.nextName + " precisa   <color=#FFFFFF>■</color> à venda   <color=#A06BE6>■</color> praça";
+            legend.text = string.Format("<color=#F9BD2E>■</color> seus   <color=#F26A3A>■</color> comprados (limpar)   <color=#4DD973>■</color> {0} precisa   <color=#FFFFFF>■</color> à venda   <color=#A06BE6>■</color> praça", era.nextName);
             var back = U.Button(bar.transform, "Voltar", "primary", Exit, 64, 22);
             U.At((RectTransform)back.transform, new Vector2(1, .5f), new Vector2(170, 64), new Vector2(-105, 0));
             // Straight to the land shop (Loja → Terrenos).

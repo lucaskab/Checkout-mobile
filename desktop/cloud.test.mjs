@@ -25,6 +25,7 @@ mock.module("@/storage/mmkv", () => ({
 const { useGameStore } = await import("../src/stores/game-store.ts");
 const { pages } = await import("./pages/index.ts");
 const cloud = await import("./cloud.ts");
+const links = await import("./links.ts");
 
 const initial = JSON.stringify(useGameStore.getState());
 beforeEach(() => {
@@ -161,9 +162,39 @@ describe("the Conta page", () => {
 		expect(JSON.parse(cloudCard.buttons[0].args)).toEqual(["cloud"]);
 		expect(cloud.requestCloudAction("cloudResolve", ["device"]).message).toEqual({ kind: "cloud-resolve", keep: "device" });
 		expect(cloud.requestCloudAction("cloudResolve", ["other"]).ok).toBe(false);
-		// Another Google account's progress on this device: said so.
+		// Another account's progress on this device: said so (Google or Apple: no provider named).
 		cloud.applyCloudMessage({ kind: "cloud", status: "conflict", conflict: { cloud: { level: 2, era: "", coins: 1, diamonds: 1, day: 2, version: 45 }, otherAccount: true } });
-		expect(pages(store(), "conta").cards[0].lines[0]).toContain("outra conta Google");
+		expect(pages(store(), "conta").cards[0].lines[0]).toContain("outra conta.");
+	});
+
+	test("the sign-in text names only the logins this device shows (iPhone: just Apple)", () => {
+		cloud.applyCloudMessage({ kind: "cloud", status: "signed-out", providers: ["apple"] });
+		let page = pages(store(), "conta");
+		expect(page.cards[0].lines[0]).toBe("Entre com a Apple para guardar o mercado, as moedas e os diamantes na nuvem.");
+		expect(page.cards[0].buttons.map((b) => b.label)).toEqual(["Iniciar sessão com a Apple"]);
+		expect(JSON.stringify(pages(store(), "gratis"))).not.toContain("Google");
+		cloud.applyCloudMessage({ kind: "cloud", status: "signed-out", providers: ["google"] });
+		page = pages(store(), "conta");
+		expect(page.cards[0].lines[0]).toBe("Entre com o Google para guardar o mercado, as moedas e os diamantes na nuvem.");
+		cloud.applyCloudMessage({ kind: "cloud", status: "signed-out", providers: ["google", "apple"] });
+		expect(pages(store(), "conta").cards[0].lines[0]).toContain("Apple ou com o Google");
+		cloud.applyCloudMessage({ kind: "cloud", status: "signed-out", providers: [] });
+	});
+
+	test("Conta and Guia link to the privacy policy and the support page (opened by Unity)", () => {
+		for (const route of ["conta", "guia"]) {
+			const links = pages(store(), route).cards.find((c) => c.title === "Privacidade e suporte");
+			expect(links.buttons.map((b) => [b.label, b.action, JSON.parse(b.args)[0]])).toEqual([
+				["Política de privacidade", "openLink", "privacy"],
+				["Suporte", "openLink", "support"],
+			]);
+		}
+		const { gameLinks, isGameLink } = links;
+		expect(gameLinks.privacy).toBe("https://lucaskab.github.io/privacy.html");
+		expect(gameLinks.support).toBe("https://lucaskab.github.io");
+		expect(isGameLink("privacy")).toBe(true);
+		expect(isGameLink("toString")).toBe(false);
+		expect(isGameLink("https://evil.example")).toBe(false);
 	});
 
 	test("the Guia shows where the progress is saved and opens the Conta page", () => {

@@ -224,6 +224,8 @@ namespace Checkout {
   static string Money(long v)=>v.ToString("N0",Br);
   static float Ease(float t)=>1-Mathf.Pow(1-t,3);
   static DesktopButton Btn(string label,string variant,bool enabled,string icon,bool active=false)=>new DesktopButton{label=label,variant=variant,enabled=enabled,icon=icon,active=active,action="",args="[]",route="",after="",ok="",fail="",badge=""};
+  // "Only N boxes fit." plus the reason, as two whole sentences (each one has its own translation).
+  static string FitOnly(int boxes,string why)=>(boxes==1?"Coube só 1 caixa.":string.Format("Coube só {0} caixas.",boxes))+(string.IsNullOrEmpty(why)?"":" "+why);
   static string Duration(double seconds){int s=(int)Math.Ceiling(seconds);int m=s/60,r=s%60;return m>0?m+" min "+r+" s":s+" s";}
   // Soft pluck notes given as triples (pitch Hz, start s, length s): sine with a faint octave, fast attack, exponential decay.
   static AudioClip Notes(float volume,params float[] notes){
@@ -297,17 +299,17 @@ namespace Checkout {
    c.title.text=p.name??"";
    int caseSize=Math.Max(1,p.caseSize),capacity=Math.Max(1,p.capacityBoxes);
    int stockBoxes=(p.stockUnits+caseSize-1)/caseSize;
-   c.sub.text="Caixa com "+p.caseSize+" un.";
-   c.stock.text="No depósito: "+stockBoxes+"/"+p.capacityBoxes+" cx";
+   c.sub.text=string.Format("Caixa com {0} un.",p.caseSize);
+   c.stock.text=string.Format("No depósito: {0}/{1} cx",stockBoxes,p.capacityBoxes);
    c.barFill.rectTransform.anchorMax=new Vector2(Mathf.Clamp01(stockBoxes/(float)capacity),1);
    c.barFill.color=K.C(low?Red:Green);
    c.price.text=Money(Mathf.RoundToInt(p.boxPrice));
-   c.unit.text=p.unitCost.ToString("N2",Br)+" por un. · vende a "+p.salePrice.ToString("N2",Br);
+   c.unit.text=string.Format("{0} por un. · vende a {1}",p.unitCost.ToString("N2",Br),p.salePrice.ToString("N2",Br));
    c.ribbon.gameObject.SetActive(low);
    c.lockIcon.gameObject.SetActive(locked);
    c.icon.color=locked?new Color(1,1,1,.45f):Color.white;
    int inCart=Boxes(p.productId);
-   if(locked)c.button.Apply(Btn("Nível "+p.unlockLevel,"secondary",false,"Icons/lock"));
+   if(locked)c.button.Apply(Btn(string.Format("Nível {0}",p.unlockLevel),"secondary",false,"Icons/lock"));
    else if(p.freeBoxes-inCart<=0)c.button.Apply(Btn("Depósito cheio","secondary",false,""));
    else c.button.Apply(Btn("+ Carrinho","coin",true,"Icons/cart"));
   }
@@ -367,7 +369,7 @@ namespace Checkout {
    cart.RemoveAll(l=>Find(l.productId)==null);
    if(Info==null||Info.freightCoupons<=0)useCoupon=false;
    coinsText.text=Money((long)s.coins);
-   trucksText.text="Caminhões "+(Info?.active??0)+"/"+(Info?.slots??0);
+   trucksText.text=string.Format("Caminhões {0}/{1}",Info?.active??0,Info?.slots??0);
    grid.constraintCount=Mathf.Max(1,Mathf.FloorToInt((gridView.rect.width-8+CardGap)/(CardW+CardGap)));
    SyncSidebar();
    string sig=string.Join(",",Catalog.Select(p=>p.productId.ToString()).ToArray());
@@ -397,7 +399,7 @@ namespace Checkout {
   void PreAdd(int productId){
    var p=Find(productId);
    if(p==null){Toast("Esse produto não está no catálogo agora.","C0401F");return;}
-   if(p.locked){Toast("Libera no nível "+p.unlockLevel+".","C0401F");return;}
+   if(p.locked){Toast(string.Format("Libera no nível {0}.",p.unlockLevel),"C0401F");return;}
    int added=AddBoxes(productId,1,out var why);
    if(added==0)Toast(why,"C0401F");else Sfx(clipAdd,.35f);
   }
@@ -438,11 +440,11 @@ namespace Checkout {
   string Refusal(int productId,int add){
    if(busy)return "Aguarde o pedido terminar.";
    var p=Find(productId);if(p==null)return "Produto indisponível agora.";
-   if(p.locked)return "Libera no nível "+p.unlockLevel+".";
+   if(p.locked)return string.Format("Libera no nível {0}.",p.unlockLevel);
    var info=Info;if(info==null||bridge.State==null)return "Conectando ao fornecedor...";
    if(Boxes(productId)==0&&cart.Count>=MaxLines)return "O carrinho já tem produtos demais.";
    if(Boxes(productId)+add>p.freeBoxes)return "Não cabe mais no depósito";
-   if(TotalBoxes()+add>info.maxBoxes)return "O caminhão está cheio ("+info.maxBoxes+" caixas)";
+   if(TotalBoxes()+add>info.maxBoxes)return string.Format("O caminhão está cheio ({0} caixas)",info.maxBoxes);
    if(Priced(Subtotal()+(long)Mathf.RoundToInt(p.boxPrice)*add)>bridge.State.coins)return "Moedas insuficientes";
    return "";
   }
@@ -454,9 +456,9 @@ namespace Checkout {
    foreach(var l in cart){
     var p=Find(l.productId);
     if(p==null||p.locked)return "Um produto do carrinho não está disponível.";
-    if(l.boxes>p.freeBoxes)return "Não cabe mais no depósito: "+p.name;
+    if(l.boxes>p.freeBoxes)return string.Format("Não cabe mais no depósito: {0}",p.name);
    }
-   if(TotalBoxes()>info.maxBoxes)return "O caminhão está cheio ("+info.maxBoxes+" caixas)";
+   if(TotalBoxes()>info.maxBoxes)return string.Format("O caminhão está cheio ({0} caixas)",info.maxBoxes);
    if(Priced(Subtotal())>bridge.State.coins)return "Moedas insuficientes";
    return "";
   }
@@ -513,16 +515,16 @@ namespace Checkout {
    meterTarget=Mathf.Clamp01(boxes/(float)max);
    meterText.text=boxes+"/"+max+" caixas";
    meterImg.color=K.C(boxes>=max?Red:meterTarget>=.8f?"F0A030":Green);
-   cartCount.text=boxes+" cx";
+   cartCount.text=boxes==1?"1 caixa":string.Format("{0} caixas",boxes);
    totalText.text=Money(Priced(Subtotal()));
    discountText.text=CouponOn?"-10% frete":"";
    bool coupons=info!=null&&info.freightCoupons>0;
    couponButton.gameObject.SetActive(coupons);
-   if(coupons)couponButton.Apply(Btn(CouponOn?"Cupom de frete aplicado (-10%)":"Usar cupom de frete (-10%) · tem "+info.freightCoupons,"secondary",!busy,"Icons/receipt",CouponOn));
+   if(coupons)couponButton.Apply(Btn(CouponOn?"Cupom de frete aplicado (-10%)":string.Format("Usar cupom de frete (-10%) · tem {0}",info.freightCoupons),"secondary",!busy,"Icons/receipt",CouponOn));
    emptyNode.SetActive(cart.Count==0);
    var last=LastOrder();
    repeatButton.gameObject.SetActive(cart.Count==0&&last.Count>0);
-   if(last.Count>0)repeatButton.Apply(Btn(last.Count==1?"Repetir último pedido (1 produto)":"Repetir último pedido ("+last.Count+" produtos)","primary",!busy,"Icons/clipboard"));
+   if(last.Count>0)repeatButton.Apply(Btn(last.Count==1?"Repetir último pedido (1 produto)":string.Format("Repetir último pedido ({0} produtos)",last.Count),"primary",!busy,"Icons/clipboard"));
    string problem=Problem();
    helperButton.Apply(Btn("Adicionar o que está acabando","secondary",!busy,"Icons/warning"));
    buyButton.Apply(Btn(busy?"Enviando pedido...":"Fazer pedido","success",!busy&&problem.Length==0,"Icons/delivery-truck"));
@@ -570,7 +572,7 @@ namespace Checkout {
    foreach(var l in last){wanted+=l.boxes;total+=AddBoxes(l.productId,l.boxes,out var w);if(w.Length>0)why=w;}
    if(total==0){Fail(repeatButton.transform as RectTransform,why.Length>0?why:"Nada coube agora.");RefreshCart();return;}
    Sfx(clipAdd,.4f);
-   if(total<wanted)Toast("Coube só "+total+" caixa(s): "+why,"F0A030");
+   if(total<wanted)Toast(FitOnly(total,why),"F0A030");
    RefreshCart();
   }
   // Fills the cart with what is running out, emptiest product first; each one takes as many boxes as fit.
@@ -580,20 +582,20 @@ namespace Checkout {
    if(low.Count==0){Sfx(clipError,.4f);Toast("Nada está acabando agora.");return;}
    int total=0;string why="";
    foreach(var p in low){total+=AddBoxes(p.productId,Math.Max(1,p.freeBoxes),out var w);if(w.Length>0)why=w;}
-   if(total>0){Sfx(clipAdd,.4f);Toast("Coloquei "+total+" caixa(s) do que está acabando no carrinho");}
+   if(total>0){Sfx(clipAdd,.4f);Toast(total==1?"Coloquei no carrinho 1 caixa do que está acabando.":string.Format("Coloquei no carrinho {0} caixas do que está acabando.",total));}
    else Fail(helperButton.transform as RectTransform,why.Length>0?why:"Nada coube agora.");
    RefreshCart();
   }
   void OnAdd(ProductCard c){
    if(busy)return;
    var p=Find(c.productId);if(p==null)return;
-   if(p.locked){Fail(c.lift,"Libera no nível "+p.unlockLevel+".");return;}
+   if(p.locked){Fail(c.lift,string.Format("Libera no nível {0}.",p.unlockLevel));return;}
    bool shift=Input.GetKey(KeyCode.LeftShift)||Input.GetKey(KeyCode.RightShift);
    int want=shift?5:1;
    int added=AddBoxes(c.productId,want,out var why);
    if(added==0){Fail(c.lift,why);return;}
    Sfx(clipAdd,.35f);
-   if(added<want)Toast("Coube só "+added+" caixa(s): "+why,"F0A030");
+   if(added<want)Toast(FitOnly(added,why),"F0A030");
    StartCoroutine(FlyItem(c.productId,U.LocalOf(root,c.icon.rectTransform),U.LocalOf(root,cartBadge)));
    RefreshCart();
   }
@@ -675,7 +677,7 @@ namespace Checkout {
    SaveLast();cart.Clear();useCoupon=false;busy=false;
    foreach(var r in rows)r.rect.localScale=Vector3.one;
    RefreshCart();
-   Toast("Pedido feito! Chega em "+Duration(slowest),Green);
+   Toast(string.Format("Pedido feito! Chega em {0}",Duration(slowest)),Green);
   }
 
   // ------------------------------------------------------------------ frame

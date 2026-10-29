@@ -193,6 +193,8 @@ namespace Checkout {
     else if(kind=="i18n"){var m=JsonUtility.FromJson<I18nMessage>(line);if(m!=null)CheckoutI18n.Load(m.lang,m.keys,m.values);}
     else if(kind=="iap-catalog")CheckoutIap.Active?.Catalog(line);
     else if(kind=="purchase")CheckoutIap.Active?.Purchase(line);
+    else if(kind=="iap-retry")CheckoutIap.Active?.RetryNow();
+    else if(kind=="open-link")CheckoutLinks.FromHost(line);
     else if(kind=="ad-show")CheckoutAds.Active?.Show(line);
     else if(kind=="ad-privacy")CheckoutAds.Active?.ShowPrivacy();
     else if(kind!=null&&kind.StartsWith("cloud-",System.StringComparison.Ordinal))CheckoutCloud.Active?.OnHost(kind,line);

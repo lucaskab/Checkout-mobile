@@ -96,8 +96,13 @@ namespace Checkout
                     () => { CheckoutAudio.EffectsOn = !CheckoutAudio.EffectsOn; Sample(); }, Sample);
             }
 
+            // Footer on every tab (App Store rule 5.1.1(i), 29/10): the privacy policy and the support page, then "Fechar".
+            var privacy = U.Button(f, L("Política de privacidade"), "secondary", () => CheckoutLinks.Open("privacy"), 64, 20);
+            U.At((RectTransform)privacy.transform, new Vector2(.5f, 0), new Vector2(320, 64), new Vector2(-214, 48));
+            var support = U.Button(f, L("Suporte"), "secondary", () => CheckoutLinks.Open("support"), 64, 20);
+            U.At((RectTransform)support.transform, new Vector2(.5f, 0), new Vector2(180, 64), new Vector2(50, 48));
             var done = U.Button(f, L("Fechar"), "success", Hide, 64, 24);
-            U.At((RectTransform)done.transform, new Vector2(.5f, 0), new Vector2(260, 64), new Vector2(0, 48));
+            U.At((RectTransform)done.transform, new Vector2(.5f, 0), new Vector2(220, 64), new Vector2(264, 48));
 
             Refresh();
             if (pop) StartCoroutine(U.Pop(window, 1.04f, .22f));
@@ -313,6 +318,33 @@ namespace Checkout
             CheckoutI18n.Changed -= Relabel;
             CheckoutCloud.Changed -= AccountChanged;
             if (current == this) current = null;
+        }
+    }
+
+    /// <summary>
+    /// The game's pages on the web (App Store rule 5.1.1(i): the privacy policy is reachable inside the app). Opened by
+    /// the Opções window and by the host's pages (Conta, Guia: host line "open-link", desktop/links.ts has the same two).
+    /// Only these addresses open; Application.OpenURL hands them to the browser on iPhone, Android and desktop.
+    /// </summary>
+    public static class CheckoutLinks
+    {
+        public const string Privacy = "https://lucaskab.github.io/privacy.html";
+        public const string Support = "https://lucaskab.github.io";
+
+        [Serializable] class LinkMessage { public string link; }
+
+        public static void Open(string id)
+        {
+            var url = id == "privacy" ? Privacy : id == "support" ? Support : null;
+            if (url != null) Application.OpenURL(url);
+        }
+
+        /// <summary>Host line {"kind":"open-link","link":"privacy"}.</summary>
+        public static void FromHost(string json)
+        {
+            LinkMessage m = null;
+            try { m = JsonUtility.FromJson<LinkMessage>(json); } catch { }
+            Open(m?.link);
         }
     }
 

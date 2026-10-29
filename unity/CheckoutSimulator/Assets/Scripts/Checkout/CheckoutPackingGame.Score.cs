@@ -156,7 +156,7 @@ namespace Checkout {
    U.Stretch(tipLbl.rectTransform,new Vector2(.2f,.02f),new Vector2(.96f,.14f));
    tipLbl.enableAutoSizing=true;tipLbl.fontSizeMin=14;tipLbl.fontSizeMax=20;
    int chain=bridge.State?.delivery?.streak??0;
-   tipLbl.text=(TipRate(s.stars)>0?"Gorjeta prevista: ~"+tip+" moedas":"Sem gorjeta nesta nota")+(chain>0?"  ·  sequência x"+chain:"");
+   tipLbl.text=(TipRate(s.stars)>0?string.Format("Gorjeta prevista: ~{0} moedas",tip):"Sem gorjeta nesta nota")+(chain>0?"  ·  "+string.Format("sequência x{0}",chain):"");
    coin.color=new Color(1,1,1,.95f);
    StartCoroutine(U.Pop(coin.transform,1.15f,.4f));
    if(s.grade=="S"){
@@ -184,7 +184,7 @@ namespace Checkout {
   IEnumerator TimeRow(TextMeshProUGUI lbl,PackScore s,float delay){
    yield return new WaitForSecondsRealtime(delay);
    if(!lbl)yield break;
-   lbl.text="Tempo  <b>"+Clock(s.secs)+"</b> · meta "+Clock(s.par)+(s.quick?"  <color=#5DA637><b>Rápido!</b></color>":"  <color=#B03A2E>passou da meta</color>");
+   lbl.text=string.Format(s.quick?"Tempo  <b>{0}</b> · meta {1}  <color=#5DA637><b>Rápido!</b></color>":"Tempo  <b>{0}</b> · meta {1}  <color=#B03A2E>passou da meta</color>",Clock(s.secs),Clock(s.par));
    CheckoutDeliverySound.Play(CheckoutDeliverySound.Coin,.3f);
   }
   // Confetti for an S: small coloured dots fall from the top of the stage, swaying.

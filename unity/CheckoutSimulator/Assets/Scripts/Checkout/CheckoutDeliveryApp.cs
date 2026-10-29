@@ -287,11 +287,11 @@ namespace Checkout {
     }
     string courierName=o.courier!=null&&!string.IsNullOrEmpty(o.courier.name)?o.courier.name:"O entregador";
     if(o.status=="oferta")
-     notices.Enqueue(new Notice{Kind=0,Avatar=o.avatar,Name=o.customerName,Title="Novo pedido · "+o.customerName,Sub=o.neighborhood+" · "+Km(o.distanceKm)+" · ganho ~ "+Money(Mathf.RoundToInt(o.itemsValue+o.fee))});
+     notices.Enqueue(new Notice{Kind=0,Avatar=o.avatar,Name=o.customerName,Title=string.Format("Novo pedido · {0}",o.customerName),Sub=string.Format("{0} · {1} · ganho ~ {2}",o.neighborhood,Km(o.distanceKm),Money(Mathf.RoundToInt(o.itemsValue+o.fee)))});
     else if(o.status=="moto-na-porta")
-     notices.Enqueue(new Notice{Kind=1,Avatar=SeedOf(o.courier!=null?o.courier.id:o.id),Name=courierName,Title="Motoboy na porta!",Sub=courierName+" chegou · entregue o pedido"});
+     notices.Enqueue(new Notice{Kind=1,Avatar=SeedOf(o.courier!=null?o.courier.id:o.id),Name=courierName,Title="Motoboy na porta!",Sub=string.Format("{0} chegou · entregue o pedido",courierName)});
     else if(o.status=="entregue")
-     notices.Enqueue(new Notice{Kind=2,Avatar=o.avatar,Name=o.customerName,Stars=Mathf.Clamp(Mathf.RoundToInt(o.stars),0,5),Title="Pedido entregue · "+o.customerName,Sub="+"+Money(Mathf.RoundToInt(o.paid))+" moedas"});
+     notices.Enqueue(new Notice{Kind=2,Avatar=o.avatar,Name=o.customerName,Stars=Mathf.Clamp(Mathf.RoundToInt(o.stars),0,5),Title=string.Format("Pedido entregue · {0}",o.customerName),Sub=string.Format("+{0} moedas",Money(Mathf.RoundToInt(o.paid)))});
    }
    // Forget the orders that left the list (the history keeps only a few).
    var ids=new HashSet<string>(d.orders.Where(o=>o!=null).Select(o=>o.id));
@@ -323,7 +323,7 @@ namespace Checkout {
    Detect(d,s.session??"");
    bool unlocked=d.unlocked;
    root.gameObject.SetActive(unlocked);lockedNode.SetActive(!unlocked);
-   if(!unlocked){lockSub.text="Libera no "+(string.IsNullOrEmpty(d.unlockEraName)?"próximo nível da loja":d.unlockEraName);return;}
+   if(!unlocked){lockSub.text=string.IsNullOrEmpty(d.unlockEraName)?"Libera no próximo nível da loja":string.Format("Libera no {0}",d.unlockEraName);return;}
    double now=CheckoutBridge.Now;
    SyncHeader(d);
    SyncShell(d);

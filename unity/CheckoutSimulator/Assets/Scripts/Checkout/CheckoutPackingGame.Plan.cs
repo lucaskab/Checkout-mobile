@@ -101,7 +101,7 @@ namespace Checkout {
    var card=U.Shape(dim.transform,"SubstCard","FFF7EC",28,Mid,new Vector2(cardW,cardH));
    var head=U.Label(card.transform,"Title",K.Headline,36,"4A3624");
    U.Stretch(head.rectTransform,new Vector2(0,.8f),new Vector2(1,.96f),new Vector2(20,0),new Vector2(-20,0));
-   head.text="“"+substLine.name+"” acabou!";head.enableAutoSizing=true;head.fontSizeMin=18;head.fontSizeMax=36;
+   head.text=string.Format("“{0}” acabou!",substLine.name);head.enableAutoSizing=true;head.fontSizeMin=18;head.fontSizeMax=36;
    var sub=U.Label(card.transform,"Sub",K.Body,22,"8A7560");
    U.Stretch(sub.rectTransform,new Vector2(0,.7f),new Vector2(1,.79f),new Vector2(20,0),new Vector2(-20,0));
    sub.text="Escolha o substituto certo para o cliente";sub.enableAutoSizing=true;sub.fontSizeMin=14;sub.fontSizeMax=22;
@@ -123,7 +123,7 @@ namespace Checkout {
    if(!opt.ok){
     substMistakes++;PlayClip(CheckoutRestockSound.Wrong,.6f);
     if(optRect)StartCoroutine(U.Shake(optRect,.3f,10));
-    Toast("Esse não substitui "+substLine.name+".");
+    Toast(string.Format("Esse não substitui {0}.",substLine.name));
     return;
    }
    PlayClip(CheckoutRestockSound.Next,.6f);
@@ -139,7 +139,7 @@ namespace Checkout {
    line.need=Mathf.Min(line.quantity,shownStock.TryGetValue(opt.productId,out var u)?u:0);
    requiredTotal=lines.Sum(x=>x.need);
    RefreshLine(line);
-   Toast("Substituto: "+opt.name+".");
+   Toast(string.Format("Substituto: {0}.",opt.name));
    substLine=null;
    CheckDone();
   }

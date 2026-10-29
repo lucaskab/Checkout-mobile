@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { canReplace, MAX_SAVE_BYTES, readSave, type SaveRecord } from "./save.ts";
 import type { Store } from "./store.ts";
@@ -10,8 +11,9 @@ import { type AppleTokens, type AppleVerifier, type GoogleVerifier, readSession,
  * - POST /v1/auth/google-code {code, codeVerifier, redirectUri, client?} → the same (PC/Editor: the browser login's
  *   code is exchanged here, so the game never carries the desktop client's secret; client "ios" = the iPhone's
  *   Google login, an iOS OAuth client with its own redirect scheme and no secret)
- * - POST /v1/auth/apple   {idToken, authorizationCode?, name?} → the same (Sign in with Apple on the iPhone; the
- *   name comes from the phone, Apple sends it only on the first login)
+ * - POST /v1/auth/apple   {idToken, authorizationCode?, name?, nonce?} → the same (Sign in with Apple on the iPhone; the
+ *   name comes from the phone, Apple sends it only on the first login; nonce: the raw one-time value whose SHA-256 the
+ *   phone gave Apple; when sent, the token's nonce claim must match it. Builds before 29/10 send none.)
  * - GET  /v1/save                                          → {revision, updatedAt, summary, data} | 404
  * - PUT  /v1/save         {baseRevision, data, deviceId, force?} → {revision, updatedAt, summary}
  *                                                           | 409 {error:"conflict", current: {revision, updatedAt, summary, deviceId}}
@@ -160,6 +162,16 @@ export function createApp(options: AppOptions) {
 			if (!identity) {
 				log("apple login refused");
 				throw new HttpError(401, { error: "apple-refused" });
+			}
+			// The login's one-time nonce (newer builds): the token must carry its SHA-256, so a token caught on its way
+			// cannot be replayed by another login. Older builds send none and still sign in.
+			if (body.nonce !== undefined) {
+				const nonce = body.nonce;
+				const expected = typeof nonce === "string" && nonce && nonce.length <= 256 ? createHash("sha256").update(nonce).digest("hex") : null;
+				if (!expected || identity.nonce !== expected) {
+					log("apple login refused (nonce)");
+					throw new HttpError(401, { error: "apple-refused" });
+				}
 			}
 			// The phone sends the name the player shared (only on the very first login).
 			const name = typeof body.name === "string" ? body.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";

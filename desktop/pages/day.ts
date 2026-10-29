@@ -69,7 +69,8 @@ function contractCard(contract: DayContract, canOpen = true) {
 	return card(contract.title, {
 		eyebrow: contract.challenge ? "CONTRATO · DESAFIO DO DIA" : `CONTRATO · ${difficulty[contract.difficulty]}`,
 		subtitle: contract.challenge
-			? `${contract.description} Você está mandando bem: este vale mais!`
+			? // two sentences, each translated on its own (the description comes from the contract data)
+				[contract.description, "Você está mandando bem: este vale mais!"].join(" ")
 			: contract.description,
 		icon: iconOf(contract.icon),
 		badge: contract.challenge ? "Desafio" : difficulty[contract.difficulty],

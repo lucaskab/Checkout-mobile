@@ -111,7 +111,7 @@ namespace Checkout {
    LoadTruck(dock[0],false);
   }
   void LoadTruck(DockEntry next,bool driveIn){
-   delivery=next;boxes.Clear();title.text="Receber entrega · "+next.productName;roomLeft=next.room;
+   delivery=next;boxes.Clear();title.text=string.Format("Receber entrega · {0}",next.productName);roomLeft=next.room;
    // Free stockroom space for this product: boxes beyond it are refused.
    if(!roomLabel){var plate=Keep(U.Shape(stage,"Room","FFF7EC",16,new Vector2(1,0),new Vector2(300,46),new Vector2(-170,40)));roomLabel=U.Label(plate.transform,"Text",K.Label,19,"4A3624");U.Stretch(roomLabel.rectTransform,Vector2.zero,Vector2.one,new Vector2(12,0),new Vector2(-12,0));}
    RoomText();
@@ -144,7 +144,7 @@ namespace Checkout {
    }
    if(roomLeft<=0){
     // Stockroom full for this product: the box stays on the truck.
-    Play(buzz,.8f);StartCoroutine(U.Shake(rack.sign.rectTransform,.35f,10));Toast("Depósito cheio de "+delivery.productName+"! Venda ou amplie o estoque.");
+    Play(buzz,.8f);StartCoroutine(U.Shake(rack.sign.rectTransform,.35f,10));Toast(string.Format("Depósito cheio de {0}! Venda ou amplie o estoque.",delivery.productName));
     return false;
    }
    box.GetComponent<CheckoutDragToken>().Locked=true;boxes.Remove(box);

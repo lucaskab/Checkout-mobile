@@ -184,7 +184,7 @@ namespace Checkout {
    Line(col," ",K.Body,6,K.Muted);
    Line(col,"Como cuidar deste móvel",K.Label,16,K.Ink);
    Line(col,"• Toque num lugar para ver o produto de perto: estoque, preço e nível.",K.Body,15,K.Ink);
-   Line(col,"• Arraste um produto para outro lugar. "+s.rowTop+"; "+s.rowBottom.ToLowerInvariant()+".",K.Body,15,K.Ink);
+   Line(col,string.Format("• Arraste um produto para outro lugar. {0}; {1}.",s.rowTop,s.rowBottom.ToLowerInvariant()),K.Body,15,K.Ink);
    Line(col,"• Um preço justo vende mais; muito caro afasta os clientes.",K.Body,15,K.Ink);
   }
 

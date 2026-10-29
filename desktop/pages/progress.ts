@@ -7,7 +7,7 @@ import {
 	getCurrencyPackCoins,
 	isCurrencyPackAvailable,
 } from "@/data/currency-packs";
-import { getPackEvent, getPackPrice, iapStore } from "../iap";
+import { getPackEvent, getPackPrice, iapStore, storePlatform } from "../iap";
 import { adsStore, getLastAdEvent, isAdOpening } from "../ads";
 import { getRewardedAdOffer } from "@/services/rewarded-ads";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
@@ -237,12 +237,20 @@ function adCard(state: State, missing: number): Card {
 function accountNudgeCard(): Card | null {
 	const signedIn = !["unavailable", "signed-out", "signing-in"].includes(cloudStore.status);
 	if (signedIn || cloudStore.status === "unavailable") return null;
+	// Names only the logins this device offers (the iPhone has just Apple for now).
+	const providers = cloudStore.providers.length ? cloudStore.providers : ["google"];
+	const apple = providers.includes("apple"), google = providers.includes("google");
 	return card("Salve seu progresso", {
 		eyebrow: "CONTA",
-		subtitle: "Entre com Google e seus diamantes e o mercado continuam em qualquer celular.",
+		subtitle:
+			apple && google
+				? "Entre com a Apple ou com o Google e seus diamantes e o mercado continuam em qualquer celular."
+				: apple
+					? "Entre com a Apple e seus diamantes e o mercado continuam em qualquer celular."
+					: "Entre com Google e seus diamantes e o mercado continuam em qualquer celular.",
 		icon: gameIcon("smartphone"),
 		tone: "info",
-		buttons: [go("Entrar com Google", "conta", { variant: "primary" })],
+		buttons: [go(google && !apple ? "Entrar com Google" : "Entrar", "conta", { variant: "primary" })],
 	});
 }
 
@@ -506,12 +514,38 @@ export const routes: Routes = {
 			);
 		// Free diamonds for a rewarded video (src/services/rewarded-ads.ts): by choice, a few a day.
 		if (filter === "all" || filter === "diamonds") cards.push(adCard(state, missing));
+		// The packs can only be bought once the store answered: until then no price and no "Comprar" (a price of our
+		// own table must never look purchasable, App Store review 29/10). Each device names only its own store.
+		const platform = storePlatform();
 		if (iapStore.status === "unavailable")
 			cards.push(
 				card("Loja indisponível", {
-					subtitle: "As compras não estão disponíveis neste aparelho agora (sem conexão com a App Store / Google Play).",
+					subtitle:
+						platform === "ios"
+							? "As compras não estão disponíveis neste aparelho agora (sem conexão com a App Store)."
+							: platform === "android"
+								? "As compras não estão disponíveis neste aparelho agora (sem conexão com o Google Play)."
+								: "As compras não estão disponíveis nesta versão do jogo.",
 					icon: gameIcon("bank"),
 					tone: "locked",
+					lines: platform === "other" ? [] : ["Confira a internet e tente de novo."],
+					buttons:
+						platform === "other"
+							? []
+							: [act("Tentar de novo", "retryIapStore", [], { variant: "primary", ok: "Conectando à loja…" })],
+				}),
+			);
+		else if (iapStore.status === "starting")
+			cards.push(
+				card("Conectando à loja…", {
+					subtitle:
+						platform === "ios"
+							? "Os preços aparecem assim que a App Store responder."
+							: platform === "android"
+								? "Os preços aparecem assim que o Google Play responder."
+								: "Os preços aparecem assim que a loja responder.",
+					icon: gameIcon("bank"),
+					tone: "info",
 				}),
 			);
 		// The smallest diamond pack that covers what is missing.
@@ -529,7 +563,7 @@ export const routes: Routes = {
 					coins > 0 ? `${fmt(coins)} moedas` : "",
 					pack.diamonds > 0 ? `${fmt(pack.diamonds)} diamantes` : "",
 				].filter(Boolean);
-				// Just the price on the button (Lucas 12/10), in the player's currency.
+				// Just the price on the button (Lucas 12/10), in the player's currency; "—" while the store has none.
 				const price = getPackPrice(pack.productId);
 				const busy = iapStore.busyProductId === pack.productId;
 				// What just happened to this pack's purchase shows on its own card.
@@ -561,9 +595,9 @@ export const routes: Routes = {
 						tone,
 						lines: status ? [status] : pack.coinTurns ? ["Cresce com a sua expansão"] : [],
 						buttons: [
-							act(busy ? "Aguardando…" : price, "buyCurrencyPack", [pack.id], {
+							act(busy ? "Aguardando…" : price || "—", "buyCurrencyPack", [pack.id], {
 								variant: pack.category === "coins" ? "coin" : pack.category === "diamonds" ? "gem" : "primary",
-								enabled: !busy,
+								enabled: !busy && !!price,
 								ok: "Abrindo a loja…",
 							}),
 						],

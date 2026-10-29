@@ -1,6 +1,7 @@
 // iPhone logins for the cloud saves (CheckoutCloud.cs, Lucas 19/10: the App Store asks for "Sign in with Apple" next to
 // any other social login):
-//   CheckoutApple_SignIn    the system's "Sign in with Apple" sheet (AuthenticationServices). The answer goes back
+//   CheckoutApple_SignIn    the system's "Sign in with Apple" sheet (AuthenticationServices), with the SHA-256 of the
+//                           login's one-time nonce (Apple puts it in the identity token; the server checks it). The answer goes back
 //                           to the Unity object with UnitySendMessage: OnAppleSignIn (JSON: identityToken,
 //                           authorizationCode, name, email) or OnAppleSignInFailed ("cancelled" or the error).
 //   CheckoutWeb_Start       a system web login sheet (ASWebAuthenticationSession) for Google's login page; it ends on
@@ -81,11 +82,13 @@ static CheckoutSignIn* Shared(const char* receiver)
 
 extern "C"
 {
-    void CheckoutApple_SignIn(const char* receiver)
+    void CheckoutApple_SignIn(const char* receiver, const char* hashedNonce)
     {
         CheckoutSignIn* signIn = Shared(receiver);
         ASAuthorizationAppleIDRequest* request = [[[ASAuthorizationAppleIDProvider alloc] init] createRequest];
         request.requestedScopes = @[ ASAuthorizationScopeFullName, ASAuthorizationScopeEmail ];
+        NSString* nonce = Text(hashedNonce);
+        if (nonce.length) request.nonce = nonce;
         ASAuthorizationController* controller = [[ASAuthorizationController alloc] initWithAuthorizationRequests:@[ request ]];
         controller.delegate = signIn;
         controller.presentationContextProvider = signIn;

@@ -56,7 +56,7 @@ namespace Checkout {
   [Serializable] class IdToken{public string idToken;}
   [Serializable] class CodeLogin{public string code;public string codeVerifier;public string redirectUri;public string client;}
   [Serializable] class AppleAnswer{public string identityToken;public string authorizationCode;public string name;public string email;}
-  [Serializable] class AppleLogin{public string idToken;public string authorizationCode;public string name;}
+  [Serializable] class AppleLogin{public string idToken;public string authorizationCode;public string name;public string nonce;}
   [Serializable] class Exported{public string id;public string data;public Summary summary;public bool fresh;}
   [Serializable] class Imported{public string id;public bool ok;}
   [Serializable] class Resolve{public string keep;}
@@ -269,16 +269,24 @@ namespace Checkout {
   IEnumerator DeleteAccount(){
    Report("syncing");
    Reply r=null;yield return Call("DELETE","/v1/account",null,x=>r=x);
-   if(r.code!=204&&r.code!=401){if(!Trouble(r))Report("error","Não deu para apagar a conta agora.");yield break;}
+   // 401 = the server no longer accepts this session (expired, or signed out on the server): nothing was deleted.
+   // Never say "Conta apagada." then: the player signs in again (same account) and deletes from there.
+   if(r.code==401){
+    Debug.Log("CHECKOUT_CLOUD delete refused: session ended");
+    SignOut("A sua sessão expirou. Entre de novo para apagar a conta.");
+    if(InGame)host.Hud?.Notify(CheckoutI18n.T("A sua sessão expirou. Entre de novo para apagar a conta."),false);
+    yield break;
+   }
+   if(r.code!=204){if(!Trouble(r))Report("error","Não deu para apagar a conta agora.");yield break;}
    if(!string.IsNullOrEmpty(playerId)){foreach(var key in new[]{"rev.","hash.","at.","summary."})PlayerPrefs.DeleteKey("checkout.cloud."+key+playerId);}
    // The progress stays on this device but no longer belongs to an account.
    if(owner==playerId){owner="";PlayerPrefs.DeleteKey("checkout.cloud.owner");}
    SignOut();if(InGame)host.Hud?.Notify(CheckoutI18n.T("Conta apagada."),true);
   }
-  void SignOut(){
+  void SignOut(string why=""){
    token="";email=playerName="";conflictCloud=null;
    PlayerPrefs.DeleteKey("checkout.cloud.token");PlayerPrefs.DeleteKey("checkout.cloud.email");PlayerPrefs.DeleteKey("checkout.cloud.name");PlayerPrefs.DeleteKey("checkout.cloud.provider");PlayerPrefs.Save();
-   nextUpload=float.MaxValue;Report("signed-out");
+   nextUpload=float.MaxValue;Report("signed-out",why);
   }
 
   // ---- login (Google, or Apple on the iPhone) ----
@@ -290,10 +298,13 @@ namespace Checkout {
     if(Application.platform!=RuntimePlatform.IPhonePlayer){Report("signed-out",CheckoutI18n.T("Entrar com a Apple funciona no iPhone."));yield break;}
 #if UNITY_IOS && !UNITY_EDITOR
     appleAnswer=null;signInError=null;signInDone=false;
-    CheckoutApple_SignIn(gameObject.name);
+    // A one-time nonce: Apple signs its SHA-256 into the identity token and the server checks it against the raw
+    // value sent with the login (a token caught on its way cannot be replayed by another login).
+    string nonce=RandomText(32),hashedNonce;using(var sha=SHA256.Create())hashedNonce=Hex(sha.ComputeHash(Encoding.UTF8.GetBytes(nonce)));
+    CheckoutApple_SignIn(gameObject.name,hashedNonce);
     float until=Time.unscaledTime+300f;while(!signInDone&&Time.unscaledTime<until)yield return null;
     if(appleAnswer==null||string.IsNullOrEmpty(appleAnswer.identityToken)){Report("signed-out",signInError=="cancelled"?"":CheckoutI18n.T("Não deu para entrar com a Apple."));yield break;}
-    yield return Call("POST","/v1/auth/apple",JsonUtility.ToJson(new AppleLogin{idToken=appleAnswer.identityToken,authorizationCode=appleAnswer.authorizationCode,name=appleAnswer.name}),x=>r=x);
+    yield return Call("POST","/v1/auth/apple",JsonUtility.ToJson(new AppleLogin{idToken=appleAnswer.identityToken,authorizationCode=appleAnswer.authorizationCode,name=appleAnswer.name,nonce=nonce}),x=>r=x);
 #endif
    } else if(Application.platform==RuntimePlatform.IPhonePlayer){
     // iPhone + Google: the system's web login sheet with the iOS OAuth client (PKCE, no secret).
@@ -321,7 +332,8 @@ namespace Checkout {
     yield return Call("POST","/v1/auth/google-code",JsonUtility.ToJson(code),x=>r=x);
    }
    if(r==null){Report("signed-out");yield break;}
-   Debug.Log("CHECKOUT_CLOUD login reply "+r.code+" "+(r.text.Length>200?r.text.Substring(0,200):r.text));
+   // Only the status: the reply carries the session token (never in a log).
+   Debug.Log("CHECKOUT_CLOUD login reply "+r.code);
    if(r.network||r.code>=500){Report("signed-out","Sem conexão com o servidor. Tente de novo.");yield break;}
    if(r.code!=200){Report("signed-out",CheckoutI18n.T(apple?"A Apple não confirmou o login ({0}).":"O Google não confirmou o login ({0}).").Replace("{0}",r.code.ToString()));yield break;}
    var auth=JsonUtility.FromJson<AuthReply>(r.text);
@@ -336,7 +348,7 @@ namespace Checkout {
   }
 
 #if UNITY_IOS && !UNITY_EDITOR
-  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutApple_SignIn(string receiver);
+  [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutApple_SignIn(string receiver,string hashedNonce);
   [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutWeb_Start(string url,string scheme,string receiver);
   [System.Runtime.InteropServices.DllImport("__Internal")] static extern int CheckoutApple_Logo(int size,out IntPtr bytes);
   [System.Runtime.InteropServices.DllImport("__Internal")] static extern void CheckoutApple_Free(IntPtr bytes);
@@ -422,6 +434,7 @@ namespace Checkout {
    done(new CodeLogin{code=query["code"],codeVerifier=verifier,redirectUri=redirect});
   }
   static string RandomText(int bytes){var data=new byte[bytes];using(var rng=RandomNumberGenerator.Create())rng.GetBytes(data);return Base64Url(data);}
+  static string Hex(byte[] data){var b=new StringBuilder(data.Length*2);foreach(var x in data)b.Append(x.ToString("x2"));return b.ToString();}
   static string Base64Url(byte[] data)=>Convert.ToBase64String(data).TrimEnd('=').Replace('+','-').Replace('/','_');
  }
 }

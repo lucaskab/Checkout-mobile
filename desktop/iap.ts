@@ -18,6 +18,8 @@ export const iapStore = {
 	status: "starting" as IapStoreStatus,
 	/** Store prices in the player's currency, by product id ("R$ 24,90"). */
 	prices: {} as Record<string, string>,
+	/** The products the store says can be bought now (null until it gives its list). */
+	productIds: null as string[] | null,
 	/** A purchase waiting for the App Store sheet / approval (product id). */
 	busyProductId: "",
 	/** The last thing that happened (shown at the top of the diamond store). */
@@ -70,11 +72,15 @@ export function applyIapMessage(message: IapUnityMessage, now = Date.now()) {
 	// (Unity's JsonUtility writes empty arrays on the event messages: only a list with prices replaces them.)
 	if (Array.isArray(message.productIds) && Array.isArray(message.prices) && message.prices.length > 0) {
 		const prices: Record<string, string> = {};
+		const ids: string[] = [];
 		message.productIds.forEach((id, i) => {
+			if (typeof id !== "string" || !id) return;
+			ids.push(id);
 			const price = (message.prices as unknown[])[i];
-			if (typeof id === "string" && typeof price === "string" && price) prices[id] = price;
+			if (typeof price === "string" && price) prices[id] = price;
 		});
 		iapStore.prices = prices;
+		iapStore.productIds = ids;
 	}
 	const productId = typeof message.productId === "string" ? message.productId : "";
 	switch (message.event) {
@@ -99,9 +105,32 @@ export function applyIapMessage(message: IapUnityMessage, now = Date.now()) {
 	}
 }
 
-/** The price shown on a pack: the store's own (local currency) once Unity has it, the region's table until then. */
+/**
+ * Where the purchases happen, by the device the game runs on: the App Store on the iPhone, Google Play on Android,
+ * no store on the PC / Mac builds (the embedded host sets process.platform to "ios" or "android": desktop/embedded/env.ts).
+ * The pages name only the store of this device (App Store rule 2.3.10: no other platform's store on the iPhone).
+ */
+export type StorePlatform = "ios" | "android" | "other";
+export function storePlatform(): StorePlatform {
+	const platform = String((globalThis as { process?: { platform?: unknown } }).process?.platform ?? "");
+	return platform === "ios" ? "ios" : platform === "android" ? "android" : "other";
+}
+
+/** Can this pack be bought right now (the store answered and lists it)? */
+export function isPackPurchasable(productId: string) {
+	if (iapStore.status !== "ready") return false;
+	return !iapStore.productIds || iapStore.productIds.length === 0 || iapStore.productIds.includes(productId);
+}
+
+/**
+ * The price shown on a pack: only the store's own (in the player's currency) and only once the store is ready —
+ * never a price of our own table as if the pack could be bought (App Store review, 29/10). "" = no price to show.
+ * The Editor's test store has no prices: there (not on a phone) the region's table stands in, to see the screens.
+ */
 export function getPackPrice(productId: string) {
+	if (!isPackPurchasable(productId)) return "";
 	if (iapStore.prices[productId]) return iapStore.prices[productId];
+	if (storePlatform() !== "other") return "";
 	const pack = getCurrencyPack(productId);
 	return pack ? getRegionalPrice(pack, iapStore.region) : "";
 }
@@ -124,6 +153,7 @@ export function requestPackPurchase(state: GameStore, packId: unknown): BuyPackR
 					? "A loja ainda está carregando. Tente de novo em instantes."
 					: "A loja não está disponível neste aparelho agora.",
 		};
+	if (!isPackPurchasable(pack.productId)) return { ok: false, reason: "Este pacote não está disponível na loja agora." };
 	if (iapStore.busyProductId) return { ok: false, reason: "Já existe uma compra em andamento." };
 	iapStore.busyProductId = pack.productId;
 	return { ok: true, message: { kind: "purchase", productId: pack.productId, packId: pack.id } };
@@ -154,6 +184,7 @@ export function noteGrantedPack(
 export function resetIapStore() {
 	iapStore.status = "starting";
 	iapStore.prices = {};
+	iapStore.productIds = null;
 	iapStore.busyProductId = "";
 	iapStore.notice = null;
 	iapStore.region = "";

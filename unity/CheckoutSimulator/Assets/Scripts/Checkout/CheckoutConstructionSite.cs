@@ -668,7 +668,7 @@ namespace Checkout
             if (camera) board.rotation = camera.transform.rotation;
             if (!force && Time.frameCount % 15 != 0) return;
             double remaining = plan.endsAt - Now;
-            string label = remaining > 0 ? "EM OBRA  " + Countdown(remaining) : "FINALIZANDO...";
+            string label = remaining > 0 ? string.Format("EM OBRA  {0}", Countdown(remaining)) : "FINALIZANDO...";
             countdown.text = label; countdownShadow.text = label;
             if (speedUp)
             {
