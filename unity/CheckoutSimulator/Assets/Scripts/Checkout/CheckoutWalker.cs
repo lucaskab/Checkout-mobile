@@ -28,7 +28,7 @@ namespace Checkout {
   static readonly List<CheckoutWalker> waitLine=new List<CheckoutWalker>();bool admitted;int waitSlot;
   // A place outside is kept until its customer goes in (nobody shuffles along in the crowd); the first who came goes first.
   void JoinWaitLine(){if(waitLine.Contains(this))return;waitSlot=0;while(waitLine.Exists(w=>w!=this&&w.waitSlot==waitSlot))waitSlot++;waitLine.Add(this);}
-  static int InsideCount(){int n=0;foreach(var w in All)if(w&&w.gameObject.activeInHierarchy&&w.admitted&&(w.phase<=4||w.phase==8||w.phase==30))n++;return n;}
+  static int InsideCount(){int n=0;foreach(var w in All)if(w&&w.gameObject.activeInHierarchy&&w.admitted&&(w.phase<=4||w.phase==8||w.phase==19||w.phase==30))n++;return n;}
   /// <summary>Two rows already wait outside the full little shop: no one else sets off for it until there is room.</summary>
   public static bool ShopCrowded=>CheckoutStall.ShopInside&&waitLine.Count>=6;
   bool MustWait()=>CheckoutStall.ShopInside&&(InsideCount()>=CheckoutStall.Capacity||(waitLine.Count>0&&waitLine[0]!=this));
@@ -51,7 +51,8 @@ namespace Checkout {
   public void FurnitureMoved(){if(!gameObject.activeInHierarchy||!agent||!agent.isOnNavMesh)return;
    if(phase==0&&customer?.purchases!=null&&index<customer.purchases.Length)Go(map.Approach(customer.purchases[index].shelfId));
    else if(phase==1&&customer?.purchases!=null&&index<customer.purchases.Length){var spot=map.Approach(customer.purchases[index].shelfId);if((transform.position-spot).sqrMagnitude>.3f){wait=0;phase=0;Go(spot);}}
-   else if(phase==3)Go(QueuePosition(Line.IndexOf(this)));}
+   else if(phase==3)Go(QueuePosition(Line.IndexOf(this)));
+   else if(phase==19)Go(QueuePosition(Line.Count));}
   public void Reserve(){Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);}
   public void CancelVisit(){LeaveEventLine();waitLine.Remove(this);admitted=false;if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;returnedToCar=null;Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}
   public void BeginFromCar(Customer visit,Vector3 door,System.Action<CheckoutWalker> completed){eventOrigin=null;lead=null;parkingDoor=door;returnedToCar=completed;customer=visit;admitted=false;phase=9;index=0;wait=0;HasPaid=false;Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(true);if(!(NavMesh.SamplePosition(door,out var hit,.8f,NavMesh.AllAreas)||NavMesh.SamplePosition(door,out hit,3f,NavMesh.AllAreas))||!agent.Warp(hit.position)){Debug.LogWarning("CHECKOUT_WALKER the parking door is off the NavMesh; the visit is dropped");ForceExit();return;}Sync();Shown();Go(new Vector3(CheckoutCityTraffic.WalkX,.15f,parkingDoor.z));snapHeading=true;}
@@ -124,7 +125,7 @@ namespace Checkout {
    Vector3 Remap(Vector3 p){var original=CheckoutMarketLayout.Unproject(p,previous);return original.x> -9.5f&&original.x<9.5f&&original.z> -10.61f&&original.z<7.5f?CheckoutMarketLayout.Project(original,next):p;}
    var position=Remap(transform.position);target=Remap(target);if(NavMesh.SamplePosition(position,out var hit,3,NavMesh.AllAreas)){agent.Warp(hit.position);Go(target);Sync();}
   }
-  void Go(Vector3 destination){holding=false;if(NavMesh.SamplePosition(destination,out var hit,2,NavMesh.AllAreas))destination=hit.position;target=destination;agent.isStopped=false;
+  void Go(Vector3 destination){holding=false;nearFor=0;if(NavMesh.SamplePosition(destination,out var hit,2,NavMesh.AllAreas))destination=hit.position;target=destination;agent.isStopped=false;
    // just appeared (not drawn yet this frame): the way is planned now and they stand facing along it, so nobody pops
    // round in view (29/10 QA: the turn to the way used to come a few frames later, 110 degrees in one frame)
    if(Time.frameCount==shownAt){var path=new NavMeshPath();if(agent.CalculatePath(destination,path)&&path.status!=NavMeshPathStatus.PathInvalid&&agent.SetPath(path)){FaceAlong(path.corners);stride.Reset(transform);return;}}
@@ -141,10 +142,13 @@ namespace Checkout {
    if(!admitted){
     if(MustWait()){JoinWaitLine();phase=18;CheckoutShoppingProps.SetVisible(transform,false);Go(CheckoutStall.WaitSpot(waitSlot));return;}
     admitted=true;waitLine.Remove(this);}
-   CheckoutShoppingProps.SetVisible(transform,customer.purchases!=null&&customer.purchases.Length>0);if(customer.purchases!=null&&index<customer.purchases.Length){phase=0;Go(map.Approach(customer.purchases[index].shelfId));}else {lane=CheckoutStall.Small&&map.Lanes.lanes.Count>0?map.Lanes.lanes[0]:map.Lanes.Pick();if(lane.places==null&&lane.itemId==null){phase=2;Go(map.Point(new Vector3(-7.2f,.74f,-3.4f)));}else{Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}}}
+   CheckoutShoppingProps.SetVisible(transform,customer.purchases!=null&&customer.purchases.Length>0);if(customer.purchases!=null&&index<customer.purchases.Length){phase=0;Go(map.Approach(customer.purchases[index].shelfId));}else {lane=CheckoutStall.Small&&map.Lanes.lanes.Count>0?map.Lanes.lanes[0]:map.Lanes.Pick();if(lane.places==null&&lane.itemId==null){phase=2;Go(map.Point(new Vector3(-7.2f,.74f,-3.4f)));}else if(TailFirst&&Line.Count>0){phase=19;Go(QueuePosition(Line.Count));}else{Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}}}
+  // In the little shops the line runs single file along a lane: a customer only takes their place once they reach its
+  // end (phase 19), so nobody has to squeeze past the people already standing in it to a place further ahead.
+  bool TailFirst=>CheckoutStall.ShopInside&&!CheckoutStall.PlacedCounter;
   // Safety net: a customer who is off the NavMesh (the floor was rebuilt under them) or makes no progress is put back
   // on the way, and as a last resort finishes the step (or leaves) instead of freezing the line forever.
-  float offMesh,stuckFor;Vector3 lastSpot;
+  float offMesh,stuckFor,nearFor;Vector3 lastSpot;
   void ForceExit(){QaForceExits++;LeaveEventLine();waitLine.Remove(this);admitted=false;Line.Remove(this);if(map&&map.Lanes)map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;wait=0;
    var completed=returnedToCar;returnedToCar=null;CheckoutShoppingProps.SetVisible(transform,false);if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}
    Reserved=false;gameObject.SetActive(false);completed?.Invoke(this);}
@@ -200,6 +204,7 @@ namespace Checkout {
    // Gave up while still in line: the basket stays behind and they walk out.
    if(phase==3&&bridge.CheckoutFor(customer?.id)==null&&bridge.CheckoutResultFor(customer?.id)?.status=="left"){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);return;}
    if(phase==3){var q=Line.IndexOf(this);var position=QueuePosition(q);if((position-target).sqrMagnitude>.05f)Go(position);}
+   if(phase==19){var tail=QueuePosition(Line.Count);if((tail-target).sqrMagnitude>.05f)Go(tail);}
    agent.speed=(Cart?.88f:1.04f)*(rig?rig.SpeedFactor:1);agent.acceleration=3.5f;
    // Rigs face -Z. They step out of a car or doorway already facing the route (Go, as they appear), then the body
    // eases round along the way ahead (CheckoutStride.Steer); a new way later is turned to like any other.
@@ -211,6 +216,8 @@ namespace Checkout {
     if((transform.position-lastSpot).sqrMagnitude>.0025f){lastSpot=transform.position;stuckFor=0;}else stuckFor+=Time.deltaTime;
     // Jammed right next to the spot (someone stands on it, a corner of furniture): close enough.
     if(stuckFor>2.5f&&Vector3.Distance(agent.nextPosition,target)<1.2f)arrived=true;
+    // In line, close to the place for a while but jostled by the people around (never still long enough above): there.
+    if(phase==3&&Vector3.Distance(agent.nextPosition,target)<1.3f){nearFor+=Time.deltaTime;if(nearFor>3f)arrived=true;}else nearFor=0;
     else if(stuckFor>12f){stuckFor=0;Unstick();return;}
     else if(stuckFor>4f&&!agent.pathPending&&(agent.pathStatus!=NavMeshPathStatus.PathComplete||!agent.hasPath)){stuckFor=2f;Go(target);}
     if(!arrived)return;}
@@ -225,6 +232,7 @@ namespace Checkout {
    else if(phase==3&&Line.Count>0&&Line[0]==this){if(customer.spent<=0){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);return;}
     CountEvent(2);if(bridge.CheckoutFor(customer.id)!=null){phase=30;tillWait=0;arrivalPing=0;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));return;}
     phase=8;agent.velocity=Vector3.zero;facing=Quaternion.LookRotation(-(map.LaneRegister(lane)-transform.position));wait=map.ScanCustomer(customer,lane);}
+   else if(phase==19){Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}
    else if(phase==5){if(returnedToCar!=null){phase=12;Go(CheckoutCityTraffic.Corner);}else{phase=13;Go(Away());}}
    else if(phase==13){Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}
    else if(phase==6){NextShelf();}

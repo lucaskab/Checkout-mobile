@@ -57,6 +57,7 @@ namespace Checkout
             public Vector2 wait;          // outside, first place of those waiting to get in (3 a row, rows towards the street)
             public (string part, Rect rect)[] solids; // parts of the model outside the walls people walk round (when present)
             public Rect oldFloor;         // the floor before the shop grew: the places of the line beyond it are kept free
+            public Rect counterSolid;     // what of the counter people walk round (0 = the counter rect): its body only
         }
         static readonly Dictionary<string, ShopPlan> Plans = new Dictionary<string, ShopPlan>
         {
@@ -74,6 +75,8 @@ namespace Checkout
             {
                 floor = Rect.MinMaxRect(-4.1f, -2.4f, 4.1f, 4.1f), doorMin = -3.45f, doorMax = .55f, oldFloor = Rect.MinMaxRect(-4.1f, -2.4f, 4.1f, 2.6f),
                 counter = Rect.MinMaxRect(1.35f, -1.7f, 3.15f, -.3f), floorY = .06f, wait = new Vector2(1.1f, -3.7f),
+                // (the counter's body starts at y -1.62: the 0.08 m more of the rect left no walkable way to the till)
+                counterSolid = Rect.MinMaxRect(1.35f, -1.62f, 3.15f, -.3f),
                 queue = new[] { new Vector2(2.25f, -2.0f), new Vector2(3.05f, -2.0f), new Vector2(3.65f, -1.5f), new Vector2(3.65f, -.75f), new Vector2(3.65f, 0f), new Vector2(3.65f, .75f), new Vector2(3.65f, 1.5f), new Vector2(3.65f, 2.25f), new Vector2(3.65f, 3.0f) },
                 solids = new[] { ("ERA5_Produce", Rect.MinMaxRect(.78f, -3.22f, 3.52f, -2.66f)) },
             },
@@ -166,7 +169,7 @@ namespace Checkout
             Wall(f.xMin - t, f.yMin - t, d0.x, f.yMin);                 // front, left of the door
             Wall(d1.x, f.yMin - t, f.xMax + t, f.yMin);                 // front, right of the door
             if (PlacedCounter) { CounterArea = new Rect(f.xMax, f.yMin, 0, 0); return; } // no counter in the model
-            var c = CounterArea; Wall(c.xMin, c.yMin, c.xMax, c.yMax);  // counter
+            var c = plan.counterSolid.width > 0 ? WR(plan.counterSolid) : CounterArea; Wall(c.xMin, c.yMin, c.xMax, c.yMax);  // counter
         }
 
         // The paving around the stall: beside and behind it on lot A1, inside the walkable court, plus a strip in
