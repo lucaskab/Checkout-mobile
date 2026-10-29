@@ -38,7 +38,14 @@ namespace Checkout {
    if(onboardingRuns++>0){Note("onboarding "+tag+": skipped, one onboarding run per play session (send another play request)");Lang(languageBefore);yield break;}
    Route("");var home=FindAnyObjectByType<MarketDay.MarketSimulation>();if(home)home.HomeCamera();
    yield return new WaitForSecondsRealtime(2.5f);
-   obProblems.Clear();
+   // "-results": like Lucas's save (29/10), a day already ended with its results waiting when the tutorial goes on.
+   string label=parts.Length>3?parts[3]:"";
+   if(label=="results"){
+    void Hud(string action,string args)=>CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-"+action+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
+    Hud("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(2f);Hud("closeDay","[]");yield return new WaitForSecondsRealtime(2.5f);
+    Note("onboarding "+tag+": a day was opened and closed, its results wait to be collected");
+   }
+   obProblems.Clear();int repeats=0,stucks=0,scrollsAt=Scrolls(hud.CoachQa());
    string last=null;float runAt=Time.realtimeSinceStartup,stepAt=runAt;int shot=0,acts=0;bool stuckNoted=false;var order=new List<string>();
    while(Time.realtimeSinceStartup-runAt<900){
     yield return new WaitForSecondsRealtime(.5f);
@@ -48,7 +55,16 @@ namespace Checkout {
      if(last!=null)Note($"STEP_DONE {last} in {Time.realtimeSinceStartup-stepAt:0.0}s, {acts} taps");
      last=q.key;stepAt=Time.realtimeSinceStartup;acts=0;stuckNoted=false;
      if(q.key.Length==0&&order.Contains("objetivo")){yield return new WaitForSecondsRealtime(2.5f);yield return Mark($"ob_{tag}_{++shot:00}_end",hud.CoachQa());break;}
-     if(q.key.Length>0)order.Add(q.key);
+     // The guide must only move forward: a step or tip that comes back after another one is a loop (Lucas 29/10:
+     // "fica meio que se repetindo"). The step that the day's results interrupted coming back is a resume.
+     if(q.key.Length>0&&(order.Count==0||order[order.Count-1]!=q.key)){
+      if(order.Contains(q.key)){
+       bool resume=order.Count>=2&&order[order.Count-1]=="fim-do-dia"&&order[order.Count-2]==q.key;
+       if(resume)Note($"RESUMED '{q.key}' after the day's results");
+       else{repeats++;Problem($"REPEAT '{q.key}' shown again after {string.Join(" > ",order.Skip(Math.Max(0,order.Count-3)))}");}
+      }
+      order.Add(q.key);
+     }
      yield return new WaitForSecondsRealtime(1.4f); // the page opening, the card's layout, the hand settling
      q=hud.CoachQa();
      if(q.key!=last)continue;
@@ -56,12 +72,14 @@ namespace Checkout {
     }
     if(q.key.Length==0){if(Time.realtimeSinceStartup-stepAt>20){Note("STUCK: no guide on screen for 20 s");break;}continue;}
     float limit=q.key=="primeiro-cliente"||q.key=="caixa"?120:q.key=="caminhao"?75:45;
-    if(Time.realtimeSinceStartup-stepAt>limit&&!stuckNoted){stuckNoted=true;Problem($"STUCK on '{q.key}' for {limit:0}s ({acts} taps)");yield return Mark($"ob_{tag}_{++shot:00}_{q.key}_stuck",q);Report(q);}
+    if(Time.realtimeSinceStartup-stepAt>limit&&!stuckNoted){stuckNoted=true;stucks++;Problem($"STUCK on '{q.key}' for {limit:0}s ({acts} taps)");yield return Mark($"ob_{tag}_{++shot:00}_{q.key}_stuck",q);Report(q);}
     if(Time.realtimeSinceStartup-stepAt>limit*2){Note("GIVE UP on "+q.key);break;}
     bool acted=false;yield return Act(q,tag,acts,()=>{acted=true;acts++;},n=>shot+=n,()=>shot);
     if(acted)yield return new WaitForSecondsRealtime(1.2f);
    }
-   Note($"onboarding {tag}: steps seen {string.Join(" > ",order)}; {obProblems.Count} problems; total {Time.realtimeSinceStartup-runAt:0}s");
+   bool finished=order.Contains("objetivo");int scrolled=Scrolls(hud.CoachQa())-scrollsAt;
+   Note($"onboarding {tag}: steps seen {string.Join(" > ",order)}; {obProblems.Count} problems; total {Time.realtimeSinceStartup-runAt:0}s; the guide scrolled a list {scrolled} times");
+   Note($"ONBOARDING_RESULT {tag} {(finished&&stucks==0&&repeats==0?"PASS":"FAIL")} finished={finished} stuck={stucks} repeats={repeats} problems={obProblems.Count}");
    foreach(var p in obProblems)Note("  PROBLEM "+p);
    Lang(languageBefore);Route("");yield return new WaitForSecondsRealtime(1.5f);
   }
@@ -93,6 +111,8 @@ namespace Checkout {
    if(!string.IsNullOrEmpty(q.target)&&!q.found&&Time.realtimeSinceStartup-lastNotFound>8){lastNotFound=Time.realtimeSinceStartup;Problem($"'{q.key}': target '{q.target}' not on screen (page open: {q.page}, card: {q.card}, compact: {q.compact})");}
   }
   float lastObTap,lastNotFound;
+  // How many times the guide scrolled a list to its target (read by name, so the test also runs on a coach without it).
+  static int Scrolls(CheckoutDesktopHUD.CoachQaInfo q){var f=q.GetType().GetField("scrolls");return f!=null?(int)f.GetValue(q):0;}
   // The X of the page window on screen (the side drawer or a full-screen window: shelf, board, kitchen, shop).
   static RectTransform PageX(){
    foreach(var b in FindObjectsByType<CheckoutDesktopButton>(FindObjectsSortMode.None))

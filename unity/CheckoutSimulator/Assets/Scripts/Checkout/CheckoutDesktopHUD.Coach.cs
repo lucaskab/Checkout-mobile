@@ -130,7 +130,7 @@ namespace Checkout {
    if(coachRewardSeen==null)coachRewardSeen=rewardKey;
    else if(rewardKey.Length>0&&rewardKey!=coachRewardSeen){coachRewardSeen=rewardKey;StartCoroutine(CoachRewardPop(coach.rewardText));}
    string key=coach?.key??"";
-   if(key!=coachKey){coachKey=key;coachShownAt=Time.unscaledTime;coachMissingSince=-1;if(key.Length>0)PlayCoach("pop");}
+   if(key!=coachKey){coachKey=key;coachShownAt=Time.unscaledTime;coachMissingSince=-1;coachScrolledTarget=null;if(key.Length>0)PlayCoach("pop");}
    if(key.Length==0){HideCoach();return;}
    coachName.text=coach.speaker;coachTitle.text=coach.title;coachText.text=K.Clean(coach.text);
    var portrait=K.Icon("Game/"+coach.art);if(!portrait)portrait=K.Icon("Icons/customers");coachPortrait.sprite=coachCompactPortrait.sprite=portrait;
@@ -175,6 +175,7 @@ namespace Checkout {
   string coachCompactShown;float coachCompactAt;const float CompactReadSeconds=8;
   void UpdateCoach(){
    if(coachRoot==null)return;
+   if(Input.GetMouseButton(0)||Input.touchCount>0||Input.mouseScrollDelta.sqrMagnitude>0)coachPointerAt=Time.unscaledTime;
    if(coachReward.gameObject.activeSelf)coachReward.SetAsLastSibling();
    if(coach==null||string.IsNullOrEmpty(coach.key)){HideCoach();return;}
    // Other moments come first: the level-up and conquest celebrations, the offline earnings, loading, building.
@@ -295,7 +296,14 @@ namespace Checkout {
   bool FindCoachTarget(string spec,out Rect hole){
    hole=default;coachTargetUi=null;coachTargetWorld=null;coachTargetPart="";coachUnderPage=false;if(string.IsNullOrEmpty(spec))return false;
    // The floating buttons pulse and move in their rail (REPOR / ENTREGA come and go above CAIXA): a wider frame keeps them inside.
-   foreach(var part in spec.Split('|'))if(FindOne(part.Trim(),out hole)){hole=CoachPad(hole,part.Trim().StartsWith("fab:")?18:10);coachTargetPart=part.Trim();return true;}
+   foreach(var raw in spec.Split('|')){
+    var part=raw.Trim();coachScrollTarget=null;coachScrollAway=float.MaxValue;
+    if(FindOne(part,out hole)){hole=CoachPad(hole,part.StartsWith("fab:")?18:10);coachTargetPart=part;return true;}
+    // The button is there but scrolled out of its list (the results' COLETAR, a contract, a mission…): the guide scrolls
+    // the list until it is wholly in view and then points at it. It never jumps to another target meanwhile (Lucas
+    // 29/10: it fell back to the pressed "Resultado" button and the player was stuck).
+    if(coachScrollTarget){coachTargetPart=part;CoachScrollTo(coachScrollRect,coachScrollTarget);return false;}
+   }
    // The target is there but the page window covers it (the toolbar on an iPad, the top bar…): close the page first.
    if(coachUnderPage&&FindOne("close",out hole)){hole=CoachPad(hole,10);coachTargetPart="close";return true;}
    coachTargetUi=null;coachTargetWorld=null;
@@ -336,6 +344,14 @@ namespace Checkout {
   // A UI element on screen, in the coach's coordinates (origin at the bottom left of the safe area).
   bool Visible(RectTransform target,out Rect hole){
    hole=default;coachTargetUi=target;if(!target||!target.gameObject.activeInHierarchy)return false;
+   // In a scrolling list the button must be wholly in view; if it is not, the nearest one is remembered and the list is
+   // scrolled to it (after one scroll, half in view is enough: a list may not go further).
+   var scroll=target.GetComponentInParent<UnityEngine.UI.ScrollRect>();
+   if(scroll&&scroll.content&&target.IsChildOf(scroll.content)&&target!=coachScrolledTarget){
+    var vr=ScreenRectOf(scroll.viewport?scroll.viewport:(RectTransform)scroll.transform);var tr=ScreenRectOf(target);
+    float away=Mathf.Max(0,vr.yMin-tr.yMin)+Mathf.Max(0,tr.yMax-vr.yMax)+Mathf.Max(0,vr.xMin-tr.xMin)+Mathf.Max(0,tr.xMax-vr.xMax);
+    if(away>2){if(away<coachScrollAway){coachScrollAway=away;coachScrollRect=scroll;coachScrollTarget=target;}return false;}
+   }
    var r=ScreenRectOf(target);
    // Inside a scrolling list only what the viewport shows counts: the part outside it is cut off, and a button mostly
    // scrolled away is not a target (the hole and the hand sat over the page header).
@@ -366,6 +382,40 @@ namespace Checkout {
    if(page==drawer)return closeButton&&closeButton.isActiveAndEnabled?(RectTransform)closeButton.transform:null;
    foreach(var b in page.GetComponentsInChildren<CheckoutDesktopButton>())if(b.isActiveAndEnabled&&b.Data!=null&&b.Data.label=="X"&&string.IsNullOrEmpty(b.Data.route))return (RectTransform)b.transform;
    return null;
+  }
+  // ---- auto-scroll: brings a target that sits further down (or across) a scrolling list into view.
+  UnityEngine.UI.ScrollRect coachScrollRect;RectTransform coachScrollTarget,coachScrolledTarget;float coachScrollAway,coachScrollAt,coachPointerAt=-10;bool coachScrolling;int coachScrollCount;
+  void CoachScrollTo(UnityEngine.UI.ScrollRect scroll,RectTransform target){
+   // Not while the player is touching or has just scrolled the list: after a moment it comes back to the button.
+   if(coachScrolling&&Time.unscaledTime-coachScrollAt>2)coachScrolling=false; // a scroll cut short (window closed mid-way)
+   if(coachScrolling||!scroll||Time.unscaledTime-coachPointerAt<1.5f)return;
+   coachScrollAt=Time.unscaledTime;
+   StartCoroutine(CoachScrollRoutine(scroll,target));
+  }
+  IEnumerator CoachScrollRoutine(UnityEngine.UI.ScrollRect scroll,RectTransform target){
+   coachScrolling=true;coachScrollCount++;
+   scroll.StopMovement();Canvas.ForceUpdateCanvases();
+   var view=scroll.viewport?scroll.viewport:(RectTransform)scroll.transform;var content=scroll.content;
+   var b=RectTransformUtility.CalculateRelativeRectTransformBounds(view,target);var cb=RectTransformUtility.CalculateRelativeRectTransformBounds(view,content);var vr=view.rect;
+   Vector2 d=Vector2.zero;
+   if(scroll.vertical){
+    float m=Mathf.Min(18,vr.height*.05f);
+    if(b.max.y>vr.yMax-m||b.size.y>vr.height-2*m)d.y=vr.yMax-m-b.max.y;else if(b.min.y<vr.yMin+m)d.y=vr.yMin+m-b.min.y;
+    float lo=vr.yMax-cb.max.y,hi=vr.yMin-cb.min.y;d.y=lo<=hi?Mathf.Clamp(d.y,lo,hi):0;
+   }
+   if(scroll.horizontal){
+    float m=Mathf.Min(18,vr.width*.05f);
+    if(b.min.x<vr.xMin+m||b.size.x>vr.width-2*m)d.x=vr.xMin+m-b.min.x;else if(b.max.x>vr.xMax-m)d.x=vr.xMax-m-b.max.x;
+    float lo=vr.xMax-cb.max.x,hi=vr.xMin-cb.min.x;d.x=lo<=hi?Mathf.Clamp(d.x,lo,hi):0;
+   }
+   var parent=content.parent?content.parent:view;
+   Vector2 step=parent.InverseTransformVector(view.TransformVector(d));var from=content.anchoredPosition;var to=from+step;
+   for(float t=0;t<1&&scroll&&content;t+=Time.unscaledDeltaTime/.35f){
+    if(Time.unscaledTime-coachPointerAt<.1f)break; // the player took the list: let go
+    content.anchoredPosition=Vector2.Lerp(from,to,Mathf.SmoothStep(0,1,t));yield return null;
+   }
+   if(scroll&&content&&Time.unscaledTime-coachPointerAt>=.1f){content.anchoredPosition=to;scroll.StopMovement();}
+   coachScrolledTarget=target;coachScrolling=false;coachSearchAt=0; // look again right away
   }
   bool coachUnderPage;readonly List<UnityEngine.EventSystems.RaycastResult> coachHits=new List<UnityEngine.EventSystems.RaycastResult>();
   // The first UI element under the point that is not the guide itself must belong to the target.
@@ -423,7 +473,7 @@ namespace Checkout {
   RectTransform coachTargetUi;CheckoutTarget coachTargetWorld;string coachTargetPart="";Rect coachWorldScreen;
   public sealed class CoachQaInfo {
    public string key="",mode="",target="",part="",title="",text="",button="";public bool isTip,card,compact,found,dims,hand,page;
-   public Rect hole,targetRect,cardRect,buttonRect,compactRect,drawerRect;public Vector2 tip;
+   public Rect hole,targetRect,cardRect,buttonRect,compactRect,drawerRect;public Vector2 tip;public int scrolls;public bool scrolling;
    public RectTransform targetUi,buttonUi;public CheckoutTarget targetWorld;
   }
   Vector2 CoachToScreen(Vector2 p)=>RectTransformUtility.WorldToScreenPoint(null,coachRoot.TransformPoint(p-coachRoot.rect.size*coachRoot.pivot));
@@ -437,6 +487,7 @@ namespace Checkout {
    var q=new CoachQaInfo();if(coachRoot==null)return q;
    q.page=view!=null&&view.hasPage;var open=OpenPage();q.drawerRect=open?ScreenRectOf(PageFrame(open)):default;
    if(coach==null||string.IsNullOrEmpty(coach.key))return q;
+   q.scrolls=coachScrollCount;q.scrolling=coachScrolling;
    q.key=coach.key;q.mode=coach.mode;q.target=coach.target??"";q.title=coach.title;q.text=coach.text;q.button=coach.button??"";q.isTip=coach.isTip;
    q.card=coachCard.gameObject.activeInHierarchy;q.compact=coachCompact.gameObject.activeInHierarchy;
    q.dims=coachDims[0].gameObject.activeInHierarchy;q.hand=coachHand.gameObject.activeInHierarchy;q.found=q.hand&&coachFoundCache;

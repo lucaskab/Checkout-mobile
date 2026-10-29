@@ -374,6 +374,14 @@ const emptyCoach = (): CoachView => ({
 
 const PATH = ["Mesinha", "Tenda", "Banca", "Contêiner", "Conveniência", "Quitanda", "Minimercado", "Mercadinho", "Supermercado", "Hipermercado", "Rede"];
 
+/** End of the day: on the results page tap COLETAR (the guide scrolls to it), anywhere else tap RESULTADO first. */
+function dayEndPointer(route: OnboardingRoute): Pick<CoachView, "text" | "target"> {
+	const onResults = routeName(route) === "day" || routeName(route) === "day-result";
+	return onResults
+		? { text: "Toque em COLETAR para receber as moedas e o XP do dia.", target: "action:claimDayResult" }
+		: { text: onboardingTips.find((item) => item.id === "fim-do-dia")?.text ?? "", target: "market" };
+}
+
 /** The coach card for the page on screen. While the market is closed mid-tutorial it points back at ABRIR. */
 export function getCoachView(state: GameState, route: OnboardingRoute, now: number): CoachView {
 	const o = state.onboarding;
@@ -392,13 +400,10 @@ export function getCoachView(state: GameState, route: OnboardingRoute, now: numb
 	// a save that ended a day before "abrir" showed "Hora de abrir!" pointing at the "Resultado" button (QA 29/10).
 	if (state.day.phase === "results" && o.status === "active" && stepIndex(o.step) > stepIndex("boas-vindas")) {
 		const tip = onboardingTips.find((item) => item.id === "fim-do-dia");
-		// With the results page already open the "receber" button sits at the bottom of a scrolling list: a spotlight
-		// there dimmed the page and left only the (already pressed) "Resultado" button tappable, so the player was stuck
-		// (Lucas 29/10). On that page the tip is a note that doesn't block; elsewhere it points at "Resultado".
-		if (tip && (routeName(route) === "day" || routeName(route) === "day-result"))
-			return { ...view, key: "fim-do-dia", mode: "bubble", title: tip.title, text: tip.text, target: "", isTip: true };
-		if (tip)
-			return { ...view, key: "fim-do-dia", mode: "spotlight", title: tip.title, text: tip.text, target: tip.target, isTip: true };
+		// On the results page the hand goes to COLETAR: it sits at the bottom of a scrolling list, and the guide scrolls
+		// the list until the button is in view before it points (Lucas 29/10: the spotlight fell back to the pressed
+		// "Resultado" button and dimmed the page, so nothing could be tapped).
+		if (tip) return { ...view, key: "fim-do-dia", mode: "spotlight", title: tip.title, ...dayEndPointer(route), isTip: true };
 	}
 	if (o.status === "active") {
 		const def = stepDef(o.step);
@@ -423,10 +428,10 @@ export function getCoachView(state: GameState, route: OnboardingRoute, now: numb
 		const needsOpen = ["primeiro-cliente", "caixa"].includes(def.id) && !state.market.isOpen && state.checkout.queue.length === 0;
 		if (needsOpen)
 			return name === "day"
-				? { ...base, mode: "spotlight", title: "Abra a loja", text: "Escolha como começar o dia e abra a loja para os clientes virem.", target: "action:startDay" }
+				? { ...base, mode: "spotlight", title: "Abra a loja", text: "Toque em ACEITAR E ABRIR em um contrato para os clientes virem.", target: "action:startDay" }
 				: { ...base, mode: "spotlight", title: "Abra a loja", text: "A loja está fechada. Toque em ABRIR para os clientes voltarem.", target: "market" };
 		// Steps that point at a button inside a page: first lead the player to that page.
-		if (def.id === "dia-livre" && name !== "day") return { ...base, target: "market" };
+		if (def.id === "dia-livre" && name !== "day") return { ...base, target: "market", text: "Toque em ABRIR para escolher o contrato do dia." };
 		if (def.id === "pedir" && name !== "suppliers") return { ...base, target: "route:!suppliers|tool:!store|tool:!products", text: "Abra PRODUTOS e toque na aba ENTREGAS para ver o atacado." };
 		if (def.id === "caixa" && !readyAtRegister(state, now)) return { ...base, mode: "bubble", target: "", text: "O cliente está escolhendo... já já ele vai para o caixa." };
 		if (def.id === "descarregar" && !trucksAtDock(state)) return { ...base, mode: "bubble", target: "" };
@@ -437,7 +442,18 @@ export function getCoachView(state: GameState, route: OnboardingRoute, now: numb
 	if (o.tip) {
 		const tip = onboardingTips.find((item) => item.id === o.tip);
 		if (tip)
-			return { ...view, key: tip.id, mode: "bubble", title: tip.title, text: tip.text, target: tip.target, button: "Entendi", buttonAction: "dismissOnboardingTip", isTip: true };
+			return {
+				...view,
+				key: tip.id,
+				mode: "bubble",
+				title: tip.title,
+				text: tip.text,
+				target: tip.target,
+				...(tip.id === "fim-do-dia" ? dayEndPointer(route) : {}),
+				button: "Entendi",
+				buttonAction: "dismissOnboardingTip",
+				isTip: true,
+			};
 	}
 	return view;
 }

@@ -72,7 +72,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		title: "Produtos e preços",
 		text:
 			"Aqui você vê quanto tem de cada produto na mesinha, o preço e o lucro. O preço sugerido já é bom para começar. " +
-			"Quando quiser, feche a janela.",
+			"Quando quiser, toque no X para fechar a janela.",
 		target: "",
 		button: "Entendi",
 	},
@@ -88,7 +88,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		mode: "spotlight",
 		title: "Seu primeiro dia",
 		text:
-			"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque para abrir.",
+			"Cada dia dura 5 minutos. Escolha um contrato, uma meta que dá moedas e XP a mais, e toque em ACEITAR E ABRIR.",
 		target: "action:startDay",
 	},
 	{
@@ -120,7 +120,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		mode: "bubble",
 		title: "Fique de olho no estoque",
 		text:
-			"Cada produto tem um limite no depósito. Quando estiver acabando, é hora de pedir mais ao atacado. Feche a janela para continuar.",
+			"Cada produto tem um limite no depósito. Quando estiver acabando, é hora de pedir mais ao atacado. Toque no X para fechar a janela e continuar.",
 		target: "",
 		button: "Entendi",
 	},
@@ -135,8 +135,8 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		id: "pedir",
 		mode: "spotlight",
 		title: "Faça o pedido",
-		text: "Escolha um produto e peça caixas. Essa primeira entrega é expressa: o caminhão chega em instantes!",
-		gameText: "Escolha um produto, toque em + Carrinho e depois em Fazer pedido.",
+		text: "Toque em FAZER PEDIDO. Essa primeira entrega é expressa: o caminhão chega em instantes!",
+		gameText: "Toque em + CARRINHO em um produto e depois em FAZER PEDIDO.",
 		target: "route:@shop|action:placeSupplierCart|action:orderLowStock",
 	},
 	{
@@ -159,7 +159,7 @@ export const onboardingSteps: OnboardingStepDef[] = [
 		id: "missoes",
 		mode: "spotlight",
 		title: "Missões",
-		text: "Missões dão moedas e prêmios. Quando aparecer um número vermelho aqui, tem prêmio para pegar!",
+		text: "Toque em MISSÕES. Elas dão moedas e prêmios: quando aparecer um número vermelho, tem prêmio para pegar!",
 		target: "tool:!missions",
 	},
 	{
@@ -199,13 +199,13 @@ export const onboardingTips: OnboardingTipDef[] = [
 	{
 		id: "fim-do-dia",
 		title: "Fim do dia!",
-		text: "O dia acabou. Veja como foi e toque para receber as moedas e o XP do dia.",
+		text: "O dia acabou! Toque em RESULTADO para ver como foi o dia.",
 		target: "action:claimDayResult|market",
 	},
 	{
 		id: "contratos",
 		title: "Contratos",
-		text: "Escolha um contrato para o dia: cumpriu a meta, ganha o prêmio. Os fáceis dão menos, os difíceis dão mais!",
+		text: "Toque em ACEITAR E ABRIR no contrato que quiser. Cumpriu a meta, ganha o prêmio: os fáceis dão menos, os difíceis dão mais!",
 		target: "action:startDay",
 	},
 	{
@@ -223,25 +223,25 @@ export const onboardingTips: OnboardingTipDef[] = [
 	{
 		id: "loja",
 		title: "A Loja",
-		text: "Na LOJA você compra melhorias, decoração, terrenos e as expansões do mercado.",
+		text: "Na LOJA você compra melhorias, decoração, terrenos e as expansões do mercado. Toque em LOJA para ver.",
 		target: "tool:!loja",
 	},
 	{
 		id: "terreno",
 		title: "Terreno à venda!",
-		text: "Você já pode comprar o terreno ao lado. Ele é o primeiro passo para a TENDA. Toque no objetivo para ver.",
+		text: "Você já pode comprar o terreno ao lado, o primeiro passo para a TENDA. Toque no PRÓXIMO OBJETIVO, no alto da tela.",
 		target: "goal",
 	},
 	{
 		id: "evoluir",
 		title: "Hora de crescer!",
-		text: "Você já pode evoluir o mercado! Abra a Loja, aba Expansões.",
+		text: "Você já pode evoluir o mercado! Toque em LOJA e depois na aba EXPANSÕES.",
 		target: "tool:!loja",
 	},
 	{
 		id: "equipe",
 		title: "Contrate ajuda",
-		text: "Agora você pode contratar um operador de caixa: ele atende a fila sozinho. Veja em Loja, aba Equipe.",
+		text: "Agora você pode contratar um operador de caixa: ele atende a fila sozinho. Toque em LOJA e depois na aba EQUIPE.",
 		target: "tool:!loja",
 	},
 	{

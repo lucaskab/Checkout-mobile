@@ -77,6 +77,9 @@ test("the guided first day is finished by playing, step by step", () => {
 	tick("day");
 	expect(step()).toBe("dia-livre");
 	expect(getCoachView(store(), "day", clock).target).toBe("action:startDay");
+	// Window closed: back to ABRIR, saying so.
+	expect(getCoachView(store(), "", clock).target).toBe("market");
+	expect(getCoachView(store(), "", clock).text).toContain("ABRIR");
 	expect(store().startDay("livre")).toBe(true);
 	tick("");
 	expect(step()).toBe("primeiro-cliente");
@@ -176,13 +179,16 @@ test("the day's results interrupt the tutorial with a pointer to collect them", 
 	});
 	const coach = getCoachView(store(), "", clock);
 	expect(coach.key).toBe("fim-do-dia");
-	expect(coach.target).toContain("claimDayResult");
-	// With the results page open the tip must not block it (the receive button is further down a scrolling list).
+	// Off the results page: tap RESULTADO first.
+	expect(coach.target).toBe("market");
+	expect(coach.text).toContain("RESULTADO");
+	// On it: the hand goes to COLETAR (Unity scrolls the list until it is in view), never back to RESULTADO.
 	for (const route of ["day", "day-result"]) {
 		const open = getCoachView(store(), route, clock);
 		expect(open.key).toBe("fim-do-dia");
-		expect(open.mode).toBe("bubble");
-		expect(open.target).toBe("");
+		expect(open.mode).toBe("spotlight");
+		expect(open.target).toBe("action:claimDayResult");
+		expect(open.text).toContain("COLETAR");
 	}
 });
 
@@ -194,7 +200,8 @@ test("a finished day before ABRIR: collect the results first, and the results pa
 	});
 	const coach = getCoachView(store(), "", clock);
 	expect(coach.key).toBe("fim-do-dia");
-	expect(coach.target).toContain("claimDayResult");
+	expect(coach.target).toBe("market");
+	expect(getCoachView(store(), "day-result", clock).target).toBe("action:claimDayResult");
 	tick("day");
 	expect(step()).toBe("abrir");
 	tick("day-result");
@@ -204,6 +211,51 @@ test("a finished day before ABRIR: collect the results first, and the results pa
 	expect(getCoachView(store(), "", clock).key).toBe("abrir");
 	tick("day");
 	expect(step()).toBe("dia-livre");
+});
+
+test("a player who taps elsewhere and closes windows never sends the guide back", () => {
+	// Lucas 29/10: "fica meio que se repetindo se não clicar no lugar certo". Between every right move the player opens
+	// and closes unrelated windows; the step may wait, but it never goes back to an earlier one.
+	const order = onboardingSteps.map((item) => item.id);
+	let highest = 0;
+	const wander = () => {
+		for (const route of ["loja", "", "missions", "achievements", "", "guia", ""]) {
+			tick(route, 700);
+			const at = order.indexOf(step());
+			if (store().onboarding.status === "active") {
+				expect(at).toBeGreaterThanOrEqual(highest);
+				highest = at;
+			}
+			// The guide always says something to do (or waits with a note), never nothing mid-tutorial.
+			if (store().onboarding.status === "active") expect(getCoachView(store(), route, clock).key.length).toBeGreaterThan(0);
+		}
+	};
+	store().onboardingNext();
+	tick();
+	wander();
+	tick("shelf:produce");
+	wander();
+	tick("day");
+	wander();
+	if (step() === "abrir") tick("day");
+	expect(store().startDay("livre")).toBe(true);
+	tick("");
+	wander();
+	let guard = 0;
+	while (store().checkout.queue.length === 0 && guard++ < 120) {
+		clock += 1_000;
+		store().processNextCustomer();
+	}
+	clock = Math.max(clock, ...store().checkout.queue.map((item) => item.readyAt)) + 10;
+	tick("");
+	wander();
+	expect(step()).toBe("caixa");
+	const first = store().checkout.queue[0];
+	expect(store().completeCheckout(first.id, first.total)).toBe(true);
+	tick("");
+	wander();
+	expect(step()).toBe("estoque");
+	expect(order.indexOf(step())).toBeGreaterThanOrEqual(highest);
 });
 
 test("every step has a title and text, and steps that end by tapping a button have one", () => {
