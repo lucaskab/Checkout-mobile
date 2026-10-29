@@ -371,7 +371,6 @@ export type GameActions = {
 	/** "Entendi" on a one-off tip. */
 	dismissOnboardingTip: () => boolean;
 	resetGame: () => void;
-	resolveSpecialRequest: (requestId: string, optionId: string) => boolean;
 	/** Opens a turn; from the Späti on it can be a night turn ("noite"). */
 	startDay: (contractId: string, shift?: "dia" | "noite") => boolean;
 	assignProductToShelf: (

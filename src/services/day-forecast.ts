@@ -18,8 +18,6 @@ export type DayForecast = {
 	profit: number;
 	units: number;
 	unitsByCategory: Record<string, number>;
-	/** Special requests the customers bring (help, a product that is missing...). */
-	requests: number;
 };
 
 export type DayForecastInput = {
@@ -39,10 +37,6 @@ export type DayForecastInput = {
 	/** Extra revenue share by product category (shop upgrades). */
 	categoryRevenueBonuses?: Record<string, number>;
 	storeReputation: number;
-	/** Chance that a customer brings a special request. */
-	requestChance: number;
-	/** No request comes before this moment of the day. */
-	firstRequestDelayMs: number;
 };
 
 /** Customers simulated to know the average basket. */
@@ -110,7 +104,6 @@ export function forecastDay(input: DayForecastInput, dayMs = TURN_DURATION_MS): 
 	const perVisit = customers / SAMPLE_VISITS;
 	const unitsByCategory: Record<string, number> = {};
 	for (const [category, value] of Object.entries(byCategory)) unitsByCategory[category] = value * perVisit;
-	const requestShare = Math.max(0, 1 - input.firstRequestDelayMs / dayMs);
 	return {
 		customers,
 		buyers: buyers * perVisit,
@@ -118,7 +111,6 @@ export function forecastDay(input: DayForecastInput, dayMs = TURN_DURATION_MS): 
 		profit: Math.max(0, profit * perVisit),
 		units: units * perVisit,
 		unitsByCategory,
-		requests: customers * input.requestChance * requestShare,
 	};
 }
 
@@ -138,6 +130,5 @@ export function getFallbackDayForecast(level: number, dayMs = TURN_DURATION_MS):
 		profit: buyers * ticket * 0.35,
 		units: buyers * 1.6,
 		unitsByCategory: {},
-		requests: customers * 0.3,
 	};
 }

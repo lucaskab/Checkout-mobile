@@ -1,17 +1,11 @@
-import type { CustomerMood } from "@/@types/customer-simulation";
 import type {
 	DayCatalogProduct,
 	DayContract,
-	DayCustomerInput,
 	DayGrade,
 	DayReward,
 	DayStats,
 	DayStoreContext,
 	GameDayState,
-	SpecialRequest,
-	SpecialRequestKind,
-	SpecialRequestOption,
-	SpecialRequestQuality,
 } from "@/@types/market-day";
 import {
 	type DayContractDefinition,
@@ -30,41 +24,15 @@ import {
 // One turn of the market. The same rules run in System (React Native) and Simulator (Unity);
 // only the interface differs.
 export const DAY_DURATION_MS = TURN_DURATION_MS;
-export const SPECIAL_REQUEST_CHANCE = 0.34;
-// Customers' special requests are switched off (author's call, out/2026): no new requests are made, the two contracts
-// about them are no longer offered and the day's grade is made of the contract and the satisfaction only. The rules
-// below stay so old saves with a pending request still resolve.
-export const SPECIAL_REQUESTS_ENABLED = false;
-const REQUEST_CONTRACT_KINDS = ["requests", "no-expired"];
-export const MAX_PENDING_REQUESTS = 3;
-// Give the player a moment to settle in before the first request of the day.
-export const FIRST_REQUEST_DELAY_MS = 12_000;
+// Customers' special requests ("pedidos especiais") were removed from the game (Lucas 29/10): they had been switched
+// off since October, and now their rules, contracts, stats and texts are gone too. Old saves are cleaned up by
+// normalizeDayState (see stripRequestFields).
 export const INITIAL_LOYALTY = 20;
 // Rules the day's offers are sized with: offers made under an older revision (or without the store's own
 // forecast) are made again while the day is still being planned (see refreshDayOffers).
 export const DAY_OFFERS_REVISION = 3;
 // Contract id used to open the market without a contract ("dia livre").
 export const FREE_DAY_CONTRACT_ID = "livre";
-const MAX_REQUEST_HISTORY = 40;
-
-export const requestDeadlineMs: Record<CustomerMood, number> = {
-	"com-pressa": 30_000,
-	estressado: 35_000,
-	feliz: 50_000,
-	calmo: 60_000,
-};
-
-// Store-wide consequences of a request outcome (satisfaction is the store reputation).
-export const requestEffects: Record<
-	SpecialRequestQuality | "expired",
-	{ loyalty: number; satisfaction: number }
-> = {
-	best: { loyalty: 3, satisfaction: 1.5 },
-	good: { loyalty: 1, satisfaction: 0.5 },
-	bad: { loyalty: -1, satisfaction: -1 },
-	expired: { loyalty: -3, satisfaction: -2.5 },
-};
-
 const gradeMultiplier: Record<DayGrade, number> = {
 	S: 1.5,
 	A: 1.25,
@@ -98,15 +66,6 @@ function pick<T>(items: readonly T[], random: Random): T | undefined {
 	return items.length ? items[Math.floor(random() * items.length)] : undefined;
 }
 
-function shuffle<T>(items: readonly T[], random: Random): T[] {
-	const copy = [...items];
-	for (let index = copy.length - 1; index > 0; index--) {
-		const other = Math.floor(random() * (index + 1));
-		[copy[index], copy[other]] = [copy[other], copy[index]];
-	}
-	return copy;
-}
-
 const clamp = (value: number, min: number, max: number) =>
 	Math.min(max, Math.max(min, value));
 
@@ -115,18 +74,11 @@ export function createEmptyDayStats(): DayStats {
 		checkoutsLost: 0,
 		incidentsFixed: 0,
 		customers: 0,
-		loyaltyChange: 0,
 		profit: 0,
-		reputationChange: 0,
-		requestsExpired: 0,
-		requestsFailed: 0,
-		requestsPartial: 0,
-		requestsServed: 0,
 		revenue: 0,
 		satisfactionSamples: 0,
 		satisfactionTotal: 0,
 		soldByCategory: {},
-		tips: 0,
 		unitsSold: 0,
 	};
 }
@@ -141,7 +93,6 @@ function scaleForecast(forecast: DayForecast, factor: number): DayForecast {
 		profit: forecast.profit * factor,
 		customers: forecast.customers * factor,
 		units: forecast.units * factor,
-		requests: forecast.requests * factor,
 		unitsByCategory: Object.fromEntries(Object.entries(forecast.unitsByCategory).map(([id, units]) => [id, units * factor])),
 	};
 }
@@ -212,8 +163,7 @@ export function createDayOffers(
 		const candidates = dayContractDefinitions.filter(
 			(definition) =>
 				definition.difficulty === difficulty &&
-				(definition.kind !== "category" || categories.length > 0) &&
-				(SPECIAL_REQUESTS_ENABLED || !REQUEST_CONTRACT_KINDS.includes(definition.kind)),
+				(definition.kind !== "category" || categories.length > 0),
 		);
 		const definition = pick(candidates, random);
 		if (!definition) continue;
@@ -252,7 +202,6 @@ export function getContractProgress(
 			completed: false,
 			label: "Dia livre",
 		};
-	const goodRequests = stats.requestsServed + stats.requestsPartial;
 	const current = (() => {
 		switch (contract.kind) {
 			case "revenue":
@@ -261,12 +210,8 @@ export function getContractProgress(
 				return stats.profit;
 			case "customers":
 				return stats.customers;
-			case "requests":
-				return goodRequests;
 			case "satisfaction":
 				return getAverageSatisfaction(stats);
-			case "no-expired":
-				return stats.requestsExpired > 0 ? 0 : goodRequests;
 			case "category":
 				return stats.soldByCategory[contract.category ?? ""] ?? 0;
 		}
@@ -303,10 +248,48 @@ export function createInitialDayState(
 		offers: createDayOffers(1, level, context),
 		offersRevision: context?.forecast ? DAY_OFFERS_REVISION : 0,
 		phase: "planning",
-		requests: [],
 		result: null,
 		startedAt: null,
 		stats: createEmptyDayStats(),
+	};
+}
+
+// Contracts about the special requests (removed): "Atendimento de ouro" and "Ninguém fica esperando".
+const REMOVED_CONTRACT_KINDS = ["requests", "no-expired"];
+const isRemovedContract = (contract: DayContract | null | undefined) =>
+	Boolean(contract && REMOVED_CONTRACT_KINDS.includes(contract.kind as string));
+
+/** The day's stats without the counters of the removed special requests (old saves have them). */
+function cleanDayStats(stats: Partial<DayStats> | undefined): DayStats {
+	const empty = createEmptyDayStats();
+	if (!stats || typeof stats !== "object") return empty;
+	const kept = Object.fromEntries(Object.keys(empty).filter((key) => key in stats).map((key) => [key, stats[key as keyof DayStats]]));
+	return { ...empty, ...kept } as DayStats;
+}
+
+/**
+ * Saves from before the special requests were removed (Lucas 29/10) carry their list, their stats and maybe a contract
+ * about them: the list and the counters are dropped; offers about them are left out (new ones are made if none is
+ * left), and a day open with one of those contracts goes on as a contract-free day (it could never be met now).
+ * The loyalty they earned stays (never below the starting value), so the market keeps its customers.
+ */
+function stripRequestFields(value: Partial<GameDayState> & { requests?: unknown }) {
+	const { requests: _requests, ...rest } = value;
+	const offers = Array.isArray(rest.offers) ? rest.offers.filter((offer) => !isRemovedContract(offer)) : rest.offers;
+	const result = rest.result && typeof rest.result === "object"
+		? {
+				...rest.result,
+				stats: cleanDayStats(rest.result.stats),
+				highlights: Array.isArray(rest.result.highlights) ? rest.result.highlights : [],
+				...(isRemovedContract(rest.result.contract) ? { contract: null } : {}),
+			}
+		: rest.result;
+	return {
+		...rest,
+		offers,
+		...(Array.isArray(rest.offers) && offers?.length !== rest.offers.length ? { offersRevision: 0 } : {}),
+		...(isRemovedContract(rest.contract) ? { contract: null } : {}),
+		result,
 	};
 }
 
@@ -327,19 +310,23 @@ export function normalizeDayState(
 		value.phase === "open" || value.phase === "results"
 			? value.phase
 			: "planning";
+	const saved = stripRequestFields(value);
 	return {
 		...initial,
-		...value,
+		...saved,
 		phase,
-		dayNumber: Math.max(1, Math.floor(value.dayNumber ?? 1)),
-		loyalty: clamp(value.loyalty ?? INITIAL_LOYALTY, 0, 100),
+		dayNumber: Math.max(1, Math.floor(saved.dayNumber ?? 1)),
+		loyalty: clamp(
+			typeof saved.loyalty === "number" && Number.isFinite(saved.loyalty) ? saved.loyalty : INITIAL_LOYALTY,
+			INITIAL_LOYALTY,
+			100,
+		),
 		offers:
-			Array.isArray(value.offers) && value.offers.length
-				? value.offers
+			Array.isArray(saved.offers) && saved.offers.length
+				? saved.offers
 				: initial.offers,
-		requests: Array.isArray(value.requests) ? value.requests : [],
-		stats: { ...createEmptyDayStats(), ...value.stats },
-		result: phase === "results" ? (value.result ?? null) : null,
+		stats: cleanDayStats(saved.stats),
+		result: phase === "results" ? (saved.result ?? null) : null,
 	};
 }
 
@@ -359,7 +346,6 @@ export function startDay(
 		contract,
 		endsAt: now + DAY_DURATION_MS,
 		phase: "open",
-		requests: [],
 		result: null,
 		startedAt: now,
 		stats: createEmptyDayStats(),
@@ -445,392 +431,8 @@ export function recordDayCheckoutLost(day: GameDayState, count: number): GameDay
 	return { ...day, stats: { ...day.stats, checkoutsLost: day.stats.checkoutsLost + count } };
 }
 
-// ---------------------------------------------------------------- special requests
-
-export function getPendingRequests(day: GameDayState) {
-	return day.requests.filter((request) => request.status === "pending");
-}
-
-function option(
-	id: string,
-	label: string,
-	detail: string,
-	quality: SpecialRequestQuality,
-	extra: Partial<SpecialRequestOption> = {},
-): SpecialRequestOption {
-	return { id, label, detail, quality, ...extra };
-}
-
-function otherCategories(
-	catalog: DayCatalogProduct[],
-	exclude: string,
-	random: Random,
-	count: number,
-) {
-	const labels = Array.from(
-		new Set(
-			catalog
-				.filter((product) => product.category !== exclude)
-				.map((product) => product.categoryLabel),
-		),
-	);
-	return shuffle(labels, random).slice(0, count);
-}
-
-function buildRequest(
-	kind: SpecialRequestKind,
-	customer: DayCustomerInput,
-	context: DayStoreContext,
-	random: Random,
-): Omit<
-	SpecialRequest,
-	"createdAt" | "expiresAt" | "id" | "resolvedAt" | "status" | "tip" | "outcome"
-> | null {
-	const product = (id: number) =>
-		context.catalog.find((item) => item.id === id);
-	const onShelf = context.shelfProductIds
-		.map(product)
-		.filter(Boolean) as DayCatalogProduct[];
-	const missing = context.unlockedProductIds
-		.filter((id) => !context.shelfProductIds.includes(id))
-		.map(product)
-		.filter(Boolean) as DayCatalogProduct[];
-	const base = {
-		archetype: customer.archetype,
-		customerId: customer.customerId,
-		customerName: customer.customerName,
-		kind,
-		mood: customer.mood,
-	};
-
-	if (kind === "ajuda") {
-		const wanted = pick(onShelf, random);
-		if (!wanted) return null;
-		const decoys = otherCategories(context.catalog, wanted.category, random, 2);
-		if (decoys.length < 2) return null;
-		return {
-			...base,
-			productId: wanted.id,
-			productName: wanted.name,
-			message: `Pode me ajudar a encontrar ${wanted.name}?`,
-			options: shuffle(
-				[
-					option(
-						"secao-certa",
-						`Levar até ${wanted.categoryLabel}`,
-						"Acompanhar até a seção certa",
-						"best",
-						{ productId: wanted.id, source: "shelf" },
-					),
-					...decoys.map((label, index) =>
-						option(
-							`secao-${index}`,
-							`Levar até ${label}`,
-							"Acompanhar até esta seção",
-							"bad",
-							{ source: "none" },
-						),
-					),
-				],
-				random,
-			),
-		};
-	}
-
-	const wanted = pick(missing, random);
-	if (!wanted) return null;
-	const sameCategory = onShelf.filter(
-		(item) => item.category === wanted.category,
-	);
-	const byPrice = [...onShelf].sort(
-		(a, b) =>
-			Math.abs(a.sellingPrice - wanted.sellingPrice) -
-			Math.abs(b.sellingPrice - wanted.sellingPrice),
-	);
-
-	if (kind === "produto") {
-		const inStorage = context.storageProductIds.includes(wanted.id);
-		const alternative = pick(sameCategory, random) ?? byPrice[0];
-		const options: SpecialRequestOption[] = [];
-		if (inStorage)
-			options.push(
-				option(
-					"deposito",
-					"Buscar no depósito",
-					`Vender 1 ${wanted.name} do estoque`,
-					"best",
-					{ productId: wanted.id, source: "stock" },
-				),
-			);
-		if (alternative)
-			options.push(
-				option(
-					"alternativa",
-					`Oferecer ${alternative.name}`,
-					alternative.category === wanted.category
-						? "Mesma seção, preço parecido"
-						: "Outra opção na loja",
-					inStorage
-						? "good"
-						: alternative.category === wanted.category
-							? "best"
-							: "good",
-					{ productId: alternative.id, source: "shelf" },
-				),
-			);
-		options.push(
-			option(
-				"encomenda",
-				"Anotar encomenda",
-				"Prometer para a próxima entrega",
-				options.length ? "bad" : "good",
-				{ source: "none" },
-			),
-		);
-		if (options.length < 2)
-			options.push(
-				option(
-					"desculpas",
-					"Pedir desculpas",
-					"Dizer que está em falta",
-					"bad",
-					{ source: "none" },
-				),
-			);
-		return {
-			...base,
-			productId: wanted.id,
-			productName: wanted.name,
-			message: `Vocês têm ${wanted.name}? Não encontrei na prateleira.`,
-			options: shuffle(options, random),
-		};
-	}
-
-	// "alternativa": the customer's usual product is missing and they want a recommendation.
-	const best = pick(sameCategory, random) ?? byPrice[0];
-	if (!best) return null;
-	const rest = shuffle(
-		onShelf.filter((item) => item.id !== best.id),
-		random,
-	);
-	const good = rest.find(
-		(item) =>
-			Math.abs(item.sellingPrice - wanted.sellingPrice) <=
-			wanted.sellingPrice * 0.5,
-	);
-	const bad = rest
-		.filter((item) => item.id !== good?.id)
-		.slice(0, good ? 1 : 2);
-	if (!good && bad.length < 1) return null;
-	return {
-		...base,
-		productId: wanted.id,
-		productName: wanted.name,
-		message: `${wanted.name} acabou... o que você me recomenda no lugar?`,
-		options: shuffle(
-			[
-				option(
-					`produto-${best.id}`,
-					best.name,
-					best.category === wanted.category ? "Mesma seção" : "Preço parecido",
-					"best",
-					{ productId: best.id, source: "shelf" },
-				),
-				...(good
-					? [
-							option(
-								`produto-${good.id}`,
-								good.name,
-								"Preço parecido",
-								"good",
-								{ productId: good.id, source: "shelf" } as const,
-							),
-						]
-					: []),
-				...bad.map((item) =>
-					option(`produto-${item.id}`, item.name, item.categoryLabel, "bad", {
-						productId: item.id,
-						source: "shelf",
-					}),
-				),
-			],
-			random,
-		),
-	};
-}
-
-export function createSpecialRequest(
-	day: GameDayState,
-	customer: DayCustomerInput,
-	context: DayStoreContext,
-	now: number,
-	options: { chance?: number; kind?: SpecialRequestKind } = {},
-): SpecialRequest | null {
-	if (!acceptsCustomers(day, now)) return null;
-	if (
-		day.startedAt !== null &&
-		now - day.startedAt < FIRST_REQUEST_DELAY_MS &&
-		!options.kind
-	)
-		return null;
-	if (getPendingRequests(day).length >= MAX_PENDING_REQUESTS) return null;
-	const random = seeded(customer.seed * 31 + day.dayNumber);
-	if (!options.kind && random() >= (options.chance ?? SPECIAL_REQUEST_CHANCE))
-		return null;
-	const kinds: SpecialRequestKind[] = options.kind
-		? [options.kind]
-		: shuffle(["ajuda", "produto", "alternativa"] as const, random);
-	for (const kind of kinds) {
-		const request = buildRequest(kind, customer, context, random);
-		if (!request) continue;
-		// A request never outlives the day.
-		const deadline = Math.min(
-			now + requestDeadlineMs[customer.mood],
-			day.endsAt ?? Number.MAX_SAFE_INTEGER,
-		);
-		return {
-			...request,
-			createdAt: now,
-			expiresAt: deadline,
-			id: `pedido-${day.dayNumber}-${customer.seed}`,
-			outcome: "",
-			resolvedAt: null,
-			status: "pending",
-			tip: 0,
-		};
-	}
-	return null;
-}
-
-export function addSpecialRequest(
-	day: GameDayState,
-	request: SpecialRequest,
-): GameDayState {
-	if (day.requests.some((item) => item.id === request.id)) return day;
-	return {
-		...day,
-		requests: [request, ...day.requests].slice(0, MAX_REQUEST_HISTORY),
-	};
-}
-
-export type RequestResolution = {
-	day: GameDayState;
-	loyaltyDelta: number;
-	option: SpecialRequestOption;
-	request: SpecialRequest;
-	satisfactionDelta: number;
-	tip: number;
-};
-
-export function getRequestTip(level: number, mood: CustomerMood) {
-	return Math.round(4 + level * 1.5 + (mood === "feliz" ? 3 : 0));
-}
-
-const outcomes: Record<
-	SpecialRequestQuality,
-	(request: SpecialRequest) => string
-> = {
-	best: (request) =>
-		`${request.customerName} saiu encantado com o atendimento!`,
-	good: (request) => `${request.customerName} aceitou a sugestão.`,
-	bad: (request) => `${request.customerName} não gostou da resposta.`,
-};
-
-export function resolveSpecialRequest(
-	day: GameDayState,
-	requestId: string,
-	optionId: string,
-	now: number,
-	level: number,
-): RequestResolution | null {
-	const request = day.requests.find((item) => item.id === requestId);
-	if (request?.status !== "pending" || now >= request.expiresAt)
-		return null;
-	const chosen = request.options.find((item) => item.id === optionId);
-	if (!chosen) return null;
-	const effect = requestEffects[chosen.quality];
-	const tip =
-		chosen.quality === "best" ? getRequestTip(level, request.mood) : 0;
-	const status =
-		chosen.quality === "best"
-			? "served"
-			: chosen.quality === "good"
-				? "partial"
-				: "failed";
-	const resolved: SpecialRequest = {
-		...request,
-		outcome: outcomes[chosen.quality](request),
-		resolvedAt: now,
-		status,
-		tip,
-	};
-	return {
-		day: {
-			...day,
-			loyalty: clamp(day.loyalty + effect.loyalty, 0, 100),
-			requests: day.requests.map((item) =>
-				item.id === requestId ? resolved : item,
-			),
-			stats: {
-				...day.stats,
-				loyaltyChange: day.stats.loyaltyChange + effect.loyalty,
-				reputationChange: day.stats.reputationChange + effect.satisfaction,
-				requestsFailed:
-					day.stats.requestsFailed + (status === "failed" ? 1 : 0),
-				requestsPartial:
-					day.stats.requestsPartial + (status === "partial" ? 1 : 0),
-				requestsServed:
-					day.stats.requestsServed + (status === "served" ? 1 : 0),
-				tips: day.stats.tips + tip,
-			},
-		},
-		loyaltyDelta: effect.loyalty,
-		option: chosen,
-		request: resolved,
-		satisfactionDelta: effect.satisfaction,
-		tip,
-	};
-}
-
-// Unanswered customers give up and leave; the store loses satisfaction and loyalty.
-export function expireSpecialRequests(day: GameDayState, now: number) {
-	const expired = day.requests.filter(
-		(request) => request.status === "pending" && now >= request.expiresAt,
-	);
-	if (!expired.length)
-		return { day, expired, loyaltyDelta: 0, satisfactionDelta: 0 };
-	const effect = requestEffects.expired;
-	const loyaltyDelta = effect.loyalty * expired.length;
-	const satisfactionDelta = effect.satisfaction * expired.length;
-	const ids = new Set(expired.map((request) => request.id));
-	return {
-		day: {
-			...day,
-			loyalty: clamp(day.loyalty + loyaltyDelta, 0, 100),
-			requests: day.requests.map((request) =>
-				ids.has(request.id)
-					? {
-							...request,
-							outcome: `${request.customerName} cansou de esperar e foi embora.`,
-							resolvedAt: now,
-							status: "expired" as const,
-						}
-					: request,
-			),
-			stats: {
-				...day.stats,
-				loyaltyChange: day.stats.loyaltyChange + loyaltyDelta,
-				reputationChange: day.stats.reputationChange + satisfactionDelta,
-				requestsExpired: day.stats.requestsExpired + expired.length,
-			},
-		},
-		expired,
-		loyaltyDelta,
-		satisfactionDelta,
-	};
-}
-
-// Loyal customers come back more often: up to +25% arrivals at full loyalty.
+// Loyal customers come back more often: up to +25% arrivals at full loyalty (frozen since the special requests,
+// the only thing that moved it, were removed; see GameDayState.loyalty).
 export function getLoyaltyArrivalMultiplier(loyalty: number) {
 	return 1 + clamp(loyalty, 0, 100) / 400;
 }
@@ -843,15 +445,8 @@ export function getDayScore(day: Pick<GameDayState, "contract" | "stats">) {
 		? getContractProgress(day.contract, stats).ratio
 		: 0.6;
 	const satisfaction = getAverageSatisfaction(stats) / 100;
-	const totalRequests =
-		stats.requestsServed +
-		stats.requestsPartial +
-		stats.requestsFailed +
-		stats.requestsExpired;
-	// A day without any request is graded on the contract and the satisfaction alone.
-	if (!totalRequests) return Math.round(contract * 55 + satisfaction * 45);
-	const requests = (stats.requestsServed + stats.requestsPartial * 0.6) / totalRequests;
-	return Math.round(contract * 40 + satisfaction * 30 + requests * 30);
+	// The contract and the satisfaction make the grade (the same weights days without special requests always had).
+	return Math.round(contract * 55 + satisfaction * 45);
 }
 
 export function getDayGrade(score: number): DayGrade {
@@ -872,24 +467,12 @@ export function closeMarketDay(
 	if (day.phase !== "open") return null;
 	// A day found over when the app comes back closed at its own end, not when the player returned.
 	const now = typeof day.endsAt === "number" && day.endsAt > 0 ? Math.min(closingAt, day.endsAt) : closingAt;
-	// Anyone still waiting when the doors close leaves unhappy.
-	const { day: settled } = expireSpecialRequests(
-		{
-			...day,
-			requests: day.requests.map((request) =>
-				request.status === "pending"
-					? { ...request, expiresAt: Math.min(request.expiresAt, now) }
-					: request,
-			),
-		},
-		now,
-	);
-	const progress = getContractProgress(settled.contract, settled.stats);
-	const score = getDayScore(settled);
+	const progress = getContractProgress(day.contract, day.stats);
+	const score = getDayScore(day);
 	const grade = getDayGrade(score);
 	const contractReward =
-		settled.contract && progress.completed
-			? settled.contract.reward
+		day.contract && progress.completed
+			? day.contract.reward
 			: emptyReward();
 	const bonus: DayReward = {
 		// The day's bonus is sized for a 10-minute turn: a shorter turn earns its share.
@@ -897,37 +480,14 @@ export function closeMarketDay(
 		diamonds: 0, // the grade pays coins and XP only (diamonds are the store's currency)
 		experience: Math.max(1, Math.round((10 + level * 4) * TURN_SHARE * gradeMultiplier[grade])),
 	};
-	const stats = settled.stats;
+	const stats = day.stats;
 	const highlights: string[] = [];
-	if (settled.contract)
+	if (day.contract)
 		highlights.push(
 			progress.completed
-				? `Contrato cumprido: ${settled.contract.title}`
-				: `Contrato não cumprido: ${settled.contract.title} (${progress.label})`,
+				? `Contrato cumprido: ${day.contract.title}`
+				: `Contrato não cumprido: ${day.contract.title} (${progress.label})`,
 		);
-	if (stats.requestsServed)
-		highlights.push(
-			stats.requestsServed > 1
-				? `${stats.requestsServed} pedidos resolvidos com excelência`
-				: `${stats.requestsServed} pedido resolvido com excelência`,
-		);
-	if (stats.requestsPartial)
-		highlights.push(
-			stats.requestsPartial > 1
-				? `${stats.requestsPartial} clientes aceitaram uma alternativa`
-				: `${stats.requestsPartial} cliente aceitou uma alternativa`,
-		);
-	if (stats.requestsFailed)
-		highlights.push(
-			stats.requestsFailed > 1 ? `${stats.requestsFailed} respostas erradas` : `${stats.requestsFailed} resposta errada`,
-		);
-	if (stats.requestsExpired)
-		highlights.push(
-			stats.requestsExpired > 1
-				? `${stats.requestsExpired} clientes foram embora esperando`
-				: `${stats.requestsExpired} cliente foi embora esperando`,
-		);
-	if (stats.tips) highlights.push(`${stats.tips} moedas em gorjetas`);
 	if (stats.incidentsFixed)
 		highlights.push(
 			stats.incidentsFixed > 1
@@ -941,19 +501,19 @@ export function closeMarketDay(
 				: `${stats.checkoutsLost} cliente desistiu da fila do caixa`,
 		);
 	return {
-		...settled,
+		...day,
 		endsAt: now,
 		phase: "results",
-		contractMomentum: nextContractMomentum(settled.contractMomentum, Boolean(settled.contract), progress.completed),
+		contractMomentum: nextContractMomentum(day.contractMomentum, Boolean(day.contract), progress.completed),
 		result: {
 			averageSatisfaction: getAverageSatisfaction(stats),
 			bonus,
 			closedAt: now,
-			contract: settled.contract,
+			contract: day.contract,
 			contractCompleted: progress.completed,
 			contractProgress: progress.ratio,
-			dayNumber: settled.dayNumber,
-			durationMs: Math.max(0, now - (settled.startedAt ?? now)),
+			dayNumber: day.dayNumber,
+			durationMs: Math.max(0, now - (day.startedAt ?? now)),
 			grade,
 			highlights,
 			score,
@@ -998,7 +558,6 @@ export function advanceMarketDay(
 		offers: createDayOffers(dayNumber, level, context, day.contractMomentum),
 		offersRevision: context?.forecast ? DAY_OFFERS_REVISION : 0,
 		phase: "planning",
-		requests: [],
 		result: null,
 		startedAt: null,
 		stats: createEmptyDayStats(),

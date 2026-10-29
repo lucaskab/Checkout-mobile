@@ -1,11 +1,10 @@
-import type { DayContract, SpecialRequest } from "@/@types/market-day";
+import type { DayContract } from "@/@types/market-day";
 import { canOpenAtNight, getPiecesToPlaceBeforeOpening, NIGHT_TURN } from "@/services/market-era";
 import type { GameIconId } from "@/data/game-icon-assets";
 import {
 	DAY_DURATION_MS,
 	FREE_DAY_CONTRACT_ID,
 	getContractProgress,
-	getPendingRequests,
 } from "@/services/market-day";
 import {
 	act,
@@ -26,22 +25,6 @@ const clock = (ms: number) => {
 	return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 const difficulty = { 1: "Fácil", 2: "Médio", 3: "Difícil" } as const;
-const moods = {
-	calmo: "calmo",
-	"com-pressa": "com pressa",
-	estressado: "estressado",
-	feliz: "feliz",
-} as const;
-const kinds = {
-	ajuda: "Precisa de ajuda",
-	alternativa: "Quer uma alternativa",
-	produto: "Procura um produto",
-} as const;
-const kindIcons: Record<SpecialRequest["kind"], GameIconId> = {
-	ajuda: "customers",
-	alternativa: "handshake",
-	produto: "basket",
-};
 const contractIcons: GameIconId[] = [
 	"coin",
 	"receipt",
@@ -90,39 +73,6 @@ function contractCard(contract: DayContract, canOpen = true) {
 	});
 }
 
-function requestCard(request: SpecialRequest, now: number): Card {
-	const remaining = request.expiresAt - now;
-	const total = Math.max(1, request.expiresAt - request.createdAt);
-	if (request.status !== "pending")
-		return card(request.customerName, {
-			eyebrow: kinds[request.kind],
-			subtitle: request.outcome,
-			icon: gameIcon(kindIcons[request.kind]),
-			tone:
-				request.status === "served"
-					? "success"
-					: request.status === "partial"
-						? "warning"
-						: "danger",
-			badge: request.tip ? `+${request.tip}` : "",
-		});
-	return card(request.customerName, {
-		eyebrow: `${kinds[request.kind]} · ${moods[request.mood]}`,
-		subtitle: `“${request.message}”`,
-		icon: gameIcon(kindIcons[request.kind]),
-		badge: clock(remaining),
-		tone: remaining < 15_000 ? "danger" : "info",
-		progress: Math.max(0, remaining / total),
-		buttons: request.options.map((option) =>
-			act(option.label, "resolveSpecialRequest", [request.id, option.id], {
-				variant: "secondary",
-				ok: "Cliente atendido",
-				fail: "Esse pedido já expirou.",
-			}),
-		),
-	});
-}
-
 function dayStatus(state: State, now: number): Card {
 	const { day } = state;
 	const progress = getContractProgress(day.contract, day.stats);
@@ -130,14 +80,13 @@ function dayStatus(state: State, now: number): Card {
 		eyebrow: `DIA ${day.dayNumber} · ${clock((day.endsAt ?? now) - now)} restantes`,
 		subtitle:
 			day.contract?.description ??
-			"Sem contrato: a nota vem da satisfação e dos pedidos.",
+			"Sem contrato: a nota vem da satisfação dos clientes.",
 		icon: gameIcon("clipboard"),
 		badge: day.contract ? progress.label : "",
 		tone: progress.completed ? "success" : "",
 		progress: day.contract ? progress.ratio : -1,
 		lines: [
 			`${day.stats.customers} clientes · ${fmt(day.stats.revenue)} moedas · lucro ${fmt(day.stats.profit)}`,
-			`Pedidos: ${day.stats.requestsServed + day.stats.requestsPartial} atendidos · ${day.stats.requestsExpired} perdidos · fidelidade ${day.loyalty}`,
 		],
 		buttons: [
 			act("Encerrar o dia", "closeDay", [], {
@@ -170,11 +119,8 @@ function planning(state: State) {
 			card("Escolha o contrato de hoje", {
 				eyebrow: `PLANEJAMENTO · ${minutes} MIN`,
 				subtitle:
-					"Cumpra a meta antes de fechar para ganhar a recompensa. Pedidos especiais bem atendidos melhoram a nota do dia.",
+					"Cumpra a meta antes de fechar para ganhar a recompensa. Clientes satisfeitos melhoram a nota do dia.",
 				icon: gameIcon("clipboard"),
-				lines: [
-					`Fidelidade dos clientes: ${day.loyalty}/100 (mais fidelidade, mais visitas)`,
-				],
 			}),
 			...day.offers.map((offer) => contractCard(offer, waiting === 0)),
 			// No "Dia livre" card (Lucas 19/10): a contract only adds a prize, so there is no reason to skip one.
@@ -206,31 +152,13 @@ function planning(state: State) {
 	);
 }
 
-function openDay(state: State, focusId?: string) {
-	const now = Date.now();
-	const pending = getPendingRequests(state.day).sort((a, b) =>
-		a.id === focusId ? -1 : b.id === focusId ? 1 : a.expiresAt - b.expiresAt,
-	);
-	const answered = state.day.requests
-		.filter((r) => r.status !== "pending")
-		.slice(0, 3);
+// The day running: its contract, clock and numbers so far.
+function openDay(state: State) {
 	return page(
-		focusId ? `request:${focusId}` : "requests",
-		"Pedidos especiais",
-		[
-			dayStatus(state, now),
-			...(pending.length
-				? pending.map((request) => requestCard(request, now))
-				: [
-						card("Nenhum cliente esperando", {
-							subtitle:
-								"Os pedidos aparecem aqui e com um balão sobre o cliente.",
-							tone: "locked",
-						}),
-					]),
-			...answered.map((request) => requestCard(request, now)),
-		],
-		{ icon: gameIcon("customers"), subtitle: `${pending.length} esperando` },
+		"day",
+		`Dia ${state.day.dayNumber}`,
+		[dayStatus(state, Date.now())],
+		{ icon: gameIcon("clipboard"), subtitle: state.day.shift === "noite" ? "Turno da noite" : "Contrato do dia" },
 	);
 }
 
@@ -284,11 +212,6 @@ function results(state: State) {
 	const result = state.day.result;
 	if (!result) return planning(state);
 	const { stats } = result;
-	const requests =
-		stats.requestsServed +
-		stats.requestsPartial +
-		stats.requestsFailed +
-		stats.requestsExpired;
 	return page(
 		"day-result",
 		`Dia ${result.dayNumber} encerrado`,
@@ -310,7 +233,6 @@ function results(state: State) {
 				lines: [
 					`Faturamento ${fmt(stats.revenue)} · lucro nas vendas ${fmt(stats.profit)}`,
 					`${stats.customers} clientes · satisfação média ${result.averageSatisfaction}%`,
-					`Pedidos atendidos ${stats.requestsServed + stats.requestsPartial}/${requests} · fidelidade ${stats.loyaltyChange >= 0 ? "+" : ""}${stats.loyaltyChange}`,
 					...result.highlights,
 				],
 			}),
@@ -347,10 +269,6 @@ export const routes: Routes = {
 			: state.day.phase === "results"
 				? results(state)
 				: openDay(state),
-	requests: (state) =>
-		state.day.phase === "open" ? openDay(state) : routes.day(state, []),
-	request: (state, [id]) =>
-		state.day.phase === "open" ? openDay(state, id) : routes.day(state, []),
 	"day-result": (state) =>
 		state.day.phase === "results" ? results(state) : routes.day(state, []),
 };

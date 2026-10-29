@@ -25,7 +25,7 @@ namespace Checkout
 
         static readonly string[] Routes =
         {
-            "", "day", "requests", "store", "shelves", "products", "capacity", "storage", "storageexpand", "suppliers",
+            "", "day", "store", "shelves", "products", "capacity", "storage", "storageexpand", "suppliers",
             "logistics", "sectors", "missions", "album", "achievements", "guia", "kitchen",
             "loja:destaques", "loja:moveis", "loja:melhorias", "loja:equipe", "loja:terrenos", "loja:expansoes",
             "loja:decoracao", "loja:moedas",

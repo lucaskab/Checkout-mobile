@@ -118,7 +118,6 @@ const hudActions: (keyof GameActions)[] = [
 	"purchaseDecor",
 	"purchaseShopItem",
 	"resetGame",
-	"resolveSpecialRequest",
 	"restockShelf",
 	"serveWindowSale",
 	"setEmployeeWorking",
@@ -381,13 +380,6 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		send({ kind: "i18n", lang: getLanguage(), keys: Object.keys(catalog), values: Object.values(catalog) });
 		snapshot();
 		view();
-	} else if (message.kind === "panel" && message.panel === "requests") {
-		// A click on a customer waiting with a special request in the Unity world.
-		navigate(
-			typeof message.requestId === "string" && message.requestId
-				? `!request:${message.requestId}`
-				: "!requests",
-		);
 	} else if (message.kind === "panel" && message.panel === "day") {
 		navigate("!day");
 	} else if (

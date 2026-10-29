@@ -39,7 +39,7 @@ export function useSimulator(
 	setPanel: Dispatch<SetStateAction<SimulatorPanel | null>>,
 	setShelfId: Dispatch<SetStateAction<string | null>>,
 	setSectorId: Dispatch<SetStateAction<ProductionSector["id"] | null>>,
-	onDayPanel?: (panel: "day" | "requests", requestId?: string) => void,
+	onDayPanel?: () => void,
 ) {
 	const [status, setStatus] = useState<"loading" | "ready" | "error">(
 		"loading",
@@ -94,15 +94,9 @@ export function useSimulator(
 					ready = true;
 					setStatus("ready");
 					snapshot();
-				} else if (
-					message.kind === "panel" &&
-					(message.panel === "day" || message.panel === "requests")
-				) {
-					// Unity: the day button, or a click on a customer waiting with a request.
-					dayPanel.current?.(
-						message.panel,
-						typeof message.requestId === "string" ? message.requestId : undefined,
-					);
+				} else if (message.kind === "panel" && message.panel === "day") {
+					// Unity: the day button.
+					dayPanel.current?.();
 				} else if (message.kind === "panel" && panels.includes(message.panel)) {
 					const unlockedSectorId =
 						message.panel === "sectors"

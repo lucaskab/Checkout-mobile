@@ -590,31 +590,11 @@ export function createSimulatorSnapshot(
 			dayNumber: state.day.dayNumber,
 			startedAt: state.day.startedAt ?? 0,
 			endsAt: state.day.endsAt ?? 0,
-			loyalty: state.day.loyalty,
 			contractTitle: state.day.contract?.title ?? "Dia livre",
 			contractLabel: dayProgress.label,
 			contractProgress: dayProgress.ratio,
 			contractCompleted: dayProgress.completed,
 			grade: state.day.result?.grade ?? "",
-			// Pending requests plus the ones answered in the last seconds, so Unity can react.
-			requests: state.day.requests
-				.filter(
-					(request) =>
-						request.status === "pending" ||
-						now - (request.resolvedAt ?? 0) < 8_000,
-				)
-				.map((request) => ({
-					id: request.id,
-					customerId: request.customerId,
-					customerName: request.customerName,
-					kind: request.kind,
-					message: request.message,
-					productId: request.productId,
-					productName: request.productName,
-					createdAt: request.createdAt,
-					expiresAt: request.expiresAt,
-					status: request.status,
-				})),
 		},
 		event: {
 			id: event?.id ?? "",

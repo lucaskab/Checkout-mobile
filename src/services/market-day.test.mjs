@@ -1,19 +1,16 @@
 import { expect, test } from "bun:test";
 import {
-	addSpecialRequest,
 	advanceMarketDay,
 	closeMarketDay,
 	createDayOffers,
 	createInitialDayState,
-	createSpecialRequest,
 	DAY_DURATION_MS,
-	expireSpecialRequests,
 	getContractProgress,
 	getDayGrade,
 	getDayScore,
+	INITIAL_LOYALTY,
 	normalizeDayState,
 	recordDayCustomer,
-	resolveSpecialRequest,
 	startDay,
 } from "./market-day";
 
@@ -65,13 +62,6 @@ const context = {
 	storageProductIds: [5],
 	unlockedProductIds: [1, 2, 3, 4, 5],
 };
-const customer = (seed, mood = "calmo") => ({
-	archetype: "normal",
-	customerId: `c-${seed}`,
-	customerName: "Ana",
-	mood,
-	seed,
-});
 const t0 = 1_000_000;
 
 function openDay(contractIndex = 0) {
@@ -98,119 +88,6 @@ test("a day runs for five minutes and only opens from planning", () => {
 	expect(day.endsAt).toBe(t0 + DAY_DURATION_MS);
 	expect(startDay(day, null, t0)).toBeNull();
 	expect(startDay(createInitialDayState(1), "unknown", t0)).toBeNull();
-});
-
-test("customers can ask for help, a product or an alternative", () => {
-	const day = openDay();
-	const later = t0 + 20_000;
-	for (const kind of ["ajuda", "produto", "alternativa"]) {
-		const request = createSpecialRequest(day, customer(7), context, later, {
-			kind,
-		});
-		expect(request?.kind).toBe(kind);
-		expect(request.options.length).toBeGreaterThanOrEqual(2);
-		expect(request.options.some((option) => option.quality === "best")).toBe(
-			true,
-		);
-		expect(request.expiresAt).toBe(later + 60_000);
-	}
-	const hurried = createSpecialRequest(
-		day,
-		customer(8, "com-pressa"),
-		context,
-		later,
-		{ kind: "ajuda" },
-	);
-	expect(hurried.expiresAt).toBe(later + 30_000);
-});
-
-test("a product request can be served from the storage room", () => {
-	const onlyStorage = { ...context, unlockedProductIds: [1, 3, 4, 5] };
-	const request = createSpecialRequest(
-		openDay(),
-		customer(3),
-		onlyStorage,
-		t0 + 20_000,
-		{ kind: "produto" },
-	);
-	const best = request.options.find((option) => option.quality === "best");
-	expect(request.productId).toBe(5);
-	expect(best.source).toBe("stock");
-	expect(best.productId).toBe(5);
-});
-
-test("serving a request in time improves loyalty and pays a tip", () => {
-	const day = openDay();
-	const request = createSpecialRequest(
-		day,
-		customer(11),
-		context,
-		t0 + 20_000,
-		{ kind: "ajuda" },
-	);
-	const withRequest = addSpecialRequest(day, request);
-	const best = request.options.find((option) => option.quality === "best");
-	const result = resolveSpecialRequest(
-		withRequest,
-		request.id,
-		best.id,
-		t0 + 25_000,
-		3,
-	);
-	expect(result.request.status).toBe("served");
-	expect(result.tip).toBeGreaterThan(0);
-	expect(result.day.loyalty).toBe(withRequest.loyalty + 3);
-	expect(result.day.stats.requestsServed).toBe(1);
-	// The same request cannot be answered twice.
-	expect(
-		resolveSpecialRequest(result.day, request.id, best.id, t0 + 26_000, 3),
-	).toBeNull();
-});
-
-test("ignored customers leave and cost satisfaction and loyalty", () => {
-	const day = openDay();
-	const request = createSpecialRequest(
-		day,
-		customer(12, "com-pressa"),
-		context,
-		t0 + 20_000,
-		{ kind: "ajuda" },
-	);
-	const withRequest = addSpecialRequest(day, request);
-	expect(
-		resolveSpecialRequest(
-			withRequest,
-			request.id,
-			request.options[0].id,
-			request.expiresAt,
-			3,
-		),
-	).toBeNull();
-	const expired = expireSpecialRequests(withRequest, request.expiresAt);
-	expect(expired.expired.length).toBe(1);
-	expect(expired.satisfactionDelta).toBeLessThan(0);
-	expect(expired.day.loyalty).toBe(withRequest.loyalty - 3);
-	expect(expired.day.stats.requestsExpired).toBe(1);
-});
-
-test("no requests are created before the day opens or while three are pending", () => {
-	const planning = createInitialDayState(1, context);
-	expect(
-		createSpecialRequest(planning, customer(1), context, t0, { kind: "ajuda" }),
-	).toBeNull();
-	let day = openDay();
-	for (const seed of [21, 22, 23])
-		day = addSpecialRequest(
-			day,
-			createSpecialRequest(day, customer(seed), context, t0 + 20_000, {
-				kind: "ajuda",
-			}),
-		);
-	expect(
-		createSpecialRequest(day, customer(24), context, t0 + 20_000, {
-			kind: "ajuda",
-		}),
-	).toBeNull();
 });
 
 test("contract progress follows the day's sales", () => {
@@ -269,21 +146,12 @@ test("closing the day grades it and grants the contract reward only when complet
 	expect(failed.result.total.coins).toBe(failed.result.bonus.coins);
 });
 
-test("closing expires pending requests and the next day starts fresh", () => {
-	let day = openDay();
-	day = addSpecialRequest(
-		day,
-		createSpecialRequest(day, customer(31), context, t0 + 20_000, {
-			kind: "ajuda",
-		}),
-	);
-	const closed = closeMarketDay(day, t0 + 30_000, 3);
-	expect(closed.result.stats.requestsExpired).toBe(1);
+test("the next day starts fresh and keeps the customers' loyalty", () => {
+	const closed = closeMarketDay({ ...openDay(), loyalty: 42 }, t0 + 30_000, 3);
 	const next = advanceMarketDay(closed, 3, context);
 	expect(next.phase).toBe("planning");
 	expect(next.dayNumber).toBe(2);
-	expect(next.requests).toEqual([]);
-	expect(next.loyalty).toBe(closed.loyalty);
+	expect(next.loyalty).toBe(42);
 	expect(advanceMarketDay(next, 3, context)).toBeNull();
 });
 
@@ -316,11 +184,69 @@ test("old saves without turns keep an open market running as a free day", () => 
 	expect(normalizeDayState(undefined, 2, false, t0).phase).toBe("planning");
 });
 
-test("special requests are off: their contracts are never offered and the grade ignores them", () => {
+test("the special requests are gone: no contract about them and the grade is the contract and the satisfaction", () => {
 	for (let dayNumber = 1; dayNumber <= 60; dayNumber++)
 		for (const offer of createDayOffers(dayNumber, 8, context))
 			expect(["requests", "no-expired"]).not.toContain(offer.kind);
-	const stats = { requestsServed: 0, requestsPartial: 0, requestsFailed: 0, requestsExpired: 0 };
 	// No contract (0.6) and no customers: only the contract part counts.
-	expect(getDayScore({ contract: null, stats: { ...stats, satisfactionTotal: 0, satisfactionSamples: 0 } })).toBe(33);
+	expect(getDayScore({ contract: null, stats: { satisfactionTotal: 0, satisfactionSamples: 0 } })).toBe(33);
+	// A met contract and 80% satisfaction: 55 + 36.
+	const day = openDay();
+	const contract = { ...day.offers[0], kind: "customers", target: 1 };
+	const done = recordDayCustomer({ ...day, contract }, { revenue: 10, profit: 4, units: 1, satisfaction: 80, categories: {} });
+	expect(getDayScore(done)).toBe(91);
+});
+
+test("old saves with special requests load cleaned up, without losing progress or customers", () => {
+	const fresh = createInitialDayState(3, context);
+	const requestContract = { ...fresh.offers[1], id: "atendimento-ouro", kind: "requests", title: "Atendimento de ouro" };
+	const oldStats = {
+		...fresh.stats,
+		customers: 7,
+		revenue: 120,
+		loyaltyChange: 3,
+		reputationChange: 1.5,
+		requestsServed: 1,
+		requestsPartial: 0,
+		requestsFailed: 0,
+		requestsExpired: 2,
+		tips: 4,
+	};
+	const saved = {
+		...fresh,
+		dayNumber: 9,
+		phase: "open",
+		contract: requestContract,
+		offers: [fresh.offers[0], requestContract, fresh.offers[2]],
+		offersRevision: 3,
+		startedAt: t0,
+		endsAt: t0 + DAY_DURATION_MS,
+		loyalty: 47,
+		requests: [{ id: "r1", customerId: "c-1", status: "pending", expiresAt: t0 + 30_000 }],
+		stats: oldStats,
+	};
+	const day = normalizeDayState(saved, 3, true, t0);
+	expect(day.requests).toBeUndefined();
+	expect(day.dayNumber).toBe(9);
+	expect(day.phase).toBe("open");
+	// A contract that can no longer be met goes on as a contract-free day.
+	expect(day.contract).toBeNull();
+	expect(day.offers.map((offer) => offer.kind)).not.toContain("requests");
+	expect(day.offersRevision).toBe(0);
+	expect(day.stats).toEqual({ ...fresh.stats, customers: 7, revenue: 120 });
+	// Loyalty is frozen at what the save earned, never below the start (no market gets fewer customers).
+	expect(day.loyalty).toBe(47);
+	expect(normalizeDayState({ ...saved, loyalty: 4 }, 3, true, t0).loyalty).toBe(INITIAL_LOYALTY);
+	expect(normalizeDayState({ ...saved, loyalty: undefined }, 3, true, t0).loyalty).toBe(INITIAL_LOYALTY);
+	// A results screen about a request contract shows a plain day; what it pays stays the same.
+	const closed = closeMarketDay({ ...day, contract: requestContract }, t0 + DAY_DURATION_MS, 3);
+	const results = normalizeDayState({ ...closed, result: { ...closed.result, stats: oldStats } }, 3, false, t0);
+	expect(results.phase).toBe("results");
+	expect(results.result.contract).toBeNull();
+	expect(results.result.stats.requestsExpired).toBeUndefined();
+	expect(results.result.total).toEqual(closed.result.total);
+	// The day closes and the next one is planned normally.
+	const next = advanceMarketDay(closeMarketDay(day, t0 + DAY_DURATION_MS, 3), 3, context);
+	expect(next.phase).toBe("planning");
+	expect(next.dayNumber).toBe(10);
 });

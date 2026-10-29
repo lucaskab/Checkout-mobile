@@ -56,17 +56,6 @@ export const dayContractDefinitions: DayContractDefinition[] = [
 		target: (_level, forecast) => Math.max(3, Math.round(forecast.customers * CONTRACT_SHARE.easy)),
 	},
 	{
-		id: "atendimento-ouro",
-		kind: "requests",
-		difficulty: 2,
-		icon: "handshake",
-		title: () => "Atendimento de ouro",
-		description: (target) =>
-			`Resolva bem ${target} pedidos especiais de clientes.`,
-		// Requests depend on luck and on the player answering them: half of the expected ones.
-		target: (_level, forecast) => Math.max(1, Math.round(forecast.requests * 0.5)),
-	},
-	{
 		id: "clientes-sorrindo",
 		kind: "satisfaction",
 		difficulty: 2,
@@ -75,16 +64,6 @@ export const dayContractDefinitions: DayContractDefinition[] = [
 		description: (target) =>
 			`Feche o dia com satisfação média de pelo menos ${target}%.`,
 		target: (level) => Math.min(82, 66 + level),
-	},
-	{
-		id: "ninguem-esperando",
-		kind: "no-expired",
-		difficulty: 3,
-		icon: "medal",
-		title: () => "Ninguém fica esperando",
-		description: (target) =>
-			`Atenda ${target} pedidos especiais sem deixar nenhum cliente ir embora.`,
-		target: (_level, forecast) => Math.max(2, Math.round(forecast.requests * 0.7)),
 	},
 	{
 		id: "especialista",

@@ -1,9 +1,8 @@
 using UnityEngine;
 
 namespace Checkout {
- // Speech bubble over a customer who needs the player: a special request (what they want) or a
- // full basket waiting at the register. Icon, patience bar and, once handled, how it went.
- // Clicking it opens the request (app/HUD) or the register mini-game.
+ // Speech bubble over a customer who needs the player: a full basket waiting at the register.
+ // Icon, patience bar and, once handled, how it went. Clicking it opens the register mini-game.
  public sealed class CheckoutRequestBubble:MonoBehaviour {
   // The bubble tail ends this far above the top of the head (the tail reaches ~.38 below the bubble centre).
   const float Clearance=.55f,Fallback=2.85f;
@@ -48,14 +47,6 @@ namespace Checkout {
    pending=false;SetIcon(good?"success":"warning");track.gameObject.SetActive(false);fill.gameObject.SetActive(false);hit.enabled=false;hideAt=Time.time+2.5f;
   }
   public void Hide(){if(pending){pending=false;gameObject.SetActive(false);}}
-
-  static string KindIcon(string kind)=>kind=="produto"?"basket":kind=="alternativa"?"handshake":"customers";
-  // Special request of this customer, from the snapshot (null when there is none).
-  public void Apply(DayRequest request){
-   if(request==null)return;
-   if(request.status=="pending")Show(request.id,KindIcon(request.kind),request.createdAt,request.expiresAt,"requests",request.id);
-   else Resolve(request.id,request.status=="served"||request.status=="partial");
-  }
 
   void Update(){
    if(!pending){if(gameObject.activeSelf&&Time.time>hideAt)gameObject.SetActive(false);return;}

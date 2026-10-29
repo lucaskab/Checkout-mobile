@@ -14,9 +14,7 @@ const { createSimulatorSnapshot } = await import("./simulator-snapshot.ts");
 const { createSimulatorCommandHandler } = await import(
 	"./simulator-protocol.ts"
 );
-const { createSpecialRequest, addSpecialRequest, FREE_DAY_CONTRACT_ID } =
-	await import("./market-day.ts");
-const { getDayStoreContext } = await import("./market-day-context.ts");
+const { FREE_DAY_CONTRACT_ID } = await import("./market-day.ts");
 const { itemCatalog } = await import("../data/market-products.ts");
 const { getInventoryCapacity } = await import("../data/inventory-capacity.ts");
 // These tests run a shop that is already furnished (the starter pieces are placed).
@@ -27,28 +25,6 @@ beforeEach(() => useGameStore.setState(JSON.parse(initial)));
 afterAll(() => useGameStore.setState(JSON.parse(initial)));
 
 const store = () => useGameStore.getState();
-const customer = (seed, mood = "calmo") => ({
-	archetype: "normal",
-	customerId: `cliente-${seed}`,
-	customerName: "Ana",
-	mood,
-	seed,
-});
-function withRequest(kind, seed = 5, patch = {}) {
-	const state = store();
-	const request = createSpecialRequest(
-		state.day,
-		customer(seed),
-		getDayStoreContext(state),
-		Date.now(),
-		{ kind },
-	);
-	expect(request).not.toBeNull();
-	const next = { ...request, ...patch };
-	useGameStore.setState({ day: addSpecialRequest(state.day, next) });
-	return next;
-}
-
 test("choosing a contract opens the market for a five minute day", () => {
 	const offer = store().day.offers[0];
 	expect(store().startDay(offer.id)).toBe(true);
@@ -77,7 +53,7 @@ test("every day the first customer comes a few seconds after opening, not after 
 	expect(wait).toBeLessThanOrEqual(5_500);
 });
 
-test("customers are counted in the day and may bring special requests", () => {
+test("customers are counted in the day", () => {
 	store().startDay(FREE_DAY_CONTRACT_ID);
 	for (let index = 0; index < 12; index++) {
 		useGameStore.setState({ market: { ...store().market, nextCustomerAt: 1 } });
@@ -85,47 +61,12 @@ test("customers are counted in the day and may bring special requests", () => {
 	}
 	expect(store().day.stats.customers).toBe(12);
 	expect(store().day.stats.satisfactionSamples).toBe(12);
-});
-
-test("helping a customer in time pays a tip and raises satisfaction", () => {
-	store().startDay(FREE_DAY_CONTRACT_ID);
-	const request = withRequest("ajuda");
-	const before = store();
-	const best = request.options.find((option) => option.quality === "best");
-	expect(store().resolveSpecialRequest(request.id, best.id)).toBe(true);
-	expect(store().coins).toBeGreaterThan(before.coins);
-	expect(store().market.customerSatisfaction).toBeGreaterThan(
-		before.market.customerSatisfaction,
-	);
-	expect(store().day.stats.requestsServed).toBe(1);
-	expect(store().resolveSpecialRequest(request.id, best.id)).toBe(false);
-});
-
-test("a product fetched from storage is sold from the stock room", () => {
-	store().startDay(FREE_DAY_CONTRACT_ID);
-	const state = store();
-	const context = getDayStoreContext(state);
-	const missing = context.unlockedProductIds.find(
-		(id) => !context.shelfProductIds.includes(id),
-	);
-	useGameStore.setState({ inventory: { ...state.inventory, [missing]: 3 } });
-	const request = withRequest("produto", 9);
-	const stock = request.options.find((option) => option.source === "stock");
-	expect(stock).toBeDefined();
-	const coins = store().coins;
-	expect(store().resolveSpecialRequest(request.id, stock.id)).toBe(true);
-	expect(store().inventory[stock.productId]).toBe(2);
-	expect(store().coins).toBeGreaterThan(coins);
-	expect(store().day.stats.revenue).toBeGreaterThan(0);
-});
-
-test("ignored customers leave and the store loses satisfaction", () => {
-	store().startDay(FREE_DAY_CONTRACT_ID);
-	withRequest("ajuda", 3, { expiresAt: Date.now() - 1 });
-	const satisfaction = store().market.customerSatisfaction;
-	expect(store().processMarketDay()).toBe(true);
-	expect(store().day.stats.requestsExpired).toBe(1);
-	expect(store().market.customerSatisfaction).toBeLessThan(satisfaction);
+	// No customer brings a special request any more (removed, Lucas 29/10): nothing about them reaches Unity.
+	expect(store().day.requests).toBeUndefined();
+	const snapshot = createSimulatorSnapshot(store(), "day", 1);
+	expect(snapshot.day.requests).toBeUndefined();
+	expect(snapshot.day.loyalty).toBeUndefined();
+	expect(typeof store().resolveSpecialRequest).toBe("undefined");
 });
 
 test("at closing time the customers inside finish before the day closes", () => {
@@ -189,15 +130,7 @@ test("Unity can run a whole day through the command protocol", () => {
 	expect(run(command("start", "startDay", [store().day.offers[1].id])).ok).toBe(
 		true,
 	);
-	const request = withRequest("ajuda", 12);
-	expect(
-		run(
-			command("resolve", "resolveSpecialRequest", [
-				request.id,
-				request.options[0].id,
-			]),
-		).ok,
-	).toBe(true);
+	expect(run(command("resolve", "resolveSpecialRequest", ["r1", "o1"])).ok).toBe(false);
 	expect(run(command("close", "closeDay", [])).ok).toBe(true);
 	expect(createSimulatorSnapshot(store(), "day", revision).day.grade).not.toBe(
 		"",
@@ -394,4 +327,26 @@ test("orders are supplier boxes: paid per box, unloaded box by box, shelved unit
 	expect(store().inventory[productId]).toBe(product.caseSize);
 	const view = createSimulatorSnapshot(store(), "caixas", 2);
 	expect(view.stockroom.find((item) => item.productId === productId).boxes).toBe(1);
+});
+
+test("a v45 save with special requests migrates to v46 keeping the progress (Lucas 29/10)", async () => {
+	const old = JSON.parse(initial);
+	old.coins = 4321;
+	old.market = { ...old.market, level: 7 };
+	old.day = {
+		...old.day,
+		dayNumber: 12,
+		loyalty: 63,
+		requests: [{ id: "r1", customerId: "c-1", customerName: "Ana", status: "served", expiresAt: 1, tip: 3 }],
+		stats: { ...old.day.stats, customers: 5, requestsServed: 2, requestsExpired: 1, loyaltyChange: 5, reputationChange: 2, tips: 3 },
+	};
+	expect(useGameStore.persist.getOptions().version).toBe(46);
+	const next = await useGameStore.persist.getOptions().migrate(old, 45);
+	expect(next.coins).toBe(4321);
+	expect(next.market.level).toBe(7);
+	expect(next.day.dayNumber).toBe(12);
+	expect(next.day.loyalty).toBe(63);
+	expect(next.day.requests).toBeUndefined();
+	expect(next.day.stats.customers).toBe(5);
+	expect(Object.keys(next.day.stats).filter((key) => /request|loyalty|reputation|tips/i.test(key))).toEqual([]);
 });

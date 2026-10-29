@@ -332,7 +332,7 @@ namespace Checkout {
    var group=card.gameObject.AddComponent<CanvasGroup>();
    var accent=U.Box(card.transform,"Accent","F2B03D",26,new Vector2(0,.8f),new Vector2(1,1));accent.rectTransform.offsetMin=new Vector2(0,-14);
    var eyebrow=U.Label(card.transform,"Eyebrow",K.Label,18,"8A7560");U.Stretch(eyebrow.rectTransform,new Vector2(0,.7f),new Vector2(1,.8f),new Vector2(20,0),new Vector2(-20,0));
-   eyebrow.text="PEDIDO ESPECIAL";eyebrow.characterSpacing=4;
+   eyebrow.text="DESAFIO DO PEDIDO";eyebrow.characterSpacing=4;
    var head=U.Label(card.transform,"Title",K.Headline,46,"4A3624");U.Stretch(head.rectTransform,new Vector2(0,.42f),new Vector2(1,.7f),new Vector2(24,0),new Vector2(-24,0));
    head.text=twistTitle;head.enableAutoSizing=true;head.fontSizeMin=24;head.fontSizeMax=46;
    var body=U.Label(card.transform,"Body",K.Body,24,"4A3624");U.Stretch(body.rectTransform,new Vector2(0,.12f),new Vector2(1,.4f),new Vector2(30,0),new Vector2(-30,0));

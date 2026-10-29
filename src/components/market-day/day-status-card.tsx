@@ -1,14 +1,13 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
-import { getContractProgress, getPendingRequests } from "@/services/market-day";
+import { getContractProgress } from "@/services/market-day";
 import { useGameStore } from "@/stores/game-store";
 import { DayPlanningSheet } from "./day-planning-sheet";
 import { DayResultSheet } from "./day-result-sheet";
-import { SpecialRequestsSheet } from "./special-requests-sheet";
 import { formatClock, useNow } from "./use-now";
 
 // The turn at a glance: day number, clock, contract progress and the next action.
@@ -18,12 +17,7 @@ export function DayStatusCard({ compact = false }: { compact?: boolean }) {
 	const closeDay = useGameStore((state) => state.closeDay);
 	const now = useNow(day.phase === "open");
 	const progress = getContractProgress(day.contract, day.stats);
-	const pending = getPendingRequests(day).length;
 	styles.useVariants({ compact });
-
-	function openRequests() {
-		openBottomSheet(<SpecialRequestsSheet />);
-	}
 
 	// The results sheet opens on its own (MarketDayPrompts) once the day closes.
 	function endDay() {
@@ -101,17 +95,6 @@ export function DayStatusCard({ compact = false }: { compact?: boolean }) {
 					</>
 				)}
 			</View>
-			{pending > 0 && (
-				<Pressable
-					accessibilityLabel={`${pending} pedidos especiais esperando`}
-					accessibilityRole="button"
-					onPress={openRequests}
-					style={styles.requests}
-				>
-					<GameIcon icon="customers" style={styles.requestsIcon} />
-					<Text style={styles.requestsText}>{pending}</Text>
-				</Pressable>
-			)}
 			<GameButton
 				icon="lock"
 				label={compact ? "Fechar" : "Encerrar"}
@@ -184,19 +167,4 @@ const styles = StyleSheet.create((theme) => ({
 	},
 	fillDone: { backgroundColor: theme.colors["green-500"] },
 	progressLabel: { color: theme.colors["neutral-500"], fontSize: 10 },
-	requests: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 2,
-		paddingHorizontal: theme.gap(0.75),
-		paddingVertical: theme.gap(0.5),
-		borderRadius: 999,
-		backgroundColor: theme.colors["red-500"],
-	},
-	requestsIcon: { width: 18, height: 18 },
-	requestsText: {
-		color: theme.colors["neutral-0"],
-		fontFamily: theme.fonts.family.numberBold,
-		fontSize: 13,
-	},
 }));

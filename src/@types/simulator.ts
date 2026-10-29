@@ -319,19 +319,6 @@ export type SimulatorLayout = {
 	sectorIds: string[];
 };
 
-export type SimulatorDayRequest = {
-	id: string;
-	customerId: string;
-	customerName: string;
-	kind: string;
-	message: string;
-	productId: number;
-	productName: string;
-	createdAt: number;
-	expiresAt: number;
-	status: string;
-};
-
 export type SimulatorDay = {
 	phase: string;
 	/** Turn of the day ("noite" from the Späti on). */
@@ -339,13 +326,11 @@ export type SimulatorDay = {
 	dayNumber: number;
 	startedAt: number;
 	endsAt: number;
-	loyalty: number;
 	contractTitle: string;
 	contractLabel: string;
 	contractProgress: number;
 	contractCompleted: boolean;
 	grade: string;
-	requests: SimulatorDayRequest[];
 };
 
 export type SimulatorCheckout = {

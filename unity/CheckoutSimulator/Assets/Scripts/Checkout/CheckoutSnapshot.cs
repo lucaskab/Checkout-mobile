@@ -16,9 +16,8 @@ namespace Checkout {
  // queue, the bus stop…) before they shop (CheckoutEventVisuals.Market.cs). Empty = a normal walk-in or car customer.
  [Serializable] public class Customer {public string id,name,status,mood,origin;public double spent;public Purchase[] purchases;}
  [Serializable] public class Purchase {public string shelfId;public int productId,quantity;}
- // Market day (turn) from src/services/simulator-snapshot.ts; requests carry the waiting customer's id.
- [Serializable] public class DayState {public string phase,contractTitle,contractLabel,grade,shift;public int dayNumber,loyalty;public double startedAt,endsAt;public float contractProgress;public bool contractCompleted;public DayRequest[] requests;}
- [Serializable] public class DayRequest {public string id,customerId,customerName,kind,message,productName,status;public int productId;public double createdAt,expiresAt;}
+ // Market day (turn) from src/services/simulator-snapshot.ts.
+ [Serializable] public class DayState {public string phase,contractTitle,contractLabel,grade,shift;public int dayNumber;public double startedAt,endsAt;public float contractProgress;public bool contractCompleted;}
  // Register line (src/services/checkout-counter.ts): baskets waiting to be rung up and the latest outcomes.
  [Serializable] public class CheckoutEntry {public string id,customerId,customerName,mood,method;public double total,cashGiven,readyAt,expiresAt;public CheckoutLine[] items;}
  [Serializable] public class CheckoutLine {public int productId,quantity;public string name;public double unitPrice;}

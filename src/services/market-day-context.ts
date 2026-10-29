@@ -20,7 +20,7 @@ export const dayCatalog: DayCatalogProduct[] = itemCatalog.map((product) => ({
 	sellingPrice: product.sellingPrice,
 }));
 
-// What customers can find right now, used to build special requests and contracts.
+// What customers can find right now, used to build the day's contracts.
 export function getDayStoreContext(
 	state: Pick<
 		GameState,

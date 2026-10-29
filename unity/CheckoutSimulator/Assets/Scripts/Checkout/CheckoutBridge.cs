@@ -86,8 +86,6 @@ namespace Checkout {
   void AppearanceStarted(CheckoutWalker walker){lastAppearance=AppearanceKey(walker);appearanceBag.Remove(lastAppearance);}
   public void OpenPanel(string panel,string shelfId="",string sectorId="",string requestId="")=>Emit(JsonUtility.ToJson(new PanelMessage{kind="panel",panel=panel,shelfId=shelfId,sectorId=sectorId,requestId=requestId}));
   [Serializable] class PanelMessage{public string kind,panel,shelfId,sectorId,requestId;}
-  // The special request of a customer, pending or just answered (see CheckoutRequestBubble).
-  public DayRequest RequestFor(string customerId){if(string.IsNullOrEmpty(customerId)||State?.day?.requests==null)return null;foreach(var r in State.day.requests)if(r.customerId==customerId)return r;return null;}
   public static double Now=>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
   public CheckoutEntry CheckoutFor(string customerId){if(string.IsNullOrEmpty(customerId)||State?.checkouts==null)return null;foreach(var c in State.checkouts)if(c.customerId==customerId)return c;return null;}
   public CheckoutResult CheckoutResultFor(string customerId){if(string.IsNullOrEmpty(customerId)||State?.checkoutResults==null)return null;foreach(var r in State.checkoutResults)if(r.customerId==customerId)return r;return null;}

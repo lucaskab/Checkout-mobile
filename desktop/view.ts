@@ -12,7 +12,6 @@ import {
 } from "@/data/shelf-slots";
 import {
 	getContractProgress,
-	getPendingRequests,
 	isClosing,
 } from "@/services/market-day";
 import { getClaimableMissionCount } from "@/services/missions";
@@ -66,9 +65,6 @@ export type DesktopView = {
 	dayTitle: string;
 	dayDetail: string;
 	dayProgress: number;
-	requestCount: number;
-	requestLabel: string;
-	requestUrgent: boolean;
 	claimableMissions: number;
 	hasEvent: boolean;
 	eventName: string;
@@ -304,8 +300,6 @@ export function createDesktopView(
 	const now = Date.now();
 	const day = state.day;
 	const contract = getContractProgress(day.contract, day.stats);
-	const pending = getPendingRequests(day).sort((a, b) => a.expiresAt - b.expiresAt);
-	const urgent = pending[0];
 	const clock = (ms: number) => {
 		const s = Math.max(0, Math.ceil(ms / 1_000));
 		return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -365,11 +359,6 @@ export function createDesktopView(
 				: day.phase === "results"
 					? 1
 					: 0,
-		requestCount: pending.length,
-		requestLabel: urgent
-			? `${clock(urgent.expiresAt - now)} · ${urgent.customerName}: ${urgent.message}`
-			: "",
-		requestUrgent: Boolean(urgent && urgent.expiresAt - now < 15_000),
 		claimableMissions: getClaimableMissionCount(state),
 		hasEvent: hasEvent || Boolean(outcome && outcomeEvent),
 		eventName: hasEvent && event ? event.name : (outcomeEvent?.name ?? ""),

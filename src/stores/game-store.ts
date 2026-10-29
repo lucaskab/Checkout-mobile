@@ -140,15 +140,10 @@ import {
 } from "@/services/event-interactions";
 import {
 	acceptsCustomers,
-	addSpecialRequest,
 	advanceMarketDay,
 	closeMarketDay,
 	createInitialDayState,
-	createSpecialRequest,
-	SPECIAL_REQUESTS_ENABLED,
 	DAY_OFFERS_REVISION,
-	expireSpecialRequests,
-	FIRST_REQUEST_DELAY_MS,
 	FREE_DAY_CONTRACT_ID,
 	getLoyaltyArrivalMultiplier,
 	isDayOver,
@@ -159,8 +154,6 @@ import {
 	recordDayIncidentFixed,
 	recordDaySale,
 	refreshDayOffers,
-	resolveSpecialRequest as resolveDayRequest,
-	SPECIAL_REQUEST_CHANCE,
 	startDay as startMarketDay,
 } from "@/services/market-day";
 import { type DayForecast, forecastDay, getFallbackDayForecast } from "@/services/day-forecast";
@@ -3164,21 +3157,6 @@ export const useGameStore = create<GameStore>()(
 					satisfaction: customer.satisfaction,
 					units: 0,
 				});
-				const specialRequest = SPECIAL_REQUESTS_ENABLED && createSpecialRequest(
-					nextDay,
-					{
-						archetype: visit.customer.archetype,
-						customerId: customer.id,
-						customerName: customer.name,
-						mood: customer.mood,
-						seed: market.randomSeed,
-					},
-					getDayStoreContext({ ...get(), shelfStock: nextShelfStock }),
-					now,
-				);
-				if (specialRequest) {
-					nextDay = addSpecialRequest(nextDay, specialRequest);
-				}
 				// The coin machines in the market (gumball, claw machine): some customers stop and play.
 				const plays = rollDecorPlays(
 					decorEffects,
@@ -3734,17 +3712,10 @@ export const useGameStore = create<GameStore>()(
 				}
 				const isOpening = isOpen && !market.isOpen;
 				const isClosing = !isOpen && market.isOpen;
-				let customerSatisfaction = market.customerSatisfaction;
+				const customerSatisfaction = market.customerSatisfaction;
 				if (isClosing && day.phase === "open") {
 					const closed = closeMarketDay(day, now, market.level);
-					if (closed) {
-						customerSatisfaction = clampSatisfaction(
-							customerSatisfaction +
-								closed.stats.reputationChange -
-								day.stats.reputationChange,
-						);
-						day = closed;
-					}
+					if (closed) day = closed;
 				}
 				const firstCustomer =
 					market.customersServed === 0 && market.recentCustomers.length === 0;
@@ -3930,81 +3901,6 @@ export const useGameStore = create<GameStore>()(
 				});
 				return true;
 			},
-			resolveSpecialRequest: (requestId, optionId) => {
-				const state = get();
-				const now = Date.now();
-				const resolution = resolveDayRequest(
-					state.day,
-					requestId,
-					optionId,
-					now,
-					state.market.level,
-				);
-				if (!resolution) return false;
-				let { day } = resolution;
-				let coins = state.coins + resolution.tip;
-				let { daily, inventory, inventoryLots, market } = state;
-				// "Buscar no depósito": sell one unit straight from storage.
-				if (resolution.option.source === "stock" && resolution.option.productId) {
-					const productId = resolution.option.productId;
-					const product = itemCatalog.find((item) => item.id === productId);
-					const available = inventory[productId] ?? 0;
-					if (!product || available <= 0) return false;
-					const lots = takeInventoryLots(
-						reconcileInventoryLots(productId, available, inventoryLots[productId]),
-						1,
-					);
-					const price = product.sellingPrice;
-					inventory = { ...inventory, [productId]: available - 1 };
-					inventoryLots = { ...inventoryLots, [productId]: lots.remainingLots };
-					coins += price;
-					daily = markDailySale(
-						normalizeDailyState(daily, market.level, now),
-						price,
-						0,
-						1,
-					);
-					market = {
-						...market,
-						soldByProduct: {
-							...market.soldByProduct,
-							[productId]: (market.soldByProduct[productId] ?? 0) + 1,
-						},
-						todayRevenue: daily.revenue,
-						totalRevenue: market.totalRevenue + price,
-						unitsSold: market.unitsSold + 1,
-					};
-					day = {
-						...day,
-						stats: {
-							...day.stats,
-							profit: day.stats.profit + price - product.purchasePrice,
-							revenue: day.stats.revenue + price,
-							soldByCategory: {
-								...day.stats.soldByCategory,
-								[product.category]:
-									(day.stats.soldByCategory[product.category] ?? 0) + 1,
-							},
-							unitsSold: day.stats.unitsSold + 1,
-						},
-					};
-				}
-				set({
-					coins,
-					daily,
-					day,
-					inventory,
-					inventoryLots,
-					lastSessionAt: now,
-					market: {
-						...market,
-						customerSatisfaction: clampSatisfaction(
-							market.customerSatisfaction + resolution.satisfactionDelta,
-						),
-					},
-				});
-				return true;
-			},
 			processMarketDay: () => {
 				// Offers sized with older rules (or before the store could forecast its own day) are made again
 				// while the day is still being planned.
@@ -4024,24 +3920,12 @@ export const useGameStore = create<GameStore>()(
 					return Boolean(started);
 				}
 				if (day.phase !== "open") return false;
-				const expired = expireSpecialRequests(day, now);
-				if (expired.expired.length > 0) {
-					set({
-						day: expired.day,
-						market: {
-							...market,
-							customerSatisfaction: clampSatisfaction(
-								market.customerSatisfaction + expired.satisfactionDelta,
-							),
-						},
-					});
-				}
-				if (isDayOver(get().day, now)) {
+				if (isDayOver(day, now)) {
 					// customers already inside finish shopping and pay before the day closes
-					if (isClosing(get().day, now, get().checkout.queue.length)) return false;
+					if (isClosing(day, now, get().checkout.queue.length)) return false;
 					return get().closeDay();
 				}
-				return expired.expired.length > 0;
+				return false;
 			},
 			setShelfPrice: (shelfId, price) => {
 				const { shelfAssignments, shelfPrices, statistics } = get();
@@ -4646,7 +4530,9 @@ export const useGameStore = create<GameStore>()(
 			// 43: products, sectors, staff and decor open on a level-by-level ladder (scripts/economy/catalog.py).
 			// 44: the Delivery app (online orders from the minimercado on). Old saves start with no orders.
 			// 45: first-time onboarding (src/services/onboarding.ts). Saves that already played skip the guided day.
-			version: 45,
+			// 46: customers' special requests removed (Lucas 29/10): migrateGameState → normalizeDayState drops their list,
+			// stats and contracts from the day; everything else (and the loyalty earned) is kept.
+			version: 46,
 		},
 	),
 );
@@ -4935,8 +4821,6 @@ function getDayForecastFor(state: GameState): DayForecast {
 			state.market.customerSatisfaction +
 			shopEffects.storeReputationBonus +
 			employeeEffects.storeReputationBonus,
-		requestChance: SPECIAL_REQUEST_CHANCE,
-		firstRequestDelayMs: FIRST_REQUEST_DELAY_MS,
 	});
 	if (onSale.length > 0) return forecast;
 	// Empty shelves (a brand-new market): the customers are real, the basket is the usual first one.

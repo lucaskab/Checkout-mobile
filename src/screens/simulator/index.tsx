@@ -15,8 +15,6 @@ import {
 	DayPlanningSheet,
 	DayResultSheet,
 	DayStatusCard,
-	SpecialRequestAlert,
-	SpecialRequestsSheet,
 } from "@/components/market-day";
 import type { GameIconId } from "@/data/game-icon-assets";
 import { AchievementsScreen } from "@/screens/achievements";
@@ -106,11 +104,9 @@ export function SimulatorScreen() {
 	}, [panel, openBottomSheet]);
 	const unityRef = useRef<UnityView>(null);
 	const openDayPanel = useCallback(
-		(dayPanel: "day" | "requests", requestId?: string) => {
+		() => {
 			const phase = useGameStore.getState().day.phase;
-			if (dayPanel === "requests") {
-				openBottomSheet(<SpecialRequestsSheet focusId={requestId} />);
-			} else if (phase === "results") {
+			if (phase === "results") {
 				openBottomSheet(<DayResultSheet />);
 			} else if (phase === "planning") {
 				openBottomSheet(<DayPlanningSheet />);
@@ -202,7 +198,6 @@ export function SimulatorScreen() {
 						</View>
 						<SimulatorProgress onOpenPanel={openPanel} />
 						<DayStatusCard compact />
-						<SpecialRequestAlert />
 						<View pointerEvents="box-none" style={styles.statusRow}>
 							<View pointerEvents="box-none" style={styles.eventHud}>
 								<SimulatorEvent />

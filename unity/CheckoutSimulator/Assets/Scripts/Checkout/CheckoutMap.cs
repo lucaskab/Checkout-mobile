@@ -17,7 +17,6 @@ namespace Checkout {
   // Customers pay at the stall's own counter, except in a shop where the player placed the checkout (minimercado).
   bool StallPay=>CheckoutStall.Small&&!(CheckoutStall.PlacedCounter&&Furnished&&Interior.Get("checkout:main") is CheckoutInterior.Item main&&main.root.gameObject.activeInHierarchy&&!main.building);
   public Vector3 QueueSpot(CheckoutLane lane,int i)=>StallPay?CheckoutStall.QueueSpot(i):Furnished&&lane?.itemId!=null?Interior.QueueSpot(lane.itemId,i):Register;
-  public Vector3 HelpSpot(int i)=>CheckoutStall.Small?CheckoutStall.HelpSpot(i):Furnished?Interior.FreeSpotNear(Point(P(.9f,-5.9f)),i):Point(new Vector3(.9f+i*.85f,.74f,-5.9f));
   Vector3 MarkerPoint(string id,float fallback){var it=Piece(id);return it!=null?it.root.position+Vector3.up*it.piece.markerHeight:Fixture(id)+Vector3.up*fallback;}
   readonly Dictionary<string,Vector3> axes=new Dictionary<string,Vector3>();readonly Dictionary<string,Vector3> staffSpots=new Dictionary<string,Vector3>();
   public Vector3 Entrance=>CheckoutStall.Small?CheckoutStall.Entrance:Point(P(-1.75f,-8.7f));

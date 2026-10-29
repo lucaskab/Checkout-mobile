@@ -1,17 +1,14 @@
 import type { DayForecast } from "@/services/day-forecast";
-import type { CustomerArchetype, CustomerMood } from "./customer-simulation";
 
-// A market day is a turn: pick a contract, open, serve special requests, close and review.
+// A market day is a turn: pick a contract, open, sell, close and review.
 export type MarketDayPhase = "planning" | "open" | "results";
 
 export type DayContractKind =
 	| "revenue"
 	| "profit"
 	| "customers"
-	| "requests"
 	| "satisfaction"
-	| "category"
-	| "no-expired";
+	| "category";
 
 export type DayContractDifficulty = 1 | 2 | 3;
 
@@ -36,62 +33,15 @@ export type DayContract = {
 	challenge?: boolean;
 };
 
-export type SpecialRequestKind = "produto" | "alternativa" | "ajuda";
-
-export type SpecialRequestQuality = "best" | "good" | "bad";
-
-export type SpecialRequestOption = {
-	id: string;
-	label: string;
-	detail: string;
-	productId?: number;
-	quality: SpecialRequestQuality;
-	// "stock" sells one unit straight from the storage room.
-	source?: "stock" | "shelf" | "none";
-};
-
-export type SpecialRequestStatus =
-	| "pending"
-	| "served"
-	| "partial"
-	| "failed"
-	| "expired";
-
-export type SpecialRequest = {
-	archetype: CustomerArchetype;
-	createdAt: number;
-	customerId: string;
-	customerName: string;
-	expiresAt: number;
-	id: string;
-	kind: SpecialRequestKind;
-	message: string;
-	mood: CustomerMood;
-	options: SpecialRequestOption[];
-	outcome: string;
-	productId: number;
-	productName: string;
-	resolvedAt: number | null;
-	status: SpecialRequestStatus;
-	tip: number;
-};
-
 export type DayStats = {
 	incidentsFixed: number;
 	checkoutsLost: number;
 	customers: number;
-	loyaltyChange: number;
 	profit: number;
-	reputationChange: number;
-	requestsExpired: number;
-	requestsFailed: number;
-	requestsPartial: number;
-	requestsServed: number;
 	revenue: number;
 	satisfactionSamples: number;
 	satisfactionTotal: number;
 	soldByCategory: Record<string, number>;
-	tips: number;
 	unitsSold: number;
 };
 
@@ -119,13 +69,16 @@ export type GameDayState = {
 	contract: DayContract | null;
 	dayNumber: number;
 	endsAt: number | null;
-	// Customer loyalty (0-100) carries over between days and brings more visits.
+	/**
+	 * Customer loyalty (0-100): a few more visits per day (getLoyaltyArrivalMultiplier). It only moved with the
+	 * customers' special requests, removed from the game (Lucas 29/10), so it is frozen now and not shown anywhere;
+	 * saves keep the value they earned (never below INITIAL_LOYALTY) so no market loses customers.
+	 */
 	loyalty: number;
 	offers: DayContract[];
 	/** Version of the rules the offers were sized with (DAY_OFFERS_REVISION); older offers are made again. */
 	offersRevision?: number;
 	phase: MarketDayPhase;
-	requests: SpecialRequest[];
 	result: DayResult | null;
 	/** Turn of the day: "noite" from the Späti on (other customers, bigger night baskets). */
 	shift?: TurnShift;
@@ -136,14 +89,6 @@ export type GameDayState = {
 };
 
 export type TurnShift = "dia" | "noite";
-
-export type DayCustomerInput = {
-	archetype: CustomerArchetype;
-	customerId: string;
-	customerName: string;
-	mood: CustomerMood;
-	seed: number;
-};
 
 export type DayCatalogProduct = {
 	category: string;

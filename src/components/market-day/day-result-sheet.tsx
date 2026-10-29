@@ -43,11 +43,6 @@ function ResultContent({
 	const { stats } = result;
 	const payroll = useGameStore((state) => state.employees.lastPayroll);
 	const shiftPayroll = payroll?.dayNumber === result.dayNumber ? payroll : null;
-	const requests =
-		stats.requestsServed +
-		stats.requestsPartial +
-		stats.requestsFailed +
-		stats.requestsExpired;
 	const minutes = Math.max(1, Math.round(result.durationMs / 60_000));
 
 	return (
@@ -115,16 +110,6 @@ function ResultContent({
 					label="Satisfação média"
 					value={`${result.averageSatisfaction}%`}
 				/>
-				<Stat
-					icon="handshake"
-					label="Pedidos atendidos"
-					value={`${stats.requestsServed + stats.requestsPartial}/${requests}`}
-				/>
-				<Stat
-					icon="medal"
-					label="Fidelidade"
-					value={`${stats.loyaltyChange >= 0 ? "+" : ""}${stats.loyaltyChange}`}
-				/>
 			</View>
 
 			{result.highlights.length > 0 && (
@@ -148,7 +133,6 @@ function ResultContent({
 				</View>
 				<Text style={styles.rewardsNote}>
 					Inclui bônus de desempenho pela nota {result.grade}.
-					{stats.tips > 0 ? ` Gorjetas (${stats.tips}) já estão no caixa.` : ""}
 				</Text>
 			</View>
 

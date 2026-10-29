@@ -1,25 +1,5 @@
-import type { CustomerMood } from "@/@types/customer-simulation";
-import type { DayGrade, SpecialRequestKind } from "@/@types/market-day";
+import type { DayGrade } from "@/@types/market-day";
 import type { GameIconId } from "@/data/game-icon-assets";
-
-export const moodLabels: Record<CustomerMood, string> = {
-	calmo: "Calmo",
-	"com-pressa": "Com pressa",
-	estressado: "Estressado",
-	feliz: "Feliz",
-};
-
-export const requestKindLabels: Record<SpecialRequestKind, string> = {
-	ajuda: "Precisa de ajuda",
-	alternativa: "Quer uma alternativa",
-	produto: "Procura um produto",
-};
-
-export const requestKindIcons: Record<SpecialRequestKind, GameIconId> = {
-	ajuda: "customers",
-	alternativa: "handshake",
-	produto: "basket",
-};
 
 export const gradeMessages: Record<DayGrade, string> = {
 	S: "Dia perfeito!",

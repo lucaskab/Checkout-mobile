@@ -118,7 +118,6 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	],
 	setEmployeeWorking: [text, boolean],
 	trainEmployee: [text],
-	resolveSpecialRequest: [text, text],
 	setMarketOpen: [boolean],
 	startDay: [text],
 	setShelfPrice: [text, positive],

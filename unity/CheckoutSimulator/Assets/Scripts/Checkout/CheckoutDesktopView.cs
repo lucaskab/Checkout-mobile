@@ -49,7 +49,7 @@ namespace Checkout {
   public string kind;public int revision,level,xp,xpGoal,claimableMissions;
   public string progressLabel,progressRoute,coins,diamonds,daily,eventName,eventTimer,eventEffect,eventIcon;
   public bool isOpen,dailyClaimable,hasEvent,eventNegative,hasOffline,hasPage,canBack;public float dailyProgress;
-  public string dayPhase,dayTitle,dayDetail,requestLabel,goalText,goalIcon;public bool goalDone;public float dayProgress;public int requestCount;public bool requestUrgent;
+  public string dayPhase,dayTitle,dayDetail,goalText,goalIcon;public bool goalDone;public float dayProgress;
   public DesktopBoost[] boosts;
   public DesktopButton[] quick;
   // The corner "Bônus" button that opens the quick buttons as a menu (CheckoutDesktopHUD.Quick.cs).
