@@ -51,7 +51,14 @@ namespace Checkout
         /// already faces, so a path rebuilt mid-drive carries on smoothly. `radius`: the street radius of its corners.
         /// `radii`: a fixed radius for some corners (> 0), e.g. a bend that has to end exactly where the path ends.</summary>
         public CheckoutVehiclePath Build(IList<Vector3> points, float radius = StreetRadius, Vector3? heading = null, bool roundabout = true, IList<float> radii = null)
+            => Build(points, radius, heading, roundabout, radii, false);
+        /// <summary>`tidy` (bikes, people on hand-drawn ways): points on a straight line are dropped and a slight bend gets a
+        /// wider radius; `merge` (bike lanes): a corner drawn as two half-corners a short step apart becomes one (Lucas
+        /// 26/10: the bikes still turned sharply at the bike lanes' cut corners), a lane drawn as a dense curve is thinned
+        /// to the points that shape it and ridden as that curve.</summary>
+        public CheckoutVehiclePath Build(IList<Vector3> points, float radius, Vector3? heading, bool roundabout, IList<float> radii, bool tidy, bool merge = false)
         {
+            this.tidy = tidy; this.merge = merge;
             Clear(); work.Clear(); hint.Clear(); origin.Clear(); repeated.Clear(); skipped.Clear();
             int input = points == null ? 0 : points.Count;
             Grow(ref waypoint, input); waypoints = input;
@@ -62,6 +69,7 @@ namespace Checkout
                 if (work.Count > 0 && Flat(p - work[work.Count - 1]).sqrMagnitude < 1e-6f) { repeated.Add(i); continue; } // the same corner again
                 work.Add(p); hint.Add(radii != null && i < radii.Count ? radii[i] : 0); origin.Add(i);
             }
+            if (tidy) Tidy();
             if (work.Count < 2)
             {
                 if (work.Count == 1) { Grow(1); point[0] = work[0]; tangent[0] = heading.HasValue ? Flat(heading.Value).normalized : Vector3.forward; at[0] = 0; bend[0] = 0; count = 1; }
@@ -93,6 +101,73 @@ namespace Checkout
         }
 
         // ------------------------------------------------------------------ corners
+        bool tidy, merge;
+        void Tidy()
+        {
+            // straight on: the point is not a corner
+            for (int i = work.Count - 2; i >= 1; i--)
+                if (hint[i] <= 0 && Vector3.Angle(Flat(work[i] - work[i - 1]), Flat(work[i + 1] - work[i])) < 1.5f) Drop(i);
+            // (bike lanes, drawn every half metre) only the points that shape the lane, within ThinTo of it: a sharp corner
+            // right after a curve then has legs long enough for its radius, instead of a pivot on a 0.5 m leg
+            if (merge) Thin();
+            // a corner cut into two half-corners (a short leg between two turns the same way): one corner where the long
+            // legs meet, which the radius then rounds
+            if (merge) Hairpins();
+            for (int pass = 0; merge && pass < 4; pass++)
+            {
+                bool merged = false;
+                for (int i = 1; i + 2 < work.Count; i++)
+                {
+                    var a = Flat(work[i] - work[i - 1]); var m = Flat(work[i + 1] - work[i]); var b = Flat(work[i + 2] - work[i + 1]);
+                    if (m.magnitude > 1.6f || hint[i] > 0 || hint[i + 1] > 0) continue;
+                    float c1 = Cross(a, m), c2 = Cross(m, b); if (c1 * c2 <= 0 || Vector3.Angle(a, b) > 120f) continue;
+                    float den = Cross(a, b); if (Mathf.Abs(den) < 1e-4f) continue;
+                    float lambda = Cross(Flat(work[i + 1] - work[i - 1]), b) / den;
+                    var x = work[i - 1] + a * lambda; x.y = work[i].y;
+                    if (Flat(x - work[i]).magnitude > 2.5f || Flat(x - work[i + 1]).magnitude > 2.5f) continue;
+                    work[i] = x; Drop(i + 1); merged = true;
+                }
+                if (!merged) break;
+            }
+        }
+        // (bike lanes) a hairpin where two lanes join (turning back by more than ~140 degrees) is ridden as a small U
+        // to one side, not turned on the spot
+        void Hairpins()
+        {
+            for (int i = 1; i + 1 < work.Count; i++)
+            {
+                var a = Flat(work[i] - work[i - 1]); var b = Flat(work[i + 1] - work[i]);
+                if (a.sqrMagnitude < 1e-4f || b.sqrMagnitude < 1e-4f || Vector3.Angle(a, b) < 140f || hint[i] > 0) continue;
+                a.Normalize(); float side = Cross(a, b.normalized) < -.05f ? -1 : 1;
+                var n = new Vector3(-a.z, 0, a.x) * side;
+                var v1 = work[i] + a * Hairpin * .6f; var v2 = v1 + n * Hairpin * 2f;
+                work[i] = v1; work.Insert(i + 1, v2); hint.Insert(i + 1, 0); origin.Insert(i + 1, -1); i++;
+            }
+        }
+        const float Hairpin = 1.3f, ThinTo = .15f;
+        readonly List<int> span = new List<int>(); readonly List<bool> keep = new List<bool>();
+        // Douglas-Peucker: keeps the point furthest off the line between two kept ones while it is more than ThinTo off.
+        void Thin()
+        {
+            int n = work.Count; if (n < 3) return;
+            keep.Clear(); for (int i = 0; i < n; i++) keep.Add(hint[i] > 0);
+            keep[0] = keep[n - 1] = true;
+            span.Clear(); span.Add(0); span.Add(n - 1);
+            while (span.Count > 0)
+            {
+                int j = span[span.Count - 1], i = span[span.Count - 2]; span.RemoveRange(span.Count - 2, 2);
+                var a = Flat(work[i]); var ab = Flat(work[j]) - a; float len = ab.magnitude, worst = ThinTo; int far = -1;
+                for (int k = i + 1; k < j; k++)
+                {
+                    var ak = Flat(work[k]) - a; float off = len > 1e-4f ? Mathf.Abs(Cross(ab, ak)) / len : ak.magnitude;
+                    if (off > worst) { worst = off; far = k; }
+                }
+                if (far < 0) continue;
+                keep[far] = true; span.Add(i); span.Add(far); span.Add(far); span.Add(j);
+            }
+            for (int i = n - 2; i >= 1; i--) if (!keep[i]) Drop(i);
+        }
+        void Drop(int i) { if (origin[i] >= 0) repeated.Remove(origin[i]); work.RemoveAt(i); hint.RemoveAt(i); origin.RemoveAt(i); }
         void Round(float radius)
         {
             int m = work.Count;
@@ -106,9 +181,13 @@ namespace Checkout
                 float turn = Vector3.Angle(a, b) * Mathf.Deg2Rad;
                 if (turn < .005f || turn > 3.13f) continue; // straight on, or an exact reversal (never inside one run)
                 bool fixedRadius = hint[i] > 0; float r = fixedRadius ? hint[i] : radius;
-                if (!fixedRadius && Cross(a, b) < 0) r = Mathf.Lerp(r, Mathf.Min(r, RightRadius), Mathf.InverseLerp(.52f, 1.57f, turn));
-                float t = r * Mathf.Tan(turn * .5f);
-                if (!fixedRadius) t = Mathf.Min(t, la * Share, lb * Share);
+                if (tidy) { if (!fixedRadius) r /= Mathf.Clamp(turn / .6f, .25f, 1f); }   // slight bends wide, sharp ones at the radius
+                else if (!fixedRadius && Cross(a, b) < 0) r = Mathf.Lerp(r, Mathf.Min(r, RightRadius), Mathf.InverseLerp(.52f, 1.57f, turn));
+                float t = r * Mathf.Tan(turn * .5f), share = merge ? .5f : Share;
+                // (bike lanes) a slight bend of a drawn curve: the widest arc that fits, meeting the next one halfway along
+                // the leg, so a curve is ridden as the curve (no tight arcs with straight bits between, no wobble)
+                if (merge && !fixedRadius && turn < .6f) t = .5f * Mathf.Min(la, lb);
+                if (!fixedRadius) t = Mathf.Min(t, la * share, lb * share);
                 trim[i] = t; rigid[i] = fixedRadius;
             }
             // Two corners never share more than their leg: a fixed-radius corner keeps its arc, the other one gives way.

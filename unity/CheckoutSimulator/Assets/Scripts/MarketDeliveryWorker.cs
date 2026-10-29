@@ -111,7 +111,7 @@ namespace MarketDay
                 case DeliveryPhase.ToTruck:
                     // The truck first reverses into its dock. The worker only approaches once it is parked.
                     if (Vector3.Distance(truck.position, truckHome) > .04f) { Play("Idle"); break; }
-                    if (Move(RoutePoint(waypoint), dt, false) && ++waypoint == route.Length)
+                    if (Move(RoutePoint(waypoint), dt, false, waypoint < route.Length - 1) && ++waypoint == route.Length)
                     {
                         Face(PickupPoint(), dt);
                         Phase = DeliveryPhase.Pickup;
@@ -131,7 +131,7 @@ namespace MarketDay
                     }
                     break;
                 case DeliveryPhase.ToStorage:
-                    if (Move(RoutePoint(waypoint), dt, true) && --waypoint < 0)
+                    if (Move(RoutePoint(waypoint), dt, true, waypoint > 0) && --waypoint < 0)
                     {
                         Phase = DeliveryPhase.PutDown;
                         clock = 0;
@@ -159,7 +159,7 @@ namespace MarketDay
                     break;
                 case DeliveryPhase.Returning:
                     // Walk back along the route and go in through the door before disappearing.
-                    if (Move(route[Mathf.Max(0, waypoint)], dt, false) && --waypoint < 0)
+                    if (Move(route[Mathf.Max(0, waypoint)], dt, false, waypoint > 0) && --waypoint < 0)
                     {
                         Phase = DeliveryPhase.Waiting;
                         Play("Idle");
@@ -252,33 +252,40 @@ namespace MarketDay
             cargo.SetParent(transform, true);
         }
 
-        bool Move(Vector3 destination, float dt, bool loaded)
+        // Lucas 26/10 (smooth turns): the worker walks the way people do (Checkout.CheckoutStride): along the way it faces,
+        // easing round towards the next point and cutting a corner of the route round (`corner`: a point on the way, passed
+        // within half a metre), turning on the spot (eased) only when the next point is behind it.
+        readonly Checkout.CheckoutStride stride = new Checkout.CheckoutStride(false);
+        bool Move(Vector3 destination, float dt, bool loaded, bool corner = false)
         {
-            if (Vector3.Distance(transform.position, destination) < .02f) return true;
-            Face(destination, dt);
-            // Turn before stepping, so the model does not walk sideways around corners.
-            var direction = destination - transform.position;
-            direction.y = 0;
-            if (Vector3.Angle(transform.forward, direction) > 35) { Play(loaded ? "CarryIdle" : "Idle"); return false; }
+            var to = destination - transform.position; to.y = 0;
+            if (to.magnitude < (corner ? .45f : .02f)) return true;
             if (gateAt.HasValue && gateOpen != null)
             {
                 var gate = gateAt.Value; gate.y = transform.position.y;
                 var step = Vector3.MoveTowards(transform.position, destination, dt * walkSpeed);
                 bool under = Vector3.Distance(step, gate) < .8f;
-                if (under && gateOpen() < .85f && gateWait < 3) { gateWait += dt; Play(loaded ? "CarryIdle" : "Idle"); return false; }
+                if (under && gateOpen() < .85f && gateWait < 3) { gateWait += dt; Play(loaded ? "CarryIdle" : "Idle"); stride.Face(transform, to, dt, false); return false; }
                 if (!under) gateWait = 0;
             }
-            Play(loaded ? "CarryWalking" : "Walking");
-            transform.position = Vector3.MoveTowards(transform.position, destination, dt * walkSpeed * (loaded ? .85f : 1));
-            return Vector3.Distance(transform.position, destination) < .02f;
+            var before = transform.position;
+            float speed = walkSpeed * (loaded ? .85f : 1);
+            bool arrived = stride.WalkTo(transform, destination, speed, dt, corner ? .45f : 0);
+            var moved = transform.position - before; moved.y = 0;
+            // the stairs and the curb: up or down with the walk
+            var p = transform.position; p.y = Mathf.MoveTowards(p.y, destination.y, Mathf.Max(moved.magnitude, arrived ? 1 : 0)); transform.position = p;
+            bool stepping = moved.magnitude > speed * dt * .3f;
+            Play(stepping ? (loaded ? "CarryWalking" : "Walking") : (loaded ? "CarryIdle" : "Idle"));
+            // the steps as quick as the walk (slower while it rounds a corner): no sliding feet
+            if (stepping && dt > 0) animationPlayer[currentClip].speed *= Mathf.Clamp(moved.magnitude / dt / speed, .4f, 1.2f);
+            return arrived;
         }
 
         void Face(Vector3 point, float dt)
         {
             var direction = point - transform.position;
             direction.y = 0;
-            if (direction.sqrMagnitude > .0001f)
-                transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(direction), dt * 240);
+            if (direction.sqrMagnitude > .0001f) stride.Face(transform, direction, dt, false);
         }
 
         float Length(string clip) => animationPlayer[clip].length;

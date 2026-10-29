@@ -20,7 +20,7 @@ namespace Checkout {
  // (Logs/turn_<tag>_trails_*.jpg: green under 3 degrees, yellow under 10, red above, cyan reversing).
  public sealed partial class CheckoutAutoTest {
   sealed class TurnTrack { public Vector3 p; public float yaw; public int frame; }
-  sealed class TurnStats { public readonly List<float> slip = new List<float>(), back = new List<float>(); public readonly List<float> yaw = new List<float>(); public float yawMax, worstSlip; public int snaps, frames; public string worst = "", worstYaw = ""; public readonly HashSet<Transform> seen = new HashSet<Transform>(); }
+  sealed class TurnStats { public readonly List<float> slip = new List<float>(), back = new List<float>(); public readonly List<float> yaw = new List<float>(); public float yawMax, worstSlip; public int snaps, frames, reversals, dodges, shoved; public string worst = "", worstYaw = ""; public readonly HashSet<Transform> seen = new HashSet<Transform>(); }
   struct TrailDot { public Vector3 p; public float slip; }
 
   IEnumerator TrafficTurns(string request) {

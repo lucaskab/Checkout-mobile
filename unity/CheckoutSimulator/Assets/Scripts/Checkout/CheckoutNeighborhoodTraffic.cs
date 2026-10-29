@@ -33,6 +33,7 @@ namespace Checkout
             [System.NonSerialized] public int planNext, planSig;
             [System.NonSerialized] public bool planned;
             [System.NonSerialized] public float s, speed;
+            [System.NonSerialized] public CheckoutStride stride; // the passenger's walk (Lucas 26/10: smooth turns)
         }
         const float Cruise=3.4f,Accel=2.2f,Brake=2.6f,HardBrake=6f;
         readonly List<Vector3> planPoints=new List<Vector3>();
@@ -193,6 +194,7 @@ namespace Checkout
             {car.visitor.gameObject.SetActive(false);Next(car);return car.phase==0;}
             var facing=path.corners.Length>1?path.corners[1]-hit.position:stop.entrance-hit.position;facing.y=0;
             if(facing.sqrMagnitude>.001f)car.visitor.transform.rotation=Quaternion.LookRotation(-facing);
+            (car.stride??=new CheckoutStride()).Reset(car.visitor.transform);
             car.visitor.SetPath(path);car.visitor.isStopped=false;car.passengerWalking=true;car.toMarket=car.waypoint==marketStop;car.phase=1;car.wait=0;car.visits++;
             return false;
         }
@@ -200,8 +202,9 @@ namespace Checkout
         {
             var agent=car.visitor;
             if(!car.passengerWalking||!agent.isOnNavMesh)return;
-            var velocity=agent.velocity;velocity.y=0;
-            if(velocity.sqrMagnitude>.004f)agent.transform.rotation=Quaternion.RotateTowards(agent.transform.rotation,Quaternion.LookRotation(-velocity),Time.deltaTime*540);
+            car.stride??=new CheckoutStride();
+            var velocity=agent.desiredVelocity;velocity.y=0;
+            car.stride.Steer(agent,agent.transform,velocity,Time.deltaTime);
             // The market closed while they were on their way: carry on along the sidewalk instead.
             if(car.toMarket&&!MarketOpen)
             {

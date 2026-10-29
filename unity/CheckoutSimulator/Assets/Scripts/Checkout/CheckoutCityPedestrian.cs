@@ -18,6 +18,8 @@ namespace Checkout
         bool visitingBuilding, inside;
         float stalled, holdFor; int stalls;
         bool curbWait; Vector3 curbPoint;
+        // Lucas 26/10: the corners of the way rounded and the body eased round, no snap (CheckoutStride).
+        readonly CheckoutStride stride=new CheckoutStride();
         void OnEnable(){CheckoutShoppingProps.SetVisible(transform,false);}
         void Start()
         {
@@ -47,7 +49,7 @@ namespace Checkout
             if(!agent||!agent.isOnNavMesh)return;
             var heading=agent.desiredVelocity;heading.y=0;
             if(heading.sqrMagnitude<.004f){heading=agent.velocity;heading.y=0;}
-            if(heading.sqrMagnitude>.004f)transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.LookRotation(-heading),Time.deltaTime*540);
+            stride.Steer(agent,transform,heading,Time.deltaTime);
             if(agent.pathPending)return;
             // At the curb: a car on the zebra crossing (or already past its stop line) goes first; then cross.
             if(!inside)
@@ -90,7 +92,7 @@ namespace Checkout
             for(int i=0;i<corners.Length;i++)
             {
                 var direction=corners[i]-transform.position;direction.y=0;
-                if(direction.sqrMagnitude>.01f){transform.rotation=Quaternion.LookRotation(-direction);return;}
+                if(direction.sqrMagnitude>.01f){transform.rotation=Quaternion.LookRotation(-direction);stride.Reset(transform);return;}
             }
         }
         void VisitNext()
