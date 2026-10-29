@@ -7,8 +7,9 @@
 # Output also goes to unity/CheckoutSimulator/Logs/gitsync.log.
 set -uo pipefail
 # The stash below removes this very file from the working copy (it may be untracked there): run from a copy in /tmp.
-if [[ "${0:A}" != /tmp/checkout-gitsync.sh ]]; then
-  cp "$0" /tmp/checkout-gitsync.sh && exec zsh /tmp/checkout-gitsync.sh "$(git rev-parse --show-toplevel)"
+if [[ -z "${CHECKOUT_GITSYNC_COPY:-}" ]]; then
+  cp "$0" /tmp/checkout-gitsync.sh && CHECKOUT_GITSYNC_COPY=1 exec zsh /tmp/checkout-gitsync.sh "$(git rev-parse --show-toplevel)"
+  exit 1
 fi
 cd "$1" || exit 1
 log=unity/CheckoutSimulator/Logs/gitsync.log
