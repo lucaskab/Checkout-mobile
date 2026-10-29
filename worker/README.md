@@ -81,6 +81,7 @@ cópias por jogador).
 ### CPU medida no Worker publicado (Workers Logs, `cpuTimeMs`, saves sintéticos no formato do jogo)
 | Save | PUT /v1/save | GET /v1/save |
 |---|---|---|
+| 14 KB (tamanho real hoje) | 3–6 ms | 2 ms |
 | 50 KB | 6–15 ms | 3–5 ms |
 | 200 KB | 11–17 ms | 3–4 ms |
 | 500 KB | 20–52 ms | 4–5 ms |
@@ -94,6 +95,10 @@ dele) para validar e tirar o resumo. Nas medições a Cloudflare não derrubou n
 isso não é garantido no plano grátis: se derrubar, o jogo mostra erro de sincronização e tenta de novo — o progresso
 local nunca se perde, só a cópia na nuvem fica para trás. Se isso acontecer, o caminho é o envio em partes (o jogo
 manda o save em pedaços de ~256 KB sem precisar o Worker ler o JSON inteiro) — exige mudar o jogo.
+
+**Decisão (29/10):** os saves reais têm ~14 KB (o único save copiado do Render: 13,5 KB na revisão 30, dia 12;
+as 10 cópias antigas vão de 5,7 a 17 KB), então o plano grátis aguenta com folga e o envio em partes não é necessário
+agora. Vale rever se um save passar de ~100 KB.
 
 `npm run bench` estima localmente o mesmo cálculo (Node usa o mesmo V8).
 
