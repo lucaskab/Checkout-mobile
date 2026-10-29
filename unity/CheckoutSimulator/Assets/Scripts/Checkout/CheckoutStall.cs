@@ -246,7 +246,7 @@ namespace Checkout
             float area = f.width * f.height;
             if (inside) foreach (var it in inside.items.Values) if (it.root && !it.outside) { var b = inside.FootprintOf(it); area -= 4 * b.hx * b.hz; }
             if (!PlacedCounter) area -= counter.width * counter.height;
-            int line = PlacedCounter && inside ? Mathf.Max(4, inside.QueueLength("checkout:main") + (inside.Get("checkout:extra") != null ? inside.QueueLength("checkout:extra") : 0) + 6) : queueSpots.Count;
+            int line = PlacedCounter && inside ? Mathf.Max(4, inside.QueueLength("checkout:main") + (inside.Get("checkout:extra") != null ? inside.QueueLength("checkout:extra") : 0) + 4) : queueSpots.Count;
             capacity = Mathf.Clamp(Mathf.FloorToInt(area / 3f), 3, Mathf.Max(3, line));
         }
         /// <summary>Outside the shop, where the i-th customer waiting to get in stands (3 a row by the door, rows towards

@@ -128,6 +128,8 @@ namespace Checkout {
    // The register is served at once, as by an attentive player or a cashier: the host's customers otherwise wait at
    // the till for the player (up to 150 s) and the line would measure that, not the room.
    var served = new HashSet<string>(); float nextServe = 0;
+   // Everyone who paid in the run (the host's customers too): the register's real throughput.
+   var paidBefore = new Dictionary<CheckoutWalker, bool>(); int paidAll = 0;
    while (Time.time - t0 < seconds) {
     yield return null; float dt = Time.deltaTime; if (dt <= 0) continue;
     if (Time.time >= nextServe) {
@@ -149,6 +151,7 @@ namespace Checkout {
     int inCount = 0, outWait = 0;
     foreach (var w in all) {
      if (!w || !w.gameObject.activeInHierarchy) { if (w && visits.TryGetValue(w, out var gone) && !gone.closed) { gone.closed = true; gone.left = Time.time; done.Add(gone); visits.Remove(w); } continue; }
+     paidBefore.TryGetValue(w, out var hadPaid); if (w.HasPaid && !hadPaid) paidAll++; paidBefore[w] = w.HasPaid;
      var p = w.transform.position; var xz = new Vector2(p.x, p.z);
      bool In = CheckoutStall.ShopInside ? CheckoutStall.InteriorFloor.Contains(xz) : false;
      if (In) inCount++;
@@ -193,7 +196,7 @@ namespace Checkout {
    Line($"RESULT {tag}: floor {floor.width * floor.height:0.0} m2, {sent} QA shoppers over {elapsed:0}s; inside max {maxInside} mean {insideSum / elapsed:0.0}; line max {maxLine} (spots inside {CheckoutStall.QueueInside}), {overflowSec:0}s past them; " +
         $"held up >3s: {stops3}, >8s: {stops8}, longest {longestStop:0.0}s ({longestWho}); safety net unstick {CheckoutWalker.QaUnsticks - unstick0} force-exit {CheckoutWalker.QaForceExits - exit0}; " +
         $"doorway blocked {doorSec:0}s; waiting outside max {maxOutside} ({waitOutSec:0}s); " +
-        $"host checkouts served {served.Count}; " +
+        $"host checkouts served {served.Count}; paid (everyone) {paidAll}; " +
         $"QA visits paid {paid.Count}/{sent} (time to get in mean {Mean(paid.Where(v => v.entered > 0).Select(v => v.entered - v.began)):0}s, to pay mean {Mean(paid.Select(v => v.paid - v.began)):0}s max {Max(paid.Select(v => v.paid - v.began)):0}s), left without paying {noPay.Count}, still in the shop {still.Count}");
    TrailMap(dots, $"crowd_{tag}_jams", new Vector3(floor.center.x, 0, floor.center.y - 1), Mathf.Max(floor.width, floor.height) + 6);
    File.WriteAllLines($"Logs/crowd_{tag}.txt", lines);
