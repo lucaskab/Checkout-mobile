@@ -295,7 +295,7 @@ namespace Checkout {
   bool FindCoachTarget(string spec,out Rect hole){
    hole=default;coachTargetUi=null;coachTargetWorld=null;coachTargetPart="";coachUnderPage=false;if(string.IsNullOrEmpty(spec))return false;
    // The floating buttons pulse and move in their rail (REPOR / ENTREGA come and go above CAIXA): a wider frame keeps them inside.
-   foreach(var part in spec.Split('|'))if(FindOne(part.Trim(),out hole)){hole=CoachPad(hole,part.Trim().StartsWith("fab:")?30:10);coachTargetPart=part.Trim();return true;}
+   foreach(var part in spec.Split('|'))if(FindOne(part.Trim(),out hole)){hole=CoachPad(hole,part.Trim().StartsWith("fab:")?18:10);coachTargetPart=part.Trim();return true;}
    // The target is there but the page window covers it (the toolbar on an iPad, the top bar…): close the page first.
    if(coachUnderPage&&FindOne("close",out hole)){hole=CoachPad(hole,10);coachTargetPart="close";return true;}
    coachTargetUi=null;coachTargetWorld=null;

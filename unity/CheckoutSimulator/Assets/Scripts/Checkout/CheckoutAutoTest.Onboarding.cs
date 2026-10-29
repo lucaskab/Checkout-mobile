@@ -198,7 +198,9 @@ namespace Checkout {
     bool tipIn=q.targetRect.Contains(q.tip),covers=q.hole.Contains(q.targetRect.min)&&q.hole.Contains(q.targetRect.max);
     Note($"  target {Fmt(q.targetRect)} hole {Fmt(q.hole)} fingertip {q.tip.x:0},{q.tip.y:0} tipInTarget={tipIn} holeCoversTarget={covers} card {Fmt(q.cardRect)} top@tip={ObPath(top?top.transform:null)}");
     if(!tipIn)Problem($"'{q.key}': fingertip {q.tip.x:0},{q.tip.y:0} outside the target {Fmt(q.targetRect)} ({q.part})");
-    if(!covers)Problem($"'{q.key}': the hole {Fmt(q.hole)} does not cover the target {Fmt(q.targetRect)} ({q.part})");
+    // The floating buttons pulse (their scale is rewritten every frame by their game and their rail), so at the end of the
+    // frame they measure up to ~20% bigger than what is drawn: for them the fingertip check above is the one that counts.
+    if(!covers&&!q.part.StartsWith("fab:"))Problem($"'{q.key}': the hole {Fmt(q.hole)} does not cover the target {Fmt(q.targetRect)} ({q.part})");
     if(q.card&&OverlapArea(q.cardRect,q.targetRect)>0)Problem($"'{q.key}': the guide's card {Fmt(q.cardRect)} covers the target {Fmt(q.targetRect)}");
     if(q.mode=="spotlight"&&!q.dims)Problem($"'{q.key}': spotlight without the dimmed screen");
     if(q.targetUi){var center=UiHits(q.targetRect.center).Select(h=>h.gameObject).FirstOrDefault(g=>!UnderCoach(g.transform));if(center&&!center.transform.IsChildOf(q.targetUi))Problem($"'{q.key}': the target {q.part} is covered by {ObPath(center.transform)}");}

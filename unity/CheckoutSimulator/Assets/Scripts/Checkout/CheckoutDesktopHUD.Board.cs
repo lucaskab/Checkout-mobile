@@ -137,7 +137,10 @@ namespace Checkout {
 
   void ApplyBoardStats(DesktopStat[] stats){
    while(boardStatChips.Count<stats.Length)boardStatChips.Add(BoardChip.Create(boardStats,true));
-   for(int i=0;i<boardStatChips.Count;i++){bool on=i<stats.Length;boardStatChips[i].gameObject.SetActive(on);if(on)boardStatChips[i].Apply(stats[i]);}
+   // A narrow screen (iPad, 4:3) has no room for the numbers next to the tabs and the balances: they pushed the X off the
+   // screen and covered the Entregas tab (onboarding QA 29/10). There the header keeps one number, or none.
+   float width=boardHeader.rectTransform.rect.width;int room=width<1000?0:width<1200?1:stats.Length;
+   for(int i=0;i<boardStatChips.Count;i++){bool on=i<stats.Length&&i<room;boardStatChips[i].gameObject.SetActive(on);if(on)boardStatChips[i].Apply(stats[i]);}
   }
 
   void ApplyBoardTabs(DesktopButton[] tabs){
