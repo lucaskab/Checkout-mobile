@@ -97,7 +97,7 @@ local nunca se perde, só a cópia na nuvem fica para trás. Se isso acontecer, 
 manda o save em pedaços de ~256 KB sem precisar o Worker ler o JSON inteiro) — exige mudar o jogo.
 
 **Decisão (29/10):** os saves reais têm ~14 KB (o único save copiado do Render: 13,5 KB na revisão 30, dia 12;
-as 10 cópias antigas vão de 5,7 a 17 KB), então o plano grátis aguenta com folga e o envio em partes não é necessário
+as 8 cópias antigas vão de 5,7 a 17 KB), então o plano grátis aguenta com folga e o envio em partes não é necessário
 agora. Vale rever se um save passar de ~100 KB.
 
 `npm run bench` estima localmente o mesmo cálculo (Node usa o mesmo V8).
