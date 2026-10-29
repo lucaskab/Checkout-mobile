@@ -14,6 +14,7 @@ using UnityEditor;
 //     "editorlog"         copies the end of the editor log to Logs/editor_log.txt
 //     "play a,b,c"        compiles if needed, enters play mode and runs CheckoutAutoTest scenarios
 //     "stop" / "refresh"
+//     "gitsync"           (Mac) stash local copies, fast-forward to origin/main, keep the Mac's eras_v2.blend
 //     "menu Supermarket/Some item"   runs an editor menu item; errors logged meanwhile go to the result
 //   Logs/tool_result.txt   exit code and output.
 // A background thread watches for requests (the editor barely ticks while it is in the
@@ -62,6 +63,8 @@ public static class CheckoutToolRunner {
   switch(kind){
    case "sprites":Run(kind,Blender,$"-b --factory-startup --python \"{Path.Combine(root,"scripts","blender","build_ui_sprites.py")}\" -- {rest}",root);Wake("refresh");return;
    case "tests":Shell(kind,$"bun test {rest}",root);return;
+   // Mac only: brings the working copy up to origin/main without losing local work (scripts/dev/mac-sync-main.sh).
+   case "gitsync":Shell(kind,"zsh scripts/dev/mac-sync-main.sh",root);return;
    case "tsc":Shell(kind,"node node_modules/typescript/bin/tsc --noEmit -p .",root);return;
    // The game logic the phones run (Resources/CheckoutGame/game.txt), before an Android / iPhone build.
    case "embedded":Shell(kind,"bun scripts/release/build-embedded.ts",root);Wake("refresh");return;
