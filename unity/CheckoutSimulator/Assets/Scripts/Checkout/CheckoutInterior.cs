@@ -176,6 +176,10 @@ namespace Checkout
         public bool Apply(Snapshot s)
         {
             if (!kit) return false;
+            // The snapshot moves to another of the first expansions (the Späti grew into the quitanda...): CheckoutStall
+            // puts up the new shop and its floor only at the end of CheckoutMap.Apply and then applies the snapshot
+            // again. Measured against the old floor now, pieces would be put aside or moved (and that saved).
+            if (!designMode && s.era != null && !string.IsNullOrEmpty(s.era.id) && CheckoutStall.Era >= 0 && CheckoutStall.Era != s.era.index && (CheckoutStall.Small || !s.era.building)) return false;
             owned.Clear();
             if (s.interior?.owned != null) foreach (var o in s.interior.owned) if (o != null && !string.IsNullOrEmpty(o.type)) owned[o.type] = o.count;
             var saved = designMode ? Array.Empty<InteriorItem>() : s.interior?.items ?? Array.Empty<InteriorItem>();
@@ -578,7 +582,8 @@ namespace Checkout
             {
                 var f = FloorRect;
                 if (CheckoutStall.Yard) return FromRect(CheckoutStall.StallFront);
-                if (CheckoutStall.ShopInside) return new Footprint { c = new Vector2(CheckoutStall.Door.x, f.yMin + .6f), ax = Vector2.right, az = Vector2.up, hx = CheckoutStall.DoorHalf + .2f, hz = .6f };
+                // (where the door was before the shop grew, when it grew wider: a piece placed then stays valid)
+                if (CheckoutStall.ShopInside) return new Footprint { c = new Vector2(CheckoutStall.KeepClear.x, f.yMin + .6f), ax = Vector2.right, az = Vector2.up, hx = CheckoutStall.KeepClear.y + .2f, hz = .6f };
                 var door = WorldOf(DoorX, -7f);
                 return new Footprint { c = new Vector2(door.x, f.yMin + .9f), ax = Vector2.right, az = Vector2.up, hx = 1.35f, hz = .9f };
             }
@@ -677,6 +682,9 @@ namespace Checkout
                 if (IsCounter(it)) { why = "Esta loja já tem o seu balcão"; return false; }
                 var counter = CheckoutStall.CounterArea; counter.xMin -= .5f; counter.yMin -= .6f;
                 if (Overlap(f, FromRect(counter))) { why = "Deixe o balcão livre"; return false; }
+                // the line's own lane by the counter (Lucas 29/10: customers jammed in a packed Conveniência)
+                var lane = FootprintAt(it, position, rot, .2f);
+                foreach (var q in CheckoutStall.ReservedQueue) if (Contains(lane, q)) { why = "Deixe o balcão livre"; return false; }
             }
             if (Overlap(f, ServiceDoor)) { why = "Deixe a porta dos fundos livre"; return false; }
             foreach (var other in items.Values)
@@ -951,7 +959,17 @@ namespace Checkout
         public Vector3 QueueSpot(string id, int i)
         {
             var it = Get(id); if (it == null || it.piece.queue == null || it.piece.queue.Length == 0) return EntrancePoint;
-            return it.root.TransformPoint(it.piece.queue[Mathf.Clamp(i, 0, it.piece.queue.Length - 1)]);
+            int n = it.piece.queue.Length;
+            if (i < n) return it.root.TransformPoint(it.piece.queue[i]);
+            // Longer than the counter's own line (a full little shop): the line goes on the way it runs, 0.75 m a place,
+            // while that is free floor; otherwise the free spots around its end (never everyone on the last place).
+            var last = it.root.TransformPoint(it.piece.queue[n - 1]);
+            var prev = n > 1 ? it.root.TransformPoint(it.piece.queue[n - 2]) : Register(id);
+            var dir = last - prev; dir.y = 0; if (dir.sqrMagnitude < 1e-4f) dir = -it.root.forward; dir.Normalize();
+            var p = last + dir * .75f * (i - n + 1); var floor = FloorRect; var q = XZ(p);
+            bool free = q.x > floor.xMin + .35f && q.x < floor.xMax - .35f && q.y > floor.yMin + .35f && q.y < floor.yMax - .35f && !Contains(Entrance, q);
+            if (free) foreach (var o in items.Values) if (o.root && !o.outside && Contains(FootprintOf(o, .3f), q)) { free = false; break; }
+            return free ? p : FreeSpotNear(last, i - n + 1);
         }
         public Vector3 Register(string id) { var it = Get(id); return it != null ? it.root.TransformPoint(it.piece.register) : EntrancePoint; }
 

@@ -2182,8 +2182,16 @@ def sheet(names=("Era0_Mesinha", "Era1_Tenda", "Era2_Banca", "Era3_Conteiner"), 
 # stand outside the shop window reaches y -2.12 as the old table did. Everything above 1.1 m is CUT_* (hidden in the
 # game so the camera sees the interior, which stays empty for the player's shelves).
 SPA = "E2 Spati"
-SPA_PLAN = {"floor": (-2.85, -1.12, 2.85, 2.25), "door": (.72, 1.62), "counter": (1.3, 0., 3.03, 1.4), "pay": (2.15, -.35),
-            "queue": (-.75, 0.), "floorY": .06}
+# Lucas 29/10 ("o mercadinho tá muito, muito, muito pequeno"): the Conveniência grew to 28.9 m2 of floor (was 19.2,
+# x -2.85..2.85, y -1.12..2.25, door .72..1.62): 0.4 m on the left, a 0.8 m lane on the right (the line runs there from
+# the counter to the back, out of the doorway), 0.7 m at the back; the door is 1.2 m wide on the same spot. The old
+# floor, the counter rect and the old door all stay where they were (players' furniture keeps its saved spot). The
+# game stands the model with its origin on CheckoutStall.Centre.x (no longer the bounds centre).
+SPA_PLAN = {"floor": (-3.25, -1.12, 3.85, 2.95), "door": (.58, 1.78), "counter": (1.3, 0., 3.03, 1.4), "pay": (2.15, -.35),
+            "queue": [(2.15, -.35), (2.9, -.5), (3.45, -.05), (3.45, .7), (3.45, 1.45), (3.45, 2.2), (2.75, 2.5), (2.0, 2.5)],
+            "wait": (2.75, -1.9), "floorY": .06}
+SPA_OLD_PLAN = {"floor": (-2.85, -1.12, 2.85, 2.25), "door": (.72, 1.62), "counter": (1.3, 0., 3.03, 1.4), "pay": (2.15, -.35),
+                "queue": [(2.15, -.35), (1.4, -.35), (.65, -.35), (-.1, -.35)], "floorY": .06}
 SPA_GROUPS = [
     ("ERA4_Facade", ("SPA_wall", "SPA_base", "SPA_cap", "SPA_floor", "SPA_frame", "SPA_door", "SPA_mat", "SPA_bush")),
     ("CUT_ERA4_FacadeTop", ("SPA_top",)),
@@ -2222,13 +2230,14 @@ def build_spati():
     def NG(name, mat, **kw):
         g = G(name, mat, c, **kw); todo.append(g); return g
     fx0, fy0, fx1, fy1 = SPA_PLAN["floor"]; d0, d1 = SPA_PLAN["door"]
-    T = .15                                            # wall thickness: outer faces x +-3.0 (+ the stone base to 3.03)
+    T = .15                                            # wall thickness: outer faces x -3.4 / 4.0 (+ the stone base .03)
     ox0, ox1, oy0, oy1 = fx0 - T, fx1 + T, fy0 - T, fy1 + T
+    ocx = (ox0 + ox1) / 2                              # (the shop is not centred on its origin any more)
     LOW, TOP = 1.1, 2.75
     FL = SPA_PLAN["floorY"]
     # ---- floor: slab under everything, cream tiles with a navy border row inside
     gfs = NG("SPA_floorSlab", E["stone"], bevel=.01)
-    gfs.box((ox1 - ox0, oy1 - oy0, FL - .002), (0, (oy0 + oy1) / 2, (FL - .002) / 2))
+    gfs.box((ox1 - ox0, oy1 - oy0, FL - .002), (ocx, (oy0 + oy1) / 2, (FL - .002) / 2))
     gft = NG("SPA_floorTile", E["tile"]); gfn = NG("SPA_floorTileNavy", E["tileN"])
     ts = .4; nx = int(round((fx1 - fx0) / ts)); ny = int(round((fy1 - fy0) / ts))
     sx, sy = (fx1 - fx0) / nx, (fy1 - fy0) / ny
@@ -2243,7 +2252,7 @@ def build_spati():
     gb = NG("SPA_baseStone", E["stone"], bevel=.006)
     gcap = NG("SPA_capStone", E["stone"], bevel=.004)                   # cream coping with a thin gold bead outside
     gbead = NG("SPA_capBead", E["gold"], bevel=.002)
-    win = (-2.8, .6, .55)                              # shop window x range and sill height (front wall)
+    win = (fx0 + .2, d0 - .14, .55)                    # shop window x range and sill height (front wall)
     def seg(x0, x1, y0, y1, z0, z1, top=False):
         """A wall block: its outer skin navy, inner skin cream (two boxes)."""
         gO, gI = (gtw, gtwi) if top else (gw, gwi)
@@ -2274,16 +2283,16 @@ def build_spati():
     # stone base outside (front and right side, the sides the camera sees) and the gold cap at the cut
     for (x0, x1) in ((ox0, d0 - .075), (d1 + .075, ox1)):
         gb.box((x1 - x0, .03, .32), ((x0 + x1) / 2, oy0 - .0155, FL + .16))
-    for sxx in (-1, 1): gb.box((.03, oy1 - oy0 + .062, .32), (sxx * (ox1 + .0155), (oy0 + oy1) / 2, FL + .16))
-    gb.box((ox1 - ox0, .03, .32), (0, oy1 + .0155, FL + .16))
+    for xx in (ox0 - .0155, ox1 + .0155): gb.box((.03, oy1 - oy0 + .062, .32), (xx, (oy0 + oy1) / 2, FL + .16))
+    gb.box((ox1 - ox0, .03, .32), (ocx, oy1 + .0155, FL + .16))
     capz = LOW + .008
     for (x0, x1) in ((ox0 + T, win[0]), (win[1], d0 - .06), (d1 + .06, ox1 - T)): gcap.box((x1 - x0, T + .02, .016), ((x0 + x1) / 2, (oy0 + fy0) / 2, capz))
-    for sxx in (-1, 1): gcap.box((T + .02, oy1 - oy0 + .02, .016), (sxx * (fx1 + T / 2), (oy0 + oy1) / 2, capz))
-    gcap.box((ox1 - ox0 - 2 * T, T + .02, .016), (0, (fy1 + oy1) / 2, capz))
+    for xx in (fx0 - T / 2, fx1 + T / 2): gcap.box((T + .02, oy1 - oy0 + .02, .016), (xx, (oy0 + oy1) / 2, capz))
+    gcap.box((ox1 - ox0 - 2 * T, T + .02, .016), (ocx, (fy1 + oy1) / 2, capz))
     bz = capz + .008 + .009                                                     # the bead sits on the coping's outer edge
     for (x0, x1) in ((ox0 + T, win[0]), (win[1], d0 - .06), (d1 + .06, ox1 - T)): gbead.box((x1 - x0, .018, .018), ((x0 + x1) / 2, oy0 + .0, bz))
-    for sxx in (-1, 1): gbead.box((.018, oy1 - oy0 + .02, .018), (sxx * (ox1 + .0), (oy0 + oy1) / 2, bz))
-    gbead.box((ox1 - ox0 - 2 * T, .018, .018), (0, oy1, bz))
+    for xx in (ox0, ox1): gbead.box((.018, oy1 - oy0 + .02, .018), (xx, (oy0 + oy1) / 2, bz))
+    gbead.box((ox1 - ox0 - 2 * T, .018, .018), (ocx, oy1, bz))
     # ---- shop window (navy frame, gold sill), the glass in EraGlass (visible below 1.1 m, CUT above)
     gfr = NG("SPA_frameNavy", E["navyF"], bevel=.006); gtf = NG("SPA_topFrame", E["navyF"], bevel=.006)
     gsill = NG("SPA_capSill", E["stone"], bevel=.004)
@@ -2316,8 +2325,10 @@ def build_spati():
     gtd.box((lx1 - lx0, .045, .06), ((lx0 + lx1) / 2, ly, 2.1))
     gmat = NG("SPA_mat", E["mat"], bevel=.006)
     gmat.box((d1 - d0 - .1, .5, .014), ((d0 + d1) / 2, oy0 - .3, .007))
-    # ---- counter: wood top, navy front panels with a gold kick strip; retro register; navy stool behind
-    cx0, cy0, cx1, cy1 = 1.36, .06, fx1 - .01, .8
+    # ---- counter: wood top, navy front panels with a gold kick strip; retro register; navy stool behind. Its east
+    # end stands where the old east wall was (x 3.03, the counter rect of the plan) with a return back to y 1.4, so
+    # the line in the new lane beside it passes the counter, not the clerk.
+    cx0, cy0, cx1, cy1 = 1.36, .06, SPA_PLAN["counter"][2] - .01, .8
     gcb = NG("SPA_counterBody", E["navyF"], bevel=.006, seg=1); gct = NG("SPA_counterTop", E["wood"], bevel=.008)
     gck = NG("SPA_counterKick", E["gold"], bevel=.003)
     gcb.box((cx1 - cx0, cy1 - cy0 - .02, .9), ((cx0 + cx1) / 2, (cy0 + .02 + cy1) / 2, FL + .45))
@@ -2326,6 +2337,12 @@ def build_spati():
         gcb.box(((cx1 - cx0 - .12) / 4 - .04, .02, .6), (x0 + (cx1 - cx0 - .12) / 8, cy0 + .009, FL + .45))
     gck.box((cx1 - cx0, .02, .05), ((cx0 + cx1) / 2, cy0 + .009, FL + .07))
     gct.box((cx1 - cx0 + .03, cy1 - cy0 + .06, .05), ((cx0 - .03 + cx1) / 2, (cy0 + cy1) / 2 - .02, FL + .925))
+    ry0, ry1 = cy1 - .02, SPA_PLAN["counter"][3]                                 # the return, along the lane
+    gcb.box((.14, ry1 - ry0, .9), (cx1 - .07, (ry0 + ry1) / 2, FL + .45))
+    gcb.box((.02, cy1 - cy0 - .14, .6), (cx1 + .009, (cy0 + cy1) / 2, FL + .45))  # end panel (inset)
+    gcb.box((.02, ry1 - ry0 - .12, .6), (cx1 + .009, (ry0 + ry1) / 2, FL + .45))
+    gck.box((.02, ry1 - cy0, .05), (cx1 + .009, (cy0 + ry1) / 2, FL + .07))
+    gct.box((.18, ry1 - ry0 + .02, .05), (cx1 - .07, (ry0 + ry1) / 2 + .01, FL + .925))
     rb = NG("SPA_regBody", E["regBody"], bevel=.008); rk = NG("SPA_regKey", E["regKey"], bevel=.004, seg=1)
     rd = NG("SPA_regDark", E["dark"], bevel=.004); rc = NG("SPA_regCoin", E["coin"]); rn = NG("SPA_regNote", E["note"])
     retro_register(rb, rk, rd, rc, rn, _T(2.45, .42, FL + .951, math.pi + .1))
@@ -2357,16 +2374,16 @@ def build_spati():
         tag(gtc, None, M0 @ Matrix.Translation((cw / 2 - .085, -cd / 2, ch)))
     # ---- potted bushes beside the door (the city tree's crown), navy pots
     gpot = NG("SPA_bushPot", E["pot"], bevel=.01, seg=1); gsoil = NG("SPA_bushSoil", V.M["dirt"])
-    for k, (px, py) in enumerate(((d0 - .3, oy0 - .32), (d1 + .55, oy0 - .32))):
+    for k, (px, py) in enumerate(((d0 - .3, oy0 - .32), (d1 + .3, oy0 - .32))):
         gpot.cyl(.16, .34, (px, py, .17), r2=.2, verts=20); gpot.torus(.2, .015, (px, py, .34), seg=20, rseg=5)
         gsoil.cyl(.185, .02, (px, py, .325), verts=20)
         V.city_tree("SPA_bush" + str(k), c, (px, py, .3), 1, rot_z=k * 2.4, tris=1200, crown_only=True, width=.5)
     # ---- CUT_: flat roof with a parapet and gold coping, awning over the window, the sign over the door
     gro = NG("SPA_topRoof", E["creamF"], bevel=.01)
-    gro.box((ox1 - ox0, oy1 - oy0, .12), (0, (oy0 + oy1) / 2, TOP + .06))
+    gro.box((ox1 - ox0, oy1 - oy0, .12), (ocx, (oy0 + oy1) / 2, TOP + .06))
     gco = NG("SPA_topCoping", E["gold"], bevel=.004)
-    gco.box((ox1 - ox0 + .04, .06, .05), (0, oy0 - .01, TOP + .145)); gco.box((ox1 - ox0 + .04, .06, .05), (0, oy1 + .01, TOP + .145))
-    for sxx in (-1, 1): gco.box((.06, oy1 - oy0 + .04, .05), (sxx * (ox1 + .01), (oy0 + oy1) / 2, TOP + .145))
+    gco.box((ox1 - ox0 + .04, .06, .05), (ocx, oy0 - .01, TOP + .145)); gco.box((ox1 - ox0 + .04, .06, .05), (ocx, oy1 + .01, TOP + .145))
+    for xx in (ox0 - .01, ox1 + .01): gco.box((.06, oy1 - oy0 + .04, .05), (xx, (oy0 + oy1) / 2, TOP + .145))
     gA = NG("SPA_awnNavy", E["navy"]); gB = NG("SPA_awnCream", E["creamB"]); gT = NG("SPA_awnTrim", E["gold"])
     slope_awning((gA, gB), gT, win[0] - .05, win[1] + .05, oy0 - .02, 2.48, oy0 - .72, 2.12, n=8, sag=0., hem=True)
     for x in (win[0] + .05, win[1] - .05): gT.tube((x, oy0 - .025, 2.05), (x, oy0 - .66, 2.1), .012, verts=6)
@@ -2403,13 +2420,48 @@ def shop_markers(cname, plan, old=None, tag="MK"):
     g = G(tag + "_pay", _emit("MK_Red", (1, .05, .1, 1)), mc, smooth=False)
     px, py = plan["pay"]; g.cyl(.1, .03, (px, py, top + .03), verts=20); g.done()
     g = G(tag + "_queue", _emit("MK_Blue", (.1, .35, 1, 1)), mc, smooth=False)
-    qx, qy = plan["queue"]
-    for k in range(1, 4): g.cyl(.07, .03, (px + qx * k, py + qy * k, top + .03), verts=12)
+    for qx, qy in _queue(plan)[1:]: g.cyl(.07, .03, (qx, qy, top + .03), verts=12)
+    if plan.get("wait"):
+        wx, wy = plan["wait"]
+        for k in range(6): g.box((.1, .1, .03), (wx + .75 * (k % 3), wy - .75 * (k // 3), top + .03))
     g.done()
     g = G(tag + "_bounds", _emit("MK_Yellow", (1, .9, 0, 1)), mc, smooth=False); _outline(g, lo.x, lo.y, hi.x, hi.y, .02, .02); g.done()
     if old:
         olo, ohi = bounds(game_objs(old))
         g = G(tag + "_oldbounds", _emit("MK_Orange", (1, .45, 0, 1)), mc, smooth=False); _outline(g, olo.x, olo.y, ohi.x, ohi.y, .03, .015); g.done()
+
+
+def _queue(plan):
+    """The line's places (model metres), [0] = where the customer pays: a list, or the old pay + step form."""
+    q = plan["queue"]
+    if q and isinstance(q[0], (tuple, list)): return [tuple(p) for p in q]
+    px, py = plan["pay"]; return [(px + q[0] * k, py + q[1] * k) for k in range(4)]
+
+
+def render_shop(cname, tag, plan, old=None, old_plan=None):
+    """Pictures of a walk-in shop (Lucas 29/10, bigger shops): <tag>_full (everything on), _iso (as the game shows it:
+    CUT_* off), _close, and _top straight down with the plan's markers (shop_markers: floor, door, counter, pay, the
+    line, the places outside; the old model's bounds in orange). With old_plan the old floor is outlined too (grey)."""
+    stage(); stage_pavers()
+    out = []
+    show_only(cname)
+    cut = game_hidden(cname)
+    if cut:
+        frame(cname, "iso"); out.append(render(tag + "_full"))
+    for o in cut: o.hide_render = True
+    try:
+        frame(cname, "iso"); out.append(render(tag + "_iso"))
+        frame(cname, "close"); out.append(render(tag + "_close"))
+        shop_markers(cname, plan, old)
+        if old_plan:
+            mc = col("Markers"); lo, hi = bounds(game_objs(cname))
+            g = G("MK_oldfloor", _emit("MK_Grey", (.45, .45, .45, 1)), mc, smooth=False)
+            x0, y0, x1, y1 = old_plan["floor"]; _outline(g, x0, y0, x1, y1, hi.z + .25, .02); g.done()
+        show_only(cname, "Markers")
+        top_camera(cname, pad=1.25); out.append(render(tag + "_top"))
+    finally:
+        for o in cut: o.hide_render = False
+    return out
 
 
 def shop_check(cname, plan):
@@ -2450,8 +2502,7 @@ def shop_check(cname, plan):
     out["door gap"] = (free[0], free[-1]) if free else None
     out["door gap runs"] = len([1 for a, b in zip(free, free[1:]) if b - a > .015]) + (1 if free else 0)
     pts = {"pay": plan["pay"]}
-    qx, qy = plan["queue"]
-    for k in range(1, 4): pts["queue%d" % k] = (plan["pay"][0] + qx * k, plan["pay"][1] + qy * k)
+    for k, p in enumerate(_queue(plan)[1:], 1): pts["queue%d" % k] = p
     for k, (x, y) in pts.items():
         h = ray((x, y, 2.0), (0, 0, -1)); out[k] = round(2.0 - h, 3) if h is not None else None     # height of what is there
     return out
@@ -2464,8 +2515,11 @@ def shop_check(cname, plan):
 # y -3.25..2.79 (a paved apron in front, the produce rack under the window outside). Walls below 1.28 m show in the
 # game (as the old model), everything above is CUT_*.
 QUI = "E2 Quitanda"
-QUI_PLAN = {"floor": (-4.1, -2.4, 4.1, 2.6), "door": (-3.45, .55), "counter": (1.35, -1.7, 3.15, -.3), "pay": (2.25, -2.0),
-            "queue": (-.75, 0.), "floorY": .06}
+# Lucas 29/10: 1.5 m deeper (53.3 m2 of floor, was 41: y -2.4..4.1); the line runs from the counter along the east
+# wall, a return on the counter keeps it off the clerk. Front, door, window and counter as before.
+QUI_PLAN = {"floor": (-4.1, -2.4, 4.1, 4.1), "door": (-3.45, .55), "counter": (1.35, -1.7, 3.15, -.3), "pay": (2.25, -2.0),
+            "queue": [(2.25, -2.0), (3.05, -2.0), (3.65, -1.5), (3.65, -.75), (3.65, 0.), (3.65, .75), (3.65, 1.5), (3.65, 2.25), (3.65, 3.0)],
+            "wait": (1.1, -3.7), "floorY": .06}
 QUI_GROUPS = [
     ("ERA5_Shell", ("QUI_wall", "QUI_base", "QUI_cap", "QUI_floor", "QUI_frame", "QUI_apron", "QUI_bush", "QUI_pier")),
     ("CUT_ERA5_ShellTop", ("QUI_top",)),
@@ -2509,7 +2563,7 @@ def build_quitanda():
     gfs = NG("QUI_floorSlab", E["stone"], bevel=.01)
     gfs.box((ox1 - ox0, oy1 - oy0, FL - .002), (0, (oy0 + oy1) / 2, (FL - .002) / 2))
     gft = NG("QUI_floorTile", E["tile"]); gfn = NG("QUI_floorTileNavy", E["tileN"])
-    nx, ny = 20, 12; sx, sy = (fx1 - fx0) / nx, (fy1 - fy0) / ny
+    nx, ny = 20, int(round((fy1 - fy0) / .41)); sx, sy = (fx1 - fx0) / nx, (fy1 - fy0) / ny
     for i in range(nx):
         for j in range(ny):
             band = i in (0, nx - 1) or j in (0, ny - 1)
@@ -2591,6 +2645,11 @@ def build_quitanda():
         gcb.box(((cx1 - cx0 - .12) / 4 - .04, .02, .6), (x0 + (cx1 - cx0 - .12) / 8, cy0 + .009, FL + .45))
     gck.box((cx1 - cx0, .02, .05), ((cx0 + cx1) / 2, cy0 + .009, FL + .07))
     gct.box((cx1 - cx0 + .04, cy1 - cy0 + .06, .05), ((cx0 + cx1) / 2, (cy0 + cy1) / 2 - .02, FL + .925))
+    ry0, ry1 = cy1 - .02, QUI_PLAN["counter"][3]                                 # a return along the line's lane
+    gcb.box((.14, ry1 - ry0, .9), (cx1 - .07, (ry0 + ry1) / 2, FL + .45))
+    gcb.box((.02, ry1 - ry0 - .12, .6), (cx1 + .009, (ry0 + ry1) / 2, FL + .45))
+    gck.box((.02, ry1 - cy0, .05), (cx1 + .009, (cy0 + ry1) / 2, FL + .07))
+    gct.box((.18, ry1 - ry0 + .02, .05), (cx1 - .05, (ry0 + ry1) / 2 + .01, FL + .925))
     rb = NG("QUI_regBody", E["regBody"], bevel=.008); rk = NG("QUI_regKey", E["regKey"], bevel=.004, seg=1)
     rd = NG("QUI_regDark", E["dark"], bevel=.004); rc = NG("QUI_regCoin", E["coin"]); rn = NG("QUI_regNote", E["note"])
     retro_register(rb, rk, rd, rc, rn, _T(2.6, -1.22, FL + .951, math.pi + .1))
@@ -2655,3 +2714,87 @@ def build_quitanda():
 
 
 ERAS["Era5_Quitanda"] = ("E2 Quitanda", "QUI_GROUPS", "ERA5_Shell", "QUI_GLASS")
+
+# ================================================================== the old Quitanda / Minimercado, grown (Lucas 29/10)
+# The game still uses the old (pre-navy) Era5_Quitanda (the navy one waits in pending_quitanda/ for Lucas) and
+# Era6_Minimercado. To give their stages the bigger floor of CheckoutStall.Plans without a new design, the old FBX is
+# cut where its walls and floor are plain (no vertices there) and everything beyond the cut slides out: the plain wall
+# and floor faces that cross the cut get longer, every detail keeps its size. Same objects, names, materials and UVs
+# (the baked texture is the same file), same FBX settings.
+STRETCH = {
+    # floor y -2.4..2.6 -> -2.4..4.1 (the shell has no vertex between y -2.26 and 2.46)
+    "Era5_Quitanda": [("y", 0.0, 1.5)],
+    # floor x -5.65.. -> -6.15.. (cut through the first pane of the left window, -4.94..-3.94) and y 2.95 -> 4.4
+    # (no vertex between y -0.27 and 1.67); the east wall with the checkout zone and the door stay put
+    "Era6_Minimercado": [("x", -4.45, -0.5), ("y", 0.7, 1.45)],
+}
+
+
+def stretch_old(name, src=None, out=None):
+    """Imports <src>/<name>.fbx (default: the backup of the installed one), moves the vertices past each cut of
+    STRETCH[name] (modelling frame: x right, y back) and writes <out>/<name>.fbx + the same _BaseColor.png."""
+    import shutil
+    src = src or os.path.join(QA, "old_backup", "bigger_shops"); out = out or os.path.join(QA, "export_stretch")
+    os.makedirs(out, exist_ok=True)
+    cname = "STRETCH " + name; c = col(cname)
+    for o in list(c.objects): bpy.data.objects.remove(o)
+    lc = bpy.context.view_layer.layer_collection.children.get(cname)
+    if lc: lc.exclude = False
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=os.path.join(src, name + ".fbx"))
+    objs = [o for o in bpy.data.objects if o not in before]
+    for o in objs:
+        for cc in list(o.users_collection): cc.objects.unlink(o)
+        c.objects.link(o)
+    bpy.context.view_layer.update()
+    moved = 0
+    for o in objs:
+        if o.type != 'MESH': continue
+        M = o.matrix_world.copy(); Mi = M.inverted()
+        for v in o.data.vertices:
+            w = M @ v.co; m = [-w.x, -w.y, w.z]                  # imported (turned) frame -> modelling frame
+            for axis, cut, d in STRETCH[name]:
+                i = 0 if axis == "x" else 1
+                if (d > 0 and m[i] > cut) or (d < 0 and m[i] < cut): m[i] += d; moved += 1
+            v.co = Mi @ Vector((-m[0], -m[1], m[2]))
+        o.data.update()
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in objs: o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    path = os.path.join(out, name + ".fbx")
+    bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={"MESH", "EMPTY"},
+                             axis_forward="-Z", axis_up="Y", bake_anim=False, path_mode="STRIP",
+                             use_mesh_modifiers=True, mesh_smooth_type="FACE", apply_scale_options="FBX_SCALE_ALL",
+                             use_tspace=False)
+    shutil.copy2(os.path.join(src, name + "_BaseColor.png"), os.path.join(out, name + "_BaseColor.png"))
+    lc = bpy.context.view_layer.layer_collection.children.get(cname)
+    if lc: lc.exclude = True
+    return {"fbx": path, "objects": len(objs), "moved": moved}
+
+
+def stretched_view(name, out=None):
+    """The written FBX back in (as old_era does: own texture, modelling frame) into 'GROWN <name>' for the checks."""
+    out = out or os.path.join(QA, "export_stretch")
+    cname = "GROWN " + name; c = col(cname)
+    for o in list(c.all_objects): bpy.data.objects.remove(o)
+    lc = bpy.context.view_layer.layer_collection.children.get(cname)
+    if lc: lc.exclude = False
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=os.path.join(out, name + ".fbx"))
+    objs = [o for o in bpy.data.objects if o not in before]
+    img = bpy.data.images.load(os.path.join(out, name + "_BaseColor.png"), check_existing=False); img.name = "GROWNTEX_" + name
+    m = bpy.data.materials.new("GROWNMAT_" + name); m.use_nodes = True
+    t = m.node_tree.nodes.new("ShaderNodeTexImage"); t.image = img
+    bs = m.node_tree.nodes["Principled BSDF"]; bs.inputs["Roughness"].default_value = .85
+    m.node_tree.links.new(t.outputs["Color"], bs.inputs["Base Color"])
+    root = bpy.data.objects.new("GROWNROOT_" + name, None); c.objects.link(root)
+    for o in objs:
+        for cc in list(o.users_collection): cc.objects.unlink(o)
+        c.objects.link(o); o.name = "OLD_" + o.name          # (game_objs strips OLD_)
+        if o.parent is None: o.parent = root
+        if o.type == 'MESH':
+            glassy = any(mm and "Glass" in mm.name for mm in o.data.materials)
+            o.data.materials.clear(); o.data.materials.append(m_eraglass() if glassy else m)
+    root.rotation_euler = (0, 0, math.pi)
+    bpy.context.view_layer.update()
+    return c
