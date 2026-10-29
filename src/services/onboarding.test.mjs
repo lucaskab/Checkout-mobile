@@ -177,6 +177,13 @@ test("the day's results interrupt the tutorial with a pointer to collect them", 
 	const coach = getCoachView(store(), "", clock);
 	expect(coach.key).toBe("fim-do-dia");
 	expect(coach.target).toContain("claimDayResult");
+	// With the results page open the tip must not block it (the receive button is further down a scrolling list).
+	for (const route of ["day", "day-result"]) {
+		const open = getCoachView(store(), route, clock);
+		expect(open.key).toBe("fim-do-dia");
+		expect(open.mode).toBe("bubble");
+		expect(open.target).toBe("");
+	}
 });
 
 test("a finished day before ABRIR: collect the results first, and the results page does not count as the contract list", () => {

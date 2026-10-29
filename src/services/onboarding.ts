@@ -392,6 +392,11 @@ export function getCoachView(state: GameState, route: OnboardingRoute, now: numb
 	// a save that ended a day before "abrir" showed "Hora de abrir!" pointing at the "Resultado" button (QA 29/10).
 	if (state.day.phase === "results" && o.status === "active" && stepIndex(o.step) > stepIndex("boas-vindas")) {
 		const tip = onboardingTips.find((item) => item.id === "fim-do-dia");
+		// With the results page already open the "receber" button sits at the bottom of a scrolling list: a spotlight
+		// there dimmed the page and left only the (already pressed) "Resultado" button tappable, so the player was stuck
+		// (Lucas 29/10). On that page the tip is a note that doesn't block; elsewhere it points at "Resultado".
+		if (tip && (routeName(route) === "day" || routeName(route) === "day-result"))
+			return { ...view, key: "fim-do-dia", mode: "bubble", title: tip.title, text: tip.text, target: "", isTip: true };
 		if (tip)
 			return { ...view, key: "fim-do-dia", mode: "spotlight", title: tip.title, text: tip.text, target: tip.target, isTip: true };
 	}
