@@ -87,7 +87,8 @@ cópias por jogador).
 | 1 MB | 38–61 ms | 5–7 ms |
 | 2 MB | 78–133 ms | 7–9 ms |
 
-(Inclui ~1–3 ms de verificação do token de admin, que as rotas do jogo não têm.) O download é barato em qualquer
+(Inclui ~1–3 ms de verificação do token de admin, que as rotas do jogo não têm. A linha de 2 MB foi medida antes de
+uma otimização que tirou duas recodificações do envio; nas outras faixas ela mudou pouco, porque o custo é ler o JSON.) O download é barato em qualquer
 tamanho. O envio passa dos 10 ms a partir de ~100–200 KB, porque o Worker precisa ler o JSON (e o save dentro
 dele) para validar e tirar o resumo. Nas medições a Cloudflare não derrubou nenhuma requisição (todas "ok"), mas
 isso não é garantido no plano grátis: se derrubar, o jogo mostra erro de sincronização e tenta de novo — o progresso
