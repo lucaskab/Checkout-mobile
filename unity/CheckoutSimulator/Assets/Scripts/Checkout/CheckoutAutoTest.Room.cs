@@ -28,6 +28,8 @@ namespace Checkout {
    if(roomExtras){ids.Add("checkout:extra");if(roomEra>=8){ids.Add("kiosk:1");ids.Add("kiosk:2");}}
    if(s.shelves!=null)ids.AddRange(s.shelves.Where(x=>x.unlocked).Select(x=>"shelf:"+x.id));
    if(s.sectors!=null)ids.AddRange(s.sectors.Where(x=>x.unlocked).Select(x=>"sector:"+x.id));
+   // eventscrowd-<stage>.keep: the layout of an earlier run at its saved coordinates (a save from before a change).
+   if(crowdLayout!=null){s.interior=new InteriorState{items=crowdLayout.Concat(ids.Where(i=>crowdLayout.All(c=>c.id!=i)).Select(i=>new InteriorItem{id=i,type=i.Split(':')[0],stored=true})).ToArray(),owned=System.Array.Empty<DecorOwned>()};return;}
    if(roomKeepInterior)return;
    s.interior=new InteriorState{items=ids.Select(i=>new InteriorItem{id=i,type=i.Split(':')[0],stored=true}).ToArray(),owned=System.Array.Empty<DecorOwned>()};
   }

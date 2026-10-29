@@ -176,6 +176,10 @@ namespace Checkout
         public bool Apply(Snapshot s)
         {
             if (!kit) return false;
+            // The snapshot moves to another of the first expansions (the Späti grew into the quitanda...): CheckoutStall
+            // puts up the new shop and its floor only at the end of CheckoutMap.Apply and then applies the snapshot
+            // again. Measured against the old floor now, pieces would be put aside or moved (and that saved).
+            if (!designMode && s.era != null && !string.IsNullOrEmpty(s.era.id) && CheckoutStall.Era >= 0 && CheckoutStall.Era != s.era.index && (CheckoutStall.Small || !s.era.building)) return false;
             owned.Clear();
             if (s.interior?.owned != null) foreach (var o in s.interior.owned) if (o != null && !string.IsNullOrEmpty(o.type)) owned[o.type] = o.count;
             var saved = designMode ? Array.Empty<InteriorItem>() : s.interior?.items ?? Array.Empty<InteriorItem>();
@@ -578,7 +582,8 @@ namespace Checkout
             {
                 var f = FloorRect;
                 if (CheckoutStall.Yard) return FromRect(CheckoutStall.StallFront);
-                if (CheckoutStall.ShopInside) return new Footprint { c = new Vector2(CheckoutStall.Door.x, f.yMin + .6f), ax = Vector2.right, az = Vector2.up, hx = CheckoutStall.DoorHalf + .2f, hz = .6f };
+                // (where the door was before the shop grew, when it grew wider: a piece placed then stays valid)
+                if (CheckoutStall.ShopInside) return new Footprint { c = new Vector2(CheckoutStall.KeepClear.x, f.yMin + .6f), ax = Vector2.right, az = Vector2.up, hx = CheckoutStall.KeepClear.y + .2f, hz = .6f };
                 var door = WorldOf(DoorX, -7f);
                 return new Footprint { c = new Vector2(door.x, f.yMin + .9f), ax = Vector2.right, az = Vector2.up, hx = 1.35f, hz = .9f };
             }
@@ -677,6 +682,9 @@ namespace Checkout
                 if (IsCounter(it)) { why = "Esta loja já tem o seu balcão"; return false; }
                 var counter = CheckoutStall.CounterArea; counter.xMin -= .5f; counter.yMin -= .6f;
                 if (Overlap(f, FromRect(counter))) { why = "Deixe o balcão livre"; return false; }
+                // the line's own lane by the counter (Lucas 29/10: customers jammed in a packed Conveniência)
+                var lane = FootprintAt(it, position, rot, .2f);
+                foreach (var q in CheckoutStall.ReservedQueue) if (Contains(lane, q)) { why = "Deixe o balcão livre"; return false; }
             }
             if (Overlap(f, ServiceDoor)) { why = "Deixe a porta dos fundos livre"; return false; }
             foreach (var other in items.Values)
