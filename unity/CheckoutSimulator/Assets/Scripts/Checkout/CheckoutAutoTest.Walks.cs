@@ -95,7 +95,7 @@ namespace Checkout {
       if (dist / dt < .3f) continue;   // standing, shuffling: no direction of travel to compare with
       float slip = Vector3.Angle(f, d / dist);
       st.slip.Add(slip);
-      if (slip > 10f && slip < 40f && kind == "customer" && offs++ < 12) { var ag = who.GetComponent<NavMeshAgent>(); Note($"WALK_QA off {kind} {who.name} phase {who.GetComponent<CheckoutWalker>().VisitPhase} @({p.x:0.00},{p.z:0.00}) moved {(d / dt):F2} faces {f:F2} desired {ag.desiredVelocity:F2} velocity {ag.velocity:F2} next {ag.nextPosition:F2} dt {dt * 1000:0}ms frame {Time.frameCount}""); }
+      if (slip > 10f && slip < 40f && kind == "customer" && offs++ < 12) { var ag = who.GetComponent<NavMeshAgent>(); Note($"WALK_QA off {kind} {who.name} phase {who.GetComponent<CheckoutWalker>().VisitPhase} @({p.x:0.00},{p.z:0.00}) moved {(d / dt):F2} faces {f:F2} desired {ag.desiredVelocity:F2} velocity {ag.velocity:F2} next {ag.nextPosition:F2} dt {dt * 1000:0}ms frame {Time.frameCount}"); }
       if (slip > 150f && reversed++ < 4) { var ag = who.GetComponent<NavMeshAgent>(); Note($"WALK_QA backwards {kind} {who.name}@({p.x:0.0},{p.z:0.0}) moved {(d / dt):F2} faces {f:F2}" + (ag ? $" desired {ag.desiredVelocity:F2} velocity {ag.velocity:F2} stopped {ag.isStopped} steering {ag.steeringTarget:F1}" : "")); }
       if (slip > st.worstSlip) { st.worstSlip = slip; st.worst = $"{who.name}@({p.x:0.0},{p.z:0.0}) {slip:0.0}deg at {dist / dt:0.00}m/s"; }
       if (trail.Count < 150000 && (Time.frameCount & 1) == 0) trail.Add(new TrailDot { p = p, slip = slip });
