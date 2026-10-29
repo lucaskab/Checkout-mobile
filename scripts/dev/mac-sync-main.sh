@@ -6,7 +6,11 @@
 # - puts the Mac's eras_v2.blend back and commits + pushes it when it differs from main.
 # Output also goes to unity/CheckoutSimulator/Logs/gitsync.log.
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)" || exit 1
+# The stash below removes this very file from the working copy (it may be untracked there): run from a copy in /tmp.
+if [[ "${0:A}" != /tmp/checkout-gitsync.sh ]]; then
+  cp "$0" /tmp/checkout-gitsync.sh && exec zsh /tmp/checkout-gitsync.sh "$(git rev-parse --show-toplevel)"
+fi
+cd "$1" || exit 1
 log=unity/CheckoutSimulator/Logs/gitsync.log
 exec > >(tee "$log") 2>&1
 ts=$(date +%Y%m%d-%H%M%S)
