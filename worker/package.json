@@ -1,0 +1,17 @@
+{
+	"name": "checkout-worker",
+	"private": true,
+	"version": "1.0.0",
+	"description": "Checkout - Supermercado Simulator: player accounts and cloud saves on Cloudflare Workers (D1 + R2), free plan",
+	"type": "module",
+	"engines": {
+		"node": ">=22.18"
+	},
+	"scripts": {
+		"test": "node --no-warnings --test test/*.test.ts",
+		"typecheck": "tsc -p tsconfig.json",
+		"build": "bun build src/index.ts --target=browser --format=esm --external cloudflare:sockets --minify --outfile dist/index.js",
+		"bench": "node --no-warnings scripts/bench.ts",
+		"deploy": "wrangler deploy"
+	}
+}

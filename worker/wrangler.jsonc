@@ -1,0 +1,21 @@
+// Cloudflare Worker "checkout-server" (see README.md). Deployed today through the dashboard's API (no wrangler login
+// here); with wrangler logged in, `npx wrangler deploy` from this folder publishes the same thing.
+// Secrets are not in this file: Workers › checkout-server › Settings › Variables and Secrets.
+{
+	"$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+	"name": "checkout-server",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-01",
+	"workers_dev": true,
+	"observability": { "enabled": true, "head_sampling_rate": 1 },
+	"d1_databases": [{ "binding": "DB", "database_name": "checkout-saves", "database_id": "660aad42-3495-4b98-8e91-a727acecbae2" }],
+	"r2_buckets": [{ "binding": "SAVES", "bucket_name": "checkout-saves" }],
+	"vars": {
+		"GOOGLE_CLIENT_IDS": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com,663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
+		"GOOGLE_DESKTOP_CLIENT_ID": "663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
+		"APPLE_BUNDLE_IDS": "com.lucasfurini.checkout,com.lucasfurini.checkout.dev",
+		// Temporary (the move from Render): the public half of the admin key, checks the signed tokens of /admin/*.
+		// Remove it when the move is over and the /admin routes are gone.
+		"ADMIN_PUBLIC_KEY": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/htQ9aNobDQH0ZxK2fCGRKRKnyxCQBoyjf0CQiOOfAlrnb2NAlQx+05Eggy3grVq8jZsLWft0sqEwpnT42MInA=="
+	}
+}
