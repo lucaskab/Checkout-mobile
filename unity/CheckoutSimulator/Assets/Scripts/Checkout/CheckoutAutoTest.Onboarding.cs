@@ -40,12 +40,19 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(2.5f);
    // "-results": like Lucas's save (29/10), a day already ended with its results waiting when the tutorial goes on.
    string label=parts.Length>3?parts[3]:"";
-   if(label=="results"){
+   Note($"onboarding {tag}: guide before the run '{hud.CoachQa().key}'");
+   if(label.StartsWith("results")){
     void Hud(string action,string args)=>CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-"+action+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
-    Hud("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(2f);Hud("closeDay","[]");yield return new WaitForSecondsRealtime(2.5f);
+    // With a contract that is then missed, like Lucas's day: the results page also shows the consolation card, so
+    // COLETAR starts further down the list.
+    Route("!day");yield return new WaitForSecondsRealtime(2f);
+    var accept=FindObjectsByType<CheckoutDesktopButton>(FindObjectsSortMode.None).FirstOrDefault(b=>b.isActiveAndEnabled&&b.Data!=null&&b.Data.action=="startDay"&&b.Data.enabled);
+    if(accept)accept.Clicked?.Invoke(accept);else Hud("startDay","[\"livre\"]");
+    yield return new WaitForSecondsRealtime(2f);Note($"  after startDay ({(accept?"a contract":"free day")}): guide '{hud.CoachQa().key}'");
+    Hud("closeDay","[]");yield return new WaitForSecondsRealtime(2.5f);Note($"  after closeDay: guide '{hud.CoachQa().key}'");
     Note("onboarding "+tag+": a day was opened and closed, its results wait to be collected");
    }
-   obProblems.Clear();int repeats=0,stucks=0,scrollsAt=Scrolls(hud.CoachQa());
+   obProblems.Clear();bool scrollChecked=false;int repeats=0,stucks=0,scrollsAt=Scrolls(hud.CoachQa());
    string last=null;float runAt=Time.realtimeSinceStartup,stepAt=runAt;int shot=0,acts=0;bool stuckNoted=false;var order=new List<string>();
    while(Time.realtimeSinceStartup-runAt<900){
     yield return new WaitForSecondsRealtime(.5f);
@@ -69,6 +76,21 @@ namespace Checkout {
      q=hud.CoachQa();
      if(q.key!=last)continue;
      yield return Mark($"ob_{tag}_{++shot:00}_{(q.key.Length>0?q.key:"none")}",q);Report(q);
+     // Once per run, a target in a scrolling list is scrolled out of view (as a player would): the guide must bring it
+     // back on its own and point at it again.
+     var list=q.found&&q.targetUi&&!scrollChecked?q.targetUi.GetComponentInParent<UnityEngine.UI.ScrollRect>():null;
+     if(list&&list.vertical&&list.content&&list.content.rect.height>((RectTransform)list.transform).rect.height+40){
+      scrollChecked=true;int before=Scrolls(q);var far=list.verticalNormalizedPosition>.5f?0f:1f;
+      list.StopMovement();list.verticalNormalizedPosition=far;yield return new WaitForSecondsRealtime(.3f);
+      var gone=hud.CoachQa();Note($"SCROLL_CHECK '{q.key}': list moved away, target in view now: {gone.found}");
+      yield return Mark($"ob_{tag}_{++shot:00}_{q.key}_scrolled_away",gone);
+      yield return new WaitForSecondsRealtime(2.2f);
+      var back=hud.CoachQa();bool ok=back.found&&Scrolls(back)>before&&back.targetRect.Overlaps(back.hole);
+      Note($"SCROLL_CHECK '{q.key}': the guide scrolled the list back: {ok} (scrolls {before} -> {Scrolls(back)}, found {back.found})");
+      yield return Mark($"ob_{tag}_{++shot:00}_{q.key}_scrolled_back",back);
+      if(!ok)Problem($"'{q.key}': the guide did not bring its target back after the list was scrolled away");
+      q=back;
+     }
     }
     if(q.key.Length==0){if(Time.realtimeSinceStartup-stepAt>20){Note("STUCK: no guide on screen for 20 s");break;}continue;}
     float limit=q.key=="primeiro-cliente"||q.key=="caixa"?120:q.key=="caminhao"?75:45;
@@ -226,7 +248,7 @@ namespace Checkout {
     if(q.targetUi){var center=UiHits(q.targetRect.center).Select(h=>h.gameObject).FirstOrDefault(g=>!UnderCoach(g.transform));if(center&&!center.transform.IsChildOf(q.targetUi))Problem($"'{q.key}': the target {q.part} is covered by {ObPath(center.transform)}");}
    }
    // A side window (the drawer) leaves room for the card; a full-screen window cannot be avoided, only its target.
-   if(q.page&&q.card&&q.drawerRect.width>0&&q.drawerRect.width<Screen.width*.7f){
+   if(q.mode!="modal"&&q.page&&q.card&&q.drawerRect.width>0&&q.drawerRect.width<Screen.width*.7f){
     float o=OverlapArea(q.cardRect,q.drawerRect);
     bool targetInDrawer=q.found&&OverlapArea(q.targetRect,q.drawerRect)>0;
     if(o>q.cardRect.width*q.cardRect.height*.15f)Problem($"'{q.key}': the guide's card {Fmt(q.cardRect)} covers the open page {Fmt(q.drawerRect)} ({o/(q.cardRect.width*q.cardRect.height):P0} of the card){(targetInDrawer?"":" while pointing outside it")}");

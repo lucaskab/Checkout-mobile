@@ -347,10 +347,13 @@ namespace Checkout {
    // In a scrolling list the button must be wholly in view; if it is not, the nearest one is remembered and the list is
    // scrolled to it (after one scroll, half in view is enough: a list may not go further).
    var scroll=target.GetComponentInParent<UnityEngine.UI.ScrollRect>();
-   if(scroll&&scroll.content&&target.IsChildOf(scroll.content)&&target!=coachScrolledTarget){
+   if(scroll&&scroll.content&&target.IsChildOf(scroll.content)){
     var vr=ScreenRectOf(scroll.viewport?scroll.viewport:(RectTransform)scroll.transform);var tr=ScreenRectOf(target);
     float away=Mathf.Max(0,vr.yMin-tr.yMin)+Mathf.Max(0,tr.yMax-vr.yMax)+Mathf.Max(0,vr.xMin-tr.xMin)+Mathf.Max(0,tr.xMax-vr.xMax);
-    if(away>2){if(away<coachScrollAway){coachScrollAway=away;coachScrollRect=scroll;coachScrollTarget=target;}return false;}
+    // Once the guide has scrolled to it, half in view is enough; scrolled away again (by the player), it scrolls back
+    // (QA 29/10: after the player moved the results list, COLETAR was never brought back).
+    bool settled=target==coachScrolledTarget&&Overlap(tr,vr)>=tr.width*tr.height*.5f;
+    if(away>2&&!settled){if(away<coachScrollAway){coachScrollAway=away;coachScrollRect=scroll;coachScrollTarget=target;}return false;}
    }
    var r=ScreenRectOf(target);
    // Inside a scrolling list only what the viewport shows counts: the part outside it is cut off, and a button mostly
