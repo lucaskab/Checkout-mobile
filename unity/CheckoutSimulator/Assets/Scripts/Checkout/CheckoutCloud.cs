@@ -26,8 +26,9 @@ namespace Checkout {
  /// </summary>
  public class CheckoutCloud:MonoBehaviour {
   public static CheckoutCloud Active {get;private set;}
-  // Render service (render.yaml). CHECKOUT_SERVER overrides it (a local server while developing).
-  const string DefaultServer="https://checkout-server-babc.onrender.com";
+  // Cloudflare Worker (worker/, free plan, D1 + R2; moved from Render 29/10). CHECKOUT_SERVER overrides it (a local
+  // server while developing). Builds before 1.0 (7) still use the Render service (server/), kept up until they update.
+  const string DefaultServer="https://checkout-server.lucaslfurini.workers.dev";
   // Google Cloud project "Checkout Game": the web client is the audience of the phone's login; the desktop client
   // is the PC/Editor's (its secret stays on the server).
   public const string WebClientId="663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com";
