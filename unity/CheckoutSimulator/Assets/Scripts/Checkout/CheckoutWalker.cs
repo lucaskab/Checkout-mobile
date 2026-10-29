@@ -214,10 +214,10 @@ namespace Checkout {
    bool arrived=!agent.pathPending&&((agent.hasPath&&agent.pathStatus==NavMeshPathStatus.PathComplete&&agent.remainingDistance<.25f)||Vector3.Distance(agent.nextPosition,target)<.3f);
    if(!arrived){
     if((transform.position-lastSpot).sqrMagnitude>.0025f){lastSpot=transform.position;stuckFor=0;}else stuckFor+=Time.deltaTime;
-    // Jammed right next to the spot (someone stands on it, a corner of furniture): close enough.
-    if(stuckFor>2.5f&&Vector3.Distance(agent.nextPosition,target)<1.2f)arrived=true;
     // In line, close to the place for a while but jostled by the people around (never still long enough above): there.
     if(phase==3&&Vector3.Distance(agent.nextPosition,target)<1.3f){nearFor+=Time.deltaTime;if(nearFor>3f)arrived=true;}else nearFor=0;
+    // Jammed right next to the spot (someone stands on it, a corner of furniture): close enough.
+    if(stuckFor>2.5f&&Vector3.Distance(agent.nextPosition,target)<1.2f)arrived=true;
     else if(stuckFor>12f){stuckFor=0;Unstick();return;}
     else if(stuckFor>4f&&!agent.pathPending&&(agent.pathStatus!=NavMeshPathStatus.PathComplete||!agent.hasPath)){stuckFor=2f;Go(target);}
     if(!arrived)return;}
