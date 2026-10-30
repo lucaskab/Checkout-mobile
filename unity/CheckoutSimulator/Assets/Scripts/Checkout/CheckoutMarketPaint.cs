@@ -46,7 +46,7 @@ namespace Checkout
         readonly Dictionary<Renderer, bool> eligible = new Dictionary<Renderer, bool>(); // false: under a skipped branch
         readonly List<Transform> roots = new List<Transform>();
         int nextRoot;
-        Transform interior;
+        Transform interior, staffRoot;
         readonly List<Renderer> scratch = new List<Renderer>();
         readonly List<Material> mats = new List<Material>();
         float nextScan;
@@ -144,6 +144,10 @@ namespace Checkout
             // The furniture placed in the shop lives in its own scene object (CheckoutInterior's holder).
             if (!interior) { var go = GameObject.Find("Market Interior"); interior = go ? go.transform : null; }
             if (interior) roots.Add(interior);
+            // The staff entrance of the storage (CheckoutStaff's "Market Staff" holder: a door with a navy canopy and gold
+            // trims, Lucas 30/10 "a parede das portas… permanecendo azuis"); the staff themselves and the walkway stay.
+            if (!staffRoot) { var go = GameObject.Find("Market Staff"); staffRoot = go ? go.transform : null; }
+            if (staffRoot) foreach (Transform child in staffRoot) if (child.name.IndexOf("entrance", System.StringComparison.OrdinalIgnoreCase) >= 0) roots.Add(child);
             foreach (Transform child in world) if (child.name.StartsWith("Era")) roots.Add(child);
         }
 

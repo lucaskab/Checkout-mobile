@@ -172,6 +172,19 @@ namespace Checkout
             return result;
         }
 
+        /// <summary>A whole number written the player's way (same as localNumbers in src/i18n/index.ts): 14,000 in English,
+        /// 14 000 in French, 14.000 in Portuguese, Spanish and German.</summary>
+        public static string Number(double value)
+        {
+            var text = Math.Round(value).ToString("N0", System.Globalization.CultureInfo.InvariantCulture); // "14,000"
+            switch (Language)
+            {
+                case "en": return text;
+                case "fr": return text.Replace(",", "\u202f");
+                default: return text.Replace(",", ".");
+            }
+        }
+
         /// <summary>Format then translate: F("Nível {0}", 3) looks up "Nível {0}" and fills it.</summary>
         public static string F(string pattern, params object[] values)
         {

@@ -3818,6 +3818,7 @@ const catalog: Catalog = {
 	"Cores": "Colors",
 	"Pinte o mercado com as suas cores e veja ao vivo antes de pagar.": "Paint the market in your colors and see it live before you pay.",
 	"{0} moedas ou {1} diamantes": "{0} coins or {1} diamonds",
+	"Sua cor": "Your color",
 };
 
 export default catalog;

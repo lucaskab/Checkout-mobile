@@ -335,8 +335,8 @@ namespace Checkout
                 refresh = .5f; var s = bridge.State;
                 if (s != null)
                 {
-                    coins.text = ((long)s.coins).ToString("N0", br);
-                    diamonds.text = ((long)s.diamonds).ToString("N0", br);
+                    coins.text = CheckoutI18n.Number(s.coins);
+                    diamonds.text = CheckoutI18n.Number(s.diamonds);
                 }
                 RefreshTray();
                 if (Time.unscaledTime > messageUntil) Say(HowTo);

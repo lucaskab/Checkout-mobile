@@ -148,7 +148,7 @@ function moveis(state: State, sub: string) {
 // "Cores do mercado": the picker is drawn by Unity over the live market ("@paint", CheckoutMarketPaintPanel).
 function paintCard(state: State): Card {
 	const paint = state.marketPaint;
-	const current = isClassicPaint(paint) ? "Clássico" : (getMarketPalette(paint.paletteId)?.name ?? "Personalizada");
+	const current = isClassicPaint(paint) ? "Clássico" : (getMarketPalette(paint.paletteId)?.name ?? "Sua cor");
 	return card("Cores do mercado", {
 		eyebrow: "PINTE O SEU MERCADO",
 		icon: gameIcon("paint"),

@@ -147,7 +147,7 @@ export function createMarketPaintSnapshot(state: MarketPaintState | undefined, e
 		palettes: marketPalettes,
 		recent: paint.recent.map((entry) => ({
 			id: entry.paletteId,
-			name: getMarketPalette(entry.paletteId)?.name ?? "Personalizada",
+			name: getMarketPalette(entry.paletteId)?.name ?? "Sua cor",
 			primary: entry.primary,
 			accent: entry.accent,
 		})),

@@ -3706,6 +3706,7 @@ const catalog: Catalog = {
 	"Cores": "Colores",
 	"Pinte o mercado com as suas cores e veja ao vivo antes de pagar.": "Pinta el mercado con tus colores y míralo en vivo antes de pagar.",
 	"{0} moedas ou {1} diamantes": "{0} monedas o {1} diamantes",
+	"Sua cor": "Tu color",
 };
 
 export default catalog;

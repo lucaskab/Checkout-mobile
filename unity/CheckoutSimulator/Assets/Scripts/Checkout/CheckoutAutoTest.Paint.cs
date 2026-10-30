@@ -21,6 +21,7 @@ namespace Checkout {
    if(request.StartsWith("eventspaintui"))return PaintUi(request);
    if(request.StartsWith("eventspaintperf"))return PaintPerf(request);
    if(request.StartsWith("eventspaintkit"))return PaintKit(request);
+   if(request.StartsWith("eventspaintaudit"))return PaintAudit(request);
    return PaintCompare(request);
   }
 
@@ -91,6 +92,29 @@ namespace Checkout {
      Note("PAINT kit painted ("+lines.Distinct().Count()+"):\n  "+string.Join("\n  ",lines.Distinct().OrderBy(x=>x)));}
    }
    paint.EndPreview();Destroy(show.gameObject);yield return new WaitForSecondsRealtime(.5f);
+  }
+
+  // Everything drawn around the storage building while painted ("eventspaintaudit[-stage]"): each renderer near it with
+  // its path, its materials and what the paint made of them (P painted, k<n> paintable but not painted, - left alone).
+  IEnumerator PaintAudit(string request){
+   var parts=request.Split('-');var stage=parts.Length>1?parts[1]:"hipermercado";
+   var paint=CheckoutMarketPaint.Active;if(!paint){Note("PAINT audit: no paint");yield break;}
+   yield return GoToStage(stage);
+   paint.Preview("8A1C2B","D9A93E");yield return new WaitForSecondsRealtime(1f);paint.Scan();
+   if(!paint.StorageBounds(out var depot)){Note("PAINT audit: no storage");paint.EndPreview();yield break;}
+   depot.Expand(new Vector3(12,6,12));
+   string Path(Transform t){var p=t.name;for(var x=t.parent;x;x=x.parent)p=x.name+"/"+p;return p;}
+   var lines=new List<string>();
+   foreach(var r in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)){
+    if(!r.enabled||!r.gameObject.activeInHierarchy||!depot.Intersects(r.bounds))continue;
+    var mats=r.sharedMaterials;bool anyNotPainted=false;var desc=new List<string>();
+    foreach(var m in mats){if(!m)continue;bool painted=m.name.EndsWith("(paint)");int k=painted?-1:CheckoutMarketPaint.Classify(m,out _);if(!painted&&k!=0)anyNotPainted=true;
+     desc.Add((painted?"P ":k==0?"- ":"k"+k+" ")+m.name+(m.HasProperty("_MainTex")&&m.mainTexture?" tex="+m.mainTexture.name:"")+(m.HasProperty("_Color")?" col="+ColorUtility.ToHtmlStringRGB(m.color):""));}
+    lines.Add((anyNotPainted?"MISSED ":"")+Path(r.transform)+" :: "+string.Join(" | ",desc));
+   }
+   Note("PAINT audit around the storage ("+lines.Count+"):\n  "+string.Join("\n  ",lines.OrderBy(l=>l.StartsWith("MISSED")?0:1).ThenBy(l=>l)));
+   CaptureSized($"pa_{stage}_storage_cereja",2778,1284,new Vector3(depot.center.x,.8f,depot.center.z),Mathf.Max(depot.size.x,depot.size.z)*.9f);
+   paint.EndPreview();
   }
 
   // The market's materials the paint leaves alone that still look navy or gold (to review false negatives).

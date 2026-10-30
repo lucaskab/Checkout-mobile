@@ -253,7 +253,7 @@ namespace Checkout
             };
             if (e.owned) { e.price = "Colocar"; e.priceIcon = "Icons/success"; e.badge = "x" + free; e.badgeColor = "5DA637"; }
             else if (e.locked) { e.price = string.Format("Nível {0}", d.requiredLevel); e.priceIcon = "Icons/lock"; }
-            else { e.price = cost.ToString("N0", br); e.priceIcon = gems ? "Icons/diamond" : "Icons/coin"; }
+            else { e.price = CheckoutI18n.Number(cost); e.priceIcon = gems ? "Icons/diamond" : "Icons/coin"; }
             // Machines pay only up to their limit: "2/3" placed.
             int placed = Interior.Placed(d.id);
             if (d.limit > 0 && placed > 0) e.note = placed + "/" + d.limit;
@@ -352,8 +352,8 @@ namespace Checkout
             else
             {
                 bool busy = bridge.HasPending("purchaseDecor");
-                if (d.coinPrice > 0) buttons.Add(Data(s.coins >= d.coinPrice ? d.coinPrice.ToString("N0", br) : string.Format("Faltam {0} moedas", ((long)(d.coinPrice - s.coins)).ToString("N0", br)), "coin", s.coins >= d.coinPrice && !busy, "Icons/coin"));
-                if (d.diamondPrice > 0) buttons.Add(Data(s.diamonds >= d.diamondPrice ? d.diamondPrice.ToString("N0", br) : string.Format("Faltam {0} diamantes", ((long)(d.diamondPrice - s.diamonds)).ToString("N0", br)), "gem", s.diamonds >= d.diamondPrice && !busy, "Icons/diamond"));
+                if (d.coinPrice > 0) buttons.Add(Data(s.coins >= d.coinPrice ? CheckoutI18n.Number(d.coinPrice) : string.Format("Faltam {0} moedas", CheckoutI18n.Number(d.coinPrice - s.coins)), "coin", s.coins >= d.coinPrice && !busy, "Icons/coin"));
+                if (d.diamondPrice > 0) buttons.Add(Data(s.diamonds >= d.diamondPrice ? CheckoutI18n.Number(d.diamondPrice) : string.Format("Faltam {0} diamantes", CheckoutI18n.Number(d.diamondPrice - s.diamonds)), "gem", s.diamonds >= d.diamondPrice && !busy, "Icons/diamond"));
             }
             while (sheetPool.Count < buttons.Count)
             {

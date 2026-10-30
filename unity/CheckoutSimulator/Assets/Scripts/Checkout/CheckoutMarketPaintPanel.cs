@@ -405,8 +405,8 @@ namespace Checkout
             bool pay = changed && !toClassic && !busy, freeBack = changed && toClassic;
             applyGems.gameObject.SetActive(!freeBack);
             if (freeBack) applyCoins.Apply(Data("Voltar ao clássico · grátis", "success", !busy, "Icons/success"));
-            else applyCoins.Apply(Data(pay && coins < coinPrice ? CheckoutI18n.F("Faltam {0} moedas", ((long)(coinPrice - coins)).ToString("N0", Br)) : CheckoutI18n.F("Aplicar · {0}", coinPrice.ToString("N0", Br)), "coin", pay && coins >= coinPrice, "Icons/coin"));
-            applyGems.Apply(Data(CheckoutI18n.F("Aplicar · {0}", gemPrice.ToString("N0", Br)), "gem", pay, "Icons/diamond"));
+            else applyCoins.Apply(Data(pay && coins < coinPrice ? CheckoutI18n.F("Faltam {0} moedas", CheckoutI18n.Number(coinPrice - coins)) : CheckoutI18n.F("Aplicar · {0}", CheckoutI18n.Number(coinPrice)), "coin", pay && coins >= coinPrice, "Icons/coin"));
+            applyGems.Apply(Data(CheckoutI18n.F("Aplicar · {0}", CheckoutI18n.Number(gemPrice)), "gem", pay, "Icons/diamond"));
             classic.Apply(Data("Clássico", "secondary", !busy && !(savedClassic && toClassic), "", toClassic));
             cancel.Apply(Data("Cancelar", "danger", !busy, ""));
             slotPrimary.Apply(Data("Cor principal", "secondary", true, "", slot == 0));
@@ -430,7 +430,7 @@ namespace Checkout
             var s = State;
             var hit = s?.palettes?.FirstOrDefault(x => CheckoutMarketPaint.Norm(x.primary) == p && CheckoutMarketPaint.Norm(x.accent) == a);
             if (hit != null) return hit.name;
-            return IsClassic(p, a) ? "Clássico" : "Personalizada";
+            return IsClassic(p, a) ? "Clássico" : "Sua cor";
         }
 
         // ------------------------------------------------------------------ actions
@@ -441,7 +441,7 @@ namespace Checkout
             var host = CheckoutDesktopHost.Active; if (!host) return;
             var s = State; var bridge = FindAnyObjectByType<CheckoutBridge>();
             if (currency == "coins" && bridge && bridge.State != null && s != null && bridge.State.coins < s.coinPrice)
-            { Toast(CheckoutI18n.F("Faltam {0} moedas.", ((long)(s.coinPrice - bridge.State.coins)).ToString("N0", Br)), false); return; }
+            { Toast(CheckoutI18n.F("Faltam {0} moedas.", CheckoutI18n.Number(s.coinPrice - bridge.State.coins)), false); return; }
             busy = true; Refresh();
             string p = draftPrimary, a = draftAccent;
             host.Action("applyMarketPaint", "[\"" + p + "\",\"" + a + "\",\"" + currency + "\"]", "", (ok, reason) =>
