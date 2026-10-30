@@ -120,7 +120,7 @@ public static partial class CheckoutMarketStagesBuilder
         if (!importer) throw new InvalidOperationException("Missing texture " + path);
         var type = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
         // The product label atlas (8x8 labels) keeps its full 2048 so the printed names stay readable.
-        int size = path.Contains("IK_Labels") ? 2048 : 1024;
+        int size = path.Contains("IK_Labels") || path.Contains("FT_Sector") ? 2048 : 1024; // (the sectors' product atlas: 1024 halves its detail)
         // a plain 2D texture (a cube-shaped import leaves the material blank, white in the game)
         if (importer.textureType != type || importer.textureShape != TextureImporterShape.Texture2D || importer.sRGBTexture == normal || importer.anisoLevel != 4 || importer.maxTextureSize != size)
         { importer.textureType = type; importer.textureShape = TextureImporterShape.Texture2D; importer.sRGBTexture = !normal; importer.anisoLevel = 4; importer.maxTextureSize = size; importer.SaveAndReimport(); }

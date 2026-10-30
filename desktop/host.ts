@@ -140,6 +140,7 @@ const hudActions: (keyof GameActions)[] = [
 	"unloadDelivery",
 	"unlockProduct",
 	"upgradeDecorTier",
+	"upgradeSectorTier",
 	"upgradeInventoryCapacity",
 	"upgradeShelfCapacity",
 	"upgradeSupplierOrderSlots",

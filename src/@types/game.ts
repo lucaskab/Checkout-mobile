@@ -220,6 +220,8 @@ export type GameState = {
 	interiorConstructions: InteriorConstruction[];
 	/** Production sectors already built (the level only lets the player build them). */
 	builtSectorIds: ProductionSectorId[];
+	/** Special sectors evolved past T1 (2 or 3; absent = T1). src/data/fixture-tiers.ts sectorTiers. */
+	sectorTiers: Partial<Record<ProductionSectorId, number>>;
 	missions: GameMissionsState;
 	production: GameProductionState;
 	shop: GameShopState;
@@ -314,6 +316,8 @@ export type GameActions = {
 	purchaseDecor: (decorId: string, currency?: "coins" | "diamonds") => boolean;
 	/** Evolving decorations (ATM, gumball, claw machine): every piece of the kind takes the next tier. */
 	upgradeDecorTier: (decorId: string, currency?: "coins" | "diamonds") => boolean;
+	/** A built special sector takes its next tier (T2: +1 production slot; T3: −20% time, +10% price). */
+	upgradeSectorTier: (sectorId: ProductionSectorId, currency?: "coins" | "diamonds") => boolean;
 	/** "Cores do mercado": repaints the market in `primary` + `accent` (hex) for coins or diamonds; classic is free. */
 	applyMarketPaint: (primary: string, accent: string, currency?: MarketPaintCurrency) => boolean;
 	/** "Voltar ao clássico": the brand navy and gold again, free. */

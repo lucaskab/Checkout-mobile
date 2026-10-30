@@ -67,6 +67,7 @@ import { getMission, missions as missionList } from "@/data/missions";
 import {
 	getProductionSector,
 	productionRecipes,
+	productionSectors,
 } from "@/data/production-sectors";
 import {
 	getNextShelfCapacityUpgrade,
@@ -224,14 +225,20 @@ import { mmkvStorage } from "@/storage/mmkv";
 import type { MarketEraId } from "@/@types/economy";
 import { getMarketEra, marketEras, STARTING_COINS } from "@/data/economy";
 import { canShelfHold } from "@/data/shelf-categories";
-import { getSectorCounterFor, getShelfType, isSectorShelfId, shelfTypes } from "@/data/shelf-types";
+import { getSectorCounter, getSectorCounterFor, getShelfType, isSectorShelfId, shelfTypes } from "@/data/shelf-types";
 import {
 	canBuyCapacityTier,
 	getColdRoomTier,
 	getColdRoomUpgradeCap,
 	getNextDecorTier,
+	getSectorSlotCount,
+	getSectorTier,
+	getSectorTierDefinition,
+	getSectorTierPrice,
 	getShelfFixtureTier,
 	isChilledCategory,
+	normalizeSectorTiers,
+	SECTOR_MAX_TIER,
 	isStallEra,
 	withCheckoutRegister,
 } from "@/data/fixture-tiers";
@@ -509,6 +516,7 @@ const initialGameState: GameState = {
 	interior: createStarterInteriorState(),
 	interiorConstructions: [],
 	builtSectorIds: [],
+	sectorTiers: {},
 	missions: initialMissionsState,
 	production: initialProductionState,
 	shop: initialShopState,
@@ -589,6 +597,7 @@ function getInitialGameState(): GameState {
 		interior: createStarterInteriorState(),
 		interiorConstructions: [],
 		builtSectorIds: [],
+		sectorTiers: {},
 		missions: {
 			claimedMissionIds: [...initialGameState.missions.claimedMissionIds],
 			reachedMissionIds: [],
@@ -826,6 +835,8 @@ function migrateGameState(persistedState: unknown): GameState {
 		state.builtSectorIds,
 		normalizedLevel,
 	);
+	// (v48: every sector built so far is T1; tiers only above it)
+	const sectorTiers = normalizeSectorTiers(state.sectorTiers, productionSectors.map((sector) => sector.id));
 	const persistedShop = state.shop?.ownedItemIds ?? [];
 	// Works that already finished (or whose target exists) are dropped.
 	const interiorConstructions = normalizeInteriorConstructions(
@@ -944,6 +955,7 @@ function migrateGameState(persistedState: unknown): GameState {
 		interior: withCartStations(withCartsFromShop(normalizeInteriorState(state.interior), state.shop?.ownedItemIds), state.shop?.ownedItemIds),
 		interiorConstructions,
 		builtSectorIds,
+		sectorTiers,
 		missions,
 		production,
 		shop,
@@ -2819,7 +2831,7 @@ export const useGameStore = create<GameStore>()(
 						.map((job) => job.slotIndex),
 				);
 				const slotIndex = Array.from(
-					{ length: sector.slotCount },
+					{ length: getSectorSlotCount(sector.slotCount, get().sectorTiers, sector.id) },
 					(_, index) => index,
 				).find((index) => !usedSlots.has(index));
 
@@ -2865,7 +2877,8 @@ export const useGameStore = create<GameStore>()(
 						Math.round(
 							recipe.durationMs *
 								eventEffects.productionDurationMultiplier *
-								shopEffects.productionDurationMultiplier,
+								shopEffects.productionDurationMultiplier *
+								getSectorTierDefinition(getSectorTier(get().sectorTiers, sectorId)).durationMultiplier,
 						),
 					id: `${sectorId}-${recipeId}-${now}`,
 					outputProductId: recipe.outputProductId,
@@ -3003,6 +3016,13 @@ export const useGameStore = create<GameStore>()(
 				// Store mishaps: a broken freezer blocks its shelf, a wrong tag sells at half
 				// price, and every open incident lowers the store's reputation.
 				const incidentEffects = getIncidentEffects(get().incidents.active);
+				// Special sectors at T3: their goods sell 10% dearer (src/data/fixture-tiers.ts sectorTiers).
+				const sectorPriceMultiplier = (slotId: string) => {
+					const physical = getPhysicalShelfId(slotId);
+					if (!isSectorShelfId(physical)) return 1;
+					const counter = getSectorCounter(physical);
+					return counter ? getSectorTierDefinition(getSectorTier(get().sectorTiers, counter.sectorId)).priceMultiplier : 1;
+				};
 				const availableProducts = shelfProductSlots
 					.filter(
 						(shelf) =>
@@ -3027,7 +3047,8 @@ export const useGameStore = create<GameStore>()(
 							{
 								...product,
 								availableQuantity: shelfStock[shelf.id] ?? 0,
-								marketPrice: product.suggestedPrice,
+								// A sector at T3 sells dearer and its customers expect it (the suggestion follows).
+								marketPrice: product.suggestedPrice * sectorPriceMultiplier(shelf.id),
 								// Night customers want drinks and snacks more. A spot at eye level sells
 								// more (src/services/shelf-care.ts).
 								necessity: Math.min(
@@ -3058,6 +3079,7 @@ export const useGameStore = create<GameStore>()(
 									1,
 									Math.round(
 										(shelfPrices[shelf.id] ?? product.sellingPrice) *
+											sectorPriceMultiplier(shelf.id) *
 											(incidentEffects.priceMultipliers[
 												getPhysicalShelfId(shelf.id)
 											] ?? 1),
@@ -4339,6 +4361,26 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			// Evolving decorations (ATM, gumball, claw machine): every piece of that kind takes the next tier.
+			// "Evoluções dos móveis", the special sectors: T2 / T3 for coins by shop size or a fixed diamond price. Nothing
+			// else changes: the production queue, the stock and the sector's place in the shop stay as they are.
+			upgradeSectorTier: (sectorId, currency = "coins") => {
+				const { builtSectorIds, coins, era, logistics, sectorTiers } = get();
+				if (!builtSectorIds.includes(sectorId)) return false;
+				const tier = getSectorTier(sectorTiers, sectorId);
+				if (tier >= SECTOR_MAX_TIER) return false;
+				const price = getSectorTierPrice(tier + 1, era.id);
+				if (!price) return false;
+				const useDiamonds = currency === "diamonds";
+				const cost = useDiamonds ? price.diamonds : price.coins;
+				if (useDiamonds ? !enoughDiamonds(cost) : coins < cost) return false;
+				set({
+					coins: useDiamonds ? coins : coins - cost,
+					logistics: useDiamonds ? { ...logistics, premiumCurrency: logistics.premiumCurrency - cost } : logistics,
+					sectorTiers: { ...sectorTiers, [sectorId]: tier + 1 },
+					celebrations: pushCelebration(get().celebrations, "tier", `sector:${sectorId}:${tier + 1}`),
+				});
+				return true;
+			},
 			upgradeDecorTier: (decorId, currency = "coins") => {
 				const { coins, interior, logistics, market } = get();
 				const next = getNextDecorTier(interior.tiers, decorId);
@@ -4553,6 +4595,7 @@ export const useGameStore = create<GameStore>()(
 				interior,
 				interiorConstructions,
 				builtSectorIds,
+				sectorTiers,
 				missions,
 				production,
 				shop,
@@ -4598,6 +4641,7 @@ export const useGameStore = create<GameStore>()(
 				interior,
 				interiorConstructions,
 				builtSectorIds,
+				sectorTiers,
 				missions,
 				production,
 				shop,

@@ -32,11 +32,28 @@ public static partial class CheckoutMarketStagesBuilder
         { "icecream_T1", new Vector2(1f, .75f) }, { "icecream_T2", new Vector2(1.5f, .75f) }, { "icecream_T3", new Vector2(2f, 1f) }, { "icecream_T4", new Vector2(2.5f, 1f) },
         { "checkout_T1", new Vector2(1.25f, 1.25f) }, { "checkout_T2", new Vector2(1.75f, 1.5f) }, { "checkout_T3", new Vector2(2.5f, 1.75f) }, { "checkout_T4", new Vector2(3f, 1.75f) },
         { "coldroom_T1", new Vector2(1.25f, .75f) }, { "coldroom_T2", new Vector2(2f, 2f) }, { "coldroom_T3", new Vector2(3f, 2.5f) }, { "coldroom_T4", new Vector2(5f, 4f) },
+        // The Supermercado's cold room as a wing of the depot (pivot = the depot mesh's pivot, depot-local; no build cells:
+        // it is parented to the depot, CheckoutColdRoom.PlaceDepotWing).
+        { "coldroom_depotwing_T2", Vector2.zero }, { "coldroom_depotwing_T3", Vector2.zero },
         { "carts_T1", new Vector2(.75f, .6f) }, { "carts_T2", new Vector2(1.75f, .75f) }, { "carts_T3", new Vector2(2.25f, 1f) },
         { "atm_T1", new Vector2(.75f, .85f) }, { "atm_T2", new Vector2(1.5f, .85f) }, { "atm_T3", new Vector2(2.25f, 1.5f) },
         { "gumball_T1", new Vector2(.5f, .5f) }, { "gumball_T2", new Vector2(1f, .5f) },
         { "claw_T1", new Vector2(.75f, .75f) }, { "claw_T2", new Vector2(1.5f, .85f) }, { "claw_T3", new Vector2(1.5f, 1.5f) },
+        // The seven special sectors (Lucas 30/10), T1 2.5 × 2.0, T2 3.25 × 2.5, T3 4.0 × 3.25; the prefabs take the game's
+        // sector ids (the juices' FBX is "sector-sucos", the game's sector "bebidas").
+        { "sector-padaria_T1", new Vector2(2.5f, 2f) }, { "sector-padaria_T2", new Vector2(3.25f, 2.5f) }, { "sector-padaria_T3", new Vector2(4f, 3.25f) },
+        { "sector-queijaria_T1", new Vector2(2.5f, 2f) }, { "sector-queijaria_T2", new Vector2(3.25f, 2.5f) }, { "sector-queijaria_T3", new Vector2(4f, 3.25f) },
+        { "sector-acougue_T1", new Vector2(2.5f, 2f) }, { "sector-acougue_T2", new Vector2(3.25f, 2.5f) }, { "sector-acougue_T3", new Vector2(4f, 3.25f) },
+        { "sector-peixaria_T1", new Vector2(2.5f, 2f) }, { "sector-peixaria_T2", new Vector2(3.25f, 2.5f) }, { "sector-peixaria_T3", new Vector2(4f, 3.25f) },
+        { "sector-sorvetes_T1", new Vector2(2.5f, 2f) }, { "sector-sorvetes_T2", new Vector2(3.25f, 2.5f) }, { "sector-sorvetes_T3", new Vector2(4f, 3.25f) },
+        { "sector-adega_T1", new Vector2(2.5f, 2f) }, { "sector-adega_T2", new Vector2(3.25f, 2.5f) }, { "sector-adega_T3", new Vector2(4f, 3.25f) },
+        { "sector-bebidas_T1", new Vector2(2.5f, 2f) }, { "sector-bebidas_T2", new Vector2(3.25f, 2.5f) }, { "sector-bebidas_T3", new Vector2(4f, 3.25f) },
     };
+    static string FbxName(string name) => name.Replace("sector-bebidas_", "sector-sucos_");
+    // Sectors with an attendant behind the counter (as the kit's counters).
+    static readonly string[] StaffedSectors = { "sector-padaria", "sector-queijaria", "sector-acougue", "sector-peixaria" };
+    // The blank slots the game writes into (CheckoutSectorScreens): never parsed as "E_<hex>" glow colours.
+    const string PriceSlot = "E_PriceScreen", TicketSlot = "E_TicketScreen", NameSlot = "E_NamePanel";
     // Kinds that hold products customers take from the front (-Z).
     static readonly string[] ServingKinds = { "shelf", "produce", "drinks", "dairy", "bakery", "freezer", "icecream" };
     // Pictures also saved under the decoration's own id (the Loja cards show the decoration as bought: tier 1).
@@ -44,7 +61,45 @@ public static partial class CheckoutMarketStagesBuilder
     {
         { "carts_T1", "basket-station" }, { "carts_T2", "cart-corral" }, { "carts_T3", "big-cart-corral" },
         { "atm_T1", "atm" }, { "gumball_T1", "gumball" }, { "claw_T1", "claw-machine" },
+        // the build-mode cards of the sectors (the old pictures had the names written on the boards)
+        { "sector-padaria_T1", "sector-padaria" }, { "sector-queijaria_T1", "sector-queijaria" }, { "sector-acougue_T1", "sector-acougue" },
+        { "sector-peixaria_T1", "sector-peixaria" }, { "sector-sorvetes_T1", "sector-sorvetes" }, { "sector-adega_T1", "sector-adega" },
+        { "sector-bebidas_T1", "sector-bebidas" },
     };
+
+    // Packs everything "Build fixture tiers" generated (prefabs, merged meshes, palette, materials, sprites, the
+    // FBX import settings) into Logs/fixture_tiers_assets.zip, keeping the paths under Assets/: to carry them to
+    // another clone of the repo in one file.
+    [MenuItem("Supermarket/Pack fixture tiers (zip)")]
+    public static void PackFixtureTiers()
+    {
+        var since = DateTime.UtcNow.AddHours(-36);
+        var files = new List<string>();
+        void Dir(string dir, Func<string, bool> keep)
+        {
+            if (!Directory.Exists(dir)) return;
+            files.AddRange(Directory.GetFiles(dir).Where(f => !f.EndsWith(".DS_Store") && keep(Path.GetFileName(f))));
+        }
+        Dir("Assets/Resources/CheckoutFixtureTiers", f => true);
+        Dir("Assets/Art/Interior/Meshes/FT", f => true);
+        Dir("Assets/Art/Interior/Models/Tiers", f => f.EndsWith(".meta"));
+        Dir("Assets/Art/Interior/Textures", f => f.StartsWith("FT_"));
+        Dir("Assets/Art/Interior/Materials", f => File.GetLastWriteTimeUtc("Assets/Art/Interior/Materials/" + f) > since);
+        Dir("Assets/Resources/CheckoutDesktop/Decor", f => File.GetLastWriteTimeUtc("Assets/Resources/CheckoutDesktop/Decor/" + f) > since);
+        if (File.Exists("Assets/Art/Interior/Meshes/FT.meta")) files.Add("Assets/Art/Interior/Meshes/FT.meta");
+        if (File.Exists("Assets/Resources/CheckoutFixtureTiers.meta")) files.Add("Assets/Resources/CheckoutFixtureTiers.meta");
+        Directory.CreateDirectory("Logs");
+        var zip = "Logs/fixture_tiers_assets.zip";
+        if (File.Exists(zip)) File.Delete(zip);
+        using (var stream = File.Create(zip))
+        using (var archive = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Create))
+            foreach (var f in files.Distinct())
+            {
+                var entry = archive.CreateEntry(f.Replace('\\', '/'), System.IO.Compression.CompressionLevel.Optimal);
+                using (var to = entry.Open()) using (var from = File.OpenRead(f)) from.CopyTo(to);
+            }
+        Debug.Log($"FIXTURE_TIERS packed {files.Distinct().Count()} files into {zip} ({new FileInfo(zip).Length / 1024} KB)");
+    }
 
     [MenuItem("Supermarket/Build fixture tiers")]
     public static void BuildFixtureTiers()
@@ -70,7 +125,7 @@ public static partial class CheckoutMarketStagesBuilder
 
     static GameObject BuildTierPrefab(string name, Vector2 size, List<string> report)
     {
-        string path = TierModels + name + ".fbx";
+        string path = TierModels + FbxName(name) + ".fbx";
         var importer = AssetImporter.GetAtPath(path) as ModelImporter;
         if (!importer) { report.Add(name + ": missing " + path); return null; }
         if (importer.importNormals != ModelImporterNormals.Import || importer.addCollider || importer.importAnimation || importer.materialLocation != ModelImporterMaterialLocation.InPrefab || importer.bakeAxisConversion || importer.importCameras || importer.importLights || !importer.isReadable)
@@ -87,6 +142,8 @@ public static partial class CheckoutMarketStagesBuilder
             var model = (GameObject)PrefabUtility.InstantiatePrefab(source);
             PrefabUtility.UnpackPrefabInstance(model, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
             model.name = "Model"; model.transform.SetParent(root.transform, false); model.transform.localPosition = Vector3.zero;
+            // The sectors' screens and name boards: where they are, before the materials are swapped.
+            var slots = SlotQuads(root.transform, model);
             // Products never follow the market's colours (packaging can be navy or gold).
             foreach (var r in model.GetComponentsInChildren<Renderer>(true))
             {
@@ -101,6 +158,7 @@ public static partial class CheckoutMarketStagesBuilder
             var bounds = new Bounds(Vector3.zero, Vector3.zero); bool any = false;
             foreach (var r in model.GetComponentsInChildren<Renderer>(true)) { if (!any) { bounds = r.bounds; any = true; } else bounds.Encapsulate(r.bounds); }
             var min = new Vector2(-size.x / 2, -size.y / 2); var max = new Vector2(size.x / 2, size.y / 2);
+            if (size == Vector2.zero) { min = new Vector2(bounds.min.x, bounds.min.z); max = new Vector2(bounds.max.x, bounds.max.z); }
             // (the cart handles, the cold room's condensers and dock included: nothing may stand under them)
             min = Vector2.Min(min, new Vector2(bounds.min.x, bounds.min.z)); max = Vector2.Max(max, new Vector2(bounds.max.x, bounds.max.z));
             var piece = root.AddComponent<CheckoutInteriorPiece>();
@@ -108,6 +166,16 @@ public static partial class CheckoutMarketStagesBuilder
             string kind = name.Substring(0, name.IndexOf("_T", StringComparison.Ordinal));
             if (ServingKinds.Contains(kind)) { piece.serves = true; piece.approach = new Vector3(0, 0, min.y - .47f); }
             if (kind == "checkout") CheckoutPoints(piece, name, min, max);
+            if (kind.StartsWith("sector-"))
+            {
+                piece.serves = true; piece.approach = new Vector3(0, 0, min.y - .47f);
+                piece.staffed = StaffedSectors.Contains(kind); piece.staff = new Vector3(0, 0, (min.y + max.y) * .5f + (max.y - min.y) * .25f);
+                var screens = root.AddComponent<CheckoutSectorScreens>();
+                screens.prices = slots.Where(q => q.slot == PriceSlot).OrderBy(q => q.center.x).Select(q => q.quad).ToArray();
+                screens.tickets = slots.Where(q => q.slot == TicketSlot).Select(q => q.quad).ToArray();
+                screens.names = slots.Where(q => q.slot == NameSlot).Select(q => q.quad).ToArray();
+                report.Add($"{name}: screens {screens.prices.Length} price, {screens.tickets.Length} ticket, {screens.names.Length} name");
+            }
             // iPhone: one renderer for the body and one per stock group, the flat colours that never repaint in one palette
             // material (drinks T3 went from ~27 materials to a handful). Stock groups in order (Anim Fill 0..3): the shelf
             // empties and refills group by group.
@@ -132,6 +200,47 @@ public static partial class CheckoutMarketStagesBuilder
             return prefab;
         }
         finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
+    struct SlotQuad { public string slot; public Vector3 center; public CheckoutSectorScreens.Quad quad; }
+
+    // Every flat quad drawn with one of the slot materials, in the prefab root's space (the triangles of a slot
+    // submesh grouped by touching bounds: one group per screen or board).
+    static List<SlotQuad> SlotQuads(Transform root, GameObject model)
+    {
+        var list = new List<SlotQuad>();
+        foreach (var r in model.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            var mf = r.GetComponent<MeshFilter>(); var mesh = mf ? mf.sharedMesh : null; if (!mesh) continue;
+            var mats = r.sharedMaterials; var verts = mesh.vertices;
+            for (int sub = 0; sub < mesh.subMeshCount && sub < mats.Length; sub++)
+            {
+                string n = mats[sub] ? mats[sub].name : ""; int dot = n.IndexOf('.'); if (dot > 0) n = n.Substring(0, dot);
+                if (n != PriceSlot && n != TicketSlot && n != NameSlot) continue;
+                var tris = mesh.GetTriangles(sub); var groups = new List<Bounds>();
+                for (int i = 0; i + 2 < tris.Length; i += 3)
+                {
+                    var b = new Bounds(root.InverseTransformPoint(r.transform.TransformPoint(verts[tris[i]])), Vector3.zero);
+                    b.Encapsulate(root.InverseTransformPoint(r.transform.TransformPoint(verts[tris[i + 1]])));
+                    b.Encapsulate(root.InverseTransformPoint(r.transform.TransformPoint(verts[tris[i + 2]])));
+                    groups.Add(b);
+                }
+                for (bool merged = true; merged;)
+                {
+                    merged = false;
+                    for (int a = 0; a < groups.Count && !merged; a++)
+                        for (int c = a + 1; c < groups.Count; c++)
+                        {
+                            var ga = groups[a]; ga.Expand(.004f);
+                            if (!ga.Intersects(groups[c])) continue;
+                            var u = groups[a]; u.Encapsulate(groups[c]); groups[a] = u; groups.RemoveAt(c); merged = true; break;
+                        }
+                }
+                foreach (var g in groups)
+                    list.Add(new SlotQuad { slot = n, center = g.center, quad = new CheckoutSectorScreens.Quad { center = new Vector3(g.center.x, g.center.y, g.min.z), size = new Vector2(g.size.x, g.size.y) } });
+            }
+        }
+        return list;
     }
 
     static bool InFill(Transform t) { for (; t; t = t.parent) if (t.name.StartsWith("Anim Fill")) return true; return false; }
@@ -251,6 +360,10 @@ public static partial class CheckoutMarketStagesBuilder
         // (CheckoutMarketPaint.NotPaint), so navy or gold packaging keeps its colour after a repaint.
         if (n.StartsWith("C_") && n.Length >= 8 && (stock || n.EndsWith("_Product") || n.EndsWith("_Wood") || n.EndsWith("_Cream")))
             return Painted("IK_PProducts_" + n.Substring(2, 6), n.Substring(2, 6), null, Vector2.one, .35f);
+        // The sectors' blank slots (before the "E_<hex>" glow rule, which would read "PriceS" as a colour): screens
+        // "off" in a dark glass, the name boards cream. The game writes on them (CheckoutSectorScreens).
+        if (n == PriceSlot || n == TicketSlot) return Painted("IK_PProducts_161B22", "161B22", null, Vector2.one, .2f);
+        if (n == NameSlot) return Painted("IK_PProducts_F4EBD8", "F4EBD8", null, Vector2.one, .35f);
         // The blank label atlas of the tiers ("IK_PT_Labels" is the old atlas with printed words).
         if (n.StartsWith("T_FT_")) return Painted("IK_PT_" + n.Substring(2), "FFFFFF", n.Substring(2), Vector2.one, .35f);
         return KitRemap(source);
@@ -283,6 +396,7 @@ public static partial class CheckoutMarketStagesBuilder
             cam.targetTexture = rt;
             foreach (var name in TierFootprints.Keys)
             {
+                if (TierFootprints[name] == Vector2.zero) continue; // parts of a building (the depot wing): no card picture
                 var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TierPrefabs + name + ".prefab");
                 if (!prefab) continue;
                 var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab); go.transform.SetParent(rig.transform, false);

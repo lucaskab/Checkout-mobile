@@ -100,6 +100,11 @@ export type SimulatorSnapshot = {
 		building: boolean;
 		requiredLevel: number;
 		jobs: number;
+		/** "Evoluções dos móveis": the sector's tier (1..3) and its Unity model (sector-<id>_T<n>). */
+		tier: number;
+		tierTemplate: string;
+		/** The price boards over the counter: what it sells now, at the price customers pay. */
+		board: { productId: number; price: number }[];
 	}[];
 	employees: GameState["employees"]["employees"];
 	/** Supplier trucks: every product on the truck in boxes (`lines`), and the boxes in all. */

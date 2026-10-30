@@ -58,6 +58,24 @@ namespace Checkout
         string ShelfTierTemplate(Shelf shelf, string kitTemplate) =>
             shelf != null && shelf.tier > 0 && TemplateObject(shelf.tierTemplate) ? shelf.tierTemplate : kitTemplate;
 
+        /// <summary>A special sector's model: its tier (sector-&lt;id&gt;_T1..T3) when the model exists, else the kit's counter.</summary>
+        string SectorTierTemplate(Sector sector)
+        {
+            if (sector == null) return null;
+            if (!string.IsNullOrEmpty(sector.tierTemplate) && TemplateObject(sector.tierTemplate)) return sector.tierTemplate;
+            var t1 = "sector-" + sector.id + "_T1"; // (an older host without tiers: the new T1 model all the same)
+            return TemplateObject(t1) ? t1 : "sector-" + sector.id;
+        }
+
+        // The sector's screens and name board follow its snapshot (prices, name, the language).
+        void ShowSector(Item it, Snapshot s)
+        {
+            var screens = it.root.GetComponent<CheckoutSectorScreens>(); if (!screens) return;
+            var id = it.id.Substring(it.id.IndexOf(':') + 1);
+            var sector = s.sectors?.FirstOrDefault(x => x != null && x.id == id);
+            if (sector != null) screens.Show(sector);
+        }
+
         string CheckoutTierTemplate(Snapshot s)
         {
             var t = s.fixtureTiers?.checkoutTemplate;

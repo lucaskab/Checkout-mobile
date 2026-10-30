@@ -206,3 +206,41 @@ test("ATM, gumball and claw machine evolve every piece of their kind", () => {
 	expect(store().logistics.premiumCurrency).toBe(diamonds - 25 - 30);
 	expect(snapshot().interior.tiers.find((t) => t.type === "claw-machine")).toMatchObject({ tier: 2, template: "claw_T2" });
 });
+
+test("special sectors: built ones are T1; T2 adds a line, T3 cuts the time and sells dearer; nothing produced is lost", async () => {
+	// a v47 save with a built bakery producing: it migrates to T1 with its jobs untouched
+	const old = JSON.parse(initial);
+	old.era = { ...old.era, id: "supermercado" };
+	old.market = { ...old.market, level: 40 };
+	old.builtSectorIds = ["padaria"];
+	const job = { endsAt: Date.now() + 60_000, id: "padaria-x-1", outputProductId: 1, outputQuantity: 2, recipeId: "x", sectorId: "padaria", slotIndex: 1, startedAt: Date.now() };
+	old.production = { ...old.production, jobs: [job] };
+	const next = await useGameStore.persist.getOptions().migrate(old, 47);
+	expect(next.sectorTiers).toEqual({});
+	expect(next.production.jobs).toEqual([job]);
+	useGameStore.setState({ ...next, coins: 10_000_000, logistics: { ...next.logistics, premiumCurrency: 10_000 } });
+	expect(snapshot().sectors.find((s) => s.id === "padaria")).toMatchObject({ tier: 1, tierTemplate: "sector-padaria_T1" });
+	// not built: no evolution
+	expect(store().upgradeSectorTier("adega")).toBe(false);
+	const coins = store().coins;
+	expect(store().upgradeSectorTier("padaria")).toBe(true);
+	expect(store().coins).toBe(coins - 30_000); // the Supermercado's price
+	expect(store().celebrations.at(-1)).toMatchObject({ kind: "tier", targetId: "sector:padaria:2" });
+	expect(store().production.jobs).toEqual([job]);
+	expect(snapshot().sectors.find((s) => s.id === "padaria")).toMatchObject({ tier: 2, tierTemplate: "sector-padaria_T2" });
+	const diamonds = store().logistics.premiumCurrency;
+	expect(store().upgradeSectorTier("padaria", "diamonds")).toBe(true);
+	expect(store().logistics.premiumCurrency).toBe(diamonds - 80);
+	expect(store().upgradeSectorTier("padaria")).toBe(false); // T3 is the last
+	// saved and loaded again: the tier stays, unknown ids are dropped
+	const saved = await useGameStore.persist.getOptions().migrate({ ...JSON.parse(JSON.stringify(store())), sectorTiers: { padaria: 3, nope: 2 } }, 48);
+	expect(saved.sectorTiers).toEqual({ padaria: 3 });
+});
+
+test("sector boards: the counter's products at the price paid there, or the sector's menu", () => {
+	useGameStore.setState({ builtSectorIds: ["padaria"], sectorTiers: { padaria: 3 } });
+	const board = snapshot().sectors.find((s) => s.id === "padaria").board;
+	expect(board.length).toBeGreaterThan(0);
+	const first = itemCatalog.find((p) => p.id === board[0].productId);
+	expect(board[0].price).toBe(Math.max(1, Math.round(first.sellingPrice * 1.1)));
+});

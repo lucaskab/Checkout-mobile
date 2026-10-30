@@ -13,8 +13,12 @@ import {
 	getEraFixtureTierCap,
 	getFixtureTierTemplate,
 	getShelfFixtureTier,
+	getSectorSlotCount,
+	getSectorTierDefinition,
+	getSectorTierPrice,
 	getTierSlotLimit,
 	isChilledCategory,
+	normalizeSectorTiers,
 	normalizeDecorTiers,
 	withCheckoutRegister,
 } from "./fixture-tiers.ts";
@@ -136,4 +140,21 @@ test("evolving decorations: tiers are clamped and unknown ids dropped", () => {
 	expect(getDecorTier({ atm: 9 }, "atm")).toBe(3);
 	expect(getDecorTier({ gumball: 3 }, "gumball")).toBe(2);
 	expect(normalizeDecorTiers({ atm: 2, gumball: 1, nope: 3, "claw-machine": "x" })).toEqual({ atm: 2 });
+});
+
+test("sector steps: prices by shop size, slots, time and price", () => {
+	expect(getSectorTierPrice(2, "mercadinho")).toEqual({ coins: 18_000, diamonds: 30 });
+	expect(getSectorTierPrice(3, "mercadinho")).toEqual({ coins: 55_000, diamonds: 80 });
+	expect(getSectorTierPrice(2, "supermercado").coins).toBe(30_000);
+	expect(getSectorTierPrice(3, "supermercado").coins).toBe(90_000);
+	expect(getSectorTierPrice(2, "hipermercado").coins).toBe(70_000);
+	expect(getSectorTierPrice(3, "rede").coins).toBe(200_000);
+	expect(getSectorTierPrice(1, "rede")).toBeNull();
+	expect(getSectorTierPrice(4, "rede")).toBeNull();
+	expect(getSectorSlotCount(2, {}, "padaria")).toBe(2);
+	expect(getSectorSlotCount(2, { padaria: 2 }, "padaria")).toBe(3);
+	expect(getSectorSlotCount(3, { padaria: 3 }, "padaria")).toBe(4);
+	expect(getSectorTierDefinition(3)).toMatchObject({ width: 4, depth: 3.25, durationMultiplier: 0.8, priceMultiplier: 1.1 });
+	expect(getSectorTierDefinition(1)).toMatchObject({ width: 2.5, depth: 2, durationMultiplier: 1, priceMultiplier: 1 });
+	expect(normalizeSectorTiers({ padaria: 9, adega: 1, x: 2 }, ["padaria", "adega"])).toEqual({ padaria: 3 });
 });

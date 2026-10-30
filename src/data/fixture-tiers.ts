@@ -5,7 +5,10 @@ import type {
 	DecorTierDefinition,
 	FixtureKind,
 	FixtureTierDefinition,
+	SectorTierDefinition,
+	SectorTierPrice,
 } from "@/@types/fixture-tiers";
+import type { ProductionSectorId } from "@/@types/production";
 import type { ShelfTypeId } from "@/data/shelf-types";
 
 // "Evoluções dos móveis" (Mari's idea, approved by Lucas 30/10; docs-drafts/evolucoes-moveis.md).
@@ -364,4 +367,56 @@ export function chooseCarrier(planExtra: number, available: readonly CartCarrier
 	const carrier = fit ?? owned[owned.length - 1];
 	const extra = Math.min(planExtra, carrierCapacity[carrier]);
 	return { carrier, extra, missing: Math.max(0, planExtra - extra) };
+}
+
+// ------------------------------------------------------------------ the special sectors (açougue, padaria…)
+// Approved by Lucas 30/10 (docs-drafts/evolucoes-moveis.md, "Setores especiais"). Every sector built so far is T1 (a
+// smaller model than the old counter, so it always fits where it stands); T2 adds a production slot, T3 cuts the
+// production time by 20% and sells the sector's goods 10% dearer. Production queues and stock are never touched.
+
+export const SECTOR_MAX_TIER = 3;
+
+export const sectorTiers: SectorTierDefinition[] = [
+	{ tier: 1, name: "Compacto", width: 2.5, depth: 2, extraSlots: 0, durationMultiplier: 1, priceMultiplier: 1 },
+	{ tier: 2, name: "Completo", width: 3.25, depth: 2.5, extraSlots: 1, durationMultiplier: 1, priceMultiplier: 1 },
+	{ tier: 3, name: "Premium", width: 4, depth: 3.25, extraSlots: 1, durationMultiplier: 0.8, priceMultiplier: 1.1 },
+];
+
+/** Price of T2 / T3 by shop size (~2 h of sales where it opens); the diamond price is the same everywhere. */
+export function getSectorTierPrice(tier: number, eraId: MarketEraId): SectorTierPrice | null {
+	if (tier < 2 || tier > SECTOR_MAX_TIER) return null;
+	const big = eraIndex(eraId) >= eraIndex("hipermercado");
+	const mid = eraIndex(eraId) >= eraIndex("supermercado");
+	const coins = tier === 2 ? (big ? 70_000 : mid ? 30_000 : 18_000) : big ? 200_000 : mid ? 90_000 : 55_000;
+	return { coins, diamonds: tier === 2 ? 30 : 80 };
+}
+
+export function getSectorTier(tiers: Partial<Record<string, number>> | undefined, sectorId: string) {
+	return Math.min(SECTOR_MAX_TIER, Math.max(1, Math.floor(tiers?.[sectorId] ?? 1)));
+}
+
+export function getSectorTierDefinition(tier: number) {
+	return sectorTiers[Math.min(SECTOR_MAX_TIER, Math.max(1, Math.floor(tier))) - 1];
+}
+
+/** The sector's production slots at its tier. */
+export function getSectorSlotCount(baseSlots: number, tiers: Partial<Record<string, number>> | undefined, sectorId: string) {
+	return baseSlots + getSectorTierDefinition(getSectorTier(tiers, sectorId)).extraSlots;
+}
+
+/** Unity model of a sector at its tier (Resources/CheckoutFixtureTiers/sector-<id>_T<n>). */
+export function getSectorTierTemplate(sectorId: string, tier: number) {
+	return `sector-${sectorId}_T${Math.min(SECTOR_MAX_TIER, Math.max(1, Math.floor(tier)))}`;
+}
+
+/** Saved sector tiers: only the known sectors, only steps above T1. */
+export function normalizeSectorTiers(value: unknown, knownIds: readonly ProductionSectorId[]): Partial<Record<ProductionSectorId, number>> {
+	const result: Partial<Record<ProductionSectorId, number>> = {};
+	if (!value || typeof value !== "object") return result;
+	for (const [id, tier] of Object.entries(value as Record<string, unknown>)) {
+		if (!knownIds.includes(id as ProductionSectorId) || typeof tier !== "number" || !Number.isFinite(tier)) continue;
+		const clamped = Math.min(SECTOR_MAX_TIER, Math.max(1, Math.floor(tier)));
+		if (clamped > 1) result[id as ProductionSectorId] = clamped;
+	}
+	return result;
 }

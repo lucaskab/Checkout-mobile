@@ -3800,6 +3800,16 @@ const catalog: Catalog = {
 	"Mova este móvel para ele crescer.": "Mueve este mueble para que crezca.",
 	"Pronto para crescer: mova este móvel para ele crescer.": "Listo para crecer: mueve este mueble para que crezca.",
 	"Sem espaço: mova o móvel · Ver onde cabe": "Sin espacio: mueve el mueble · Ver dónde cabe",
+	// "Evoluções dos móveis": the special sectors' tiers, 30/10
+	"Compacto": "Compacto",
+	"+1 linha de produção": "+1 línea de producción",
+	"−20% de tempo e +10% no preço": "−20% de tiempo y +10% de precio",
+	"Próximo: {0}": "Siguiente: {0}",
+	"Seu setor evoluiu!": "¡Tu sección evolucionó!",
+	"SEU SETOR EVOLUIU!": "¡TU SECCIÓN EVOLUCIONÓ!",
+	"Produção 20% mais rápida e produtos 10% mais valiosos.": "Producción un 20% más rápida y productos un 10% más valiosos.",
+	"Mais uma linha de produção.": "Una línea de producción más.",
+	"{0} linhas": "{0} líneas",
 };
 
 export default catalog;

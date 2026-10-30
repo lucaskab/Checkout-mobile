@@ -3,12 +3,12 @@ import { getMarketEra, getNextMarketEra } from "@/data/economy";
 import { getShopItemIcon } from "@/data/game-icon-assets";
 import { getMarketLot } from "@/data/market-lots";
 import { itemCatalog } from "@/data/market-products";
-import { productionRecipes, productionSectors } from "@/data/production-sectors";
+import { getProductionSector, productionRecipes, productionSectors } from "@/data/production-sectors";
 import { getFixtureName, shelfTypes } from "@/data/shelf-types";
 import { shopItems } from "@/data/shop-items";
 import { getLotClearExperience, getMissingLots } from "@/services/market-lots";
 import { decorIcon, fmt, gameIcon, type State } from "./view-kit";
-import { decorTiers, getFixtureTierDefinition } from "@/data/fixture-tiers";
+import { decorTiers, getFixtureTierDefinition, getSectorSlotCount, getSectorTierDefinition } from "@/data/fixture-tiers";
 import { getShelfCapacity } from "@/data/shelf-capacity";
 import { getShelfFixtureKind } from "@/services/fixture-tiers";
 
@@ -164,6 +164,24 @@ function tierView(state: State, celebration: GameCelebration): CelebrationView |
 			tint: "1D2B4F",
 			chips: [
 				{ icon: gameIcon("package"), text: `${capacity} por produto` },
+				{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` },
+			],
+			button: "",
+			route: "",
+		});
+	}
+	if (group === "sector") {
+		const sector = getProductionSector(id);
+		if (!sector) return null;
+		const definition = getSectorTierDefinition(tier);
+		return view(celebration, {
+			headline: "SEU SETOR EVOLUIU!",
+			title: `${sector.name} · ${definition.name}`,
+			subtitle: tier >= 3 ? "Produção 20% mais rápida e produtos 10% mais valiosos." : "Mais uma linha de produção.",
+			icon: gameIcon("conveyor"),
+			tint: "1D2B4F",
+			chips: [
+				{ icon: gameIcon("conveyor"), text: `${getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id)} linhas` },
 				{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` },
 			],
 			button: "",

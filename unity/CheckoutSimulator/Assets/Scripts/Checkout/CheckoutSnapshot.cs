@@ -6,7 +6,8 @@ namespace Checkout {
  [Serializable] public class FixtureTiers { public int checkout,coldRoom;public string checkoutTemplate,coldRoomTemplate,coldRoomBuilding;public bool scanner;public double coldRoomEndsAt; }
  // A shelf, sector or fixture paid for and still being built inside the market (src/services/interior-construction.ts).
  [Serializable] public class BuildEntry {public string id,kind,targetId,name;public double startedAt,endsAt,durationMs;public int skipCost;public bool pending,queued;}
- [Serializable] public class Sector {public string id,name;public bool unlocked,building;public int requiredLevel,jobs;}
+ // tier / tierTemplate / board: "Evoluções dos móveis", the sector's model and its price boards (CheckoutSectorScreens).
+ [Serializable] public class Sector {public string id,name,tierTemplate;public bool unlocked,building;public int requiredLevel,jobs,tier;public BoardRow[] board; [Serializable] public class BoardRow {public int productId;public double price;} }
  [Serializable] public class Expansion {public string id,name;public int requiredLevel;public bool unlocked,building;}
  // Paid expansion still being built (it takes real time; diamonds finish it early). Empty id = no works.
  [Serializable] public class Construction {public string expansionId;public double startedAt,endsAt;public int skipCost;public MarketLayout targetLayout;}

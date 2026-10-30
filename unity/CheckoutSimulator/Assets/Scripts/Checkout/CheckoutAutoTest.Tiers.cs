@@ -19,7 +19,7 @@ namespace Checkout {
  //  - decor:    ATM T1–T3, gumball T1–T2, claw T1–T3 placed in the supermarket: Logs/ft_decor.jpg.
  // One "RESULT tiers <part>: PASS|FAIL ..." line per part.
  public sealed partial class CheckoutAutoTest {
-  int tierShelves = -1; string tierCheckout, tierCold; InteriorItem[] tierLayout; DecorOwned[] tierOwned; DecorTier[] tierDecor; bool tierPatching;
+  int tierShelves = -1, tierSector = -1; bool tierOpen; string tierCheckout, tierCold; InteriorItem[] tierLayout; DecorOwned[] tierOwned; DecorTier[] tierDecor; bool tierPatching;
   static readonly string[] TierKinds = { "produce", "drinks", "bakery", "dairy", "snacks", "coffee", "pizza", "home", "icecream" };
   static readonly Dictionary<string, string> TierKindOf = new Dictionary<string, string> {
    { "produce", "produce" }, { "drinks", "drinks" }, { "bakery", "bakery" }, { "dairy", "dairy" }, { "snacks", "shelf" }, { "coffee", "shelf" }, { "home", "shelf" }, { "pizza", "freezer" }, { "icecream", "icecream" } };
@@ -30,6 +30,9 @@ namespace Checkout {
     foreach (var x in s.shelves) if (TierKindOf.TryGetValue(x.id, out var k)) { x.tier = tierShelves; x.tierTemplate = k + "_T" + Mathf.Min(4, tierShelves); x.premium = tierShelves >= 5; }
    if (s.fixtureTiers == null) s.fixtureTiers = new FixtureTiers();
    if (tierCheckout != null) s.fixtureTiers.checkoutTemplate = tierCheckout;
+   if (tierSector > 0 && s.sectors != null)
+    foreach (var x in s.sectors) if (x != null) { x.unlocked = true; x.building = false; x.tier = tierSector; x.tierTemplate = "sector-" + x.id + "_T" + tierSector; }
+   if (tierOpen) s.isOpen = true; // (the carts' shoppers: the QA save may be between days)
    if (tierCold != null) { s.fixtureTiers.coldRoomTemplate = tierCold; s.fixtureTiers.coldRoomBuilding = ""; }
    if (tierLayout != null) s.interior = new InteriorState { items = tierLayout, owned = tierOwned ?? System.Array.Empty<DecorOwned>(), tiers = tierDecor ?? System.Array.Empty<DecorTier>() };
   }
@@ -48,6 +51,9 @@ namespace Checkout {
      case "carts": yield return TierCarts(); break;
      case "decor": yield return TierDecor(); break;
      case "depot": yield return TierDepotProbe(); break;
+     case "sectors": yield return TierSectors(); break;
+     case "upgrade": yield return TierSectorUpgrade(); break;
+     case "ui": yield return TierUi(); break;
      default: Note("unknown part " + part); break;
     }
     TierReset();
@@ -55,7 +61,7 @@ namespace Checkout {
    CheckoutBridge.TestPatch = Patch;
   }
 
-  void TierReset() { tierPatching = false; tierShelves = -1; tierCheckout = tierCold = null; tierLayout = null; tierOwned = null; tierDecor = null; roomEra = -1; var inside = CheckoutInterior.Active; if (inside) inside.editing = false; }
+  void TierReset() { tierPatching = false; tierOpen = false; tierSector = -1; tierShelves = -1; tierCheckout = tierCold = null; tierLayout = null; tierOwned = null; tierDecor = null; roomEra = -1; var inside = CheckoutInterior.Active; if (inside) inside.editing = false; }
 
   void Hud(string action, string args) => CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-tiers-" + action + "-" + Time.frameCount + "\",\"action\":\"" + action + "\",\"args\":" + args + "}");
   IEnumerator Wait(float s) { yield return new WaitForSecondsRealtime(s); }
@@ -120,29 +126,53 @@ namespace Checkout {
    Note($"RESULT tiers shelves: {(missing == 0 ? "PASS" : "FAIL")} {shots} shots, {shrunk} pieces kept a smaller tier for lack of room, {missing} missing");
   }
 
-  // Lays out the fixtures of the shop (as a tidy player would: rows from the back wall, aisles between) at tier `t`.
+  // Lays out the fixtures of the shop (as a tidy player would: rows from the back wall, aisles between) at tier `t`,
+  // around what else stands on the floor (the sectors, the checkout). In the small shops with a placed counter the
+  // checkout is part of the layout too (unplaced, it would wait in the build-mode inventory there).
   IEnumerator ShowTier(string stage, int era, int t, System.Action<List<InteriorItem>, Rect> extra) {
    tierPatching = true; roomEra = era; roomExtras = false; roomKeepInterior = false; tierShelves = t; tierLayout = null;
    yield return GoToStage(stage);
    var inside = CheckoutInterior.Active; if (!inside) { Note("no interior"); yield break; }
    var floor = inside.FloorRect; var zone = inside.CheckoutZone; var layout = inside.LayoutState;
+   var fixedItems = new List<InteriorItem>();
+   if (CheckoutStall.Small && CheckoutStall.PlacedCounter) {
+    var c = CheckoutMarketLayout.Unproject(new Vector3(zone.center.x, 0, floor.yMin + floor.height * .4f), layout);
+    fixedItems.Add(new InteriorItem { id = "checkout:main", type = "checkout", x = c.x, z = c.z, rot = 90 });
+   }
+   extra?.Invoke(fixedItems, floor);
+   // First the rest alone, to see where it stands.
+   tierLayout = fixedItems.ToArray();
+   yield return Reapply();
+   // (what stands there, at the size it wants: a piece shown smaller for lack of room still gets its room)
+   var blockers = inside.items.Values.Where(i => i.root && i.type != "shelf").Select(i => {
+    var rs = i.root.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) return Rect.zero;
+    var bb = rs[0].bounds; foreach (var r in rs) bb.Encapsulate(r.bounds);
+    var want = inside.TemplateObject(i.desired ?? i.template)?.GetComponent<CheckoutInteriorPiece>();
+    if (want) foreach (var c in new[] { new Vector3(want.min.x, 0, want.min.y), new Vector3(want.max.x, 0, want.min.y), new Vector3(want.min.x, 0, want.max.y), new Vector3(want.max.x, 0, want.max.y) }) bb.Encapsulate(i.root.TransformPoint(c));
+    return Rect.MinMaxRect(bb.min.x - .35f, bb.min.z - .35f, bb.max.x + .35f, bb.max.z + .35f);
+   }).Where(r => r.width > 0).ToList();
    float right = CheckoutStall.Small && !CheckoutStall.PlacedCounter ? floor.xMax - .2f : zone.xMin - .25f;
-   var items = new List<InteriorItem>();
+   var items = new List<InteriorItem>(fixedItems);
    float rowTop = floor.yMax - .05f, x = floor.xMin + .1f, rowDepth = 0;
    float front = floor.yMin + (CheckoutStall.ShopInside ? 1.8f : 2.4f);
    foreach (var id in TierKinds.Where(k => ShelfEra[k] <= era)) {
     var template = TierKindOf[id] + "_T" + Mathf.Min(4, t); var piece = inside.TemplateObject(template)?.GetComponent<CheckoutInteriorPiece>();
     if (!piece) { Note("TIERS missing model " + template); continue; }
     float w = piece.max.x - piece.min.x, d = piece.max.y - piece.min.y;
-    if (x + w > right) { x = floor.xMin + .1f; rowTop -= rowDepth + 1.35f; rowDepth = 0; }
-    if (rowTop - d < front) break;
-    // rot 0: customers on -Z (facing the front of the shop)
-    var world = new Vector3(x - piece.min.x, 0, rowTop - piece.max.y);
-    var b = CheckoutMarketLayout.Unproject(world, layout);
-    items.Add(new InteriorItem { id = "shelf:" + id, type = "shelf", x = b.x, z = b.z, rot = 0 });
-    x += w + .3f; rowDepth = Mathf.Max(rowDepth, d);
+    bool placed = false;
+    for (int guard = 0; guard < 40 && !placed; guard++) {
+     if (x + w > right) { x = floor.xMin + .1f; rowTop -= rowDepth + 1.35f; rowDepth = 0; }
+     if (rowTop - d < front) break;
+     var spot = Rect.MinMaxRect(x, rowTop - d, x + w, rowTop);
+     var hit = blockers.FirstOrDefault(r => r.Overlaps(spot));
+     if (hit.width > 0) { x = hit.xMax + .05f; continue; }
+     // rot 0: customers on -Z (facing the front of the shop)
+     var b = CheckoutMarketLayout.Unproject(new Vector3(x - piece.min.x, 0, rowTop - piece.max.y), layout);
+     items.Add(new InteriorItem { id = "shelf:" + id, type = "shelf", x = b.x, z = b.z, rot = 0 });
+     x += w + .3f; rowDepth = Mathf.Max(rowDepth, d); placed = true;
+    }
+    if (!placed) Note("TIERS no room for " + template + " in the test layout");
    }
-   extra?.Invoke(items, floor);
    tierLayout = items.ToArray();
    yield return Reapply();
   }
@@ -178,7 +208,7 @@ namespace Checkout {
 
   // ------------------------------------------------------------------ cold room per expansion
   IEnumerator TierCold() {
-   var stages = new[] { ("mesinha", 1), ("conteiner", 1), ("spati", 1), ("quitanda", 1), ("minimercado", 2), ("mercadinho", 2), ("supermercado", 3), ("hipermercado", 4), ("rede", 4) };
+   var stages = new[] { ("mesinha", 1), ("conteiner", 1), ("spati", 1), ("quitanda", 1), ("minimercado", 2), ("mercadinho", 2), ("supermercado", 2), ("supermercado", 3), ("hipermercado", 4), ("rede", 4) };
    var bad = new List<string>();
    foreach (var (stage, t) in stages) {
     tierPatching = true; tierCold = "coldroom_T" + t;
@@ -186,9 +216,9 @@ namespace Checkout {
     yield return Wait(1);
     var root = CheckoutColdRoom.Root;
     Note($"TIERS cold {stage} T{t}: {(root ? root.name + " at " + root.position.ToString("0.0") + " yaw " + root.eulerAngles.y.ToString("0") : "not shown")} · {CheckoutColdRoom.Side}");
-    if (t >= 2 && !root) bad.Add(stage);
-    CaptureSized($"ft_cold_{stage}_map", 2048, 1152, null, 0);
-    if (root) { var b = CheckoutColdRoom.Bounds; CaptureSized($"ft_cold_{stage}_close", 2048, 1152, new Vector3(b.center.x, .5f, b.center.z), Mathf.Max(b.size.x, b.size.z) * 3.2f + 6); }
+    if (t >= 2 && !root && stage != "mercadinho") bad.Add(stage); // the mercadinho has no depot and no free owned side: in the stockroom by design
+    CaptureSized($"ft_cold_{stage}_T{t}_map", 2048, 1152, null, 0);
+    if (root) { var b = CheckoutColdRoom.Bounds; CaptureSized($"ft_cold_{stage}_T{t}_close", 2048, 1152, new Vector3(b.center.x, .5f, b.center.z), Mathf.Max(b.size.x, b.size.z) * 3.2f + 6); }
    }
    Note($"RESULT tiers coldroom: {(bad.Count == 0 ? "PASS" : "FAIL")} placed in every expansion from the minimercado" + (bad.Count > 0 ? "; no room at " + string.Join(", ", bad) : ""));
   }
@@ -260,11 +290,19 @@ namespace Checkout {
     var inside = CheckoutInterior.Active; var layout = inside.LayoutState; float x = floor.xMin + .4f;
     foreach (var (id, type) in new[] { ("decor-901", "basket-station"), ("decor-902", "cart-corral"), ("decor-903", "big-cart-corral") }) {
      var piece = inside.TemplateObject(inside.DecorTemplate(type))?.GetComponent<CheckoutInteriorPiece>(); if (!piece) { Note("TIERS missing station " + type); continue; }
-     var w = new Vector3(x - piece.min.x, 0, floor.yMin + .05f - piece.min.y);
+     var w = new Vector3(x - piece.min.x, 0, floor.yMin + .9f - piece.min.y);
      var b = CheckoutMarketLayout.Unproject(w, layout); items.Add(new InteriorItem { id = id, type = type, x = b.x, z = b.z, rot = 0 });
      x += piece.max.x - piece.min.x + .35f;
     }
    });
+   // Open for customers (as eventscrowd): at the end of a day they would turn back at the door.
+   if (!bridge.State.isOpen) {
+    Hud("claimDayResult", "[]"); yield return Wait(1);
+    Hud("startDay", "[\"livre\"]"); for (float t = 0; t < 4 && !bridge.State.isOpen; t += .5f) yield return Wait(.5f);
+    if (!bridge.State.isOpen) { Hud("setMarketOpen", "[true]"); for (float t = 0; t < 6 && !bridge.State.isOpen; t += .5f) yield return Wait(.5f); }
+    Note("TIERS carts: market open " + bridge.State.isOpen);
+   }
+   tierOpen = true; yield return Reapply();
    var inside2 = CheckoutInterior.Active;
    var stations = inside2.items.Values.Where(i => i.root && (i.type == "basket-station" || i.type == "cart-corral" || i.type == "big-cart-corral")).ToList();
    Note("TIERS stations: " + string.Join(", ", stations.Select(i => i.type + "=" + i.template)));
@@ -278,13 +316,19 @@ namespace Checkout {
     walkers[i].Begin(new Customer { id = "qa-cart-" + i, name = "QA", spent = 20, carrier = carriers[i], purchases = buy });
     yield return Wait(1.2f);
    }
-   yield return Wait(10);
-   var shown = walkers.Where(w => w && w.gameObject.activeInHierarchy).Select(w => { var rig = w.GetComponent<CheckoutShopperRig>(); return rig ? (rig.carrier + (rig.cart ? "/cart" : "/basket-or-hands")) : "-"; }).ToList();
-   Note("TIERS shoppers: " + string.Join(", ", shown));
-   ShootFloor("ft_carts_shoppers");
-   yield return Wait(6);
-   ShootFloor("ft_carts_shoppers2");
-   bool ok = stations.Count == 3 && stations.All(s => s.template.StartsWith("carts_T"));
+   // They walk in from the street: shoot while they shop.
+   var seen = new HashSet<string>();
+   for (int k = 0; k < 4; k++) {
+    yield return Wait(k == 0 ? 14 : 7);
+    foreach (var wk in walkers.Where(x => x && x.gameObject.activeInHierarchy)) {
+     var rig = wk.GetComponent<CheckoutShopperRig>(); if (!rig) continue;
+     var inFloor = CheckoutInterior.Active.FloorRect.Contains(new Vector2(wk.transform.position.x, wk.transform.position.z));
+     if (inFloor) seen.Add(rig.carrier + (rig.cart ? "/cart" : rig.carrier == "hands" ? "/hands" : "/basket"));
+    }
+    ShootFloor("ft_carts_shoppers" + (k + 1));
+   }
+   Note("TIERS shoppers seen inside: " + string.Join(", ", seen));
+   bool ok = stations.Count == 3 && stations.All(s => s.template.StartsWith("carts_T")) && seen.Any(x => x.StartsWith("bigCart/cart"));
    Note($"RESULT tiers carts: {(ok ? "PASS" : "FAIL")} {stations.Count}/3 stations with the new models, {walkers.Count} QA shoppers ({string.Join(",", carriers.Take(walkers.Count))})");
   }
 
@@ -298,19 +342,98 @@ namespace Checkout {
     int r = round;
     yield return ShowTier("supermercado", 8, 2, (items, floor) => {
      var inside = CheckoutInterior.Active; var layout = inside.LayoutState; float x = floor.xMin + .5f; int n = 0;
-     foreach (var (type, _) in sets) {
-      var piece = inside.TemplateObject(inside.DecorTemplate(type))?.GetComponent<CheckoutInteriorPiece>(); if (!piece) continue;
-      var w = new Vector3(x - piece.min.x, 0, floor.yMin + .3f - piece.min.y);
+     foreach (var (type, top) in sets) {
+      var model = (type == "claw-machine" ? "claw" : type) + "_T" + Mathf.Min(r, top); // this round's model (the snapshot may not carry it yet)
+      var piece = inside.TemplateObject(model)?.GetComponent<CheckoutInteriorPiece>(); if (!piece) continue;
+      var w = new Vector3(x - piece.min.x, 0, floor.yMin + 1.2f - piece.min.y);
       var b = CheckoutMarketLayout.Unproject(w, layout); items.Add(new InteriorItem { id = "decor-95" + (n++), type = type, x = b.x, z = b.z, rot = 0 });
-      x += piece.max.x - piece.min.x + .5f;
+      x += piece.max.x - piece.min.x + .8f;
      }
     });
-    var shown = CheckoutInterior.Active.items.Values.Where(i => i.root && sets.Any(s => s.Item1 == i.type)).Select(i => i.type + "=" + i.template).ToList();
+    var shown = CheckoutInterior.Active.items.Values.Where(i => i.root && sets.Any(s => s.Item1 == i.type)).Select(i => i.type + "=" + i.template + (i.wantsGrow ? "(wants " + i.desired + ")" : "")).ToList();
     found += shown.Count;
     Note($"TIERS decor round {r}: " + string.Join(", ", shown));
     ShootFloor($"ft_decor_T{r}");
    }
    Note($"RESULT tiers decor: {(found >= 9 ? "PASS" : "FAIL")} {found}/9 pieces shown over three rounds");
+  }
+
+  // ------------------------------------------------------------------ the special sectors (T1..T3) and their screens
+  void TierLang(string l) { CheckoutI18n.SetLanguage(l); CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\"" + l + "\"}"); }
+
+  void RefreshScreens() { foreach (var sc in FindObjectsByType<CheckoutSectorScreens>(FindObjectsSortMode.None)) sc.RefreshNow(); }
+
+  IEnumerator TierSectors() {
+   int shots = 0, shrunk = 0; var fails = new List<string>();
+   var before = CheckoutI18n.Language;
+   for (int t = 1; t <= 3; t++) {
+    tierPatching = true; tierSector = t; roomEra = System.Array.IndexOf(EraIds, "hipermercado"); roomExtras = false; roomKeepInterior = true;
+    yield return GoToStage("hipermercado");
+    yield return Reapply();
+    var inside = CheckoutInterior.Active;
+    var sectors = inside.items.Values.Where(i => i.root && i.type == "sector").OrderBy(i => i.id).ToList();
+    shrunk += sectors.Count(i => i.wantsGrow);
+    Note($"TIERS sectors T{t}: {sectors.Count} [{string.Join(", ", sectors.Select(i => i.id.Substring(7) + "=" + i.template + (i.wantsGrow ? "(wants " + i.desired + ")" : "")))}]");
+    if (sectors.Count < 7) fails.Add($"T{t}: {sectors.Count}/7 sectors");
+    RefreshScreens(); yield return null;
+    ShootFloor($"ft_sectors_T{t}"); shots++;
+    foreach (var it in sectors) {
+     var sc = it.root.GetComponent<CheckoutSectorScreens>();
+     if (!sc) fails.Add(it.template + " has no screens");
+     CaptureSized($"ft_sector_{it.id.Substring(7)}_T{t}", 1600, 1000, it.root.position + Vector3.up * 1.4f, 6.5f); shots++;
+    }
+   }
+   // The price boards in another language (numbers and the name board follow it).
+   TierLang("en"); yield return Wait(1.5f); RefreshScreens(); yield return null;
+   var any = CheckoutInterior.Active.items.Values.FirstOrDefault(i => i.root && i.id == "sector:acougue") ?? CheckoutInterior.Active.items.Values.FirstOrDefault(i => i.root && i.type == "sector");
+   if (any != null) { CaptureSized("ft_sector_board_en", 1600, 1000, any.root.position + Vector3.up * 2.2f, 3.6f); shots++; }
+   TierLang("pt"); yield return Wait(1.5f); RefreshScreens(); yield return null;
+   if (any != null) { CaptureSized("ft_sector_board_pt", 1600, 1000, any.root.position + Vector3.up * 2.2f, 3.6f); shots++; }
+   TierLang(before);
+   Note($"RESULT tiers sectors: {(fails.Count == 0 ? "PASS" : "FAIL")} {shots} shots, {shrunk} kept a smaller tier for lack of room" + (fails.Count > 0 ? ": " + string.Join(" | ", fails) : ""));
+  }
+
+  // The real store: a built bakery evolves from T1 to T2 (coins), the model follows.
+  IEnumerator TierSectorUpgrade() {
+   var fails = new List<string>();
+   Sector Bakery() => bridge.State.sectors?.FirstOrDefault(x => x.id == "padaria");
+   Hud("setMarketLevel", "[60]");
+   Hud("grantCurrencyPurchase", "[{\"coins\":20000000,\"diamonds\":5000,\"transactionId\":\"qa-sector-" + System.DateTime.Now.Ticks + "\"}]");
+   yield return GoToStage("supermercado");
+   if (Bakery() != null && !Bakery().unlocked) { Hud("buildSector", "[\"padaria\",\"coins\"]"); yield return Wait(2); Hud("devFinishInteriorConstructions", "[]"); yield return Wait(2.5f); }
+   var b = Bakery(); Note($"TIERS bakery: unlocked {b?.unlocked} tier {b?.tier} {b?.tierTemplate} board {b?.board?.Length}");
+   if (b == null || !b.unlocked) { fails.Add("the bakery is not built"); }
+   else {
+    int from = b.tier;
+    var it = CheckoutInterior.Active.Get("sector:padaria");
+    if (it != null) { RefreshScreens(); CaptureSized($"ft_sector_upgrade_before_T{from}", 1600, 1000, it.root.position + Vector3.up * 1.4f, 6.5f); }
+    Hud("upgradeSectorTier", "[\"padaria\",\"coins\"]"); yield return Wait(2.5f);
+    b = Bakery(); it = CheckoutInterior.Active.Get("sector:padaria");
+    Note($"TIERS bakery after: tier {b?.tier} {b?.tierTemplate}; Unity shows {it?.template}");
+    if (b == null || b.tier != Mathf.Min(3, from + 1)) fails.Add($"tier {b?.tier} after evolving from {from}");
+    if (it == null || (it.template != b.tierTemplate && !it.wantsGrow)) fails.Add("Unity shows " + it?.template);
+    if (it != null) { RefreshScreens(); CaptureSized($"ft_sector_upgrade_after_T{b.tier}", 1600, 1000, it.root.position + Vector3.up * 1.4f, 6.5f); }
+   }
+   Note($"RESULT tiers upgrade: {(fails.Count == 0 ? "PASS" : "FAIL")}" + (fails.Count > 0 ? ": " + string.Join(" | ", fails) : ""));
+  }
+
+  // The shop and the panels with the evolutions (full screen, HUD included): Logs/ft_ui_*.jpg.
+  IEnumerator TierUi() {
+   var host = CheckoutDesktopHost.Active; if (!host) { Note("no desktop host"); yield break; }
+   foreach (var route in new[] { "loja:moveis:caixas", "loja:moveis:camara", "loja:moveis:prateleiras", "loja:decoracao:dentro", "shelf:produce", "shelf:dairy", "sector:padaria" }) {
+    host.Route("!" + route); yield return Wait(2);
+    yield return new WaitForEndOfFrame();
+    var tex = ScreenCapture.CaptureScreenshotAsTexture();
+    int w = tex.width, h = tex.height; float k = Mathf.Min(1, 2048f / Mathf.Max(w, h));
+    var rt = RenderTexture.GetTemporary((int)(w * k), (int)(h * k)); Graphics.Blit(tex, rt);
+    var prev = RenderTexture.active; RenderTexture.active = rt;
+    var small = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false); small.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); small.Apply();
+    RenderTexture.active = prev; RenderTexture.ReleaseTemporary(rt);
+    File.WriteAllBytes("Logs/ft_ui_" + route.Replace(':', '_') + ".jpg", small.EncodeToJPG(85)); Destroy(small); Destroy(tex);
+    Note("TIERS ui shot " + route);
+   }
+   host.Route("");
+   Note("RESULT tiers ui: PASS shots");
   }
  }
 }

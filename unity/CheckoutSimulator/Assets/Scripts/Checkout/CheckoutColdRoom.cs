@@ -108,6 +108,8 @@ namespace Checkout
             }
             var blockers = Blockers(world, layout, host, hostRect);
             refusals.Clear();
+            // The Supermercado: a wing of the depot itself (Lucas, option a), along its east wall.
+            if (host == depot && host && tier <= 3 && PlaceDepotWing(depot, interior, tier, works, blockers, hostRect)) return;
             // The biggest model of this tier that fits (a T4 owner without the central warehouse gets what fits).
             for (int t = tier; t >= 2; t--)
             {
@@ -134,6 +136,39 @@ namespace Checkout
             }
             Side = "no free side at the " + hostName + " " + hostRect.ToString("0.0") + " (" + string.Join(", ", refusals.Select(r => r.Key + " x" + r.Value)) + "): kept in the stockroom";
             Debug.LogWarning("CHECKOUT_COLDROOM " + template + ": " + Side);
+        }
+
+        // ------------------------------------------------------------------ T2/T3 at the depot: its own wing
+        // coldroom_depotwing_T2/T3 are modelled in the depot mesh's own space (pivot = Depot_74x71's pivot): a shallow
+        // insulated wing along the east wall (≤ 1.49 m out, inside lot C2, clear of the truck drive), the cladding round the
+        // south-east corner, the condensers on the depot roof. Its door is through the depot's wall, from inside.
+        static bool PlaceDepotWing(Transform depot, CheckoutInterior interior, int tier, bool works, List<Rect> blockers, Rect hostRect)
+        {
+            string name = "coldroom_depotwing_T" + Mathf.Clamp(tier, 2, 3);
+            if (!interior.TemplateObject(name)) return false;
+            var mesh = depot.GetComponentsInChildren<MeshFilter>(true).FirstOrDefault(f => f.sharedMesh && f.sharedMesh.name.StartsWith("Depot_74x71"));
+            if (!mesh) { Refuse("no depot mesh"); return false; }
+            var go = Spawn(interior, name); if (!go) return false;
+            var at = mesh.transform;
+            go.transform.SetPositionAndRotation(at.position, at.rotation); go.transform.localScale = at.lossyScale;
+            // Its ground footprint (the roof condensers stand on the depot).
+            bool first = true; var b = new Bounds(at.position, Vector3.zero);
+            foreach (var r in go.GetComponentsInChildren<Renderer>())
+            {
+                if (r.bounds.min.y > 2.5f) continue;
+                if (first) { b = r.bounds; first = false; } else b.Encapsulate(r.bounds);
+            }
+            var rect = Rect.MinMaxRect(b.min.x, b.min.z, b.max.x, b.max.z);
+            // (the cladding on the depot's own walls is inside the host: only the part that stands out must be clear)
+            var outside = Rect.MinMaxRect(Mathf.Max(rect.xMin, hostRect.xMax - .05f), rect.yMin, rect.xMax, rect.yMax);
+            if (outside.width > .1f && !Clear(outside, blockers, hostRect)) { Object.Destroy(go); return false; }
+            root = go.transform; Side = "depot · east wing";
+            Bounds = new Bounds(new Vector3(outside.center.x, 1.5f, outside.center.y), new Vector3(Mathf.Max(.1f, outside.width), 3, outside.height));
+            var piece = go.GetComponent<CheckoutInteriorPiece>();
+            if (works && piece) Fence(go.transform, piece.min, piece.max);
+            CheckoutMarketPaint.Touch(go);
+            Debug.Log("CHECKOUT_COLDROOM " + name + " at the depot's east wall " + outside);
+            return true;
         }
 
         static Rect FlatBounds(Transform t)

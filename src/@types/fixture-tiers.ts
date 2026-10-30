@@ -55,3 +55,16 @@ export type CarrierChoice = {
 
 /** Per-expansion cap of a fixture's look: the small shops have small furniture. */
 export type FixtureEraCap = { eraId: MarketEraId; maxTier: number };
+
+/** One step of a special sector (açougue, padaria…): a bigger counter and a better kitchen. */
+export type SectorTierDefinition = FixtureTierDefinition & {
+	/** Production slots added to the sector's own. */
+	extraSlots: number;
+	/** Production time × this. */
+	durationMultiplier: number;
+	/** The sector's goods sell for × this (the customers expect it: quality). */
+	priceMultiplier: number;
+};
+
+/** Price of a sector step in one shop size. */
+export type SectorTierPrice = { coins: number; diamonds: number };

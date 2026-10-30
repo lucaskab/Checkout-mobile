@@ -200,6 +200,7 @@ namespace Checkout
             var outsideIds = new HashSet<string>();
             // Pieces still being built stand in their place as a works site (CheckoutInteriorWorks).
             var builds = s.builds ?? Array.Empty<BuildEntry>(); lastBuilds = builds;
+            CheckoutSectorScreens.Feed(s);
             BuildEntry BuildOf(string kind, string target) => builds.FirstOrDefault(b => b != null && b.kind == kind && b.targetId == target);
             var works = new Dictionary<string, BuildEntry>();
             // Every checkout wears the market's step (caixinha → registradora → esteira → premium).
@@ -216,9 +217,10 @@ namespace Checkout
             foreach (var sector in s.sectors ?? Array.Empty<Sector>())
             {
                 var sectorWorks = sector.unlocked ? null : BuildOf("sector", sector.id);
-                if ((sector.unlocked || sectorWorks != null) && layout.HasSector(sector.id) && kit.Find("sector-" + sector.id))
+                var sectorTemplate = SectorTierTemplate(sector);
+                if ((sector.unlocked || sectorWorks != null) && layout.HasSector(sector.id) && TemplateObject(sectorTemplate))
                 {
-                    want.Add(("sector:" + sector.id, "sector", "sector-" + sector.id));
+                    want.Add(("sector:" + sector.id, "sector", sectorTemplate));
                     if (sectorWorks != null) works["sector:" + sector.id] = sectorWorks;
                 }
             }
@@ -322,6 +324,7 @@ namespace Checkout
                 }
                 bool premium = it.type == "shelf" && premiumShelves.TryGetValue(it.id.Substring(6), out var premiumFinish) && premiumFinish;
                 if (premium != it.premium || rebuilt) { it.premium = premium; Dress(it); }
+                if (it.type == "sector" && it.root) ShowSector(it, s);
                 if (it.design && designEntries.TryGetValue(w.id, out var fixedSpot))
                 {
                     if (Mathf.Abs(fixedSpot.x - it.x) > .001f || Mathf.Abs(fixedSpot.z - it.z) > .001f || Mathf.Abs(Mathf.DeltaAngle(fixedSpot.rot, it.rot)) > .1f || Mathf.Abs(fixedSpot.scale - it.scale) > .001f) changed = true;

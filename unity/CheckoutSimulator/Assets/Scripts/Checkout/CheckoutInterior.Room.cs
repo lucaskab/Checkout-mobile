@@ -50,8 +50,8 @@ namespace Checkout
             if (next != null && !Known("shelf:" + next.id) && !CheckoutStall.BuiltIn("shelf:" + next.id))
                 list.Add(("shelf:" + next.id, "shelf", ShelfTierTemplate(next, ShelfTemplate(next))));
             foreach (var sector in s.sectors ?? System.Array.Empty<Sector>())
-                if (sector != null && !sector.unlocked && !sector.building && layout.HasSector(sector.id) && kit.Find("sector-" + sector.id) && !Known("sector:" + sector.id))
-                    list.Add(("sector:" + sector.id, "sector", "sector-" + sector.id));
+                if (sector != null && !sector.unlocked && !sector.building && layout.HasSector(sector.id) && TemplateObject(SectorTierTemplate(sector)) && !Known("sector:" + sector.id))
+                    list.Add(("sector:" + sector.id, "sector", SectorTierTemplate(sector)));
             // Counters only where the player places them (not in the stalls and shops with a counter of their own).
             if (!CheckoutStall.Small || CheckoutStall.PlacedCounter)
             {

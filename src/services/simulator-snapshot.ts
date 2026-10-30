@@ -23,6 +23,9 @@ import {
 	decorTiers,
 	getDecorTier,
 	getFixtureTierTemplate,
+	getSectorTier,
+	getSectorTierDefinition,
+	getSectorTierTemplate,
 } from "@/data/fixture-tiers";
 import { getCheckoutTierInfo, getColdRoomInfo, getShelfTierInfo } from "@/services/fixture-tiers";
 import {
@@ -282,6 +285,9 @@ export function createSimulatorSnapshot(
 			building: !!findInteriorConstruction(state.interiorConstructions, "sector", s.id),
 			requiredLevel: s.requiredLevel,
 			jobs: state.production.jobs.filter((j) => j.sectorId === s.id).length,
+			...((tier) => ({ tier, tierTemplate: getSectorTierTemplate(s.id, tier), board: getSectorBoard(state, s.id, tier, shelfSlotCounts) }))(
+				getSectorTier(state.sectorTiers, s.id),
+			),
 		})),
 		employees: state.employees.employees,
 		orders: state.logistics.orders.map((order) => ({
@@ -681,4 +687,35 @@ export function createSimulatorSnapshot(
 			windowGoal: active ? (state.events.windowSales?.goal ?? 0) : 0,
 		},
 	};
+}
+
+// The sector's price boards: every product on its counter (assigned slots), at the price customers pay there
+// (the slot's price, the T3 premium included), or its menu while the counter is empty. Unity draws pictogram + price,
+// formatted per language.
+function getSectorBoard(
+	state: GameState,
+	sectorId: string,
+	tier: number,
+	shelfSlotCounts: ReturnType<typeof resolveShelfSlotCounts>,
+) {
+	const counterId = `sector-${sectorId}`;
+	const multiplier = getSectorTierDefinition(tier).priceMultiplier;
+	const count = getShelfSlotCount(counterId, shelfSlotCounts);
+	const board: { productId: number; price: number }[] = [];
+	for (const slot of getShelfSlotIds(counterId, count > 0 ? count : productsPerShelf)) {
+		const productId = state.shelfAssignments[slot];
+		if (!productId || board.some((row) => row.productId === productId)) continue;
+		const product = itemCatalog.find((p) => p.id === productId);
+		if (!product) continue;
+		board.push({ productId, price: Math.max(1, Math.round((state.shelfPrices[slot] ?? product.sellingPrice) * multiplier)) });
+	}
+	// Nothing on the counter yet: the board is the sector's menu (what it makes, at its price).
+	if (board.length === 0)
+		for (const recipe of productionRecipes) {
+			if (recipe.sectorId !== sectorId || board.some((row) => row.productId === recipe.outputProductId)) continue;
+			const product = itemCatalog.find((p) => p.id === recipe.outputProductId);
+			if (product) board.push({ productId: product.id, price: Math.max(1, Math.round(product.sellingPrice * multiplier)) });
+			if (board.length >= 9) break;
+		}
+	return board;
 }
