@@ -3910,6 +3910,8 @@ const catalog: Catalog = {
 	"Ver onde cabe": "See where it fits",
 	"Pronto para crescer": "Ready to grow",
 	"Mova este móvel para ele crescer.": "Move this fixture to let it grow.",
+	"Pronto para crescer: mova este móvel para ele crescer.": "Ready to grow: move this fixture so it can grow.",
+	"Sem espaço: mova o móvel · Ver onde cabe": "No room: move the fixture · See where it fits",
 };
 
 export default catalog;

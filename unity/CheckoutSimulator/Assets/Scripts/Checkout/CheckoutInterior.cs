@@ -24,6 +24,10 @@ namespace Checkout
             public bool functional, placed, ghost, saved, outside, design;
             // Paid for, still being built (a works site stands in its place).
             public bool building;
+            // Tiers: the model the app wants (`template` is the one shown: smaller while the wanted one does not fit
+            // where the piece stands), whether it waits to grow, and the premium finish (CheckoutInterior.Tiers).
+            public string desired;
+            public bool wantsGrow, premium;
             public Vector3 baseScale = Vector3.one;
             public Transform root;
             public CheckoutInteriorPiece piece;
@@ -59,6 +63,7 @@ namespace Checkout
         CheckoutMap map;
         InteriorItem[] pending; float pendingAt; string lastSize;
         readonly Dictionary<string, int> owned = new Dictionary<string, int>();
+        readonly Dictionary<string, bool> premiumShelves = new Dictionary<string, bool>();
 
         // Default spots in the base map, laid out so they already fit the corner shop (stage 0).
         static readonly Dictionary<string, Vector3> Defaults = new Dictionary<string, Vector3>
@@ -105,7 +110,7 @@ namespace Checkout
                 var f = FootprintOf(i);
                 float ex = f.hx * Mathf.Abs(f.ax.x) + f.hz * Mathf.Abs(f.az.x), ez = f.hx * Mathf.Abs(f.ax.y) + f.hz * Mathf.Abs(f.az.y);
                 return new Bounds(new Vector3(f.c.x, 1, f.c.y), new Vector3(ex * 2, 2, ez * 2));
-            }).ToArray();
+            }).Concat(CheckoutColdRoom.Shown && CheckoutColdRoom.Side != "indoors" ? new[] { CheckoutColdRoom.Bounds } : Array.Empty<Bounds>()).ToArray();
             HideOldInterior();
         }
 
@@ -181,6 +186,7 @@ namespace Checkout
             // again. Measured against the old floor now, pieces would be put aside or moved (and that saved).
             if (!designMode && s.era != null && !string.IsNullOrEmpty(s.era.id) && CheckoutStall.Era >= 0 && CheckoutStall.Era != s.era.index && (CheckoutStall.Small || !s.era.building)) return false;
             owned.Clear();
+            ReadDecorTiers(s);
             if (s.interior?.owned != null) foreach (var o in s.interior.owned) if (o != null && !string.IsNullOrEmpty(o.type)) owned[o.type] = o.count;
             var saved = designMode ? Array.Empty<InteriorItem>() : s.interior?.items ?? Array.Empty<InteriorItem>();
             // Our own save is in flight: keep showing it until the app echoes it back.
@@ -190,15 +196,18 @@ namespace Checkout
                 else saved = pending;
             }
             var want = new List<(string id, string type, string template)>();
+            premiumShelves.Clear();
             var outsideIds = new HashSet<string>();
             // Pieces still being built stand in their place as a works site (CheckoutInteriorWorks).
             var builds = s.builds ?? Array.Empty<BuildEntry>(); lastBuilds = builds;
             BuildEntry BuildOf(string kind, string target) => builds.FirstOrDefault(b => b != null && b.kind == kind && b.targetId == target);
             var works = new Dictionary<string, BuildEntry>();
-            want.Add(("checkout:main", "checkout", "checkout"));
+            // Every checkout wears the market's step (caixinha → registradora → esteira → premium).
+            var checkoutTemplate = CheckoutTierTemplate(s);
+            want.Add(("checkout:main", "checkout", checkoutTemplate));
             bool extra = s.ownedItems != null && s.ownedItems.Contains(CheckoutLanes.ExtraItem), self = s.ownedItems != null && s.ownedItems.Contains(CheckoutLanes.SelfItem);
             var extraWorks = BuildOf("shop", CheckoutLanes.ExtraItem); var selfWorks = BuildOf("shop", CheckoutLanes.SelfItem);
-            if (extra || extraWorks != null) { want.Add(("checkout:extra", "checkout", "checkout")); if (!extra) works["checkout:extra"] = extraWorks; }
+            if (extra || extraWorks != null) { want.Add(("checkout:extra", "checkout", checkoutTemplate)); if (!extra) works["checkout:extra"] = extraWorks; }
             if (self || selfWorks != null)
             {
                 want.Add(("kiosk:1", "kiosk", "kiosk")); want.Add(("kiosk:2", "kiosk", "kiosk"));
@@ -219,8 +228,9 @@ namespace Checkout
                 if (shelf.unlocked || shelfWorks != null)
                 {
                     // Up to the contêiner bread sells from a wicker basket ("Cesto de pães"); from the Späti on, the bakery rack.
-                    var template = ShelfTemplate(shelf);
+                    var template = ShelfTierTemplate(shelf, ShelfTemplate(shelf));
                     if (shelf.id == "bakery" && CheckoutStall.Small && CheckoutStall.Era < 4 && kit.Find("bread-basket")) template = "bread-basket";
+                    premiumShelves[shelf.id] = shelf.premium;
                     want.Add(("shelf:" + shelf.id, "shelf", template));
                     if (shelfWorks != null) works["shelf:" + shelf.id] = shelfWorks;
                 }
@@ -276,17 +286,17 @@ namespace Checkout
                 var placedDecor = new Dictionary<string, int>();
                 foreach (var entry in saved)
                 {
-                    if (entry == null || entry.stored || IsFunctional(entry.type) || !kit.Find(entry.type)) continue;
+                    if (entry == null || entry.stored || IsFunctional(entry.type) || !TemplateObject(DecorTemplate(entry.type))) continue;
                     // Decorations placed in the market wait there while the market is a stall (not on the stall's paving).
                     if (CheckoutStall.Small && !entry.outside && !designMode) { var at = WorldOf(entry.x, entry.z); if (!FloorRect.Contains(new Vector2(at.x, at.z))) { aside.Add(entry); continue; } }
                     placedDecor.TryGetValue(entry.type, out var n);
                     if (n >= Owned(entry.type)) continue;
                     placedDecor[entry.type] = n + 1;
-                    want.Add((entry.id, entry.type, entry.type));
+                    want.Add((entry.id, entry.type, DecorTemplate(entry.type)));
                     if (entry.outside) outsideIds.Add(entry.id);
                 }
             }
-            else foreach (var it in items.Values) if (!it.functional) { want.Add((it.id, it.type, it.template)); if (it.outside) outsideIds.Add(it.id); }
+            else foreach (var it in items.Values) if (!it.functional) { want.Add((it.id, it.type, it.desired ?? it.template)); if (it.outside) outsideIds.Add(it.id); }
             if (!editing) keptAside = aside.ToArray();
 
             // Pieces the player never placed follow the defaults of the current shop size.
@@ -302,12 +312,16 @@ namespace Checkout
             {
                 items.TryGetValue(w.id, out var it);
                 if (it == null) { it = new Item { id = w.id, type = w.type, functional = IsFunctional(w.type), outside = outsideIds.Contains(w.id), design = w.type == "design" }; items[w.id] = it; changed = true; }
-                if (it.template != w.template || !it.root)
+                // (compared with the model wanted: a tier shown smaller for lack of room is not rebuilt every snapshot)
+                bool rebuilt = false;
+                if ((it.desired ?? it.template) != w.template || !it.root)
                 {
                     if (it.root) Destroy(it.root.gameObject);
-                    it.template = w.template; Build(it); changed = true;
+                    it.template = it.desired = w.template; Build(it); changed = true; rebuilt = true;
                     if (!it.root) { items.Remove(w.id); continue; }
                 }
+                bool premium = it.type == "shelf" && premiumShelves.TryGetValue(it.id.Substring(6), out var premiumFinish) && premiumFinish;
+                if (premium != it.premium || rebuilt) { it.premium = premium; Dress(it); }
                 if (it.design && designEntries.TryGetValue(w.id, out var fixedSpot))
                 {
                     if (Mathf.Abs(fixedSpot.x - it.x) > .001f || Mathf.Abs(fixedSpot.z - it.z) > .001f || Mathf.Abs(Mathf.DeltaAngle(fixedSpot.rot, it.rot)) > .1f || Mathf.Abs(fixedSpot.scale - it.scale) > .001f) changed = true;
@@ -326,6 +340,8 @@ namespace Checkout
             }
             foreach (var it in fresh) it.ghost = true;
             foreach (var it in items.Values) if (it.root) Place(it);
+            // Tiers: the biggest model that fits where each piece stands (never moved, never stored).
+            if (!editing && !designMode && FitTiers()) changed = true;
             // New pieces: default spot, or the nearest free one. Checkouts first, then counters, then shelves.
             foreach (var it in fresh.OrderBy(i => i.type == "checkout" || i.type == "kiosk" ? 0 : i.type == "sector" ? 1 : 2))
             {
@@ -374,9 +390,9 @@ namespace Checkout
 
         void Build(Item it)
         {
-            var template = kit.Find(it.template);
+            var template = TemplateObject(it.template);
             if (!template) { Debug.LogWarning("CHECKOUT_INTERIOR missing template " + it.template); it.root = null; return; }
-            var go = Instantiate(template.gameObject, holder);
+            var go = Instantiate(template, holder);
             go.name = it.id; go.SetActive(true);
             it.root = go.transform; it.baseScale = go.transform.localScale; it.piece = go.GetComponent<CheckoutInteriorPiece>();
             if (!it.piece) it.piece = go.AddComponent<CheckoutInteriorPiece>();
@@ -878,7 +894,7 @@ namespace Checkout
 
         // ------------------------------------------------------------------ map design (editor + growth)
         public IEnumerable<string> Templates => kit ? kit.Cast<Transform>().Select(t => t.name).Where(n => !n.StartsWith("_")) : Enumerable.Empty<string>();
-        public bool HasTemplate(string name) => kit && !string.IsNullOrEmpty(name) && kit.Find(name);
+        public bool HasTemplate(string name) => kit && !string.IsNullOrEmpty(name) && TemplateObject(name);
 
         // Every piece as design data (the editor saves this for the stage it shows).
         public DesignPiece[] CaptureDesign() => items.Values.Where(i => i.root && (i.design || i.functional)).OrderBy(i => i.id).Select(i => new DesignPiece
@@ -1040,9 +1056,10 @@ namespace Checkout
         // A new decoration from the build-mode inventory, dropped at `near` (or the closest free spot).
         public Item AddDecor(string type, Vector3 near, bool outside = false)
         {
-            if (!kit.Find(type)) return null;
+            var template = DecorTemplate(type);
+            if (!TemplateObject(template)) return null;
             int n = 1; while (items.ContainsKey("decor-" + n)) n++;
-            var it = new Item { id = "decor-" + n, type = type, template = type, functional = false, placed = true, outside = outside };
+            var it = new Item { id = "decor-" + n, type = type, template = template, desired = template, functional = false, placed = true, outside = outside };
             Build(it); if (!it.root) return null;
             items[it.id] = it;
             MoveTo(it, near);
@@ -1053,8 +1070,8 @@ namespace Checkout
         // Takes a piece of shop furniture out of the inventory and stands it at `near` (or the closest free spot).
         public Item PlaceWaiting(string id, Vector3 near)
         {
-            if (!waiting.TryGetValue(id, out var w) || items.ContainsKey(id) || !kit.Find(w.template)) return null;
-            var it = new Item { id = id, type = w.type, template = w.template, functional = true, placed = true };
+            if (!waiting.TryGetValue(id, out var w) || items.ContainsKey(id) || !TemplateObject(w.template)) return null;
+            var it = new Item { id = id, type = w.type, template = w.template, desired = w.template, functional = true, placed = true };
             var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : d.y;
             Build(it); if (!it.root) return null;
             items[id] = it;
@@ -1069,8 +1086,8 @@ namespace Checkout
         // Build mode was cancelled: a piece stored during the session stands where it was.
         public Item RestoreWaiting(InteriorItem saved)
         {
-            if (saved == null || !waiting.TryGetValue(saved.id, out var w) || items.ContainsKey(saved.id) || !kit.Find(w.template)) return null;
-            var it = new Item { id = saved.id, type = w.type, template = w.template, functional = true, placed = true, saved = true, x = saved.x, z = saved.z, rot = saved.rot };
+            if (saved == null || !waiting.TryGetValue(saved.id, out var w) || items.ContainsKey(saved.id) || !TemplateObject(w.template)) return null;
+            var it = new Item { id = saved.id, type = w.type, template = w.template, desired = w.template, functional = true, placed = true, saved = true, x = saved.x, z = saved.z, rot = saved.rot };
             Build(it); if (!it.root) return null;
             items[it.id] = it; Place(it); waiting.Remove(it.id);
             return it;
@@ -1080,7 +1097,7 @@ namespace Checkout
         public void Unplace(Item it)
         {
             if (it == null || !it.functional || it.building) return;
-            waiting[it.id] = (it.type, it.template);
+            waiting[it.id] = (it.type, it.desired ?? it.template);
             CheckoutInteriorWorks.Finish(it);
             if (it.root) Destroy(it.root.gameObject);
             items.Remove(it.id);
@@ -1089,8 +1106,9 @@ namespace Checkout
         // Puts back a decoration that was stored during a cancelled build-mode session.
         public Item RestoreDecor(InteriorItem saved)
         {
-            if (saved == null || IsFunctional(saved.type) || items.ContainsKey(saved.id) || !kit.Find(saved.type)) return null;
-            var it = new Item { id = saved.id, type = saved.type, template = saved.type, placed = true, x = saved.x, z = saved.z, rot = saved.rot, outside = saved.outside };
+            var template = DecorTemplate(saved?.type);
+            if (saved == null || IsFunctional(saved.type) || items.ContainsKey(saved.id) || !TemplateObject(template)) return null;
+            var it = new Item { id = saved.id, type = saved.type, template = template, desired = template, placed = true, x = saved.x, z = saved.z, rot = saved.rot, outside = saved.outside };
             Build(it); if (!it.root) return null;
             items[it.id] = it; Place(it);
             return it;
@@ -1118,10 +1136,12 @@ namespace Checkout
     }
 
     // Serializable pieces of the snapshot (src/services/simulator-snapshot.ts: interior, decorCatalog).
-    [Serializable] public class InteriorState { public InteriorItem[] items; public DecorOwned[] owned; }
+    [Serializable] public class InteriorState { public InteriorItem[] items; public DecorOwned[] owned; public DecorTier[] tiers; }
+    // Evolving decorations (ATM, gumball, claw machine): the model every piece of the kind shows.
+    [Serializable] public class DecorTier { public string type, template; public int tier; }
     [Serializable] public class InteriorItem { public string id, type; public float x, z, rot; public bool stored, outside; }
     [Serializable] public class DecorOwned { public string type; public int count; }
-    [Serializable] public class DecorEntry { public string id, name, description, zone; public int coinPrice, diamondPrice, requiredLevel, limit; public bool upgrade; }
+    [Serializable] public class DecorEntry { public string id, name, description, zone, lockedNote; public int coinPrice, diamondPrice, requiredLevel, limit; public bool upgrade; }
     // Coins a placed machine (gumball, claw machine) just took: CheckoutDecorPlays floats them over it.
     [Serializable] public class DecorPlay { public string itemId, decorId; public int coins; public double at; }
 }

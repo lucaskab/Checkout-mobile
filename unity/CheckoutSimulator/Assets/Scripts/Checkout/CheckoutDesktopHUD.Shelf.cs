@@ -111,11 +111,22 @@ namespace Checkout {
    if(s.expandCost>0)shelfExpand.Apply(Btn($"Mais um espaço · {Fmt(s.expandCost)}","expandShelfSlots",Args(s.id),"coin","Icons/coin",
     v.level>=s.expandLevel,$"Novo espaço na {s.name}!",v.level>=s.expandLevel?"Moedas insuficientes.":$"Disponível no nível {s.expandLevel}."));
    shelfCapacity.gameObject.SetActive(s.capacityCost>0);
-   if(s.capacityCost>0)shelfCapacity.Apply(Btn($"Cabem {s.capacity} → {s.capacityNext} por espaço · {Fmt(s.capacityCost)}","upgradeShelfCapacity","[\""+s.id+"\",\"coins\"]","coin","Icons/coin",
-    v.level>=s.capacityLevel,"Cada espaço agora cabe mais produtos!",v.level>=s.capacityLevel?"Moedas insuficientes.":$"Disponível no nível {s.capacityLevel}."));
+   if(s.capacityCost>0)shelfCapacity.Apply(CapacityButton(s,v));
    ApplyShelfDetail(v);
    // The build button hides behind the window, as with the shop.
    ShopOpen=true;
+  }
+
+  // The capacity step, or "Evoluir" when it brings the next model (docs-drafts/evolucoes-moveis.md 3.4): blocked in a
+  // shop too small for it; a bigger model must fit where the fixture stands, else "Ver onde cabe" opens build mode.
+  DesktopButton CapacityButton(DesktopShelf s,DesktopView v){
+   bool levelOk=v.level>=s.capacityLevel;
+   if(!string.IsNullOrEmpty(s.blockedNote))return Btn(s.blockedNote,"upgradeShelfCapacity",Args(s.id),"coin","Icons/lock",false,"",s.blockedNote);
+   if(s.evolve&&s.grows&&CheckoutInterior.Active&&!CheckoutInterior.Active.FitsTier(CheckoutInterior.ShelfKey(s.id),s.nextTemplate))
+    return new DesktopButton{label="Sem espaço: mova o móvel · Ver onde cabe",route="@build",variant="secondary",icon="Icons/construction",enabled=true,ok="",fail="",action="",args="",after="",badge=""};
+   var label=s.evolve?string.Format("Evoluir para {0} · {1}",s.nextTierName,Fmt(s.capacityCost)):$"Cabem {s.capacity} → {s.capacityNext} por espaço · {Fmt(s.capacityCost)}";
+   return Btn(label,"upgradeShelfCapacity","[\""+s.id+"\",\"coins\"]","coin","Icons/coin",levelOk,
+    s.evolve?"Seu móvel evoluiu!":"Cada espaço agora cabe mais produtos!",levelOk?"Moedas insuficientes.":$"Disponível no nível {s.capacityLevel}.");
   }
 
   static int FirstProduct(DesktopShelf s){if(s.slots!=null)for(int i=0;i<s.slots.Length;i++)if(s.slots[i].state=="product")return i;return -1;}

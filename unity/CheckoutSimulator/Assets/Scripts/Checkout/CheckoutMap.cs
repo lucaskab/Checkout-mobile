@@ -158,6 +158,8 @@ namespace Checkout {
    if(!editor&&Design.Sync(layout.State.stage)&&Furnished)FurnitureChanged();
    // Eras 0-4 sell from a stall: the building and everything inside it hide (last, so nothing above turns it back on).
    Stall.Apply(next);
+   // The cold room by the depot / central warehouse (after the stall: it leans on the shop that stands now).
+   if(Furnished)CheckoutColdRoom.Apply(next,world,layout);
    Paint.Apply(next.paint);
   }
   // Stock clerks and cleaners work in front of the shelves wherever those stand.
