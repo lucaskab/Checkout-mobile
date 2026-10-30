@@ -336,12 +336,16 @@ namespace Checkout {
     foreach (var wk in walkers.Where(x => x && x.gameObject.activeInHierarchy)) {
      var rig = wk.GetComponent<CheckoutShopperRig>(); if (!rig) continue;
      var inFloor = CheckoutInterior.Active.FloorRect.Contains(new Vector2(wk.transform.position.x, wk.transform.position.z));
-     if (inFloor) seen.Add(rig.carrier + (rig.cart ? "/cart" : rig.carrier == "hands" ? "/hands" : "/basket"));
+     seen.Add(rig.carrier + (rig.cart ? "/cart" : rig.carrier == "hands" ? "/hands" : "/basket") + (inFloor ? " (inside)" : ""));
+    }
+    if (k == 2) {
+     var live = walkers.Where(x => x && x.gameObject.activeInHierarchy).ToList();
+     if (live.Count > 0) { var c = live.Aggregate(Vector3.zero, (a, x) => a + x.transform.position) / live.Count; TierShot("ft_carts_shoppers_close", 2048, 1152, c + Vector3.up * .8f, 11); }
     }
     if (k == 2) Note("TIERS QA shoppers: " + string.Join(", ", walkers.Where(x => x).Select(x => (x.gameObject.activeInHierarchy ? "phase " + x.VisitPhase : "gone") + " @" + x.transform.position.ToString("0.0"))));
     ShootFloor("ft_carts_shoppers" + (k + 1));
    }
-   Note("TIERS shoppers seen inside: " + string.Join(", ", seen));
+   Note("TIERS shoppers seen: " + string.Join(", ", seen));
    bool ok = stations.Count == 3 && stations.All(s => s.template.StartsWith("carts_T")) && seen.Any(x => x.StartsWith("bigCart/cart"));
    Note($"RESULT tiers carts: {(ok ? "PASS" : "FAIL")} {stations.Count}/3 stations with the new models, {walkers.Count} QA shoppers ({string.Join(",", carriers.Take(walkers.Count))})");
   }
@@ -445,10 +449,20 @@ namespace Checkout {
    var host = CheckoutDesktopHost.Active; if (!host) { Note("no desktop host"); yield break; }
    // in the Supermercado, with the bakery built (the "Evoluir" of a sector), no popup over the pages
    yield return GoToStage("supermercado");
+   if (bridge.State.level < 40) {
+    Hud("setMarketLevel", "[45]");
+    Hud("grantCurrencyPurchase", "[{\"coins\":2000000,\"diamonds\":500,\"transactionId\":\"qa-ui-" + System.DateTime.Now.Ticks + "\"}]");
+    yield return Wait(1.5f);
+   }
+   // the day's results reviewed (the "Fim do dia" tip goes), no popup over the pages
+   Hud("claimDayResult", "[]"); yield return Wait(1f);
    Hud("dismissLevelUp", "[]"); yield return Wait(1f);
    for (int i = 0; i < 3; i++) { Hud("dismissOnboardingTip", "[]"); yield return Wait(.7f); }
    foreach (var route in new[] { "loja:moveis:caixas", "loja:moveis:camara", "loja:moveis:prateleiras", "loja:decoracao:dentro", "shelf:produce", "shelf:dairy", "sector:padaria" }) {
+    var hudUi = FindAnyObjectByType<CheckoutDesktopHUD>();
+    for (int i = 0; i < 4 && hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen); i++) { hudUi.QaCloseCelebrations(); yield return Wait(.8f); }
     host.Route("!" + route); yield return Wait(2);
+    for (int i = 0; i < 4 && hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen); i++) { hudUi.QaCloseCelebrations(); yield return Wait(.8f); }
     yield return new WaitForEndOfFrame();
     var tex = ScreenCapture.CaptureScreenshotAsTexture();
     int w = tex.width, h = tex.height; float k = Mathf.Min(1, 2048f / Mathf.Max(w, h));

@@ -142,10 +142,8 @@ public static partial class CheckoutMarketStagesBuilder
             var model = (GameObject)PrefabUtility.InstantiatePrefab(source);
             PrefabUtility.UnpackPrefabInstance(model, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
             model.name = "Model"; model.transform.SetParent(root.transform, false); model.transform.localPosition = Vector3.zero;
-            // The sectors' screens and name boards: turned to the customers (-Z), then where they are, before the
-            // materials are swapped.
-            int turned = FaceSlotsForward(root.transform, model);
-            if (turned > 0) report.Add($"{name}: {turned} slot triangles faced +Z, turned to the customer side");
+            // The sectors' screens and name boards: where they are, before the materials are swapped (they face -Z,
+            // the customer side, as exported).
             var slots = SlotQuads(root.transform, model);
             // Products never follow the market's colours (packaging can be navy or gold).
             foreach (var r in model.GetComponentsInChildren<Renderer>(true))
@@ -206,35 +204,6 @@ public static partial class CheckoutMarketStagesBuilder
     }
 
     struct SlotQuad { public string slot; public Vector3 center; public CheckoutSectorScreens.Quad quad; }
-
-    // A slot quad must face the customers (-Z): one exported facing the wall is invisible from the shop floor (back-face
-    // culled, the board behind it shows), so its triangles are turned round (winding and normals) on a copy of the mesh.
-    static int FaceSlotsForward(Transform root, GameObject model)
-    {
-        int turned = 0;
-        foreach (var r in model.GetComponentsInChildren<MeshRenderer>(true))
-        {
-            var mf = r.GetComponent<MeshFilter>(); var mesh = mf ? mf.sharedMesh : null; if (!mesh) continue;
-            var mats = r.sharedMaterials; Mesh copy = null; Vector3[] verts = mesh.vertices, normals = null;
-            for (int sub = 0; sub < mesh.subMeshCount && sub < mats.Length; sub++)
-            {
-                string n = mats[sub] ? mats[sub].name : ""; int dot = n.IndexOf('.'); if (dot > 0) n = n.Substring(0, dot);
-                if (n != PriceSlot && n != TicketSlot && n != NameSlot) continue;
-                var tris = mesh.GetTriangles(sub); bool changed = false;
-                for (int i = 0; i + 2 < tris.Length; i += 3)
-                {
-                    Vector3 a = root.InverseTransformPoint(r.transform.TransformPoint(verts[tris[i]])), b = root.InverseTransformPoint(r.transform.TransformPoint(verts[tris[i + 1]])), c = root.InverseTransformPoint(r.transform.TransformPoint(verts[tris[i + 2]]));
-                    if (Vector3.Cross(b - a, c - a).z <= 0) continue; // Unity's front face is clockwise: facing -Z
-                    if (copy == null) { copy = UnityEngine.Object.Instantiate(mesh); copy.name = mesh.name; normals = copy.normals; }
-                    int t = tris[i + 1]; tris[i + 1] = tris[i + 2]; tris[i + 2] = t; changed = true; turned++;
-                    if (normals != null && normals.Length == verts.Length) foreach (var k in new[] { tris[i], tris[i + 1], tris[i + 2] }) if (normals[k].z > 0) normals[k] = -normals[k];
-                }
-                if (changed) copy.SetTriangles(tris, sub);
-            }
-            if (copy != null) { if (normals != null && normals.Length == copy.vertexCount) copy.normals = normals; mf.sharedMesh = copy; }
-        }
-        return turned;
-    }
 
     // Every flat quad drawn with one of the slot materials, in the prefab root's space (the triangles of a slot
     // submesh grouped by touching bounds: one group per screen or board).

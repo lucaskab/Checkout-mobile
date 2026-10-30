@@ -197,7 +197,7 @@
  },
  {
   "file": "sector-acougue_T3.fbx",
-  "tris": 22922,
+  "tris": 22878,
   "objects": [
    "Body"
   ],
@@ -263,12 +263,12 @@
     "slot": "E_NamePanel",
     "center_unity": [
      0.0,
-     2.851,
-     0.933
+     2.887,
+     1.283
     ],
     "size": [
      1.6,
-     0.21
+     0.17
     ],
     "faces": "-Z (customer side)"
    },
@@ -276,7 +276,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -0.95,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -289,7 +289,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -0.12,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -302,7 +302,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      0.71,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -315,7 +315,7 @@
     "slot": "E_TicketScreen",
     "center_unity": [
      1.5,
-     2.38,
+     2.3,
      1.488
     ],
     "size": [
@@ -528,7 +528,7 @@
  },
  {
   "file": "sector-padaria_T3.fbx",
-  "tris": 24755,
+  "tris": 24601,
   "objects": [
    "Body"
   ],
@@ -597,8 +597,8 @@
    {
     "slot": "E_PriceScreen",
     "center_unity": [
-     -0.95,
-     2.2,
+     0.62,
+     2.17,
      1.488
     ],
     "size": [
@@ -610,39 +610,13 @@
    {
     "slot": "E_PriceScreen",
     "center_unity": [
-     -0.12,
-     2.2,
+     1.5,
+     2.17,
      1.488
     ],
     "size": [
      0.8,
      0.45
-    ],
-    "faces": "-Z (customer side)"
-   },
-   {
-    "slot": "E_PriceScreen",
-    "center_unity": [
-     0.71,
-     2.2,
-     1.488
-    ],
-    "size": [
-     0.8,
-     0.45
-    ],
-    "faces": "-Z (customer side)"
-   },
-   {
-    "slot": "E_TicketScreen",
-    "center_unity": [
-     1.4,
-     2.38,
-     1.488
-    ],
-    "size": [
-     0.36,
-     0.16
     ],
     "faces": "-Z (customer side)"
    },
@@ -658,12 +632,25 @@
     "slot": "E_NamePanel",
     "center_unity": [
      0.0,
-     2.851,
-     0.933
+     2.887,
+     1.283
     ],
     "size": [
      1.6,
-     0.21
+     0.17
+    ],
+    "faces": "-Z (customer side)"
+   },
+   {
+    "slot": "E_TicketScreen",
+    "center_unity": [
+     1.34,
+     2.12,
+     -1.587
+    ],
+    "size": [
+     0.36,
+     0.16
     ],
     "faces": "-Z (customer side)"
    }
@@ -860,7 +847,7 @@
  },
  {
   "file": "sector-queijaria_T3.fbx",
-  "tris": 23706,
+  "tris": 23662,
   "objects": [
    "Body"
   ],
@@ -922,7 +909,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -1.2,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -935,7 +922,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -0.35,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -948,7 +935,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      0.5,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -961,7 +948,7 @@
     "slot": "E_TicketScreen",
     "center_unity": [
      1.25,
-     2.38,
+     2.3,
      1.488
     ],
     "size": [
@@ -982,12 +969,12 @@
     "slot": "E_NamePanel",
     "center_unity": [
      0.0,
-     2.851,
-     0.933
+     2.887,
+     1.283
     ],
     "size": [
      1.6,
-     0.21
+     0.17
     ],
     "faces": "-Z (customer side)"
    }
@@ -1203,7 +1190,7 @@
  },
  {
   "file": "sector-peixaria_T3.fbx",
-  "tris": 17499,
+  "tris": 17455,
   "objects": [
    "Body"
   ],
@@ -1284,7 +1271,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -0.95,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -1297,7 +1284,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -0.12,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -1310,7 +1297,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      0.71,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -1323,7 +1310,7 @@
     "slot": "E_TicketScreen",
     "center_unity": [
      1.5,
-     2.38,
+     2.3,
      1.488
     ],
     "size": [
@@ -1344,12 +1331,12 @@
     "slot": "E_NamePanel",
     "center_unity": [
      0.0,
-     2.851,
-     0.933
+     2.887,
+     1.283
     ],
     "size": [
      1.6,
-     0.21
+     0.17
     ],
     "faces": "-Z (customer side)"
    }
@@ -1532,7 +1519,7 @@
  },
  {
   "file": "sector-sorvetes_T3.fbx",
-  "tris": 20772,
+  "tris": 20728,
   "objects": [
    "Body"
   ],
@@ -1597,7 +1584,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -1.2,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -1610,7 +1597,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -0.35,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -1623,7 +1610,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      0.5,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -1636,12 +1623,12 @@
     "slot": "E_NamePanel",
     "center_unity": [
      0.0,
-     2.851,
-     0.933
+     2.887,
+     1.283
     ],
     "size": [
      1.6,
-     0.21
+     0.17
     ],
     "faces": "-Z (customer side)"
    }
@@ -1787,7 +1774,7 @@
  },
  {
   "file": "sector-adega_T3.fbx",
-  "tris": 19760,
+  "tris": 19716,
   "objects": [
    "Body"
   ],
@@ -1842,7 +1829,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -1.05,
-     2.25,
+     2.17,
      1.488
     ],
     "size": [
@@ -1855,7 +1842,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      0.7,
-     2.25,
+     2.17,
      1.488
     ],
     "size": [
@@ -1868,12 +1855,12 @@
     "slot": "E_NamePanel",
     "center_unity": [
      0.0,
-     2.851,
-     0.933
+     2.887,
+     1.283
     ],
     "size": [
      1.6,
-     0.21
+     0.17
     ],
     "faces": "-Z (customer side)"
    }
@@ -2059,7 +2046,7 @@
  },
  {
   "file": "sector-sucos_T3.fbx",
-  "tris": 25350,
+  "tris": 25306,
   "objects": [
    "Body"
   ],
@@ -2128,7 +2115,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -1.2,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -2141,7 +2128,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      -0.35,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -2154,7 +2141,7 @@
     "slot": "E_PriceScreen",
     "center_unity": [
      0.5,
-     2.2,
+     2.17,
      1.488
     ],
     "size": [
@@ -2167,12 +2154,12 @@
     "slot": "E_NamePanel",
     "center_unity": [
      0.0,
-     2.851,
-     0.933
+     2.887,
+     1.283
     ],
     "size": [
      1.6,
-     0.21
+     0.17
     ],
     "faces": "-Z (customer side)"
    }
