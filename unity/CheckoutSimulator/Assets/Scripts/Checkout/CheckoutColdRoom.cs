@@ -18,6 +18,8 @@ namespace Checkout
     public static class CheckoutColdRoom
     {
         static Transform root; static string shownKey = "";
+        static readonly List<Rect> land = new List<Rect>();
+        static readonly Dictionary<string, int> refusals = new Dictionary<string, int>();
         public static string Side { get; private set; } = "";
         public static Bounds Bounds { get; private set; }
         public static bool Shown => root && root.gameObject.activeSelf;
@@ -41,6 +43,10 @@ namespace Checkout
             // T1 indoors (small shops only); nothing outside before the shop has walls of its own.
             if (tier <= 1) { PlaceIndoors(interior, template); return; }
             if (CheckoutStall.Small && !CheckoutStall.ShopInside) return; // the stalls: no wall to lean on
+            // Only on the player's own land (bought and cleared lots, src/data/market-lots.ts): never on a ruin or a lot for sale.
+            land.Clear();
+            foreach (var lot in s.era?.lotRects ?? System.Array.Empty<LotRect>())
+                if (lot != null && (lot.status == "seu" || lot.occupied)) land.Add(Rect.MinMaxRect(lot.x0, lot.z0, lot.x1, lot.z1));
             PlaceOutside(world, layout, interior, template, tier, !string.IsNullOrEmpty(building));
             CheckoutBlockPaths.Invalidate();
         }
@@ -101,6 +107,7 @@ namespace Checkout
                 hostRect = Rect.MinMaxRect(lo.x - .3f, lo.z, hi.x + .3f, hi.z + .3f);
             }
             var blockers = Blockers(world, layout, host, hostRect);
+            refusals.Clear();
             // The biggest model of this tier that fits (a T4 owner without the central warehouse gets what fits).
             for (int t = tier; t >= 2; t--)
             {
@@ -125,7 +132,7 @@ namespace Checkout
                     return;
                 }
             }
-            Side = "no free side at the " + hostName;
+            Side = "no free side at the " + hostName + " " + hostRect.ToString("0.0") + " (" + string.Join(", ", refusals.Select(r => r.Key + " x" + r.Value)) + "): kept in the stockroom";
             Debug.LogWarning("CHECKOUT_COLDROOM " + template + ": " + Side);
         }
 
@@ -148,7 +155,11 @@ namespace Checkout
         {
             string loading = LoadingSide(host, world, layout);
             string opposite = loading == "north" ? "south" : loading == "south" ? "north" : loading == "east" ? "west" : "east";
-            var order = dock ? new List<string> { loading, "east", "west", "north", "south" } : new List<string> { opposite, "north", "east", "west", "south" };
+            // (behind a shop the room hides from the game's camera: its sides come first there)
+            bool shop = !layout.State.storage;
+            var order = dock ? new List<string> { loading, "east", "west", "north", "south" }
+                : shop ? new List<string> { "east", "west", "north" }
+                : new List<string> { opposite, "east", "north", "west", "south" };
             const float gap = .03f;
             foreach (var side in order.Distinct())
             {
@@ -215,8 +226,8 @@ namespace Checkout
             if (CheckoutStall.Small)
             {
                 var court = CheckoutStall.Court; list.Add(Rect.MinMaxRect(court.min.x, court.min.z, court.max.x, Mathf.Min(court.max.z, CheckoutStall.Footprint.min.z)));
-                // the shop's front and sides, with room to walk round it
-                var f = CheckoutStall.Footprint; list.Add(Rect.MinMaxRect(f.min.x - 1.2f, f.min.z - 1.5f, f.max.x + 1.2f, f.max.z - .01f));
+                // the shop's front, with room to walk in (its sides and back are walls the room can lean on)
+                var f = CheckoutStall.Footprint; list.Add(Rect.MinMaxRect(f.min.x - 1.2f, f.min.z - 1.5f, f.max.x + 1.2f, f.min.z + .6f));
             }
             else
             {
@@ -262,16 +273,22 @@ namespace Checkout
             return list;
         }
 
+        static bool Refuse(string why) { refusals.TryGetValue(why, out var n); refusals[why] = n + 1; return false; }
+
         static bool Clear(Rect r, List<Rect> blockers, Rect host)
         {
             // On the block, off the streets.
             var block = CheckoutInterior.BlockRect;
-            if (r.xMin < block.xMin || r.xMax > block.xMax || r.yMin < block.yMin || r.yMax > block.yMax) return false;
-            foreach (var b in blockers) if (r.Overlaps(b)) return false;
-            // Buildings, trees, benches, lamps, ruins of lots not bought (sampled; the host's own wall is next to it).
+            if (r.xMin < block.xMin || r.xMax > block.xMax || r.yMin < block.yMin || r.yMax > block.yMax) return Refuse("off the block");
+            for (int i = 0; i < blockers.Count; i++) if (r.Overlaps(blockers[i])) return Refuse("blocker " + i);
+            // The player's land only.
+            for (float x = r.xMin + .05f; x <= r.xMax; x += Mathf.Max(.1f, (r.width - .1f) / 4))
+                for (float z = r.yMin + .05f; z <= r.yMax; z += Mathf.Max(.1f, (r.height - .1f) / 4))
+                    if (!land.Any(l => l.Contains(new Vector2(x, z)))) return Refuse("not the player's land");
+            // Buildings, trees, benches, lamps (sampled; the host's own wall is next to it).
             for (float x = r.xMin + .45f; x <= r.xMax - .45f + .001f; x += .5f)
                 for (float z = r.yMin + .45f; z <= r.yMax - .45f + .001f; z += .5f)
-                    if (!CheckoutBlockPaths.FixedFree(new Vector3(x, 0, z)) && !NearHost(x, z, host)) return false;
+                    if (!CheckoutBlockPaths.FixedFree(new Vector3(x, 0, z)) && !NearHost(x, z, host)) return Refuse("built-up");
             return true;
         }
 

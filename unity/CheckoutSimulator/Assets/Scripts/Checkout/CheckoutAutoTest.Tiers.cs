@@ -47,6 +47,7 @@ namespace Checkout {
      case "coldroom": yield return TierCold(); break;
      case "carts": yield return TierCarts(); break;
      case "decor": yield return TierDecor(); break;
+     case "depot": yield return TierDepotProbe(); break;
      default: Note("unknown part " + part); break;
     }
     TierReset();
@@ -143,7 +144,13 @@ namespace Checkout {
    }
    extra?.Invoke(items, floor);
    tierLayout = items.ToArray();
-   yield return Wait(3);
+   yield return Reapply();
+  }
+
+  // The host only sends a snapshot when something changes: apply the patched one now.
+  IEnumerator Reapply() {
+   var map = FindAnyObjectByType<CheckoutMap>();
+   for (int i = 0; i < 2; i++) { var st = bridge.State; if (st != null && map) { Patch(st); PatchTiers(st); map.Apply(st); } yield return Wait(1.5f); }
   }
 
   void ShootFloor(string name) {
@@ -184,6 +191,65 @@ namespace Checkout {
     if (root) { var b = CheckoutColdRoom.Bounds; CaptureSized($"ft_cold_{stage}_close", 2048, 1152, new Vector3(b.center.x, .5f, b.center.z), Mathf.Max(b.size.x, b.size.z) * 3.2f + 6); }
    }
    Note($"RESULT tiers coldroom: {(bad.Count == 0 ? "PASS" : "FAIL")} placed in every expansion from the minimercado" + (bad.Count > 0 ? "; no room at " + string.Join(", ", bad) : ""));
+  }
+
+  // ------------------------------------------------------------------ room for a cold-room wing (depot / mercadinho)
+  // Logs the depot's pose, its mesh pivot and local bounds, the free strips around it inside lot C2 (FixedFree sampled
+  // on a 0.25 m grid, the truck bay, the clerks' corridor and the storage door as blockers), and for the mercadinho what
+  // stands behind the shop. Shots Logs/ft_depot_top.jpg, ft_mercadinho_back.jpg.
+  IEnumerator TierDepotProbe() {
+   yield return GoToStage("supermercado"); yield return Wait(2);
+   var world = GameObject.Find("Supermarket World")?.transform; var layout = FindAnyObjectByType<CheckoutMarketLayout>();
+   var depot = world ? world.Find("Warehouse") : null;
+   if (!depot || !layout) { Note("DEPOT none"); yield break; }
+   Note($"DEPOT root pos {depot.position:F3} euler {depot.eulerAngles:F1} scale {depot.lossyScale:F3} beside={CheckoutMarketLayout.StorageBeside}");
+   Bounds wb = new Bounds(depot.position, Vector3.zero); bool any = false;
+   foreach (var mf in depot.GetComponentsInChildren<MeshFilter>(false)) {
+    var r = mf.GetComponent<MeshRenderer>(); if (!mf.sharedMesh || !r || !r.enabled || r.forceRenderingOff) continue;
+    if (!any) { wb = r.bounds; any = true; } else wb.Encapsulate(r.bounds);
+    if (mf.sharedMesh.name.Contains("Depot") || mf.sharedMesh.vertexCount > 3000)
+     Note($"DEPOT mesh '{mf.sharedMesh.name}' on '{mf.name}' pivot {mf.transform.position:F3} euler {mf.transform.eulerAngles:F1} scale {mf.transform.lossyScale:F3} local bounds {mf.sharedMesh.bounds.min:F3}..{mf.sharedMesh.bounds.max:F3} world {r.bounds.min:F3}..{r.bounds.max:F3}");
+   }
+   Note($"DEPOT world bounds {wb.min:F3}..{wb.max:F3} (height {wb.size.y:F2})");
+   Note($"DEPOT storage door {layout.StorageDoor:F2} facing {layout.StorageFacing:F2}; truck bay x {CheckoutDeliveryTrucks.DepotRearX - .3f:F2}..{CheckoutDeliveryTrucks.DepotRearX + 6.2f:F2} z {CheckoutDeliveryTrucks.DepotTruckZ - 1.45f:F2}..{CheckoutDeliveryTrucks.DepotTruckZ + 1.45f:F2}, drive z {CheckoutDeliveryTrucks.DepotDriveZ0:F2}..{CheckoutDeliveryTrucks.DepotDriveZ1:F2}; block {CheckoutInterior.BlockRect}");
+   foreach (var lot in bridge.State.era?.lotRects ?? System.Array.Empty<LotRect>()) Note($"DEPOT lot {lot.id} {lot.status} occ={lot.occupied} x {lot.x0}..{lot.x1} z {lot.z0}..{lot.z1}");
+   // Free cells (0.25 m) of lot C2 around the depot: '#' built, 'D' depot, '.' free.
+   var c2 = Rect.MinMaxRect(5.75f, 4.75f, 17.25f, 18f); var lines = new List<string>();
+   for (float z = c2.yMax - .125f; z > c2.yMin; z -= .25f) {
+    var sb = new System.Text.StringBuilder();
+    for (float x = c2.xMin + .125f; x < c2.xMax; x += .25f) {
+     bool inDepot = x > wb.min.x && x < wb.max.x && z > wb.min.z && z < wb.max.z;
+     sb.Append(inDepot ? 'D' : CheckoutBlockPaths.FixedFree(new Vector3(x, 0, z)) ? '.' : '#');
+    }
+    lines.Add($"{z,6:F2} {sb}");
+   }
+   File.WriteAllLines("Logs/ft_depot_grid.txt", lines);
+   // Free strip widths from each depot wall to the first obstacle / lot edge, sampled every 0.5 m along the wall.
+   float Run(Vector3 from, Vector3 dir) { float d = 0; for (; d < 8f; d += .1f) { var p = from + dir * (d + .05f); if (!c2.Contains(new Vector2(p.x, p.z)) || !CheckoutBlockPaths.FixedFree(p)) break; } return d; }
+   foreach (var (side, dir) in new[] { ("north", Vector3.forward), ("east", Vector3.right), ("south", Vector3.back), ("west", Vector3.left) }) {
+    var spans = new List<string>();
+    bool ns = side == "north" || side == "south";
+    for (float t = ns ? wb.min.x + .25f : wb.min.z + .25f; t < (ns ? wb.max.x : wb.max.z); t += .5f) {
+     var start = side == "north" ? new Vector3(t, 0, wb.max.z + .9f) : side == "south" ? new Vector3(t, 0, wb.min.z - .9f) : side == "east" ? new Vector3(wb.max.x + .9f, 0, t) : new Vector3(wb.min.x - .9f, 0, t);
+     spans.Add($"{t:F2}:{Run(start, dir) + .9f:F1}");
+    }
+    Note($"DEPOT free from the {side} wall (m, first 0.9 m is the paths margin): " + string.Join(" ", spans));
+   }
+   CaptureSized("ft_depot_top", 2048, 1152, new Vector3(wb.center.x, 1, wb.center.z), 24);
+   // The mercadinho: what stands behind the shop (shell, stockroom, anything on its lots).
+   yield return GoToStage("mercadinho"); yield return Wait(2);
+   var shell = FindAnyObjectByType<CheckoutMarketShell>();
+   Note($"MERCADINHO shell footprint {(shell ? shell.Footprint.ToString("F2") : "-")} clear rect {CheckoutMarketShell.ClearRect(layout.State)}");
+   foreach (var lot in bridge.State.era?.lotRects ?? System.Array.Empty<LotRect>()) if (lot.status == "seu" || lot.occupied) Note($"MERCADINHO own lot {lot.id} x {lot.x0}..{lot.x1} z {lot.z0}..{lot.z1}");
+   foreach (Transform t in world) {
+    if (!t.gameObject.activeInHierarchy) continue;
+    var rs = t.GetComponentsInChildren<Renderer>(false); if (rs.Length == 0) continue;
+    var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+    if (b.max.z > 3f && b.min.z < 12f && b.max.x > -17.5f && b.min.x < 6f && b.size.y > .5f) Note($"MERCADINHO behind: '{t.name}' {b.min:F1}..{b.max:F1}");
+   }
+   var lo = CheckoutMarketLayout.Project(new Vector3(-9.4f, 0, 7.4f), layout.State);
+   CaptureSized("ft_mercadinho_back", 2048, 1152, new Vector3(lo.x + 10, 1, lo.z), 26);
+   Note("RESULT tiers depot: PASS probe written (Logs/ft_depot_grid.txt)");
   }
 
   // ------------------------------------------------------------------ the three cart stations, customers using them
