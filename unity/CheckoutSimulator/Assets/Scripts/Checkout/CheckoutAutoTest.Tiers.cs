@@ -431,11 +431,12 @@ namespace Checkout {
     // as a player: buy it, place it (it waits in the build-mode inventory), save the layout, the works run
     Hud("buildSector", "[\"padaria\",\"coins\"]"); yield return Wait(2.5f);
     var inside = CheckoutInterior.Active; var floor = inside.FloorRect;
-    CheckoutInterior.Item placed = null;
+    // (a layout saved earlier in the run may already stand it where it goes: then nothing to place)
+    CheckoutInterior.Item placed = inside.waiting.ContainsKey("sector:padaria") ? null : inside.Get("sector:padaria");
     for (float pz = floor.center.y; placed == null && pz > floor.yMin + 1.5f; pz -= 1.5f)
      for (float px = floor.xMin + 2.5f; placed == null && px < floor.xMax - 2.5f; px += 2f)
       placed = inside.PlaceWaiting("sector:padaria", new Vector3(px, 0, pz));
-    Note("TIERS bakery placed: " + (placed != null ? placed.template + " at " + placed.root.position.ToString("0.0") : "no"));
+    Note("TIERS bakery placed: " + (placed != null ? placed.template + " at " + placed.root.position.ToString("0.0") : "no") + $" (waiting {inside.waiting.ContainsKey("sector:padaria")}, standing {inside.Get("sector:padaria") != null}, building {Bakery()?.building}, coins {bridge.State.coins})");
     if (placed != null) { inside.MarkPending(); FindAnyObjectByType<CheckoutMap>().SaveInterior(); yield return Wait(2.5f); }
     Hud("devFinishInteriorConstructions", "[]"); yield return Wait(3f);
    }
@@ -472,6 +473,8 @@ namespace Checkout {
    foreach (var route in new[] { "loja:moveis:caixas", "loja:moveis:camara", "loja:moveis:prateleiras", "loja:decoracao:dentro", "shelf:produce", "shelf:dairy", "sector:padaria" }) {
     var hudUi = FindAnyObjectByType<CheckoutDesktopHUD>();
     for (int i = 0; i < 4 && hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen); i++) { hudUi.QaCloseCelebrations(); yield return Wait(.8f); }
+    // (no delivery-app offer toast over the page in Lucas's pictures: the QA copy turns the offers down)
+    foreach (var order in bridge.State.delivery?.orders ?? System.Array.Empty<DeliveryOrder>()) if (order != null && order.status == "oferta") Hud("declineDeliveryOrder", "[\"" + order.id + "\"]");
     host.Route("!" + route); yield return Wait(2);
     for (int i = 0; i < 4 && hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen); i++) { hudUi.QaCloseCelebrations(); yield return Wait(.8f); }
     yield return new WaitForEndOfFrame();
