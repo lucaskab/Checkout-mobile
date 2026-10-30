@@ -55,6 +55,7 @@ namespace Checkout {
     Hud("grantCurrencyPurchase", "[{\"coins\":2000000,\"diamonds\":500,\"transactionId\":\"qa-crowd-carts-" + System.DateTime.Now.Ticks + "\"}]");
     yield return new WaitForSecondsRealtime(1.5f);
     foreach (var st in stationTypes) { Hud("purchaseDecor", "[\"" + st + "\",\"coins\"]"); yield return new WaitForSecondsRealtime(1f); }
+    Hud("dismissLevelUp", "[]"); yield return new WaitForSecondsRealtime(1f); var hudUi = FindAnyObjectByType<CheckoutDesktopHUD>(); if (hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen)) hudUi.QaCloseCelebrations();
    }
    inside = CheckoutInterior.Active; var map = FindAnyObjectByType<CheckoutMap>();
    if (!inside || !map) { Line("no interior"); roomEra = -1; crowdLayout = null; yield break; }
@@ -173,7 +174,7 @@ namespace Checkout {
    // the till for the player (up to 150 s) and the line would measure that, not the room.
    var served = new HashSet<string>(); float nextServe = 0;
    var carrierShots = new HashSet<string>(); var carrierInside = new HashSet<string>();
-   var hostCarriers = new Dictionary<string, (string carrier, int items)>();
+   var hostCarriers = new Dictionary<string, (string carrier, int products, int units)>();
    // Everyone who paid in the run (the host's customers too): the register's real throughput.
    var paidBefore = new Dictionary<CheckoutWalker, bool>(); int paidAll = 0;
    while (Time.time - t0 < seconds) {
@@ -192,7 +193,7 @@ namespace Checkout {
      nextServe = Time.time + .5f;
      if (carts) foreach (var c in bridge.State.customers ?? System.Array.Empty<Customer>())
       if (c != null && !string.IsNullOrEmpty(c.id) && !c.id.StartsWith("qa-") && !hostCarriers.ContainsKey(c.id))
-       hostCarriers[c.id] = (string.IsNullOrEmpty(c.carrier) ? "-" : c.carrier, (c.purchases ?? System.Array.Empty<Purchase>()).Sum(x => x.quantity));
+       hostCarriers[c.id] = (string.IsNullOrEmpty(c.carrier) ? "-" : c.carrier, (c.purchases ?? System.Array.Empty<Purchase>()).Length, (c.purchases ?? System.Array.Empty<Purchase>()).Sum(x => x.quantity));
      foreach (var e in bridge.State.checkouts ?? System.Array.Empty<CheckoutEntry>())
       if (e != null && e.readyAt <= CheckoutBridge.Now && served.Add(e.id)) bridge.Command("completeCheckout", "[\"" + e.id + "\"," + System.Math.Max(1, System.Math.Round(e.total)).ToString(CultureInfo.InvariantCulture) + "]");
     }
@@ -219,7 +220,8 @@ namespace Checkout {
       var rig = w.GetComponent<CheckoutShopperRig>();
       if (rig && !string.IsNullOrEmpty(rig.carrier) && w.name.Length > 0 && (w.VisitPhase == 0 || w.VisitPhase == 1)) {
        bool wheeled = rig.carrier == "cart" || rig.carrier == "bigCart";
-       if (rig.cart == wheeled && carrierShots.Add(rig.carrier)) TierShot("ft_carts_inside_" + rig.carrier, 2048, 1152, p + Vector3.up * .8f, 6.5f);
+       // (the picture: taking a product off a shelf well inside, not still at the door behind the shop window)
+       if (rig.cart == wheeled && w.VisitPhase == 1 && p.z > floor.yMin + 3f && carrierShots.Add(rig.carrier)) TierShot("ft_carts_inside_" + rig.carrier, 2048, 1152, p + Vector3.up * .8f, 6.5f);
        carrierInside.Add(w.name + "#" + all.IndexOf(w) + ":" + rig.carrier);
       }
      }
@@ -272,8 +274,8 @@ namespace Checkout {
         $"QA visits paid {paid.Count}/{sent} (time to get in mean {Mean(paid.Where(v => v.entered > 0).Select(v => v.entered - v.began)):0}s, to pay mean {Mean(paid.Select(v => v.paid - v.began)):0}s max {Max(paid.Select(v => v.paid - v.began)):0}s), left without paying {noPay.Count}, still in the shop {still.Count}");
    if (carts) {
     var qa = CrowdCarriers.Select(c => $"{c}: sent {done.Count(v => v.carrier == c)} in {carrierInside.Count(x => x.EndsWith(":" + c))} paid {paid.Count(v => v.carrier == c)} shot {(carrierShots.Contains(c) ? "yes" : "no")}");
-    var host = hostCarriers.Values.GroupBy(v => v.carrier).OrderBy(g => g.Key).Select(g => $"{g.Key} n={g.Count()} items mean {g.Average(v => v.items):0.0} max {g.Max(v => v.items)}");
-    Line($"RESULT {tag} carriers: QA shoppers inside by carrier [{string.Join("; ", qa)}]; host customers by carrier [{string.Join("; ", host)}]");
+    var host = hostCarriers.Values.GroupBy(v => v.carrier).OrderBy(g => g.Key).Select(g => $"{g.Key} n={g.Count()} products mean {g.Average(v => v.products):0.0} max {g.Max(v => v.products)} units mean {g.Average(v => v.units):0.0}");
+    Line($"RESULT {tag} carriers: QA shoppers by carrier (in = walkers of that carrier seen shopping inside, the host's too) [{string.Join("; ", qa)}]; host customers by carrier [{string.Join("; ", host)}]");
    }
    TrailMap(dots, $"crowd_{tag}_jams", new Vector3(floor.center.x, 0, floor.center.y - 1), Mathf.Max(floor.width, floor.height) + 6);
    File.WriteAllLines($"Logs/crowd_{tag}.txt", lines);
