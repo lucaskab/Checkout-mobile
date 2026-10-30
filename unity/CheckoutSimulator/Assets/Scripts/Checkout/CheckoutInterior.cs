@@ -1000,7 +1000,8 @@ namespace Checkout
                 var from = n > 1 ? it.root.TransformPoint(it.piece.queue[n - 2]) : Register(it.id);
                 var dir = last - from; dir.y = 0; dir = dir.sqrMagnitude > .0001f ? dir.normalized : Vector3.back;
                 var floor = FloorRect;
-                var boxes = items.Values.Where(x => x.root && !x.outside).Select(x => FootprintOf(x, .35f)).ToArray();
+                // (the furniture, and the way in: a long line never stands in the doorway)
+                var boxes = items.Values.Where(x => x.root && !x.outside).Select(x => FootprintOf(x, .35f)).Append(Entrance).ToArray();
                 bool Free(Vector3 p) => p.x > floor.xMin + .4f && p.x < floor.xMax - .4f && p.z > floor.yMin + .4f && p.z < floor.yMax - .4f
                     && !boxes.Any(b => Contains(b, XZ(p))) && !spots.Any(q => (q - p).sqrMagnitude < .36f) && (last - p).sqrMagnitude > .36f;
                 var at = last;
