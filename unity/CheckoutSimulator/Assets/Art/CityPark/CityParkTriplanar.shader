@@ -23,6 +23,9 @@ Shader "MarketDay/City Park Triplanar"
         CGPROGRAM
         #pragma surface surf Standard fullforwardshadows
         #pragma target 3.0
+        // The market's walls and trims get a copy with MARKET_PAINT on while the player's colours are on (CheckoutMarketPaint).
+        #pragma multi_compile_local __ MARKET_PAINT
+        #include "Assets/Resources/CheckoutPaint/MarketPaint.cginc"
         sampler2D _MainTex, _BumpMap;
         fixed4 _Color;
         half _BumpScale, _Tiling, _Glossiness, _Metallic, _Variation;
@@ -69,6 +72,9 @@ Shader "MarketDay/City Park Triplanar"
             // Broad, soft colour drift so repeated tiles never read as a flat pattern.
             float drift = noise(IN.worldPos * .35) * .65 + noise(IN.worldPos * 1.3) * .35;
             o.Albedo = albedo.rgb * _Color.rgb * lerp(1 - _Variation, 1 + _Variation * .5, drift);
+            #ifdef MARKET_PAINT
+            o.Albedo = MarketPaint(o.Albedo, uvY);
+            #endif
             o.Normal = WorldToTangentNormalVector(IN, worldNormal);
             o.Smoothness = _Glossiness * albedo.a;
             o.Metallic = _Metallic;

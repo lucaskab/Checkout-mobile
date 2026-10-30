@@ -125,6 +125,7 @@ export type ExperienceProgress = {
 };
 
 import type { GameStatistics } from "./achievement";
+import type { MarketPaintCurrency, MarketPaintState } from "./market-paint";
 import type { OnboardingState } from "./onboarding";
 import type { RewardedAdsState } from "@/services/rewarded-ads";
 import type { CheckoutCounterState } from "./checkout-counter";
@@ -236,6 +237,8 @@ export type GameState = {
 	onboarding: OnboardingState;
 	/** The Delivery app: online orders waiting, packed and on their way (src/services/delivery.ts). */
 	delivery: DeliveryState;
+	/** "Cores do mercado": the two colours the market is painted in (src/data/market-paint.ts). */
+	marketPaint: MarketPaintState;
 };
 
 /** Condition 0–100 of each physical fixture (shelf or sector counter). */
@@ -307,6 +310,10 @@ export type GameActions = {
 	saveInteriorLayout: (items: unknown) => boolean;
 	/** Build mode shop: buys one decoration (it waits in the inventory until placed). */
 	purchaseDecor: (decorId: string, currency?: "coins" | "diamonds") => boolean;
+	/** "Cores do mercado": repaints the market in `primary` + `accent` (hex) for coins or diamonds; classic is free. */
+	applyMarketPaint: (primary: string, accent: string, currency?: MarketPaintCurrency) => boolean;
+	/** "Voltar ao clássico": the brand navy and gold again, free. */
+	resetMarketPaint: () => boolean;
 	fixIncident: (incidentId: string) => boolean;
 	/** Engarrafamento: hand a drink through the window of the driver who asked (src/services/event-interactions.ts). */
 	serveWindowSale: (requestId: string) => boolean;

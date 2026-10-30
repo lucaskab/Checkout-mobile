@@ -43,6 +43,7 @@ export const gameIconAssets = {
 	market: require("../../assets/game-art/icons/market.png"),
 	medal: require("../../assets/game-art/icons/medal.png"),
 	package: require("../../assets/game-art/icons/package.png"),
+	paint: require("../../assets/game-art/icons/paint.png"),
 	pallet: require("../../assets/game-art/icons/pallet.png"),
 	plant: require("../../assets/game-art/icons/plant.png"),
 	priceTag: require("../../assets/game-art/icons/price-tag.png"),

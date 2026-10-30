@@ -21,6 +21,9 @@ Shader "MarketDay/Faded"
         CGPROGRAM
         #pragma surface surf Lambert alpha:fade
         #pragma target 3.0
+        // The market's canopies and portal keep the player's colours when faded (CheckoutMarketPaint).
+        #pragma multi_compile_local __ MARKET_PAINT
+        #include "Assets/Resources/CheckoutPaint/MarketPaint.cginc"
         sampler2D _MainTex;
         fixed4 _Color, _EmissionColor;
         half _Fade;
@@ -38,6 +41,9 @@ Shader "MarketDay/Faded"
             else c = tex2D(_MainTex, IN.uv_MainTex);
             c *= _Color;
             o.Albedo = c.rgb;
+            #ifdef MARKET_PAINT
+            o.Albedo = MarketPaint(c.rgb, IN.uv_MainTex);
+            #endif
             o.Emission = _EmissionColor.rgb;
             o.Alpha = _Fade;
         }

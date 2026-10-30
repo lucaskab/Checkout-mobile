@@ -15,6 +15,7 @@ import {
 	isDeliveryUnlocked,
 } from "@/services/delivery";
 import { getGameEvent } from "@/data/game-events";
+import { createMarketPaintSnapshot } from "@/data/market-paint";
 import { interiorDecor } from "@/data/interior-decor";
 import {
 	getMarketExpansionSkipCost,
@@ -293,6 +294,7 @@ export function createSimulatorSnapshot(
 		},
 		jobs: state.production.jobs,
 		delivery: createDeliverySnapshot(state),
+		paint: createMarketPaintSnapshot(state.marketPaint, state.era.id),
 		customers: state.market.recentCustomers.map((customer) => ({
 			...customer,
 			purchases: customer.purchases?.map((purchase) => {

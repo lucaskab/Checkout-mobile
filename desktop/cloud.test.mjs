@@ -44,10 +44,10 @@ describe("the save goes to the cloud and comes back", () => {
 		useGameStore.setState({ coins: 12345, logistics: { ...store().logistics, premiumCurrency: 321 }, market: { ...store().market, level: 9 } });
 		const exported = cloud.exportSave();
 		const parsed = JSON.parse(exported.data);
-		expect(parsed.version).toBe(46);
+		expect(parsed.version).toBe(47);
 		expect(parsed.state.coins).toBe(12345);
 		expect(parsed.state.logistics.premiumCurrency).toBe(321);
-		expect(exported.summary).toMatchObject({ level: 9, coins: 12345, diamonds: 321, version: 46 });
+		expect(exported.summary).toMatchObject({ level: 9, coins: 12345, diamonds: 321, version: 47 });
 		expect(exported.fresh).toBe(false);
 		// Only persisted fields travel (no transient UI state such as a diamond shortfall).
 		expect("diamondShortfall" in parsed.state).toBe(false);

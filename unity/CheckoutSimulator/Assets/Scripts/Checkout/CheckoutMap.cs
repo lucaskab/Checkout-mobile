@@ -27,6 +27,8 @@ namespace Checkout {
   public bool HasParking=>!CheckoutStall.Small&&layout&&layout.State.parking;
   // Eras 0-4: the stall in front of the lots replaces the building (see CheckoutStall).
   public CheckoutStall Stall {get;private set;}
+  /// <summary>The player's market colours ("Cores do mercado").</summary>
+  public CheckoutMarketPaint Paint {get;private set;}
   CheckoutEventVisuals events;float workClock;Snapshot state;Material teal;
   static Vector3 P(float x,float z)=>new Vector3(x,.74f,z);
   Bounds SectorBounds(string id){var root=world.Find("Sector_"+id.Substring(7));var renderers=root?root.GetComponentsInChildren<Renderer>(true).Where(r=>r.enabled).ToArray():Array.Empty<Renderer>();if(renderers.Length==0)return new Bounds(P(0,4.3f),Vector3.one);var bounds=renderers[0].bounds;foreach(var renderer in renderers.Skip(1))bounds.Encapsulate(renderer.bounds);return bounds;}
@@ -50,7 +52,7 @@ namespace Checkout {
   public CheckoutMarketLayout Layout=>layout;
   // Applies the last snapshot again (the map editor switched the stage it previews).
   public void Reapply(){if(state!=null)Apply(state);}
-  public void Initialize(Transform root,CheckoutBridge owner){world=root;bridge=owner;Design=gameObject.AddComponent<CheckoutDesignWorld>();Design.Initialize(world);layout=gameObject.AddComponent<CheckoutMarketLayout>();layout.Initialize(world);Interior=gameObject.AddComponent<CheckoutInterior>();Interior.Initialize(world,layout,this);Lanes=gameObject.AddComponent<CheckoutLanes>();Lanes.Initialize(world,bridge.Queue,Interior);Stall=gameObject.AddComponent<CheckoutStall>();Stall.Initialize(world,this);
+  public void Initialize(Transform root,CheckoutBridge owner){world=root;bridge=owner;Design=gameObject.AddComponent<CheckoutDesignWorld>();Design.Initialize(world);layout=gameObject.AddComponent<CheckoutMarketLayout>();layout.Initialize(world);Interior=gameObject.AddComponent<CheckoutInterior>();Interior.Initialize(world,layout,this);Lanes=gameObject.AddComponent<CheckoutLanes>();Lanes.Initialize(world,bridge.Queue,Interior);Stall=gameObject.AddComponent<CheckoutStall>();Stall.Initialize(world,this);Paint=gameObject.AddComponent<CheckoutMarketPaint>();Paint.Initialize(world);
    if(Furnished){var sim=FindAnyObjectByType<MarketSimulation>();if(sim)sim.Furniture=()=>Interior.Obstacles().Concat(Design.Obstacles());}
    foreach(var old in world.GetComponentsInChildren<DepartmentTarget>())old.gameObject.SetActive(false);
    teal=Mat("2E8CAE");
@@ -156,6 +158,7 @@ namespace Checkout {
    if(!editor&&Design.Sync(layout.State.stage)&&Furnished)FurnitureChanged();
    // Eras 0-4 sell from a stall: the building and everything inside it hide (last, so nothing above turns it back on).
    Stall.Apply(next);
+   Paint.Apply(next.paint);
   }
   // Stock clerks and cleaners work in front of the shelves wherever those stand.
   // Build mode moved furniture: staff follow at once; `navigation` also rebuilds the walkable floor.

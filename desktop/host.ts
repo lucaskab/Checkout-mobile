@@ -10,6 +10,7 @@ import { getPiecesToPlaceBeforeOpening } from "@/services/market-era";
 import { getNextShelfBuildStatus, getSectorBuildStatus } from "@/services/interior-construction";
 import { getShopItemPieceId, hasInteriorRoom, NO_ROOM_REASON, setInteriorNoRoom } from "@/services/interior-room";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
+import { getMarketPaintCoinPrice } from "@/data/market-paint";
 import { useGameStore } from "@/stores/game-store";
 import { getCatalog, getLanguage, localizeSnapshot, localizeView, setLanguage, t } from "@/i18n";
 import { createDesktopView } from "./view.ts";
@@ -116,6 +117,8 @@ const hudActions: (keyof GameActions)[] = [
 	"placeSupplierCart",
 	"orderLowStock",
 	"purchaseDecor",
+	"applyMarketPaint",
+	"resetMarketPaint",
 	"purchaseShopItem",
 	"resetGame",
 	"restockShelf",
@@ -229,6 +232,11 @@ function openStoreOnShortfall() {
 // Why opening the shop / starting a day was refused, in words the player can act on.
 function rejectionReason(action: string, args: unknown[] = []) {
 	const state = useGameStore.getState();
+	// "Cores do mercado" for coins: how many are missing (diamonds open the diamond store instead).
+	if (action === "applyMarketPaint" && args[2] !== "diamonds") {
+		const missing = getMarketPaintCoinPrice(state.era.id) - state.coins;
+		if (missing > 0) return t(missing === 1 ? "Falta 1 moeda." : `Faltam ${missing} moedas.`);
+	}
 	// The piece has no spot on the shop floor (src/services/interior-room.ts).
 	if (action === "unlockNextShelf" && getNextShelfBuildStatus(state).noRoom) return t(NO_ROOM_REASON);
 	if (action === "buildSector" && typeof args[0] === "string" && getSectorBuildStatus(state, args[0]).noRoom) return t(NO_ROOM_REASON);

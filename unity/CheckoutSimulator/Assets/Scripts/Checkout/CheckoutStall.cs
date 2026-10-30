@@ -418,6 +418,7 @@ namespace Checkout
             }
             if (!model) { if (Small) PlanShop(null); return; } // no model: plain yard around the default footprint
             model.SetActive(true);
+            CheckoutMarketPaint.Touch(model); // in the player's colours from the first frame
             bool changed = shown != model;
             shown = model;
             if (changed) Place(model);

@@ -318,6 +318,16 @@ import {
 	stepOnboarding,
 } from "@/services/onboarding";
 import {
+	CLASSIC_ACCENT,
+	CLASSIC_PRIMARY,
+	createMarketPaintState,
+	getMarketPaintCoinPrice,
+	MARKET_PAINT_DIAMONDS,
+	normalizeHex,
+	normalizeMarketPaintState,
+	withAppliedPaint,
+} from "@/data/market-paint";
+import {
 	advanceDeliveryOrder,
 	applyLateCancelToRating,
 	applyStarsToRating,
@@ -503,6 +513,7 @@ const initialGameState: GameState = {
 	celebrations: [],
 	delivery: createInitialDeliveryState(),
 	onboarding: createOnboardingState(),
+	marketPaint: createMarketPaintState(),
 };
 
 function getInitialGameState(): GameState {
@@ -592,6 +603,7 @@ function getInitialGameState(): GameState {
 		celebrations: [],
 		delivery: createInitialDeliveryState(),
 		onboarding: createOnboardingState(),
+		marketPaint: createMarketPaintState(),
 	};
 }
 
@@ -938,6 +950,8 @@ function migrateGameState(persistedState: unknown): GameState {
 			dayNumber: state.day?.dayNumber ?? 1,
 			served: state.checkout?.served ?? 0,
 		}),
+		// 47: "Cores do mercado". Older saves (no field) keep the classic navy and gold.
+		marketPaint: normalizeMarketPaintState(state.marketPaint),
 	};
 }
 
@@ -4293,6 +4307,31 @@ export const useGameStore = create<GameStore>()(
 				});
 				return true;
 			},
+			// "Cores do mercado" (src/data/market-paint.ts): repaint for coins (≈2.5 turns of the stage's profit) or a fixed
+			// price in diamonds; going back to the classic navy and gold never costs.
+			applyMarketPaint: (primary, accent, currency = "coins") => {
+				const p = normalizeHex(primary);
+				const a = normalizeHex(accent);
+				if (!p || !a) return false;
+				const { coins, era, logistics, marketPaint } = get();
+				if (p === marketPaint.primary && a === marketPaint.accent) return false;
+				if (p === CLASSIC_PRIMARY && a === CLASSIC_ACCENT) return get().resetMarketPaint();
+				const useDiamonds = currency === "diamonds";
+				const price = useDiamonds ? MARKET_PAINT_DIAMONDS : getMarketPaintCoinPrice(era.id);
+				if (useDiamonds ? !enoughDiamonds(price) : coins < price) return false;
+				set({
+					coins: useDiamonds ? coins : coins - price,
+					logistics: useDiamonds ? { ...logistics, premiumCurrency: logistics.premiumCurrency - price } : logistics,
+					marketPaint: withAppliedPaint(marketPaint, p, a, true),
+				});
+				return true;
+			},
+			resetMarketPaint: () => {
+				const { marketPaint } = get();
+				if (marketPaint.primary === CLASSIC_PRIMARY && marketPaint.accent === CLASSIC_ACCENT) return false;
+				set({ marketPaint: withAppliedPaint(marketPaint, CLASSIC_PRIMARY, CLASSIC_ACCENT, false) });
+				return true;
+			},
 			finishMarketExpansionNow: () => {
 				const { logistics, marketExpansionConstruction } = get();
 				if (!marketExpansionConstruction) {
@@ -4471,6 +4510,7 @@ export const useGameStore = create<GameStore>()(
 				celebrations,
 				delivery,
 				onboarding,
+				marketPaint,
 			}) => ({
 				era,
 				checkout,
@@ -4515,6 +4555,7 @@ export const useGameStore = create<GameStore>()(
 				celebrations,
 				delivery,
 				onboarding,
+				marketPaint,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
 			// A save that fails to load or migrate is kept on disk untouched (src/storage/save-guard.ts).
@@ -4532,7 +4573,8 @@ export const useGameStore = create<GameStore>()(
 			// 45: first-time onboarding (src/services/onboarding.ts). Saves that already played skip the guided day.
 			// 46: customers' special requests removed (Lucas 29/10): migrateGameState → normalizeDayState drops their list,
 			// stats and contracts from the day; everything else (and the loyalty earned) is kept.
-			version: 46,
+			// 47: "Cores do mercado" (marketPaint): older saves start with the classic navy and gold (migrateGameState).
+			version: 47,
 		},
 	),
 );

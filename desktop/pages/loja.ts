@@ -29,6 +29,7 @@ import { buildCard, placeButton, shelfThumb } from "./build-cards";
 import { eraCards } from "./eras";
 import { lotCards } from "./lots";
 import { getMarketEra, getNextMarketEra } from "@/data/economy";
+import { getMarketPaintCoinPrice, getMarketPalette, isClassicPaint, MARKET_PAINT_DIAMONDS } from "@/data/market-paint";
 import { routes as progress } from "./progress";
 import { routes as upgrades } from "./upgrades";
 
@@ -144,6 +145,23 @@ function moveis(state: State, sub: string) {
 }
 
 // ------------------------------------------------------------------ decorations
+// "Cores do mercado": the picker is drawn by Unity over the live market ("@paint", CheckoutMarketPaintPanel).
+function paintCard(state: State): Card {
+	const paint = state.marketPaint;
+	const current = isClassicPaint(paint) ? "Clássico" : (getMarketPalette(paint.paletteId)?.name ?? "Personalizada");
+	return card("Cores do mercado", {
+		eyebrow: "PINTE O SEU MERCADO",
+		icon: gameIcon("paint"),
+		tone: "featured",
+		subtitle: "Troque o azul e o dourado do mercado pelas cores que você quiser e veja ao vivo antes de pagar.",
+		lines: [
+			`Agora: ${current}`,
+			`Pintar: ${fmt(getMarketPaintCoinPrice(state.era.id))} moedas ou ${MARKET_PAINT_DIAMONDS} diamantes · voltar ao clássico é grátis`,
+		],
+		buttons: [button("Escolher cores", { route: "@paint", variant: "primary", icon: gameIcon("paint") })],
+	});
+}
+
 function decoracao(state: State, sub: string) {
 	const zone = sub === "fora" ? "outside" : "inside";
 	const coins = state.coins;
@@ -174,7 +192,7 @@ function decoracao(state: State, sub: string) {
 			});
 		});
 	return {
-		cards,
+		cards: [paintCard(state), ...cards],
 		chips: [
 			chip("Dentro da loja", "decoracao", "dentro", zone === "inside", gameIcon("market")),
 			chip("Praça", "decoracao", "fora", zone === "outside", gameIcon("garden")),

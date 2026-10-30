@@ -393,6 +393,7 @@ namespace Checkout
                 else target.panel = "checkout";
             }
             if (it.type == "kiosk" && !go.GetComponent<CheckoutKiosk>()) go.AddComponent<CheckoutKiosk>();
+            CheckoutMarketPaint.Touch(go); // a piece placed while the market wears the player's colours
         }
 
         public Vector3 WorldOf(float x, float z) => CheckoutMarketLayout.Project(new Vector3(x, Floor, z), layout.State);

@@ -89,6 +89,12 @@ namespace Checkout
             return t;
         }
 
+        void OpenPaint()
+        {
+            Finish();
+            if (!Open) CheckoutMarketPaintPanel.Show();
+        }
+
         void BuildTray()
         {
             float pad = Phone ? 10 : 16;
@@ -106,6 +112,9 @@ namespace Checkout
             Tab(head, "melhorias", "Melhorias", "Icons/lightning");
             var spacer = Node(head, "Spacer"); spacer.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
             // The floor grid: on, pieces snap to its squares (G on a keyboard does the same).
+            // "Cores do mercado": the picker over the live market (the build mode closes first, keeping what was placed).
+            var paintButton = U.Button(head, "Cores", "secondary", OpenPaint, TrayHeadH - 10, Phone ? 16 : 18); paintButton.SetWidth(Phone ? 130 : 150);
+            paintButton.Apply(Data("Cores", "secondary", true, "Icons/paint"));
             gridButton = U.Button(head, "Grade", "secondary", ToggleGrid, TrayHeadH - 10, Phone ? 16 : 18); gridButton.SetWidth(Phone ? 130 : 150);
             foldButton = U.Button(head, "", "primary", () => Fold(!folded), TrayHeadH - 10, 16); foldButton.SetWidth(TrayHeadH + 8); BigIcon(foldButton, (TrayHeadH - 10) * .7f);
 

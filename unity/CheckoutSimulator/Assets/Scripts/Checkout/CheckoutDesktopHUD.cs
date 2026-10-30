@@ -67,6 +67,8 @@ namespace Checkout {
    if(data.route=="@build"){host.Route("");CheckoutBuildMode.OpenFromHud();return;}
    // "@lots" shows the lots of the block from above (CheckoutLotView).
    if(data.route=="@lots"){host.Route("");CheckoutLotView.Show();return;}
+   // "@paint" opens "Cores do mercado" (CheckoutMarketPaintPanel) over the live market.
+   if(data.route=="@paint"){host.Route("");CheckoutMarketPaintPanel.Show();return;}
    // "@shop" opens the supplier market app; "@shop:<productId>" also puts one box of that product in the cart.
    if((data.route??"")=="@shop"||(data.route??"").StartsWith("@shop:")){host.Route("");int.TryParse((data.route??"").Length>6?data.route.Substring(6):"0",out var shopProduct);CheckoutSupplierShop.Show(shopProduct);return;}
    // "@delivery" opens the store computer on the Delivery tab (CheckoutDeliveryApp).

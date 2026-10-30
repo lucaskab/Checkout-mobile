@@ -31,11 +31,17 @@ Shader "MarketDay/Soft Painted"
         CGPROGRAM
         #pragma surface surf Market fullforwardshadows addshadow
         #pragma target 3.0
+        // The market's own pieces get a copy with MARKET_PAINT on while the player's colours are on (CheckoutMarketPaint).
+        #pragma multi_compile_local __ MARKET_PAINT
+        #include "Assets/Resources/CheckoutPaint/MarketPaint.cginc"
         sampler2D _MainTex;fixed4 _Color;
         struct Input {float2 uv_MainTex;};
         void surf(Input IN,inout SurfaceOutput o)
         {
             fixed4 c=tex2D(_MainTex,IN.uv_MainTex)*_Color;o.Albedo=c.rgb;o.Alpha=1;
+            #ifdef MARKET_PAINT
+            o.Albedo=MarketPaint(c.rgb,IN.uv_MainTex);
+            #endif
         }
         half4 LightingMarket(SurfaceOutput s,half3 lightDir,half atten)
         {

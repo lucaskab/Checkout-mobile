@@ -1,3 +1,4 @@
+import type { MarketPaintSnapshot } from "./market-paint";
 import type { GameActions, GameState } from "./game";
 export type SimulatorPanel =
 	| "store"
@@ -110,6 +111,8 @@ export type SimulatorSnapshot = {
 	jobs: GameState["production"]["jobs"];
 	/** The Delivery app (src/services/delivery.ts): online orders, the rating and the streak. */
 	delivery: SimulatorDelivery;
+	/** "Cores do mercado" (src/data/market-paint.ts): the market's two colours, the palettes and the prices. */
+	paint: MarketPaintSnapshot;
 	customers: GameState["market"]["recentCustomers"];
 	expansions: string[];
 	era: {

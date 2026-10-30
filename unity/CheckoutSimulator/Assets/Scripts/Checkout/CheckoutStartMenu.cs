@@ -37,7 +37,7 @@ namespace Checkout
             QaFresh = Application.isEditor && qa.Contains("onboarding");
             QaMode = qa.Contains("events") || QaFresh;
 #if UNITY_EDITOR
-            CheckoutScreen.QaHandheld = QaFresh ? !qa.Contains("-desk") : (bool?)null; // reset too (play mode without a domain reload)
+            CheckoutScreen.QaHandheld = QaFresh ? !qa.Contains("-desk") : qa.Contains("-phone") || qa.Contains("-mini") ? true : (bool?)null; // reset too (play mode without a domain reload); "events…-phone" shows the phone UI on the QA copy
 #endif
             // App Store screenshots (Checkout/iPhone/Store screenshots): also on the QA copy of the save, straight into the game.
             if (Application.isEditor && System.IO.File.Exists("Logs/store_shots.txt")) QaMode = true;
