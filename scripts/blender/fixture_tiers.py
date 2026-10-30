@@ -828,16 +828,19 @@ def render(name, size=(2048, 1100)):
     return sc.render.filepath
 
 
+GAP = {"gumball": 2.2, "atm": 1.3, "carts": 1.2}
+
+
 def lineup_sheet(kind, base_y, title_name):
     """Builds the lineup of `kind` at y = base_y and renders the sheet plus a close-up of every tier."""
-    roots, prints, tris, total, xs = lineup(kind, .9, base_y)
+    roots, prints, tris, total, xs = lineup(kind, GAP.get(kind, .9), base_y)
     ext = max(fd for (_, _, _, fd) in prints) + 2 * FRONT_APRON.get(kind, 0)
     x0, x1 = -total / 2 - 1.6, total / 2 + .6
     sheet_floor(math.floor(x0), math.ceil(x1), base_y - ext / 2 - 1.25, base_y + ext / 2 + .75, prints)
     mannequin((-total / 2 - .8, base_y + .1, 0), "Pessoa " + kind)
     for i, (cx, cy, fw, fd) in enumerate(prints):
         tid, name, _, _, h = TIERS[kind][i]
-        caption("%s  %s" % (tid, name), (cx, base_y - ext / 2 - .45, .004), .17)
+        caption(name if kind in globals().get("NO_TIER_KINDS", ()) else "%s  %s" % (tid, name), (cx, base_y - ext / 2 - .45, .004), .17)
         caption(("%.2f x %.2f m" % (fw, fd)).replace(".", ","), (cx, base_y - ext / 2 - .8, .004), .15, C("5E6B7D"))
     return roots, prints, tris, total
 
@@ -2221,11 +2224,11 @@ def steak(acc, loc, s=1.0, yaw=0, grp="Body"):
 def fish_body(acc, loc, L=.36, yaw=0, grp="Body", col="T_IK_FishScale"):
     x, y, z = loc
     X = Xf(acc, (x, y, z), (0, 0, yaw))
-    bm = blob_bm((L * .4, L * .11, L * .07), 2, .02, 1); uv_box(bm, 6); place(bm, (0, 0, L * .06)); X.add(bm, col, grp)
+    bm = blob_bm((L * .42, L * .15, L * .07), 2, .02, 1); uv_box(bm, 6); place(bm, (0, 0, L * .06)); X.add(bm, col, grp)
     bm = bmesh.new()
-    v = [bm.verts.new((L * .36, 0, L * .06)), bm.verts.new((L * .52, L * .1, L * .07)), bm.verts.new((L * .52, -L * .1, L * .07))]
+    v = [bm.verts.new((L * .36, 0, L * .06)), bm.verts.new((L * .55, L * .14, L * .07)), bm.verts.new((L * .55, -L * .14, L * .07))]
     bm.faces.new(v); bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=.006); uv_box(bm); X.add(bm, C("6F8FA6"), grp)
-    blob(X, (.008, .008, .008), (-L * .32, L * .05, L * .09), C(INK), 1, 0, 0, grp=grp)
+    blob(X, (.012, .012, .008), (-L * .3, L * .06, L * .11), C(INK), 1, 0, 0, grp=grp)
 
 
 def ice_bed(acc, w, d, loc):
@@ -2743,3 +2746,1290 @@ BUILDERS.update({
     "claw": [claw_t1, claw_t2, claw_t3],
     "carts": [carts_t1, carts_t2, carts_t3],
 })
+
+
+# ================================================================================================ ROUND 2 (Lucas 30/10): sectors v2
+# Every sector keeps its own identity from today's game (Decor/sector-*.png): padaria = brick and a dome oven,
+# açougue = white tile, steel rail with hanging cuts, butcher block, queijaria = plaster cellar with wheel racks and
+# hanging cheeses, peixaria = blue-and-white tile, inclined ice bed, crates, sorveteria = parlour with a gelato case and
+# cones, adega = dark wood wine wall, barrels, tasting counter, sucos = fruit display and dispensers. The tiers grow
+# the same sector: T1 2.5 x 2.0 m, T2 3.25 x 2.5 m, T3 4.0 x 3.25 m (today's counters are 3.96 x 3.36).
+SECTOR_SIZES = [(2.5, 2.0, 2.4), (3.25, 2.5, 2.7), (4.0, 3.25, 3.0)]
+SECTOR_NAMES = {"padaria": "Padaria", "acougue": "Açougue", "queijaria": "Queijaria", "peixaria": "Peixaria",
+                "sorvetes": "Sorveteria", "adega": "Adega", "sucos": "Sucos"}
+SECTOR_TIER_NAMES = {
+    "padaria": ("forno a lenha", "padaria de bairro", "padaria artesanal"),
+    "acougue": ("balcão do açougueiro", "açougue completo", "açougue com câmara de maturação"),
+    "queijaria": ("banca de queijos", "queijaria", "cave de queijos"),
+    "peixaria": ("bancada de gelo", "peixaria", "peixaria com aquário"),
+    "sorvetes": ("carrinho de gelato", "sorveteria", "gelateria"),
+    "adega": ("estante de vinhos", "adega", "cave de vinhos"),
+    "sucos": ("barraca de sucos", "casa de sucos", "bar de sucos"),
+}
+for _sid in SECTOR_NAMES:
+    TIERS["sector-" + _sid] = [("T%d" % (i + 1), "%s: %s" % (SECTOR_NAMES[_sid], SECTOR_TIER_NAMES[_sid][i]), w, d, h)
+                               for i, (w, d, h) in enumerate(SECTOR_SIZES)]
+BRICK, PLASTER, STONE, TILE_W, TILE_B, ROPE = "T_IK_Brick", "T_IK_Plaster", "T_IK_Stone", "T_IK_TileSquare", "T_IK_TileBlue", "T_IK_Rope"
+
+
+def pendant(acc, x, y, ztop, zlamp, r=.13):
+    tube(acc, [(x, y, ztop), (x, y, zlamp)], .005, C(INK), 4)
+    lathe(acc, [(0, 0), (.03, 0), (r, -.11), (r + .01, -.13), (0, -.11)], (x, y, zlamp), C(NAVY), 14, 0)
+    lathe(acc, [(r - .005, -.125), (0, -.12)], (x, y, zlamp), LED, 14, 0, cap_top=False)
+    lathe(acc, [(r, -.12), (r + .013, -.12), (r + .013, -.132), (r, -.132)], (x, y, zlamp), C(GOLD), 14, 0, cap_top=False, cap_bottom=False)
+
+
+def back_wall(acc, W, y, H, key, wains=None, wh=1.0, trim=True, uv=1.3):
+    rbox(acc, (W, .12, H), (0, y, H / 2), key, .02, 2, uv=uv)
+    if wains:
+        rbox(acc, (W + .01, .13, wh), (0, y - .01, wh / 2), wains, .015, 2, uv=uv)
+    if trim:
+        rbox(acc, (W + .02, .05, .05), (0, y - .07, wh if wains else .1), C(NAVY), .015, 2)
+        rbox(acc, (W + .02, .01, .012), (0, y - .1, (wh if wains else .1) + .03), C(GOLD), .003, 1)
+        rbox(acc, (W + .04, .16, .08), (0, y - .02, H + .04), C(NAVY), .03, 3)
+
+
+def name_board(acc, x, y, z, w=1.1, h=.3):
+    """Blank arched board for the sector's name / pictogram (the game writes it, translated)."""
+    plate(acc, w, h, (x, y, z), C(NAVY), .05, h * .45)
+    fr = frame_bm(w - .04, h - .04, .012, h * .4, .014)
+    place(fr, (x, y - .028, z)); acc.add(fr, C(GOLD))
+    plate(acc, w * .8, h * .62, (x, y - .03, z), C(CREAM), .01, h * .3)
+
+
+def dome_oven(acc, x, y, r, z0=0):
+    """Wood-fired dome oven: brick base, brick dome, glowing arched mouth with a gold rim, chimney."""
+    rbox(acc, (r * 2.3, r * 2.0, .75), (x, y, z0 + .375), BRICK, .03, 2, uv=2)
+    rbox(acc, (r * 2.4, r * 2.1, .05), (x, y, z0 + .77), STONE, .015, 2, uv=2)
+    dome = lathe_bm([(0, 0), (r, 0), (r * 1.02, r * .25), (r * .9, r * .6), (r * .6, r * .88), (r * .2, r), (0, r * 1.01)], 18, 2)
+    uv_box(dome, 2.2)
+    place(dome, (x, y, z0 + .79)); acc.add(dome, BRICK)
+    mw, mh = r * .9, r * .55
+    plate(acc, mw + .1, mh + .1, (x, y - r * .92, z0 + .79 + mh / 2), STONE, .1, mh * .5)
+    plate(acc, mw, mh, (x, y - r * .97, z0 + .79 + mh / 2), "E_FF8A2A", .02, mh * .48)
+    fr = frame_bm(mw + .04, mh + .04, .02, mh * .48, .025)
+    place(fr, (x, y - r * .99, z0 + .79 + mh / 2)); acc.add(fr, C(GOLD))
+    rbox(acc, (.18, .18, .6), (x + r * .3, y + r * .3, z0 + .79 + r + .2), BRICK, .03, 2, uv=2)
+    rbox(acc, (.22, .22, .05), (x + r * .3, y + r * .3, z0 + .79 + r + .52), C(INK), .015, 2)
+
+
+def flour_sack(acc, loc, s=1.0, yaw=0):
+    x, y, z = loc
+    bm = blob_bm((.18 * s, .13 * s, .24 * s), 2, .05, int(x * 10) % 9)
+    for v in bm.verts:
+        if v.co.z > .1 * s:
+            v.co.x *= .8; v.co.y *= .8
+    uv_box(bm, 3); place(bm, (x, y, z + .2 * s), (0, 0, yaw)); acc.add(bm, "T_IK_R_Fabric")
+    tube(acc, [(x - .07 * s, y, z + .38 * s), (x + .07 * s, y, z + .38 * s)], .012 * s, ROPE, 5)
+
+
+def bread_wall(acc, x, y, w, h, z0=.9, rows=3):
+    """Wooden bread wall (paneleira): slanted shelves full of loaves, baguettes upright in the top row."""
+    rbox(acc, (w, .3, h), (x, y + .05, z0 + h / 2), WOOD_D, .02, 2)
+    for r_ in range(rows):
+        z = z0 + .1 + r_ * h / rows
+        X = Xf(acc, (x, y - .08, z), (14, 0, 0))
+        rbox(X, (w - .08, .26, .02), (0, 0, 0), WOOD, .006, 1)
+        rbox(X, (w - .08, .02, .06), (0, -.13, .03), WOOD, .006, 1)
+        n = int((w - .1) / .2)
+        for i in range(n):
+            if r_ == rows - 1:
+                baguette(X, (-w / 2 + .12 + i * .2, .02, .2), .45, .03, 90, -75, "Body")
+            elif r_ % 2:
+                loaf(X, (-w / 2 + .14 + i * .2, 0, .01), "Body", 90)
+            else:
+                for k in range(2):
+                    roll(X, (-w / 2 + .1 + i * .2 + k * .08, -.03 + k * .04, .04), .042, "Body", i + k)
+
+
+def wood_counter(acc, W, y, D=.7, front=PLANKS, top=WOOD_L, H=.9):
+    rbox(acc, (W, D, H - .05), (0, y, (H - .05) / 2), front, .02, 2, uv=1.3)
+    rbox(acc, (W + .04, D + .04, .05), (0, y, H - .025), top, .015, 2)
+    rbox(acc, (W - .1, .01, .012), (0, y - D / 2 - .004, H - .1), C(GOLD), .003, 1)
+    rbox(acc, (W - .04, .03, .08), (0, y - D / 2 + .01, .04), C(NAVY), .01, 2)
+
+
+def bakery_case(acc, W, y, H=.9):
+    """Heated glass case for cakes and pastries, on a wood/navy base."""
+    rbox(acc, (W, .7, H - .05), (0, y, (H - .05) / 2), C(NAVY), .03, 3)
+    n = int(W / .06)
+    for k in range(n):
+        rbox(acc, (.034, .016, H - .3), (-W / 2 + .05 + k * (W - .1) / (n - 1), y - .356, H / 2), WOOD_L, .006, 1)
+    rbox(acc, (W + .02, .74, .04), (0, y, H), WOOD, .01, 2)
+    rbox(acc, (W - .06, .012, .4), (0, y - .3, H + .22), GLASS, .004, 1, rot=(-10, 0, 0))
+    rbox(acc, (W - .06, .55, .012), (0, y - .02, H + .44), GLASS, .004, 1)
+    rbox(acc, (W - .1, .02, .012), (0, y + .2, H + .42), LED, .004, 1)
+    for s in (-1, 1):
+        rbox(acc, (.03, .6, .44), (s * (W / 2 - .02), y, H + .22), C(NAVY), .01, 1)
+    x = -W / 2 + .15
+    k = 0
+    while x < W / 2 - .12:
+        if k % 2:
+            cake(acc, (x, y - .05, H + .02), .08, .07, ["F4A6C1", "7A4A2E", "F2C23F"][k % 3])
+        else:
+            croissant(acc, (x, y - .1, H + .02), 1, 10 * k)
+            croissant(acc, (x, y + .08, H + .02), 1, -10 * k)
+        x += .22
+        k += 1
+
+
+def padaria(acc, tier):
+    W, D, H = SECTOR_SIZES[tier - 1]
+    yb = D / 2 - .06
+    back_wall(acc, W, yb, H, BRICK, "T_IK_WoodLight" if tier > 1 else None, .9, uv=1.6)
+    if tier == 1:
+        dome_oven(acc, -W / 2 + .7, yb - .55, .48)
+        bread_wall(acc, .55, yb - .2, 1.1, 1.0, .25, 3)
+        wood_counter(acc, W - .3, -D / 2 + .45)
+        for i, x in enumerate((-.75, -.15, .45)):
+            X = basket(acc, .5, .34, .1, (x, -D / 2 + .42, .9), 10)
+            for k in range(4):
+                if i == 1:
+                    loaf(X, (-.17 + k * .11, 0, 0), "Body", 90)
+                else:
+                    roll(X, (-.17 + k * .11, 0, .05), .042, "Body", k)
+        for k in range(2):
+            flour_sack(acc, (W / 2 - .2, yb - .6 - k * .35, 0), 1.0, 20 * k)
+        rbox(acc, (.18, .02, 1.3), (-W / 2 + .2, yb - .9, .65), WOOD, .01, 1, rot=(0, 12, 0))
+        name_board(acc, 0, yb - .08, H - .2)
+    elif tier == 2:
+        # brick arch around a bigger dome oven, bread walls both sides, counter with baskets + cake case
+        dome_oven(acc, 0, yb - .7, .62)
+        bread_wall(acc, -W / 2 + .62, yb - .2, 1.0, 1.4, .9, 3)
+        bread_wall(acc, W / 2 - .62, yb - .2, 1.0, 1.4, .9, 3)
+        Xw = Xf(acc, (-W * .2, 0, 0))
+        wood_counter(Xw, W * .55, -D / 2 + .45, .7)
+        for i, x in enumerate((-.55, 0, .55)):
+            Bk = basket(Xw, .48, .34, .1, (x, -D / 2 + .42, .9), 10)
+            for k in range(4):
+                roll(Bk, (-.16 + k * .1, 0, .05), .042, "Body", k + i)
+        Xc = Xf(acc, (W * .3, 0, 0))
+        bakery_case(Xc, W * .36, -D / 2 + .45)
+        for k in range(3):
+            flour_sack(acc, (-W / 2 + .25 + (k % 2) * .3, -D / 2 + 1.1 + k * .05, 0), 1.0, 30 * k)
+        name_board(acc, 0, yb - .08, H - .15, 1.3)
+        pendant(acc, -.8, -D / 2 + .45, H + .3, 1.95)
+        pendant(acc, .8, -D / 2 + .45, H + .3, 1.95)
+    else:
+        # artisan bakery: brick arch wall, grand oven with a gold rim, two bread walls, bread racks on wheels,
+        # a long ripado counter with a heated case, sack pyramid, pendants
+        dome_oven(acc, 0, yb - .8, .72)
+        arch = frame_bm(2.0, 2.4, .2, .6, .18)
+        place(arch, (0, yb - .14, 1.2)); acc.add(arch, BRICK)
+        bread_wall(acc, -W / 2 + .75, yb - .2, 1.3, 1.6, .9, 4)
+        bread_wall(acc, W / 2 - .75, yb - .2, 1.3, 1.6, .9, 4)
+        Xc = Xf(acc, (-.55, 0, 0))
+        bakery_case(Xc, 2.0, -D / 2 + .5)
+        Xw = Xf(acc, (1.25, 0, 0))
+        wood_counter(Xw, 1.1, -D / 2 + .5, .7, PLANKS, WOOD_L)
+        for i, x in enumerate((-.3, .3)):
+            Bk = basket(Xw, .48, .36, .1, (x, -D / 2 + .48, .9), 10)
+            for k in range(4):
+                if i:
+                    baguette(Bk, (-.18 + k * .12, 0, .05), .42, .03, 0, 0, "Body")
+                else:
+                    roll(Bk, (-.16 + k * .1, 0, .05), .042, "Body", k)
+        for side in (-1, 1):
+            rx = side * (W / 2 - .45)
+            for z in (.25, .55, .85, 1.15):
+                rbox(acc, (.5, .4, .02), (rx, -D / 2 + 1.3, z), BRUSHED, .005, 1)
+                for k in range(3):
+                    roll(acc, (rx - .15 + k * .15, -D / 2 + 1.3, z + .03), .04, "Body", k)
+            for sx in (-1, 1):
+                tube(acc, [(rx + sx * .24, -D / 2 + 1.12, .05), (rx + sx * .24, -D / 2 + 1.12, 1.35)], .012, C(CHROME), 6)
+                tube(acc, [(rx + sx * .24, -D / 2 + 1.48, .05), (rx + sx * .24, -D / 2 + 1.48, 1.35)], .012, C(CHROME), 6)
+        for k, (x, z) in enumerate(((-.35, 0), (.0, 0), (.35, 0), (-.17, .38), (.17, .38))):
+            flour_sack(acc, (x - W / 2 + 1.0, -D / 2 + 1.0 + (k % 2) * .05, z), .9, 15 * k)
+        name_board(acc, 0, yb - .1, H - .1, 1.6, .4)
+        for x in (-1.2, 0, 1.2):
+            pendant(acc, x, -D / 2 + .5, H + .4, 2.0)
+
+
+def meat_cut(acc, loc, s=1.0):
+    """Hanging cured ham / beef cut on a hook."""
+    x, y, z = loc
+    tube(acc, [(x, y, z), (x, y, z - .08)], .004, C(CHROME), 4)
+    lathe(acc, [(0, 0), (.04 * s, -.03 * s), (.08 * s, -.13 * s), (.09 * s, -.25 * s), (.06 * s, -.34 * s), (0, -.36 * s)], (x, y, z - .08), "T_IK_Meat", 12, 1)
+    lathe(acc, [(.0, 0), (.012, 0), (.012, .05), (0, .05)], (x, y, z - .08 - .36 * s), C(CREAM), 6, 0)
+
+
+def sausage_string(acc, x, y, z, n=4):
+    for k in range(n):
+        lathe(acc, [(0, 0), (.022, -.02), (.024, -.1), (.02, -.13), (0, -.14)], (x, y, z - k * .145), C("8E2F2A"), 8, 0)
+
+
+def meat_case(acc, W, y, H=.9, D=.75):
+    """Refrigerated serve-over meat case: steel and navy body, straight front glass, steaks on angled trays."""
+    rbox(acc, (W, D, H - .05), (0, y, (H - .05) / 2), C(NAVY), .03, 3)
+    rbox(acc, (W - .1, .01, .3), (0, y - D / 2 - .004, .45), BRUSHED, .01, 1)
+    rbox(acc, (W + .02, D + .02, .04), (0, y, H), BRUSHED, .01, 2)
+    rbox(acc, (W - .06, .012, .42), (0, y - D / 2 + .08, H + .21), GLASS, .004, 1, rot=(-18, 0, 0))
+    rbox(acc, (W - .06, .4, .012), (0, y + .05, H + .42), GLASS, .004, 1)
+    for s in (-1, 1):
+        rbox(acc, (.03, D - .1, .44), (s * (W / 2 - .02), y, H + .22), BRUSHED, .01, 1)
+    rbox(acc, (W - .1, .02, .012), (0, y + .22, H + .4), ICE, .004, 1)
+    X = Xf(acc, (0, y, H + .02), (12, 0, 0))
+    rbox(X, (W - .1, .5, .02), (0, 0, 0), C(WHITE), .005, 1)
+    x = -W / 2 + .14
+    k = 0
+    while x < W / 2 - .1:
+        rbox(X, (.2, .4, .015), (x + .05, 0, .015), BRUSHED, .005, 1)
+        for j in range(2):
+            steak(X, (x + .05, -.1 + j * .2, .03), 1.0, 15 * (k + j))
+        x += .24
+        k += 1
+
+
+def butcher_block(acc, x, y, w=.7, d=.55):
+    rbox(acc, (w, d, .25), (x, y, .72), "T_IK_ButcherBlock", .03, 2, uv=3)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            rbox(acc, (.07, .07, .62), (x + sx * (w / 2 - .06), y + sy * (d / 2 - .06), .31), WOOD_D, .015, 2)
+    rbox(acc, (w - .1, d - .1, .03), (x, y, .2), WOOD_D, .01, 1)
+    rbox(acc, (.14, .006, .1), (x + .1, y, .9), C(CHROME), .003, 1, rot=(0, 0, 20))
+    rbox(acc, (.04, .02, .1), (x + .2, y + .04, .87), WOOD_D, .008, 1, rot=(0, 0, 20))
+    steak(acc, (x - .12, y, .86), 1.3, 30)
+
+
+def acougue(acc, tier):
+    W, D, H = SECTOR_SIZES[tier - 1]
+    yb = D / 2 - .06
+    back_wall(acc, W, yb, H, TILE_W, C(NAVY) if tier > 1 else None, 1.0, uv=1.5)
+    # steel rail with the cuts and sausages
+    n = {1: 3, 2: 6, 3: 9}[tier]
+    rw = W - .6
+    tube(acc, [(-rw / 2, yb - .3, H - .35), (rw / 2, yb - .3, H - .35)], .018, C(CHROME), 8)
+    for sx in (-1, 1):
+        tube(acc, [(sx * rw / 2, yb - .3, H - .35), (sx * rw / 2, yb - .08, H - .35)], .012, C(CHROME), 6)
+    for i in range(n):
+        x = -rw / 2 + .15 + i * (rw - .3) / max(1, n - 1)
+        if i % 3 == 1:
+            sausage_string(acc, x, yb - .3, H - .37, 4)
+        else:
+            meat_cut(acc, (x, yb - .3, H - .37), 1.0 if tier < 3 else 1.15)
+    if tier == 1:
+        butcher_block(acc, -W / 2 + .55, yb - .75)
+        meat_case(acc, W - .5, -D / 2 + .42, .9, .7)
+        lathe(acc, [(0, 0), (.15, 0), (.17, .04), (0, .04)], (W / 2 - .4, yb - .4, .95), C(CHROME), 14, 0)
+        rbox(acc, (.3, .25, .25), (W / 2 - .4, yb - .4, .8), C(NAVY), .03, 2)
+        name_board(acc, 0, yb - .08, H - .15, 1.0)
+    elif tier == 2:
+        butcher_block(acc, -W / 2 + .6, yb - .8)
+        butcher_block(acc, .1, yb - .8)
+        meat_case(acc, W - .4, -D / 2 + .42)
+        # grinder and a knife magnet
+        rbox(acc, (.35, .3, .3), (W / 2 - .45, yb - .5, 1.05), C(CHROME), .04, 2)
+        lathe(acc, [(0, 0), (.1, 0), (.12, .2), (0, .2)], (W / 2 - .45, yb - .5, 1.2), C(CHROME), 12, 0)
+        rbox(acc, (.9, .03, .05), (W / 2 - .7, yb - .08, 1.5), C(INK), .01, 1)
+        for k in range(5):
+            rbox(acc, (.03, .01, .22), (W / 2 - 1.05 + k * .12, yb - .1, 1.4), C(CHROME), .003, 1)
+        name_board(acc, 0, yb - .08, H - .15, 1.2)
+        pendant(acc, -.8, -D / 2 + .42, H + .3, 1.95)
+        pendant(acc, .8, -D / 2 + .42, H + .3, 1.95)
+    else:
+        # dry-ageing cabinet: tall glass-door cabinet, lit, two beef sides
+        cx = W / 2 - .55
+        rbox(acc, (.9, .7, 2.2), (cx, yb - .42, 1.1), C(NAVY), .04, 3)
+        rbox(acc, (.74, .02, 1.8), (cx, yb - .78, 1.15), GLASS, .01, 1)
+        rbox(acc, (.7, .5, 1.75), (cx, yb - .45, 1.15), "E_FFE0D0", .01, 1)
+        for k in range(2):
+            lathe(acc, [(0, 0), (.08, -.1), (.13, -.45), (.12, -.9), (.07, -1.2), (0, -1.25)], (cx - .15 + k * .3, yb - .5, 1.95), "T_IK_Meat", 14, 1)
+        rbox(acc, (.9, .01, .012), (cx, yb - .78, 2.1), C(GOLD), .003, 1)
+        butcher_block(acc, -W / 2 + .7, yb - .85, .9, .6)
+        Xc = Xf(acc, (-.35, 0, 0))
+        meat_case(Xc, W - 1.1, -D / 2 + .45)
+        tile_arch = frame_bm(2.2, 2.3, .14, .7, .12)
+        place(tile_arch, (-.45, yb - .1, 1.15)); acc.add(tile_arch, C(NAVY))
+        name_board(acc, -.45, yb - .2, H - .1, 1.4, .36)
+        for x in (-1.4, -.45, .5):
+            pendant(acc, x, -D / 2 + .45, H + .4, 2.0)
+
+
+def provolone(acc, x, y, z, s=1.0):
+    tube(acc, [(x, y, z), (x, y, z - .12)], .004, ROPE, 4)
+    lathe(acc, [(0, 0), (.03 * s, -.02 * s), (.065 * s, -.12 * s), (.07 * s, -.22 * s), (.05 * s, -.3 * s), (0, -.32 * s)], (x, y, z - .12), C("E8C46A"), 12, 1)
+
+
+def wheel_rack(acc, x, y, w, h, levels=4, d=.42):
+    """Wooden cheese rack: dark-wood frame, slatted shelves, wheels of different sizes."""
+    for sx in (-1, 1):
+        rbox(acc, (.06, d, h), (x + sx * (w / 2 - .03), y, h / 2), WOOD_D, .015, 2)
+    rbox(acc, (w, .03, h), (x, y + d / 2 - .015, h / 2), WOOD_D, .01, 1)
+    for i in range(levels):
+        z = .15 + i * (h - .2) / levels
+        for k in range(4):
+            rbox(acc, (w - .1, .08, .02), (x, y - d / 2 + .06 + k * .1, z), WOOD, .006, 1)
+        n = int((w - .14) / .26)
+        for j in range(n):
+            r = .1 if (i + j) % 3 else .12
+            cheese_wheel(acc, (x - w / 2 + .17 + j * .26, y, z + .012), r, .08 + .02 * ((i + j) % 2))
+
+
+def cloche(acc, x, y, z, r=.13):
+    rbox(acc, (r * 2.4, r * 2.4, .03), (x, y, z + .015), WOOD, .01, 1)
+    blob(acc, (r * .7, r * .5, .05), (x, y, z + .06), C("F2D27A"), 1, .1, 2)
+    lathe(acc, [(r, 0), (r, .1), (r * .8, .2), (r * .3, .25), (0, .26)], (x, y, z + .03), GLASS, 14, 1, cap_bottom=False)
+    lathe(acc, [(0, 0), (.02, 0), (.02, .03), (0, .035)], (x, y, z + .29), C(GOLD), 8, 0)
+
+
+def queijaria(acc, tier):
+    W, D, H = SECTOR_SIZES[tier - 1]
+    yb = D / 2 - .06
+    back_wall(acc, W, yb, H, PLASTER, WOOD_D, .9, uv=1.5)
+    if tier == 1:
+        wheel_rack(acc, -W / 2 + .7, yb - .3, 1.2, 1.9, 4)
+        wood_counter(acc, W - .4, -D / 2 + .45, .7, WOOD_D, WOOD)
+        for k, x in enumerate((-.6, -.25, .1)):
+            cheese_wheel(acc, (x, -D / 2 + .45, .9), .12, .1)
+        cloche(acc, .55, -D / 2 + .45, .9)
+        beam_y = yb - .7
+        for sx in (-1, 1):
+            rbox(acc, (.08, .08, 2.1), (W / 2 - .2 + (sx - 1) * .45, beam_y, 1.05), WOOD_D, .02, 2)
+        rbox(acc, (1.0, .08, .08), (W / 2 - .65, beam_y, 2.1), WOOD_D, .02, 2)
+        for k in range(4):
+            provolone(acc, W / 2 - 1.0 + k * .22, beam_y, 2.06, 1.0 - .1 * (k % 2))
+        name_board(acc, .35, yb - .08, H - .15, .9)
+    elif tier == 2:
+        arch = frame_bm(W - .4, H - .1, .14, .8, .16)
+        place(arch, (0, yb - .1, (H - .1) / 2)); acc.add(arch, STONE)
+        wheel_rack(acc, -.7, yb - .35, 1.3, 2.1, 5)
+        wheel_rack(acc, .7, yb - .35, 1.3, 2.1, 5)
+        # dark wood counter with a flat glass case
+        rbox(acc, (W - .5, .7, .85), (0, -D / 2 + .45, .425), WOOD_D, .03, 2)
+        for k in range(3):
+            fr = frame_bm((W - .7) / 3 - .1, .5, .02, .04, .05); place(fr, (-(W - .7) / 3 + k * (W - .7) / 3, -D / 2 + .095, .42)); acc.add(fr, WOOD)
+        rbox(acc, (W - .48, .74, .04), (0, -D / 2 + .45, .87), WOOD, .01, 2)
+        rbox(acc, (W - .6, .5, .3), (0, -D / 2 + .5, 1.04), GLASS, .01, 1)
+        x = -W / 2 + .5
+        k = 0
+        while x < W / 2 - .4:
+            if k % 2:
+                cheese_wheel(acc, (x, -D / 2 + .5, .89), .1, .08)
+            else:
+                blob(acc, (.09, .06, .05), (x, -D / 2 + .5, .93), C("F2D27A"), 1, .1, k)
+            x += .25
+            k += 1
+        beam_y = -D / 2 + 1.0
+        rbox(acc, (W - .3, .08, .08), (0, beam_y, 2.2), WOOD_D, .02, 2)
+        for sx in (-1, 1):
+            rbox(acc, (.08, .08, 2.2), (sx * (W / 2 - .15), beam_y, 1.1), WOOD_D, .02, 2)
+        for k in range(7):
+            provolone(acc, -W / 2 + .5 + k * (W - 1) / 6, beam_y, 2.16, 1.0 - .12 * (k % 2))
+        name_board(acc, 0, yb - .2, H - .1, 1.2)
+    else:
+        # vaulted cellar: stone arch + barrel vault ribs, floor-to-ceiling racks, wheel pyramid, tasting counter
+        arch = frame_bm(W - .2, H + .1, .16, 1.4, .2)
+        place(arch, (0, yb - .12, (H + .1) / 2)); acc.add(arch, STONE)
+        rbox(acc, (W, .14, .9), (0, yb - .02, .45), STONE, .02, 2, uv=1.5)
+        for x in (-1.3, 0, 1.3):
+            wheel_rack(acc, x, yb - .3, 1.2, 2.4, 6)
+        wood_counter(acc, W - .8, -D / 2 + .5, .75, WOOD_D, WOOD)
+        for k, x in enumerate((-1.1, -.4, .3, 1.0)):
+            rbox(acc, (.45, .3, .03), (x, -D / 2 + .5, .92), WOOD, .01, 1, rot=(0, 0, 8 * (k % 2)))
+            for j in range(3):
+                rbox(acc, (.08, .06, .05), (x - .12 + j * .12, -D / 2 + .5, .96), C("F2D27A"), .01, 1, rot=(0, 0, 30 * j))
+            for j in range(5):
+                blob(acc, (.012, .012, .012), (x + .15, -D / 2 + .44 + j * .025, .955), C("6A2B5C"), 1, 0, j)
+        # pyramid of wheels at the front corner
+        for lvl, n in enumerate((3, 2, 1)):
+            for j in range(n):
+                cheese_wheel(acc, (W / 2 - .5 + (j - (n - 1) / 2) * .27, -D / 2 + 1.3, lvl * .1), .13, .1)
+        for k in range(9):
+            provolone(acc, -W / 2 + .5 + k * (W - 1) / 8, -D / 2 + 1.1, 2.6, 1.0 - .12 * (k % 2))
+        rbox(acc, (W - .4, .08, .08), (0, -D / 2 + 1.1, 2.64), WOOD_D, .02, 2)
+        name_board(acc, 0, yb - .25, H - .2, 1.4, .36)
+        for x in (-1.2, 0, 1.2):
+            pendant(acc, x, -D / 2 + .5, H + .4, 2.1)
+
+
+def ice_slope(acc, w, d, loc, tilt=18, fish_n=None, seed=0):
+    """Inclined ice bed (crushed ice mound on a steel tray tilted towards the customer) with fish and lemons."""
+    rnd = random.Random(seed)
+    x, y, z = loc
+    X = Xf(acc, (x, y, z), (tilt, 0, 0))
+    open_box(X, w, d, .1, (0, 0, 0), BRUSHED, .015, .006, 2)
+    blob(X, (w / 2 - .02, d / 2 - .02, .05), (0, 0, .06), C("EEF8FC"), 2, .12, seed)
+    n = fish_n or max(2, int(w / .3))
+    for i in range(n):
+        fx = -w / 2 + .18 + i * (w - .36) / max(1, n - 1)
+        for row in range(2 if d > .45 else 1):
+            fish_body(X, (fx, -d / 4 + row * d / 2, .09), .42, 60 + rnd.uniform(-12, 12), "Body", ["T_IK_FishScale", C("8FA3AE"), C("D74A3C")][(i + row) % 3])
+        fruit(X, "lemon", (fx + .13, 0, .1), "Body", i)
+
+
+def fish_crate(acc, loc, yaw=0, seed=0):
+    x, y, z = loc
+    X = Xf(acc, (x, y, z), (0, 0, yaw))
+    open_box(X, .5, .34, .14, (0, 0, 0), CRATE, .016, .006, 2.5)
+    blob(X, (.22, .14, .04), (0, 0, .07), C("EEF8FC"), 1, .1, seed)
+    for k in range(3):
+        fish_body(X, (-.12 + k * .12, 0, .08), .26, 90, "Body", ["T_IK_FishScale", C("8FA3AE")][k % 2])
+
+
+def hanging_scale(acc, x, y, z):
+    tube(acc, [(x, y, z), (x, y, z - .3)], .006, C(CHROME), 4)
+    lathe(acc, [(0, 0), (.1, 0), (.1, .04), (0, .04)], (x, y - .002, z - .45), C(CHROME), 16, 0, rot=(90, 0, 0))
+    lathe(acc, [(0, 0), (.085, 0), (.085, .005), (0, .005)], (x, y - .045, z - .45), C(WHITE), 16, 0, rot=(90, 0, 0))
+    for k in range(3):
+        a = k * 2.09
+        tube(acc, [(x, y, z - .5), (x + .14 * math.cos(a), y + .14 * math.sin(a), z - .72)], .003, C(CHROME), 3)
+    lathe(acc, [(0, 0), (.16, 0), (.18, .05), (0, .02)], (x, y, z - .76), C(CHROME), 16, 0)
+
+
+def fishing_net(acc, x0, x1, y, z0, z1):
+    for k in range(int((x1 - x0) / .12) + 1):
+        tube(acc, [(x0 + k * .12, y, z1), (x0 + k * .12 + .03, y, (z0 + z1) / 2), (x0 + k * .12, y, z0)], .004, ROPE, 3)
+    for k in range(int((z1 - z0) / .12) + 1):
+        z = z0 + k * .12
+        tube(acc, [(x0, y, z), ((x0 + x1) / 2, y, z - .04 * math.sin(k)), (x1, y, z)], .004, ROPE, 3)
+    for k in range(3):
+        blob(acc, (.05, .03, .05), (x0 + .2 + k * (x1 - x0 - .4) / 2, y - .02, z0 + .05), C(CREAM), 1, 0, k)
+
+
+def peixaria(acc, tier):
+    W, D, H = SECTOR_SIZES[tier - 1]
+    yb = D / 2 - .06
+    back_wall(acc, W, yb, H, TILE_W, TILE_B, 1.1, uv=1.5)
+    if tier == 1:
+        rbox(acc, (W - .4, .75, .75), (0, -D / 2 + .5, .375), BRUSHED, .03, 2)
+        ice_slope(acc, W - .5, .65, (0, -D / 2 + .5, .76), 16, None, 1)
+        for k in range(2):
+            fish_crate(acc, (W / 2 - .4, yb - .5, k * .15), 10 * k, k)
+        fish_crate(acc, (-W / 2 + .45, yb - .5, 0), -5, 3)
+        hanging_scale(acc, 0, yb - .5, 2.1)
+        fishing_net(acc, -W / 2 + .3, -.3, yb - .07, 1.25, 2.1)
+        name_board(acc, .6, yb - .08, H - .2, .9)
+    elif tier == 2:
+        rbox(acc, (W - .3, .8, .78), (0, -D / 2 + .5, .39), BRUSHED, .03, 2)
+        rbox(acc, (W - .4, .01, .3), (0, -D / 2 + .09, .4), TILE_B, .01, 1)
+        ice_slope(acc, W - .4, .72, (0, -D / 2 + .5, .79), 18, None, 2)
+        rbox(acc, (1.0, .55, .9), (W / 2 - .7, yb - .4, .45), BRUSHED, .03, 2)
+        lathe(acc, [(0, 0), (.22, 0), (.22, -.14), (0, -.15)], (W / 2 - .7, yb - .4, .9), C(CHROME), 16, 0)
+        tube(acc, [(W / 2 - .5, yb - .2, .9), (W / 2 - .5, yb - .2, 1.25), (W / 2 - .65, yb - .3, 1.25)], .012, C(CHROME), 8)
+        for k in range(3):
+            fish_crate(acc, (-W / 2 + .45, yb - .5, k * .15), 8 * k, k)
+        hanging_scale(acc, -.2, yb - .6, 2.3)
+        fishing_net(acc, -W / 2 + .3, .3, yb - .07, 1.35, 2.4)
+        name_board(acc, .2, yb - .1, H - .15, 1.1)
+        pendant(acc, -.8, -D / 2 + .5, H + .3, 1.95)
+        pendant(acc, .8, -D / 2 + .5, H + .3, 1.95)
+    else:
+        # ice island in two steps + lobster tank + full tile wall
+        rbox(acc, (W - .4, 1.1, .7), (0, -D / 2 + .7, .35), BRUSHED, .04, 2)
+        rbox(acc, (W - .5, .01, .3), (0, -D / 2 + .149, .36), TILE_B, .01, 1)
+        ice_slope(acc, W - .5, .55, (0, -D / 2 + .5, .72), 14, None, 3)
+        ice_slope(acc, W - .5, .5, (0, -D / 2 + .98, .88), 20, None, 4)
+        tx = -W / 2 + .75
+        rbox(acc, (1.1, .55, .7), (tx, yb - .4, .35), C(NAVY), .03, 2)
+        rbox(acc, (1.1, .55, .6), (tx, yb - .4, 1.0), GLASS, .02, 1)
+        rbox(acc, (1.04, .5, .5), (tx, yb - .4, .97), C("2F6F8F"), .02, 1)
+        for k in range(3):
+            blob(acc, (.09, .04, .03), (tx - .3 + k * .3, yb - .4, .76), C("C0392B"), 1, .15, k)
+        rbox(acc, (1.12, .57, .05), (tx, yb - .4, 1.32), C(NAVY), .02, 2)
+        for k in range(2):
+            for j in range(2):
+                fish_crate(acc, (W / 2 - .45, yb - .45 - j * .4, k * .15), 10 * (j + k), j + k)
+        hanging_scale(acc, .5, -D / 2 + .5, 2.55)
+        fishing_net(acc, -.1, W / 2 - .3, yb - .07, 1.4, 2.6)
+        name_board(acc, -.6, yb - .2, H - .15, 1.3, .36)
+        for x in (-1.3, 0, 1.3):
+            pendant(acc, x, -D / 2 + .7, H + .4, 2.05)
+
+
+def gelato_case(acc, W, y, H=.95, rows=2, seed=0):
+    """Curved-glass gelato case: navy body, light-wood slats, steel pans with mounded flavours and paddles."""
+    rbox(acc, (W, .8, H - .05), (0, y, (H - .05) / 2), C(NAVY), .04, 3)
+    n = int(W / .07)
+    for k in range(n):
+        rbox(acc, (.034, .016, H - .4), (-W / 2 + .1 + k * (W - .2) / (n - 1), y - .406, H / 2), WOOD_L, .006, 1)
+    rbox(acc, (W - .1, .01, .01), (0, y - .41, H - .15), C(GOLD), .003, 1)
+    rbox(acc, (W + .02, .82, .04), (0, y, H), BRUSHED, .01, 2)
+    cols = int((W - .2) / .27)
+    for r_ in range(rows):
+        for c in range(cols):
+            x = -W / 2 + .2 + c * (W - .4) / max(1, cols - 1)
+            yy = y - .12 + r_ * .25
+            rbox(acc, (.25, .2, .06), (x, yy, H + .03), BRUSHED, .01, 1)
+            bm = blob_bm((.11, .085, .06), 2, .15, c + r_ * 7 + seed)
+            uvl = bm.loops.layers.uv.get("UVMap")
+            for f in bm.faces:
+                for l in f.loops:
+                    l[uvl].uv = rk_core.cell_uv("gelato_%d" % ((c + r_ * 3 + seed) % 8), (l.vert.co.x / .22 + .5) % 1, (l.vert.co.y / .17 + .5) % 1)
+            place(bm, (x, yy, H + .07)); acc.add(bm, LAB)
+            if (c + r_) % 3 == 0:
+                rbox(acc, (.025, .18, .01), (x + .05, yy, H + .12), C(CHROME), .004, 1, rot=(0, -25, 0))
+    bm = bmesh.new()
+    prof = [(0, 0), (.07, .1), (.12, .22), (.14, .34), (.12, .42)]
+    for i in range(len(prof) - 1):
+        a, b = prof[i], prof[i + 1]
+        v = [bm.verts.new((-W / 2 + .03, -a[0], a[1])), bm.verts.new((W / 2 - .03, -a[0], a[1])), bm.verts.new((W / 2 - .03, -b[0], b[1])), bm.verts.new((-W / 2 + .03, -b[0], b[1]))]
+        bm.faces.new(v)
+    uv_box(bm); place(bm, (0, y - .25, H + .02)); acc.add(bm, GLASS)
+    rbox(acc, (W - .04, .45, .012), (0, y + .02, H + .44), GLASS, .004, 1)
+    rbox(acc, (W - .1, .02, .012), (0, y + .22, H + .42), LED, .004, 1)
+
+
+def cone_stand(acc, x, y, z=0, h=1.1):
+    """Wooden cone stand: a post with three round trays of waffle cones standing in holes."""
+    lathe(acc, [(0, 0), (.18, 0), (.18, .04), (.04, .06), (.03, h), (0, h)], (x, y, z), WOOD, 12, 1)
+    for k, zz in enumerate((h * .5, h * .75, h)):
+        lathe(acc, [(0, 0), (.16 - k * .03, 0), (.16 - k * .03, .03), (0, .03)], (x, y, z + zz), WOOD_L, 14, 0)
+        n = 6 - k
+        for j in range(n):
+            a = j * 2 * math.pi / n
+            r = .11 - k * .025
+            lathe(acc, [(0, -.06), (.025, .06)], (x + r * math.cos(a), y + r * math.sin(a), z + zz + .03), "T_IK_Waffle", 8, 0, cap_top=False)
+
+
+def striped_awning(acc, W, y, z, depth=.6, n=None):
+    n = n or int(W / .25)
+    for k in range(n):
+        x = -W / 2 + (k + .5) * W / n
+        rbox(acc, (W / n, depth, .02), (x, y - depth / 2, z), C(NAVY if k % 2 else CREAM), .004, 1, rot=(-20, 0, 0))
+        blob(acc, (W / n / 2, .02, .05), (x, y - depth * .95, z - depth * .34 - .02), C(NAVY if k % 2 else CREAM), 1, 0, k)
+    rbox(acc, (W + .04, .04, .04), (0, y - .02, z + .02), C(GOLD), .01, 1)
+
+
+def sorvetes(acc, tier):
+    W, D, H = SECTOR_SIZES[tier - 1]
+    yb = D / 2 - .06
+    back_wall(acc, W, yb, H, "T_IK_V2_PaintCream", C(NAVY), .9, uv=1.5)
+    if tier == 1:
+        gelato_case(acc, 1.6, -D / 2 + .5, .95, 2, 0)
+        cone_stand(acc, W / 2 - .3, -D / 2 + .45)
+        striped_awning(acc, W - .2, yb - .06, 2.05, .55)
+        for k in range(4):
+            lathe(acc, [(0, 0), (.05, 0), (.06, .14), (0, .14)], (-W / 2 + .4 + k * .2, yb - .25, 1.3), GLASS, 8, 0)
+            blob(acc, (.045, .045, .05), (-W / 2 + .4 + k * .2, yb - .25, 1.38), C(["F4A6C1", "7A4A2E", "F2C23F", "B9E8D2"][k]), 1, .2, k)
+        rbox(acc, (1.2, .25, .03), (-W / 2 + .7, yb - .2, 1.28), WOOD, .01, 1)
+        name_board(acc, .5, yb - .08, 1.6, .9)
+    elif tier == 2:
+        gelato_case(acc, W - .8, -D / 2 + .5, .95, 2, 3)
+        cone_stand(acc, W / 2 - .3, -D / 2 + .5)
+        striped_awning(acc, W - .1, yb - .06, 2.25, .6)
+        # soft-serve machine and topping jars on the back counter
+        rbox(acc, (W - .2, .5, .9), (0, yb - .3, .45), C(NAVY), .03, 2)
+        rbox(acc, (W - .18, .54, .04), (0, yb - .3, .92), "T_IK_V2_PaintCream", .01, 1)
+        rbox(acc, (.5, .45, .6), (W / 2 - .5, yb - .32, 1.24), C(CREAM), .06, 3)
+        for k in range(2):
+            tube(acc, [(W / 2 - .6 + k * .2, yb - .55, 1.3), (W / 2 - .6 + k * .2, yb - .6, 1.18)], .025, C(CHROME), 8)
+        for k in range(6):
+            lathe(acc, [(0, 0), (.05, 0), (.06, .16), (0, .16)], (-W / 2 + .35 + k * .17, yb - .3, .94), GLASS, 8, 0)
+            blob(acc, (.045, .045, .06), (-W / 2 + .35 + k * .17, yb - .3, 1.03), C(["F4A6C1", "7A4A2E", "F2C23F", "B9E8D2", "E8505B", "FBF8F1"][k]), 1, .2, k)
+        name_board(acc, -.3, yb - .08, 1.75, 1.1)
+    else:
+        gelato_case(acc, W - 1.3, -D / 2 + .5, .95, 2, 5)
+        cone_stand(acc, W / 2 - .45, -D / 2 + .5, 0, 1.25)
+        striped_awning(acc, W - .1, yb - .06, 2.5, .7)
+        rbox(acc, (W - .2, .5, .9), (0, yb - .3, .45), C(NAVY), .03, 2)
+        rbox(acc, (W - .18, .54, .04), (0, yb - .3, .92), "T_IK_V2_PaintCream", .01, 1)
+        for k in range(2):
+            mx = W / 2 - .5 - k * .6
+            rbox(acc, (.5, .45, .6), (mx, yb - .32, 1.24), C(CREAM), .06, 3)
+            tube(acc, [(mx, yb - .55, 1.3), (mx, yb - .6, 1.18)], .025, C(CHROME), 8)
+        # arched lit niches with sundae cups
+        for k in range(3):
+            nx = -W / 2 + .6 + k * .55
+            fr = frame_bm(.42, .6, .06, .2, .04); place(fr, (nx, yb - .07, 1.6)); acc.add(fr, C(GOLD))
+            plate(acc, .36, .54, (nx, yb - .055, 1.6), LED, .01, .17)
+            lathe(acc, [(0, 0), (.03, 0), (.01, .06), (.06, .12), (.07, .16), (0, .16)], (nx, yb - .15, 1.38), GLASS, 10, 0)
+            blob(acc, (.05, .05, .05), (nx, yb - .15, 1.56), C(["F4A6C1", "7A4A2E", "F2C23F"][k]), 1, .2, k)
+        # parlour corner: a round table with two wire chairs
+        tx, ty = -W / 2 + .55, -D / 2 + 1.35
+        lathe(acc, [(0, 0), (.22, 0), (.22, .03), (.03, .05), (.03, .72), (.32, .72), (.32, .76), (0, .76)], (tx, ty, 0), C(NAVY), 16, 1)
+        lathe(acc, [(.32, .76), (.325, .76), (.325, .77), (.32, .77)], (tx, ty, 0), C(GOLD), 16, 0, cap_top=False, cap_bottom=False)
+        for s in (-1, 1):
+            cx = tx + s * .45
+            lathe(acc, [(0, 0), (.18, 0), (.18, .03), (0, .04)], (cx, ty, .45), C(CREAM), 14, 0)
+            for k in range(4):
+                a = k * math.pi / 2 + .78
+                tube(acc, [(cx + .14 * math.cos(a), ty + .14 * math.sin(a), .45), (cx + .17 * math.cos(a), ty + .17 * math.sin(a), 0)], .008, C(NAVY), 4)
+            tube(acc, [(cx + s * .16, ty - .12, .48), (cx + s * .2, ty, .85), (cx + s * .16, ty + .12, .48)], .01, C(NAVY), 5, 2)
+        name_board(acc, .3, yb - .08, 2.0, 1.3, .36)
+
+
+def barrel(acc, loc, r=.3, L=.8, lying=False, yaw=0):
+    """Oak barrel with dark iron hoops (standing or lying)."""
+    x, y, z = loc
+    prof = [(0, 0), (r * .86, 0), (r, L * .5), (r * .86, L), (0, L)]
+    rot = (0, 90, yaw) if lying else (0, 0, yaw)
+    base = (x, y, z + (r if lying else 0))
+    if lying:
+        base = (x - L / 2 * math.cos(math.radians(yaw)), y - L / 2 * math.sin(math.radians(yaw)), z + r)
+    lathe(acc, prof, base, "T_IK_Staves", 16, 2, rot=rot)
+    for t in (.12, .38, .62, .88):
+        rr = r * (.86 + .14 * math.sin(math.pi * t)) + .004
+        bm = lathe_bm([(rr, L * t - .015), (rr, L * t + .015)], 16, 0, cap_top=False, cap_bottom=False)
+        place(bm, base, rot); acc.add(bm, C(INK))
+
+
+def wine_niches(acc, x, y, w, h, z0=0, lit=False, cols=None):
+    """Wine wall bay: dark-wood frame, diamond lattice, bottle ends in every niche."""
+    rbox(acc, (w, .4, h), (x, y, z0 + h / 2), WOOD_D, .02, 2)
+    if lit:
+        rbox(acc, (w - .1, .01, h - .1), (x, y - .14, z0 + h / 2), LED, .01, 1)
+    n = cols or max(2, int(w / .3))
+    cw = (w - .08) / n
+    for i in range(n + 1):
+        xx = x - w / 2 + .04 + i * cw
+        rbox(acc, (.025, .32, h - .08), (xx, y - .2, z0 + h / 2), WOOD, .006, 1)
+    rows = int((h - .1) / .14)
+    for r_ in range(rows):
+        z = z0 + .1 + r_ * (h - .14) / rows
+        rbox(acc, (w - .08, .32, .02), (x, y - .2, z - .04), WOOD, .004, 1)
+        for i in range(n):
+            for j in range(max(1, int(cw / .085))):
+                bx = x - w / 2 + .04 + i * cw + (j + .5) * cw / max(1, int(cw / .085))
+                lathe(acc, [(0, 0), (.035, 0), (.035, .03), (0, .03)], (bx, y - .33, z + .01), C(["2A3B22", "4A1C24", "3A2A1A"][(i + j + r_) % 3]), 8, 0, rot=(90, 0, 0))
+
+
+def wine_glass(acc, x, y, z, wine=True):
+    lathe(acc, [(0, 0), (.035, 0), (.035, .004), (.004, .01), (.004, .09), (.03, .11), (.04, .16), (.035, .2)], (x, y, z), GLASS, 10, 1, cap_top=False)
+    if wine:
+        lathe(acc, [(0, .11), (.03, .115), (.036, .14), (0, .14)], (x, y, z), C("6A1A2A"), 10, 0)
+
+
+def adega(acc, tier):
+    W, D, H = SECTOR_SIZES[tier - 1]
+    yb = D / 2 - .06
+    back_wall(acc, W, yb, H, BRICK if tier == 3 else "T_IK_WoodDark", WOOD_D, .9, uv=1.5)
+    if tier == 1:
+        wine_niches(acc, -.3, yb - .26, 1.6, 2.0, 0, False, 5)
+        barrel(acc, (W / 2 - .45, -D / 2 + .55, 0), .32, .85)
+        lathe(acc, [(0, 0), (.36, 0), (.36, .04), (0, .04)], (W / 2 - .45, -D / 2 + .55, .86), WOOD_D, 16, 0)
+        for k in range(2):
+            wine_glass(acc, W / 2 - .55 + k * .2, -D / 2 + .5, .9)
+        wine_bottle(acc, (W / 2 - .4, -D / 2 + .65, .9), .31, .037, C("4A1C24"), "wine_0", C("7A1E2E"), "Body", 8)
+        open_box(acc, .5, .34, .3, (-W / 2 + .5, -D / 2 + .55, 0), CRATE, .016, .006, 2.5)
+        for k in range(4):
+            wine_bottle(acc, (-W / 2 + .35 + k * .1, -D / 2 + .55, .02), .31, .037, C(["2A3B22", "4A1C24"][k % 2]), "wine_%d" % k, C("D3A53D"), "Body", 8)
+        name_board(acc, -.3, yb - .3, 2.2, .9)
+    elif tier == 2:
+        for k, x in enumerate((-1.05, 0, 1.05)):
+            wine_niches(acc, x, yb - .26, .95, 2.2, 0, False, 3)
+        # tasting counter: a dark wood top on two standing barrels
+        ty = -D / 2 + .55
+        for x in (-.75, .75):
+            barrel(acc, (x, ty, 0), .3, .85)
+        rbox(acc, (2.2, .55, .06), (0, ty, .88), WOOD_D, .02, 2)
+        rbox(acc, (2.2, .01, .012), (0, ty - .28, .88), C(GOLD), .003, 1)
+        for k in range(4):
+            wine_glass(acc, -.6 + k * .4, ty - .05, .91, k % 2 == 0)
+        for k in range(2):
+            wine_bottle(acc, (-.2 + k * .4, ty + .1, .91), .31, .037, C(["2A3B22", "4A1C24"][k]), "wine_%d" % (k + 1), C("7A1E2E"), "Body", 8)
+        # two barrels lying on a cradle
+        for k in range(2):
+            barrel(acc, (W / 2 - .45, -D / 2 + 1.25 + k * .0, .08 + k * .5), .25, .7, True, 90)
+        rbox(acc, (.6, .7, .1), (W / 2 - .45, -D / 2 + 1.25, .05), WOOD_D, .02, 2)
+        name_board(acc, 0, yb - .35, 2.45, 1.1)
+    else:
+        # brick cellar with backlit niches, barrel pyramid, long tasting counter with stools, glass rack
+        arch = frame_bm(W - .3, H + .1, .3, 1.3, .25)
+        place(arch, (0, yb - .2, (H + .1) / 2)); acc.add(arch, BRICK)
+        for x in (-1.15, 0, 1.15):
+            wine_niches(acc, x, yb - .26, 1.05, 2.3, 0, True, 3)
+        ty = -D / 2 + .5
+        rbox(acc, (W - 1.3, .6, .9), (-.45, ty, .45), WOOD_D, .03, 2)
+        n = 18
+        for k in range(n):
+            rbox(acc, (.034, .016, .6), (-.45 - (W - 1.4) / 2 + k * (W - 1.4) / (n - 1), ty - .306, .45), WOOD, .006, 1)
+        rbox(acc, (W - 1.26, .66, .05), (-.45, ty, .92), MARBLE, .01, 2)
+        for k in range(5):
+            wine_glass(acc, -1.4 + k * .45, ty - .05, .945, k % 2 == 0)
+        for k in range(3):
+            sx = -1.3 + k * .85
+            lathe(acc, [(0, 0), (.18, 0), (.18, .03), (.03, .05), (.03, .62), (.17, .65), (.17, .7), (0, .7)], (sx, ty - .55, 0), C(NAVY), 12, 1)
+        for lvl, n in enumerate((3, 2)):
+            for j in range(n):
+                barrel(acc, (W / 2 - .55, -D / 2 + .6 + (j - (n - 1) / 2) * .55, .02 + lvl * .48), .26, .7, True, 90)
+        rbox(acc, (1.6, .35, .05), (-.45, ty, 2.05), WOOD_D, .02, 2)
+        for k in range(8):
+            lathe(acc, [(0, 0), (.035, 0), (.04, -.05), (.004, -.09), (.004, -.17), (.03, -.2)], (-1.15 + k * .2, ty, 2.02), GLASS, 8, 0)
+        for s in (-1, 1):
+            tube(acc, [(-.45 + s * .75, ty, 2.07), (-.45 + s * .75, ty, H + .3)], .006, C(INK), 4)
+        name_board(acc, 0, yb - .45, H - .05, 1.4, .36)
+
+
+def dispenser(acc, x, y, z, col, r=.13, h=.38):
+    rbox(acc, (r * 2.6, r * 2.3, .1), (x, y, z + .05), BRUSHED, .02, 2)
+    lathe(acc, [(0, 0), (r, 0), (r * 1.05, h), (0, h)], (x, y, z + .1), GLASS, 12, 0, cap_top=False)
+    lathe(acc, [(0, .01), (r * .95, .01), (r, h * .8), (0, h * .8)], (x, y, z + .1), C(col), 12, 0)
+    lathe(acc, [(0, 0), (r * 1.08, 0), (r * 1.08, .04), (0, .05)], (x, y, z + .1 + h), C(NAVY), 12, 0)
+    rbox(acc, (.04, .05, .06), (x, y - r - .02, z + .17), C(CHROME), .01, 1)
+
+
+def blender_(acc, x, y, z, col="F28C28"):
+    rbox(acc, (.16, .16, .12), (x, y, z + .06), C(NAVY), .03, 2)
+    lathe(acc, [(.05, 0), (.07, .25), (.072, .26)], (x, y, z + .12), GLASS, 10, 0, cap_top=False)
+    lathe(acc, [(0, 0), (.05, 0), (.065, .16), (0, .16)], (x, y, z + .12), C(col), 10, 0)
+    lathe(acc, [(0, 0), (.075, 0), (.075, .03), (0, .03)], (x, y, z + .38), C(INK), 10, 0)
+
+
+def fruit_front(acc, W, y, z0=.15, rows=2, kinds=("orange", "lemon", "apple", "lime", "orange", "tomato")):
+    """Slanted fruit display on the customer face of a juice counter: bins stepping up, full of fruit."""
+    n = max(2, int(W / .42))
+    for r_ in range(rows):
+        for i in range(n):
+            x = -W / 2 + (i + .5) * W / n
+            X = Xf(acc, (x, y - .05 - (rows - 1 - r_) * .16, z0 + r_ * .3), (22, 0, 0))
+            open_box(X, W / n - .04, .3, .1, (0, 0, 0), WOOD, .014, .006, 2)
+            produce_pile(X, W / n - .08, .26, (0, 0, .02), kinds[(i + r_ * 2) % len(kinds)], "Body", i + r_ * 5, mound=.05)
+
+
+def sucos(acc, tier):
+    W, D, H = SECTOR_SIZES[tier - 1]
+    yb = D / 2 - .06
+    back_wall(acc, W, yb, H, PLANKS if tier == 1 else "T_IK_V2_PaintCream", C(NAVY) if tier > 1 else None, .9, uv=1.4)
+    cols = ["F28C28", "E25555", "6DB84A", "F2C23F"]
+    if tier == 1:
+        cw = W - .3
+        cy = -D / 2 + .55
+        rbox(acc, (cw, .65, .9), (0, cy, .45), WOOD, .02, 2)
+        rbox(acc, (cw + .04, .69, .04), (0, cy, .92), WOOD_L, .01, 2)
+        fruit_front(acc, cw - .1, cy - .33, .15, 2)
+        for k in range(2):
+            dispenser(acc, -.5 + k * .45, cy + .05, .94, cols[k])
+        blender_(acc, .5, cy + .05, .94)
+        for k in range(6):
+            lathe(acc, [(0, 0), (.035, 0), (.04, .12), (0, .12)], (.2 + k * .08, cy - .15, .94), C(cols[k % 4]), 8, 0)
+        rbox(acc, (W - .4, .3, .03), (0, yb - .2, 1.4), WOOD, .01, 1)
+        for k in range(3):
+            Bk = basket(acc, .4, .26, .1, (-.7 + k * .7, yb - .2, 1.42), 0)
+            produce_pile(Bk, .36, .22, (0, 0, .02), ["orange", "lemon", "apple"][k], "Body", k, mound=.05)
+        name_board(acc, 0, yb - .08, 1.9, .9)
+    elif tier == 2:
+        cw = W - .3
+        cy = -D / 2 + .55
+        rbox(acc, (cw, .7, .95), (0, cy, .475), C(NAVY), .03, 2)
+        fruit_front(acc, cw - .1, cy - .36, .2, 2)
+        rbox(acc, (cw + .04, .74, .04), (0, cy, .97), WOOD_L, .01, 2)
+        for k in range(3):
+            dispenser(acc, -1.0 + k * .45, cy + .08, .99, cols[k])
+        for k in range(2):
+            blender_(acc, .6 + k * .3, cy + .08, .99, cols[k + 2])
+        for k in range(10):
+            lathe(acc, [(0, 0), (.035, 0), (.04, .12), (0, .12)], (-1.2 + k * .25, cy - .2, .99), C(cols[k % 4]), 8, 0)
+        for z in (1.25, 1.65):
+            rbox(acc, (W - .4, .35, .03), (0, yb - .22, z), WOOD, .01, 1)
+            for k in range(4):
+                Bk = crate(acc, .55, .3, .12, (-1.05 + k * .7, yb - .22, z + .015), 0)
+                produce_pile(Bk, .5, .26, (0, 0, .02), ["orange", "lemon", "apple", "lime"][(k + int(z * 2)) % 4], "Body", k, mound=.05)
+        for k in range(3):
+            tube(acc, [(-.8 + k * .8, -D / 2 + 1.25, H + .2), (-.8 + k * .8, -D / 2 + 1.25, 2.1)], .004, ROPE, 4)
+            blob(acc, (.12, .12, .16), (-.8 + k * .8, -D / 2 + 1.25, 1.95), C(["F28C28", "E8D23A", "F28C28"][k]), 2, .3, k)
+        name_board(acc, 0, yb - .08, H - .2, 1.1)
+    else:
+        # island juice bar: horseshoe counter with stools, dispenser row, fruit cascade, canopy with lamps
+        cy = -D / 2 + .7
+        rbox(acc, (W - .6, .9, 1.0), (0, cy, .5), C(NAVY), .04, 3)
+        n = int((W - .7) / .07)
+        for k in range(n):
+            rbox(acc, (.034, .016, .6), (-(W - .7) / 2 + k * (W - .7) / (n - 1), cy - .456, .5), WOOD_L, .006, 1)
+        rbox(acc, (W - .56, .94, .05), (0, cy, 1.02), MARBLE, .01, 2)
+        rbox(acc, (W - .7, .01, .012), (0, cy - .462, .82), C(GOLD), .003, 1)
+        for k in range(4):
+            dispenser(acc, -1.05 + k * .5, cy + .2, 1.045, cols[k])
+        blender_(acc, 1.15, cy + .25, 1.045)
+        for k in range(12):
+            lathe(acc, [(0, 0), (.035, 0), (.04, .13), (0, .13)], (-1.35 + k * .24, cy - .3, 1.045), C(cols[k % 4]), 8, 0)
+        for k in range(4):
+            sx = -1.2 + k * .8
+            lathe(acc, [(0, 0), (.18, 0), (.18, .03), (.03, .05), (.03, .7), (.17, .73), (.17, .78), (0, .78)], (sx, cy - .75, 0), C(NAVY), 12, 1)
+        # fruit cascade on the back wall
+        for r_ in range(3):
+            X = Xf(acc, (0, yb - .3 - r_ * .05, .9 + r_ * .35), (22, 0, 0))
+            for i in range(5):
+                x = -W / 2 + .5 + i * (W - 1) / 4
+                open_box(X, .62, .3, .1, (x, 0, 0), WOOD, .014, .006, 2)
+                produce_pile(X, .58, .26, (x, 0, .02), ["orange", "lemon", "apple", "lime", "tomato"][(i + r_) % 5], "Body", i + r_ * 7, mound=.05)
+        fw, fd = W - .5, .9
+        for sy in (-1, 1):
+            rbox(acc, (fw, .07, .07), (0, cy + sy * fd / 2, H), C(NAVY), .02, 2)
+        for sx in (-1, 1):
+            rbox(acc, (.07, fd, .07), (sx * fw / 2, cy, H), C(NAVY), .02, 2)
+            tube(acc, [(sx * fw / 2, cy, H), (sx * fw / 2, cy, H + .5)], .008, C(INK), 4)
+        for x in (-1.1, 0, 1.1):
+            pendant(acc, x, cy, H, 2.2, .12)
+        name_board(acc, 0, yb - .08, H - .2, 1.3, .36)
+
+
+def make_sector_v2(sid, fn):
+    return [lambda acc, t=t: fn(acc, t) for t in (1, 2, 3)]
+
+
+for _sid, _fn in (("padaria", padaria), ("acougue", acougue), ("queijaria", queijaria), ("peixaria", peixaria),
+                  ("sorvetes", sorvetes), ("adega", adega), ("sucos", sucos)):
+    BUILDERS["sector-" + _sid] = make_sector_v2(_sid, _fn)
+
+
+def clear_lineup(kind, half=4.0):
+    """Removes a lineup (its tier collections and the floor, captions and person of its strip) before a rebuild."""
+    by = BASE_Y[kind]
+    for i in range(len(TIERS[kind])):
+        c = bpy.data.collections.get("FT %s T%d" % (kind, i + 1))
+        if c:
+            for o in list(c.objects):
+                bpy.data.objects.remove(o, do_unlink=True)
+    sheet = bpy.data.collections.get("FT sheet")
+    if sheet:
+        for o in list(sheet.objects):
+            ys = [(o.matrix_world @ Vector(cc)).y for cc in o.bound_box]
+            if abs(sum(ys) / 8 - by) < half:
+                bpy.data.objects.remove(o, do_unlink=True)
+    for m in list(bpy.data.meshes):
+        if m.users == 0:
+            bpy.data.meshes.remove(m)
+
+
+def rebuild(kind):
+    clear_lineup(kind)
+    roots, prints, tris, total = lineup_sheet(kind, BASE_Y[kind], kind)
+    return tris
+
+
+def sheet(kind):
+    by = BASE_Y[kind]
+    n = len(TIERS[kind])
+    prints = [(bpy.data.objects["%s-t%d" % (kind, i + 1)].location.x, by, TIERS[kind][i][2], TIERS[kind][i][3]) for i in range(n)]
+    total = sum(t[2] for t in TIERS[kind]) + GAP.get(kind, .9) * (n - 1)
+    return shots(kind, by, prints, total)
+
+
+# ================================================================================================ cold room placement (outside)
+# The storages are the game's own meshes (Assets/Art/Storage/Meshes/*.asset, converted by unity_mesh_to_obj.py into
+# ArtSource/fixture_tiers/context/*.obj), shown in clay so the new cold room (in colour) stands out.
+CTX = os.path.join(ART, "context")
+PLACE = {  # shot: (storage obj, where it stands in this file, cold room tier, its spot relative to the storage, yaw)
+    "T2": ("Depot_74x71", Vector((60, -20, 0)), "T2", (5.0, -.6), 270),
+    "T3": ("Depot_74x71", Vector((60, -40, 0)), "T3", (5.25, -.4), 270),
+    "T4": ("CentralWarehouse", Vector((120, -30, 0)), "T4", (-13.1, 8.9), 180),
+}
+
+
+def clay(name="FT_Clay2", col=(.42, .45, .5)):
+    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = m.node_tree.nodes.get("Principled BSDF")
+    b.inputs["Base Color"].default_value = col + (1,)
+    b.inputs["Roughness"].default_value = .8
+    return m
+
+
+def context_building(obj, at, name):
+    if bpy.data.objects.get(name):
+        return bpy.data.objects[name]
+    before = set(bpy.data.objects)
+    bpy.ops.wm.obj_import(filepath=os.path.join(CTX, obj + ".obj"), forward_axis="Y", up_axis="Z")
+    new = [o for o in bpy.data.objects if o not in before]
+    c = coll("FT placement", coll("Fixture tiers"))
+    for o in new:
+        for uc in list(o.users_collection):
+            uc.objects.unlink(o)
+        c.objects.link(o)
+        o.name = name
+        o.location = at
+        o.data.materials.clear()
+        o.data.materials.append(clay())
+    return new[0]
+
+
+def coldroom_placement_shots():
+    c = coll("FT placement", coll("Fixture tiers"))
+    out = []
+    for shot, (obj, at, tier, (dx, dy), yaw) in PLACE.items():
+        b = context_building(obj, at, "CTX %s %s" % (obj, shot))
+        if not bpy.data.objects.get("FIX cold %s" % shot):
+            instance("coldroom", tier, at + Vector((dx, dy, 0)), yaw, "FIX cold %s" % shot, "FT placement")
+            acc = Acc("Yard " + shot)
+            rbox(acc, (34, 30, .02), (0, 0, -.012), C("B9B4AA"), 0, 1)
+            for k in range(-16, 17, 2):
+                rbox(acc, (.03, 30, .003), (k, 0, .001), C("A9A39A"), 0, 1)
+            for o in acc.realize(c):
+                o.name = "Yard " + shot
+                o.location = at
+        bpy.context.view_layer.update()
+        for o in bpy.context.scene.objects:
+            if o.type in ("MESH", "EMPTY") and not o.hide_viewport:
+                ctr = o.matrix_world.translation if o.type == "EMPTY" or o.parent else sum((o.matrix_world @ Vector(cc) for cc in o.bound_box), Vector()) / 8
+                o.hide_render = (ctr - at).xy.length > 17
+        d = Vector((.75, -1, 1.25)) if shot != "T4" else Vector((-.55, 1, 1.25))
+        camera(at + Vector((dx * .5, dy * .5, 1.0)), d, 40 if shot != "T4" else 50, 34)
+        out.append(render("coldroom_place_%s" % shot, (1800, 1200)))
+    return out
+
+
+# ================================================================================================ ROUND 2: carts, produce, dairy T4, ATM, gumball
+NO_TIER_KINDS = {"carts"}   # three separate stations, not tiers: captions show only the name
+TIERS["carts"] = [
+    ("T1", "Cestinhas (suporte)", .75, .6, 1.1),
+    ("T2", "Carrinhos (baia)", 1.75, .75, 1.15),
+    ("T3", "Carrinhos grandes (baia)", 2.25, 1.0, 1.25),
+]
+TIERS["gumball"] = [("T1", "Máquina de chiclete", .5, .5, 1.35), ("T2", "Máquina de chiclete dupla", 1.0, .5, 1.45)]
+TIERS["produce"][2] = ("T3", "Banca em degraus (madeira e metal)", 2.0, 1.0, 1.95)
+TIERS["dairy"][3] = ("T4", "Ilha de laticínios e frios", 2.5, 1.0, 1.9)
+TIERS["atm"] = [("T1", "Caixa eletrônico", .75, .85, 2.0), ("T2", "Dois caixas na parede", 1.5, .85, 2.3),
+                ("T3", "Sala de autoatendimento bancário", 2.25, 1.5, 2.6)]
+
+
+def hand_basket_v2(acc, loc, yaw=0, col=NAVY, handles_up=False, slots=True):
+    """Plastic hand basket: tapered body with slots, a cream rim, two folding handles lying on the rim."""
+    x, y, z = loc
+    X = Xf(acc, (x, y, z), (0, 0, yaw))
+    w0, d0, w1, d1, h = .36, .24, .42, .3, .2
+    bm = bmesh.new()
+    vs = [bm.verts.new(v) for v in ((-w0 / 2, -d0 / 2, 0), (w0 / 2, -d0 / 2, 0), (w0 / 2, d0 / 2, 0), (-w0 / 2, d0 / 2, 0),
+                                    (-w1 / 2, -d1 / 2, h), (w1 / 2, -d1 / 2, h), (w1 / 2, d1 / 2, h), (-w1 / 2, d1 / 2, h))]
+    bm.faces.new((vs[0], vs[1], vs[2], vs[3]))
+    for i in range(4):
+        bm.faces.new((vs[i], vs[(i + 1) % 4], vs[4 + (i + 1) % 4], vs[4 + i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=.008)
+    uv_box(bm); X.add(bm, C(col))
+    for sy in (-1, 1) if slots else ():
+        for k in range(5):
+            rbox(X, (.04, .004, .07), (-.12 + k * .06, sy * (d0 / 2 + (d1 - d0) / 4 + .006), h * .55), C(INK), 0, 1, rot=(sy * -8, 0, 0))
+    for sy in (-1, 1):
+        rbox(X, (w1 + .02, .02, .02), (0, sy * (d1 / 2 + .002), h), C(CREAM), .006, 1)
+        rbox(X, (.02, d1 + .02, .02), (sy * (w1 / 2 + .002), 0, h), C(CREAM), .006, 1)
+    for sx in (-1, 1):
+        if handles_up:
+            tube(X, [(sx * .14, -.12, h), (sx * .14, -.08, h + .14), (sx * .14, .08, h + .14), (sx * .14, .12, h)], .009, C(GOLD), 6, 2)
+        else:
+            tube(X, [(sx * .2, -.12, h + .01), (sx * .23, -.06, h + .015), (sx * .23, .06, h + .015), (sx * .2, .12, h + .01)], .009, C(GOLD), 5, 0)
+
+
+def carts_t1(acc):
+    """Suporte de cestinhas: a navy stand with a base tray, a pole with a blank plaque and two tall nested stacks."""
+    rbox(acc, (.72, .52, .06), (0, 0, .03), C(NAVY), .02, 2)
+    rbox(acc, (.72, .01, .012), (0, -.262, .05), C(GOLD), .003, 1)
+    for k in range(9):
+        hand_basket_v2(acc, (-.17, -.02, .06 + k * .055), 0, NAVY, slots=k == 8)
+    for k in range(5):
+        hand_basket_v2(acc, (.2, .02, .06 + k * .055), 90, BLUE, slots=k == 4)
+    tube(acc, [(-.33, .22, .06), (-.33, .22, 1.0)], .016, C(CHROME), 8)
+    plate(acc, .3, .2, (-.33, .2, 1.02), C(NAVY), .02, .06)
+    plate(acc, .24, .14, (-.33, .188, 1.02), C(CREAM), .01, .04)
+
+
+def carts_t2(acc):
+    """Baia de carrinhos: chrome rails, a row of five nested carts, a navy end post with a blank plaque."""
+    for s in (-1, 1):
+        tube(acc, [(-.82, s * .34, .02), (-.82, s * .34, .95), (.78, s * .34, .95), (.78, s * .34, .02)], .022, C(CHROME), 8)
+        tube(acc, [(-.82, s * .34, .5), (.78, s * .34, .5)], .016, C(CHROME), 6)
+    for k in range(5):
+        cart(acc, (.42 - k * .17, 0, 0), 180, .85)
+    rbox(acc, (.12, .74, 1.1), (.84, 0, .55), C(NAVY), .03, 3)
+    plate(acc, .5, .32, (.905, 0, .85), C(CREAM), .012, .05, (0, 0, 90))
+    rbox(acc, (.012, .76, .012), (.902, 0, .62), C(GOLD), .003, 1)
+
+
+def carts_t3(acc):
+    """Baia de carrinhos grandes: wider corral, four big carts and two kids' carts (a cream car front), navy post."""
+    for s in (-1, 1):
+        tube(acc, [(-1.08, s * .46, .02), (-1.08, s * .46, 1.0), (.95, s * .46, 1.0), (.95, s * .46, .02)], .024, C(CHROME), 8)
+        tube(acc, [(-1.08, s * .46, .52), (.95, s * .46, .52)], .016, C(CHROME), 6)
+    for k in range(4):
+        cart(acc, (.42 - k * .22, -.12, 0), 180, 1.15)
+    for k in range(2):
+        kx = -.55 - k * .2
+        cart(acc, (kx, .28, 0), 180, .6, NAVY)
+        rbox(acc, (.2, .26, .14), (kx + .26, .28, .22), C(CREAM), .05, 3)
+        for sy in (-1, 1):
+            lathe(acc, [(0, 0), (.035, 0), (.035, .02), (0, .02)], (kx + .3, .28 + sy * .14, .2), C(INK), 10, 0, rot=(90, 0, 0))
+    rbox(acc, (.12, .96, 1.2), (1.02, 0, .6), C(NAVY), .03, 3)
+    plate(acc, .6, .36, (1.085, 0, .9), C(CREAM), .012, .05, (0, 0, 90))
+    rbox(acc, (.012, .98, .012), (1.082, 0, .66), C(GOLD), .003, 1)
+    rbox(acc, (.01, .9, .02), (1.085, 0, 1.17), LED, .005, 1)
+
+
+def herb_bunch(acc, x, y, z):
+    tube(acc, [(x, y, z), (x, y, z - .1)], .003, ROPE, 3)
+    for k in range(5):
+        a = k * 1.25
+        tube(acc, [(x, y, z - .1), (x + .04 * math.cos(a), y + .03 * math.sin(a), z - .28)], .005, C("4E9A3A"), 4)
+        blob(acc, (.03, .02, .05), (x + .04 * math.cos(a), y + .03 * math.sin(a), z - .3), C("6DB84A" if k % 2 else "4E9A3A"), 1, .3, k)
+
+
+def produce_t3(acc):
+    """Banca em degraus: navy base, three steps of tilted wooden bins (fruit and veg), a light-wood slat back panel
+    with hanging herbs and two wicker baskets, bulk bins with potatoes and onions at the ends, a navy crown."""
+    W, D = 1.98, .98
+    rbox(acc, (W - .5, D - .1, .35), (0, -.05, .175), C(NAVY), .03, 3)
+    rbox(acc, (W - .56, .01, .012), (0, -D / 2 + .002, .3), C(GOLD), .003, 1)
+    steps = [(-.3, .38, ["apple", "orange", "lemon"]), (-.02, .62, ["tomato", "lettuce", "pepper"]), (.25, .86, ["banana", "lime", "melon"])]
+    for r_, (y, z, kinds) in enumerate(steps):
+        if r_:
+            rbox(acc, (W - .5, .3, z - .3), (0, y, (z - .3) / 2 + .3), WOOD_D, .015, 2)
+        for i in range(3):
+            x = -(W - .5) / 2 + (i + .5) * (W - .5) / 3
+            X = crate(acc, (W - .5) / 3 - .04, .3, .13, (x, y, z), 18)
+            produce_pile(X, (W - .5) / 3 - .08, .26, (0, 0, .03), kinds[i], "Anim Fill %d" % min(3, i + (i > 0)), r_ * 3 + i, mound=.06)
+    # bulk bins at the ends
+    for s, kind in ((-1, "potato"), (1, "onion")):
+        bx = s * (W / 2 - .13)
+        open_box(acc, .24, .5, .62, (bx, -.15, 0), WOOD, .02, .008, 2)
+        rbox(acc, (.24, .5, .3), (bx, -.15, .15), WOOD_D, .01, 1)
+        produce_pile(acc, .2, .45, (bx, -.15, .55), kind, "Body", 11 + s, mound=.05)
+        rbox(acc, (.24, .02, .04), (bx, -.4, .64), C(NAVY), .006, 1)
+    # slatted back panel with herbs and baskets
+    rbox(acc, (W, .08, 1.95), (0, D / 2 - .04, .975), C(NAVY), .02, 2)
+    n = 24
+    for k in range(n):
+        rbox(acc, (.05, .02, 1.0), (-W / 2 + .07 + k * (W - .14) / (n - 1), D / 2 - .09, 1.35), WOOD_L, .006, 1)
+    tube(acc, [(-W / 2 + .15, D / 2 - .2, 1.72), (W / 2 - .15, D / 2 - .2, 1.72)], .012, C(CHROME), 6)
+    for k in range(6):
+        herb_bunch(acc, -W / 2 + .3 + k * (W - .6) / 5, D / 2 - .2, 1.7)
+    for x in (-.5, .5):
+        Bk = basket(acc, .38, .2, .14, (x, D / 2 - .2, 1.15), 0)
+        produce_pile(Bk, .34, .16, (0, 0, .03), "lemon" if x < 0 else "lime", "Body", 3, mound=.04)
+    rbox(acc, (W + .04, .3, .1), (0, D / 2 - .12, 2.0), C(NAVY), .03, 3)
+    rbox(acc, (W + .05, .008, .012), (0, D / 2 - .275, 2.0), C(GOLD), .003, 1)
+    plate(acc, .6, .18, (0, D / 2 - .28, 1.88), C(CREAM), .012, .08)
+
+
+def produce_t4(acc):
+    """Ilha refrigerada com névoa: double-sided chilled island, abundant mounds in mixed wood crates, steel bins and
+    wicker baskets, a central tier with melons and pineapple-like fruit, misting bar with visible mist cones, light
+    wood slats and gold lines, an arched navy canopy with pendant lights."""
+    W, D = 2.46, 1.2
+    rbox(acc, (W, D, .55), (0, 0, .275), C(NAVY), .05, 3)
+    for s in (-1, 1):
+        n = 30
+        for k in range(n):
+            rbox(acc, (.034, .016, .36), (-W / 2 + .14 + k * (W - .28) / (n - 1), s * (D / 2 + .004), .27), WOOD_L, .006, 1)
+        for z in (.08, .47):
+            rbox(acc, (W - .24, .01, .01), (0, s * (D / 2 + .012), z), C(GOLD), .003, 1)
+        rbox(acc, (W - .3, .02, .02), (0, s * (D / 2 - .03), .03), LED, .006, 1)
+    rbox(acc, (W - .1, .3, .38), (0, 0, .74), C(NAVY), .04, 3)
+    kinds = [["apple", "orange", "lemon", "tomato", "lime"], ["lettuce", "pepper", "carrot", "banana", "onion"]]
+    for si, s in enumerate((-1, 1)):
+        for i in range(5):
+            x = -W / 2 + .25 + i * (W - .5) / 4
+            X = Xf(acc, (x, s * .34, .58), (16 if s < 0 else -16, 0, 0))
+            style = (i + si) % 3
+            if style == 0:
+                open_box(X, .44, .42, .1, (0, 0, 0), CRATE, .016, .006, 2.5)
+            elif style == 1:
+                open_box(X, .44, .42, .1, (0, 0, 0), BRUSHED, .012, .006, 2)
+            else:
+                open_box(X, .44, .42, .1, (0, 0, 0), "T_IK_Wicker", .014, .006, 3)
+            produce_pile(X, .4, .38, (0, 0, .03), kinds[si][i], "Anim Fill %d" % min(3, i * 4 // 5), si * 5 + i, mound=.11)
+    # central tier: melons and a crown of oranges
+    for i in range(5):
+        x = -W / 2 + .25 + i * (W - .5) / 4
+        produce_pile(acc, .4, .24, (x, 0, .93), ["melon", "orange", "apple", "melon", "orange"][i], "Body", 20 + i, mound=.09)
+    # misting bar with nozzles and soft mist cones
+    for s in (-1, 1):
+        tube(acc, [(-W / 2 + .1, s * .2, 1.45), (W / 2 - .1, s * .2, 1.45)], .012, C(CHROME), 8)
+        for k in range(8):
+            x = -W / 2 + .25 + k * (W - .5) / 7
+            lathe(acc, [(0, 0), (.008, 0), (.006, -.02), (0, -.02)], (x, s * .2, 1.44), C(CHROME), 6, 0)
+            lathe(acc, [(0, 0), (.01, 0), (.12, -.45), (0, -.47)], (x, s * .26, 1.42), GLASS, 10, 0, rot=(s * 20, 0, 0))
+    # arched canopy on four posts, pendant lights, gold edge
+    for x in (-W / 2 + .12, W / 2 - .12):
+        for y in (-.12, .12):
+            tube(acc, [(x, y, .9), (x, y, 1.9)], .025, C(NAVY), 10)
+    bm = bmesh.new()
+    n = 8
+    for i in range(n):
+        a0, a1 = math.pi * i / n, math.pi * (i + 1) / n
+        v = [bm.verts.new((-W / 2, .45 * math.cos(a0), 1.9 + .18 * math.sin(a0))), bm.verts.new((W / 2, .45 * math.cos(a0), 1.9 + .18 * math.sin(a0))),
+             bm.verts.new((W / 2, .45 * math.cos(a1), 1.9 + .18 * math.sin(a1))), bm.verts.new((-W / 2, .45 * math.cos(a1), 1.9 + .18 * math.sin(a1)))]
+        bm.faces.new(v)
+    bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=.03)
+    uv_box(bm); acc.add(bm, C(NAVY))
+    for s in (-1, 1):
+        rbox(acc, (W + .02, .012, .02), (0, s * .45, 1.9), C(GOLD), .004, 1)
+        rbox(acc, (W - .2, .02, .015), (0, s * .38, 1.88), LED, .005, 1)
+    for x in (-.8, 0, .8):
+        pendant(acc, x, 0, 1.92, 1.72, .1)
+    plate(acc, .7, .2, (0, -.47, 2.12), C(CREAM), .02, .09)
+
+
+def dairy_t4(acc):
+    """Ilha de laticínios e frios: a low, open, double-sided island (not a door wall): three open steps on each side
+    stepping up to the centre, cheese wheels and cold cuts on top, a deli end with a curved glass dome, LED canopy."""
+    W, D = 2.46, .98
+    rbox(acc, (W, D, .45), (0, 0, .225), C(NAVY), .05, 3)
+    for s in (-1, 1):
+        n = 30
+        for k in range(n):
+            rbox(acc, (.034, .016, .3), (-W / 2 + .14 + k * (W - .28) / (n - 1), s * (D / 2 + .004), .23), WOOD_L, .006, 1)
+        rbox(acc, (W - .24, .01, .01), (0, s * (D / 2 + .012), .4), C(GOLD), .003, 1)
+        rbox(acc, (W - .2, .1, .012), (0, s * (D / 2 - .07), .455), C("3A4450"), .003, 1)
+    L = W - .6
+    for si, s in enumerate((-1, 1)):
+        for step in range(3):
+            y = s * (D / 2 - .14 - step * .13)
+            z = .47 + step * .24
+            rbox(acc, (L, .16, .03), (-.15, y, z), C(WHITE), .006, 1)
+            rbox(acc, (L, .012, .06), (-.15, y + s * .085, z + .02), GLASS, .003, 1)
+            rbox(acc, (L, .02, .03), (-.15, y + s * .09, z - .02), C(BLUE), .006, 1)
+            x = -.15 - L / 2 + .08
+            k = 0
+            while x < -.15 + L / 2 - .08:
+                g = fills_for(x, W)
+                if (step + si) % 3 == 0:
+                    for st in range(2):
+                        yogurt(acc, (x, y, z + .015 + st * .057), g)
+                    x += .07
+                elif (step + si) % 3 == 1:
+                    carton(acc, (x, y, z + .015), .07, .07, .2, ["milk", "juice_0"][k % 2], g)
+                    x += .08
+                else:
+                    cheese_wheel(acc, (x + .05, y, z + .015), .07, .06, g)
+                    x += .15
+                k += 1
+    # top tier: cheese wheels and salami on boards
+    rbox(acc, (L, .2, .04), (-.15, 0, 1.2), WOOD, .01, 1)
+    for k in range(6):
+        if k % 2:
+            cheese_wheel(acc, (-.15 - L / 2 + .2 + k * (L - .4) / 5, 0, 1.22), .09, .08)
+        else:
+            salami(acc, (-.15 - L / 2 + .2 + k * (L - .4) / 5, 0, 1.22), .2, .024, 90)
+    # deli end: a glass dome over a ham and cheese board
+    ex = W / 2 - .3
+    rbox(acc, (.56, D - .1, .02), (ex, 0, .9), WOOD, .01, 1)
+    lathe(acc, [(.0, 0), (.2, 0), (.22, .06), (.1, .1), (0, .1)], (ex, 0, .92), "T_IK_Meat", 14, 1)
+    lathe(acc, [(.26, 0), (.26, .15), (.2, .28), (.08, .34), (0, .35)], (ex, 0, .92), GLASS, 16, 1, cap_bottom=False)
+    lathe(acc, [(0, 0), (.025, 0), (.025, .04), (0, .045)], (ex, 0, 1.27), C(GOLD), 8, 0)
+    # canopy
+    for x in (-W / 2 + .1, W / 2 - .62):
+        tube(acc, [(x, 0, 1.2), (x, 0, 1.85)], .025, C(NAVY), 10)
+    rbox(acc, (W - .3, .5, .08), (-.15, 0, 1.88), C(NAVY), .04, 3)
+    for s in (-1, 1):
+        rbox(acc, (W - .4, .02, .015), (-.15, s * .2, 1.835), LED, .005, 1)
+        rbox(acc, (W - .3, .008, .012), (-.15, s * .252, 1.9), C(GOLD), .003, 1)
+    plate(acc, .7, .18, (-.15, -.255, 2.04), C(CREAM), .02, .08)
+
+
+def atm_v2(acc, x, y, wall=False):
+    """Cash machine facing -Y: navy cabinet, slanted hood over a recessed lit screen (blank), card slot with a green
+    light, receipt slot, keypad under a privacy shield, wide cash dispenser, side privacy wings, lit header."""
+    if not wall:
+        rbox(acc, (.66, .6, 1.42), (x, y, .71), C(NAVY), .05, 3)
+        rbox(acc, (.7, .64, .06), (x, y, .03), C(INK), .02, 2)
+    # fascia (the machine's face)
+    rbox(acc, (.62, .08, .95), (x, y - .3, 1.0), "T_IK_V2_PaintCream", .03, 3)
+    # hood + recessed screen
+    rbox(acc, (.62, .24, .05), (x, y - .4, 1.5), C(NAVY), .02, 2, rot=(-12, 0, 0))
+    rbox(acc, (.44, .06, .3), (x, y - .34, 1.3), C(INK), .02, 2, rot=(-14, 0, 0))
+    rbox(acc, (.36, .01, .23), (x, y - .375, 1.3), LED_COOL, .006, 1, rot=(-14, 0, 0))
+    for k in range(4):
+        rbox(acc, (.04, .012, .03), (x + (-.25 if k < 2 else .25), y - .37, 1.36 - (k % 2) * .1), C(INK), .006, 1)
+    # card slot with a green light, receipt slot
+    rbox(acc, (.12, .03, .04), (x + .19, y - .35, 1.08), C(CHROME), .01, 1)
+    rbox(acc, (.07, .006, .006), (x + .19, y - .366, 1.08), "E_37D067", 0, 1)
+    rbox(acc, (.1, .02, .015), (x - .19, y - .345, 1.08), C(INK), .004, 1)
+    # keypad under a privacy shield
+    X = Xf(acc, (x - .02, y - .37, .98), (35, 0, 0))
+    rbox(X, (.2, .02, .16), (0, 0, 0), C(INK), .01, 1)
+    for i in range(3):
+        for j in range(4):
+            rbox(X, (.045, .012, .03), (-.055 + i * .055, -.012, -.05 + j * .036), C(CREAM if j else CHROME), .006, 1)
+    for k, col in enumerate(("C0392B", "F2C23F", "37D067")):
+        rbox(X, (.04, .012, .03), (.13, -.012, -.05 + k * .045), C(col), .006, 1)
+    rbox(acc, (.26, .1, .02), (x - .02, y - .42, 1.08), C(NAVY), .006, 1, rot=(-20, 0, 0))
+    # cash dispenser
+    rbox(acc, (.32, .04, .06), (x, y - .35, .78), C(CHROME), .015, 2)
+    rbox(acc, (.26, .02, .015), (x, y - .37, .78), C(INK), .004, 1)
+    # privacy wings and lit header
+    for s in (-1, 1):
+        bm, _ = panel_bm(.3, 1.05, .03, .06, 5)
+        uv_box(bm); place(bm, (x + s * .34, y - .45, 1.05), (0, 0, 90 + s * 10)); acc.add(bm, C(NAVY))
+    rbox(acc, (.7, .3, .22), (x, y - .25, 1.72), C(NAVY), .04, 3)
+    plate(acc, .5, .13, (x, y - .401, 1.72), LED, .01, .06)
+    rbox(acc, (.7, .01, .012), (x, y - .4, 1.62), C(GOLD), .003, 1)
+
+
+def atm_t1(acc):
+    atm_v2(acc, 0, .1)
+
+
+def atm_t2(acc):
+    """Through-the-wall pair: a navy wall panel with a lit header, two machines set into it, a small counter shelf."""
+    rbox(acc, (1.5, .3, 2.25), (0, .28, 1.125), C(NAVY), .04, 3)
+    rbox(acc, (1.5, .01, .012), (0, .125, 2.0), C(GOLD), .003, 1)
+    for x in (-.37, .37):
+        atm_v2(acc, x, .4, wall=True)
+    plate(acc, 1.1, .2, (0, .125, 2.12), LED, .012, .08)
+    rbox(acc, (1.4, .2, .03), (0, -.05, .85), WOOD, .01, 1)
+
+
+def atm_t3(acc):
+    """Sala de autoatendimento bancário: three machines in a cream wall, glass side screens, a navy canopy with LED,
+    a blank cream plaque and a blue floor mat."""
+    W, D = 2.2, 1.45
+    rbox(acc, (W, .3, 2.5), (0, D / 2 - .15, 1.25), "T_IK_V2_PaintCream", .03, 2)
+    for x in (-.72, 0, .72):
+        atm_v2(acc, x, D / 2 - .05, wall=True)
+    for s in (-1, 1):
+        rbox(acc, (.04, D - .3, 2.2), (s * (W / 2 - .02), .1, 1.1), GLASS, .01, 1)
+        rbox(acc, (.06, D - .25, .06), (s * (W / 2 - .02), .1, 2.23), C(NAVY), .02, 2)
+    rbox(acc, (W + .04, D, .14), (0, 0, 2.5), C(NAVY), .05, 3)
+    rbox(acc, (W - .1, .02, .015), (0, -D / 2 + .06, 2.42), LED, .005, 1)
+    plate(acc, 1.0, .22, (0, -D / 2 - .005, 2.62), C(CREAM), .03, .1)
+    rbox(acc, (W + .04, .01, .012), (0, -D / 2 - .006, 2.45), C(GOLD), .003, 1)
+    rbox(acc, (W - .1, D - .1, .02), (0, 0, .01), C(BLUE), .02, 1)
+
+
+def gumball_globe_v2(acc, x, y, z, r=.17, seed=0):
+    rnd = random.Random(seed)
+    cols = ["E8505B", "F2C23F", "5FB548", "3E8FD6", "F28C28", "E86A9E", "FBF8F1"]
+    n = int(40 * (r / .17) ** 3)
+    for i in range(n):
+        a = rnd.random() * 6.28
+        zz = rnd.random()
+        rr = r * .82 * math.sqrt(max(0, 1 - (2 * zz - 1) ** 2)) * math.sqrt(rnd.random())
+        blob(acc, (.02, .02, .02), (x + rr * math.cos(a), y + rr * math.sin(a), z - r * .8 + zz * r * 1.2), C(cols[i % 7]), 1, 0, i)
+    lathe(acc, [(0, -r), (r * .7, -r * .7), (r, 0), (r * .7, r * .7), (r * .35, r * .93)], (x, y, z), GLASS, 20, 2, cap_top=False, cap_bottom=False)
+    lathe(acc, [(r * .36, r * .9), (r * .4, r * .98), (r * .32, r * 1.08), (0, r * 1.1)], (x, y, z), C(NAVY), 16, 1, cap_bottom=False)
+    lathe(acc, [(0, 0), (.012, 0), (.012, .05), (.025, .06), (0, .07)], (x, y, z + r * 1.1), C(GOLD), 10, 1)
+    lathe(acc, [(r * .37, r * .92), (r * .39, r * .94)], (x, y, z), C(GOLD), 16, 0, cap_top=False, cap_bottom=False)
+
+
+def gumball_body(acc, x, y, z):
+    """Cast metal body: rounded navy housing, coin plate with a chrome crank, chute with a flap, gold bands."""
+    lathe(acc, [(0, 0), (.13, 0), (.15, .04), (.15, .17), (.12, .21), (.1, .22), (0, .22)], (x, y, z), C(NAVY), 16, 1)
+    for zz in (.04, .17):
+        lathe(acc, [(.152, zz), (.156, zz), (.156, zz + .012), (.152, zz + .012)], (x, y, z), C(GOLD), 16, 0, cap_top=False, cap_bottom=False)
+    rbox(acc, (.12, .02, .1), (x, y - .145, z + .12), C(CHROME), .01, 1)
+    lathe(acc, [(0, 0), (.03, 0), (.03, .015), (0, .02)], (x, y - .16, z + .13), C(CHROME), 12, 0, rot=(90, 0, 0))
+    rbox(acc, (.012, .012, .05), (x + .02, y - .17, z + .13), C(CHROME), .004, 1)
+    rbox(acc, (.06, .05, .05), (x, y - .14, z + .04), C(INK), .01, 1)
+    rbox(acc, (.06, .006, .04), (x, y - .166, z + .045), C(CHROME), .003, 1, rot=(-20, 0, 0))
+
+
+def gumball_t1(acc):
+    """Máquina de chiclete: cast-iron style pedestal with three feet, navy body, glass globe full of gumballs."""
+    for k in range(3):
+        a = k * 2 * math.pi / 3 + math.pi / 2
+        tube(acc, [(0, 0, .25), (.16 * math.cos(a), .16 * math.sin(a), .04), (.22 * math.cos(a), .22 * math.sin(a), 0)], .02, C(NAVY), 8, 2)
+        blob(acc, (.03, .03, .015), (.22 * math.cos(a), .22 * math.sin(a), .01), C(GOLD), 1, 0, k)
+    lathe(acc, [(0, .2), (.05, .2), (.035, .3), (.03, .78), (.06, .82), (0, .82)], (0, 0, 0), C(NAVY), 14, 1)
+    lathe(acc, [(.031, .5), (.036, .5), (.036, .52), (.031, .52)], (0, 0, 0), C(GOLD), 14, 0, cap_top=False, cap_bottom=False)
+    gumball_body(acc, 0, 0, .82)
+    gumball_globe_v2(acc, 0, 0, 1.2, .17, 1)
+
+
+def gumball_t2(acc):
+    """Dupla: a twin stand (curved navy arms from one column) carrying two machines, a blank plaque between them."""
+    lathe(acc, [(0, 0), (.24, 0), (.24, .05), (.06, .08), (.045, .6), (0, .6)], (0, 0, 0), C(NAVY), 16, 1)
+    lathe(acc, [(.241, .02), (.245, .02), (.245, .035), (.241, .035)], (0, 0, 0), C(GOLD), 16, 0, cap_top=False, cap_bottom=False)
+    for s in (-1, 1):
+        tube(acc, [(0, 0, .58), (s * .12, 0, .66), (s * .25, 0, .72), (s * .27, 0, .82)], .035, C(NAVY), 10, 2)
+        gumball_body(acc, s * .27, 0, .82)
+        gumball_globe_v2(acc, s * .27, 0, 1.22, .18, 4 + s)
+    plate(acc, .22, .16, (0, -.03, .78), C(CREAM), .012, .05)
+    fr = frame_bm(.24, .18, .01, .05, .012); place(fr, (0, -.04, .78)); acc.add(fr, C(GOLD))
+
+
+BUILDERS.update({
+    "carts": [carts_t1, carts_t2, carts_t3],
+    "gumball": [gumball_t1, gumball_t2],
+    "atm": [atm_t1, atm_t2, atm_t3],
+})
+BUILDERS["produce"][2] = produce_t3
+BUILDERS["produce"][3] = produce_t4
+BUILDERS["dairy"][3] = dairy_t4
