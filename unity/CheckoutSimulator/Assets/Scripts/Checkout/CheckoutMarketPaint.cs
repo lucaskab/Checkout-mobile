@@ -33,14 +33,20 @@ namespace Checkout
         public int PaintedMaterials => originalOf.Count;
 
         Transform world;
-        // Market roots under "Supermarket World"; the stall models are its children named "Era…".
-        static readonly string[] Roots = { "Market Shell", "Market Stage Dressing", "Market Interior" };
+        // Market roots under "Supermarket World"; the stall models are its children named "Era…". The storages (the
+        // stock room "Warehouse" and the central warehouse "Warehouse Large") wear the market's colours too (Lucas 30/10).
+        static readonly string[] Roots = { "Market Shell", "Market Stage Dressing", "Market Interior", "Warehouse", "Warehouse Large" };
+        static readonly string[] Storages = { "Warehouse Large", "Warehouse" };
         // Never inside these (builders, scaffolding, the construction show, staff and shoppers).
         static readonly string[] SkipBranches = { "Construction", "Works", "Builder", "Scaffold", "Worker", "Staff", "Customer", "Shopper" };
 
         readonly Dictionary<Material, Material> paintedOf = new Dictionary<Material, Material>();   // original → copy (null: left alone)
         readonly Dictionary<Material, Material> originalOf = new Dictionary<Material, Material>();  // copy → original
         readonly HashSet<Renderer> tracked = new HashSet<Renderer>();
+        readonly Dictionary<Renderer, bool> eligible = new Dictionary<Renderer, bool>(); // false: under a skipped branch
+        readonly List<Transform> roots = new List<Transform>();
+        int nextRoot;
+        Transform interior;
         readonly List<Renderer> scratch = new List<Renderer>();
         readonly List<Material> mats = new List<Material>();
         float nextScan;
@@ -90,26 +96,72 @@ namespace Checkout
             if (!Painting) { if (was) RestoreAll(); return; }
             Shader.SetGlobalVector("_MarketPaintPrimary", Oklab(primary));
             Shader.SetGlobalVector("_MarketPaintAccent", Oklab(accent));
-            if (!was) { Scan(); nextScan = Time.unscaledTime + 2.5f; }
+            if (!was) { Scan(); nextScan = Time.unscaledTime + .5f; }
+        }
+
+        /// <summary>The storage building standing now (the central warehouse, else the stock room), for the picker's camera.</summary>
+        public bool StorageBounds(out Bounds bounds)
+        {
+            bounds = default;
+            if (!world) return false;
+            foreach (var name in Storages)
+            {
+                var t = world.Find(name);
+                if (!t || !t.gameObject.activeInHierarchy) continue;
+                bool any = false;
+                foreach (var r in t.GetComponentsInChildren<MeshRenderer>(false))
+                {
+                    if (!r.enabled) continue;
+                    if (!any) { bounds = r.bounds; any = true; } else bounds.Encapsulate(r.bounds);
+                }
+                if (any) return true;
+            }
+            return false;
         }
 
         /// <summary>A piece just built or shown (furniture placed, a stall model loaded): painted at once.</summary>
         public static void Touch(GameObject go) { if (Active && Active.Painting && go) Active.PaintUnder(go.transform); }
 
         // Pieces appear (furniture placed, stage dressing shown) and other code swaps materials (the faded canopies):
-        // a light pass every few seconds while painted keeps everything in the player's colours.
+        // while painted, one market root is checked every half second (each root about every 3 s), so no frame pays
+        // for the whole market at once.
         void Update()
         {
             if (!Painting || Time.unscaledTime < nextScan) return;
-            nextScan = Time.unscaledTime + 2.5f;
-            Scan();
+            nextScan = Time.unscaledTime + .5f;
+            if (nextRoot == 0) CollectRoots();
+            if (roots.Count == 0) return;
+            var root = roots[nextRoot % roots.Count];
+            nextRoot = (nextRoot + 1) % roots.Count;
+            if (root) PaintUnder(root);
         }
 
-        void Scan()
+        void CollectRoots()
         {
+            roots.Clear();
             if (!world) return;
-            foreach (var name in Roots) { var t = world.Find(name); if (t) PaintUnder(t); }
-            foreach (Transform child in world) if (child.name.StartsWith("Era")) PaintUnder(child);
+            foreach (var name in Roots) { var t = world.Find(name); if (t) roots.Add(t); }
+            // The furniture placed in the shop lives in its own scene object (CheckoutInterior's holder).
+            if (!interior) { var go = GameObject.Find("Market Interior"); interior = go ? go.transform : null; }
+            if (interior) roots.Add(interior);
+            foreach (Transform child in world) if (child.name.StartsWith("Era")) roots.Add(child);
+        }
+
+        /// <summary>Paints everything of the market now (first paint, QA). Returns the milliseconds it took.</summary>
+        public double Scan()
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            CollectRoots();
+            foreach (var root in roots) if (root) PaintUnder(root);
+            return watch.Elapsed.TotalMilliseconds;
+        }
+        /// <summary>One periodic step (QA: what a frame pays while painted). Returns the milliseconds it took.</summary>
+        public double QaStep()
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            if (roots.Count == 0) CollectRoots();
+            if (roots.Count > 0) { var root = roots[nextRoot % roots.Count]; nextRoot = (nextRoot + 1) % roots.Count; if (root) PaintUnder(root); }
+            return watch.Elapsed.TotalMilliseconds;
         }
 
         void PaintUnder(Transform root)
@@ -122,7 +174,8 @@ namespace Checkout
         void PaintRenderer(Renderer r, Transform root)
         {
             if (!(r is MeshRenderer) || !r) return;
-            if (!tracked.Contains(r) && Skipped(r.transform, root)) return;
+            if (!eligible.TryGetValue(r, out var ok)) eligible[r] = ok = !Skipped(r.transform, root);
+            if (!ok) return;
             r.GetSharedMaterials(mats);
             bool changed = false;
             for (int i = 0; i < mats.Count; i++)

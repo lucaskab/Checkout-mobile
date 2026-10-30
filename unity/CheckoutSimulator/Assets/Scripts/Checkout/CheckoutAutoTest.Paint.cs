@@ -20,6 +20,7 @@ namespace Checkout {
   IEnumerator Paint(string request){
    if(request.StartsWith("eventspaintui"))return PaintUi(request);
    if(request.StartsWith("eventspaintperf"))return PaintPerf(request);
+   if(request.StartsWith("eventspaintkit"))return PaintKit(request);
    return PaintCompare(request);
   }
 
@@ -33,7 +34,7 @@ namespace Checkout {
   IEnumerator PaintCompare(string request){
    var parts=request.Split('-');
    var stages=parts.Length>1?parts[1].Split('.'):new[]{"mesinha","banca","conteiner","spati","mercadinho","supermercado","hipermercado"};
-   foreach(var f in Directory.GetFiles("Logs","pc_*.jpg"))File.Delete(f);
+   foreach(var st in stages)foreach(var f in Directory.GetFiles("Logs","pc_"+st+"_*.jpg"))File.Delete(f);
    var paint=CheckoutMarketPaint.Active;if(!paint){Note("PAINT no CheckoutMarketPaint");yield break;}
    var fx=FindAnyObjectByType<CheckoutEventVisuals>();if(fx&&fx.Previewing)fx.Preview("");
    foreach(var stage in stages){
@@ -48,11 +49,48 @@ namespace Checkout {
      CaptureSized($"pc_{stage}_home_{id}",2778,1284,null,0);
      float size=Mathf.Max(fp.size.x,fp.size.z)*(small?1.7f:1.05f)+1;
      CaptureSized($"pc_{stage}_close_{id}",2778,1284,new Vector3(fp.center.x,small?.6f:.8f,fp.center.z-(small?.4f:0)),size);
+     // The storage building of the stage (stock room or central warehouse), when there is one.
+     if(paint.StorageBounds(out var depot)){CaptureSized($"pc_{stage}_storage_{id}",2778,1284,new Vector3(depot.center.x,.8f,depot.center.z),Mathf.Max(depot.size.x,depot.size.z)*1.3f);if(id=="classico")Note($"PAINT {stage}: storage at {depot.center} size {depot.size}");}
     }
     if(stage==stages[0])LogUnpainted();
     paint.EndPreview();yield return new WaitForSecondsRealtime(.5f);
    }
    LogUnpainted();
+  }
+
+  // Every Interior Kit piece (fixtures, sectors, checkouts, decor) laid out on the supermarket floor, shot from above in
+  // each palette ("eventspaintkit"): the QA copy of the save has no furniture, so this is where the fixtures are checked.
+  // Shots Logs/pk_<part>_<palette>.jpg; the pieces are removed after.
+  IEnumerator PaintKit(string request){
+   foreach(var f in Directory.GetFiles("Logs","pk_*.jpg"))File.Delete(f);
+   var paint=CheckoutMarketPaint.Active;var world=GameObject.Find("Supermarket World");
+   if(!paint||!world){Note("PAINT kit: no paint or world");yield break;}
+   yield return GoToStage("supermercado");
+   var kit=world.transform.Find("Interior Kit");var holderT=GameObject.Find("Market Interior")?.transform;
+   var layout=FindAnyObjectByType<CheckoutMarketLayout>();
+   if(!kit||!holderT||!layout){Note($"PAINT kit: kit={kit} holder={holderT} layout={layout}");yield break;}
+   var floor=CheckoutMarketShell.ClearRect(layout.State);
+   var show=new GameObject("QA paint kit").transform;show.SetParent(holderT,false);
+   var templates=kit.Cast<Transform>().Where(t=>!t.name.StartsWith("staff")).OrderBy(t=>t.name).ToList();
+   int cols=Mathf.CeilToInt(Mathf.Sqrt(templates.Count*floor.width/Mathf.Max(1,floor.height)));int rows=Mathf.CeilToInt(templates.Count/(float)cols);
+   float dx=floor.width/cols,dz=floor.height/rows;
+   for(int i=0;i<templates.Count;i++){
+    var go=Instantiate(templates[i].gameObject,show);go.name="QA "+templates[i].name;go.SetActive(true);
+    var piece=go.GetComponent<CheckoutInteriorPiece>();float w=piece?Mathf.Max(piece.max.x-piece.min.x,piece.max.y-piece.min.y):1.8f;
+    float k=Mathf.Min(1f,Mathf.Min(dx,dz)*.9f/Mathf.Max(.5f,w));go.transform.localScale*=k;
+    go.transform.position=new Vector3(floor.xMin+dx*(i%cols+.5f),.74f,floor.yMax-dz*(i/cols+.5f));
+   }
+   Note($"PAINT kit: {templates.Count} pieces on a {cols}x{rows} grid over {floor}: {string.Join(",",templates.Select(t=>t.name))}");
+   var cam=Camera.main;var center=new Vector3(floor.center.x,.8f,floor.center.y);
+   foreach(var (id,p,a) in ComparePalettes){
+    paint.Preview(p,a);yield return new WaitForSecondsRealtime(.4f);paint.Scan();yield return new WaitForSecondsRealtime(.4f);
+    CaptureSized($"pk_all_{id}",2778,1284,center,Mathf.Max(floor.width,floor.height)*1.05f);
+    CaptureSized($"pk_left_{id}",2778,1284,new Vector3(floor.xMin+floor.width*.27f,.8f,floor.center.y),floor.width*.55f);
+    CaptureSized($"pk_right_{id}",2778,1284,new Vector3(floor.xMin+floor.width*.73f,.8f,floor.center.y),floor.width*.55f);
+    if(id=="floresta"){var lines=new List<string>();foreach(var r in show.GetComponentsInChildren<MeshRenderer>())foreach(var m in r.sharedMaterials)if(m&&m.name.EndsWith("(paint)"))lines.Add(r.transform.root==null?"":(r.GetComponentInParent<CheckoutInteriorPiece>()?.name??r.name)+": "+m.name);
+     Note("PAINT kit painted ("+lines.Distinct().Count()+"):\n  "+string.Join("\n  ",lines.Distinct().OrderBy(x=>x)));}
+   }
+   paint.EndPreview();Destroy(show.gameObject);yield return new WaitForSecondsRealtime(.5f);
   }
 
   // The market's materials the paint leaves alone that still look navy or gold (to review false negatives).
@@ -85,8 +123,8 @@ namespace Checkout {
      yield return Measure($"PERF {stage} {label} (round {round+1})",10);
     }
    }
-   var watch=Stopwatch.StartNew();for(int i=0;i<5;i++)paint.SendMessage("Scan");watch.Stop();
-   Note($"PERF {stage}: a periodic paint pass (every 2.5 s while painted) takes {watch.Elapsed.TotalMilliseconds/5:0.00} ms; {paint.PaintedRenderers} renderers, {paint.PaintedMaterials} materials");
+   double full=0,worst=0,sum=0;for(int i=0;i<5;i++)full+=paint.Scan();for(int i=0;i<20;i++){var ms=paint.QaStep();sum+=ms;worst=System.Math.Max(worst,ms);}
+   Note($"PERF {stage}: a full paint pass {full/5:0.00} ms (first paint only); the periodic step (one root every 0.5 s while painted) avg {sum/20:0.00} ms, worst {worst:0.00} ms; {paint.PaintedRenderers} renderers, {paint.PaintedMaterials} painted materials");
    paint.EndPreview();QualitySettings.SetQualityLevel(quality,true);
   }
 
@@ -106,7 +144,7 @@ namespace Checkout {
   // back to the classic look for free, a preview cancelled, the price with too few coins, and the build mode's "Cores".
   // Shots Logs/at_paint_<lang>_<device>_<nn>_<step>.png; PAINTUI lines with the wallet before and after each step.
   IEnumerator PaintUi(string request){
-   var parts=request.Split('-');string lang=parts.Length>1?parts[1]:"pt",device=parts.Length>2?parts[2]:"phone",stage=parts.Length>3?parts[3]:"mercadinho";
+   var parts=request.Split('-');string lang=parts.Length>1?parts[1]:"pt",device=parts.Length>2?parts[2]:"phone",stage=parts.Length>3?parts[3]:"supermercado";
    string tag=lang+"_"+device;int n=0;
    var size=device=="mini"?new Vector2Int(1792,828):device=="desk"?new Vector2Int(1600,900):new Vector2Int(2778,1284);
    Note("PAINTUI "+tag+": "+CheckoutQaGameView.Set(size.x,size.y)+" handheld="+CheckoutScreen.Handheld);
@@ -141,7 +179,9 @@ namespace Checkout {
     ExecuteEvents.Execute(r.gameObject,data,ExecuteEvents.pointerDownHandler);for(int i=1;i<=10;i++){data.position=Vector2.Lerp(from,to,i/10f);ExecuteEvents.Execute(r.gameObject,data,ExecuteEvents.dragHandler);yield return null;}
     ExecuteEvents.Execute(r.gameObject,data,ExecuteEvents.pointerUpHandler);}
    yield return Press("primary");yield return Step("custom");
-   yield return Press("inside");yield return Step("custom_inside");yield return Press("front");
+   yield return Press("inside");yield return Step("custom_inside");
+   if(CheckoutMarketPaintPanel.QaButton("storage")&&CheckoutMarketPaintPanel.QaButton("storage").gameObject.activeInHierarchy){yield return Press("storage");yield return Step("custom_storage");}
+   yield return Press("front");
    // 4. Apply with coins.
    double coins0=bridge.State.coins,gems0=bridge.State.diamonds;
    yield return Press("coins");yield return Step("applied_coins");

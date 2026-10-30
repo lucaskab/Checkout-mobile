@@ -37,7 +37,7 @@ namespace Checkout
         TextMeshProUGUI title, nowLabel, toastText, slotHint;
         Image primaryChip, accentChip, hueHandle, lightHandle, toastFace;
         RawImage hueBar, lightBar; Texture2D hueTex, lightTex;
-        CheckoutDesktopButton slotPrimary, slotAccent, applyCoins, applyGems, classic, cancel, viewFront, viewInside;
+        CheckoutDesktopButton slotPrimary, slotAccent, applyCoins, applyGems, classic, cancel, viewFront, viewInside, viewStorage;
         readonly List<(Image face, Image ring, PaintPalette palette)> chips = new List<(Image, Image, PaintPalette)>();
         readonly List<(Image face, Image ring, PaintPalette palette)> recentChips = new List<(Image, Image, PaintPalette)>();
         readonly List<(Image face, Image ring, string hex)> swatches = new List<(Image, Image, string)>();
@@ -47,7 +47,7 @@ namespace Checkout
         string draftPrimary = CheckoutMarketPaint.ClassicPrimary, draftAccent = CheckoutMarketPaint.ClassicAccent;
         int slot; // 0 = principal, 1 = destaque
         float hue, light = .5f, baseSat = .7f; // the bars of the slot shown
-        bool busy, inside; float toastUntil;
+        bool busy; int view; float toastUntil; // view: 0 façade, 1 inside, 2 storage
         Rect cameraRect; (Vector3 focus, float zoom) cameraBefore; bool cameraSaved;
         string lastPaletteKey = "";
 
@@ -67,7 +67,7 @@ namespace Checkout
             var paint = CheckoutMarketPaint.Active;
             draftPrimary = keptPrimary ?? paint.SavedPrimary; draftAccent = keptAccent ?? paint.SavedAccent;
             keptPrimary = keptAccent = null;
-            slot = 0; busy = false; inside = false;
+            slot = 0; busy = false; view = 0;
             root.gameObject.SetActive(true);
             GameHud(false);
             FrameMarket(true);
@@ -131,7 +131,9 @@ namespace Checkout
             var shell = FindAnyObjectByType<CheckoutMarketShell>();
             var fp = CheckoutStall.Small || !shell ? CheckoutStall.Footprint : shell.Footprint;
             float size = Mathf.Max(fp.size.x, fp.size.z);
-            if (inside) sim.Focus(new Vector3(fp.center.x, 0, fp.center.z), Mathf.Max(7, size * .62f));
+            if (view == 2 && CheckoutMarketPaint.Active && CheckoutMarketPaint.Active.StorageBounds(out var depot))
+            { sim.Focus(new Vector3(depot.center.x, 0, depot.center.z - depot.size.z * .1f), Mathf.Max(8, Mathf.Max(depot.size.x, depot.size.z) * 1.05f)); return; }
+            if (view == 1) sim.Focus(new Vector3(fp.center.x, 0, fp.center.z), Mathf.Max(7, size * .62f));
             else sim.Focus(new Vector3(fp.center.x, 0, fp.center.z - size * .18f), Mathf.Max(8, size * (CheckoutStall.Small ? 1.5f : .95f)));
         }
 
@@ -210,11 +212,12 @@ namespace Checkout
 
             // Camera: the façade or the inside.
             var seg = N.Image(root, "View", K.Border, 22); var segRect = seg.rectTransform; seg.raycastTarget = true;
-            segRect.anchorMin = segRect.anchorMax = new Vector2(0, 1); segRect.pivot = new Vector2(0, 1); segRect.sizeDelta = new Vector2(Phone ? 300 : 280, Tap); segRect.anchoredPosition = new Vector2(Phone ? 12 : 16, -(Phone ? 10 : 16));
+            segRect.anchorMin = segRect.anchorMax = new Vector2(0, 1); segRect.pivot = new Vector2(0, 1); segRect.sizeDelta = new Vector2(Phone ? 450 : 420, Tap); segRect.anchoredPosition = new Vector2(Phone ? 12 : 16, -(Phone ? 10 : 16));
             var segFace = N.Image(seg.transform, "Face", K.Cream, 20); U.Stretch(segFace.rectTransform, Vector2.zero, Vector2.one, new Vector2(2, 4), new Vector2(-2, -2));
             var segRow = N.Row(segFace.gameObject, 4, new RectOffset(5, 5, 4, 4)); segRow.childForceExpandHeight = true; segRow.childControlHeight = true; segRow.childForceExpandWidth = true;
-            viewFront = Btn(segFace.transform, "Fachada", "secondary", () => { inside = false; Aim(); Refresh(); }, Tap - 14);
-            viewInside = Btn(segFace.transform, "Dentro", "secondary", () => { inside = true; Aim(); Refresh(); }, Tap - 14);
+            viewFront = Btn(segFace.transform, "Fachada", "secondary", () => { view = 0; Aim(); Refresh(); }, Tap - 14);
+            viewInside = Btn(segFace.transform, "Dentro", "secondary", () => { view = 1; Aim(); Refresh(); }, Tap - 14);
+            viewStorage = Btn(segFace.transform, "Depósito", "secondary", () => { view = 2; Aim(); Refresh(); }, Tap - 14);
 
             // Our own toast (the HUD's is hidden while the picker is open).
             var toastEdge = N.Image(root, "Toast", K.C("427A24"), 18); toastRect = toastEdge.rectTransform;
@@ -394,7 +397,11 @@ namespace Checkout
             primaryChip.color = K.C(draftPrimary); accentChip.color = K.C(draftAccent);
             Place(hueHandle, hue); Place(lightHandle, light);
             slotHint.text = slot == 0 ? "No lugar do azul: paredes, toldos, móveis" : "No lugar do dourado: frisos, letreiros, detalhes";
-            viewFront.Apply(Data("Fachada", "secondary", true, "", !inside)); viewInside.Apply(Data("Dentro", "secondary", true, "", inside));
+            viewFront.Apply(Data("Fachada", "secondary", true, "", view == 0)); viewInside.Apply(Data("Dentro", "secondary", true, "", view == 1));
+            // The storage button only when the market has a storage building standing.
+            bool hasStorage = paint && paint.StorageBounds(out _);
+            viewStorage.gameObject.SetActive(hasStorage); if (!hasStorage && view == 2) { view = 0; Aim(); }
+            viewStorage.Apply(Data("Depósito", "secondary", true, "", view == 2));
             foreach (var c in chips) Mark(c.ring, CheckoutMarketPaint.Norm(c.palette.primary) == draftPrimary && CheckoutMarketPaint.Norm(c.palette.accent) == draftAccent);
             foreach (var c in recentChips) Mark(c.ring, CheckoutMarketPaint.Norm(c.palette.primary) == draftPrimary && CheckoutMarketPaint.Norm(c.palette.accent) == draftAccent);
             foreach (var w in swatches) Mark(w.ring, w.hex == Current);
@@ -481,7 +488,7 @@ namespace Checkout
         public static CheckoutDesktopButton QaButton(string which) => !instance ? null : which switch
         {
             "coins" => instance.applyCoins, "diamonds" => instance.applyGems, "classic" => instance.classic, "cancel" => instance.cancel,
-            "primary" => instance.slotPrimary, "accent" => instance.slotAccent, "inside" => instance.viewInside, "front" => instance.viewFront, _ => null,
+            "primary" => instance.slotPrimary, "accent" => instance.slotAccent, "inside" => instance.viewInside, "front" => instance.viewFront, "storage" => instance.viewStorage, _ => null,
         };
         public static GameObject QaChip(string paletteId) => !instance ? null : instance.chips.Where(c => c.palette.id == paletteId).Select(c => c.ring.gameObject).FirstOrDefault();
         public static GameObject QaSwatch(int index) => !instance || index < 0 || index >= instance.swatches.Count ? null : instance.swatches[index].ring.gameObject;
