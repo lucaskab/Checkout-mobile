@@ -4077,6 +4077,36 @@ def export_role(mat_name, fill):
     return "C_%s_%s" % (hexv, "Product" if fill else ROLE.get(hexv, "Product"))
 
 
+def screens_blank(on=True):
+    """Export contract for the sector screens: "E_PriceScreen" / "E_TicketScreen" are single slots that ship
+    blank (a dark, softly emissive 'screen off' with no image); the render-only preview image is unlinked for the
+    export and put back afterwards. The game draws pictograms and real prices into these slots at runtime."""
+    stash = []
+    for name in ("E_PriceScreen", "E_TicketScreen"):
+        m = bpy.data.materials.get(name)
+        if not m or not m.use_nodes:
+            continue
+        nt = m.node_tree
+        b = nt.nodes.get("Principled BSDF")
+        links = [l for l in nt.links if l.to_node == b and l.from_node.type == "TEX_IMAGE"]
+        stash.append((m, [(l.from_socket, l.to_socket) for l in links], tuple(b.inputs["Base Color"].default_value), tuple(b.inputs["Emission Color"].default_value)))
+        for l in links:
+            nt.links.remove(l)
+        b.inputs["Base Color"].default_value = (.02, .025, .04, 1)
+        b.inputs["Emission Color"].default_value = (.02, .025, .04, 1)
+    return stash
+
+
+def screens_restore(stash):
+    for m, links, base, emis in stash:
+        nt = m.node_tree
+        b = nt.nodes.get("Principled BSDF")
+        for fs, ts in links:
+            nt.links.new(fs, ts)
+        b.inputs["Base Color"].default_value = base
+        b.inputs["Emission Color"].default_value = emis
+
+
 def export_tier(kind, i, folder=EXPORT):
     """Writes <folder>/<kind>_T<i>.fbx from the lineup collection 'FT <kind> T<i>'. Returns a report dict."""
     os.makedirs(folder, exist_ok=True)
@@ -4113,6 +4143,7 @@ def export_tier(kind, i, folder=EXPORT):
         t.data.calc_loop_triangles(); tris += len(t.data.loop_triangles)
         slots |= {m.name for m in t.data.materials if m}
     path = os.path.join(folder, "%s_T%d.fbx" % (kind, i))
+    blanked = screens_blank(True)
     try:
         bpy.ops.object.select_all(action="DESELECT")
         for t in temps:
@@ -4130,6 +4161,7 @@ def export_tier(kind, i, folder=EXPORT):
             bpy.data.materials.remove(m)
         for o, nm in parked:
             o.name = nm
+        screens_restore(blanked)
     # Unity bounds: Unity (x, y, z) = modelling (x, z, y); the customer side is Unity -Z
     return {"file": os.path.basename(path), "tris": tris, "objects": [t for t in sorted({("Body" if "Body" in o.name else o.name.split(" ", 1)[1]) for o in src})],
             "size": (round(hi.x - lo.x, 3), round(hi.z - lo.z, 3), round(hi.y - lo.y, 3)),
