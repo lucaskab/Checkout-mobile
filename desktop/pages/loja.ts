@@ -153,11 +153,8 @@ function paintCard(state: State): Card {
 		eyebrow: "PINTE O SEU MERCADO",
 		icon: gameIcon("paint"),
 		tone: "featured",
-		subtitle: "Troque o azul e o dourado do mercado pelas cores que você quiser e veja ao vivo antes de pagar.",
-		lines: [
-			`Agora: ${current}`,
-			`Pintar: ${fmt(getMarketPaintCoinPrice(state.era.id))} moedas ou ${MARKET_PAINT_DIAMONDS} diamantes · voltar ao clássico é grátis`,
-		],
+		subtitle: "Pinte o mercado com as suas cores e veja ao vivo antes de pagar.",
+		lines: [`Agora: ${current}`, `${fmt(getMarketPaintCoinPrice(state.era.id))} moedas ou ${MARKET_PAINT_DIAMONDS} diamantes`],
 		buttons: [button("Escolher cores", { route: "@paint", variant: "primary", icon: gameIcon("paint") })],
 	});
 }

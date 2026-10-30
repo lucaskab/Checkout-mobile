@@ -180,7 +180,7 @@ namespace Checkout {
    if(coach==null||string.IsNullOrEmpty(coach.key)){HideCoach();return;}
    // Other moments come first: the level-up and conquest celebrations, the offline earnings, loading, building.
    // The Opções window (gear) too: the card sat over its Conta tab and the diamond store (QA 29/10).
-   if(LevelUpOpen||ConquestOpen||modal.activeSelf||status.activeSelf||CheckoutBuildMode.Open||CheckoutLotView.Open||CheckoutSettings.Open){HideCoach();return;}
+   if(LevelUpOpen||ConquestOpen||modal.activeSelf||status.activeSelf||CheckoutBuildMode.Open||CheckoutLotView.Open||CheckoutSettings.Open||CheckoutMarketPaintPanel.Open){HideCoach();return;}
    // A game window, or a page window with nothing to point at: a note in the corner instead of a card over the window.
    bool game=GameWindowOpen();
    if(game||(view!=null&&view.hasPage&&coach.mode=="bubble"&&string.IsNullOrEmpty(coach.target))){

@@ -208,8 +208,8 @@ namespace Checkout {
    CheckoutBuildMode.OpenFromHud();yield return new WaitForSecondsRealtime(2f);yield return Shot($"paint_{tag}_{++n:00}_build_tray");
    var cores=FindObjectsByType<CheckoutDesktopButton>(FindObjectsSortMode.None).FirstOrDefault(b=>b.isActiveAndEnabled&&b.Data!=null&&b.Data.label=="Cores"&&b.GetComponentInParent<CheckoutBuildMode>());
    Note("PAINTUI build tray Cores: "+(cores?"present":"MISSING"));
-   if(cores){cores.Clicked?.Invoke(cores);yield return new WaitForSecondsRealtime(1.5f);yield return Step("from_build_mode");yield return Press("cancel");}
-   else CheckoutBuildMode.QaClose();
+   if(cores){cores.Clicked?.Invoke(cores);yield return new WaitForSecondsRealtime(1.5f);yield return Step("from_build_mode");yield return Press("cancel");yield return new WaitForSecondsRealtime(.8f);yield return Shot($"paint_{tag}_{++n:00}_back_in_build_mode");}
+   CheckoutBuildMode.QaClose();
    Route("");Lang(before);yield return new WaitForSecondsRealtime(1.5f);
    Note("PAINTUI done; language back to "+CheckoutI18n.Language);
   }

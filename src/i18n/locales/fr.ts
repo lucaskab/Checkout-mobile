@@ -3829,6 +3829,8 @@ const catalog: Catalog = {
 	"Mercado pintado!": "Marché repeint !",
 	"Cores clássicas de volta!": "Les couleurs classiques sont de retour !",
 	"Cores": "Couleurs",
+	"Pinte o mercado com as suas cores e veja ao vivo antes de pagar.": "Peignez le marché à vos couleurs et voyez-le en direct avant de payer.",
+	"{0} moedas ou {1} diamantes": "{0} pièces ou {1} diamants",
 };
 
 export default catalog;

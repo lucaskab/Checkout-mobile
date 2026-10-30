@@ -89,10 +89,13 @@ namespace Checkout
             return t;
         }
 
+        // The picker opens over the build mode (what was placed stays as it is): the build HUD steps aside meanwhile.
         void OpenPaint()
         {
-            Finish();
-            if (!Open) CheckoutMarketPaintPanel.Show();
+            CloseSheet(); Select(null);
+            hud.gameObject.SetActive(false);
+            CheckoutMarketPaintPanel.Show(() => { if (Open) { hud.gameObject.SetActive(true); Focus(shopZone); } });
+            if (!CheckoutMarketPaintPanel.Open) hud.gameObject.SetActive(true);
         }
 
         void BuildTray()

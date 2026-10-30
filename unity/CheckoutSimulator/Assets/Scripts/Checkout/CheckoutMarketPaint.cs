@@ -151,6 +151,7 @@ namespace Checkout
         public double Scan()
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
+            if (!Painting) return 0; // the classic look: nothing to paint
             CollectRoots();
             foreach (var root in roots) if (root) PaintUnder(root);
             return watch.Elapsed.TotalMilliseconds;
@@ -159,6 +160,7 @@ namespace Checkout
         public double QaStep()
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
+            if (!Painting) return 0;
             if (roots.Count == 0) CollectRoots();
             if (roots.Count > 0) { var root = roots[nextRoot % roots.Count]; nextRoot = (nextRoot + 1) % roots.Count; if (root) PaintUnder(root); }
             return watch.Elapsed.TotalMilliseconds;
@@ -261,7 +263,7 @@ namespace Checkout
         {
             "Glow", "Bulb", "Led", "Lamp", "Light", "HardHat", "Hazard", "Crane", "Cone", "Cheese", "Rind", "Mustard", "Products",
             "Balloon", "Bloom", "Flower", "Leaf", "Polo", "Yellow", "IK_Awning_", "IK_PS_", "Stripes", "Labels", "Screen", "Glass",
-            "Worker", "Staff", "Customer", "Solar", "Graffiti", "Hoarding", "LotBillboard", "Photo", "PromoCard", "CanPyramid", "Ride",
+            "Worker", "Staff", "Customer", "Solar", "Graffiti", "Hoarding", "LotBillboard", "PhotoStrip", "PromoCard", "CanPyramid", "Ride",
         };
         // Textures that are all navy / all gold, and textures reviewed for a colour key (navy or gold parts on them).
         static readonly HashSet<string> WholeNavy = new HashSet<string> { "MS_NavyPanel_albedo", "MS_Cladding_albedo", "IK_V2_PaintNavy_albedo" };
@@ -270,7 +272,7 @@ namespace Checkout
         {
             "MS_Awning_albedo", "IK_PriceRail_albedo", "IK_V2_SignCart_albedo", "IK_V3_ClawArt_albedo", "IK_V3_CupSign_albedo",
             "IK_D4_Atm_albedo", "IK_D4_Bench_albedo", "IK_D4_ClawMachine_albedo", "IK_D4_DigitalTotem_albedo", "IK_D4_Gumball_albedo",
-            "IK_D4_NeonCart_albedo", "IK_D4_RecycleBins_albedo", "IK_D4_SwingSet_albedo",
+            "IK_D4_NeonCart_albedo", "IK_D4_RecycleBins_albedo", "IK_D4_SwingSet_albedo", "IK_D4_PhotoBooth_albedo",
         };
         static readonly Dictionary<string, Texture2D> masks = new Dictionary<string, Texture2D>();
 

@@ -47,18 +47,31 @@ namespace Checkout
         string draftPrimary = CheckoutMarketPaint.ClassicPrimary, draftAccent = CheckoutMarketPaint.ClassicAccent;
         int slot; // 0 = principal, 1 = destaque
         float hue, light = .5f, baseSat = .7f; // the bars of the slot shown
-        bool busy; int view; float toastUntil; // view: 0 façade, 1 inside, 2 storage
-        Rect cameraRect; (Vector3 focus, float zoom) cameraBefore; bool cameraSaved;
+        bool busy; int camView; float toastUntil; // view: 0 façade, 1 inside, 2 storage
+        (Vector3 focus, float zoom) cameraBefore; bool cameraSaved;
+        // The game camera keeps the whole screen; its picture is moved left by the panel's share, so the market sits in
+        // the middle of the free part and the panel covers only city.
+        Camera cameraShifted; float shift;
+        void LateUpdate()
+        {
+            if (!cameraShifted || shift <= 0) return;
+            cameraShifted.ResetProjectionMatrix();
+            cameraShifted.projectionMatrix = Matrix4x4.Translate(new Vector3(-shift, 0, 0)) * cameraShifted.projectionMatrix;
+        }
         string lastPaletteKey = "";
 
         // ------------------------------------------------------------------ open / close
-        public static void Show()
+        public static void Show() => Show(null);
+        /// <summary>Opens the picker; `closed` runs when it closes (the build mode hides its HUD meanwhile and shows it again).</summary>
+        public static void Show(Action closed)
         {
             var paint = CheckoutMarketPaint.Active; var host = CheckoutDesktopHost.Active;
-            if (!paint || !host || CheckoutBuildMode.Open) return;
+            if (!paint || !host || (CheckoutBuildMode.Open && closed == null)) return;
             if (!instance) instance = new GameObject("CheckoutMarketPaintPanel").AddComponent<CheckoutMarketPaintPanel>();
+            instance.onClosed = closed;
             instance.Enter();
         }
+        Action onClosed;
         public static void Hide() { if (Open) instance.Leave(false); }
 
         void Enter()
@@ -67,7 +80,7 @@ namespace Checkout
             var paint = CheckoutMarketPaint.Active;
             draftPrimary = keptPrimary ?? paint.SavedPrimary; draftAccent = keptAccent ?? paint.SavedAccent;
             keptPrimary = keptAccent = null;
-            slot = 0; busy = false; view = 0;
+            slot = 0; busy = false; camView = 0;
             root.gameObject.SetActive(true);
             GameHud(false);
             FrameMarket(true);
@@ -84,6 +97,7 @@ namespace Checkout
             CheckoutMarketPaint.Active?.EndPreview();
             FrameMarket(false);
             GameHud(true);
+            var closed = onClosed; onClosed = null; closed?.Invoke();
         }
 
         // The game's HUD (wallet, toolbar, stockroom buttons) steps aside like in the build mode; the HUD stays navy and gold.
@@ -108,13 +122,13 @@ namespace Checkout
             var cam = Camera.main; var sim = FindAnyObjectByType<MarketDay.MarketSimulation>();
             if (on)
             {
-                if (cam) { cameraRect = cam.rect; float share = PanelShare(); cam.rect = new Rect(0, 0, 1 - share, 1); }
+                shift = PanelShare(); cameraShifted = cam;
                 if (sim) { cameraBefore = sim.CameraState; cameraSaved = true; sim.cameraLocked = true; sim.pinchLocked = true; }
                 Aim();
             }
             else
             {
-                if (cam) cam.rect = cameraRect;
+                if (cameraShifted) cameraShifted.ResetProjectionMatrix(); cameraShifted = null; shift = 0;
                 if (sim) { sim.cameraLocked = false; sim.pinchLocked = false; if (cameraSaved) sim.Focus(cameraBefore.focus, cameraBefore.zoom); }
                 cameraSaved = false;
             }
@@ -131,9 +145,9 @@ namespace Checkout
             var shell = FindAnyObjectByType<CheckoutMarketShell>();
             var fp = CheckoutStall.Small || !shell ? CheckoutStall.Footprint : shell.Footprint;
             float size = Mathf.Max(fp.size.x, fp.size.z);
-            if (view == 2 && CheckoutMarketPaint.Active && CheckoutMarketPaint.Active.StorageBounds(out var depot))
+            if (camView == 2 && CheckoutMarketPaint.Active && CheckoutMarketPaint.Active.StorageBounds(out var depot))
             { sim.Focus(new Vector3(depot.center.x, 0, depot.center.z - depot.size.z * .1f), Mathf.Max(8, Mathf.Max(depot.size.x, depot.size.z) * 1.05f)); return; }
-            if (view == 1) sim.Focus(new Vector3(fp.center.x, 0, fp.center.z), Mathf.Max(7, size * .62f));
+            if (camView == 1) sim.Focus(new Vector3(fp.center.x, 0, fp.center.z), Mathf.Max(7, size * .62f));
             else sim.Focus(new Vector3(fp.center.x, 0, fp.center.z - size * .18f), Mathf.Max(8, size * (CheckoutStall.Small ? 1.5f : .95f)));
         }
 
@@ -150,26 +164,26 @@ namespace Checkout
             panel.sizeDelta = new Vector2(width, -(Phone ? 12 : 24)); panel.anchoredPosition = new Vector2(-(Phone ? 6 : 12), 0);
             var face = N.Image(panel, "Face", K.Cream, 24); U.Stretch(face.rectTransform, Vector2.zero, Vector2.one, new Vector2(3, 6), new Vector2(-3, -3));
 
-            // Header: title + the close X (= Cancelar).
-            float headH = Phone ? 58 : 60;
+            // Header: the title, "Clássico" (back to the brand look, free) and "Cancelar" (the market goes back as it was).
+            float headH = Phone ? 64 : 62;
             var head = N.Node("Header", face.transform); U.Stretch(head, new Vector2(0, 1), Vector2.one, new Vector2(pad, -headH), new Vector2(-pad, -6));
-            U.Icon(head, "Icon", "Icons/paint", new Vector2(0, .5f), new Vector2(headH - 10, headH - 10), new Vector2((headH - 10) * .5f, 0));
-            title = U.Label(head, "Title", K.Headline, Phone ? 26 : 26, "4A3624", TextAlignmentOptions.Left); title.text = "Cores do mercado";
-            U.Stretch(title.rectTransform, Vector2.zero, Vector2.one, new Vector2(headH + 2, 0), new Vector2(-(headH + 8), 0));
-            var close = U.Button(head, "X", "danger", Cancel, headH - 6, 22);
-            var cr = (RectTransform)close.transform; cr.anchorMin = cr.anchorMax = new Vector2(1, .5f); cr.pivot = new Vector2(1, .5f); cr.sizeDelta = new Vector2(headH - 6, headH - 6); cr.anchoredPosition = Vector2.zero;
-            close.GetComponent<LayoutElement>().ignoreLayout = true;
+            U.Icon(head, "Icon", "Icons/paint", new Vector2(0, .5f), new Vector2(headH - 14, headH - 14), new Vector2((headH - 14) * .5f, 0));
+            float headButtons = Phone ? 2 * 138 + 8 : 2 * 128 + 8;
+            title = U.Label(head, "Title", K.Headline, Phone ? 24 : 24, "4A3624", TextAlignmentOptions.Left); title.text = "Cores do mercado";
+            title.enableAutoSizing = true; title.fontSizeMin = 16; title.fontSizeMax = 24;
+            U.Stretch(title.rectTransform, Vector2.zero, Vector2.one, new Vector2(headH - 4, 0), new Vector2(-(headButtons + 6), 0));
+            var headRow = N.Node("Header buttons", head); headRow.anchorMin = new Vector2(1, 0); headRow.anchorMax = Vector2.one; headRow.pivot = new Vector2(1, .5f);
+            headRow.sizeDelta = new Vector2(headButtons, -6); headRow.anchoredPosition = Vector2.zero;
+            var hr = N.Row(headRow.gameObject, 8); hr.childForceExpandWidth = true; hr.childControlHeight = true; hr.childForceExpandHeight = true;
+            classic = Btn(headRow, "Clássico", "secondary", BackToClassic, headH - 10);
+            cancel = Btn(headRow, "Cancelar", "danger", Cancel, headH - 10);
 
-            // Footer: prices and the two ways out.
-            float footH = Phone ? 2 * Tap + 22 : 2 * Tap + 22;
+            // Footer: the two prices (or, when the classic look is picked, its free button).
+            float footH = Tap + 12;
             var foot = N.Node("Footer", face.transform); U.Stretch(foot, Vector2.zero, new Vector2(1, 0), new Vector2(pad, 10), new Vector2(-pad, footH));
-            N.Column(foot.gameObject, 8);
-            var row1 = N.Node("Prices", foot); var r1 = N.Row(row1.gameObject, 10); r1.childForceExpandWidth = true; r1.childControlHeight = true; row1.gameObject.AddComponent<LayoutElement>().preferredHeight = Tap;
-            applyCoins = Btn(row1, "Aplicar", "coin", () => ApplyWith("coins"), Tap);
-            applyGems = Btn(row1, "Aplicar", "gem", () => ApplyWith("diamonds"), Tap);
-            var row2 = N.Node("Ways out", foot); var r2 = N.Row(row2.gameObject, 10); r2.childForceExpandWidth = true; r2.childControlHeight = true; row2.gameObject.AddComponent<LayoutElement>().preferredHeight = Tap - 6;
-            classic = Btn(row2, "Voltar ao clássico", "secondary", BackToClassic, Tap - 6);
-            cancel = Btn(row2, "Cancelar", "secondary", Cancel, Tap - 6);
+            var r1 = N.Row(foot.gameObject, 10); r1.childForceExpandWidth = true; r1.childControlHeight = true; r1.childForceExpandHeight = true;
+            applyCoins = Btn(foot, "Aplicar", "coin", () => ApplyWith("coins"), Tap);
+            applyGems = Btn(foot, "Aplicar", "gem", () => ApplyWith("diamonds"), Tap);
 
             // Middle: scrolls when the phone is short.
             var view = N.Node("Viewport", face.transform); U.Stretch(view, Vector2.zero, Vector2.one, new Vector2(pad, footH + 8), new Vector2(-pad, -headH - 4));
@@ -181,10 +195,10 @@ namespace Checkout
 
             nowLabel = Caption(content, "");
             Caption(content, "Paletas");
-            paletteList = Strip(content, "Palettes", Phone ? 112 : 96, out _);
+            paletteList = Strip(content, "Palettes", Phone ? 104 : 96, out _);
             var recentHolder = N.Node("Recent", content); N.Column(recentHolder.gameObject, 6); recentRow = recentHolder;
             Caption(recentHolder, "Recentes");
-            recentList = Strip(recentHolder, "Recent chips", Phone ? 112 : 96, out _);
+            recentList = Strip(recentHolder, "Recent chips", Phone ? 104 : 96, out _);
 
             // The two slots.
             var slots = N.Node("Slots", content); var sr = N.Row(slots.gameObject, 10); sr.childForceExpandWidth = true; sr.childControlHeight = true; slots.gameObject.AddComponent<LayoutElement>().preferredHeight = Tap;
@@ -193,10 +207,10 @@ namespace Checkout
             primaryChip = SlotDot(slotPrimary); accentChip = SlotDot(slotAccent);
             slotHint = Caption(content, "");
 
-            // Swatches (7 per row on a phone, 8 on a desktop).
+            // Swatches: 3 rows of 8 (70 units ≈ 44 pt on a phone).
             var grid = N.Node("Swatches", content); swatchGrid = grid;
-            var gl = grid.gameObject.AddComponent<GridLayoutGroup>(); float cell = Phone ? 74 : 56; gl.cellSize = new Vector2(cell, cell); gl.spacing = new Vector2(Phone ? 12 : 9, Phone ? 10 : 9);
-            gl.constraint = GridLayoutGroup.Constraint.FixedColumnCount; gl.constraintCount = Phone ? 7 : 8; gl.childAlignment = TextAnchor.UpperCenter;
+            var gl = grid.gameObject.AddComponent<GridLayoutGroup>(); float cell = Phone ? 70 : 56; gl.cellSize = new Vector2(cell, cell); gl.spacing = new Vector2(Phone ? 5 : 9, Phone ? 7 : 9);
+            gl.constraint = GridLayoutGroup.Constraint.FixedColumnCount; gl.constraintCount = 8; gl.childAlignment = TextAnchor.UpperCenter;
 
             // Any colour: hue and brightness, big handles.
             Caption(content, "Qualquer cor");
@@ -215,9 +229,9 @@ namespace Checkout
             segRect.anchorMin = segRect.anchorMax = new Vector2(0, 1); segRect.pivot = new Vector2(0, 1); segRect.sizeDelta = new Vector2(Phone ? 450 : 420, Tap); segRect.anchoredPosition = new Vector2(Phone ? 12 : 16, -(Phone ? 10 : 16));
             var segFace = N.Image(seg.transform, "Face", K.Cream, 20); U.Stretch(segFace.rectTransform, Vector2.zero, Vector2.one, new Vector2(2, 4), new Vector2(-2, -2));
             var segRow = N.Row(segFace.gameObject, 4, new RectOffset(5, 5, 4, 4)); segRow.childForceExpandHeight = true; segRow.childControlHeight = true; segRow.childForceExpandWidth = true;
-            viewFront = Btn(segFace.transform, "Fachada", "secondary", () => { view = 0; Aim(); Refresh(); }, Tap - 14);
-            viewInside = Btn(segFace.transform, "Dentro", "secondary", () => { view = 1; Aim(); Refresh(); }, Tap - 14);
-            viewStorage = Btn(segFace.transform, "Depósito", "secondary", () => { view = 2; Aim(); Refresh(); }, Tap - 14);
+            viewFront = Btn(segFace.transform, "Fachada", "secondary", () => { camView = 0; Aim(); Refresh(); }, Tap - 14);
+            viewInside = Btn(segFace.transform, "Dentro", "secondary", () => { camView = 1; Aim(); Refresh(); }, Tap - 14);
+            viewStorage = Btn(segFace.transform, "Depósito", "secondary", () => { camView = 2; Aim(); Refresh(); }, Tap - 14);
 
             // Our own toast (the HUD's is hidden while the picker is open).
             var toastEdge = N.Image(root, "Toast", K.C("427A24"), 18); toastRect = toastEdge.rectTransform;
@@ -386,22 +400,25 @@ namespace Checkout
             bool savedClassic = paint && IsClassic(paint.SavedPrimary, paint.SavedAccent);
             string name = PaletteName(draftPrimary, draftAccent);
             nowLabel.text = changed ? CheckoutI18n.F("Prévia: {0} · toque em Aplicar para pintar", CheckoutI18n.T(name)) : CheckoutI18n.F("Seu mercado agora: {0}", CheckoutI18n.T(name));
-            // Prices only when something changed (and going back to the classic look is free: its own button).
-            bool pay = changed && !toClassic && !busy;
-            applyCoins.Apply(Data(pay && coins < coinPrice ? CheckoutI18n.F("Faltam {0} moedas", ((long)(coinPrice - coins)).ToString("N0", Br)) : CheckoutI18n.F("Aplicar · {0}", coinPrice.ToString("N0", Br)), "coin", pay && coins >= coinPrice, "Icons/coin"));
+            // Prices only when something changed. The classic look picked (chip or button) over other colours: one free
+            // green button instead of the prices.
+            bool pay = changed && !toClassic && !busy, freeBack = changed && toClassic;
+            applyGems.gameObject.SetActive(!freeBack);
+            if (freeBack) applyCoins.Apply(Data("Voltar ao clássico · grátis", "success", !busy, "Icons/success"));
+            else applyCoins.Apply(Data(pay && coins < coinPrice ? CheckoutI18n.F("Faltam {0} moedas", ((long)(coinPrice - coins)).ToString("N0", Br)) : CheckoutI18n.F("Aplicar · {0}", coinPrice.ToString("N0", Br)), "coin", pay && coins >= coinPrice, "Icons/coin"));
             applyGems.Apply(Data(CheckoutI18n.F("Aplicar · {0}", gemPrice.ToString("N0", Br)), "gem", pay, "Icons/diamond"));
-            classic.Apply(Data(savedClassic ? "Clássico" : "Voltar ao clássico · grátis", "secondary", !busy && !(savedClassic && toClassic), "", false));
-            cancel.Apply(Data("Cancelar", "secondary", !busy, ""));
+            classic.Apply(Data("Clássico", "secondary", !busy && !(savedClassic && toClassic), "", toClassic));
+            cancel.Apply(Data("Cancelar", "danger", !busy, ""));
             slotPrimary.Apply(Data("Cor principal", "secondary", true, "", slot == 0));
             slotAccent.Apply(Data("Cor de destaque", "secondary", true, "", slot == 1));
             primaryChip.color = K.C(draftPrimary); accentChip.color = K.C(draftAccent);
             Place(hueHandle, hue); Place(lightHandle, light);
             slotHint.text = slot == 0 ? "No lugar do azul: paredes, toldos, móveis" : "No lugar do dourado: frisos, letreiros, detalhes";
-            viewFront.Apply(Data("Fachada", "secondary", true, "", view == 0)); viewInside.Apply(Data("Dentro", "secondary", true, "", view == 1));
+            viewFront.Apply(Data("Fachada", "secondary", true, "", camView == 0)); viewInside.Apply(Data("Dentro", "secondary", true, "", camView == 1));
             // The storage button only when the market has a storage building standing.
             bool hasStorage = paint && paint.StorageBounds(out _);
-            viewStorage.gameObject.SetActive(hasStorage); if (!hasStorage && view == 2) { view = 0; Aim(); }
-            viewStorage.Apply(Data("Depósito", "secondary", true, "", view == 2));
+            viewStorage.gameObject.SetActive(hasStorage); if (!hasStorage && camView == 2) { camView = 0; Aim(); }
+            viewStorage.Apply(Data("Depósito", "secondary", true, "", camView == 2));
             foreach (var c in chips) Mark(c.ring, CheckoutMarketPaint.Norm(c.palette.primary) == draftPrimary && CheckoutMarketPaint.Norm(c.palette.accent) == draftAccent);
             foreach (var c in recentChips) Mark(c.ring, CheckoutMarketPaint.Norm(c.palette.primary) == draftPrimary && CheckoutMarketPaint.Norm(c.palette.accent) == draftAccent);
             foreach (var w in swatches) Mark(w.ring, w.hex == Current);
@@ -419,7 +436,8 @@ namespace Checkout
         // ------------------------------------------------------------------ actions
         void ApplyWith(string currency)
         {
-            if (busy || !Changed || IsClassic(draftPrimary, draftAccent)) return;
+            if (busy || !Changed) return;
+            if (IsClassic(draftPrimary, draftAccent)) { BackToClassic(); return; }
             var host = CheckoutDesktopHost.Active; if (!host) return;
             var s = State; var bridge = FindAnyObjectByType<CheckoutBridge>();
             if (currency == "coins" && bridge && bridge.State != null && s != null && bridge.State.coins < s.coinPrice)

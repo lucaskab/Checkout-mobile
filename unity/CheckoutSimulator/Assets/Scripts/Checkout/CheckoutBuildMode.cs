@@ -310,7 +310,7 @@ namespace Checkout
         {
             // The map editor has its own tools: no build button while it is open.
             // At the stalls (CheckoutStall.Yard) only once there is something of the player's to place around it.
-            bool hidden = Open || CheckoutMapEditor.Open || CheckoutDesktopHUD.ShopOpen
+            bool hidden = Open || CheckoutMapEditor.Open || CheckoutDesktopHUD.ShopOpen || CheckoutMarketPaintPanel.Open
                 || (CheckoutStall.Yard && (!Interior || (Interior.waiting.Count == 0 && !Interior.items.Values.Any(i => !i.design))));
             if (buildButton && !CheckoutStartMenu.Showing && buildButton.activeSelf == hidden) buildButton.SetActive(!hidden);
             if (buildButton && CheckoutStartMenu.Showing && buildButton.activeSelf) buildButton.SetActive(false);
