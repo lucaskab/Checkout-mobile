@@ -18,11 +18,22 @@ import { getGameEvent } from "@/data/game-events";
 import { createMarketPaintSnapshot } from "@/data/market-paint";
 import { interiorDecor } from "@/data/interior-decor";
 import {
+	coldRoomTierItemIds,
+	decorTierKinds,
+	decorTiers,
+	getDecorTier,
+	getFixtureTierTemplate,
+	getSectorTier,
+	getSectorTierDefinition,
+	getSectorTierTemplate,
+} from "@/data/fixture-tiers";
+import { getCheckoutTierInfo, getColdRoomInfo, getShelfTierInfo } from "@/services/fixture-tiers";
+import {
 	getMarketExpansionSkipCost,
 	marketExpansions,
 } from "@/data/market-expansions";
 import { getInventoryBoxCapacity, getInventoryCapacity } from "@/data/inventory-capacity";
-import { itemCatalog, itemCategories, shelves, starterShelfIds } from "@/data/market-products";
+import { getEraOrder, itemCatalog, itemCategories, shelves, starterShelfIds } from "@/data/market-products";
 import { shelfProductSlots } from "@/data/shelf-slots";
 import { getFixtureName } from "@/data/shelf-types";
 import {
@@ -248,6 +259,12 @@ export function createSimulatorSnapshot(
 					product?.sellingPrice ??
 					0,
 				capacity: getShelfCapacity(state.shelfUpgradeLevels[s.id] ?? 0),
+				// "Evoluções dos móveis": the model of this tier (0 = the stall's own crates and cooler).
+				...((tier) => ({
+					tier: tier?.tier ?? 0,
+					tierTemplate: tier && tier.tier > 0 ? tier.template : "",
+					premium: !!tier?.premium,
+				}))(getShelfTierInfo(state, s.id)),
 				unlocked: slotCount > 0,
 				// Paid for and still being built: Unity shows the works where it will stand.
 				building: !!findInteriorConstruction(state.interiorConstructions, "shelf", s.id),
@@ -268,6 +285,9 @@ export function createSimulatorSnapshot(
 			building: !!findInteriorConstruction(state.interiorConstructions, "sector", s.id),
 			requiredLevel: s.requiredLevel,
 			jobs: state.production.jobs.filter((j) => j.sectorId === s.id).length,
+			...((tier) => ({ tier, tierTemplate: getSectorTierTemplate(s.id, tier), board: getSectorBoard(state, s.id, tier, shelfSlotCounts) }))(
+				getSectorTier(state.sectorTiers, s.id),
+			),
 		})),
 		employees: state.employees.employees,
 		orders: state.logistics.orders.map((order) => ({
@@ -378,6 +398,23 @@ export function createSimulatorSnapshot(
 			};
 		}),
 		ownedItems: state.shop.ownedItemIds,
+		// Every checkout of the market wears the same step; the cold room stands by the depot.
+		fixtureTiers: (() => {
+			const checkoutTier = getCheckoutTierInfo(state);
+			const cold = getColdRoomInfo(state);
+			const coldWorks = Object.values(coldRoomTierItemIds)
+				.map((itemId) => findInteriorConstruction(state.interiorConstructions, "shop", itemId))
+				.find((works) => works && !works.pending);
+			return {
+				checkout: checkoutTier.visualTier,
+				checkoutTemplate: checkoutTier.template,
+				scanner: checkoutTier.scanner,
+				coldRoom: cold.tier,
+				coldRoomTemplate: cold.template,
+				coldRoomBuilding: coldWorks ? getFixtureTierTemplate("coldroom", Number(Object.entries(coldRoomTierItemIds).find(([, id]) => id === coldWorks.targetId)?.[0] ?? cold.tier)) : "",
+				coldRoomEndsAt: coldWorks?.endsAt ?? 0,
+			};
+		})(),
 		...(() => {
 			const running = getActiveBoosts(state.shop, now);
 			return {
@@ -419,6 +456,11 @@ export function createSimulatorSnapshot(
 				outside: !!item.outside,
 			})),
 			owned: Object.entries(state.interior?.owned ?? {}).map(([type, count]) => ({ type, count })),
+			// Evolving decorations: the model every piece of the kind shows ("" = the kit's own).
+			tiers: Object.keys(decorTiers).map((type) => {
+				const tier = getDecorTier(state.interior?.tiers, type);
+				return { type, tier, template: getFixtureTierTemplate(decorTierKinds[type], tier) };
+			}),
 		},
 		decorCatalog: interiorDecor.map((decor) => ({
 			id: decor.id,
@@ -430,6 +472,11 @@ export function createSimulatorSnapshot(
 			zone: decor.zone,
 			upgrade: Boolean(decor.effect),
 			limit: decor.effect?.play?.maxPlaced ?? 0,
+			// The cart bays come with the market building: shown locked before it.
+			lockedNote:
+				decor.placeEra && getEraOrder(state.era.id) < getEraOrder(decor.placeEra)
+					? `Chega com: ${getMarketEra(decor.placeEra).name}`
+					: "",
 		})),
 		decorPlays: state.market.decorPlays ?? [],
 		// The register line: Unity keeps these customers waiting at the till until they are paid.
@@ -640,4 +687,35 @@ export function createSimulatorSnapshot(
 			windowGoal: active ? (state.events.windowSales?.goal ?? 0) : 0,
 		},
 	};
+}
+
+// The sector's price boards: every product on its counter (assigned slots), at the price customers pay there
+// (the slot's price, the T3 premium included), or its menu while the counter is empty. Unity draws pictogram + price,
+// formatted per language.
+function getSectorBoard(
+	state: GameState,
+	sectorId: string,
+	tier: number,
+	shelfSlotCounts: ReturnType<typeof resolveShelfSlotCounts>,
+) {
+	const counterId = `sector-${sectorId}`;
+	const multiplier = getSectorTierDefinition(tier).priceMultiplier;
+	const count = getShelfSlotCount(counterId, shelfSlotCounts);
+	const board: { productId: number; price: number }[] = [];
+	for (const slot of getShelfSlotIds(counterId, count > 0 ? count : productsPerShelf)) {
+		const productId = state.shelfAssignments[slot];
+		if (!productId || board.some((row) => row.productId === productId)) continue;
+		const product = itemCatalog.find((p) => p.id === productId);
+		if (!product) continue;
+		board.push({ productId, price: Math.max(1, Math.round((state.shelfPrices[slot] ?? product.sellingPrice) * multiplier)) });
+	}
+	// Nothing on the counter yet: the board is the sector's menu (what it makes, at its price).
+	if (board.length === 0)
+		for (const recipe of productionRecipes) {
+			if (recipe.sectorId !== sectorId || board.some((row) => row.productId === recipe.outputProductId)) continue;
+			const product = itemCatalog.find((p) => p.id === recipe.outputProductId);
+			if (product) board.push({ productId: product.id, price: Math.max(1, Math.round(product.sellingPrice * multiplier)) });
+			if (board.length >= 9) break;
+		}
+	return board;
 }

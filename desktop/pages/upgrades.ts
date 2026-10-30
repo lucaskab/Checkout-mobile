@@ -245,8 +245,8 @@ export const routes: Routes = {
 			const roomLabel = beforeRoomEra && roomEra ? `Chega com: ${getMarketEra(roomEra).name}` : NO_ROOM_REASON;
 			const isLocked = level < item.level || missingRequired || noRoom;
 			const consumableAmount = consumableAmounts[item.id] ?? 0;
-			const isDiamond = Boolean(item.diamondPrice);
-			const price = item.diamondPrice ?? item.coinPrice ?? 0;
+			const isDiamond = !item.coinPrice && Boolean(item.diamondPrice);
+			const price = (isDiamond ? item.diamondPrice : item.coinPrice) ?? 0;
 			// Diamond prices stay pressable: too few diamonds opens the diamond store (desktop/host.ts).
 			const canAfford = isDiamond || coins >= price;
 			const quality = getItemQuality(item);

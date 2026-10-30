@@ -5,6 +5,13 @@ import { formatBuildDuration, formatConstructionCountdown } from "@/data/market-
 import { itemCatalog } from "@/data/market-products";
 import { getProductionSector, getSectorRecipes, productionSectors } from "@/data/production-sectors";
 import { getSectorCounterFor } from "@/data/shelf-types";
+import {
+	getSectorSlotCount,
+	getSectorTier,
+	getSectorTierDefinition,
+	getSectorTierPrice,
+	SECTOR_MAX_TIER,
+} from "@/data/fixture-tiers";
 import { getActiveGameEventEffects } from "@/services/game-events";
 import { getSectorBuildStatus } from "@/services/interior-construction";
 import {
@@ -80,15 +87,15 @@ function sectorTile(state: State, sector: ProductionSector, now: number): BoardT
 			...base,
 			sticker: jobs.length ? "PRODUZINDO" : "PARADO",
 			tone: jobs.length ? "info" : "warning",
-			badge: `${jobs.length}/${sector.slotCount}`,
-			fill: ratio(jobs.length, sector.slotCount),
-			fillText: `${jobs.length}/${sector.slotCount} linhas`,
+			badge: `${jobs.length}/${slotsOf(state, sector)}`,
+			fill: ratio(jobs.length, slotsOf(state, sector)),
+			fillText: `${jobs.length}/${slotsOf(state, sector)} linhas`,
 			timerEnd: next ? next.endsAt : 0,
 			timerTotal: next ? next.endsAt - next.startedAt : 0,
-			state: jobs.length < sector.slotCount ? "ready" : "",
+			state: jobs.length < slotsOf(state, sector) ? "ready" : "",
 			action: open,
 			facts: [
-				stat(gameIcon("conveyor"), `${jobs.length}/${sector.slotCount}`, "Linhas ocupadas"),
+				stat(gameIcon("conveyor"), `${jobs.length}/${slotsOf(state, sector)}`, "Linhas ocupadas"),
 				stat(gameIcon("clipboard"), String(getSectorRecipes(sector.id).length), "Receitas"),
 			],
 			actions: [
@@ -131,7 +138,7 @@ function sectorTile(state: State, sector: ProductionSector, now: number): BoardT
 		facts: [
 			stat(gameIcon("coin"), fmt(build.coinCost), "Custo da obra"),
 			stat(gameIcon("construction"), formatBuildDuration(build.durationMs), "Tempo de obra"),
-			stat(gameIcon("conveyor"), String(sector.slotCount), "Linhas de produção"),
+			stat(gameIcon("conveyor"), String(slotsOf(state, sector)), "Linhas de produção"),
 		],
 		actions: builds,
 	});
@@ -143,7 +150,7 @@ function sectorsBoard(state: State) {
 	const built = state.builtSectorIds.length;
 	const slots = productionSectors
 		.filter((sector) => state.builtSectorIds.includes(sector.id))
-		.reduce((total, sector) => total + sector.slotCount, 0);
+		.reduce((total, sector) => total + slotsOf(state, sector), 0);
 	const idle = productionSectors.filter(
 		(sector) => state.builtSectorIds.includes(sector.id) && jobs.filter((job) => job.sectorId === sector.id).length === 0,
 	).length;
@@ -304,12 +311,14 @@ function sectorBoard(state: State, sectorId: string) {
 	const now = Date.now();
 	const build = getSectorBuildStatus(state, sector.id, now);
 	const jobs = state.production.jobs.filter((job) => job.sectorId === sector.id);
-	const freeSlot = jobs.length < sector.slotCount && build.status === "built";
-	const multiplier = getActiveGameEventEffects(state.events).productionDurationMultiplier;
+	const freeSlot = jobs.length < slotsOf(state, sector) && build.status === "built";
+	const multiplier =
+		getActiveGameEventEffects(state.events).productionDurationMultiplier *
+		getSectorTierDefinition(getSectorTier(state.sectorTiers, sector.id)).durationMultiplier;
 	const recipes = getSectorRecipes(sector.id);
 	const tiles = [
 		...(build.status === "built"
-			? Array.from({ length: sector.slotCount }, (_, index) =>
+			? Array.from({ length: slotsOf(state, sector) }, (_, index) =>
 					lineTile(state, sector, index, jobs.find((job) => job.slotIndex === index), now),
 				)
 			: [sectorTile(state, sector, now)]),
@@ -338,14 +347,18 @@ function sectorBoard(state: State, sectorId: string) {
 			backdrop: "Game/floor_backdrop",
 			columns: 4,
 			stats: [
-				stat(gameIcon("conveyor"), `${jobs.length}/${sector.slotCount}`, "Linhas"),
+				stat(gameIcon("conveyor"), `${jobs.length}/${slotsOf(state, sector)}`, "Linhas"),
+				...(build.status === "built"
+					? [stat(gameIcon("shelf"), getSectorTierDefinition(getSectorTier(state.sectorTiers, sector.id)).name, "Balcão"), ...evolveStat(state, sector)]
+					: []),
 			],
-			meter: meter("Linhas de produção", jobs.length, sector.slotCount, {
+			meter: meter("Linhas de produção", jobs.length, slotsOf(state, sector), {
 				icon: gameIcon("conveyor"),
 				text: freeSlot ? "Tem linha livre: escolha uma receita!" : "Todas as linhas trabalhando",
 				tone: freeSlot ? "warning" : "success",
 			}),
 			footer: [
+				...(build.status === "built" ? evolveButtons(state, sector) : []),
 				...(counter && build.status === "built"
 					? [go(`Vender no ${counter.name.toLocaleLowerCase("pt-BR")}`, `shelf:${counter.id}`, { icon: gameIcon("shelf"), variant: "primary" })]
 					: []),
@@ -364,3 +377,41 @@ export const routes: Routes = {
 	sectors: (state) => sectorsBoard(state),
 	sector: (state, [sectorId = ""]) => sectorBoard(state, sectorId),
 };
+
+/** Production slots of a sector at its tier ("Evoluções dos móveis": T2 adds one). */
+function slotsOf(state: State, sector: ProductionSector) {
+	return getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id);
+}
+
+// "Evoluir" the sector's counter: T2 +1 production line, T3 −20% time and +10% on its goods (coins by shop size, or diamonds).
+function evolveButtons(state: State, sector: ProductionSector): Button[] {
+	const tier = getSectorTier(state.sectorTiers, sector.id);
+	if (tier >= SECTOR_MAX_TIER) return [];
+	const price = getSectorTierPrice(tier + 1, state.era.id);
+	if (!price) return [];
+	const next = getSectorTierDefinition(tier + 1);
+	const messages = { ok: "Seu setor evoluiu!", fail: "Confira seu nível e saldo." };
+	return [
+		act(`Evoluir para ${next.name} · ${fmt(price.coins)}`, "upgradeSectorTier", [sector.id, "coins"], {
+			variant: "coin",
+			icon: gameIcon("coin"),
+			enabled: state.coins >= price.coins,
+			...messages,
+		}),
+		act(`Evoluir · ${fmt(price.diamonds)}`, "upgradeSectorTier", [sector.id, "diamonds"], {
+			variant: "gem",
+			icon: gameIcon("diamond"),
+			enabled: state.logistics.premiumCurrency >= price.diamonds,
+			...messages,
+		}),
+	];
+}
+
+/** What the next step of the sector brings (a stat on its board). */
+function evolveStat(state: State, sector: ProductionSector): BoardStat[] {
+	const tier = getSectorTier(state.sectorTiers, sector.id);
+	if (tier >= SECTOR_MAX_TIER) return [];
+	const next = getSectorTierDefinition(tier + 1);
+	const gain = next.extraSlots > getSectorTierDefinition(tier).extraSlots ? "+1 linha de produção" : "−20% de tempo e +10% no preço";
+	return [stat(gameIcon("construction"), gain, `Próximo: ${next.name}`)];
+}

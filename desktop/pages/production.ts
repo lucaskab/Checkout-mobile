@@ -1,5 +1,6 @@
 import { describeFixtureProducts } from "@/data/fixture-products";
 import { getSectorCounterFor } from "@/data/shelf-types";
+import { getSectorSlotCount } from "@/data/fixture-tiers";
 import type {
 	ProductionJob,
 	ProductionRecipe,
@@ -121,13 +122,13 @@ function sectorsPage(state: State) {
 				: build.status === "building"
 					? formatConstructionCountdown(build.remainingMs)
 					: isBuilt
-						? `${sector.slotCount} slots`
+						? `${getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id)} slots`
 						: "Construir",
 			tone: isLocked ? "locked" : build.status === "building" ? "warning" : activeJobs > 0 ? "success" : isBuilt ? "" : "info",
 			progress: build.status === "building" ? build.progress : -1,
 			lines: [
 				isBuilt
-					? `${activeJobs > 0 ? `${activeJobs} produção(ões) ativa(s)` : "Pronto para produzir"} · ${sector.slotCount} slots`
+					? `${activeJobs > 0 ? `${activeJobs} produção(ões) ativa(s)` : "Pronto para produzir"} · ${getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id)} slots`
 					: buildLine(state, sector.id),
 				// Each sector also sells: its counter is a shelf for what it makes (src/data/shelf-types.ts).
 				`Vende no ${getSectorCounterFor(sector.id)?.name.toLocaleLowerCase("pt-BR") ?? "balcão"}: ${describeFixtureProducts(getSectorCounterFor(sector.id)?.id ?? "", state.market.unlockedProductIds) || "os produtos que ele fabricar"}`,
@@ -260,7 +261,7 @@ function sectorPage(state: State, sectorId: string) {
 	const eventEffects = getActiveGameEventEffects(state.events);
 	const recipes = getSectorRecipes(sector.id);
 	const sectorJobs = state.production.jobs.filter((job) => job.sectorId === sector.id);
-	const hasFreeSlot = sectorJobs.length < sector.slotCount;
+	const hasFreeSlot = sectorJobs.length < getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id);
 
 	const build = getSectorBuildStatus(state, sector.id);
 	// Not built yet: the page offers the works (and the speed-up while they run).
@@ -290,7 +291,7 @@ function sectorPage(state: State, sectorId: string) {
 		tone: level < sector.requiredLevel ? "locked" : "info",
 		lines: [
 			getAmbientCopy(sector.id),
-			`Linha de produção: ${sectorJobs.length}/${sector.slotCount} ativos`,
+			`Linha de produção: ${sectorJobs.length}/${getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id)} ativos`,
 			"Produções continuam mesmo fora desta tela.",
 			`Diamantes: ${fmt(state.logistics.premiumCurrency)}`,
 		],
@@ -301,7 +302,7 @@ function sectorPage(state: State, sectorId: string) {
 				: [],
 	});
 
-	const slots = Array.from({ length: sector.slotCount }, (_, slotIndex) =>
+	const slots = Array.from({ length: getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id) }, (_, slotIndex) =>
 		slotCard(
 			state,
 			slotIndex,

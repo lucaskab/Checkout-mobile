@@ -42,12 +42,13 @@ namespace Checkout {
    // opening the simulator or unlocking parking; never generate another transaction.
    if((newSession||parkingOpened)&&next.isOpen&&visits.Count==0&&next.customers!=null)
     foreach(var customer in next.customers.Take(3).Reverse())visits.Enqueue(customer);
+   TestPatch?.Invoke(next); // (autotests: before the open/closed checks, so a patched state is consistent)
    // A closed market takes no one new; pending arrivals stay seen so reopening never replays them.
    if(!next.isOpen)visits.Clear();
    bool closing=State!=null&&State.isOpen&&!next.isOpen;
    // The first shoppers of the day start close by, so the shop comes alive right after opening (CheckoutWalker.ArrivalSpot).
    if(State!=null&&!State.isOpen&&next.isOpen)CheckoutWalker.MarketOpenedAt=Time.time;
-   TestPatch?.Invoke(next);State=next;map.Apply(next);
+   State=next;map.Apply(next);
    if(closing)foreach(var w in walkers)w.MarketClosed();if(seen.Count>2000){seen.Clear();foreach(var c in next.customers??Array.Empty<Customer>())seen.Add(c.id);}
   }catch(Exception ex){Debug.LogError("CHECKOUT_SNAPSHOT_ERROR "+ex.Message);}}
   void Update(){simulation.ExternalCamera();if(State==null){hello+=Time.unscaledDeltaTime;if(hello>1){hello=0;Emit("{\"kind\":\"ready\",\"protocol\":1}");}return;}

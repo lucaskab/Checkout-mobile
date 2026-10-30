@@ -191,6 +191,7 @@ namespace Checkout
             simulation.pinchLocked = Open && it != null;
             ShowSelection(it);
             ShowFootprint();
+            if (Open && it != null && it.wantsGrow) Say("Pronto para crescer: mova este móvel para ele crescer.");
         }
 
         string Name(CheckoutInterior.Item it)
@@ -424,6 +425,12 @@ namespace Checkout
             {
                 if (!Interior.Fits(it, it.root.position, it.rot, out var why)) { Interior.MoveTo(it, dragStartPosition); Say(why + ". Voltou para o lugar anterior.", true); }
                 else if (!it.outside && !Interior.Reachable(out var blocked)) { Interior.MoveTo(it, dragStartPosition); Say(string.Format("Assim {0} fica sem passagem.", Name(blocked)), true); }
+                // "Evoluções dos móveis": a piece waiting to grow takes its full size where it fits now.
+                else if (it.wantsGrow && Interior.TryGrow(it))
+                {
+                    if (!Interior.Reachable(out _)) { /* grown but blocks a passage: Finish asks to open the way */ }
+                    Select(it); Say(it.wantsGrow ? "Mova este móvel para ele crescer." : "Seu móvel evoluiu!");
+                }
             }
             pointerMoved = false;
             ShowFootprint();

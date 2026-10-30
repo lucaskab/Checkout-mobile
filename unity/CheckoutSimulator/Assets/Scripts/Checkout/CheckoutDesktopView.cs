@@ -43,6 +43,8 @@ namespace Checkout {
  [Serializable] public class DesktopShelf {
   public string id,kind,art,tint,name,accepts,careTitle,careVerb,careHint,careSpot,rowTop,rowBottom,stallNote;
   public int condition,slotCount,expandCost,expandLevel,capacity,capacityNext,capacityCost,capacityLevel;
+  // "Evoluções dos móveis" (desktop/pages/shelf-view.ts): the next capacity step may bring the next model.
+  public int capacityDiamonds,tier,nextTier;public string tierName,nextTierName,nextTemplate,blockedNote;public bool evolve,grows;public float nextWidth,nextDepth;
   public DesktopShelfSlot[] slots;public DesktopShelfPick[] picks;
  }
  [Serializable] public class DesktopView {

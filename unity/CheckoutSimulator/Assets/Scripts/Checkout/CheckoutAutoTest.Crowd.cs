@@ -28,7 +28,13 @@ namespace Checkout {
    float seconds = args.Length > 1 && float.TryParse(args[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var s) && s > 0 ? s : 150;
    int count = args.Length > 2 && int.TryParse(args[2], out var n) && n > 0 ? n : 16;
    bool keep = args.Contains("keep");
-   string tag = stage + (keep ? "_keep" : "");
+   // ".carts" (Evoluções dos móveis): the three cart stations bought and placed by the entrance, the QA shoppers take
+   // basket / cart / big cart / hands in turn; per carrier: who got in and paid, and what the host's own customers took.
+   bool carts = args.Contains("carts");
+   // ".stock" (implied by ".carts"): every shelf topped up from the storeroom, so the host's own customers find
+   // something to buy (the QA save's shelves are nearly empty, and an empty-handed customer never reaches the till).
+   bool stock = carts || args.Contains("stock");
+   string tag = stage + (keep ? "_keep" : "") + (carts ? "_carts" : stock ? "_stock" : "");
    int era = System.Array.IndexOf(EraIds, stage); if (era < 0) { Note("unknown stage " + stage); yield break; }
    var lines = new List<string>();
    void Line(string t) { lines.Add(t); Note("CROWD " + t); }
@@ -43,6 +49,14 @@ namespace Checkout {
    }
    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-crowd-" + stage + "\",\"action\":\"devSetMarketEra\",\"args\":[\"" + stage + "\"]}");
    yield return new WaitForSecondsRealtime(18);
+   string[] stationTypes = { "basket-station", "cart-corral", "big-cart-corral" };
+   if (carts) {
+    Hud("setMarketLevel", "[60]");
+    Hud("grantCurrencyPurchase", "[{\"coins\":2000000,\"diamonds\":500,\"transactionId\":\"qa-crowd-carts-" + System.DateTime.Now.Ticks + "\"}]");
+    yield return new WaitForSecondsRealtime(1.5f);
+    foreach (var st in stationTypes) { Hud("purchaseDecor", "[\"" + st + "\",\"coins\"]"); yield return new WaitForSecondsRealtime(1f); }
+    Hud("dismissLevelUp", "[]"); yield return new WaitForSecondsRealtime(1f); var hudUi = FindAnyObjectByType<CheckoutDesktopHUD>(); if (hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen)) hudUi.QaCloseCelebrations();
+   }
    inside = CheckoutInterior.Active; var map = FindAnyObjectByType<CheckoutMap>();
    if (!inside || !map) { Line("no interior"); roomEra = -1; crowdLayout = null; yield break; }
    var floor = inside.FloorRect;
@@ -76,6 +90,15 @@ namespace Checkout {
      var z = inside.CheckoutZone; var put = inside.PlaceWaiting("checkout:main", new Vector3(z.center.x, CheckoutInterior.Floor, z.center.y));
      Line(put != null ? $"placed checkout:main at ({put.root.position.x:0.00},{put.root.position.z:0.00}) rot {put.rot:0}" : "NO ROOM checkout:main");
     }
+    if (carts) {
+     // the stations along the front wall, past the way in
+     var door0 = map.Entrance; float sx = Mathf.Max(floor.xMin + .5f, door0.x + 2.6f);
+     foreach (var st in stationTypes) {
+      var it = inside.AddDecor(st, new Vector3(sx, CheckoutInterior.Floor, floor.yMin + .9f));
+      Line(it != null ? $"placed {st} ({it.template}) at ({it.root.position.x:0.00},{it.root.position.z:0.00})" : $"NO ROOM {st}");
+      sx += 2.8f;
+     }
+    }
     map.FurnitureChanged(false); map.SaveInterior();
     roomKeepInterior = true; inside.MarkPending(); inside.editing = false;
     var saved = new List<string> { $"# {stage} layout (Item x;z;rot = saved coordinates) from {System.DateTime.Now:yyyy-MM-dd HH:mm}; world position after" };
@@ -104,6 +127,14 @@ namespace Checkout {
     inside.MarkPending(); map.SaveInterior(); roomKeepInterior = true; crowdLayout = null; yield return new WaitForSecondsRealtime(2);
    }
    var cam = FindAnyObjectByType<MarketDay.MarketSimulation>(); if (cam) cam.HomeCamera();
+   // A day that would end during the run (scenarios chained in one play) is closed first, so the run gets a whole day.
+   if (bridge.State.isOpen && bridge.State.day != null && bridge.State.day.phase == "open" && bridge.State.day.endsAt - CheckoutBridge.Now < (seconds + 30) * 1000) {
+    Line($"day ends in {(bridge.State.day.endsAt - CheckoutBridge.Now) / 1000:0}s: closed for a fresh one");
+    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-close-" + tag + "\",\"action\":\"closeDay\",\"args\":[]}");
+    for (float t = 0; t < 4 && bridge.State.isOpen; t += .5f) yield return new WaitForSecondsRealtime(.5f);
+    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-claim-" + tag + "\",\"action\":\"claimDayResult\",\"args\":[]}"); yield return new WaitForSecondsRealtime(1);
+    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-dismiss-" + tag + "\",\"action\":\"dismissLevelUp\",\"args\":[]}"); yield return new WaitForSecondsRealtime(.5f);
+   }
    // Open for customers (as eventsstalls).
    if (!bridge.State.isOpen) {
     CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-claim\",\"action\":\"claimDayResult\",\"args\":[]}"); yield return new WaitForSecondsRealtime(1);
@@ -111,6 +142,20 @@ namespace Checkout {
     if (!bridge.State.isOpen) { CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-open\",\"action\":\"setMarketOpen\",\"args\":[true]}"); for (float t = 0; t < 6 && !bridge.State.isOpen; t += .5f) yield return new WaitForSecondsRealtime(.5f); }
    }
    Line($"open={bridge.State.isOpen} day {bridge.State.day?.phase} capacity {CheckoutStall.Capacity} line places {CheckoutStall.QueueInside}");
+   foreach (var l in NavReport(tag)) Line("NAV " + l);
+   void Stock() {
+    foreach (var sh in bridge.State.shelves ?? System.Array.Empty<Shelf>())
+     if (sh != null && sh.unlocked && !sh.building && sh.productId > 0 && sh.stock < sh.capacity) {
+      int add = sh.capacity - sh.stock;
+      Hud("devAdjustInventory", $"[{sh.productId},{add}]");
+      Hud("restockShelf", "[{\"shelfId\":\"" + sh.id + "\",\"productId\":" + sh.productId + ",\"amount\":" + add + "}]");
+     }
+   }
+   if (stock) { Stock(); yield return new WaitForSecondsRealtime(1.5f); Line("stocked: " + string.Join(", ", (bridge.State.shelves ?? System.Array.Empty<Shelf>()).Where(x => x.unlocked).Select(x => $"{x.id} {x.stock}/{x.capacity}"))); }
+   float nextStock = Time.time + 20;
+   // The 5-minute day may end during the run (everyone heads home then): logged, and the next day started at once.
+   var day0 = bridge.State.day; Line($"day {day0?.phase} ends in {((day0?.endsAt ?? 0) - CheckoutBridge.Now) / 1000:0}s");
+   bool wasOpen = bridge.State.isOpen; int closes = 0; float reopenStep = -1, closedSec = 0;
    var shelfIds = inside.items.Values.Where(i => i.root && i.type == "shelf" && !i.building).Select(i => i.id.Substring(6)).ToList();
    if (shelfIds.Count == 0) shelfIds = (bridge.State.shelves ?? System.Array.Empty<Shelf>()).Where(x => x.unlocked).Select(x => x.id).ToList();
    var rnd = new System.Random(29);
@@ -128,12 +173,27 @@ namespace Checkout {
    // The register is served at once, as by an attentive player or a cashier: the host's customers otherwise wait at
    // the till for the player (up to 150 s) and the line would measure that, not the room.
    var served = new HashSet<string>(); float nextServe = 0;
+   var carrierShots = new HashSet<string>(); var carrierInside = new HashSet<string>();
+   var hostCarriers = new Dictionary<string, (string carrier, int products, int units)>();
    // Everyone who paid in the run (the host's customers too): the register's real throughput.
    var paidBefore = new Dictionary<CheckoutWalker, bool>(); int paidAll = 0;
    while (Time.time - t0 < seconds) {
     yield return null; float dt = Time.deltaTime; if (dt <= 0) continue;
+    if (stock && Time.time >= nextStock) { nextStock = Time.time + 20; Stock(); }
+    bool openNow = bridge.State.isOpen;
+    if (!openNow) closedSec += dt;
+    if (wasOpen && !openNow) { closes++; reopenStep = 0; Line($"market closed at t={Time.time - t0:0} (day {bridge.State.day?.phase})"); }
+    wasOpen = openNow;
+    if (reopenStep >= 0 && !openNow) {
+     reopenStep += dt;
+     if (reopenStep > 1 && reopenStep - dt <= 1) { CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-claim-" + closes + "\",\"action\":\"claimDayResult\",\"args\":[]}"); CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-day-" + closes + "\",\"action\":\"startDay\",\"args\":[\"livre\"]}"); }
+     if (reopenStep > 4 && reopenStep - dt <= 4) CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-open-" + closes + "\",\"action\":\"setMarketOpen\",\"args\":[true]}");
+    } else if (openNow) reopenStep = -1;
     if (Time.time >= nextServe) {
      nextServe = Time.time + .5f;
+     if (carts) foreach (var c in bridge.State.customers ?? System.Array.Empty<Customer>())
+      if (c != null && !string.IsNullOrEmpty(c.id) && !c.id.StartsWith("qa-") && !hostCarriers.ContainsKey(c.id))
+       hostCarriers[c.id] = (string.IsNullOrEmpty(c.carrier) ? "-" : c.carrier, (c.purchases ?? System.Array.Empty<Purchase>()).Length, (c.purchases ?? System.Array.Empty<Purchase>()).Sum(x => x.quantity));
      foreach (var e in bridge.State.checkouts ?? System.Array.Empty<CheckoutEntry>())
       if (e != null && e.readyAt <= CheckoutBridge.Now && served.Add(e.id)) bridge.Command("completeCheckout", "[\"" + e.id + "\"," + System.Math.Max(1, System.Math.Round(e.total)).ToString(CultureInfo.InvariantCulture) + "]");
     }
@@ -144,8 +204,9 @@ namespace Checkout {
      if (idle) {
       int k = 2 + rnd.Next(2); var buy = new List<Purchase>();
       for (int j = 0; j < k && shelfIds.Count > 0; j++) buy.Add(new Purchase { shelfId = shelfIds[rnd.Next(shelfIds.Count)], productId = 1, quantity = 1 + rnd.Next(2) });
-      idle.Begin(new Customer { id = "qa-crowd-" + sent, name = "QA", spent = 12, purchases = buy.ToArray() });
-      visits[idle] = new CrowdVisit { id = "qa-crowd-" + sent, began = Time.time }; sent++; nextSend = Time.time + gap;
+      var carrier = carts ? CrowdCarriers[sent % CrowdCarriers.Length] : null;
+      idle.Begin(new Customer { id = "qa-crowd-" + sent, name = "QA", spent = 12, purchases = buy.ToArray(), carrier = carrier });
+      visits[idle] = new CrowdVisit { id = "qa-crowd-" + sent, began = Time.time, carrier = carrier }; sent++; nextSend = Time.time + gap;
      } else nextSend = Time.time + .5f;
     }
     int inCount = 0, outWait = 0;
@@ -153,7 +214,17 @@ namespace Checkout {
      if (!w || !w.gameObject.activeInHierarchy) { if (w && visits.TryGetValue(w, out var gone) && !gone.closed) { gone.closed = true; gone.left = Time.time; done.Add(gone); visits.Remove(w); } continue; }
      paidBefore.TryGetValue(w, out var hadPaid); if (w.HasPaid && !hadPaid) paidAll++; paidBefore[w] = w.HasPaid;
      var p = w.transform.position; var xz = new Vector2(p.x, p.z);
-     bool In = CheckoutStall.ShopInside ? CheckoutStall.InteriorFloor.Contains(xz) : false;
+     // (the market building: its floor; the small shops: their interior)
+     bool In = CheckoutStall.ShopInside ? CheckoutStall.InteriorFloor.Contains(xz) : !CheckoutStall.Small && floor.Contains(xz);
+     if (carts && In) {
+      var rig = w.GetComponent<CheckoutShopperRig>();
+      if (rig && !string.IsNullOrEmpty(rig.carrier) && w.name.Length > 0 && (w.VisitPhase == 0 || w.VisitPhase == 1)) {
+       bool wheeled = rig.carrier == "cart" || rig.carrier == "bigCart";
+       // (the picture: taking a product off a shelf well inside, not still at the door behind the shop window)
+       if (rig.cart == wheeled && w.VisitPhase == 1 && p.z > floor.yMin + 3f && carrierShots.Add(rig.carrier)) TierShot("ft_carts_inside_" + rig.carrier, 2048, 1152, p + Vector3.up * .8f, 6.5f);
+       carrierInside.Add(w.name + "#" + all.IndexOf(w) + ":" + rig.carrier);
+      }
+     }
      if (In) inCount++;
      if (w.VisitPhase == 18) outWait++;
      var agent = w.GetComponent<NavMeshAgent>(); if (!agent || !agent.isOnNavMesh) continue;
@@ -199,7 +270,13 @@ namespace Checkout {
         $"held up >3s: {stops3}, >8s: {stops8}, longest {longestStop:0.0}s ({longestWho}); safety net unstick {CheckoutWalker.QaUnsticks - unstick0} force-exit {CheckoutWalker.QaForceExits - exit0}; " +
         $"doorway blocked {doorSec:0}s; waiting outside max {maxOutside} ({waitOutSec:0}s); " +
         $"host checkouts served {served.Count}; paid (everyone) {paidAll}; " +
+        $"market closed {closes}x ({closedSec:0}s); " +
         $"QA visits paid {paid.Count}/{sent} (time to get in mean {Mean(paid.Where(v => v.entered > 0).Select(v => v.entered - v.began)):0}s, to pay mean {Mean(paid.Select(v => v.paid - v.began)):0}s max {Max(paid.Select(v => v.paid - v.began)):0}s), left without paying {noPay.Count}, still in the shop {still.Count}");
+   if (carts) {
+    var qa = CrowdCarriers.Select(c => $"{c}: sent {done.Count(v => v.carrier == c)} in {carrierInside.Count(x => x.EndsWith(":" + c))} paid {paid.Count(v => v.carrier == c)} shot {(carrierShots.Contains(c) ? "yes" : "no")}");
+    var host = hostCarriers.Values.GroupBy(v => v.carrier).OrderBy(g => g.Key).Select(g => $"{g.Key} n={g.Count()} products mean {g.Average(v => v.products):0.0} max {g.Max(v => v.products)} units mean {g.Average(v => v.units):0.0}");
+    Line($"RESULT {tag} carriers: QA shoppers by carrier (in = walkers of that carrier seen shopping inside, the host's too) [{string.Join("; ", qa)}]; host customers by carrier [{string.Join("; ", host)}]");
+   }
    TrailMap(dots, $"crowd_{tag}_jams", new Vector3(floor.center.x, 0, floor.center.y - 1), Mathf.Max(floor.width, floor.height) + 6);
    File.WriteAllLines($"Logs/crowd_{tag}.txt", lines);
    // Everyone sent home, so the next run starts with an empty shop and free walkers.
@@ -207,7 +284,8 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(1);
    roomEra = -1; roomKeepInterior = false; crowdLayout = null;
   }
-  sealed class CrowdVisit { public string id; public float began, entered = -1, paid = -1, left = -1; public bool closed; }
+  static readonly string[] CrowdCarriers = { "basket", "cart", "bigCart", "hands" };
+  sealed class CrowdVisit { public string id, carrier; public float began, entered = -1, paid = -1, left = -1; public bool closed; }
   static float F(string s) => float.Parse(s, NumberStyles.Float, CultureInfo.InvariantCulture);
  }
 }

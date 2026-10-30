@@ -48,15 +48,15 @@ namespace Checkout
             // Shelves open one by one, in the order of the snapshot (src/data/shelf-types.ts).
             var next = s.shelves.FirstOrDefault(x => x != null && !x.unlocked && !x.building);
             if (next != null && !Known("shelf:" + next.id) && !CheckoutStall.BuiltIn("shelf:" + next.id))
-                list.Add(("shelf:" + next.id, "shelf", ShelfTemplate(next)));
+                list.Add(("shelf:" + next.id, "shelf", ShelfTierTemplate(next, ShelfTemplate(next))));
             foreach (var sector in s.sectors ?? System.Array.Empty<Sector>())
-                if (sector != null && !sector.unlocked && !sector.building && layout.HasSector(sector.id) && kit.Find("sector-" + sector.id) && !Known("sector:" + sector.id))
-                    list.Add(("sector:" + sector.id, "sector", "sector-" + sector.id));
+                if (sector != null && !sector.unlocked && !sector.building && layout.HasSector(sector.id) && TemplateObject(SectorTierTemplate(sector)) && !Known("sector:" + sector.id))
+                    list.Add(("sector:" + sector.id, "sector", SectorTierTemplate(sector)));
             // Counters only where the player places them (not in the stalls and shops with a counter of their own).
             if (!CheckoutStall.Small || CheckoutStall.PlacedCounter)
             {
                 var owned = s.ownedItems ?? System.Array.Empty<string>();
-                if (!owned.Contains(CheckoutLanes.ExtraItem) && !Known("checkout:extra")) list.Add(("checkout:extra", "checkout", "checkout"));
+                if (!owned.Contains(CheckoutLanes.ExtraItem) && !Known("checkout:extra")) list.Add(("checkout:extra", "checkout", CheckoutTierTemplate(s)));
                 if (!owned.Contains(CheckoutLanes.SelfItem) && !Known("kiosk:1")) { list.Add(("kiosk:1", "kiosk", "kiosk")); list.Add(("kiosk:2", "kiosk", "kiosk")); }
             }
             return list;
@@ -108,7 +108,7 @@ namespace Checkout
         // Stands a throwaway copy of the piece at the nearest free, reachable spot (null: none).
         Item Probe(string id, string type, string template)
         {
-            if (!kit.Find(template) || items.ContainsKey(id)) return null;
+            if (!TemplateObject(template) || items.ContainsKey(id)) return null;
             var it = new Item { id = id, type = type, template = template, functional = true, placed = true };
             var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : d.y;
             Build(it); if (!it.root) return null;

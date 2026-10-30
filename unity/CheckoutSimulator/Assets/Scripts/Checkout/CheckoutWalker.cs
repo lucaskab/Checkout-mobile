@@ -55,11 +55,11 @@ namespace Checkout {
    else if(phase==19)Go(QueuePosition(Line.Count));}
   public void Reserve(){Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);}
   public void CancelVisit(){LeaveEventLine();waitLine.Remove(this);admitted=false;if(agent&&agent.isOnNavMesh){agent.ResetPath();agent.isStopped=true;}map.Lanes.Remove(this);bridge.Queue.Remove(this);lane=null;returnedToCar=null;Reserved=false;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(false);}
-  public void BeginFromCar(Customer visit,Vector3 door,System.Action<CheckoutWalker> completed){eventOrigin=null;lead=null;parkingDoor=door;returnedToCar=completed;customer=visit;admitted=false;phase=9;index=0;wait=0;HasPaid=false;Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(true);if(!(NavMesh.SamplePosition(door,out var hit,.8f,NavMesh.AllAreas)||NavMesh.SamplePosition(door,out hit,3f,NavMesh.AllAreas))||!agent.Warp(hit.position)){Debug.LogWarning("CHECKOUT_WALKER the parking door is off the NavMesh; the visit is dropped");ForceExit();return;}Sync();Shown();Go(new Vector3(CheckoutCityTraffic.WalkX,.15f,parkingDoor.z));snapHeading=true;}
+  public void BeginFromCar(Customer visit,Vector3 door,System.Action<CheckoutWalker> completed){eventOrigin=null;lead=null;parkingDoor=door;returnedToCar=completed;customer=visit;if(rig)rig.carrier=visit?.carrier;admitted=false;phase=9;index=0;wait=0;HasPaid=false;Reserved=true;CheckoutShoppingProps.SetVisible(transform,false);gameObject.SetActive(true);if(!(NavMesh.SamplePosition(door,out var hit,.8f,NavMesh.AllAreas)||NavMesh.SamplePosition(door,out hit,3f,NavMesh.AllAreas))||!agent.Warp(hit.position)){Debug.LogWarning("CHECKOUT_WALKER the parking door is off the NavMesh; the visit is dropped");ForceExit();return;}Sync();Shown();Go(new Vector3(CheckoutCityTraffic.WalkX,.15f,parkingDoor.z));snapHeading=true;}
   // Walk-in customers arrive on foot like the passers-by (Lucas 15/10: they used to pop up right at the stall's
   // front): they appear further along the avenue sidewalk, or across the avenue at the park crossing, and walk to
   // the entrance (phase 14) before shopping. If no such spot is walkable, they start at the entrance as before.
-  public void Begin(Customer visit){eventOrigin=null;lead=null;returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;admitted=false;phase=0;index=0;wait=0;gameObject.SetActive(true);CheckoutShoppingProps.SetVisible(transform,false);
+  public void Begin(Customer visit){eventOrigin=null;lead=null;returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;if(rig)rig.carrier=visit?.carrier;admitted=false;phase=0;index=0;wait=0;gameObject.SetActive(true);CheckoutShoppingProps.SetVisible(transform,false);
    var entrance=map.Entrance;
    if(ArrivalSpot(entrance,out var start)&&agent.Warp(start)){Sync();Shown();phase=14;Go(entrance);snapHeading=true;return;}
    if(!(NavMesh.SamplePosition(entrance,out var hit,2,NavMesh.AllAreas)||NavMesh.SamplePosition(entrance,out hit,6,NavMesh.AllAreas))||!agent.Warp(hit.position)){ForceExit();return;}transform.rotation=Quaternion.Euler(0,180,0);Sync();Shown();NextShelf();snapHeading=true;}
@@ -78,7 +78,7 @@ namespace Checkout {
   void CountEvent(int step){if(string.IsNullOrEmpty(eventOrigin))return;if(!EventQa.TryGetValue(eventOrigin,out var c))EventQa[eventOrigin]=c=new int[4];c[step]++;}
   /// <summary>Starts a visit through the event's scene; false when no walkable start was found (the caller begins it normally).</summary>
   public bool BeginFromEvent(Customer visit,CheckoutEventVisuals.LeadIn leadIn){
-   returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;admitted=false;index=0;wait=0;leadActed=false;gameObject.SetActive(true);CheckoutShoppingProps.SetVisible(transform,false);
+   returnedToCar=null;HasPaid=false;Reserved=true;customer=visit;if(rig)rig.carrier=visit?.carrier;admitted=false;index=0;wait=0;leadActed=false;gameObject.SetActive(true);CheckoutShoppingProps.SetVisible(transform,false);
    var entrance=map.Entrance;Vector3 start;
    if(leadIn.start.HasValue){if(!(NavMesh.SamplePosition(leadIn.start.Value,out var hit,1.6f,NavMesh.AllAreas)||NavMesh.SamplePosition(leadIn.start.Value,out hit,3f,NavMesh.AllAreas))){gameObject.SetActive(false);Reserved=false;return false;}start=hit.position;}
    else if(!ArrivalSpot(entrance,out start)){gameObject.SetActive(false);Reserved=false;return false;}

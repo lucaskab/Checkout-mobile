@@ -18,6 +18,10 @@ namespace Checkout
     public sealed class CheckoutShopperRig : MonoBehaviour
     {
         public bool cart;
+        /// <summary>What this visit carries (src/data/fixture-tiers.ts chooseCarrier): "hands", "basket", "cart" or "bigCart".
+        /// Empty (event extras, old saves): the old rule by actor name.</summary>
+        public string carrier;
+        string shownKind;
         public bool Blocked { get; private set; }
         public float SpeedFactor => Blocked ? .15f : 1f;
 
@@ -37,6 +41,14 @@ namespace Checkout
         public static bool WantsCart(string actor) =>
             (actor == "Customer_02" || actor == "Customer_05" || actor == "Customer_07") && !CheckoutStall.Small;
 
+        /// <summary>The carrier of this visit: the plan the app drew ("Evoluções dos móveis": the smallest basket or cart that
+        /// holds it), else the old choice by name.</summary>
+        string Kind()
+        {
+            if (!string.IsNullOrEmpty(carrier)) return carrier;
+            return WantsCart(name) ? "cart" : "basket";
+        }
+
         public static CheckoutShopperRig For(Transform actor)
         {
             var rig = actor.GetComponent<CheckoutShopperRig>();
@@ -50,7 +62,7 @@ namespace Checkout
         public void SetVisible(bool show)
         {
             // The expansion changed since this customer last shopped (stall ↔ market): swap cart and basket.
-            if (ready && show && !visible && cart != WantsCart(name))
+            if (ready && show && !visible && shownKind != Kind())
             {
                 if (prop) Destroy(prop.gameObject);
                 prop = gripL = gripR = grip = front = null;
@@ -69,12 +81,16 @@ namespace Checkout
             ready = true;
             anim = GetComponent<MarketCharacterAnimator>();
             visual = anim && anim.animationPlayer ? anim.animationPlayer.transform : transform;
-            cart = WantsCart(name);
+            shownKind = Kind();
+            cart = shownKind == "cart" || shownKind == "bigCart";
+            bool big = shownKind == "bigCart";
             Transform Bone(string n) => visual.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == n);
             upperL = Bone("UpperArm_L"); foreL = Bone("Forearm_L"); handL = Bone("Hand_L");
             upperR = Bone("UpperArm_R"); foreR = Bone("Forearm_R"); handR = Bone("Hand_R"); head = Bone("Head"); thighL = Bone("Thigh_L");
             // The skinned props of the original rig stay hidden for good.
             foreach (var r in GetComponentsInChildren<Renderer>(true)) if (r.name.EndsWith("_Prop")) r.forceRenderingOff = true;
+            // Shopping with free hands: nothing to carry.
+            if (shownKind == "hands") { cart = false; return; }
             var template = Resources.Load<GameObject>(cart ? "CheckoutProps/ShoppingCart" : "CheckoutProps/ShoppingBasket");
             if (!template) { Debug.LogWarning("CHECKOUT_SHOPPER missing shopping prop"); return; }
             prop = Instantiate(template).transform; prop.name = (cart ? "Cart · " : "Basket · ") + name;
@@ -89,12 +105,15 @@ namespace Checkout
             float headHeight = head ? head.position.y - transform.position.y : 1.8f;
             size = Mathf.Clamp(headHeight / 1.85f, .72f, 1.12f);
             prop.localScale = Vector3.one * size * (cart ? 1.05f : 1f);
+            float bigScale = big ? 1.22f : 1f; // the big cart: the same cart, a size up (the station's carts are 1.3x)
             if (cart && upperL && gripL && gripR)
             {
                 // The characters are tall with short arms: the handle goes up to about 0.3 m below the shoulders.
                 float shoulder = upperL.position.y - transform.position.y;
                 float handle = (gripL.localPosition.y + gripR.localPosition.y) * .5f;
                 prop.localScale = Vector3.one * Mathf.Clamp((shoulder - .3f * size) / Mathf.Max(.1f, handle), .8f, 1.35f);
+                // the big cart grows in length and width, not in handle height
+                if (big) prop.localScale = Vector3.Scale(prop.localScale, new Vector3(bigScale, 1f, bigScale));
             }
             prop.gameObject.SetActive(false);
         }

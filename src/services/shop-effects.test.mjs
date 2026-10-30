@@ -35,7 +35,8 @@ test("boosters only count while they run, owned or not", () => {
 
 test("every upgrade has an effect, a price and a description", () => {
 	for (const item of shopItems) {
-		const builtOnly = item.id === "extra-checkout" || item.id === "self-checkout";
+		// fixtures, and the cold room's tiers (their effect is the room for chilled boxes, src/data/fixture-tiers.ts)
+		const builtOnly = ["extra-checkout", "self-checkout", "cold-room-2", "cold-room-3"].includes(item.id);
 		expect({ id: item.id, effect: Boolean(item.effect) || builtOnly }).toEqual({ id: item.id, effect: true });
 		expect({ id: item.id, price: (item.coinPrice ?? item.diamondPrice ?? 0) > 0 }).toEqual({ id: item.id, price: true });
 		if (item.isConsumable) expect({ id: item.id, duration: (item.durationMs ?? 0) > 0 }).toEqual({ id: item.id, duration: true });

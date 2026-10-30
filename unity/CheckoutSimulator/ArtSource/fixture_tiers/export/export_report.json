@@ -1,0 +1,2159 @@
+[
+ {
+  "file": "shelf_T1.fbx",
+  "tris": 5882,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   0.99,
+   1.713,
+   0.456
+  ],
+  "min": [
+   -0.495,
+   0.0,
+   -0.211
+  ],
+  "max": [
+   0.495,
+   1.713,
+   0.245
+  ],
+  "footprint": [
+   1.0,
+   0.5
+  ],
+  "name": "Estante de madeira",
+  "materials": [
+   "C_1D2B4F_Product",
+   "C_2F3A40_Dark",
+   "C_4E9A3A_Product",
+   "C_6B4128_Wood",
+   "C_6DB84A_Product",
+   "C_6E8B3D_Product",
+   "C_C9A06A_Wood",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_E8B23A_Product",
+   "C_F4EBD8_Cream",
+   "C_FBF8F1_White",
+   "T_FT_Labels",
+   "T_IK_R_Planks",
+   "T_IK_R_Wood",
+   "T_IK_R_WoodDark",
+   "T_IK_Terracotta",
+   "T_IK_V2_PaintNavy",
+   "T_IK_Wicker"
+  ]
+ },
+ {
+  "file": "shelf_T2.fbx",
+  "tris": 10320,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.5,
+   1.97,
+   0.46
+  ],
+  "min": [
+   -0.75,
+   0.0,
+   -0.21
+  ],
+  "max": [
+   0.75,
+   1.97,
+   0.25
+  ],
+  "footprint": [
+   1.5,
+   0.5
+  ],
+  "name": "Estante grande de madeira",
+  "materials": [
+   "C_1D2B4F_Product",
+   "C_2E7D32_Product",
+   "C_6E8B3D_Product",
+   "C_B58B1C_Product",
+   "C_C9A227_Product",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_E8B23A_Product",
+   "C_F4EBD8_Cream",
+   "C_FBF8F1_White",
+   "T_FT_Labels",
+   "T_IK_Crate",
+   "T_IK_R_Planks",
+   "T_IK_R_Wood",
+   "T_IK_V2_PaintNavy"
+  ]
+ },
+ {
+  "file": "shelf_T3.fbx",
+  "tris": 14564,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.985,
+   2.23,
+   0.745
+  ],
+  "min": [
+   -0.993,
+   0.0,
+   -0.36
+  ],
+  "max": [
+   0.993,
+   2.23,
+   0.385
+  ],
+  "footprint": [
+   2.0,
+   0.75
+  ],
+  "name": "Gôndola de metal",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_1D2B4F_Product",
+   "C_2E4A7D_Blue",
+   "C_2E7D32_Product",
+   "C_B58B1C_Product",
+   "C_C9A227_Product",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_E8B23A_Product",
+   "C_F4EBD8_Cream",
+   "T_FT_Labels",
+   "T_IK_Pegboard",
+   "T_IK_R_Brushed",
+   "T_IK_V2_PaintCream"
+  ]
+ },
+ {
+  "file": "shelf_T4.fbx",
+  "tris": 30500,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   2.498,
+   2.42,
+   1.056
+  ],
+  "min": [
+   -1.249,
+   0.0,
+   -0.528
+  ],
+  "max": [
+   1.249,
+   2.42,
+   0.528
+  ],
+  "footprint": [
+   2.5,
+   1.0
+  ],
+  "name": "Gôndola iluminada",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_1D2B4F_Product",
+   "C_1E7A32_Product",
+   "C_232A33_Dark",
+   "C_2E7D32_Product",
+   "C_3A120A_Product",
+   "C_B58B1C_Product",
+   "C_C9A227_Product",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_DCE3E8_Product",
+   "C_E3E8E4_White",
+   "C_E8B23A_Product",
+   "C_F08A2C_Product",
+   "C_F28C28_Product",
+   "C_FBF8F1_Product",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_R_Brushed"
+  ]
+ },
+ {
+  "file": "checkout_T1.fbx",
+  "tris": 4670,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   1.29,
+   1.228,
+   1.117
+  ],
+  "min": [
+   -0.645,
+   -0.001,
+   -0.627
+  ],
+  "max": [
+   0.645,
+   1.227,
+   0.49
+  ],
+  "footprint": [
+   1.25,
+   1.25
+  ],
+  "name": "Caixinha no balcão",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_2E4A7D_Blue",
+   "C_3E8FD6_Product",
+   "C_5FB548_Product",
+   "C_6B4128_Wood",
+   "C_6FA8D6_Product",
+   "C_7DB37A_Product",
+   "C_8FA392_Product",
+   "C_BFC5C9_Metal",
+   "C_C8A23C_Product",
+   "C_C9A06A_Wood",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_E07A3A_Product",
+   "C_E39A5B_Product",
+   "C_E8505B_Product",
+   "C_E86A9E_Product",
+   "C_F28C28_Product",
+   "C_F2C23F_Product",
+   "C_F4EBD8_Cream",
+   "G_Glass",
+   "T_IK_R_Wood",
+   "T_IK_R_WoodDark",
+   "T_IK_V2_PaintNavy"
+  ]
+ },
+ {
+  "file": "checkout_T2.fbx",
+  "tris": 6900,
+  "objects": [
+   "Anim Fill 0",
+   "Body"
+  ],
+  "size": [
+   1.8,
+   1.315,
+   1.289
+  ],
+  "min": [
+   -0.9,
+   -0.001,
+   -0.789
+  ],
+  "max": [
+   0.9,
+   1.314,
+   0.5
+  ],
+  "footprint": [
+   1.75,
+   1.5
+  ],
+  "name": "Caixa registradora",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_2E4A7D_Blue",
+   "C_7BD3F7_Product",
+   "C_8FA392_Product",
+   "C_C0392B_Product",
+   "C_C9A06A_Wood",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_F4EBD8_Cream",
+   "T_FT_Labels",
+   "T_IK_R_Wood",
+   "T_IK_R_WoodDark",
+   "T_IK_V2_PaintNavy"
+  ]
+ },
+ {
+  "file": "checkout_T3.fbx",
+  "tris": 4028,
+  "objects": [
+   "Anim Fill 0",
+   "Body"
+  ],
+  "size": [
+   2.55,
+   2.12,
+   1.897
+  ],
+  "min": [
+   -1.28,
+   0.0,
+   -1.32
+  ],
+  "max": [
+   1.27,
+   2.12,
+   0.577
+  ],
+  "footprint": [
+   2.5,
+   1.75
+  ],
+  "name": "Caixa com esteira",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_C9A06A_Wood",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_E15533_Product",
+   "C_F4EBD8_Cream",
+   "E_7BD3F7",
+   "E_CFEFFF",
+   "E_FF4A3A",
+   "E_FFE6B8",
+   "T_FT_Labels",
+   "T_IK_Belt",
+   "T_IK_Marble",
+   "T_IK_R_Brushed",
+   "T_IK_R_Wood"
+  ]
+ },
+ {
+  "file": "checkout_T4.fbx",
+  "tris": 6834,
+  "objects": [
+   "Anim Fill 0",
+   "Body"
+  ],
+  "size": [
+   3.05,
+   2.26,
+   1.508
+  ],
+  "min": [
+   -1.53,
+   0.0,
+   -0.915
+  ],
+  "max": [
+   1.52,
+   2.26,
+   0.593
+  ],
+  "footprint": [
+   3.0,
+   1.75
+  ],
+  "name": "Caixa premium",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_1E7A32_Product",
+   "C_232A33_Dark",
+   "C_3A1A1E_Product",
+   "C_C9A06A_Wood",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_DCE3E8_Metal",
+   "C_F08A2C_Product",
+   "C_F4EBD8_Cream",
+   "C_FBF8F1_Product",
+   "C_FBF8F1_White",
+   "E_CFEFFF",
+   "E_FF4A3A",
+   "E_FFE6B8",
+   "T_FT_Labels",
+   "T_IK_Belt",
+   "T_IK_R_Brushed",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "drinks_T1.fbx",
+  "tris": 7532,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   0.7,
+   1.85,
+   0.716
+  ],
+  "min": [
+   -0.35,
+   0.0,
+   -0.376
+  ],
+  "max": [
+   0.35,
+   1.85,
+   0.34
+  ],
+  "footprint": [
+   0.75,
+   0.75
+  ],
+  "name": "Geladeira de 1 porta",
+  "materials": [
+   "C_1C1C1C_Product",
+   "C_1D2B4F_Navy",
+   "C_1E7A32_Product",
+   "C_232A33_Dark",
+   "C_3A120A_Product",
+   "C_3A4450_Metal",
+   "C_3E8FD6_Product",
+   "C_6A2B8C_Product",
+   "C_9FD0E6_Product",
+   "C_BFE3F0_Product",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_DCE3E8_Metal",
+   "C_DCE3E8_Product",
+   "C_E25555_Product",
+   "C_E8F0D0_Product",
+   "C_F08A2C_Product",
+   "C_F28C28_Product",
+   "C_F2C23F_Product",
+   "C_FBF8F1_Product",
+   "C_FBF8F1_White",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_FT_Labels"
+  ]
+ },
+ {
+  "file": "drinks_T2.fbx",
+  "tris": 13816,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.208,
+   1.95,
+   0.736
+  ],
+  "min": [
+   -0.604,
+   0.0,
+   -0.386
+  ],
+  "max": [
+   0.604,
+   1.95,
+   0.35
+  ],
+  "footprint": [
+   1.25,
+   0.75
+  ],
+  "name": "Geladeira de 2 portas",
+  "materials": [
+   "C_1C1C1C_Product",
+   "C_1D2B4F_Navy",
+   "C_1E7A32_Product",
+   "C_232A33_Dark",
+   "C_3A120A_Product",
+   "C_3A4450_Metal",
+   "C_3E8FD6_Product",
+   "C_6A2B8C_Product",
+   "C_9FD0E6_Product",
+   "C_BFE3F0_Product",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_DCE3E8_Metal",
+   "C_DCE3E8_Product",
+   "C_E25555_Product",
+   "C_E8F0D0_Product",
+   "C_F08A2C_Product",
+   "C_F28C28_Product",
+   "C_F2C23F_Product",
+   "C_F4EBD8_Cream",
+   "C_FBF8F1_Product",
+   "C_FBF8F1_White",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_FT_Labels"
+  ]
+ },
+ {
+  "file": "drinks_T3.fbx",
+  "tris": 23244,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.976,
+   2.05,
+   0.756
+  ],
+  "min": [
+   -0.988,
+   0.0,
+   -0.396
+  ],
+  "max": [
+   0.988,
+   2.05,
+   0.36
+  ],
+  "footprint": [
+   2.0,
+   0.75
+  ],
+  "name": "Geladeira de 3 portas",
+  "materials": [
+   "C_1C1C1C_Product",
+   "C_1D2B4F_Navy",
+   "C_1E7A32_Product",
+   "C_232A33_Dark",
+   "C_3A120A_Product",
+   "C_3A4450_Metal",
+   "C_3E8FD6_Product",
+   "C_6A2B8C_Product",
+   "C_9FD0E6_Product",
+   "C_BFE3F0_Product",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_DCE3E8_Metal",
+   "C_DCE3E8_Product",
+   "C_E25555_Product",
+   "C_E8F0D0_Product",
+   "C_F08A2C_Product",
+   "C_F28C28_Product",
+   "C_F2C23F_Product",
+   "C_F4EBD8_Cream",
+   "C_FBF8F1_Product",
+   "C_FBF8F1_White",
+   "E_DDF4FF",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_R_Brushed"
+  ]
+ },
+ {
+  "file": "drinks_T4.fbx",
+  "tris": 29720,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   2.52,
+   2.22,
+   1.016
+  ],
+  "min": [
+   -1.26,
+   0.0,
+   -0.516
+  ],
+  "max": [
+   1.26,
+   2.22,
+   0.5
+  ],
+  "footprint": [
+   2.5,
+   1.0
+  ],
+  "name": "Parede de portas com LED",
+  "materials": [
+   "C_1C1C1C_Product",
+   "C_1D2B4F_Navy",
+   "C_1E7A32_Product",
+   "C_232A33_Dark",
+   "C_3A120A_Product",
+   "C_3A4450_Metal",
+   "C_3E8FD6_Product",
+   "C_6A2B8C_Product",
+   "C_9FD0E6_Product",
+   "C_BFE3F0_Product",
+   "C_D3A53D_Gold",
+   "C_D74A3C_Product",
+   "C_DCE3E8_Metal",
+   "C_DCE3E8_Product",
+   "C_E25555_Product",
+   "C_E8F0D0_Product",
+   "C_F08A2C_Product",
+   "C_F28C28_Product",
+   "C_F2C23F_Product",
+   "C_FBF8F1_Product",
+   "C_FBF8F1_White",
+   "E_DDF4FF",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_R_Brushed"
+  ]
+ },
+ {
+  "file": "dairy_T1.fbx",
+  "tris": 3988,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.0,
+   1.32,
+   0.741
+  ],
+  "min": [
+   -0.5,
+   0.0,
+   -0.371
+  ],
+  "max": [
+   0.5,
+   1.32,
+   0.37
+  ],
+  "footprint": [
+   1.0,
+   0.75
+  ],
+  "name": "Expositor refrigerado pequeno",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_D3A53D_Gold",
+   "C_F08A2C_Product",
+   "C_FBF8F1_Product",
+   "C_FBF8F1_White",
+   "E_DDF4FF",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_R_Wood"
+  ]
+ },
+ {
+  "file": "dairy_T2.fbx",
+  "tris": 2172,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.48,
+   1.32,
+   0.74
+  ],
+  "min": [
+   -0.74,
+   0.0,
+   -0.38
+  ],
+  "max": [
+   0.74,
+   1.32,
+   0.36
+  ],
+  "footprint": [
+   1.5,
+   0.75
+  ],
+  "name": "Balcão refrigerado",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_8E2F2A_Product",
+   "C_D3A53D_Gold",
+   "C_E89A9A_Product",
+   "C_F2D27A_Product",
+   "C_F6E7C8_Product",
+   "C_FBF8F1_White",
+   "E_DDF4FF",
+   "G_Glass",
+   "T_IK_Cheese",
+   "T_IK_R_Brushed",
+   "T_IK_R_Wood"
+  ]
+ },
+ {
+  "file": "dairy_T3.fbx",
+  "tris": 17152,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.98,
+   2.0,
+   0.99
+  ],
+  "min": [
+   -0.99,
+   0.0,
+   -0.51
+  ],
+  "max": [
+   0.99,
+   2.0,
+   0.48
+  ],
+  "footprint": [
+   2.0,
+   1.0
+  ],
+  "name": "Expositor aberto (multideck)",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_2E4A7D_Blue",
+   "C_3A4450_Metal",
+   "C_D3A53D_Gold",
+   "C_F08A2C_Product",
+   "C_F4EBD8_Cream",
+   "C_FBF8F1_Product",
+   "C_FBF8F1_White",
+   "E_DDF4FF",
+   "E_FFE6B8",
+   "T_FT_Labels",
+   "T_IK_Cheese"
+  ]
+ },
+ {
+  "file": "dairy_T4.fbx",
+  "tris": 16820,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   2.46,
+   2.13,
+   1.014
+  ],
+  "min": [
+   -1.23,
+   0.0,
+   -0.507
+  ],
+  "max": [
+   1.23,
+   2.13,
+   0.507
+  ],
+  "footprint": [
+   2.5,
+   1.0
+  ],
+  "name": "Ilha de laticínios e frios",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_2E4A7D_Blue",
+   "C_3A4450_Metal",
+   "C_8E2F2A_Product",
+   "C_D3A53D_Gold",
+   "C_F08A2C_Product",
+   "C_F4EBD8_Cream",
+   "C_FBF8F1_Product",
+   "C_FBF8F1_White",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_Cheese",
+   "T_IK_Meat",
+   "T_IK_R_Wood",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "freezer_T1.fbx",
+  "tris": 2940,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Body"
+  ],
+  "size": [
+   1.0,
+   0.93,
+   0.76
+  ],
+  "min": [
+   -0.5,
+   0.0,
+   -0.38
+  ],
+  "max": [
+   0.5,
+   0.93,
+   0.38
+  ],
+  "footprint": [
+   1.0,
+   0.75
+  ],
+  "name": "Freezer horizontal pequeno",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_FBF8F1_White",
+   "G_Glass",
+   "T_FT_Labels"
+  ]
+ },
+ {
+  "file": "freezer_T2.fbx",
+  "tris": 3252,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.551,
+   0.95,
+   0.78
+  ],
+  "min": [
+   -0.75,
+   0.0,
+   -0.39
+  ],
+  "max": [
+   0.801,
+   0.95,
+   0.39
+  ],
+  "footprint": [
+   1.5,
+   0.75
+  ],
+  "name": "Freezer horizontal grande",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_FBF8F1_White",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "freezer_T3.fbx",
+  "tris": 5212,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.48,
+   2.05,
+   0.896
+  ],
+  "min": [
+   -0.74,
+   0.0,
+   -0.466
+  ],
+  "max": [
+   0.74,
+   2.05,
+   0.43
+  ],
+  "footprint": [
+   1.5,
+   0.9
+  ],
+  "name": "Freezer vertical de 2 portas",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_3A4450_Metal",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_FBF8F1_White",
+   "E_DDF4FF",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_R_Brushed"
+  ]
+ },
+ {
+  "file": "freezer_T4.fbx",
+  "tris": 8260,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   2.5,
+   1.71,
+   1.275
+  ],
+  "min": [
+   -1.25,
+   0.0,
+   -0.62
+  ],
+  "max": [
+   1.25,
+   1.71,
+   0.655
+  ],
+  "footprint": [
+   2.5,
+   1.25
+  ],
+  "name": "Ilha de congelados",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_FBF8F1_White",
+   "E_DDF4FF",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "icecream_T1.fbx",
+  "tris": 3045,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Body"
+  ],
+  "size": [
+   1.0,
+   0.94,
+   0.774
+  ],
+  "min": [
+   -0.5,
+   0.0,
+   -0.394
+  ],
+  "max": [
+   0.5,
+   0.94,
+   0.38
+  ],
+  "footprint": [
+   1.0,
+   0.75
+  ],
+  "name": "Freezer de sorvetes",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_7A4A2E_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_F4A6C1_Product",
+   "C_F4EBD8_Cream",
+   "C_F4EBD8_Product",
+   "C_FBF8F1_White",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_Waffle"
+  ]
+ },
+ {
+  "file": "icecream_T2.fbx",
+  "tris": 3782,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.514,
+   0.97,
+   0.794
+  ],
+  "min": [
+   -0.75,
+   0.0,
+   -0.404
+  ],
+  "max": [
+   0.764,
+   0.97,
+   0.39
+  ],
+  "footprint": [
+   1.5,
+   0.75
+  ],
+  "name": "Freezer de sorvetes grande",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_7A4A2E_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_F4A6C1_Product",
+   "C_F4EBD8_Cream",
+   "C_F4EBD8_Product",
+   "C_FBF8F1_White",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_Waffle",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "icecream_T3.fbx",
+  "tris": 4474,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   2.0,
+   1.0,
+   1.028
+  ],
+  "min": [
+   -1.0,
+   0.0,
+   -0.514
+  ],
+  "max": [
+   1.0,
+   1.0,
+   0.514
+  ],
+  "footprint": [
+   2.0,
+   1.0
+  ],
+  "name": "Ilha de sorvetes",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_7A4A2E_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_F4A6C1_Product",
+   "C_F4EBD8_Cream",
+   "C_F4EBD8_Product",
+   "C_FBF8F1_White",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_Waffle"
+  ]
+ },
+ {
+  "file": "icecream_T4.fbx",
+  "tris": 4340,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   2.48,
+   1.585,
+   0.977
+  ],
+  "min": [
+   -1.24,
+   0.0,
+   -0.497
+  ],
+  "max": [
+   1.24,
+   1.585,
+   0.48
+  ],
+  "footprint": [
+   2.5,
+   1.0
+  ],
+  "name": "Vitrine de gelato",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Product",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_FT_Labels",
+   "T_IK_R_Brushed",
+   "T_IK_Waffle",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "bakery_T1.fbx",
+  "tris": 3064,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   0.99,
+   1.701,
+   0.476
+  ],
+  "min": [
+   -0.495,
+   0.0,
+   -0.221
+  ],
+  "max": [
+   0.495,
+   1.701,
+   0.255
+  ],
+  "footprint": [
+   1.0,
+   0.5
+  ],
+  "name": "Estante de pães",
+  "materials": [
+   "C_6DB84A_Product",
+   "C_D3A53D_Gold",
+   "T_IK_Crust",
+   "T_IK_R_Planks",
+   "T_IK_R_Wood",
+   "T_IK_Terracotta",
+   "T_IK_V2_PaintNavy",
+   "T_IK_Wicker"
+  ]
+ },
+ {
+  "file": "bakery_T2.fbx",
+  "tris": 7258,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.5,
+   1.97,
+   0.48
+  ],
+  "min": [
+   -0.75,
+   0.0,
+   -0.22
+  ],
+  "max": [
+   0.75,
+   1.97,
+   0.26
+  ],
+  "footprint": [
+   1.5,
+   0.5
+  ],
+  "name": "Estante de cestos inclinados",
+  "materials": [
+   "C_D3A53D_Gold",
+   "C_F4EBD8_Cream",
+   "T_IK_Crust",
+   "T_IK_R_Planks",
+   "T_IK_R_Wood",
+   "T_IK_V2_PaintNavy",
+   "T_IK_Wicker"
+  ]
+ },
+ {
+  "file": "bakery_T3.fbx",
+  "tris": 8518,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.98,
+   2.12,
+   0.727
+  ],
+  "min": [
+   -0.99,
+   0.0,
+   -0.367
+  ],
+  "max": [
+   0.99,
+   2.12,
+   0.36
+  ],
+  "footprint": [
+   2.0,
+   0.75
+  ],
+  "name": "Vitrine de acrílico",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_7A4A2E_Product",
+   "C_C0392B_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_F2C23F_Product",
+   "C_F4A6C1_Product",
+   "C_F6E7C8_Cream",
+   "G_Glass",
+   "T_IK_Crust",
+   "T_IK_R_Wood",
+   "T_IK_V2_PaintCream"
+  ]
+ },
+ {
+  "file": "bakery_T4.fbx",
+  "tris": 7764,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.99,
+   1.89,
+   0.977
+  ],
+  "min": [
+   -0.995,
+   0.0,
+   -0.497
+  ],
+  "max": [
+   0.995,
+   1.89,
+   0.48
+  ],
+  "footprint": [
+   2.0,
+   1.0
+  ],
+  "name": "Vitrine aquecida iluminada",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_7A4A2E_Product",
+   "C_C0392B_Product",
+   "C_D3A53D_Gold",
+   "C_E8F0D0_Product",
+   "C_F2C23F_Product",
+   "C_F4A6C1_Product",
+   "C_F6E7C8_Product",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_IK_Crust",
+   "T_IK_R_Brushed",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "produce_T1.fbx",
+  "tris": 5072,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.03,
+   1.075,
+   0.704
+  ],
+  "min": [
+   -0.49,
+   0.0,
+   -0.357
+  ],
+  "max": [
+   0.54,
+   1.075,
+   0.347
+  ],
+  "footprint": [
+   1.0,
+   0.75
+  ],
+  "name": "Banca de caixotes",
+  "materials": [
+   "C_2F3A40_Dark",
+   "C_B89260_Product",
+   "C_C98A4A_Product",
+   "C_D8352A_Product",
+   "C_E8D23A_Product",
+   "C_F28C28_Product",
+   "T_IK_Crate",
+   "T_IK_R_Wood",
+   "T_IK_Wicker"
+  ]
+ },
+ {
+  "file": "produce_T2.fbx",
+  "tris": 6228,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   1.54,
+   1.695,
+   0.757
+  ],
+  "min": [
+   -0.77,
+   0.0,
+   -0.369
+  ],
+  "max": [
+   0.77,
+   1.695,
+   0.389
+  ],
+  "footprint": [
+   1.5,
+   0.75
+  ],
+  "name": "Banca inclinada de madeira",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_6DB84A_Product",
+   "C_C0392B_Product",
+   "C_D3A53D_Gold",
+   "C_D8352A_Product",
+   "C_E2422E_Product",
+   "C_F28C28_Product",
+   "C_F2CF3A_Product",
+   "C_F4EBD8_Cream",
+   "T_IK_Crate",
+   "T_IK_R_Wood",
+   "T_IK_V2_PaintNavy"
+  ]
+ },
+ {
+  "file": "produce_T3.fbx",
+  "tris": 11520,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   2.03,
+   2.05,
+   1.013
+  ],
+  "min": [
+   -1.015,
+   0.0,
+   -0.493
+  ],
+  "max": [
+   1.015,
+   2.05,
+   0.52
+  ],
+  "footprint": [
+   2.0,
+   1.0
+  ],
+  "name": "Banca em degraus (madeira e metal)",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_4E9A3A_Product",
+   "C_6DB84A_Product",
+   "C_8CCB5E_Product",
+   "C_8FB24A_Product",
+   "C_B89260_Product",
+   "C_C0392B_Product",
+   "C_C98A4A_Product",
+   "C_D3A53D_Gold",
+   "C_D8352A_Product",
+   "C_D8D06A_Product",
+   "C_DCE3E8_Metal",
+   "C_E2422E_Product",
+   "C_E8D23A_Product",
+   "C_F28C28_Product",
+   "C_F2CF3A_Product",
+   "C_F4EBD8_Cream",
+   "T_IK_Crate",
+   "T_IK_R_Wood",
+   "T_IK_R_WoodDark",
+   "T_IK_Rope",
+   "T_IK_Wicker",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "produce_T4.fbx",
+  "tris": 15754,
+  "objects": [
+   "Anim Fill 0",
+   "Anim Fill 1",
+   "Anim Fill 2",
+   "Anim Fill 3",
+   "Body"
+  ],
+  "size": [
+   2.48,
+   2.22,
+   1.234
+  ],
+  "min": [
+   -1.24,
+   0.0,
+   -0.617
+  ],
+  "max": [
+   1.24,
+   2.22,
+   0.617
+  ],
+  "footprint": [
+   2.5,
+   1.25
+  ],
+  "name": "Ilha refrigerada com névoa",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_4E9A3A_Product",
+   "C_6DB84A_Product",
+   "C_8CCB5E_Product",
+   "C_8FB24A_Product",
+   "C_C0392B_Product",
+   "C_C98A4A_Product",
+   "C_D3A53D_Gold",
+   "C_D8352A_Product",
+   "C_D8D06A_Product",
+   "C_DCE3E8_Metal",
+   "C_E2422E_Product",
+   "C_E8D23A_Product",
+   "C_F07C1E_Product",
+   "C_F28C28_Product",
+   "C_F2CF3A_Product",
+   "C_F4EBD8_Cream",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_IK_Crate",
+   "T_IK_R_Brushed",
+   "T_IK_Wicker",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "coldroom_T1.fbx",
+  "tris": 1016,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   1.235,
+   1.118,
+   0.765
+  ],
+  "min": [
+   -0.615,
+   0.0,
+   -0.4
+  ],
+  "max": [
+   0.62,
+   1.118,
+   0.365
+  ],
+  "footprint": [
+   1.25,
+   0.75
+  ],
+  "name": "Freezer de estoque",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_3A4450_Metal",
+   "C_C0392B_Product",
+   "C_C9A06A_Wood",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_FBF8F1_White",
+   "T_IK_Cardboard",
+   "T_IK_V2_PaintCream"
+  ]
+ },
+ {
+  "file": "coldroom_T2.fbx",
+  "tris": 5084,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   2.1,
+   2.83,
+   2.45
+  ],
+  "min": [
+   -1.05,
+   0.0,
+   -1.4
+  ],
+  "max": [
+   1.05,
+   2.83,
+   1.05
+  ],
+  "footprint": [
+   2.0,
+   2.0
+  ],
+  "name": "Mini câmara fria",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_3A4450_Metal",
+   "C_C87533_Product",
+   "C_D3A53D_Gold",
+   "C_D9CFB8_Cream",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_F4EBD8_Cream",
+   "E_7BD3F7",
+   "E_CFEFFF",
+   "G_Glass",
+   "T_IK_R_Brushed",
+   "T_IK_V2_PaintCream"
+  ]
+ },
+ {
+  "file": "coldroom_T3.fbx",
+  "tris": 6624,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   3.11,
+   3.143,
+   3.05
+  ],
+  "min": [
+   -1.555,
+   -0.013,
+   -1.75
+  ],
+  "max": [
+   1.555,
+   3.13,
+   1.3
+  ],
+  "footprint": [
+   3.0,
+   2.5
+  ],
+  "name": "Câmara fria",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_2B3A55_Blue",
+   "C_2E4A7D_Blue",
+   "C_3A4450_Metal",
+   "C_C87533_Product",
+   "C_C9A06A_Wood",
+   "C_D3A53D_Gold",
+   "C_D9CFB8_Cream",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_F4EBD8_Cream",
+   "E_7BD3F7",
+   "E_CFEFFF",
+   "E_DDF4FF",
+   "G_Glass",
+   "T_IK_Cardboard",
+   "T_IK_R_Brushed",
+   "T_IK_V2_PaintCream"
+  ]
+ },
+ {
+  "file": "coldroom_T4.fbx",
+  "tris": 9220,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   5.1,
+   3.78,
+   5.25
+  ],
+  "min": [
+   -2.55,
+   0.0,
+   -3.2
+  ],
+  "max": [
+   2.55,
+   3.78,
+   2.05
+  ],
+  "footprint": [
+   5.0,
+   4.0
+  ],
+  "name": "Câmara frigorífica",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_2B3A55_Blue",
+   "C_3A4450_Metal",
+   "C_C87533_Product",
+   "C_C9A06A_Wood",
+   "C_D3A53D_Gold",
+   "C_D9CFB8_Cream",
+   "C_DCE3E8_Metal",
+   "C_EAF6FB_Metal",
+   "C_F4EBD8_Cream",
+   "E_7BD3F7",
+   "E_CFEFFF",
+   "E_DDF4FF",
+   "G_Glass",
+   "T_IK_Cardboard",
+   "T_IK_R_Brushed",
+   "T_IK_V2_PaintCream",
+   "T_IK_WoodLight"
+  ]
+ },
+ {
+  "file": "carts_T1.fbx",
+  "tris": 4468,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   0.842,
+   1.12,
+   0.527
+  ],
+  "min": [
+   -0.48,
+   0.0,
+   -0.267
+  ],
+  "max": [
+   0.362,
+   1.12,
+   0.26
+  ],
+  "footprint": [
+   0.75,
+   0.6
+  ],
+  "name": "Cestinhas (suporte)",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_2E4A7D_Blue",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_F4EBD8_Cream"
+  ]
+ },
+ {
+  "file": "carts_T2.fbx",
+  "tris": 4906,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   1.753,
+   1.1,
+   0.76
+  ],
+  "min": [
+   -0.842,
+   0.0,
+   -0.38
+  ],
+  "max": [
+   0.911,
+   1.1,
+   0.38
+  ],
+  "footprint": [
+   1.75,
+   0.75
+  ],
+  "name": "Carrinhos (baia)",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_F4EBD8_Cream"
+  ]
+ },
+ {
+  "file": "carts_T3.fbx",
+  "tris": 6688,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   2.211,
+   1.3,
+   0.983
+  ],
+  "min": [
+   -1.12,
+   0.0,
+   -0.49
+  ],
+  "max": [
+   1.091,
+   1.3,
+   0.493
+  ],
+  "footprint": [
+   2.25,
+   1.0
+  ],
+  "name": "Carrinhos grandes (baia)",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_2E4A7D_Blue",
+   "C_C9D2D6_Metal",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_F4EBD8_Cream",
+   "E_FFE6B8",
+   "G_Glass"
+  ]
+ },
+ {
+  "file": "atm_T1.fbx",
+  "tris": 2428,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   0.762,
+   1.83,
+   0.92
+  ],
+  "min": [
+   -0.381,
+   0.0,
+   -0.5
+  ],
+  "max": [
+   0.381,
+   1.83,
+   0.42
+  ],
+  "footprint": [
+   0.75,
+   0.85
+  ],
+  "name": "Caixa eletrônico",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_37D067_Product",
+   "C_C0392B_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_F2C23F_Product",
+   "C_F4EBD8_Cream",
+   "E_37D067",
+   "E_CFEFFF",
+   "E_FFE6B8",
+   "T_IK_V2_PaintCream"
+  ]
+ },
+ {
+  "file": "atm_T2.fbx",
+  "tris": 4632,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   1.502,
+   2.25,
+   0.63
+  ],
+  "min": [
+   -0.751,
+   0.0,
+   -0.2
+  ],
+  "max": [
+   0.751,
+   2.25,
+   0.43
+  ],
+  "footprint": [
+   1.5,
+   0.85
+  ],
+  "name": "Dois caixas na parede",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_37D067_Product",
+   "C_C0392B_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_F2C23F_Product",
+   "C_F4EBD8_Cream",
+   "E_37D067",
+   "E_CFEFFF",
+   "E_FFE6B8",
+   "T_IK_R_Wood",
+   "T_IK_V2_PaintCream"
+  ]
+ },
+ {
+  "file": "atm_T3.fbx",
+  "tris": 7220,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   2.24,
+   2.73,
+   1.47
+  ],
+  "min": [
+   -1.12,
+   0.0,
+   -0.745
+  ],
+  "max": [
+   1.12,
+   2.73,
+   0.725
+  ],
+  "footprint": [
+   2.25,
+   1.5
+  ],
+  "name": "Sala de autoatendimento bancário",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_2E4A7D_Blue",
+   "C_37D067_Product",
+   "C_C0392B_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_F2C23F_Product",
+   "C_F4EBD8_Cream",
+   "E_37D067",
+   "E_CFEFFF",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_IK_V2_PaintCream"
+  ]
+ },
+ {
+  "file": "gumball_T1.fbx",
+  "tris": 2332,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   0.435,
+   1.476,
+   0.426
+  ],
+  "min": [
+   -0.217,
+   -0.019,
+   -0.18
+  ],
+  "max": [
+   0.217,
+   1.457,
+   0.246
+  ],
+  "footprint": [
+   0.5,
+   0.5
+  ],
+  "name": "Máquina de chiclete",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_3E8FD6_Product",
+   "C_5FB548_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_E8505B_Product",
+   "C_E86A9E_Product",
+   "C_F28C28_Product",
+   "C_F2C23F_Product",
+   "C_FBF8F1_White",
+   "G_Glass"
+  ]
+ },
+ {
+  "file": "gumball_T2.fbx",
+  "tris": 5236,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   0.9,
+   1.488,
+   0.49
+  ],
+  "min": [
+   -0.45,
+   0.0,
+   -0.245
+  ],
+  "max": [
+   0.45,
+   1.488,
+   0.245
+  ],
+  "footprint": [
+   1.0,
+   0.5
+  ],
+  "name": "Máquina de chiclete dupla",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_3E8FD6_Product",
+   "C_5FB548_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_E8505B_Product",
+   "C_E86A9E_Product",
+   "C_F28C28_Product",
+   "C_F2C23F_Product",
+   "C_F4EBD8_Cream",
+   "C_FBF8F1_White",
+   "G_Glass"
+  ]
+ },
+ {
+  "file": "claw_T1.fbx",
+  "tris": 3958,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   0.72,
+   1.9,
+   0.774
+  ],
+  "min": [
+   -0.36,
+   0.0,
+   -0.414
+  ],
+  "max": [
+   0.36,
+   1.9,
+   0.36
+  ],
+  "footprint": [
+   0.75,
+   0.75
+  ],
+  "name": "Máquina de pelúcia",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_7DB3E8_Product",
+   "C_B9E8D2_Product",
+   "C_C9A0E8_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_E8505B_Product",
+   "C_E8A06A_Product",
+   "C_F2C23F_Product",
+   "C_F4A6C1_Product",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_IK_V2_PaintCream",
+   "T_IK_V3_ClawArt"
+  ]
+ },
+ {
+  "file": "claw_T2.fbx",
+  "tris": 8196,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   1.5,
+   2.07,
+   0.874
+  ],
+  "min": [
+   -0.75,
+   0.0,
+   -0.454
+  ],
+  "max": [
+   0.75,
+   2.07,
+   0.42
+  ],
+  "footprint": [
+   1.5,
+   0.85
+  ],
+  "name": "Máquina de pelúcia dupla",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_7DB3E8_Product",
+   "C_B9E8D2_Product",
+   "C_C9A0E8_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_E8505B_Product",
+   "C_E8A06A_Product",
+   "C_F2C23F_Product",
+   "C_F4A6C1_Product",
+   "C_F4EBD8_Cream",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_IK_V2_PaintCream",
+   "T_IK_V3_ClawArt"
+  ]
+ },
+ {
+  "file": "claw_T3.fbx",
+  "tris": 7018,
+  "objects": [
+   "Body"
+  ],
+  "size": [
+   1.48,
+   2.48,
+   1.494
+  ],
+  "min": [
+   -0.74,
+   0.0,
+   -0.774
+  ],
+  "max": [
+   0.74,
+   2.48,
+   0.72
+  ],
+  "footprint": [
+   1.5,
+   1.5
+  ],
+  "name": "Pelúcia gigante",
+  "materials": [
+   "C_1D2B4F_Navy",
+   "C_232A33_Dark",
+   "C_7DB3E8_Product",
+   "C_B9E8D2_Product",
+   "C_C9A0E8_Product",
+   "C_D3A53D_Gold",
+   "C_DCE3E8_Metal",
+   "C_E8505B_Product",
+   "C_E8A06A_Product",
+   "C_F2C23F_Product",
+   "C_F4A6C1_Product",
+   "C_F4EBD8_Cream",
+   "E_FFE6B8",
+   "G_Glass",
+   "T_IK_V2_PaintCream",
+   "T_IK_V3_ClawArt"
+  ]
+ }
+]

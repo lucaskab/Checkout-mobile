@@ -50,6 +50,11 @@ export function getShelfBuildDurationMs(shelfIndex: number) {
 export const shopItemBuildDurations: Record<string, number> = {
 	"extra-checkout": 15 * MINUTE,
 	"self-checkout": 2 * HOUR,
+	// The cold room's tiers are built outside the depot / at the central warehouse: no piece to place, the works
+	// start when bought (src/stores/game-store.ts purchaseShopItem).
+	"cold-room-2": 30 * MINUTE,
+	"cold-room-3": 2 * HOUR,
+	"cold-storage": 6 * HOUR,
 };
 
 /** Shop fixtures only go on sale once the market has room to place them: the stalls and the first shops bring
@@ -58,6 +63,15 @@ export const shopItemBuildDurations: Record<string, number> = {
 const shopItemPlaceEras: Record<string, MarketEraId> = {
 	"extra-checkout": "minimercado",
 	"self-checkout": "mercadinho",
+	// The checkout's steps ("Evoluções dos móveis"): the register already fits the small shops' fixed counter; the
+	// conveyor and the scanner need a placed checkout (minimercado), the premium one the supermarket's floor.
+	"checkout-register": "spati",
+	"smart-conveyor": "minimercado",
+	"auto-scanner": "minimercado",
+	"checkout-premium": "supermercado",
+	// The cold room: indoors at first (T1), then against the depot's wall, then at the central warehouse.
+	"cold-room-2": "minimercado",
+	"cold-room-3": "supermercado",
 };
 export function getShopItemPlaceEra(itemId: string): MarketEraId | null {
 	return shopItemPlaceEras[itemId] ?? null;
@@ -84,6 +98,9 @@ export function getInteriorBuildName(kind: InteriorBuildKind, targetId: string, 
 			: (shelves.find((shelf) => shelf.id === targetId)?.name ?? "Prateleira");
 	if (targetId === "extra-checkout") return "Caixa extra";
 	if (targetId === "self-checkout") return "Autoatendimento";
+	if (targetId === "cold-room-2") return "Mini câmara fria";
+	if (targetId === "cold-room-3") return "Câmara fria";
+	if (targetId === "cold-storage") return "Câmara frigorífica";
 	return "Instalação";
 }
 

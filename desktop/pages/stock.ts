@@ -1,4 +1,5 @@
 import type { ItemDefinition, ItemRarity } from "@/@types/item";
+import { getColdRoomInfo, getInventoryUpgradeCap } from "@/services/fixture-tiers";
 import {
 	getInventoryCapacity,
 	getNextInventoryCapacityUpgrade,
@@ -172,7 +173,18 @@ function capacityPage(state: State, args: string[]) {
 			progress: ratio(amount, capacity),
 		}),
 	];
-	if (nextUpgrade) {
+	const coldCap = getInventoryUpgradeCap(state, product.category);
+	if (nextUpgrade && upgradeLevel + 1 > coldCap) {
+		const cold = getColdRoomInfo(state);
+		cards.push(
+			card("Câmara fria cheia", {
+				icon: gameIcon("warehouse"),
+				tone: "locked",
+				subtitle: `Produtos gelados ficam na câmara fria (${cold.name}). Evolua a câmara para guardar mais caixas.`,
+				buttons: [go("Ver câmara fria", "!loja:moveis:camara", { variant: "primary", icon: gameIcon("warehouse") })],
+			}),
+		);
+	} else if (nextUpgrade) {
 		const hasRequiredLevel = marketLevel >= nextUpgrade.playerLevel;
 		const hasEnoughCoins = state.coins >= nextUpgrade.coinCost;
 		const nextCapacity = getInventoryCapacity(product, upgradeLevel + 1);

@@ -22,6 +22,8 @@ export type InteriorState = {
 	items: InteriorItem[];
 	/** Decorations bought, by decoration id. */
 	owned: Record<string, number>;
+	/** Evolving decorations (ATM, gumball, claw machine): tier of every piece of that kind (missing = 1). */
+	tiers?: Record<string, number>;
 };
 
 export type InteriorDecorDefinition = {
@@ -35,6 +37,8 @@ export type InteriorDecorDefinition = {
 	zone: "inside" | "outside" | "both";
 	/** A "melhoria": what it does while it stands placed (stored pieces do nothing). */
 	effect?: DecorEffect;
+	/** Only sold from this expansion on (the cart bays need the market building's aisles). */
+	placeEra?: import("./economy").MarketEraId;
 };
 
 /**
@@ -44,6 +48,8 @@ export type InteriorDecorDefinition = {
 export type DecorEffect = {
 	/** Extra products each customer may put in the basket (counted once, however many are placed). */
 	basketItems?: number;
+	/** A basket or cart station: customers take this carrier from it (src/data/fixture-tiers.ts chooseCarrier). */
+	carrier?: import("./fixture-tiers").CartCarrier;
 	/** Customers bring this share more money to spend (0.15 = +15%; counted once). */
 	budget?: number;
 	/** A coin machine: each customer may stop and play (chance per placed machine, up to `maxPlaced`). */

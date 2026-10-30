@@ -248,11 +248,11 @@ namespace Checkout
             int cost = gems ? d.diamondPrice : d.coinPrice;
             var e = new Entry
             {
-                key = "d:" + d.id, id = d.id, name = d.name, sprite = "Decor/" + d.id, decor = d, upgrade = d.upgrade,
-                owned = free > 0, locked = !levelOk, afford = gems ? s.diamonds >= cost : s.coins >= cost,
+                key = "d:" + d.id, id = d.id, name = d.name, sprite = "Decor/" + Interior.DecorTemplate(d.id), decor = d, upgrade = d.upgrade,
+                owned = free > 0, locked = !levelOk || !string.IsNullOrEmpty(d.lockedNote), afford = gems ? s.diamonds >= cost : s.coins >= cost,
             };
             if (e.owned) { e.price = "Colocar"; e.priceIcon = "Icons/success"; e.badge = "x" + free; e.badgeColor = "5DA637"; }
-            else if (e.locked) { e.price = string.Format("Nível {0}", d.requiredLevel); e.priceIcon = "Icons/lock"; }
+            else if (e.locked) { e.price = !string.IsNullOrEmpty(d.lockedNote) && levelOk ? d.lockedNote : string.Format("Nível {0}", d.requiredLevel); e.priceIcon = "Icons/lock"; }
             else { e.price = CheckoutI18n.Number(cost); e.priceIcon = gems ? "Icons/diamond" : "Icons/coin"; }
             // Machines pay only up to their limit: "2/3" placed.
             int placed = Interior.Placed(d.id);

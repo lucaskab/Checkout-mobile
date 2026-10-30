@@ -102,6 +102,23 @@ export type ShelfView = {
 	capacityNext: number;
 	capacityCost: number;
 	capacityLevel: number;
+	/** Diamonds for the next capacity step / evolution. */
+	capacityDiamonds: number;
+	/** "Evoluções dos móveis": tier shown now (0 at the stalls) and its name. */
+	tier: number;
+	tierName: string;
+	/** The next step changes the fixture's model (else only the numbers grow). */
+	evolve: boolean;
+	nextTier: number;
+	nextTierName: string;
+	/** The next model is bigger: Unity checks it fits where the fixture stands before the button works. */
+	grows: boolean;
+	nextWidth: number;
+	nextDepth: number;
+	/** Unity template of the next model (Resources/CheckoutFixtureTiers). */
+	nextTemplate: string;
+	/** The shop is too small for the next step: "Disponível no Minimercado" ("" = can be bought here). */
+	blockedNote: string;
 	stallNote: string;
 	slots: ShelfSlotView[];
 	picks: ShelfPickView[];
