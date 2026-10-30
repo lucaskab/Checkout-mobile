@@ -47,6 +47,10 @@ import type { Routes } from ".";
 import { getNextShelfBuildStatus } from "@/services/interior-construction";
 import { buildCard, shelfThumb } from "./build-cards";
 import { shelfViewPage } from "./shelf-view";
+import { getShelfEvolution, getShelfSlotLimit } from "@/services/fixture-tiers";
+
+/** 1.5 → "1,5" (the player's decimal comma is applied by the translator for other languages). */
+const fmtMetres = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 
 // The next shelf: bought, it goes to the inventory and is built where the player places it.
 function shelfBuild(state: State, title: string): Card {
@@ -261,7 +265,7 @@ function shelfPage(state: State, [shelfId = ""]: string[]) {
 		return page(route, shelfName(shelfId, state), [lockedCard], options);
 	}
 	const cards = slotIds.map((slotId, index) => slotCard(state, shelfId, slotId, index));
-	const slotUpgrade = getNextShelfSlotUpgrade(slotCount);
+	const slotUpgrade = slotCount < getShelfSlotLimit(state, shelfId) ? getNextShelfSlotUpgrade(slotCount) : null;
 	if (slotUpgrade)
 		cards.push(
 			card("Mais espaços nesta prateleira", {
@@ -280,33 +284,41 @@ function shelfPage(state: State, [shelfId = ""]: string[]) {
 				],
 			}),
 		);
+	const evolution = getShelfEvolution(state, shelfId);
 	const upgrade = getNextShelfCapacityUpgrade(state.shelfUpgradeLevels[shelfId]);
 	if (upgrade) {
 		const levelOk = state.market.level >= upgrade.playerLevel;
+		const blocked = evolution?.blockedUntil ? `Disponível no ${evolution.blockedUntil}` : "";
+		// "Evoluções dos móveis": a capacity step that brings the next model is called "Evoluir".
+		const evolves = !!evolution?.changesLook && evolution.toTier > evolution.fromTier;
 		const messages = {
-			ok: "Capacidade ampliada nos quatro espaços!",
-			fail: "Confira seu nível e saldo.",
+			ok: evolves ? "Seu móvel evoluiu!" : "Capacidade ampliada nos quatro espaços!",
+			fail: blocked || "Confira seu nível e saldo.",
 		};
+		const verb = evolves ? "Evoluir" : "Ampliar";
 		cards.push(
-			card("Mais produtos para vender", {
+			card(evolves && evolution ? `Evoluir: ${evolution.to.name}` : "Mais produtos para vender", {
 				icon: gameIcon("basket"),
-				subtitle: `Aumente cada espaço para ${upgrade.capacity} unidades · Nível ${upgrade.playerLevel}`,
-				lines: [`Capacidade atual: ${getShelfCapacity(state.shelfUpgradeLevels[shelfId])} unid.`],
+				subtitle: blocked || `Aumente cada espaço para ${upgrade.capacity} unidades · Nível ${upgrade.playerLevel}`,
+				lines: [
+					`${getShelfCapacity(state.shelfUpgradeLevels[shelfId])} → ${upgrade.capacity} por produto`,
+					...(evolution?.grows ? [`${fmtMetres(evolution.from.width)} → ${fmtMetres(evolution.to.width)} m`] : []),
+				],
 				buttons: [
-					act(`Ampliar · ${fmt(upgrade.coinCost)} moedas`, "upgradeShelfCapacity", [shelfId, "coins"], {
+					act(`${verb} · ${fmt(upgrade.coinCost)} moedas`, "upgradeShelfCapacity", [shelfId, "coins"], {
 						variant: "coin",
 						icon: gameIcon("coin"),
-						enabled: levelOk && state.coins >= upgrade.coinCost,
+						enabled: !blocked && levelOk && state.coins >= upgrade.coinCost,
 						...messages,
 					}),
 					act(
-						`Ampliar · ${fmt(upgrade.diamondCost)} diamantes`,
+						`${verb} · ${fmt(upgrade.diamondCost)} diamantes`,
 						"upgradeShelfCapacity",
 						[shelfId, "diamonds"],
 						{
 							variant: "gem",
 							icon: gameIcon("diamond"),
-							enabled: levelOk,
+							enabled: !blocked && levelOk,
 							...messages,
 						},
 					),

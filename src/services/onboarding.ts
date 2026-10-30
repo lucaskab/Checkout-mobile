@@ -179,6 +179,9 @@ function tipWanted(id: string, state: GameState, route: OnboardingRoute, now: nu
 			return state.market.level >= 9 && state.era.id !== "mesinha" && state.era.id !== "tenda" && state.era.id !== "banca" && route === "";
 		case "producao":
 			return state.market.level >= 18 && route === "";
+		// Customers planned more than their basket or cart holds ("Evoluções dos móveis", 30/10).
+		case "falta-carrinho":
+			return (state.market.cartShortfall ?? 0) >= 5 && route === "";
 		default:
 			return false;
 	}
@@ -199,6 +202,7 @@ function tipSolved(id: string, state: GameState, route: OnboardingRoute, now: nu
 		case "loja":
 		case "evoluir":
 		case "equipe":
+		case "falta-carrinho":
 			return name === "loja";
 		case "terreno":
 			return name === "loja";

@@ -169,7 +169,7 @@ describe("saves", () => {
 		const migrated = await migrate({ ...state, coins: 1234 }, 46);
 		expect(migrated.marketPaint).toEqual(paint.createMarketPaintState());
 		expect(migrated.coins).toBe(1234);
-		expect(useGameStore.persist.getOptions().version).toBe(47);
+		expect(useGameStore.persist.getOptions().version).toBe(48);
 	});
 
 	test("a malformed field falls back to classic; a good one is kept", () => {

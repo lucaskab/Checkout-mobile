@@ -10,6 +10,8 @@ import type {
 	SimulationOptions,
 	SimulationResult,
 } from "@/@types/customer-simulation";
+import type { CarrierChoice } from "@/@types/fixture-tiers";
+import { chooseCarrier, drawCarrierPlan } from "@/data/fixture-tiers";
 
 type Random = () => number;
 
@@ -119,8 +121,12 @@ export function simulateMarketVisit(options: MarketVisitOptions): MarketVisit {
 		options.budgetMultiplier ?? 1,
 	);
 	const products = shuffleProducts(options.products, random);
+	// The basket/cart plan has its own dice, so the rest of the visit stays the same draw as before.
+	const choice: CarrierChoice | null = options.carriers
+		? chooseCarrier(drawCarrierPlan(customer.archetype, createSeededRandom(options.seed ^ 0x5bd1e995)()), options.carriers)
+		: null;
 	const maxProducts =
-		getMaxProducts(customer, random) + (options.maxProductsBonus ?? 0);
+		getMaxProducts(customer, random) + (options.maxProductsBonus ?? 0) + (choice?.extra ?? 0);
 	let remainingBudget = customer.budget;
 	const purchases = [];
 
@@ -172,6 +178,7 @@ export function simulateMarketVisit(options: MarketVisitOptions): MarketVisit {
 	return {
 		customer,
 		purchases,
+		...(choice ? { carrier: choice.carrier, cartShortfall: choice.missing } : {}),
 		revenue: purchases.reduce((total, purchase) => total + purchase.revenue, 0),
 		totalUnits: purchases.reduce(
 			(total, purchase) => total + purchase.quantity,

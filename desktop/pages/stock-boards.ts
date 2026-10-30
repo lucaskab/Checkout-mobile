@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import { getInventoryUpgradeCap } from "@/services/fixture-tiers";
 import type { ItemDefinition } from "@/@types/item";
 import type { SupplierOrder } from "@/@types/logistics";
 import { MAX_ITEM_LEVEL } from "@/data/economy";
@@ -193,17 +194,21 @@ function upgradeButton(state: State, product: ItemDefinition, info: Info): Butto
 	});
 }
 
+const COLD_ROOM_FULL = "Precisa de uma câmara fria maior (Loja → Móveis e obras → Câmara fria).";
+
 function capacityButton(state: State, product: ItemDefinition, info: Info): Button | null {
 	const next = info.nextCapacity;
 	if (!next) return null;
 	const room = getInventoryCapacity(product, info.capacityLevel + 1);
 	const levelOk = state.market.level >= next.playerLevel;
+	// Chilled goods are kept in the cold room: a bigger room first (Loja → Melhorias → Logística).
+	const coldOk = info.capacityLevel + 1 <= getInventoryUpgradeCap(state, product.category);
 	return act(`Ampliar para ${room} · ${fmt(next.coinCost)}`, "upgradeInventoryCapacity", [product.id], {
 		variant: "coin",
 		icon: gameIcon("warehouse"),
-		enabled: levelOk && state.coins >= next.coinCost,
+		enabled: coldOk && levelOk && state.coins >= next.coinCost,
 		ok: `Agora cabem ${room} ${product.name} no estoque!`,
-		fail: levelOk ? "Moedas insuficientes." : `Disponível no nível ${next.playerLevel}.`,
+		fail: !coldOk ? COLD_ROOM_FULL : levelOk ? "Moedas insuficientes." : `Disponível no nível ${next.playerLevel}.`,
 	});
 }
 

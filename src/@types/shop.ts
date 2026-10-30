@@ -64,6 +64,8 @@ export type ShopItemDefinition = {
 	quality?: ShopItemQuality;
 	/** Another upgrade that must be installed first. */
 	requiresItemId?: string;
+	/** A market expansion that must be open first (the big cold room needs the central warehouse). */
+	requiresExpansionId?: import("./market-expansion").MarketExpansionId;
 };
 
 export type GameShopState = {

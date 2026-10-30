@@ -250,6 +250,12 @@ export const onboardingTips: OnboardingTipDef[] = [
 		text: "Você pode montar setores como a padaria e produzir seus próprios produtos. Toque em PRODUÇÃO.",
 		target: "tool:!sectors",
 	},
+	{
+		id: "falta-carrinho",
+		title: "Falta carrinho!",
+		text: "Clientes deixaram de levar produtos: falta carrinho. Compre cestinhas ou carrinhos na LOJA, aba DECORAÇÃO, e coloque no mercado.",
+		target: "tool:!loja",
+	},
 ];
 
 /** What each part of the screen does (the "Guia" page). */

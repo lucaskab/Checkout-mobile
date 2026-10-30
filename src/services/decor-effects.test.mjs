@@ -21,15 +21,16 @@ afterAll(() => useGameStore.setState(JSON.parse(initial)));
 const store = () => useGameStore.getState();
 const piece = (id, type, extra = {}) => ({ id, type, x: 0, z: 0, rot: 0, ...extra });
 
-test("melhorias only work while placed: carts add a product, the ATM more money, machines play", () => {
+test("melhorias only work while placed: carts are a station to take, the ATM more money, machines play", () => {
 	const none = getDecorEffects({ items: [piece("d1", "cart-corral", { stored: true })], owned: { "cart-corral": 1 } });
-	expect(none.basketItems).toBe(0);
+	expect(none.carriers).toEqual([]);
 	const fx = getDecorEffects({
 		items: [piece("d1", "cart-corral"), piece("d2", "cart-corral"), piece("d3", "atm"), piece("d4", "claw-machine"), piece("d5", "gumball"), piece("d6", "plant-small")],
 		owned: {},
 	});
 	// carts and the ATM count once, however many stand
-	expect(fx.basketItems).toBe(1);
+	expect(fx.carriers).toEqual(["cart"]);
+	expect(fx.basketItems).toBe(0);
 	expect(fx.budgetMultiplier).toBeCloseTo(1.15);
 	expect(fx.machines.map((m) => m.decorId).sort()).toEqual(["claw-machine", "gumball"]);
 });

@@ -72,6 +72,10 @@ export type MarketVisit = {
 	purchases: MarketPurchase[];
 	revenue: number;
 	totalUnits: number;
+	/** What the customer carried (only when the visit was given the market's stations). */
+	carrier?: import("./fixture-tiers").CartCarrier;
+	/** Extra products the customer planned and left behind: no basket or cart big enough. */
+	cartShortfall?: number;
 };
 
 export type MarketVisitOptions = {
@@ -83,4 +87,9 @@ export type MarketVisitOptions = {
 	categoryRevenueBonuses?: Record<string, number>;
 	seed: number;
 	storeReputation: number;
+	/**
+	 * Basket and cart stations in the market. Given, the customer plans 0..+4 extra products by archetype and takes
+	 * the smallest carrier that holds them (src/data/fixture-tiers.ts). Left out: the old fixed bonus only.
+	 */
+	carriers?: import("./fixture-tiers").CartCarrier[];
 };

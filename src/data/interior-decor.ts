@@ -3,6 +3,7 @@ import type {
 	InteriorItem,
 	InteriorState,
 } from "@/@types/interior";
+import { normalizeDecorTiers } from "@/data/fixture-tiers";
 
 // Decorations for the build mode shop. Ids match the templates in Unity's Interior Kit.
 export const interiorDecor: InteriorDecorDefinition[] = [
@@ -11,7 +12,11 @@ export const interiorDecor: InteriorDecorDefinition[] = [
 	{ id: "balloons", name: "Arco de balões", description: "Festa de inauguração todo dia.", diamondPrice: 15, requiredLevel: 1, zone: "inside" },
 	{ id: "floor-lamp", name: "Luminária", description: "Luz dourada e aconchegante.", coinPrice: 1_200, requiredLevel: 4, zone: "inside" },
 	{ id: "bench", name: "Banco de descanso", description: "Para quem espera na fila do caixa.", coinPrice: 1_500, requiredLevel: 5, zone: "inside" },
-	{ id: "cart-corral", name: "Carrinhos de Compras", description: "Melhoria: com os carrinhos no mapa, cada cliente pode levar +1 produto.", coinPrice: 4_000, requiredLevel: 7, zone: "inside", effect: { basketItems: 1 } },
+	// Baskets and carts: three stations that live side by side, not tiers (30/10). Each customer takes the smallest
+	// one that holds what they plan to buy (src/data/fixture-tiers.ts chooseCarrier).
+	{ id: "basket-station", name: "Cestinhas", description: "Melhoria: suporte de cestinhas. Quem vai levar pouco pega uma cestinha e leva até +1 produto.", coinPrice: 800, requiredLevel: 2, zone: "inside", effect: { carrier: "basket" } },
+	{ id: "cart-corral", name: "Carrinhos de Compras", description: "Melhoria: baia de carrinhos. Quem vai levar mais pega um carrinho e leva até +2 produtos.", coinPrice: 4_000, requiredLevel: 7, zone: "inside", effect: { carrier: "cart" }, placeEra: "mercadinho" },
+	{ id: "big-cart-corral", name: "Carrinhos Grandes", description: "Melhoria: baia de carrinhos grandes. Quem faz a compra do mês pega um carrinho grande e leva até +4 produtos.", coinPrice: 22_000, requiredLevel: 17, zone: "inside", effect: { carrier: "bigCart" }, placeEra: "mercadinho" },
 	{ id: "plant-palm", name: "Palmeira", description: "Planta grande em vaso dourado.", coinPrice: 2_500, requiredLevel: 8, zone: "inside" },
 	{ id: "promo-stand", name: "Expositor de ofertas", description: "Pilha de promoção com placa.", coinPrice: 3_000, requiredLevel: 10, zone: "inside" },
 	{ id: "water-cooler", name: "Bebedouro", description: "Água fresca para os clientes.", coinPrice: 1_800, requiredLevel: 12, zone: "inside" },
@@ -146,5 +151,6 @@ export function normalizeInteriorState(value: unknown): InteriorState {
 		for (const [id, count] of Object.entries(state.owned))
 			if (getInteriorDecor(id) && typeof count === "number" && count > 0)
 				owned[id] = Math.min(99, Math.floor(count));
-	return { items: sanitizeInteriorItems(state.items, owned) ?? [], owned };
+	const tiers = normalizeDecorTiers(state.tiers);
+	return { items: sanitizeInteriorItems(state.items, owned) ?? [], owned, ...(Object.keys(tiers).length ? { tiers } : {}) };
 }

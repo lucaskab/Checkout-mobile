@@ -6,7 +6,7 @@ import type { GameCelebration, GameCelebrationKind } from "@/@types/game";
 // plays them one by one (desktop/celebration.ts, CheckoutDesktopHUD.Conquest.cs) until the player closes
 // each one (dismissCelebration).
 
-const KINDS: GameCelebrationKind[] = ["lot", "era", "sector", "shelf", "shop"];
+const KINDS: GameCelebrationKind[] = ["lot", "era", "sector", "shelf", "shop", "tier"];
 /** Older ones are dropped: after a long time away only the latest conquests are worth replaying. */
 const MAX_QUEUED = 4;
 

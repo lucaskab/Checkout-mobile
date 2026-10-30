@@ -8,6 +8,9 @@ import { getFixtureName, shelfTypes } from "@/data/shelf-types";
 import { shopItems } from "@/data/shop-items";
 import { getLotClearExperience, getMissingLots } from "@/services/market-lots";
 import { decorIcon, fmt, gameIcon, type State } from "./view-kit";
+import { decorTiers, getFixtureTierDefinition } from "@/data/fixture-tiers";
+import { getShelfCapacity } from "@/data/shelf-capacity";
+import { getShelfFixtureKind } from "@/services/fixture-tiers";
 
 // The conquest celebration (Township's "new area!", Hay Day's "building ready!"): a medal with the thing
 // conquered, a ribbon, what it changes for the player in two or three chips and a button to use it. One at a
@@ -144,6 +147,46 @@ function shopView(celebration: GameCelebration): CelebrationView | null {
 	});
 }
 
+/** "Seu móvel evoluiu!": a fixture or a machine took its next look (targetId "shelf:<id>:<tier>" / "decor:<id>:<tier>"). */
+function tierView(state: State, celebration: GameCelebration): CelebrationView | null {
+	const [group, id, tierText] = celebration.targetId.split(":");
+	const tier = Number(tierText);
+	if (group === "shelf") {
+		const kind = getShelfFixtureKind(id);
+		if (!kind) return null;
+		const definition = getFixtureTierDefinition(kind, tier);
+		const capacity = getShelfCapacity(Math.max(0, tier - 1));
+		return view(celebration, {
+			headline: "SEU MÓVEL EVOLUIU!",
+			title: definition.name,
+			subtitle: `${getFixtureName(id, state.era.id)}: novo visual e mais espaço para os produtos.`,
+			icon: gameIcon("shelf"),
+			tint: "1D2B4F",
+			chips: [
+				{ icon: gameIcon("package"), text: `${capacity} por produto` },
+				{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` },
+			],
+			button: "",
+			route: "",
+		});
+	}
+	const tiers = decorTiers[id];
+	const definition = tiers?.[tier - 1];
+	if (!definition) return null;
+	return view(celebration, {
+		headline: "SEU MÓVEL EVOLUIU!",
+		title: definition.name,
+		subtitle: "Todos os que você colocou ganharam o novo visual.",
+		icon: decorIcon(id),
+		tint: "1D2B4F",
+		chips: [{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` }],
+		button: "",
+		route: "",
+	});
+}
+
+const fmtMetres = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+
 /** The next conquest to celebrate (oldest first), or null. */
 export function celebrationView(state: State): CelebrationView | null {
 	for (const celebration of state.celebrations ?? []) {
@@ -156,7 +199,9 @@ export function celebrationView(state: State): CelebrationView | null {
 						? sectorView(state, celebration)
 						: celebration.kind === "shelf"
 							? shelfView(state, celebration)
-							: shopView(celebration);
+							: celebration.kind === "tier"
+								? tierView(state, celebration)
+								: shopView(celebration);
 		if (built) return built;
 	}
 	return null;

@@ -24,16 +24,8 @@ export const shopCategories: { id: ShopCategory; label: string }[] = [
 
 export const shopItems: ShopItemDefinition[] = [
 	// ------------------------------------------------------------------ equipment: baskets and the till
-	{
-		id: "shopping-basket",
-		name: "Cestinhas de Mão",
-		category: "equipamentos",
-		level: 2,
-		coinPrice: 800,
-		description: "Cada cliente pode levar +1 produto.",
-		effect: { basketItems: 1 },
-	},
-	// "Carrinhos de Compras" became a piece placed on the map (src/data/interior-decor.ts, cart-corral, 18/10).
+	// Baskets and carts are three stations placed on the map (src/data/interior-decor.ts: basket-station, cart-corral,
+	// big-cart-corral; "Evoluções dos móveis" 30/10). "Cestinhas de Mão" and "Carrinhos Grandes" became stations.
 	{
 		id: "extra-checkout",
 		name: "Caixa Extra",
@@ -53,14 +45,27 @@ export const shopItems: ShopItemDefinition[] = [
 		description: "Melhora as geladeiras que você já tem (não é um móvel novo): bebidas, laticínios, frios e queijos rendem +15%.",
 		effect: { categoryRevenue: { categories: COLD_DRINKS, bonus: 0.15 } },
 	},
+	// The checkout evolves in steps ("Evoluções dos móveis"): register (T2) → conveyor (T3) → scanner → premium (T4).
+	// Every checkout of the market (the extra one too) wears the same step (src/data/fixture-tiers.ts).
+	{
+		id: "checkout-register",
+		name: "Caixa registradora",
+		category: "equipamentos",
+		level: 8,
+		coinPrice: 3_000,
+		diamondPrice: 10,
+		description: "O caixa evolui para a registradora: o operador atende 10% mais rápido. Do Minimercado em diante, todo caixa já é registradora.",
+		effect: { cashierSpeed: 1.1 },
+	},
 	{
 		id: "smart-conveyor",
-		name: "Esteira no Caixa",
+		name: "Caixa com esteira",
 		category: "equipamentos",
 		level: 13,
 		coinPrice: 12_000,
-		description: "O operador de caixa atende 25% mais rápido.",
+		description: "O caixa evolui e ganha a esteira: o operador de caixa atende 25% mais rápido.",
 		effect: { cashierSpeed: 1.25 },
+		requiresItemId: "checkout-register",
 	},
 	{
 		id: "vertical-freezer",
@@ -73,22 +78,25 @@ export const shopItems: ShopItemDefinition[] = [
 		effect: { categoryRevenue: { categories: FROZEN, bonus: 0.15 } },
 	},
 	{
-		id: "large-cart",
-		name: "Carrinhos Grandes",
-		category: "equipamentos",
-		level: 17,
-		coinPrice: 22_000,
-		description: "Cada cliente pode levar +2 produtos.",
-		effect: { basketItems: 2 },
-	},
-	{
 		id: "auto-scanner",
 		name: "Leitor de Código de Barras",
 		category: "equipamentos",
 		level: 21,
 		coinPrice: 30_000,
-		description: "O operador de caixa atende 25% mais rápido.",
+		description: "O caixa com esteira ganha o leitor: o operador de caixa atende 25% mais rápido.",
 		effect: { cashierSpeed: 1.25 },
+		requiresItemId: "smart-conveyor",
+	},
+	{
+		id: "checkout-premium",
+		name: "Caixa premium",
+		category: "equipamentos",
+		level: 30,
+		coinPrice: 90_000,
+		diamondPrice: 90,
+		description: "O caixa evolui para o modelo premium: o operador atende 20% mais rápido e a fila espera 15% mais.",
+		effect: { cashierSpeed: 1.2, checkoutPatience: 1.15 },
+		requiresItemId: "auto-scanner",
 	},
 	{
 		id: "self-checkout",
@@ -290,14 +298,39 @@ export const shopItems: ShopItemDefinition[] = [
 		effect: { deliveryTime: 0.75, supplierDiscount: 0.15 },
 	},
 
+	// The cold room keeps the chilled stock (src/data/fixture-tiers.ts): its tier caps the depot's box upgrade of
+	// dairy, cheese, cold cuts, meat, fish, frozen food and ice cream. T1 (the stock freezer) comes free.
 	{
+		id: "cold-room-2",
+		name: "Mini câmara fria",
+		category: "logistica",
+		level: 8,
+		coinPrice: 8_000,
+		diamondPrice: 20,
+		description: "Uma câmara fria colada no depósito: cada produto gelado pode guardar até 5 caixas.",
+	},
+	{
+		id: "cold-room-3",
+		name: "Câmara fria",
+		category: "logistica",
+		level: 20,
+		coinPrice: 45_000,
+		diamondPrice: 60,
+		description: "Câmara maior, com porta de correr: cada produto gelado pode guardar até 8 caixas.",
+		requiresItemId: "cold-room-2",
+	},
+	{
+		// The old "Câmara Fria" item is the T4: who bought it has the big cold room right away.
 		id: "cold-storage",
-		name: "Câmara Fria",
+		name: "Câmara frigorífica",
 		category: "logistica",
 		level: 51,
-		coinPrice: 500_000,
-		description: "Tudo mais fresco: bebidas, laticínios, frios, queijos, congelados, sorvetes, carnes e peixes rendem +10%.",
+		coinPrice: 300_000,
+		diamondPrice: 150,
+		description: "Câmara com doca no armazém central: cada produto gelado pode guardar até 12 caixas, e bebidas, laticínios, frios, queijos, congelados, sorvetes, carnes e peixes rendem +10%.",
 		effect: { categoryRevenue: { categories: [...COLD_DRINKS, ...FROZEN], bonus: 0.1 } },
+		requiresItemId: "cold-room-3",
+		requiresExpansionId: "grand-warehouse",
 	},
 
 	// ------------------------------------------------------------------ ambience (the decor to place is in Decoração)
@@ -440,6 +473,9 @@ export const shopItems: ShopItemDefinition[] = [
 export const retiredShopItemIds = [
 	// now the cart corral of build mode: owners get one to place (src/stores/game-store.ts normalize)
 	"simple-cart",
+	// stations of build mode since 30/10 (owners get one to place: src/stores/game-store.ts withCartStations)
+	"shopping-basket",
+	"large-cart",
 	"atlas-drone",
 	"cashback-hour",
 	"face-checkout",

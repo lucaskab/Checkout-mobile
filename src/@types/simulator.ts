@@ -83,6 +83,11 @@ export type SimulatorSnapshot = {
 		reserve: number;
 		capacity: number;
 		price: number;
+		/** Tier of the fixture's look (src/services/fixture-tiers.ts): 0 at the stalls, 5 = premium finish. */
+		tier: number;
+		/** Unity model of that tier (Resources/CheckoutFixtureTiers), "" = the kit's own. */
+		tierTemplate: string;
+		premium: boolean;
 		unlocked: boolean;
 		building: boolean;
 		requiredLevel: number;
@@ -168,6 +173,7 @@ export type SimulatorSnapshot = {
 	interior: {
 		items: { id: string; type: string; x: number; z: number; rot: number; stored: boolean; outside: boolean }[];
 		owned: { type: string; count: number }[];
+		tiers: { type: string; tier: number; template: string }[];
 	};
 	decorCatalog: {
 		id: string;
@@ -181,10 +187,23 @@ export type SimulatorSnapshot = {
 		upgrade: boolean;
 		/** Machines that pay only up to this many placed copies (0: no limit); the build tray shows "2/3". */
 		limit: number;
+		/** Not on sale yet in this expansion ("Chega com: Mercadinho"); "" = on sale. */
+		lockedNote: string;
 	}[];
 	/** Coins the placed machines just took (newest first): Unity floats them over the machine. */
 	decorPlays: { itemId: string; decorId: string; coins: number; at: number }[];
 	ownedItems: string[];
+	/** "Evoluções dos móveis": the checkouts' step and the cold room (and its works, if any). */
+	fixtureTiers: {
+		checkout: number;
+		checkoutTemplate: string;
+		scanner: boolean;
+		coldRoom: number;
+		coldRoomTemplate: string;
+		/** Template of the tier the builders are putting up ("" = none). */
+		coldRoomBuilding: string;
+		coldRoomEndsAt: number;
+	};
 	/** Boosters running now (Melhorias → Boosters) and the seconds each has left: the map plays their effects. */
 	boosts: string[];
 	boostSeconds: number[];

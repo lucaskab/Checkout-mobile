@@ -224,7 +224,18 @@ import { mmkvStorage } from "@/storage/mmkv";
 import type { MarketEraId } from "@/@types/economy";
 import { getMarketEra, marketEras, STARTING_COINS } from "@/data/economy";
 import { canShelfHold } from "@/data/shelf-categories";
-import { getSectorCounterFor, isSectorShelfId, shelfTypes } from "@/data/shelf-types";
+import { getSectorCounterFor, getShelfType, isSectorShelfId, shelfTypes } from "@/data/shelf-types";
+import {
+	canBuyCapacityTier,
+	getColdRoomTier,
+	getColdRoomUpgradeCap,
+	getNextDecorTier,
+	getShelfFixtureTier,
+	isChilledCategory,
+	isStallEra,
+	withCheckoutRegister,
+} from "@/data/fixture-tiers";
+import { getShelfSlotLimit } from "@/services/fixture-tiers";
 import {
 	getShelfCondition,
 	getSlotPositionFactor,
@@ -775,9 +786,10 @@ function migrateGameState(persistedState: unknown): GameState {
 				...state.shop?.consumableAmounts,
 			}).filter(([id]) => knownShopItem(id)),
 		),
-		ownedItemIds: (
-			state.shop?.ownedItemIds ?? initialGameState.shop.ownedItemIds
-		).filter(knownShopItem),
+		ownedItemIds: withCheckoutRegister(
+			(state.shop?.ownedItemIds ?? initialGameState.shop.ownedItemIds).filter(knownShopItem),
+			(state as Partial<GameState>).era?.id ?? "mesinha",
+		),
 	};
 	const shelfPrices = normalizeShelfPrices(state.shelfPrices, shelfAssignments);
 	const production = {
@@ -929,7 +941,7 @@ function migrateGameState(persistedState: unknown): GameState {
 		lastSessionAt,
 		unlockedMarketExpansionIds,
 		marketExpansionConstruction,
-		interior: withCartsFromShop(normalizeInteriorState(state.interior), state.shop?.ownedItemIds),
+		interior: withCartStations(withCartsFromShop(normalizeInteriorState(state.interior), state.shop?.ownedItemIds), state.shop?.ownedItemIds),
 		interiorConstructions,
 		builtSectorIds,
 		missions,
@@ -1446,6 +1458,8 @@ export const useGameStore = create<GameStore>()(
 				set({
 					era: next,
 					celebrations: pushCelebration(get().celebrations, "era", next.id),
+					// From the minimercado on the checkout the player places is already the register (T2).
+					shop: { ...get().shop, ownedItemIds: withCheckoutRegister(get().shop.ownedItemIds, next.id) },
 					// The new expansion brings its own products.
 					market: {
 						...market,
@@ -1632,6 +1646,7 @@ export const useGameStore = create<GameStore>()(
 						clearing: lots.clearing && needed.includes(lots.clearing.lotId) ? null : lots.clearing,
 					},
 					era: { ...get().era, id: eraId, construction: null },
+					shop: { ...get().shop, ownedItemIds: withCheckoutRegister(get().shop.ownedItemIds, eraId) },
 					market: {
 						...get().market,
 						unlockedProductIds: Array.from(
@@ -1952,6 +1967,9 @@ export const useGameStore = create<GameStore>()(
 				if (item.requiresItemId && !shop.ownedItemIds.includes(item.requiresItemId)) {
 					return false;
 				}
+				if (item.requiresExpansionId && !get().unlockedMarketExpansionIds.includes(item.requiresExpansionId)) {
+					return false;
+				}
 
 				// Fixtures (second checkout, self-checkout) are installed by the builders, and only once the
 				// market has room to place them.
@@ -2001,12 +2019,14 @@ export const useGameStore = create<GameStore>()(
 								? shop.ownedItemIds
 								: [...shop.ownedItemIds, item.id],
 					},
-					// Bought fixtures wait in the inventory until the player places them.
+					// Bought fixtures wait in the inventory until the player places them; works with no piece to
+					// place (the cold room, outside the depot) start right away in the builders' queue.
 					interiorConstructions: installed
-						? [
-								...interiorConstructions,
-								createPendingConstruction("shop", item.id, shopItemBuildDurations[item.id]),
-							]
+						? (() => {
+								const pending = createPendingConstruction("shop", item.id, shopItemBuildDurations[item.id]);
+								const list = [...interiorConstructions, pending];
+								return interiorPieceIds("shop", item.id).length > 0 ? list : placeInteriorConstruction(list, pending.id);
+							})()
 						: interiorConstructions,
 					statistics: {
 						...statistics,
@@ -3063,6 +3083,8 @@ export const useGameStore = create<GameStore>()(
 						getEraEffects(get().era.id).basketBonus +
 						eventEffects.extraBasketItems,
 					products: onSale,
+					// Baskets and carts on the map: each customer takes the smallest that holds their plan.
+					carriers: decorEffects.carriers,
 					// Customers pay the shelf price: the era makes them richer (budget), never the goods dearer.
 					revenueMultiplier: shopEffects.revenueMultiplier * eventEffects.revenueMultiplier,
 					categoryRevenueBonuses: shopEffects.categoryRevenueBonuses,
@@ -3122,7 +3144,9 @@ export const useGameStore = create<GameStore>()(
 				// Customers the event brought (the ATM queue on payday, the bus at rush hour…): Unity starts their
 				// walk in the event's scene; the visit, basket and money are the same.
 				const origin = getEventCustomerOrigin(events, now, market.randomSeed);
-				const visitor = origin ? { ...plainVisitor, origin } : plainVisitor;
+				// Unity hands them the basket or cart they took (src/data/fixture-tiers.ts chooseCarrier).
+				const carried = visit.carrier ? { ...plainVisitor, carrier: visit.carrier } : plainVisitor;
+				const visitor = origin ? { ...carried, origin } : carried;
 				const saleCategories: Record<string, number> = {};
 				let saleProfit = 0;
 				for (const purchase of visit.purchases) {
@@ -3226,6 +3250,7 @@ export const useGameStore = create<GameStore>()(
 									Math.max(1, eventEffects.customerArrivalMultiplier),
 							),
 						recentCustomers: [customer, ...market.recentCustomers].slice(0, 3),
+						...((visit.cartShortfall ?? 0) > 0 ? { cartShortfall: (market.cartShortfall ?? 0) + 1 } : {}),
 						...(playCoins > 0
 							? {
 									decorEarnings,
@@ -4187,6 +4212,10 @@ export const useGameStore = create<GameStore>()(
 				) {
 					return false;
 				}
+				// A small fixture has room for fewer products (T1 up to 5, T2 up to 6, then 7).
+				if (getShelfType(physicalShelfId) && nextUpgrade.unlockedSlots > getShelfSlotLimit(state, physicalShelfId)) {
+					return false;
+				}
 
 				const nextShelfSlotCounts = {
 					...shelfSlotCounts,
@@ -4290,6 +4319,8 @@ export const useGameStore = create<GameStore>()(
 				const { coins, interior, logistics, market } = get();
 				const decor = getInteriorDecor(decorId);
 				if (!decor || market.level < decor.requiredLevel) return false;
+				// The cart bays need the market building's aisles (Mercadinho on).
+				if (decor.placeEra && getEraOrder(get().era.id) < getEraOrder(decor.placeEra)) return false;
 				const useDiamonds = currency === "diamonds" || !decor.coinPrice;
 				const price = useDiamonds ? decor.diamondPrice : decor.coinPrice;
 				if (!price) return false;
@@ -4304,6 +4335,23 @@ export const useGameStore = create<GameStore>()(
 						...interior,
 						owned: { ...interior.owned, [decorId]: (interior.owned[decorId] ?? 0) + 1 },
 					},
+				});
+				return true;
+			},
+			// Evolving decorations (ATM, gumball, claw machine): every piece of that kind takes the next tier.
+			upgradeDecorTier: (decorId, currency = "coins") => {
+				const { coins, interior, logistics, market } = get();
+				const next = getNextDecorTier(interior.tiers, decorId);
+				if (!next || market.level < next.requiredLevel || (interior.owned[decorId] ?? 0) <= 0) return false;
+				const useDiamonds = currency === "diamonds" || !next.coinPrice;
+				const price = useDiamonds ? next.diamondPrice : next.coinPrice;
+				if (!price) return false;
+				if (useDiamonds ? !enoughDiamonds(price) : coins < price) return false;
+				set({
+					coins: useDiamonds ? coins : coins - price,
+					logistics: useDiamonds ? { ...logistics, premiumCurrency: logistics.premiumCurrency - price } : logistics,
+					interior: { ...interior, tiers: { ...interior.tiers, [decorId]: next.tier } },
+					celebrations: pushCelebration(get().celebrations, "tier", `decor:${decorId}:${next.tier}`),
 				});
 				return true;
 			},
@@ -4365,6 +4413,10 @@ export const useGameStore = create<GameStore>()(
 				) {
 					return false;
 				}
+				// Chilled products are kept in the cold room: its tier caps their boxes (what was bought stays).
+				if (isChilledCategory(product.category) && upgradeLevel + 1 > getColdRoomUpgradeCap(getColdRoomTier(get().shop.ownedItemIds))) {
+					return false;
+				}
 
 				set({
 					coins: coins - nextUpgrade.coinCost,
@@ -4402,6 +4454,10 @@ export const useGameStore = create<GameStore>()(
 				if (!nextUpgrade || market.level < nextUpgrade.playerLevel) {
 					return false;
 				}
+				// Each capacity step is the fixture's next tier: a bigger piece the shop must have room for.
+				if (getShelfType(shelfId) && !canBuyCapacityTier(upgradeLevel, get().era.id)) {
+					return false;
+				}
 
 				if (
 					(currency === "coins" && coins < nextUpgrade.coinCost) ||
@@ -4410,6 +4466,10 @@ export const useGameStore = create<GameStore>()(
 					return false;
 				}
 
+				const evolves =
+					!!getShelfType(shelfId) &&
+					!isStallEra(get().era.id) &&
+					getShelfFixtureTier(upgradeLevel + 1, get().era.id) > getShelfFixtureTier(upgradeLevel, get().era.id);
 				set({
 					coins: currency === "coins" ? coins - nextUpgrade.coinCost : coins,
 					logistics:
@@ -4424,6 +4484,10 @@ export const useGameStore = create<GameStore>()(
 						...shelfUpgradeLevels,
 						[shelfId]: upgradeLevel + 1,
 					},
+					// "Seu móvel evoluiu!": the new look gets its own little celebration.
+					...(evolves
+						? { celebrations: pushCelebration(get().celebrations, "tier", `shelf:${shelfId}:${upgradeLevel + 2}`) }
+						: {}),
 				});
 
 				return true;
@@ -4574,7 +4638,10 @@ export const useGameStore = create<GameStore>()(
 			// 46: customers' special requests removed (Lucas 29/10): migrateGameState → normalizeDayState drops their list,
 			// stats and contracts from the day; everything else (and the loyalty earned) is kept.
 			// 47: "Cores do mercado" (marketPaint): older saves start with the classic navy and gold (migrateGameState).
-			version: 47,
+			// 48: "Evoluções dos móveis": tiers are derived (shelfUpgradeLevels, shop items), nothing is lost. migrateGameState
+			// gives the stations of "Cestinhas de Mão"/"Carrinhos Grandes" to place (withCartStations), the register step
+			// to the minimercado on and to who had the conveyor/scanner (withCheckoutRegister); interior.tiers is new.
+			version: 48,
 		},
 	),
 );
@@ -5029,6 +5096,25 @@ function createMarketCustomer(
 function withCartsFromShop(interior: InteriorState, ownedItemIds: string[] | undefined): InteriorState {
 	if (!ownedItemIds?.includes("simple-cart") || (interior.owned["cart-corral"] ?? 0) > 0) return interior;
 	return { ...interior, owned: { ...interior.owned, "cart-corral": 1 } };
+}
+
+/**
+ * "Cestinhas de Mão" and "Carrinhos Grandes" (shop upgrades) became stations placed on the map (30/10): who bought
+ * them gets the station in the build-mode inventory ("Para colocar"). Idempotent: an owner already holding the
+ * station gets nothing more.
+ */
+function withCartStations(interior: InteriorState, ownedItemIds: string[] | undefined): InteriorState {
+	const owned = { ...interior.owned };
+	let changed = false;
+	for (const [itemId, station] of [
+		["shopping-basket", "basket-station"],
+		["large-cart", "big-cart-corral"],
+	] as const)
+		if (ownedItemIds?.includes(itemId) && (owned[station] ?? 0) <= 0) {
+			owned[station] = 1;
+			changed = true;
+		}
+	return changed ? { ...interior, owned } : interior;
 }
 
 function applyCheckoutPayment(
