@@ -146,3 +146,58 @@ then x range / z range relative to the pivot. Customers stand on -z.
   preview boards in `textures/preview/` are render-only.
 - **KitRemap needs a change:** it parses `E_<hex>` as a glow colour, so add a case for these two names before the
   `E_` rule. Otherwise "PriceS" is read as a hex.
+
+## Special sectors (round 4, approved): `sector-<id>_T<n>.fbx`
+Twenty-one files: ids `acougue`, `padaria`, `queijaria` (shown as "Frios e laticínios"), `peixaria`, `sorvetes`,
+`adega` and `sucos`, each at T1, T2 and T3.
+
+- **Conventions:** same as the other kit exports.
+  - The customer side faces Unity −Z.
+  - The pivot is the footprint centre on the floor.
+  - The objects are `Body` only (no Anim Fill).
+- **Footprints:** T1 2.5 × 2.0 m, T2 3.25 × 2.5 m, T3 4.0 × 3.25 m. The back wall sits at +Z, just inside the footprint.
+- **Textures:** products use `T_FT_Sector`, so copy `textures/FT_Sector_albedo.png` to `Assets/Art/Interior/Textures/`.
+  Import it at **2048**: `KitTexture` caps textures at 1024 unless the path contains "IK_Labels", and 1024 halves
+  the product detail. Some packs also use `T_FT_Labels`.
+- **Material roles:** as above. Navy and Gold repaint; products, wood, cream and metal keep their colours.
+
+### Screen and name slots (blank in the FBX; the game draws into them)
+Each slot is a separate flat quad with UV 0..1 over its whole face, facing −Z. The table below gives each quad's
+centre in Unity local coordinates and its size (width × height, metres).
+
+| Slot | What it is | How it ships | What the game does |
+|---|---|---|---|
+| `E_PriceScreen` | digital price panels | dark "screen off" | draw product pictograms and price rows (several panels per tier share the slot) |
+| `E_TicketScreen` | "agora atendendo" number display | dark | draw the current number |
+| `E_NamePanel` | blank cream name area: T1 wall name board, T2 hanging sign, T3 testeira | cream | write the translated sector name |
+
+- **KitRemap needs a change:** add explicit cases for these three names *before* the `E_<hex>` glow rule. As it is,
+  "PriceS", "Ticket" and "NamePa" would be parsed as hex colours.
+- **Ticket dispenser:** the "pegue sua senha" stand is regular geometry. Its floor point is listed per tier below.
+  Its small sign plate is blank cream, not a slot.
+
+| File | Tris | Bounds min → max (x, y, z) | Slots: centre (x, y, z) · size |
+|---|---|---|---|
+| `sector-acougue_T1.fbx` | 11,028 | (-1.27, 0.00, -0.97) → (1.27, 2.48, 1.00) | NamePanel (0.00, 2.25, 0.82) · 0.72×0.15 |
+| `sector-acougue_T2.fbx` | 14,110 | (-1.65, 0.00, -1.26) → (1.65, 2.89, 1.25) | PriceScreen (-0.45, 2.42, 1.11) · 0.85×0.48<br>PriceScreen (0.45, 2.42, 1.11) · 0.85×0.48<br>TicketScreen (1.10, 2.45, 1.11) · 0.36×0.16<br>Dispenser (1.20, 0.00, -1.12)<br>NamePanel (-0.80, 2.30, -0.52) · 0.67×0.14 |
+| `sector-acougue_T3.fbx` | 22,922 | (-2.02, 0.00, -1.64) → (2.02, 3.08, 1.62) | NamePanel (0.00, 2.85, 0.93) · 1.60×0.21<br>PriceScreen (-0.95, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (-0.12, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (0.71, 2.20, 1.49) · 0.80×0.45<br>TicketScreen (1.50, 2.38, 1.49) · 0.36×0.16<br>Dispenser (-1.70, 0.00, -1.50) |
+| `sector-padaria_T1.fbx` | 9,327 | (-1.27, 0.00, -0.97) → (1.27, 2.60, 1.00) | NamePanel (0.45, 2.25, 0.82) · 0.72×0.15 |
+| `sector-padaria_T2.fbx` | 12,784 | (-1.65, 0.00, -1.26) → (1.65, 2.89, 1.25) | PriceScreen (-0.85, 2.42, 1.11) · 0.80×0.45<br>PriceScreen (0.05, 2.42, 1.11) · 0.80×0.45<br>TicketScreen (0.90, 2.45, 1.11) · 0.36×0.16<br>Dispenser (-1.45, 0.00, -1.12)<br>NamePanel (-0.30, 2.30, -0.52) · 0.67×0.14 |
+| `sector-padaria_T3.fbx` | 24,755 | (-2.02, 0.00, -1.64) → (2.02, 3.08, 1.62) | PriceScreen (-0.95, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (-0.12, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (0.71, 2.20, 1.49) · 0.80×0.45<br>TicketScreen (1.40, 2.38, 1.49) · 0.36×0.16<br>Dispenser (-1.70, 0.00, -1.50)<br>NamePanel (0.00, 2.85, 0.93) · 1.60×0.21 |
+| `sector-queijaria_T1.fbx` | 8,008 | (-1.27, 0.00, -0.97) → (1.27, 2.48, 1.00) | NamePanel (0.00, 2.25, 0.82) · 0.72×0.15 |
+| `sector-queijaria_T2.fbx` | 15,422 | (-1.65, 0.00, -1.26) → (1.65, 2.89, 1.25) | PriceScreen (-0.85, 2.42, 1.11) · 0.80×0.45<br>PriceScreen (0.05, 2.42, 1.11) · 0.80×0.45<br>TicketScreen (0.95, 2.42, 1.11) · 0.36×0.16<br>Dispenser (1.20, 0.00, -1.12)<br>NamePanel (-0.80, 2.30, -0.52) · 0.67×0.14 |
+| `sector-queijaria_T3.fbx` | 23,706 | (-2.02, 0.00, -1.64) → (2.02, 3.08, 1.62) | PriceScreen (-1.20, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (-0.35, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (0.50, 2.20, 1.49) · 0.80×0.45<br>TicketScreen (1.25, 2.38, 1.49) · 0.36×0.16<br>Dispenser (-1.70, 0.00, -1.50)<br>NamePanel (0.00, 2.85, 0.93) · 1.60×0.21 |
+| `sector-peixaria_T1.fbx` | 8,421 | (-1.27, 0.00, -0.97) → (1.27, 2.48, 1.00) | NamePanel (0.00, 2.25, 0.82) · 0.72×0.15 |
+| `sector-peixaria_T2.fbx` | 13,729 | (-1.65, 0.00, -1.26) → (1.65, 2.89, 1.25) | PriceScreen (-0.85, 2.42, 1.11) · 0.80×0.45<br>PriceScreen (0.05, 2.42, 1.11) · 0.80×0.45<br>TicketScreen (0.95, 2.42, 1.11) · 0.36×0.16<br>Dispenser (1.20, 0.00, -1.12)<br>NamePanel (-0.80, 2.30, -0.52) · 0.67×0.14 |
+| `sector-peixaria_T3.fbx` | 17,499 | (-2.02, 0.00, -1.64) → (2.02, 3.08, 1.62) | PriceScreen (-0.95, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (-0.12, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (0.71, 2.20, 1.49) · 0.80×0.45<br>TicketScreen (1.50, 2.38, 1.49) · 0.36×0.16<br>Dispenser (-1.70, 0.00, -1.50)<br>NamePanel (0.00, 2.85, 0.93) · 1.60×0.21 |
+| `sector-sorvetes_T1.fbx` | 7,788 | (-1.27, 0.00, -0.97) → (1.27, 2.48, 1.00) | NamePanel (0.00, 2.25, 0.82) · 0.72×0.15 |
+| `sector-sorvetes_T2.fbx` | 11,210 | (-1.65, 0.00, -1.02) → (1.65, 2.89, 1.25) | PriceScreen (-0.85, 2.42, 1.11) · 0.80×0.45<br>PriceScreen (0.05, 2.42, 1.11) · 0.80×0.45<br>NamePanel (-0.50, 2.30, -0.52) · 0.67×0.14 |
+| `sector-sorvetes_T3.fbx` | 20,772 | (-2.02, 0.00, -1.40) → (2.02, 3.08, 1.62) | PriceScreen (-1.20, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (-0.35, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (0.50, 2.20, 1.49) · 0.80×0.45<br>NamePanel (0.00, 2.85, 0.93) · 1.60×0.21 |
+| `sector-adega_T1.fbx` | 12,056 | (-1.27, 0.00, -0.81) → (1.27, 2.48, 1.00) | NamePanel (0.00, 2.25, 0.82) · 0.72×0.15 |
+| `sector-adega_T2.fbx` | 17,434 | (-1.65, 0.00, -1.01) → (1.65, 2.89, 1.25) | PriceScreen (-0.55, 2.42, 1.11) · 0.80×0.45<br>NamePanel (-0.30, 2.30, -0.62) · 0.67×0.14 |
+| `sector-adega_T3.fbx` | 19,760 | (-2.06, 0.00, -1.35) → (2.02, 3.08, 1.62) | PriceScreen (-1.05, 2.25, 1.49) · 0.80×0.45<br>PriceScreen (0.70, 2.25, 1.49) · 0.80×0.45<br>NamePanel (0.00, 2.85, 0.93) · 1.60×0.21 |
+| `sector-sucos_T1.fbx` | 11,898 | (-1.27, 0.00, -1.02) → (1.27, 2.48, 1.00) | NamePanel (0.00, 2.25, 0.82) · 0.72×0.15 |
+| `sector-sucos_T2.fbx` | 18,470 | (-1.65, 0.00, -1.17) → (1.65, 2.89, 1.25) | PriceScreen (-0.85, 2.42, 1.11) · 0.80×0.45<br>PriceScreen (0.05, 2.42, 1.11) · 0.80×0.45<br>NamePanel (-0.30, 2.30, -0.52) · 0.67×0.14 |
+| `sector-sucos_T3.fbx` | 25,350 | (-2.02, 0.00, -1.55) → (2.02, 3.08, 1.62) | PriceScreen (-1.20, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (-0.35, 2.20, 1.49) · 0.80×0.45<br>PriceScreen (0.50, 2.20, 1.49) · 0.80×0.45<br>NamePanel (0.00, 2.85, 0.93) · 1.60×0.21 |
+
+`sector_export_report.json` has the same data plus the material list per file.

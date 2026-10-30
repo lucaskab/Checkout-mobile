@@ -511,8 +511,8 @@ def v4_rack_oven(acc, loc, yaw=0):
     fr = frame_bm(.66, 1.5, .03, .03, .05); place(fr, (-.12, -.505, 1.0)); X.add(fr, C("1B1E24"))
     rbox(X, (.58, .02, 1.42), (-.12, -.51, 1.0), GLASS, .01, 1)
     rbox(X, (.56, .02, 1.38), (-.12, -.36, 1.0), "E_FFB25A", .01, 1)
-    for k in range(4):
-        z = .45 + k * .33
+    for k in range(3):
+        z = .5 + k * .42
         rbox(X, (.5, .4, .015), (-.12, -.2, z), C(STEEL), .003, 1)
         for j in range(3):
             sd_roll(X, (-.3 + j * .17, -.25, z + .008), .04, k * 3 + j)
@@ -593,7 +593,7 @@ def v4_bread_bin(acc, loc, w=.9, d=.6, yaw=0, seed=0):
     open_box(B, w - .04, d - .04, .14, (0, 0, 0), WICKER, .02, .008, 3)
     blob(B, (w * .44, d * .4, .06), (0, 0, .06), C("C08040"), 2, .1, seed)
     rnd = random.Random(seed)
-    nx, ny = int((w - .1) / .09), int((d - .1) / .09)
+    nx, ny = int((w - .1) / .12), int((d - .1) / .12)
     for i in range(nx):
         for j in range(ny):
             sd_roll(B, (-(w - .1) / 2 + (i + .5) * (w - .1) / nx + rnd.uniform(-.01, .01), -(d - .1) / 2 + (j + .5) * (d - .1) / ny, .07 + .02 * math.sin(i + j)), .04, i * 7 + j)
@@ -704,8 +704,8 @@ def padaria_v4(acc, tier):
         v4_rack_oven(acc, (-1.45, yb - .58, 0), 0)
         v4_rack_oven(acc, (-.4, yb - .58, 0), 0)
         v4_proofer(acc, (.45, yb - .48, 0), 0)
-        v4_rack_trolley(acc, (1.1, yb - .45, 0), 0, 6, "roll")
-        v4_rack_trolley(acc, (1.65, yb - .45, 0), 0, 6, "baguette")
+        v4_rack_trolley(acc, (1.1, yb - .45, 0), 0, 4, "roll")
+        v4_rack_trolley(acc, (1.65, yb - .45, 0), 0, 4, "baguette")
         v4_bread_slicer(acc, (-1.65, -D / 2 + 1.45, 0), 90)
         v4_label_scale(acc, (-1.2, cy + .4, .92), 180)
         v4_section(acc, 3, W, D, H, yb, panels=((-.95, 2.2, .8), (-.12, 2.2, .8), (.71, 2.2, .8)), ticket=(-1.7, 20), display=(1.4, 2.38))
@@ -769,14 +769,14 @@ def v4_deli_pack(acc, loc, kind, foam="F4F2EC"):
 def v4_deli_shelf_fill(X, i, w, d):
     n = int(w / .23)
     for c in range(n):
-        for r_ in range(2):
+        for r_ in range(1):
             v4_deli_pack(X, (-w / 2 + .12 + c * .23, -d / 2 + .1 + r_ * .18, 0), ["ham", "cheese", "salami", "turkey"][(i + c + r_) % 4], ["F4F2EC", "2E4A7D"][(c + r_) % 2])
 
 
 def v4_yogurt_fill(X, i, w, d):
     n = int(w / .08)
     for c in range(n):
-        for r_ in range(2):
+        for r_ in range(1):
             px_ = -w / 2 + .05 + c * .08
             if i % 2:
                 yogurt(X, (px_, -d / 2 + .08 + r_ * .12, 0), "Body", "yogurt", .032, .06)
@@ -822,9 +822,9 @@ def queijaria_v4(acc, tier):
         v4_label_scale(acc, (.15, yb - .38, .9), 0)
         v4_label_scale(acc, (.5, yb - .38, .9), 0)
         v4_glass_cabinet(acc, 1.25, yb - .38, 1.2, .65, 1.95, v4_yogurt_fill, True, NAVY, 4)
-        v4_hook_rail(acc, -1.6, .55, yb - .07, 1.62, 6)
-        for k in range(6):
-            sd_provolone(acc, -1.45 + k * .38, yb - .19, 1.57, .85, False)
+        v4_hook_rail(acc, -1.6, .55, yb - .07, 1.62, 4)
+        for k in range(4):
+            sd_provolone(acc, -1.4 + k * .55, yb - .19, 1.57, .85, False)
         v4_section(acc, 3, W, D, H, yb, panels=((-1.2, 2.2, .8), (-.35, 2.2, .8), (.5, 2.2, .8)), ticket=(-1.7, 20), display=(1.25, 2.38))
 
 
@@ -1256,3 +1256,131 @@ for _sid, _fn in (("acougue", acougue_v4), ("padaria", padaria_v4), ("queijaria"
     BUILDERS["sector-" + _sid] = make_sector_v2(_sid, _fn)
     TIERS["sector-" + _sid] = [("T%d" % (i + 1), "%s: %s" % (SECTOR_NAMES[_sid], SECTOR_TIER_NAMES[_sid][i]), w, d, h)
                                for i, (w, d, h) in enumerate(SECTOR_SIZES)]
+
+
+
+# ================================================================================================ export (round 4)
+# Name panels: every blank panel the game writes the sector name on (T1 name board, T2 hanging sign, T3 testeira)
+# gets a flat quad on its own slot "E_NamePanel" (UV 0..1), just in front of the cream plate. Screens and name
+# panels are logged per tier (Unity-local centre and size) for the README.
+SLOTLOG = {}
+_CUR = [None]
+
+
+def _world(acc, p):
+    v = Vector(p)
+    a = acc
+    while isinstance(a, Xf):
+        v = a.M @ v
+        a = a.acc
+    return v
+
+
+def _log(slot, p, w=None, h=None, acc=None):
+    if not _CUR[0]:
+        return
+    v = _world(acc, p) if acc is not None else Vector(p)
+    e = {"slot": slot, "center_unity": [round(v.x, 3), round(v.z, 3), round(v.y, 3)]}
+    if w:
+        e["size"] = [round(w, 3), round(h, 3)]
+        e["faces"] = "-Z (customer side)"
+    SLOTLOG.setdefault(_CUR[0], []).append(e)
+
+
+def name_quad(acc, w, h, loc):
+    screen_quad(acc, w, h, loc, "E_NamePanel")
+    _log("E_NamePanel", loc, w, h, acc)
+
+
+def name_board(acc, x, y, z, w=1.1, h=.3):
+    """Blank arched board; the cream face carries the E_NamePanel quad (the game writes the sector name)."""
+    plate(acc, w, h, (x, y, z), C(NAVY), .05, h * .45)
+    fr = frame_bm(w - .04, h - .04, .012, h * .4, .014)
+    place(fr, (x, y - .028, z)); acc.add(fr, C(GOLD))
+    plate(acc, w * .8, h * .62, (x, y - .03, z), C(CREAM), .01, h * .3)
+    name_quad(acc, w * .72, h * .5, (x, y - .037, z))
+
+
+_v4_hanging_sign = v4_hanging_sign
+
+
+def v4_hanging_sign(acc, x, y, z, w=.9, h=.28):
+    _v4_hanging_sign(acc, x, y, z, w, h)
+    name_quad(acc, w * .74, h * .5, (x, y - .023, z))
+
+
+_v4_testeira = v4_testeira
+
+
+def v4_testeira(acc, W, yb, H, h=.42, depth=.55):
+    _v4_testeira(acc, W, yb, H, h, depth)
+    name_quad(acc, W * .4, h * .5, (0, yb - .06 - depth - .022, H - h * .45))
+
+
+_v4_price_panel = v4_price_panel
+
+
+def v4_price_panel(acc, x, y, z, w=1.0, variant=0, rot=(0, 0, 0)):
+    _v4_price_panel(acc, x, y, z, w, variant, rot)
+    _log("E_PriceScreen", (x, y - .002, z), w, w * 9 / 16, acc)
+
+
+_v4_ticket_display = v4_ticket_display
+
+
+def v4_ticket_display(acc, x, y, z, rot=(0, 0, 0)):
+    _v4_ticket_display(acc, x, y, z, rot)
+    _log("E_TicketScreen", (x, y - .002, z), .36, .16, acc)
+
+
+_v4_ticket_dispenser = v4_ticket_dispenser
+
+
+def v4_ticket_dispenser(acc, loc, yaw=0):
+    _v4_ticket_dispenser(acc, loc, yaw)
+    _log("TicketDispenser (floor point)", loc, None, None, acc)
+
+
+def _logged(sid, fn):
+    def mk(t):
+        def f(acc):
+            key = "sector-%s_T%d" % (sid, t)
+            _CUR[0] = key
+            SLOTLOG[key] = []
+            try:
+                fn(acc, t)
+            finally:
+                _CUR[0] = None
+        return f
+    return [mk(t) for t in (1, 2, 3)]
+
+
+for _sid, _fn in (("acougue", acougue_v4), ("padaria", padaria_v4), ("queijaria", queijaria_v4), ("peixaria", peixaria_v4),
+                  ("sorvetes", sorvetes_v4), ("adega", adega_v4), ("sucos", sucos_v4)):
+    BUILDERS["sector-" + _sid] = _logged(_sid, _fn)
+
+
+def v4_name_material():
+    m = bpy.data.materials.get("E_NamePanel") or bpy.data.materials.new("E_NamePanel")
+    m.use_nodes = True
+    b = m.node_tree.nodes.get("Principled BSDF")
+    b.inputs["Base Color"].default_value = srgb(CREAM) + (1,)
+    b.inputs["Roughness"].default_value = .5
+    return m
+
+
+def v4_export_all():
+    """Rebuild every sector lineup and write export/sector-<id>_T<n>.fbx (screens blanked by export_tier)."""
+    import json
+    reps = []
+    for sid in ("acougue", "padaria", "queijaria", "peixaria", "sorvetes", "adega", "sucos"):
+        v4_materials(sid)
+        v4_name_material()
+        rebuild("sector-" + sid)
+        for t in (1, 2, 3):
+            r = export_tier("sector-" + sid, t)
+            r["slots"] = SLOTLOG.get("sector-%s_T%d" % (sid, t), [])
+            reps.append(r)
+    with open(os.path.join(EXPORT, "sector_export_report.json"), "w") as f:
+        json.dump(reps, f, indent=1, ensure_ascii=False)
+    return [(r["file"], r["tris"]) for r in reps]
