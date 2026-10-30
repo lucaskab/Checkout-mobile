@@ -101,3 +101,48 @@ then x range / z range relative to the pivot. Customers stand on -z.
 - `coldroom_T1` sits indoors; T2/T3 attach outside to the depósito's side wall (door through the depósito), and T4
   attaches beside the central warehouse dock. See `previews/coldroom_place_T*.jpg` and the doc.
 - `export_report.json` has the same data, plus every material per file.
+
+## Cold room as a depot wing (Supermercado): `coldroom_depotwing_T2.fbx`, `coldroom_depotwing_T3.fbx`
+- Built by `scripts/blender/depot_wing.py` (`depotwing_build`, `depotwing_export`).
+- **Pivot = the depot's pivot, depot-LOCAL coordinates.** Parent the FBX to the `Depot_74x71` instance with
+  local position/rotation zero; it then follows the depot's yaw (90° at this stage).
+- **Placement** (depot-local, Unity axes): the wing hugs the EAST wall (local +z face at z = 3.786) and runs
+  to the south end of the usable strip.
+
+  | File | Wing x range | Outward z | Wing height | Overall bounds | Tris |
+  |---|---|---|---|---|---|
+  | `coldroom_depotwing_T2.fbx` | 1.40..5.40 (4 m) | 3.786..5.206 | 3.2 m | x 1.36..5.47, z 1.83..5.261, y 0..5.095 | 4,080 |
+  | `coldroom_depotwing_T3.fbx` | −2.60..5.40 (8 m) | 3.786..5.206 | 3.4 m | x −2.64..5.47, z 1.83..5.261, y 0..5.095 | 6,196 |
+
+  Everything stays inside the measured strip: x ≤ 6.4 (clear of the truck bay), outward ≤ 5.279 (the relief port and
+  corner guards included), height < 5.28 (the roof condensers top out at 5.095).
+- **No outside door.** The door is through the depot's east wall, from inside the depot; the wing is a closed box.
+  - Between x 1.40 (T3 −2.60) and 3.87 the wing sits against the existing wall.
+  - From 3.87 to 5.40 it stands past the south-east corner. There its west face (z = 3.786) and its south end face
+    (x = 5.40) are the faces the south-west game camera sees.
+- **Cladding** (thin, about 3 cm, no new footprint) goes on the depot's SOUTH face (x = 3.872), from the annex edge
+  (z 1.85) to the corner. It has cream panels with seams, a navy kick band, the gold line and a navy corner guard.
+  - T2 clads up to the wing height.
+  - T3 clads up to the roof, and also clads the east wall above the wing up to the parapet.
+- **Roof condensers** sit on the depot roof near the east edge (roof surface y = 4.41):
+  - T2: one at x 3.0, z 3.2;
+  - T3: a second one at x −0.2;
+  - refrigerant pipes run over the parapet down to the wing roof.
+- **South end face of the wing:** a navy snowflake pictogram (no text), a cool status light, a red light and a blank
+  temperature display. Frost runs along the foot.
+- **Materials:** same contract as the other exports (`C_RRGGBB_<Role>`: Navy and Gold paint-friendly, Cream/Metal
+  keep), plus emissive lights (`E_...`). Check shot: `previews/coldroom_depotwing_T2_gamecam.jpg` / `_T3_gamecam.jpg`
+  (the depot in clay, seen from the south-west).
+- **Caveat:** I couldn't confirm the roof surface height from the mesh alone (I read 4.41 with a parapet at 4.62–4.76).
+  If the condensers float or sink in game, nudge them in y.
+
+## Sector screens (all seven special sectors, round 4, not exported yet)
+- **Slots:** price panels and the ticket number display are separate meshes on two single material slots,
+  `E_PriceScreen` and `E_TicketScreen`.
+  - The screen UVs cover 0..1 (the price screens use a third of the preview sheet, chosen by `variant`, for the
+    renders only).
+  - The game draws pictograms and live prices into them.
+- **Blanking on export:** `export_tier` blanks both slots (dark "screen off", no image) through `screens_blank`. The
+  preview boards in `textures/preview/` are render-only.
+- **KitRemap needs a change:** it parses `E_<hex>` as a glow colour, so add a case for these two names before the
+  `E_` rule. Otherwise "PriceS" is read as a hex.
