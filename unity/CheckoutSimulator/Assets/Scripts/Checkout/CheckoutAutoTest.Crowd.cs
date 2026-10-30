@@ -91,12 +91,14 @@ namespace Checkout {
      Line(put != null ? $"placed checkout:main at ({put.root.position.x:0.00},{put.root.position.z:0.00}) rot {put.rot:0}" : "NO ROOM checkout:main");
     }
     if (carts) {
-     // the stations along the front wall, past the way in
-     var door0 = map.Entrance; float sx = Mathf.Max(floor.xMin + .5f, door0.x + 2.6f);
+     // the stations along the front wall on the far side of the way in from the checkouts, as by the door of a real
+     // shop (on the checkout side they stood in the line's lane); stations left by an earlier run are taken away first
+     foreach (var old in inside.items.Values.Where(i => i.root && System.Array.IndexOf(stationTypes, i.type) >= 0).ToList()) inside.RemoveDecor(old);
+     var door0 = map.Entrance; float sx = door0.x - 2.6f;
      foreach (var st in stationTypes) {
-      var it = inside.AddDecor(st, new Vector3(sx, CheckoutInterior.Floor, floor.yMin + .9f));
+      var it = inside.AddDecor(st, new Vector3(Mathf.Max(floor.xMin + 1.3f, sx), CheckoutInterior.Floor, floor.yMin + .9f));
       Line(it != null ? $"placed {st} ({it.template}) at ({it.root.position.x:0.00},{it.root.position.z:0.00})" : $"NO ROOM {st}");
-      sx += 2.8f;
+      sx -= 2.8f;
      }
     }
     map.FurnitureChanged(false); map.SaveInterior();
@@ -177,6 +179,7 @@ namespace Checkout {
    var hostCarriers = new Dictionary<string, (string carrier, int products, int units)>();
    // Everyone who paid in the run (the host's customers too): the register's real throughput.
    var paidBefore = new Dictionary<CheckoutWalker, bool>(); int paidAll = 0;
+   var tillHold = new Dictionary<CheckoutWalker, float>(); var tillBlocked = new Dictionary<CheckoutWalker, float>(); var tillHeld = new HashSet<CheckoutWalker>(); float tillHoldMax = 0; string tillHoldWho = "";
    while (Time.time - t0 < seconds) {
     yield return null; float dt = Time.deltaTime; if (dt <= 0) continue;
     if (stock && Time.time >= nextStock) { nextStock = Time.time + 20; Stock(); }
@@ -246,6 +249,22 @@ namespace Checkout {
      if ((Time.frameCount & 3) == 0 && dots.Count < 120000) { jam.TryGetValue(w, out var jj); dots.Add(new TrailDot { p = p, slip = jj > 3 ? 20 : jj > 1 ? 5 : 0 }); }
     }
     if (doorStand.Values.Any(d => d > 1f)) doorSec += dt;
+    // Head of each line: in line (phase 3) but not yet at the till (more than 1.3 m off its place) — how long, and why.
+    foreach (var lane in map.Lanes.lanes) {
+     var head = lane.queue.Count > 0 ? lane.queue[0] : null;
+     if (!head || !head.gameObject.activeInHierarchy || head.VisitPhase != 3 || Vector3.Distance(head.transform.position, head.QaTarget) < 1.3f) continue;
+     // (only while barely moving: walking up from the shelves at the front of the line is not a hold-up)
+     var headAgent = head.GetComponent<NavMeshAgent>(); if (headAgent && headAgent.velocity.magnitude > .25f) continue;
+     tillHold.TryGetValue(head, out var h); h += dt; tillHold[head] = h;
+     var rigH = head.GetComponent<CheckoutShopperRig>(); if (rigH && rigH.Blocked) { tillBlocked.TryGetValue(head, out var bl); tillBlocked[head] = bl + dt; }
+     string kind = rigH ? (string.IsNullOrEmpty(rigH.carrier) ? (rigH.cart ? "cart(name)" : "basket(name)") : rigH.carrier) : "-";
+     if (h > tillHoldMax) { tillHoldMax = h; tillHoldWho = $"{head.name} {kind}"; }
+     if (h > 10 && tillHeld.Add(head)) {
+      var ag = head.GetComponent<NavMeshAgent>(); var hp = head.transform.position;
+      var near = all.Where(o => o && o != head && o.gameObject.activeInHierarchy && Vector3.Distance(o.transform.position, hp) < 3f).Select(o => $"{o.name} ph{o.VisitPhase} {Vector3.Distance(o.transform.position, hp):0.0}m");
+      Line($"TILL HOLD {head.name} carrier {kind} blocked={(rigH ? rigH.Blocked : false)} (cart slow-down {(tillBlocked.TryGetValue(head, out var bt) ? bt : 0):0}s of {h:0}s) at ({hp.x:0.0},{hp.z:0.0}) place ({head.QaTarget.x:0.0},{head.QaTarget.z:0.0}) {Vector3.Distance(hp, head.QaTarget):0.0}m; agent stopped={ag?.isStopped} path={ag?.hasPath} {ag?.pathStatus} left {ag?.remainingDistance:0.0} speed {(ag ? ag.velocity.magnitude : 0):0.00}; near: {string.Join(", ", near)}");
+     }
+    }
     int line = bridge.Queue.Count; foreach (var lane in map.Lanes.lanes) line = Mathf.Max(line, lane.queue.Count);
     maxLine = Mathf.Max(maxLine, line); if (line > CheckoutStall.QueueInside) overflowSec += dt;
     maxInside = Mathf.Max(maxInside, inCount); insideSum += inCount * dt; maxOutside = Mathf.Max(maxOutside, outWait); if (outWait > 0) waitOutSec += dt;
@@ -270,7 +289,7 @@ namespace Checkout {
         $"held up >3s: {stops3}, >8s: {stops8}, longest {longestStop:0.0}s ({longestWho}); safety net unstick {CheckoutWalker.QaUnsticks - unstick0} force-exit {CheckoutWalker.QaForceExits - exit0}; " +
         $"doorway blocked {doorSec:0}s; waiting outside max {maxOutside} ({waitOutSec:0}s); " +
         $"host checkouts served {served.Count}; paid (everyone) {paidAll}; " +
-        $"market closed {closes}x ({closedSec:0}s); " +
+        $"market closed {closes}x ({closedSec:0}s); head of line short of the till >10s: {tillHeld.Count}, longest {tillHoldMax:0}s ({tillHoldWho}); " +
         $"QA visits paid {paid.Count}/{sent} (time to get in mean {Mean(paid.Where(v => v.entered > 0).Select(v => v.entered - v.began)):0}s, to pay mean {Mean(paid.Select(v => v.paid - v.began)):0}s max {Max(paid.Select(v => v.paid - v.began)):0}s), left without paying {noPay.Count}, still in the shop {still.Count}");
    if (carts) {
     var qa = CrowdCarriers.Select(c => $"{c}: sent {done.Count(v => v.carrier == c)} in {carrierInside.Count(x => x.EndsWith(":" + c))} paid {paid.Count(v => v.carrier == c)} shot {(carrierShots.Contains(c) ? "yes" : "no")}");
