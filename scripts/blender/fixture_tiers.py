@@ -3724,23 +3724,43 @@ def carts_t2(acc):
     rbox(acc, (.012, .76, .012), (.902, 0, .62), C(GOLD), .003, 1)
 
 
-def carts_t3(acc):
-    """Baia de carrinhos grandes: wider corral, four big carts and two kids' carts (a cream car front), navy post."""
-    for s in (-1, 1):
-        tube(acc, [(-1.08, s * .46, .02), (-1.08, s * .46, 1.0), (.95, s * .46, 1.0), (.95, s * .46, .02)], .024, C(CHROME), 8)
-        tube(acc, [(-1.08, s * .46, .52), (.95, s * .46, .52)], .016, C(CHROME), 6)
-    for k in range(4):
-        cart(acc, (.42 - k * .22, -.12, 0), 180, 1.15)
-    for k in range(2):
-        kx = -.55 - k * .2
-        cart(acc, (kx, .28, 0), 180, .6, NAVY)
-        rbox(acc, (.2, .26, .14), (kx + .26, .28, .22), C(CREAM), .05, 3)
+def kids_cart(acc, loc, yaw=0, s=.62):
+    """Kids' cart: a small cart (handle towards local -X) with a cream toy-car front, blue seat and black wheels."""
+    X = Xf(acc, loc, (0, 0, yaw))
+    cart(X, (0, 0, 0), 0, s, BLUE)
+    L = .8 * s
+    cx = L / 2 + .15
+    rbox(X, (.32, .34, .2), (cx, 0, .24), C(CREAM), .07, 3)
+    rbox(X, (.2, .3, .1), (cx - .02, 0, .39), C(BLUE), .04, 2)
+    rbox(X, (.33, .35, .02), (cx, 0, .14), C(GOLD), .008, 1)
+    rbox(X, (.02, .26, .1), (cx + .1, 0, .46), GLASS, .008, 1, rot=(0, -20, 0))
+    lathe(X, [(0, 0), (.045, 0), (.045, .012), (0, .012)], (cx - .08, 0, .5), C(INK), 12, 0, rot=(0, -60, 0))
+    for sx in (-1, 1):
         for sy in (-1, 1):
-            lathe(acc, [(0, 0), (.035, 0), (.035, .02), (0, .02)], (kx + .3, .28 + sy * .14, .2), C(INK), 10, 0, rot=(90, 0, 0))
-    rbox(acc, (.12, .96, 1.2), (1.02, 0, .6), C(NAVY), .03, 3)
-    plate(acc, .6, .36, (1.085, 0, .9), C(CREAM), .012, .05, (0, 0, 90))
-    rbox(acc, (.012, .98, .012), (1.082, 0, .66), C(GOLD), .003, 1)
-    rbox(acc, (.01, .9, .02), (1.085, 0, 1.17), LED, .005, 1)
+            lathe(X, [(0, 0), (.055, 0), (.055, .04), (0, .04)], (cx + sx * .1, sy * .19, .055), C(INK), 12, 0, rot=(90, 0, 0))
+    for sy in (-1, 1):
+        lathe(X, [(0, 0), (.025, 0), (.025, .01), (0, .01)], (cx + .165, sy * .1, .27), "E_FFE6B8", 8, 0, rot=(0, 90, 0))
+
+
+def carts_t3(acc):
+    """Baia de carrinhos grandes: a taller corral, three nested BIG carts (1.3x the normal cart, with a bottom rack)
+    and, in their own bay by the post, two kids' carts whose cream toy-car fronts face the aisle."""
+    for s in (-1, 1):
+        tube(acc, [(-1.08, s * .46, .02), (-1.08, s * .46, 1.18), (.3, s * .46, 1.18), (.3, s * .46, .02)], .024, C(CHROME), 8)
+        tube(acc, [(-1.08, s * .46, .6), (.3, s * .46, .6)], .016, C(CHROME), 6)
+    for k in range(3):
+        x = .3 - .55 - k * .16
+        cart(acc, (x, -.02, 0), 180, 1.3)
+        rbox(acc, (.86, .44, .012), (x + .02, -.02, .16), C(STEEL), .004, 1)
+    # kids' bay: low navy rail, two kids' carts side by side, handles to the customers
+    rbox(acc, (.62, .9, .04), (.63, 0, .02), C(BLUE), .015, 2)
+    for x in (.48, .79):
+        kids_cart(acc, (x, .16, 0), -90, .62)   # toy-car fronts face the aisle
+    tube(acc, [(.32, .46, .5), (.94, .46, .5)], .02, C(CHROME), 8)
+    rbox(acc, (.12, .96, 1.3), (1.02, 0, .65), C(NAVY), .03, 3)
+    plate(acc, .6, .36, (1.085, 0, 1.0), C(CREAM), .012, .05, (0, 0, 90))
+    rbox(acc, (.012, .98, .012), (1.082, 0, .76), C(GOLD), .003, 1)
+    rbox(acc, (.01, .9, .02), (1.085, 0, 1.27), LED, .005, 1)
 
 
 def herb_bunch(acc, x, y, z):
@@ -4033,3 +4053,93 @@ BUILDERS.update({
 BUILDERS["produce"][2] = produce_t3
 BUILDERS["produce"][3] = produce_t4
 BUILDERS["dairy"][3] = dairy_t4
+
+
+# ================================================================================================ Unity export (round 3)
+# One FBX per tier at ArtSource/fixture_tiers/export/<kind>_T<n>.fbx, kit convention (rk_core.export): mesh turned
+# 180° about Z so the customer side ends at Unity -Z, FBX axis -Z forward / Y up, metres, pivot = footprint centre on
+# the floor. Child objects keep the kit names ("Body", "Anim Fill 0..3") so CheckoutInteriorKitBuilder finds them.
+# Flat colours get a role suffix (C_RRGGBB_<Role>): KitRemap still reads the hex from chars 2..8, and the role says
+# what "Cores do mercado" may repaint (Navy, Blue, Gold) and what it must leave alone (Cream, Metal, Wood, Product).
+EXPORT = os.path.join(ART, "export")
+APPROVED = ["shelf", "checkout", "drinks", "dairy", "freezer", "icecream", "bakery", "produce", "coldroom",
+            "carts", "atm", "gumball", "claw"]
+ROLE = {"1D2B4F": "Navy", "2E4A7D": "Blue", "2B3A55": "Blue", "D3A53D": "Gold",
+        "F4EBD8": "Cream", "F6E7C8": "Cream", "D9CFB8": "Cream", "FBF8F1": "White", "E3E8E4": "White",
+        "DCE3E8": "Metal", "C9D2D6": "Metal", "BFC5C9": "Metal", "EAF6FB": "Metal", "3A4450": "Metal",
+        "232A33": "Dark", "2F3A40": "Dark", "6B4128": "Wood", "C9A06A": "Wood"}
+
+
+def export_role(mat_name, fill):
+    if not mat_name.startswith("C_"):
+        return mat_name
+    hexv = mat_name[2:8]
+    return "C_%s_%s" % (hexv, "Product" if fill else ROLE.get(hexv, "Product"))
+
+
+def export_tier(kind, i, folder=EXPORT):
+    """Writes <folder>/<kind>_T<i>.fbx from the lineup collection 'FT <kind> T<i>'. Returns a report dict."""
+    os.makedirs(folder, exist_ok=True)
+    col = bpy.data.collections["FT %s T%d" % (kind, i)]
+    src = [o for o in col.all_objects if o.type == "MESH"]
+    dg = bpy.context.evaluated_depsgraph_get()
+    R = Matrix.Rotation(math.pi, 4, "Z")
+    parked, temps, mats = [], [], {}
+    lo = Vector((1e9,) * 3); hi = Vector((-1e9,) * 3)
+    for o in src:
+        nm = "Body" if "Body" in o.name else o.name.split(" ", 1)[1] if o.name.split(" ", 1)[1].startswith("Anim Fill") else o.name
+        clash = bpy.data.objects.get(nm)
+        if clash:
+            parked.append((clash, nm)); clash.name = nm + " (parked)"
+        me = bpy.data.meshes.new_from_object(o.evaluated_get(dg))
+        for v in me.vertices:   # bounds in the modelling space (= Unity x, z, y after export)
+            lo = Vector(map(min, lo, v.co)); hi = Vector(map(max, hi, v.co))
+        me.transform(R)
+        fill = nm.startswith("Anim Fill")
+        for k, m in enumerate(me.materials):
+            if not m:
+                continue
+            new = export_role(m.name, fill)
+            if new != m.name:
+                if new not in mats:
+                    mats[new] = bpy.data.materials.get(new) or m.copy()
+                    mats[new].name = new
+                me.materials[k] = mats[new]
+        t = bpy.data.objects.new(nm, me)
+        bpy.context.scene.collection.objects.link(t)
+        temps.append(t)
+    tris = 0; slots = set()
+    for t in temps:
+        t.data.calc_loop_triangles(); tris += len(t.data.loop_triangles)
+        slots |= {m.name for m in t.data.materials if m}
+    path = os.path.join(folder, "%s_T%d.fbx" % (kind, i))
+    try:
+        bpy.ops.object.select_all(action="DESELECT")
+        for t in temps:
+            t.select_set(True)
+        bpy.context.view_layer.objects.active = temps[0]
+        bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={"MESH"}, axis_forward="-Z", axis_up="Y",
+                                 bake_anim=False, path_mode="STRIP", use_mesh_modifiers=True, mesh_smooth_type="OFF",
+                                 apply_scale_options="FBX_SCALE_ALL", use_tspace=False)
+    finally:
+        for t in temps:
+            me = t.data
+            bpy.data.objects.remove(t, do_unlink=True)
+            bpy.data.meshes.remove(me)
+        for m in mats.values():
+            bpy.data.materials.remove(m)
+        for o, nm in parked:
+            o.name = nm
+    # Unity bounds: Unity (x, y, z) = modelling (x, z, y); the customer side is Unity -Z
+    return {"file": os.path.basename(path), "tris": tris, "objects": [t for t in sorted({("Body" if "Body" in o.name else o.name.split(" ", 1)[1]) for o in src})],
+            "size": (round(hi.x - lo.x, 3), round(hi.z - lo.z, 3), round(hi.y - lo.y, 3)),
+            "min": (round(lo.x, 3), round(lo.z, 3), round(lo.y, 3)), "max": (round(hi.x, 3), round(hi.z, 3), round(hi.y, 3)),
+            "footprint": TIERS[kind][i - 1][2:4], "name": TIERS[kind][i - 1][1], "materials": sorted(slots)}
+
+
+def export_all(kinds=APPROVED):
+    out = []
+    for kind in kinds:
+        for i in range(1, len(TIERS[kind]) + 1):
+            out.append(export_tier(kind, i))
+    return out
