@@ -143,9 +143,12 @@ namespace Checkout {
     if(MustWait()){JoinWaitLine();phase=18;CheckoutShoppingProps.SetVisible(transform,false);Go(CheckoutStall.WaitSpot(waitSlot));return;}
     admitted=true;waitLine.Remove(this);}
    CheckoutShoppingProps.SetVisible(transform,customer.purchases!=null&&customer.purchases.Length>0);if(customer.purchases!=null&&index<customer.purchases.Length){phase=0;Go(map.Approach(customer.purchases[index].shelfId));}else {lane=CheckoutStall.Small&&map.Lanes.lanes.Count>0?map.Lanes.lanes[0]:map.Lanes.Pick();if(lane.places==null&&lane.itemId==null){phase=2;Go(map.Point(new Vector3(-7.2f,.74f,-3.4f)));}else if(TailFirst&&Line.Count>0){phase=19;Go(QueuePosition(Line.Count));}else{Line.Add(this);phase=3;Go(QueuePosition(Line.IndexOf(this)));}}}
-  // In the little shops the line runs single file along a lane: a customer only takes their place once they reach its
-  // end (phase 19), so nobody has to squeeze past the people already standing in it to a place further ahead.
-  bool TailFirst=>CheckoutStall.ShopInside&&!CheckoutStall.PlacedCounter;
+  // The line runs single file: a customer only takes their place once they reach its end (phase 19), so nobody has to
+  // squeeze past the people already standing in it to a place further ahead. (In the market building and the shops
+  // with a placed counter too, since the line goes on past the counter's places: joining on leaving the last shelf, a
+  // customer coming from the far end of the shop was first in line behind people already standing at the till.)
+  // Not at the stalls of the first stages, which keep their few fixed places.
+  bool TailFirst=>CheckoutStall.ShopInside||!CheckoutStall.Small;
   // Safety net: a customer who is off the NavMesh (the floor was rebuilt under them) or makes no progress is put back
   // on the way, and as a last resort finishes the step (or leaves) instead of freezing the line forever.
   float offMesh,stuckFor,nearFor;Vector3 lastSpot;
