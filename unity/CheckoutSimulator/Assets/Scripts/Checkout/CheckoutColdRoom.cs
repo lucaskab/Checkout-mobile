@@ -107,15 +107,19 @@ namespace Checkout
                 var name = "coldroom_T" + t;
                 var prefab = interior.TemplateObject(name); if (!prefab) continue;
                 var piece = prefab.GetComponent<CheckoutInteriorPiece>();
-                float w = piece ? piece.max.x - piece.min.x : 2, d = piece ? piece.max.y - piece.min.y : 2;
-                foreach (var c in Candidates(hostRect, world, layout, w, d, t >= 4 && host == grand))
+                var lmin = piece ? piece.min : new Vector2(-1, -1); var lmax = piece ? piece.max : new Vector2(1, 1);
+                float w = lmax.x - lmin.x, d = lmax.y - lmin.y;
+                foreach (var c0 in Candidates(hostRect, world, layout, w, d, t >= 4 && host == grand))
                 {
+                    // The model's own footprint (condensers, dock and ramp included, not centred on the pivot) turned to
+                    // face the way the side asks, its wall side against the host.
+                    var c = Fit(c0, lmin, lmax);
                     if (!Clear(c.rect, blockers, hostRect)) continue;
                     var go = Spawn(interior, name); if (!go) return;
                     go.transform.SetPositionAndRotation(new Vector3(c.center.x, CheckoutInterior.Ground, c.center.z), Quaternion.Euler(0, c.yaw, 0));
                     root = go.transform; Side = hostName + " · " + c.side + (t < tier ? " (T" + t + ", no room for T" + tier + ")" : "");
                     Bounds = new Bounds(new Vector3(c.rect.center.x, 1.5f, c.rect.center.y), new Vector3(c.rect.width, 3, c.rect.height));
-                    if (works) Fence(go.transform, w, d);
+                    if (works) Fence(go.transform, lmin, lmax);
                     CheckoutMarketPaint.Touch(go);
                     Debug.Log("CHECKOUT_COLDROOM " + name + " at " + Side + " " + c.rect);
                     return;
@@ -181,6 +185,19 @@ namespace Checkout
             }
             if (layout.State.storage) { var door = layout.StorageDoor; return Nearest(host, new Vector2(door.x, door.z)); }
             return "south"; // the shop's front: never against it
+        }
+
+        // Moves the pivot so the turned footprint [lmin, lmax] covers the candidate's rect (same size), flush with the wall.
+        static Candidate Fit(Candidate c, Vector2 lmin, Vector2 lmax)
+        {
+            var q = Quaternion.Euler(0, c.yaw, 0);
+            float x0 = float.MaxValue, z0 = float.MaxValue, x1 = float.MinValue, z1 = float.MinValue;
+            foreach (var p in new[] { new Vector3(lmin.x, 0, lmin.y), new Vector3(lmax.x, 0, lmin.y), new Vector3(lmin.x, 0, lmax.y), new Vector3(lmax.x, 0, lmax.y) })
+            { var r = q * p; x0 = Mathf.Min(x0, r.x); x1 = Mathf.Max(x1, r.x); z0 = Mathf.Min(z0, r.z); z1 = Mathf.Max(z1, r.z); }
+            var pivot = new Vector3(c.rect.center.x - (x0 + x1) * .5f, 0, c.rect.center.y - (z0 + z1) * .5f);
+            c.center = pivot;
+            c.rect = Rect.MinMaxRect(pivot.x + x0, pivot.z + z0, pivot.x + x1, pivot.z + z1);
+            return c;
         }
 
         static string Nearest(Rect r, Vector2 p)
@@ -266,10 +283,11 @@ namespace Checkout
         }
 
         // A works fence round the room while the builders put it up.
-        static void Fence(Transform room, float w, float d)
+        static void Fence(Transform room, Vector2 lmin, Vector2 lmax)
         {
+            float w = lmax.x - lmin.x, d = lmax.y - lmin.y; var mid = new Vector3((lmin.x + lmax.x) * .5f, 0, (lmin.y + lmax.y) * .5f);
             var mat = new Material(Shader.Find("Standard")) { name = "FT_Works_Tape", color = new Color(.96f, .76f, .2f) };
-            var fence = new GameObject("Works fence").transform; fence.SetParent(room, false);
+            var fence = new GameObject("Works fence").transform; fence.SetParent(room, false); fence.localPosition = mid;
             void Rail(Vector3 at, Vector3 size)
             {
                 var q = GameObject.CreatePrimitive(PrimitiveType.Cube); Object.Destroy(q.GetComponent<Collider>());

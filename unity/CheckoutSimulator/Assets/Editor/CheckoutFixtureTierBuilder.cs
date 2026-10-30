@@ -50,14 +50,18 @@ public static partial class CheckoutMarketStagesBuilder
     public static void BuildFixtureTiers()
     {
         if (EditorApplication.isPlaying) throw new InvalidOperationException("Leave Play Mode first.");
-        materials.Clear();
+        materials.Clear(); paletteSlots.Clear();
         if (!AssetDatabase.IsValidFolder("Assets/Resources/CheckoutFixtureTiers")) AssetDatabase.CreateFolder("Assets/Resources", "CheckoutFixtureTiers");
+        if (!AssetDatabase.IsValidFolder("Assets/Art/Interior/Meshes/FT")) AssetDatabase.CreateFolder("Assets/Art/Interior/Meshes", "FT");
+        paletteStruct = Painted("IK_PPalette_FT", "FFFFFF", null, Vector2.one);
+        paletteProducts = Painted("IK_PProducts_PaletteFT", "FFFFFF", null, Vector2.one, .35f);
         int built = 0; var report = new List<string>();
         foreach (var pair in TierFootprints)
         {
             var prefab = BuildTierPrefab(pair.Key, pair.Value, report);
             if (prefab) built++;
         }
+        WritePalette(report);
         AssetDatabase.SaveAssets();
         RenderTierSprites(report);
         AssetDatabase.SaveAssets(); AssetDatabase.Refresh();
@@ -69,9 +73,10 @@ public static partial class CheckoutMarketStagesBuilder
         string path = TierModels + name + ".fbx";
         var importer = AssetImporter.GetAtPath(path) as ModelImporter;
         if (!importer) { report.Add(name + ": missing " + path); return null; }
-        if (importer.importNormals != ModelImporterNormals.Import || importer.addCollider || importer.importAnimation || importer.materialLocation != ModelImporterMaterialLocation.InPrefab || importer.bakeAxisConversion || importer.importCameras || importer.importLights)
+        if (importer.importNormals != ModelImporterNormals.Import || importer.addCollider || importer.importAnimation || importer.materialLocation != ModelImporterMaterialLocation.InPrefab || importer.bakeAxisConversion || importer.importCameras || importer.importLights || !importer.isReadable)
         {
             importer.importNormals = ModelImporterNormals.Import; importer.addCollider = false; importer.importAnimation = false; importer.importCameras = false; importer.importLights = false;
+            importer.isReadable = true; // read by the merge below (the game uses the merged meshes, not the FBX)
             importer.materialLocation = ModelImporterMaterialLocation.InPrefab; importer.bakeAxisConversion = false; importer.SaveAndReimport();
         }
         var source = AssetDatabase.LoadAssetAtPath<GameObject>(path);
@@ -96,22 +101,34 @@ public static partial class CheckoutMarketStagesBuilder
             var bounds = new Bounds(Vector3.zero, Vector3.zero); bool any = false;
             foreach (var r in model.GetComponentsInChildren<Renderer>(true)) { if (!any) { bounds = r.bounds; any = true; } else bounds.Encapsulate(r.bounds); }
             var min = new Vector2(-size.x / 2, -size.y / 2); var max = new Vector2(size.x / 2, size.y / 2);
-            if (!name.StartsWith("coldroom"))
-            {
-                min = Vector2.Min(min, new Vector2(bounds.min.x, bounds.min.z)); max = Vector2.Max(max, new Vector2(bounds.max.x, bounds.max.z));
-            }
+            // (the cart handles, the cold room's condensers and dock included: nothing may stand under them)
+            min = Vector2.Min(min, new Vector2(bounds.min.x, bounds.min.z)); max = Vector2.Max(max, new Vector2(bounds.max.x, bounds.max.z));
             var piece = root.AddComponent<CheckoutInteriorPiece>();
             piece.min = min; piece.max = max; piece.markerHeight = Mathf.Max(1.2f, bounds.max.y + .25f);
             string kind = name.Substring(0, name.IndexOf("_T", StringComparison.Ordinal));
             if (ServingKinds.Contains(kind)) { piece.serves = true; piece.approach = new Vector3(0, 0, min.y - .47f); }
             if (kind == "checkout") CheckoutPoints(piece, name, min, max);
-            // Stock groups, in order (Anim Fill 0..3): the shelf empties and refills group by group.
-            var fills = model.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith("Anim Fill")).OrderBy(t => t.name).Select(t => t.gameObject).ToArray();
-            piece.fill = fills;
+            // iPhone: one renderer for the body and one per stock group, the flat colours that never repaint in one palette
+            // material (drinks T3 went from ~27 materials to a handful). Stock groups in order (Anim Fill 0..3): the shelf
+            // empties and refills group by group.
+            int before = model.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Distinct().Count();
+            var fillRoots = model.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith("Anim Fill")).OrderBy(t => t.name).ToList();
+            var bodyParts = model.GetComponentsInChildren<MeshRenderer>(true).Where(r => !InFill(r.transform)).ToList();
+            Merge(root.transform, "Body", bodyParts, name + "_body", true);
+            var fills = new List<GameObject>();
+            for (int i = 0; i < fillRoots.Count; i++)
+            {
+                var go = Merge(root.transform, fillRoots[i].name, fillRoots[i].GetComponentsInChildren<MeshRenderer>(true).ToList(), name + "_fill" + i, false);
+                if (go) fills.Add(go);
+            }
+            UnityEngine.Object.DestroyImmediate(model);
+            model = root.gameObject;
+            piece.fill = fills.ToArray();
+            report.Add($"{name}: materials {before} -> {root.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Distinct().Count()}");
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, TierPrefabs + name + ".prefab");
             int tris = model.GetComponentsInChildren<MeshFilter>(true).Where(f => f.sharedMesh).Sum(f => f.sharedMesh.triangles.Length / 3);
             int mats2 = model.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Distinct().Count();
-            report.Add($"{name}: {size.x}x{size.y} m, piece {min}..{max}, h {bounds.max.y:0.00}, {tris} tris, {mats2} materials, {fills.Length} fills");
+            report.Add($"{name}: {size.x}x{size.y} m, piece {min}..{max}, h {bounds.max.y:0.00}, {tris} tris, {mats2} materials, {fills.Count} fills");
             return prefab;
         }
         finally { UnityEngine.Object.DestroyImmediate(root); }
@@ -119,12 +136,120 @@ public static partial class CheckoutMarketStagesBuilder
 
     static bool InFill(Transform t) { for (; t; t = t.parent) if (t.name.StartsWith("Anim Fill")) return true; return false; }
 
+    // ------------------------------------------------------------------ merge + palette
+    const int PaletteSize = 32; // 32 x 32 colours
+    static readonly Dictionary<string, int> paletteSlots = new Dictionary<string, int>();
+    static Material paletteStruct, paletteProducts;
+
+    // A flat colour that never follows "Cores do mercado" (cream, white, metal, dark, wood, products): it can share the
+    // palette material. Navy and gold (repainted) and every textured, glass or glowing material keep their own.
+    static bool PaletteColour(Material m) =>
+        m && m.shader && m.shader.name == "MarketDay/Soft Painted" && !m.mainTexture && CheckoutMarketPaint.Classify(m, out _) == 0;
+
+    static Vector2 Slot(Color c)
+    {
+        var key = ColorUtility.ToHtmlStringRGB(c);
+        if (!paletteSlots.TryGetValue(key, out int k)) { k = paletteSlots.Count; if (k >= PaletteSize * PaletteSize) k = 0; paletteSlots[key] = k; }
+        return new Vector2((k % PaletteSize + .5f) / PaletteSize, (k / PaletteSize + .5f) / PaletteSize);
+    }
+
+    // One mesh for these renderers (in `parent`'s space), one submesh per material; saved as an asset.
+    static GameObject Merge(Transform parent, string name, List<MeshRenderer> parts, string asset, bool shadows)
+    {
+        var byMaterial = new Dictionary<Material, List<CombineInstance>>();
+        var toParent = parent.worldToLocalMatrix;
+        foreach (var r in parts)
+        {
+            var mf = r.GetComponent<MeshFilter>(); var mesh = mf ? mf.sharedMesh : null; if (!mesh) continue;
+            var mats = r.sharedMaterials;
+            for (int sub = 0; sub < mesh.subMeshCount && sub < mats.Length; sub++)
+            {
+                var m = mats[sub]; if (!m) continue;
+                var piece = Extract(mesh, sub);
+                if (PaletteColour(m))
+                {
+                    var uv = Slot(m.color); piece.uv = Enumerable.Repeat(uv, piece.vertexCount).ToArray();
+                    m = m.name.Contains("Products") ? paletteProducts : paletteStruct;
+                }
+                if (!byMaterial.TryGetValue(m, out var list)) byMaterial[m] = list = new List<CombineInstance>();
+                list.Add(new CombineInstance { mesh = piece, transform = toParent * r.transform.localToWorldMatrix });
+            }
+        }
+        if (byMaterial.Count == 0) return null;
+        var merged = new List<CombineInstance>(); var order = new List<Material>(); var temps = new List<Mesh>();
+        foreach (var pair in byMaterial)
+        {
+            var one = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            one.CombineMeshes(pair.Value.ToArray(), true, true);
+            merged.Add(new CombineInstance { mesh = one, transform = Matrix4x4.identity }); order.Add(pair.Key); temps.Add(one);
+            foreach (var c in pair.Value) UnityEngine.Object.DestroyImmediate(c.mesh);
+        }
+        var result = new Mesh { name = "FT_" + asset };
+        int verts = merged.Sum(c => c.mesh.vertexCount);
+        result.indexFormat = verts > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+        result.CombineMeshes(merged.ToArray(), false, false);
+        result.RecalculateBounds();
+        foreach (var t in temps) UnityEngine.Object.DestroyImmediate(t);
+        string path = "Assets/Art/Interior/Meshes/FT/" + asset + ".asset";
+        var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (existing) { existing.Clear(); EditorUtility.CopySerialized(result, existing); UnityEngine.Object.DestroyImmediate(result); result = existing; }
+        else AssetDatabase.CreateAsset(result, path);
+        // Not kept readable in memory on the phone.
+        var so = new SerializedObject(result); var readable = so.FindProperty("m_IsReadable"); if (readable != null) { readable.boolValue = false; so.ApplyModifiedPropertiesWithoutUndo(); }
+        var go = new GameObject(name); go.transform.SetParent(parent, false);
+        go.AddComponent<MeshFilter>().sharedMesh = result;
+        var mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterials = order.ToArray();
+        mr.shadowCastingMode = shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
+        mr.lightProbeUsage = LightProbeUsage.Off; mr.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        return go;
+    }
+
+    static Mesh Extract(Mesh mesh, int sub)
+    {
+        var tris = mesh.GetTriangles(sub); var map = new Dictionary<int, int>();
+        var v = mesh.vertices; var n = mesh.normals; var uv = mesh.uv;
+        var nv = new List<Vector3>(); var nn = new List<Vector3>(); var nu = new List<Vector2>(); var nt = new int[tris.Length];
+        for (int i = 0; i < tris.Length; i++)
+        {
+            int k = tris[i];
+            if (!map.TryGetValue(k, out int j)) { j = nv.Count; map[k] = j; nv.Add(v[k]); if (n.Length > k) nn.Add(n[k]); nu.Add(uv.Length > k ? uv[k] : Vector2.zero); }
+            nt[i] = j;
+        }
+        var m = new Mesh { indexFormat = nv.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16 };
+        m.SetVertices(nv); if (nn.Count == nv.Count) m.SetNormals(nn); m.SetUVs(0, nu); m.SetTriangles(nt, 0);
+        return m;
+    }
+
+    // The palette texture of every flat colour used (point-sampled, no mips: each texel is one exact colour).
+    static void WritePalette(List<string> report)
+    {
+        const string path = "Assets/Art/Interior/Textures/FT_Palette_albedo.png";
+        var tex = new Texture2D(PaletteSize, PaletteSize, TextureFormat.RGBA32, false);
+        var fill = Enumerable.Repeat(Color.white, PaletteSize * PaletteSize).ToArray(); tex.SetPixels(fill);
+        foreach (var pair in paletteSlots)
+        {
+            ColorUtility.TryParseHtmlString("#" + pair.Key, out var c);
+            tex.SetPixel(pair.Value % PaletteSize, pair.Value / PaletteSize, c);
+        }
+        tex.Apply();
+        File.WriteAllBytes(path, tex.EncodeToPNG()); UnityEngine.Object.DestroyImmediate(tex);
+        AssetDatabase.ImportAsset(path);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Default; importer.mipmapEnabled = false; importer.filterMode = FilterMode.Point;
+        importer.textureCompression = TextureImporterCompression.Uncompressed; importer.sRGBTexture = true; importer.wrapMode = TextureWrapMode.Clamp; importer.maxTextureSize = 32;
+        importer.SaveAndReimport();
+        var palette = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        foreach (var m in new[] { paletteStruct, paletteProducts }) { m.mainTexture = palette; m.mainTextureScale = Vector2.one; m.color = Color.white; EditorUtility.SetDirty(m); }
+        report.Add($"palette: {paletteSlots.Count} flat colours in {path}");
+    }
+
     static Material TierRemap(Material source, bool stock)
     {
         string n = source ? source.name : "C_FFFFFF";
         int dot = n.IndexOf('.'); if (dot > 0) n = n.Substring(0, dot);
-        // A colour that belongs to a product: its own "Products" material (CheckoutMarketPaint.NotPaint).
-        if (n.StartsWith("C_") && n.Length >= 8 && (stock || n.EndsWith("_Product")))
+        // A colour that belongs to a product (or wood, cream: never the market's paint): its own "Products" material
+        // (CheckoutMarketPaint.NotPaint), so navy or gold packaging keeps its colour after a repaint.
+        if (n.StartsWith("C_") && n.Length >= 8 && (stock || n.EndsWith("_Product") || n.EndsWith("_Wood") || n.EndsWith("_Cream")))
             return Painted("IK_PProducts_" + n.Substring(2, 6), n.Substring(2, 6), null, Vector2.one, .35f);
         // The blank label atlas of the tiers ("IK_PT_Labels" is the old atlas with printed words).
         if (n.StartsWith("T_FT_")) return Painted("IK_PT_" + n.Substring(2), "FFFFFF", n.Substring(2), Vector2.one, .35f);
