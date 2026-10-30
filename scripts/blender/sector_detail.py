@@ -945,7 +945,8 @@ def sd_fruit_mound(acc, w, d, loc, kind, seed=0, tilt=0, mound=.05, grp="Body"):
     base = {"orange": "A8561A", "lemon": "A89224", "lime": "2E6A2A", "apple": "7A1E18", "kiwi": "4E3A22", "strawberry": "7A1420"}.get(kind, "8A6A3A")
     blob(X, (w * .46, d * .42, mound * .6), (0, 0, 0), C(base), 2, .05, seed, grp=grp)
     sz = {"orange": .04, "lemon": .034, "lime": .03, "apple": .038, "kiwi": .03, "strawberry": .022}[kind]
-    nx, ny = max(1, int(w / (sz * 2.15))), max(1, int(d / (sz * 2.3)))
+    cs = max(sz, .034)                      # small fruit (strawberries) are spaced like limes to keep the count sane
+    nx, ny = max(1, int(w / (cs * 2.15))), max(1, int(d / (cs * 2.3)))
     for i in range(nx):
         for j in range(ny):
             px_ = -w / 2 + (i + .5) * w / nx + rnd.uniform(-.004, .004)
