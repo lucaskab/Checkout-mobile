@@ -141,6 +141,10 @@ namespace MarketDay
             else{
             Interior(new Vector3(0,.64f,0),new Vector3(18,.2f,14),Quaternion.identity);
             Interior(new Vector3(-1.75f,.345f,-8.825f),new Vector3(2.8f,.2f,3.6f),Quaternion.Euler(-9.44f,0,0));
+            // The top of the ramp stops a few centimetres short of the floor (z -7.03 against -7): the deeper shops
+            // stretch that gap past a voxel (the supermercado's 1.3 depth) and the floor came out cut off from the
+            // street. A flat strip at floor height over the seam joins them (a 4 cm step at its outer edge).
+            Interior(new Vector3(-1.75f,.64f,-7.05f),new Vector3(2.8f,.2f,.5f),Quaternion.identity);
             // The foot of the entrance ramp meets the sidewalk: a flat apron bridges the strip of block in between
             // (the deeper shops of the lot grid start the ramp a little further from the curb).
             var foot=Checkout.CheckoutMarketLayout.Project(new Vector3(-1.75f,0,-10.6f),marketLayout);

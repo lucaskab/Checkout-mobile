@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace Checkout {
  // "Evoluções dos móveis" (docs-drafts/evolucoes-moveis.md), on the QA copy of the save ("eventstiers[-part.part]"):
@@ -41,6 +42,8 @@ namespace Checkout {
    var parts = request.Split('-'); var which = parts.Length > 1 ? parts[1].Split('.') : new[] { "flow", "shelves", "checkout", "coldroom", "carts", "decor" };
    foreach (var f in Directory.GetFiles("Logs", "ft_*.jpg")) File.Delete(f);
    CheckoutBridge.TestPatch = s => { Patch(s); PatchTiers(s); };
+   // the QA copy only: pictures in pt-BR and without the guide's coach card
+   Hud("skipOnboarding", "[]"); TierLang("pt"); yield return Wait(1.5f);
    foreach (var part in which) {
     Note("TIERS == " + part);
     switch (part) {
@@ -55,6 +58,7 @@ namespace Checkout {
      case "upgrade": yield return TierSectorUpgrade(); break;
      case "ui": yield return TierUi(); break;
      case "floorprobe": yield return TierFloorProbe(); break;
+     case "navprobe": yield return TierNavProbe(); break;
      default: Note("unknown part " + part); break;
     }
     TierReset();
@@ -64,7 +68,8 @@ namespace Checkout {
 
   void TierReset() { tierPatching = false; tierOpen = false; tierSector = -1; tierShelves = -1; tierCheckout = tierCold = null; tierLayout = null; tierOwned = null; tierDecor = null; roomEra = -1; var inside = CheckoutInterior.Active; if (inside) inside.editing = false; }
 
-  void Hud(string action, string args) => CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-tiers-" + action + "-" + Time.frameCount + "\",\"action\":\"" + action + "\",\"args\":" + args + "}");
+  static int hudSeq;
+  void Hud(string action, string args) => CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-tiers-" + action + "-" + Time.frameCount + "-" + (++hudSeq) + "\",\"action\":\"" + action + "\",\"args\":" + args + "}");
   IEnumerator Wait(float s) { yield return new WaitForSecondsRealtime(s); }
 
   // ------------------------------------------------------------------ flow (real store actions)
@@ -156,6 +161,9 @@ namespace Checkout {
    var items = new List<InteriorItem>(fixedItems);
    float rowTop = floor.yMax - .05f, x = floor.xMin + .1f, rowDepth = 0;
    float front = floor.yMin + (CheckoutStall.ShopInside ? 1.8f : 2.4f);
+   // a walkway from the front to every row (rows wall to wall would shut the back rows off: customers then route
+   // round the outside of the shop to reach them)
+   float mid = (floor.xMin + right) * .5f; blockers.Add(Rect.MinMaxRect(mid - .8f, floor.yMin, mid + .8f, floor.yMax));
    foreach (var id in TierKinds.Where(k => ShelfEra[k] <= era)) {
     var template = TierKindOf[id] + "_T" + Mathf.Min(4, t); var piece = inside.TemplateObject(template)?.GetComponent<CheckoutInteriorPiece>();
     if (!piece) { Note("TIERS missing model " + template); continue; }
@@ -423,7 +431,10 @@ namespace Checkout {
     // as a player: buy it, place it (it waits in the build-mode inventory), save the layout, the works run
     Hud("buildSector", "[\"padaria\",\"coins\"]"); yield return Wait(2.5f);
     var inside = CheckoutInterior.Active; var floor = inside.FloorRect;
-    var placed = inside.PlaceWaiting("sector:padaria", new Vector3(floor.center.x, 0, floor.center.y));
+    CheckoutInterior.Item placed = null;
+    for (float pz = floor.center.y; placed == null && pz > floor.yMin + 1.5f; pz -= 1.5f)
+     for (float px = floor.xMin + 2.5f; placed == null && px < floor.xMax - 2.5f; px += 2f)
+      placed = inside.PlaceWaiting("sector:padaria", new Vector3(px, 0, pz));
     Note("TIERS bakery placed: " + (placed != null ? placed.template + " at " + placed.root.position.ToString("0.0") : "no"));
     if (placed != null) { inside.MarkPending(); FindAnyObjectByType<CheckoutMap>().SaveInterior(); yield return Wait(2.5f); }
     Hud("devFinishInteriorConstructions", "[]"); yield return Wait(3f);
@@ -495,6 +506,73 @@ namespace Checkout {
    }
    File.WriteAllLines("Logs/ft_floor_probe.txt", groups.OrderByDescending(g => g.Value).Select(g => g.Value + " x " + g.Key));
    Note($"RESULT tiers floorprobe: PASS {groups.Count} groups (Logs/ft_floor_probe.txt)");
+  }
+
+  // Can shoppers get into the market building? NavMesh paths from the sidewalk to the entrance and on to every shelf's
+  // approach, and the solid boxes the navigation is built with near the way in. Logs/ft_nav_probe.txt.
+  IEnumerator TierNavProbe() {
+   var lines = new List<string>();
+   foreach (var stage in new[] { "mercadinho", "supermercado" }) {
+    yield return GoToStage(stage); yield return Wait(2);
+    lines.AddRange(NavReport(stage));
+   }
+   File.WriteAllLines("Logs/ft_nav_probe.txt", lines);
+   Note("RESULT tiers navprobe: PASS (Logs/ft_nav_probe.txt)");
+  }
+
+  // The way in, measured on the NavMesh: sidewalk → entrance → inside → every shelf's approach, and what stands by the door.
+  List<string> NavReport(string tag) {
+   var lines = new List<string>();
+   var inside = CheckoutInterior.Active; var map = FindAnyObjectByType<CheckoutMap>(); if (!inside || !map) { lines.Add("no interior"); return lines; }
+   var floor = inside.FloorRect; var door = map.Entrance;
+   lines.Add($"== {tag}: floor {floor} entrance {door.ToString("0.00")} stall door {CheckoutStall.Door.ToString("0.00")} half {CheckoutStall.DoorHalf:0.00} entrance point {inside.EntrancePoint.ToString("0.00")}");
+   string Path(Vector3 a, Vector3 b) {
+    if (!NavMesh.SamplePosition(a, out var ha, 2f, NavMesh.AllAreas)) return "start off the mesh";
+    if (!NavMesh.SamplePosition(b, out var hb, 2f, NavMesh.AllAreas)) return "end off the mesh";
+    var path = new NavMeshPath(); NavMesh.CalculatePath(ha.position, hb.position, NavMesh.AllAreas, path);
+    var end = path.corners.Length > 0 ? path.corners[path.corners.Length - 1] : Vector3.zero;
+    return $"{path.status} corners {path.corners.Length} ends {end.ToString("0.0")} (wanted {hb.position.ToString("0.0")})";
+   }
+   lines.Add("sidewalk -> entrance: " + Path(door + new Vector3(0, 0, -4), door));
+   lines.Add("entrance -> floor centre: " + Path(door, new Vector3(floor.center.x, CheckoutInterior.Floor, floor.center.y)));
+   lines.Add("entrance -> just inside: " + Path(door, new Vector3(door.x, CheckoutInterior.Floor, floor.yMin + 1.2f)));
+   foreach (var it in inside.items.Values.Where(i => i.root && i.type == "shelf").OrderBy(i => i.id))
+    lines.Add($"entrance -> {it.id} approach {inside.Approach(it).ToString("0.0")}: " + Path(door, inside.Approach(it)));
+   var sim = FindAnyObjectByType<MarketDay.MarketSimulation>();
+   var field = typeof(MarketDay.MarketSimulation).GetField("furniture", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+   var nearDoor = Rect.MinMaxRect(door.x - 4, door.z - 3, door.x + 4, floor.yMin + 3);
+   if (sim && field != null && field.GetValue(sim) is List<(Vector3 center, Vector3 size, float yaw)> boxes) {
+    lines.Add($"navigation boxes: {boxes.Count}; near the way in:");
+    foreach (var b in boxes) { var r = Rect.MinMaxRect(b.center.x - b.size.x * .5f, b.center.z - b.size.z * .5f, b.center.x + b.size.x * .5f, b.center.z + b.size.z * .5f); if (r.Overlaps(nearDoor)) lines.Add($"  box {b.center.ToString("0.00")} size {b.size.ToString("0.00")} yaw {b.yaw:0}"); }
+   } else lines.Add("navigation boxes: not readable");
+   foreach (var it in inside.items.Values.Where(i => i.root)) { var f = inside.FootprintOf(it); if (nearDoor.Contains(f.c)) lines.Add($"  piece near door {it.id} ({it.type}) {it.template} at {f.c.ToString("0.00")} half {f.hx:0.00}x{f.hz:0.00} outside={it.outside} design={it.design}"); }
+   // The same walk with no furniture at all on the NavMesh: blocked still = the floor / ramp / walls, not the pieces.
+   var layoutField = typeof(MarketDay.MarketSimulation).GetField("marketLayout", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+   if (sim && layoutField != null && layoutField.GetValue(sim) is MarketLayout navLayout) {
+    var keep = sim.Furniture;
+    sim.Furniture = () => System.Array.Empty<(Vector3 center, Vector3 size, float yaw)>();
+    sim.RebuildLayoutNavigation(navLayout);
+    lines.Add("no furniture: entrance -> just inside: " + Path(door, new Vector3(door.x, CheckoutInterior.Floor, floor.yMin + 1.2f)) + "; -> floor centre: " + Path(door, new Vector3(floor.center.x, CheckoutInterior.Floor, floor.center.y)));
+    sim.Furniture = keep; sim.RebuildLayoutNavigation(navLayout);
+    lines.Add("furniture back: entrance -> just inside: " + Path(door, new Vector3(door.x, CheckoutInterior.Floor, floor.yMin + 1.2f)));
+   }
+   // Where the walkable surface stops on the way in, and what could stand there.
+   var from = new Vector3(door.x, .6f, door.z - .5f); var to = new Vector3(door.x, CheckoutInterior.Floor, floor.yMin + 1.5f);
+   if (NavMesh.SamplePosition(from, out var hf, 1f, NavMesh.AllAreas)) {
+    bool hit = NavMesh.Raycast(hf.position, to, out var rh, NavMesh.AllAreas);
+    lines.Add($"raycast in from {hf.position.ToString("0.00")}: {(hit ? "stops at " + rh.position.ToString("0.00") + " normal " + rh.normal.ToString("0.00") : "clear")}");
+    if (NavMesh.FindClosestEdge(rh.position, out var edge, NavMesh.AllAreas)) lines.Add($"closest edge {edge.position.ToString("0.00")} normal {edge.normal.ToString("0.00")}");
+   }
+   var probeBox = Rect.MinMaxRect(door.x - 3, door.z - 1, door.x + 3, floor.yMin + 1.5f);
+   var obstacleField = typeof(MarketDay.MarketSimulation).GetField("obstacles", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+   if (sim && obstacleField != null && obstacleField.GetValue(sim) is List<Rect> rects) foreach (var r in rects) if (r.Overlaps(probeBox)) lines.Add($"  sim obstacle {r}");
+   foreach (var b in CheckoutLotSites.Obstacles) if (Rect.MinMaxRect(b.min.x, b.min.z, b.max.x, b.max.z).Overlaps(probeBox)) lines.Add($"  lot ruin obstacle {b.center.ToString("0.00")} size {b.size.ToString("0.00")}");
+   foreach (var o in FindObjectsByType<NavMeshObstacle>(FindObjectsSortMode.None)) if (o.isActiveAndEnabled && probeBox.Contains(new Vector2(o.transform.position.x, o.transform.position.z))) lines.Add($"  NavMeshObstacle {o.name} at {o.transform.position.ToString("0.00")} carve={o.carving} size {o.size.ToString("0.00")}");
+   // Height of the walkable surface along the way in (the ramp up to the floor), every 0.5 m.
+   var heights = new List<string>();
+   for (float z = door.z - 3; z <= floor.yMin + 2; z += .5f) heights.Add(NavMesh.SamplePosition(new Vector3(door.x, CheckoutInterior.Floor, z), out var hz, .6f, NavMesh.AllAreas) ? $"{z:0.0}:{hz.position.y:0.00}" : $"{z:0.0}:-");
+   lines.Add("walkable along the door axis (z:y): " + string.Join(" ", heights));
+   return lines;
   }
  }
 }
