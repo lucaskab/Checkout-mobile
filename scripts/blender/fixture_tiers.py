@@ -2180,3 +2180,566 @@ def quitanda_shot():
         o.hide_render = (ctr - QUIT_AT).xy.length > 9
     camera(QUIT_AT + Vector((.3, 1.4, .3)), (-.1, -1, 1.45), 15.5, 34)
     return render("quitanda_fit_tiers", (1800, 1200))
+
+
+# ================================================================================================ BATCH B: sectors, ATM, machines, carts
+# Sector counters keep TODAY's footprint in every tier (they only arrive in the big shops); the tiers change the
+# finish and the equipment: T1 balcão simples -> T2 balcão com vitrine -> T3 balcão gourmet.
+SECTORS = {  # id: (name, footprint w, d)
+    "padaria": ("Padaria", 4.0, 3.25), "acougue": ("Açougue", 4.0, 3.25), "queijaria": ("Queijaria", 4.0, 3.25),
+    "peixaria": ("Peixaria", 4.0, 3.25), "sorvetes": ("Sorveteria", 3.25, 2.5), "adega": ("Adega", 3.25, 2.0),
+    "sucos": ("Sucos", 3.25, 1.75),
+}
+for _sid, (_nm, _w, _d) in SECTORS.items():
+    TIERS["sector-" + _sid] = [
+        ("T1", "%s: balcão simples" % _nm, _w, _d, 2.4),
+        ("T2", "%s: balcão com vitrine" % _nm, _w, _d, 2.6),
+        ("T3", "%s: balcão gourmet" % _nm, _w, _d, 2.9),
+    ]
+TIERS.update({
+    "atm": [("T1", "Caixa eletrônico", .75, .85, 1.95), ("T2", "Caixa eletrônico duplo", 1.5, .85, 2.2),
+            ("T3", "Mini agência", 2.0, 1.25, 2.6)],
+    "gumball": [("T1", "Máquina de chiclete", .5, .5, 1.25), ("T2", "Máquina dupla", 1.0, .5, 1.4),
+                ("T3", "Torre de chicletes", 1.0, 1.0, 2.1)],
+    "claw": [("T1", "Máquina de pelúcia", .75, .75, 1.95), ("T2", "Máquina de pelúcia dupla", 1.5, .85, 2.05),
+             ("T3", "Pelúcia gigante", 1.5, 1.5, 2.45)],
+    "carts": [("T1", "Cestinhas", .75, .5, .95), ("T2", "Carrinhos", 1.5, .75, 1.1),
+              ("T3", "Carrinhos grandes", 2.0, 1.0, 2.2)],
+})
+BASE_Y.update({"sector-padaria": -86.0, "sector-acougue": -95.0, "sector-queijaria": -104.0, "sector-peixaria": -113.0,
+               "sector-sorvetes": -122.0, "sector-adega": -130.0, "sector-sucos": -138.0,
+               "atm": -146.0, "gumball": -154.0, "claw": -162.0, "carts": -170.0})
+TILE = "T_IK_Tile"
+
+
+# ---------------------------------------------------------------- goods of each sector
+def steak(acc, loc, s=1.0, yaw=0, grp="Body"):
+    bm = blob_bm((.075 * s, .05 * s, .014), 2, .12, int(loc[0] * 100) % 50)
+    uv_box(bm, 4); place(bm, loc, (0, 0, yaw)); acc.add(bm, "T_IK_Meat", grp)
+
+
+def fish_body(acc, loc, L=.36, yaw=0, grp="Body", col="T_IK_FishScale"):
+    x, y, z = loc
+    X = Xf(acc, (x, y, z), (0, 0, yaw))
+    bm = blob_bm((L * .4, L * .11, L * .07), 2, .02, 1); uv_box(bm, 6); place(bm, (0, 0, L * .06)); X.add(bm, col, grp)
+    bm = bmesh.new()
+    v = [bm.verts.new((L * .36, 0, L * .06)), bm.verts.new((L * .52, L * .1, L * .07)), bm.verts.new((L * .52, -L * .1, L * .07))]
+    bm.faces.new(v); bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=.006); uv_box(bm); X.add(bm, C("6F8FA6"), grp)
+    blob(X, (.008, .008, .008), (-L * .32, L * .05, L * .09), C(INK), 1, 0, 0, grp=grp)
+
+
+def ice_bed(acc, w, d, loc):
+    x, y, z = loc
+    blob(acc, (w / 2, d / 2, .04), (x, y, z), C("EEF8FC"), 2, .15, 4)
+
+
+def sector_goods(acc, sid, x0, x1, y, z, depth=.3, rows=2, grp=None):
+    """The sector's own goods on a display surface from x0 to x1 (centre line y, top z)."""
+    rnd = random.Random(len(sid) + int(z * 10))
+    x = x0 + .08
+    k = 0
+    while x < x1 - .08:
+        g = grp or fills_for(x - (x0 + x1) / 2, x1 - x0)
+        if sid == "padaria":
+            for r_ in range(rows):
+                if k % 3 == 0:
+                    loaf(acc, (x + .05, y - depth / 3 + r_ * depth / 2, z), g, 90)
+                elif k % 3 == 1:
+                    croissant(acc, (x + .05, y - depth / 3 + r_ * depth / 2, z), 1.0, 20 * r_, g)
+                else:
+                    cake(acc, (x + .05, y - depth / 4 + r_ * depth / 2, z), .08, .07, ["F4A6C1", "7A4A2E", "F2C23F"][r_ % 3], g)
+            x += .2
+        elif sid == "acougue":
+            for r_ in range(rows):
+                steak(acc, (x + .06, y - depth / 3 + r_ * depth / 2, z + .012), 1.0, rnd.uniform(-20, 20), g)
+            x += .17
+        elif sid == "queijaria":
+            if k % 2 == 0:
+                cheese_wheel(acc, (x + .09, y, z), .09, .08, g)
+                x += .21
+            else:
+                for r_ in range(rows):
+                    salami(acc, (x + .05, y - depth / 3 + r_ * depth / 2, z), .18, .022, 90, g)
+                x += .12
+        elif sid == "peixaria":
+            fish_body(acc, (x + .2, y - depth / 4, z + .03), .34, rnd.uniform(-15, 15), g, ["T_IK_FishScale", C("D74A3C"), C("8FA3AE")][k % 3])
+            if rows > 1:
+                fish_body(acc, (x + .2, y + depth / 4, z + .03), .3, 180 + rnd.uniform(-15, 15), g, ["T_IK_FishScale", C("8FA3AE"), C("D74A3C")][k % 3])
+            fruit(acc, "lemon", (x + .38, y, z + .04), g, k)
+            x += .42
+        elif sid == "sorvetes":
+            rbox(acc, (.24, .2, .06), (x + .12, y, z + .03), BRUSHED, .01, 1, grp=g)
+            bm = blob_bm((.11, .09, .06), 2, .15, k)
+            uvl = bm.loops.layers.uv.get("UVMap")
+            for f in bm.faces:
+                for l in f.loops:
+                    l[uvl].uv = rk_core.cell_uv("gelato_%d" % (k % 8), (l.vert.co.x / .22 + .5) % 1, (l.vert.co.y / .18 + .5) % 1)
+            place(bm, (x + .12, y, z + .07)); acc.add(bm, LAB, g)
+            x += .27
+        elif sid == "adega":
+            for r_ in range(2):
+                wine_bottle(acc, (x + .04, y - .06 + r_ * .12, z), .31, .037, C(["2A3B22", "4A1C24", "E8E0B0"][k % 3]), "wine_%d" % (k % 4), C(["7A1E2E", "D3A53D", "1D2B4F"][k % 3]), g, 8)
+            x += .1
+        elif sid == "sucos":
+            lathe(acc, [(0, 0), (.05, 0), (.06, .14), (0, .14)], (x + .06, y, z), GLASS, 10, 0, cap_top=False)
+            lathe(acc, [(0, .005), (.048, .005), (.057, .12), (0, .12)], (x + .06, y, z), C(["F28C28", "E25555", "6DB84A", "F2C23F"][k % 4]), 10, 0)
+            tube(acc, [(x + .07, y, z + .1), (x + .08, y, z + .2)], .004, C(["E8505B", "3E8FD6"][k % 2]), 4)
+            x += .14
+        k += 1
+
+
+def sector_back(acc, sid, tier, W, y, H=2.2):
+    """Back wall unit of the sector (staff side): tiled/wood/marble wall, shelves and the sector's equipment."""
+    wall = {1: PLANKS, 2: TILE, 3: MARBLE}[tier]
+    rbox(acc, (W, .12, H), (0, y, H / 2), wall, .02, 2, uv=1.5)
+    rbox(acc, (W, .5, .9), (0, y - .3, .45), WOOD if tier == 1 else C(NAVY), .02, 2)
+    rbox(acc, (W + .02, .54, .04), (0, y - .3, .92), WOOD if tier == 1 else (BRUSHED if tier == 2 else MARBLE), .01, 2)
+    for z in (1.35, 1.75):
+        rbox(acc, (W - .2, .3, .03), (0, y - .2, z), WOOD if tier < 3 else C(NAVY), .008, 1)
+    shelf_y = y - .2
+    if sid == "padaria":
+        # deck oven: steel box, glowing window, chrome handles
+        for k in range(min(tier, 2)):
+            ox = -W / 2 + .7 + k * 1.1
+            rbox(acc, (.95, .55, .9), (ox, y - .33, 1.0 + .45), BRUSHED if tier > 1 else C(INK), .03, 2)
+            rbox(acc, (.75, .01, .25), (ox, y - .61, 1.5), "E_F2A23A", .01, 1)
+            rbox(acc, (.7, .03, .03), (ox, y - .63, 1.68), C(CHROME), .01, 1)
+        for z in (1.35, 1.75):
+            for i in range(int((W - 2.4) / .16)):
+                roll(acc, (W / 2 - .3 - i * .16, shelf_y, z + .02), .045, "Body", i)
+    elif sid == "acougue":
+        rbox(acc, (.9, .5, .1), (-W / 2 + .7, y - .3, .97), "T_IK_ButcherBlock", .02, 2)
+        tube(acc, [(-W / 2 + .3, y - .25, 2.0), (W / 2 - .3, y - .25, 2.0)], .015, C(CHROME), 8)
+        for i in range(int((W - .8) / .3) if tier > 1 else 3):
+            hx = -W / 2 + .5 + i * .3
+            tube(acc, [(hx, y - .25, 2.0), (hx, y - .25, 1.9)], .004, C(CHROME), 4)
+            lathe(acc, [(0, 0), (.04, .03), (.05, .2), (.03, .3), (0, .32)], (hx, y - .25, 1.58), C("8E2F2A"), 8, 0)
+        if tier > 1:  # meat slicer blade
+            lathe(acc, [(0, 0), (.13, 0), (.13, .02), (0, .02)], (W / 2 - .7, y - .3, 1.1), C(CHROME), 16, 0, rot=(90, 0, 0))
+            rbox(acc, (.35, .3, .14), (W / 2 - .7, y - .3, .99), C(CHROME), .03, 2)
+    elif sid == "queijaria":
+        for z in (1.35, 1.75):
+            for i in range(int((W - .4) / .26)):
+                cheese_wheel(acc, (-W / 2 + .3 + i * .26, shelf_y, z + .015), .1, .09)
+        rbox(acc, (.4, .35, .3), (W / 2 - .5, y - .3, 1.09), C(CHROME), .04, 2)
+        lathe(acc, [(0, 0), (.13, 0), (.13, .015), (0, .015)], (W / 2 - .5, y - .48, 1.12), C(CHROME), 16, 0, rot=(90, 0, 0))
+    elif sid == "peixaria":
+        rbox(acc, (.7, .45, .25), (-W / 2 + .6, y - .3, 1.05), BRUSHED, .02, 2)
+        lathe(acc, [(0, -.0), (.2, .0), (.2, -.12), (0, -.13)], (-W / 2 + .6, y - .3, 1.18), BRUSHED, 16, 0)
+        tube(acc, [(-W / 2 + .9, y - .2, 1.0), (-W / 2 + .9, y - .2, 1.35), (-W / 2 + .75, y - .3, 1.35)], .012, C(CHROME), 8)
+        rbox(acc, (W - .6, .02, .5), (0, y - .07, 1.6), C("2F6F8F"), .01, 1)
+    elif sid == "sorvetes":
+        rbox(acc, (.45, .45, .6), (-W / 2 + .5, y - .3, 1.24), C(CREAM), .06, 3)
+        tube(acc, [(-W / 2 + .5, y - .5, 1.3), (-W / 2 + .5, y - .6, 1.2)], .03, C(CHROME), 8)
+        for z in (1.35, 1.75):
+            for i in range(int((W - 1.2) / .12)):
+                lathe(acc, [(0, 0), (.045, 0), (.05, .15), (0, .16)], (W / 2 - .3 - i * .12, shelf_y, z + .015), GLASS, 8, 0)
+                blob(acc, (.035, .035, .05), (W / 2 - .3 - i * .12, shelf_y, z + .07), C(["F4A6C1", "7A4A2E", "F2C23F", "6DB84A", "E8505B"][i % 5]), 1, .2, i)
+    elif sid == "adega":
+        # diamond wine rack wall and a barrel
+        for i in range(int(W / .5)):
+            bx = -W / 2 + .25 + i * .5
+            fr = frame_bm(.46, 1.1, .3, .02, .03)
+            place(fr, (bx, y - .2, 1.55)); acc.add(fr, WOOD_D)
+            for r_ in range(4):
+                for c_ in range(3):
+                    lathe(acc, [(0, 0), (.035, 0), (.035, .02), (0, .02)], (bx - .12 + c_ * .12, y - .35, 1.12 + r_ * .26), C(["2A3B22", "4A1C24"][(r_ + c_) % 2]), 8, 0, rot=(90, 0, 0))
+        if tier > 1:  # oak barrel
+            lathe(acc, [(.0, 0), (.28, 0), (.32, .3), (.28, .6), (0, .6)], (W / 2 - .45, y - .75, .0), "T_IK_Staves", 14, 1)
+    elif sid == "sucos":
+        for k in range(1 + tier):
+            dx = -W / 2 + .5 + k * .55
+            rbox(acc, (.4, .3, .12), (dx, y - .3, .98), BRUSHED, .02, 2)
+            lathe(acc, [(0, 0), (.14, 0), (.15, .35), (0, .35)], (dx, y - .3, 1.04), GLASS, 12, 0, cap_top=False)
+            lathe(acc, [(0, .01), (.135, .01), (.145, .3), (0, .3)], (dx, y - .3, 1.04), C(["F28C28", "E25555", "6DB84A", "F2C23F"][k % 4]), 12, 0)
+            rbox(acc, (.3, .3, .06), (dx, y - .3, 1.42), BRUSHED, .02, 2)
+        for i in range(5):
+            fruit(acc, ["orange", "lemon", "lime", "apple", "orange"][i], (W / 2 - .3 - i * .1, y - .35, .98), "Body", i)
+    # a blank plaque on the wall (the game writes the sector's name / pictogram)
+    plate(acc, min(1.4, W * .45), .3, (0, y - .065, H - .2), C(NAVY) if tier < 3 else C(INK), .03, .1)
+    plate(acc, min(1.2, W * .38), .2, (0, y - .085, H - .2), C(CREAM) if tier < 3 else LED, .012, .08)
+
+
+def sector_front(acc, sid, tier, W, y, D=.85, glass=True):
+    """Customer counter of the sector: wood (T1), navy with a curved vitrine (T2), rounded ripado + inox + LED (T3)."""
+    cw = W - .3 if sid != "sucos" else W
+    if tier == 1:
+        rbox(acc, (cw, D, .88), (0, y, .44), PLANKS, .02, 2, uv=1.3)
+        rbox(acc, (cw + .04, D + .04, .05), (0, y, .9), WOOD, .015, 2)
+        rbox(acc, (cw - .1, .01, .012), (0, y - D / 2 - .004, .8), C(NAVY), .004, 1)
+        for i in range(int(cw / .5)):
+            rbox(acc, (.36, .26, .02), (-cw / 2 + .3 + i * .5, y - .1, .93), "T_IK_Wicker" if sid in ("padaria", "sucos") else BRUSHED, .01, 1)
+        sector_goods(acc, sid, -cw / 2 + .1, cw / 2 - .1, y - .1, .95, .26, 1)
+    elif tier == 2:
+        rbox(acc, (cw, D, .85), (0, y, .425), C(NAVY), .03, 3)
+        n = max(2, int(cw / .9))
+        for k in range(n):
+            px_ = -cw / 2 + cw / n * (k + .5)
+            fr = frame_bm(cw / n - .14, .52, .02, .04, .04); place(fr, (px_, y - D / 2 - .004, .43)); acc.add(fr, WOOD)
+        rbox(acc, (cw + .02, .01, .012), (0, y - D / 2 - .006, .78), C(GOLD), .003, 1)
+        rbox(acc, (cw + .04, D + .04, .04), (0, y, .86), BRUSHED, .01, 2)
+        if glass:
+            bm = bmesh.new()
+            prof = [(0, 0), (.06, .1), (.12, .22), (.14, .34), (.12, .42)]
+            for i in range(len(prof) - 1):
+                a, b = prof[i], prof[i + 1]
+                v = [bm.verts.new((-cw / 2 + .04, -a[0], a[1])), bm.verts.new((cw / 2 - .04, -a[0], a[1])), bm.verts.new((cw / 2 - .04, -b[0], b[1])), bm.verts.new((-cw / 2 + .04, -b[0], b[1]))]
+                bm.faces.new(v)
+            uv_box(bm); place(bm, (0, y - D / 2 + .22, .88)); acc.add(bm, GLASS)
+            rbox(acc, (cw - .04, .4, .012), (0, y + .02, 1.3), GLASS, .004, 1)
+            rbox(acc, (cw - .1, .02, .01), (0, y + .2, 1.28), ICE if sid not in ("padaria",) else LED, .004, 1)
+            for s in (-1, 1):
+                rbox(acc, (.03, D - .1, .44), (s * (cw / 2 - .015), y, 1.08), C(NAVY), .015, 2)
+        if sid == "peixaria":
+            ice_bed(acc, cw - .2, .4, (0, y - .05, .9))
+        sector_goods(acc, sid, -cw / 2 + .1, cw / 2 - .1, y - .05, .92 if sid != "peixaria" else .94, .4, 2)
+    else:
+        body, _ = panel_bm(cw, D, .82, .3, 8)
+        bmesh.ops.rotate(body, verts=body.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.radians(90), 3, "X"))
+        uv_box(body); place(body, (0, y, .45)); acc.add(body, C(NAVY))
+        flat = cw - .62
+        n = int(flat / .07)
+        for k in range(n):
+            rbox(acc, (.034, .02, .52), (-flat / 2 + .02 + k * (flat - .04) / (n - 1), y - D / 2 - .006, .45), WOOD_L, .006, 1, uv=2)
+        for z in (.18, .72):
+            rbox(acc, (flat + .02, .012, .01), (0, y - D / 2 - .01, z), C(GOLD), .003, 1)
+        rbox(acc, (cw - .4, .02, .02), (0, y - D / 2 + .05, .03), LED, .006, 1)
+        tb, _ = panel_bm(cw + .04, D + .04, .04, .32, 8)
+        bmesh.ops.rotate(tb, verts=tb.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.radians(90), 3, "X"))
+        uv_box(tb, 2); place(tb, (0, y, .88)); acc.add(tb, MARBLE)
+        if glass:
+            bm = bmesh.new()
+            prof = [(0, 0), (.08, .12), (.13, .26), (.15, .4), (.13, .48)]
+            for i in range(len(prof) - 1):
+                a, b = prof[i], prof[i + 1]
+                v = [bm.verts.new((-cw / 2 + .3, -a[0], a[1])), bm.verts.new((cw / 2 - .3, -a[0], a[1])), bm.verts.new((cw / 2 - .3, -b[0], b[1])), bm.verts.new((-cw / 2 + .3, -b[0], b[1]))]
+                bm.faces.new(v)
+            uv_box(bm); place(bm, (0, y - D / 2 + .24, .9)); acc.add(bm, GLASS)
+            rbox(acc, (cw - .6, .42, .012), (0, y + .03, 1.38), GLASS, .004, 1)
+            rbox(acc, (cw - .64, .03, .015), (0, y + .2, 1.36), LED, .005, 1)
+            for s in (-1, 1):
+                rbox(acc, (.03, D - .2, .5), (s * (cw / 2 - .3), y, 1.14), BRUSHED, .015, 2)
+        if sid == "peixaria":
+            ice_bed(acc, cw - .7, .42, (0, y - .04, .92))
+        sector_goods(acc, sid, -cw / 2 + .32, cw / 2 - .32, y - .04, .92 if sid != "peixaria" else .95, .42, 2)
+
+
+def sector_canopy(acc, tier, W, D, H):
+    """Header over the sector: T1 a small blank board on posts, T2 a navy fascia with a gold line, T3 a suspended
+    frame with pendant lamps and a lit blank sign."""
+    if tier == 1:
+        return
+    if tier == 2:
+        rbox(acc, (W, .1, .3), (0, -D / 2 + .5, H - .15), C(NAVY), .03, 3)
+        rbox(acc, (W - .1, .01, .012), (0, -D / 2 + .444, H - .25), C(GOLD), .003, 1)
+        for s in (-1, 1):
+            tube(acc, [(s * (W / 2 - .05), -D / 2 + .5, H - .3), (s * (W / 2 - .05), -D / 2 + .5, 0)], .03, C(NAVY), 10)
+        return
+    fw, fd = W - .1, D - .6
+    for sy in (-1, 1):
+        rbox(acc, (fw, .09, .09), (0, .1 + sy * (fd / 2 - .045), H), C(NAVY), .03, 3)
+        rbox(acc, (fw - .2, .02, .012), (0, .1 + sy * (fd / 2 - .095), H - .04), LED, .005, 1)
+    for sx in (-1, 1):
+        rbox(acc, (.09, fd, .09), (sx * (fw / 2 - .045), .1, H), C(NAVY), .03, 3)
+    rbox(acc, (fw, .01, .012), (0, .1 - fd / 2 - .006, H - .02), C(GOLD), .003, 1)
+    plate(acc, 1.1, .26, (0, .1 - fd / 2 - .01, H + .2), C(NAVY), .03, .11)
+    plate(acc, .9, .17, (0, .1 - fd / 2 - .03, H + .2), LED, .012, .07)
+    for k in range(4):
+        x = -W / 2 + .5 + k * (W - 1.0) / 3
+        tube(acc, [(x, -D / 2 + .55, H), (x, -D / 2 + .55, H - .5)], .004, C(INK), 4)
+        lathe(acc, [(0, 0), (.04, 0), (.13, -.12), (.14, -.14), (0, -.12)], (x, -D / 2 + .55, H - .5), C(NAVY), 14, 0)
+        lathe(acc, [(.13, -.13), (0, -.125)], (x, -D / 2 + .55, H - .5), LED, 14, 0, cap_top=False)
+        lathe(acc, [(.13, -.12), (.142, -.12), (.142, -.13), (.13, -.13)], (x, -D / 2 + .55, H - .5), C(GOLD), 14, 0, cap_top=False, cap_bottom=False)
+    for s in (-1, 1):
+        tube(acc, [(s * (W / 2 - .1), .1, H), (s * (W / 2 - .1), .1, H + .5)], .01, C(INK), 6)
+
+
+def make_sector(sid):
+    _, W, D = SECTORS[sid]
+    fns = []
+    for tier in (1, 2, 3):
+        def build(acc, tier=tier):
+            H = 2.2 if tier == 1 else 2.4
+            front_d = .85 if sid != "sucos" else .75
+            front_y = -D / 2 + front_d / 2 + (.15 if sid != "sucos" else .05)
+            if sid == "sucos":
+                # a single wall-side juice bar: equipment on the counter's back, no separate back wall
+                sector_front(acc, sid, tier, W, front_y, front_d, glass=False)
+                sector_back(acc, sid, tier, W, D / 2 - .06, 2.0 + .2 * tier)
+            else:
+                sector_front(acc, sid, tier, W, front_y, front_d)
+                sector_back(acc, sid, tier, W, D / 2 - .06, H)
+            sector_canopy(acc, tier, W, D, H + .3)
+            if tier == 1 and sid != "sucos":
+                for s in (-1, 1):
+                    tube(acc, [(s * (W / 2 - .2), front_y, .9), (s * (W / 2 - .2), front_y, 1.7)], .02, WOOD, 6)
+                plate(acc, 1.0, .26, (0, front_y, 1.82), PAINT_NAVY, .03, .1)
+                plate(acc, .8, .17, (0, front_y - .02, 1.82), C(CREAM), .012, .07)
+        fns.append(build)
+    return fns
+
+
+for _sid in SECTORS:
+    BUILDERS["sector-" + _sid] = make_sector(_sid)
+
+
+# ---------------------------------------------------------------- ATM
+def atm_unit(acc, x, y, glow=True, surround=True):
+    """One cash machine facing -Y: navy body, lit screen (blank), keypad, card and cash slots, gold trim."""
+    rbox(acc, (.62, .62, 1.55), (x, y, .775), C(NAVY), .05, 3)
+    rbox(acc, (.56, .2, .5), (x, y - .33, 1.12), C(INK), .04, 3, rot=(12, 0, 0))
+    rbox(acc, (.36, .01, .26), (x, y - .445, 1.21), LED_COOL, .01, 1, rot=(12, 0, 0))
+    for i in range(3):
+        for j in range(4):
+            rbox(acc, (.04, .012, .03), (x - .05 + i * .05, y - .37, .93 + j * .04), C(CREAM if j else "C0392B"), .005, 1, rot=(30, 0, 0))
+    rbox(acc, (.12, .02, .03), (x + .17, y - .34, .98), C(INK), .005, 1)
+    rbox(acc, (.07, .006, .006), (x + .17, y - .351, .98), LED, 0, 1)
+    rbox(acc, (.28, .03, .04), (x, y - .31, .78), C(CHROME), .01, 1)
+    rbox(acc, (.62, .012, .012), (x, y - .316, 1.5), C(GOLD), .003, 1)
+    lathe(acc, [(0, 0), (.07, 0), (.07, .012), (0, .012)], (x, y - .312, 1.62), C(CREAM), 16, 0, rot=(90, 0, 0))
+    coin(acc, (x, y - .325, 1.62), C(GOLD), .045)
+
+
+def atm_t1(acc):
+    atm_unit(acc, 0, .05)
+    rbox(acc, (.74, .8, .12), (0, .0, 1.62), C(NAVY), .04, 3)
+    rbox(acc, (.7, .01, .015), (0, -.405, 1.6), LED, .005, 1)
+
+
+def atm_t2(acc):
+    rbox(acc, (1.48, .7, .08), (0, .05, .04), C(INK), .02, 2)
+    for x in (-.36, .36):
+        atm_unit(acc, x, .08)
+    rbox(acc, (1.5, .82, .28), (0, .0, 1.86), C(NAVY), .05, 3)
+    rbox(acc, (1.44, .01, .015), (0, -.415, 1.73), LED, .005, 1)
+    plate(acc, .7, .16, (0, -.42, 1.88), C(CREAM), .012, .07)
+    rbox(acc, (1.5, .01, .012), (0, -.414, 1.98), C(GOLD), .003, 1)
+    for s in (-1, 1):
+        rbox(acc, (.06, .8, 1.72), (s * .72, .0, .86), C(NAVY), .03, 3)
+
+
+def atm_t3(acc):
+    """Mini agência: a back wall with three ATMs, glass side screens, a lit canopy, a small bench and a plant."""
+    W, D = 2.0, 1.2
+    rbox(acc, (W, .14, 2.4), (0, D / 2 - .07, 1.2), "T_IK_V2_PaintCream", .02, 2)
+    for x in (-.66, 0, .66):
+        atm_unit(acc, x, D / 2 - .45)
+    for s in (-1, 1):
+        rbox(acc, (.03, D - .1, 2.1), (s * (W / 2 - .02), 0, 1.05), GLASS, .01, 1)
+        rbox(acc, (.05, D - .05, .06), (s * (W / 2 - .02), 0, 2.13), C(NAVY), .02, 2)
+    rbox(acc, (W, D, .14), (0, 0, 2.37), C(NAVY), .05, 3)
+    rbox(acc, (W - .1, .02, .015), (0, -D / 2 + .06, 2.29), LED, .005, 1)
+    plate(acc, .9, .22, (0, -D / 2 - .005, 2.5), C(CREAM), .03, .1)
+    rbox(acc, (W, .01, .012), (0, -D / 2 - .006, 2.32), C(GOLD), .003, 1)
+    rbox(acc, (W - .1, D - .1, .02), (0, 0, .01), C(BLUE), .02, 1)
+
+
+# ---------------------------------------------------------------- gumball machines
+def gumball_globe(acc, x, y, z, r=.17, seed=0):
+    rnd = random.Random(seed)
+    cols = ["E8505B", "F2C23F", "5FB548", "3E8FD6", "F28C28", "E86A9E", "FBF8F1"]
+    for i in range(int(18 * (r / .17) ** 2)):
+        a, b = rnd.random() * 6.28, rnd.random() * .9
+        rr = r * .75 * math.sqrt(rnd.random())
+        blob(acc, (.022, .022, .022), (x + rr * math.cos(a), y + rr * math.sin(a), z - r * .55 + b * r * .9), C(cols[i % 7]), 1, 0, i)
+    lathe(acc, [(0, -r), (r * .7, -r * .7), (r, 0), (r * .7, r * .7), (0, r)], (x, y, z), GLASS, 18, 2)
+    lathe(acc, [(r * .3, r * .85), (r * .35, r * 1.05), (0, r * 1.12)], (x, y, z), C(NAVY), 14, 1, cap_bottom=False)
+    lathe(acc, [(r * .32, r * .88), (r * .34, r * .9)], (x, y, z), C(GOLD), 14, 0, cap_top=False, cap_bottom=False)
+
+
+def gumball_head(acc, x, y, z):
+    rbox(acc, (.2, .18, .2), (x, y, z), C(NAVY), .04, 3)
+    lathe(acc, [(0, 0), (.04, 0), (.04, .02), (0, .02)], (x, y - .09, z + .03), C(CHROME), 12, 0, rot=(90, 0, 0))
+    rbox(acc, (.05, .03, .05), (x, y - .1, z - .06), C(CHROME), .01, 1)
+    rbox(acc, (.2, .006, .01), (x, y - .092, z + .085), C(GOLD), .003, 1)
+
+
+def gumball_t1(acc):
+    lathe(acc, [(0, 0), (.2, 0), (.2, .04), (.05, .06), (.04, .7), (0, .7)], (0, 0, 0), C(NAVY), 16, 1)
+    gumball_head(acc, 0, 0, .8)
+    gumball_globe(acc, 0, 0, 1.07, .17, 1)
+
+
+def gumball_t2(acc):
+    rbox(acc, (.9, .4, .05), (0, 0, .025), C(NAVY), .02, 2)
+    for x in (-.25, .25):
+        tube(acc, [(x, 0, .05), (x, 0, .7)], .04, C(NAVY), 10)
+        gumball_head(acc, x, 0, .8)
+        gumball_globe(acc, x, 0, 1.08, .18, int(x * 10) + 5)
+    tube(acc, [(-.25, 0, .4), (.25, 0, .4)], .015, C(GOLD), 6)
+
+
+def gumball_t3(acc):
+    """Torre de chicletes: a big globe over a tall navy column with a spiral chute (balls roll down it), gold rings."""
+    lathe(acc, [(0, 0), (.45, 0), (.45, .06), (.3, .1), (.22, .14), (0, .14)], (0, 0, 0), C(NAVY), 20, 1)
+    lathe(acc, [(.2, .14), (.16, .4), (.16, 1.25), (.22, 1.3), (0, 1.32)], (0, 0, 0), C(NAVY), 16, 1, cap_bottom=False)
+    for z in (.4, 1.25):
+        lathe(acc, [(.165, z), (.175, z), (.175, z + .02), (.165, z + .02)], (0, 0, 0), C(GOLD), 16, 0, cap_top=False, cap_bottom=False)
+    pts = [(.3 * math.cos(t * .5), .3 * math.sin(t * .5), 1.3 - t * .07) for t in range(16)]
+    tube(acc, pts, .035, GLASS, 10, 0)
+    for i in range(0, 16, 2):
+        blob(acc, (.022, .022, .022), pts[i], C(["E8505B", "F2C23F", "5FB548", "3E8FD6"][i % 4]), 1, 0, i)
+    gumball_head(acc, 0, -.12, .32)
+    gumball_globe(acc, 0, 0, 1.62, .32, 9)
+
+
+# ---------------------------------------------------------------- claw machines
+def plush(acc, loc, s=1.0, col="F4A6C1", seed=0):
+    x, y, z = loc
+    blob(acc, (.07 * s, .06 * s, .07 * s), (x, y, z + .06 * s), C(col), 2, .05, seed)
+    blob(acc, (.055 * s, .05 * s, .05 * s), (x, y - .01, z + .16 * s), C(col), 2, .03, seed + 1)
+    for e in (-1, 1):
+        blob(acc, (.02 * s, .015 * s, .025 * s), (x + e * .04 * s, y, z + .21 * s), C(col), 1, 0, seed + 2)
+        blob(acc, (.008 * s, .006, .008 * s), (x + e * .018 * s, y - .055 * s, z + .17 * s), C(INK), 1, 0, 0)
+
+
+def art_panel(acc, w, h, loc, key, t=.012, r=.03):
+    """Rounded panel showing a whole texture (0..1) on its front, like a printed decal."""
+    bm, _ = panel_bm(w, h, t, r, 5)
+    uvl = bm.loops.layers.uv.new("UVMap")
+    for f in bm.faces:
+        for l in f.loops:
+            l[uvl].uv = ((l.vert.co.x + w / 2) / w, (l.vert.co.z + h / 2) / h)
+    place(bm, loc)
+    acc.add(bm, key, smooth=False)
+
+
+def claw_cabinet(acc, x, W=.72, D=.72, H=1.9, seed=0, big=False):
+    rnd = random.Random(seed)
+    rbox(acc, (W, D, .8), (x, 0, .4), C(NAVY), .04, 3)
+    art_panel(acc, min(.5, W - .2), min(.5, W - .2) * .9, (x, -D / 2 - .006, .42), "T_IK_V3_ClawArt")
+    rbox(acc, (W, .01, .012), (x, -D / 2 - .005, .78), C(GOLD), .003, 1)
+    # control panel
+    rbox(acc, (W - .04, .2, .1), (x, -D / 2 + .05, .85), C(INK), .02, 2, rot=(-15, 0, 0))
+    lathe(acc, [(0, 0), (.012, 0), (.012, .08), (.03, .1), (0, .13)], (x - .12, -D / 2 + .02, .88), C("E8505B"), 10, 1)
+    lathe(acc, [(0, 0), (.035, 0), (.035, .02), (0, .025)], (x + .12, -D / 2 + .02, .88), C("F2C23F"), 12, 0)
+    # glass box, corner posts
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            rbox(acc, (.04, .04, H - .95), (x + sx * (W / 2 - .02), sy * (D / 2 - .02), .8 + (H - .95) / 2), C(NAVY), .015, 2)
+    for sx in (-1, 1):
+        rbox(acc, (.01, D - .06, H - 1.0), (x + sx * (W / 2 - .03), 0, .8 + (H - 1.0) / 2), GLASS, .004, 1)
+    rbox(acc, (W - .06, .01, H - 1.0), (x, -D / 2 + .03, .8 + (H - 1.0) / 2), GLASS, .004, 1)
+    rbox(acc, (W - .06, .01, H - 1.0), (x, D / 2 - .03, .8 + (H - 1.0) / 2), "T_IK_V2_PaintCream", .004, 1)
+    rbox(acc, (W, D, .2), (x, 0, H - .1), C(NAVY), .05, 3)
+    rbox(acc, (W - .1, .01, .1), (x, -D / 2 - .002, H - .1), LED, .02, 1)
+    rbox(acc, (W - .04, .012, .012), (x, -D / 2 - .006, H - .2), C(GOLD), .003, 1)
+    # prize pile and the claw
+    cols = ["F4A6C1", "F2C23F", "7DB3E8", "B9E8D2", "E8A06A", "C9A0E8"]
+    for i in range(10 if not big else 22):
+        plush(acc, (x + rnd.uniform(-W / 2 + .12, W / 2 - .12), rnd.uniform(-D / 2 + .12, D / 2 - .12), .8 + rnd.uniform(0, .12)), rnd.uniform(.8, 1.1) * (1.4 if big else 1), cols[i % 6], i + seed)
+    cx, cy = x + rnd.uniform(-.1, .1), rnd.uniform(-.1, .1)
+    tube(acc, [(cx, cy, H - .2), (cx, cy, H - .45)], .006, C(CHROME), 5)
+    lathe(acc, [(0, 0), (.04, 0), (.04, .05), (0, .06)], (cx, cy, H - .5), C(CHROME), 10, 0)
+    for k in range(3):
+        a = k * 2.09
+        tube(acc, [(cx + .03 * math.cos(a), cy + .03 * math.sin(a), H - .5), (cx + .07 * math.cos(a), cy + .07 * math.sin(a), H - .58), (cx + .045 * math.cos(a), cy + .045 * math.sin(a), H - .65)], .006, C(CHROME), 5)
+
+
+def claw_t1(acc):
+    claw_cabinet(acc, 0, .72, .72, 1.9, 1)
+
+
+def claw_t2(acc):
+    for i, x in enumerate((-.37, .37)):
+        claw_cabinet(acc, x, .72, .8, 1.95, 3 + i)
+    rbox(acc, (1.5, .84, .1), (0, 0, 2.0), C(NAVY), .04, 3)
+    plate(acc, .6, .14, (0, -.43, 2.0), C(CREAM), .012, .06)
+
+
+def claw_t3(acc):
+    claw_cabinet(acc, 0, 1.44, 1.44, 2.3, 7, big=True)
+    for s in (-1, 1):
+        rbox(acc, (.02, 1.4, .02), (s * .73, 0, 2.18), LED, .006, 1)
+    plate(acc, .9, .2, (0, -.73, 2.38), C(CREAM), .02, .09)
+
+
+# ---------------------------------------------------------------- carts and baskets
+def hand_basket(acc, loc, yaw=0, col=NAVY):
+    x, y, z = loc
+    X = Xf(acc, (x, y, z), (0, 0, yaw))
+    open_box(X, .42, .3, .2, (0, 0, 0), C(col), .012, .008)
+    tube(X, [(-.12, 0, .2), (-.1, 0, .32), (.1, 0, .32), (.12, 0, .2)], .01, C(GOLD if col != NAVY else CREAM), 6, 2)
+
+
+def cart(acc, loc, yaw=0, s=1.0, col=NAVY):
+    """Shopping cart: chrome wire basket (bars), navy plastic handle and corners, four castors."""
+    x, y, z = loc
+    X = Xf(acc, (x, y, z), (0, 0, yaw))
+    L, W, Hh = .8 * s, .5 * s, .45 * s
+    z0 = .35 * s
+    # basket bars
+    for i in range(7):
+        t = i / 6
+        xx = -L / 2 + t * L
+        tube(X, [(xx, -W / 2, z0), (xx, -W / 2, z0 + Hh)], .005, C(CHROME), 4)
+        tube(X, [(xx, W / 2, z0), (xx, W / 2, z0 + Hh)], .005, C(CHROME), 4)
+    for zz in (z0, z0 + Hh * .5, z0 + Hh):
+        tube(X, [(-L / 2, -W / 2, zz), (L / 2, -W / 2, zz), (L / 2, W / 2, zz), (-L / 2, W / 2, zz), (-L / 2, -W / 2, zz)], .006, C(CHROME), 4)
+    for j in range(5):
+        yy = -W / 2 + j * W / 4
+        tube(X, [(-L / 2, yy, z0), (L / 2, yy, z0)], .005, C(CHROME), 4)
+        tube(X, [(L / 2, yy, z0), (L / 2, yy, z0 + Hh)], .005, C(CHROME), 4)
+    # chassis and castors
+    for sy in (-1, 1):
+        tube(X, [(-L / 2 - .05, sy * W * .4, z0 + Hh + .05), (-L / 2, sy * W * .4, z0), (-L / 2 + .05, sy * W * .35, .08), (L / 2 - .05, sy * W * .35, .08)], .012, C(CHROME), 6)
+        for xx in (-L / 2 + .07, L / 2 - .07):
+            lathe(X, [(0, 0), (.04 * s, 0), (.04 * s, .03), (0, .03)], (xx, sy * W * .35, .04 * s), C(INK), 10, 0, rot=(90, 0, 0))
+    rbox(X, (.05, W * .95, .04), (-L / 2 - .06, 0, z0 + Hh + .07), C(col), .018, 2)
+    for sy in (-1, 1):
+        rbox(X, (.06, .04, .1), (L / 2, sy * W / 2, z0 + Hh - .04), C(col), .015, 2)
+
+
+def carts_t1(acc):
+    """Cestinhas: a navy stand with a stack of hand baskets and a second short stack beside it."""
+    rbox(acc, (.62, .44, .06), (-.03, 0, .03), C(NAVY), .02, 2)
+    for k in range(5):
+        hand_basket(acc, (-.12, 0, .06 + k * .07), 0)
+    for k in range(3):
+        hand_basket(acc, (.17, .0, .06 + k * .07), 90, "2E4A7D")
+    tube(acc, [(-.33, .2, .06), (-.33, .2, .9)], .015, C(CHROME), 6)
+    plate(acc, .2, .14, (-.33, .19, .88), C(CREAM), .012, .05, (0, 0, 0))
+
+
+def carts_t2(acc):
+    """Carrinhos: a corral of chrome rails with four nested carts and a navy end post with a blank plaque."""
+    for s in (-1, 1):
+        tube(acc, [(-.72, s * .32, .02), (-.72, s * .32, .9), (.72, s * .32, .9), (.72, s * .32, .02)], .02, C(CHROME), 8)
+        tube(acc, [(-.72, s * .32, .5), (.72, s * .32, .5)], .015, C(CHROME), 6)
+    for k in range(4):
+        cart(acc, (.3 - k * .16, 0, 0), 180, .82)
+    rbox(acc, (.1, .7, 1.05), (.76, 0, .525), C(NAVY), .03, 3)
+    plate(acc, .5, .3, (.82, 0, .8), C(CREAM), .012, .05, (0, 0, 90))
+    rbox(acc, (.012, .72, .012), (.815, 0, .62), C(GOLD), .003, 1)
+
+
+def carts_t3(acc):
+    """Carrinhos grandes: a covered corral (navy roof on posts, LED edge), big carts and two kids' carts, a basket stand."""
+    W, D = 1.96, .96
+    for s in (-1, 1):
+        tube(acc, [(-W / 2 + .05, s * .4, .02), (-W / 2 + .05, s * .4, .9), (W / 2 - .25, s * .4, .9), (W / 2 - .25, s * .4, .02)], .02, C(CHROME), 8)
+    for k in range(4):
+        cart(acc, (.35 - k * .2, -.1, 0), 180, 1.0)
+    for k in range(2):
+        cart(acc, (-.55 + k * .14, .26, 0), 180, .6, "D74A3C")
+    for x in (-W / 2 + .05, W / 2 - .05):
+        for y in (-D / 2 + .05, D / 2 - .05):
+            tube(acc, [(x, y, 0), (x, y, 2.0)], .025, C(NAVY), 10)
+    for sy in (-1, 1):
+        rbox(acc, (W + .1, .08, .1), (0, sy * (D / 2 + .01), 2.05), C(NAVY), .03, 3)
+    for sx in (-1, 0, 1):
+        rbox(acc, (.06, D + .1, .08), (sx * (W / 2 + .02), 0, 2.05), C(NAVY), .02, 2)
+    rbox(acc, (W + .06, D + .06, .012), (0, 0, 2.1), GLASS, .004, 1)
+    rbox(acc, (W + .1, .01, .012), (0, -D / 2 - .056, 2.05), C(GOLD), .003, 1)
+    rbox(acc, (W - .1, .02, .015), (0, -D / 2 + .02, 1.99), LED, .005, 1)
+    plate(acc, .8, .2, (0, -D / 2 - .06, 2.22), C(CREAM), .02, .09)
+    for k in range(3):
+        hand_basket(acc, (W / 2 - .2, .2, .0 + k * .07), 90)
+
+
+BUILDERS.update({
+    "atm": [atm_t1, atm_t2, atm_t3],
+    "gumball": [gumball_t1, gumball_t2, gumball_t3],
+    "claw": [claw_t1, claw_t2, claw_t3],
+    "carts": [carts_t1, carts_t2, carts_t3],
+})
