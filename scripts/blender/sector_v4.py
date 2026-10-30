@@ -52,7 +52,7 @@ def screen_quad(acc, w, h, loc, key, rot=(0, 0, 0), v0=0.0, v1=1.0):
     bm = bmesh.new()
     uvl = bm.loops.layers.uv.new("UVMap")
     vs = [bm.verts.new((x * w / 2, 0, z * h / 2)) for x, z in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
-    f = bm.faces.new(list(reversed(vs)))
+    f = bm.faces.new(vs)                                # CCW seen from -Y: the quad faces the customer side
     for l in f.loops:
         l[uvl].uv = ((l.vert.co.x / w) + .5, v0 + ((l.vert.co.z / h) + .5) * (v1 - v0))
     place(bm, loc, rot)
@@ -330,8 +330,8 @@ def v4_testeira(acc, W, yb, H, h=.42, depth=.55):
     rbox(acc, (W, depth, h), (0, y0 - depth / 2, H - h / 2), C(NAVY), .03, 3)
     rbox(acc, (W + .01, .012, .014), (0, y0 - depth - .002, H - h + .07), C(GOLD), .003, 1)
     plate(acc, W * .42, h * .62, (0, y0 - depth - .012, H - h * .45), C(CREAM), .02, h * .2)
-    for k in range(2):
-        rbox(acc, (W - .1, .03, .012), (0, y0 - .15 - k * .25, H - h - .006), LED_W, .003, 1)
+    for k in range(max(1, int(depth / .25))):
+        rbox(acc, (W - .1, .03, .012), (0, y0 - depth / 2 - k * .25, H - h - .006), LED_W, .003, 1)
 
 
 def v4_hanging_sign(acc, x, y, z, w=.9, h=.28):
@@ -395,7 +395,7 @@ def acougue_v4(acc, tier):
         Xc = Xf(acc, (-.62, 0, 0))
         v4_service_counter(Xc, 2.65, cy, 2)
         v4_selfservice(acc, W / 2 - .66, -D / 2 + .42, 1.25, .78, 1.95, 1)
-        v4_testeira(acc, W, yb, H + .04, .42, .55)
+        v4_testeira(acc, W, yb, H + .04, .34, .2)     # slim: the T3 price boards read from the game camera
         v4_bandsaw(acc, (-1.6, yb - .42, 0), 0)
         v4_worktable(acc, -.65, yb - .38, 1.4, .6)
         v4_grinder(acc, (-1.15, yb - .4, .9), 0)
@@ -407,14 +407,24 @@ def acougue_v4(acc, tier):
         v4_cold_door(acc, 1.5, yb - .02, .8, 2.05)
         v4_hook_rail(acc, -1.35, .1, yb - .07, 1.62, 5, ("ham", "sausage", None, "ham", "sausage"))
         for k, px_ in enumerate((-.95, -.12, .71)):
-            v4_price_panel(acc, px_, yb - .075, 2.2, .8, k)
-        v4_ticket_display(acc, 1.5, yb - .075, 2.38)
+            v4_price_panel(acc, px_, yb - .075, 2.17, .8, k)
+        v4_ticket_display(acc, 1.5, yb - .075, 2.3)
         v4_ticket_dispenser(acc, (-1.7, -D / 2 + .13, 0), 20)
         sd_knife_strip(acc, .55, yb - .075, 1.45, 3, .4)
 
 
 BUILDERS["sector-acougue"] = make_sector_v2("acougue", acougue_v4)
 SECTOR_TIER_NAMES["acougue"] = ("balcão de atendimento", "açougue", "açougue completo")
+
+
+def v4_gamecam(sid, tier=3, elev=50, yaw=-20):
+    """Check from the game's iso camera: orthographic, from the customer side, looking down."""
+    o = bpy.data.objects["sector-%s-t%d" % (sid, tier)]
+    isolate(BASE_Y["sector-" + sid], 3.4)
+    w, d, h = SECTOR_SIZES[tier - 1]
+    e, a = math.radians(elev), math.radians(yaw)
+    camera((o.location.x, o.location.y + .2, 1.3), (math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)), 30, 40, ortho=w * 1.5)
+    return render("sector-%s_T%d_gamecam" % (sid, tier), (1400, 1100))
 
 
 def v4_rebuild(sid):
@@ -499,7 +509,7 @@ def v4_section(acc, tier, W, D, H, yb, panels=(), ticket=None, display=None, sig
     elif tier == 2:
         v4_hanging_sign(acc, sign[0] if sign else -.8, sign[1] if sign else -D / 2 + .75, 2.3, .9, .28)
     else:
-        v4_testeira(acc, W, yb, H + .04, .42, .55)
+        v4_testeira(acc, W, yb, H + .04, .34, .2)     # slim: the T3 price boards read from the game camera
 
 
 # ================================================================================================ PADARIA (round 4)
@@ -708,7 +718,12 @@ def padaria_v4(acc, tier):
         v4_rack_trolley(acc, (1.65, yb - .45, 0), 0, 4, "baguette")
         v4_bread_slicer(acc, (-1.65, -D / 2 + 1.45, 0), 90)
         v4_label_scale(acc, (-1.2, cy + .4, .92), 180)
-        v4_section(acc, 3, W, D, H, yb, panels=((-.95, 2.2, .8), (-.12, 2.2, .8), (.71, 2.2, .8)), ticket=(-1.7, 20), display=(1.4, 2.38))
+        # price boards over the low proofer / trolleys (the rack ovens' hoods would hide them from the game camera);
+        # the 'agora atendendo' display sits on a bracket on top of the cake cabinet, next to the counter
+        v4_section(acc, 3, W, D, H, yb, panels=((.62, 2.17, .8), (1.5, 2.17, .8)), ticket=(-1.7, 20))
+        cx, cfy = W / 2 - .66, -D / 2 + .42 - .39
+        rbox(acc, (.08, .06, .07), (cx, cfy + .05, 1.975), C("2A2E36"), .01, 1)
+        v4_ticket_display(acc, cx, cfy + .01, 2.12)
 
 
 # ================================================================================================ FRIOS E LATICÍNIOS (round 4)
@@ -825,7 +840,7 @@ def queijaria_v4(acc, tier):
         v4_hook_rail(acc, -1.6, .55, yb - .07, 1.62, 4)
         for k in range(4):
             sd_provolone(acc, -1.4 + k * .55, yb - .19, 1.57, .85, False)
-        v4_section(acc, 3, W, D, H, yb, panels=((-1.2, 2.2, .8), (-.35, 2.2, .8), (.5, 2.2, .8)), ticket=(-1.7, 20), display=(1.25, 2.38))
+        v4_section(acc, 3, W, D, H, yb, panels=((-1.2, 2.17, .8), (-.35, 2.17, .8), (.5, 2.17, .8)), ticket=(-1.7, 20), display=(1.25, 2.3))
 
 
 # ================================================================================================ PEIXARIA (round 4)
@@ -898,7 +913,7 @@ def peixaria_v4(acc, tier):
         v4_ice_machine(acc, .45, yb - .42)
         v4_cold_door(acc, 1.5, yb - .02, .8, 2.05)
         sd_knife_strip(acc, -.6, yb - .075, 1.5, 5, .6)
-        v4_section(acc, 3, W, D, H, yb, panels=((-.95, 2.2, .8), (-.12, 2.2, .8), (.71, 2.2, .8)), ticket=(-1.7, 20), display=(1.5, 2.38))
+        v4_section(acc, 3, W, D, H, yb, panels=((-.95, 2.17, .8), (-.12, 2.17, .8), (.71, 2.17, .8)), ticket=(-1.7, 20), display=(1.5, 2.3))
 
 
 # ================================================================================================ SORVETERIA (round 4)
@@ -997,7 +1012,7 @@ def sorvetes_v4(acc, tier):
         v4_label_scale(acc, (-.2, yb - .38, .9), 0)
         v4_cups_station(acc, .15, yb - .4, .9)
         v4_glass_cabinet(acc, 1.25, yb - .38, 1.2, .65, 1.95, lambda X, i, w, d: [sd_cake(X, (-w / 2 + .16 + k * .3, 0, .005), .1, .07, ["straw", "choc", "cream"][(i + k) % 3]) for k in range(int(w / .3))], True, NAVY, 4)
-        v4_section(acc, 3, W, D, H, yb, panels=((-1.2, 2.2, .8), (-.35, 2.2, .8), (.5, 2.2, .8)))
+        v4_section(acc, 3, W, D, H, yb, panels=((-1.2, 2.17, .8), (-.35, 2.17, .8), (.5, 2.17, .8)))
 
 
 # ================================================================================================ ADEGA (round 4)
@@ -1118,7 +1133,7 @@ def adega_v4(acc, tier):
         v4_wine_cooler(acc, 1.05, yb - .38, .7)
         v4_tasting_machine(acc, 1.45, -D / 2 + 1.35)
         v4_crate_island(acc, -.6, -D / 2 + .7, 1.5, .85, 2)
-        v4_section(acc, 3, W, D, H, yb, panels=((-1.05, 2.25, .8), (.7, 2.25, .8)))
+        v4_section(acc, 3, W, D, H, yb, panels=((-1.05, 2.17, .8), (.7, 2.17, .8)))
 
 
 # ================================================================================================ SUCOS (round 4)
@@ -1237,7 +1252,7 @@ def sucos_v4(acc, tier):
             Cr = crate(acc, .4, .3, .12, (-1.6 + k * .45, yb - .4, .9), 0)
             sd_fruit_mound(Cr, .36, .26, (0, 0, .02), kind, k, 0, .04)
         sd_juicer(acc, (.0, yb - .38, .9))
-        v4_section(acc, 3, W, D, H, yb, panels=((-1.2, 2.2, .8), (-.35, 2.2, .8), (.5, 2.2, .8)))
+        v4_section(acc, 3, W, D, H, yb, panels=((-1.2, 2.17, .8), (-.35, 2.17, .8), (.5, 2.17, .8)))
 
 
 # ================================================================================================ registration
