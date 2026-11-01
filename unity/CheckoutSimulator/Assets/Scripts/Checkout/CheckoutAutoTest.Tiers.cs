@@ -59,6 +59,7 @@ namespace Checkout {
      case "ui": yield return TierUi(); break;
      case "floorprobe": yield return TierFloorProbe(); break;
      case "navprobe": yield return TierNavProbe(); break;
+     case "markers": yield return TierMarkerShots(); break;
      default: Note("unknown part " + part); break;
     }
     TierReset();
@@ -513,6 +514,23 @@ namespace Checkout {
 
   // Can shoppers get into the market building? NavMesh paths from the sidewalk to the entrance and on to every shelf's
   // approach, and the solid boxes the navigation is built with near the way in. Logs/ft_nav_probe.txt.
+  // The same views of the Mercadinho and the Supermercado (Logs/ft_markers_<stage>_floor|close.jpg), to compare what floats
+  // over the furniture before and after a change; counts the "Status …" objects the map shows (the old stock pills).
+  IEnumerator TierMarkerShots() {
+   foreach (var stage in new[] { "mercadinho", "supermercado" }) {
+    yield return ShowTier(stage, System.Array.IndexOf(EraIds, stage), 2, null); yield return Wait(2);
+    var map = FindAnyObjectByType<CheckoutMap>(); int shown = 0;
+    if (map) foreach (Transform t in map.transform) if (t.name.StartsWith("Status ") && t.gameObject.activeInHierarchy) shown++;
+    var inside = CheckoutInterior.Active;
+    Note($"TIERS markers {stage}: {shown} status pills shown");
+    ShootFloor($"ft_markers_{stage}_floor");
+    var shelf = inside ? inside.items.Values.Where(i => i.root && i.type == "shelf").OrderBy(i => i.id).FirstOrDefault() : null;
+    if (shelf != null) TierShot($"ft_markers_{stage}_close", 2048, 1152, shelf.root.position + Vector3.up * 1.2f, 6.5f);
+    TierReset();
+   }
+   Note("RESULT tiers markers: PASS shots");
+  }
+
   IEnumerator TierNavProbe() {
    var lines = new List<string>();
    foreach (var stage in new[] { "mercadinho", "supermercado" }) {

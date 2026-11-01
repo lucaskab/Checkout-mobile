@@ -5,7 +5,7 @@ using UnityEngine;
 using MarketDay;
 namespace Checkout {
  public class CheckoutMap:MonoBehaviour {
-  Transform world;CheckoutBridge bridge;readonly Dictionary<string,CheckoutStatusMarker> markers=new Dictionary<string,CheckoutStatusMarker>();readonly CheckoutEventAssets markerArt=new CheckoutEventAssets();readonly Dictionary<string,Transform> staff=new Dictionary<string,Transform>();readonly Dictionary<string,GameObject> decorations=new Dictionary<string,GameObject>();readonly Dictionary<string,Vector3> homes=new Dictionary<string,Vector3>();readonly Dictionary<string,Quaternion> truckRotations=new Dictionary<string,Quaternion>();readonly HashSet<string> dispatchedDeliveryOrders=new HashSet<string>();MarketDeliveryWorker deliveryWorker;
+  Transform world;CheckoutBridge bridge;readonly HashSet<string> sectorTargets=new HashSet<string>();readonly Dictionary<string,Transform> staff=new Dictionary<string,Transform>();readonly Dictionary<string,GameObject> decorations=new Dictionary<string,GameObject>();readonly Dictionary<string,Vector3> homes=new Dictionary<string,Vector3>();readonly Dictionary<string,Quaternion> truckRotations=new Dictionary<string,Quaternion>();readonly HashSet<string> dispatchedDeliveryOrders=new HashSet<string>();MarketDeliveryWorker deliveryWorker;
   readonly Dictionary<string,Vector3> fixtures=new Dictionary<string,Vector3>{{"produce",P(6.55f,.45f)},{"dairy",P(-6.4f,-1.6f)},{"bakery",P(-6.45f,1.05f)},{"snacks",P(-1.6f,.3f)},{"drinks",P(2,-1.18f)},{"coffee",P(-2.2f,6.37f)},{"pizza",P(4.85f,-5.36f)},{"home",P(-6.4f,4.2f)},{"icecream",P(6.4f,-4.2f)}};
   readonly Dictionary<string,Vector3> approaches=new Dictionary<string,Vector3>{{"produce",P(5.1f,-1.2f)},{"dairy",P(-4,-1.6f)},{"bakery",P(-3.8f,2.55f)},{"snacks",P(-.18f,.5f)},{"drinks",P(3.3f,-1.2f)},{"coffee",P(-2f,5.1f)},{"pizza",P(4.85f,-3.85f)},{"home",P(-4.9f,4.2f)},{"icecream",P(4.9f,-4.2f)}};
   CheckoutMarketLayout layout;readonly Dictionary<Transform,Vector3> targets=new Dictionary<Transform,Vector3>();
@@ -44,7 +44,7 @@ namespace Checkout {
   // The boosters running now (Melhorias → Boosters) seen in the market: auras, party lights, sale tags.
   public CheckoutBoostFx Boosts {get;private set;}
   // Over every shelf in use: where the sale tags of Liquidação Relâmpago hang.
-  public IEnumerable<Vector3> BoostShelfPoints(){if(state?.shelves==null)yield break;foreach(var shelf in state.shelves){if(!shelf.unlocked)continue;if(StallCrate(shelf.id)){yield return CheckoutStall.Crate(shelf.id)+Vector3.up*1.1f;continue;}if(markers.TryGetValue(shelf.id,out var m)&&m&&m.gameObject.activeInHierarchy){yield return m.transform.position;continue;}if(Piece(shelf.id)!=null)yield return MarkerPoint(shelf.id,1.35f);}}
+  public IEnumerable<Vector3> BoostShelfPoints(){if(state?.shelves==null)yield break;foreach(var shelf in state.shelves){if(!shelf.unlocked)continue;if(StallCrate(shelf.id)){yield return CheckoutStall.Crate(shelf.id)+Vector3.up*1.1f;continue;}if(Piece(shelf.id)!=null)yield return MarkerPoint(shelf.id,1.35f);else if(fixtures.ContainsKey(shelf.id))yield return Fixture(shelf.id)+Vector3.up*1.35f;}}
   public Transform StaffTemplate(string name)=>world?world.Find("Staff Kit/"+name):null;
   public void SaveInterior(){if(bridge&&Interior)bridge.Command("saveInteriorLayout","["+Interior.ExportJson()+"]");}
   // The map design ("Modo edição"): moved/hidden/added scene objects and the painted ground.
@@ -56,7 +56,7 @@ namespace Checkout {
    if(Furnished){var sim=FindAnyObjectByType<MarketSimulation>();if(sim)sim.Furniture=()=>Interior.Obstacles().Concat(Design.Obstacles());}
    foreach(var old in world.GetComponentsInChildren<DepartmentTarget>())old.gameObject.SetActive(false);
    teal=Mat("2E8CAE");
-   foreach(var pair in fixtures){markers[pair.Key]=Marker(pair.Key,Fixture(pair.Key)+Vector3.up*1.35f);Target(Fixture(pair.Key),new Vector3(1.4f,2,1.1f),"store",pair.Key);}
+   foreach(var pair in fixtures){Target(Fixture(pair.Key),new Vector3(1.4f,2,1.1f),"store",pair.Key);}
    // The city carries on past the map and fades into the sky (before the events read the sky colour).
    Horizon=gameObject.AddComponent<CheckoutCityHorizon>();Horizon.Initialize(world);
    events=gameObject.AddComponent<CheckoutEventVisuals>();events.Initialize();
@@ -116,16 +116,13 @@ namespace Checkout {
    // A wing bought in this session: the pieces move to the map design made for the bigger shop.
    if(grow&&Furnished&&Interior.AdoptDesign())furnitureMoved=true;
    if(Furnished){foreach(var shelf in next.shelves)Interior.SetFill(Interior.Get(CheckoutInterior.ShelfKey(shelf.id)),shelf.unlocked&&shelf.capacity>0?(float)shelf.stock/shelf.capacity:0);foreach(var it in Interior.items.Values)if(it.type=="sector")Interior.SetFill(it,1);}
-   foreach(var shelf in next.shelves){if(!markers.TryGetValue(shelf.id,out var marker))continue;
-    marker.transform.position=MarkerPoint(shelf.id,1.35f);if(Furnished)marker.gameObject.SetActive(Piece(shelf.id)!=null&&!shelf.building);
-    marker.Apply(shelf.unlocked,shelf.stock,shelf.capacity,false,shelf.requiredLevel);
+   foreach(var shelf in next.shelves){if(!fixtures.ContainsKey(shelf.id))continue;
     var pieces=world.Cast<Transform>().Where(t=>t.name.StartsWith("Stock_"+shelf.id+"_")).OrderBy(t=>t.name).ToArray();int visible=shelf.unlocked&&shelf.stock>0?Mathf.Max(1,Mathf.CeilToInt(pieces.Length*(float)shelf.stock/Mathf.Max(1,shelf.capacity))):0;
     for(int i=0;i<pieces.Length;i++)pieces[i].gameObject.SetActive(i<visible);
    }
    foreach(var sector in next.sectors){var root=world.Find("Sector_"+sector.id);var progress=world.Find("Sector Construction/"+sector.id)?.GetComponent<CheckoutSectorProgress>();bool present=layout.HasSector(sector.id);bool available=present&&sector.unlocked;if(root&&!progress)root.gameObject.SetActive(available);
     var position=SectorPosition("sector-"+sector.id);
-    string key="sector-"+sector.id;if(!markers.ContainsKey(key)){markers[key]=Marker(key,position+Vector3.up*1.65f);Target(position,new Vector3(1.3f,2,1.1f),"sectors","",sector.id);}
-    markers[key].gameObject.SetActive(present&&!sector.building&&(!Furnished||Piece(key)!=null));markers[key].transform.position=MarkerPoint(key,1.65f);markers[key].Apply(available,sector.jobs,1,true,sector.requiredLevel);
+    string key="sector-"+sector.id;if(sectorTargets.Add(key))Target(position,new Vector3(1.3f,2,1.1f),"sectors","",sector.id);
     if(sector.id=="queijaria"&&available&&!world.Find("Worker_Cheesemaker")){var template=world.Find("Worker_Baker");if(template){var cheesemaker=Instantiate(template,world);cheesemaker.name="Worker_Cheesemaker";var display=root?root.GetComponentsInChildren<Renderer>().FirstOrDefault(r=>r.enabled):null;cheesemaker.position=display?P(display.bounds.center.x,display.bounds.center.z+display.bounds.size.z*.12f):P(-3.8f,4.5f);cheesemaker.rotation=Quaternion.identity;}}
     string worker=sector.id=="padaria"?"Worker_Baker":sector.id=="queijaria"?"Worker_Cheesemaker":sector.id=="acougue"?"Worker_Butcher":sector.id=="peixaria"?"Worker_Fishmonger":"";var actor=string.IsNullOrEmpty(worker)?null:world.Find(worker);
     if(Furnished){ // Counters are furniture now: the worker stands behind wherever it was placed.
@@ -206,10 +203,9 @@ namespace Checkout {
    if(click)click.gameObject.SetActive(on);
   }
   Transform TruckFor(Order order,HashSet<Transform> claimed){string name=order.productCategory=="peixes"?"Anim_Truck_8":order.productCategory=="congelados"?"Anim_Truck_11":"Anim_Truck_5";var truck=world.Find(name);return truck&&!claimed.Contains(truck)?truck:null;}
-  void OnDestroy(){markerArt.Dispose();if(teal)Destroy(teal);}
+  void OnDestroy(){if(teal)Destroy(teal);}
   Material Mat(string hex){var mat=new Material(Shader.Find("Standard"));mat.color=MarketSimulation.C(hex);mat.SetFloat("_Glossiness",0);return mat;}
   GameObject Box(string name,Vector3 p,Vector3 size,Material mat){var o=GameObject.CreatePrimitive(PrimitiveType.Cube);o.name=name;o.transform.SetParent(transform);o.transform.position=p;o.transform.localScale=size;o.GetComponent<Renderer>().material=mat;return o;}
-  CheckoutStatusMarker Marker(string id,Vector3 p){var go=new GameObject("Status "+id);go.transform.SetParent(transform);go.transform.position=p;var marker=go.AddComponent<CheckoutStatusMarker>();marker.Initialize(markerArt);return marker;}
   void Target(Vector3 p,Vector3 size,string panel,string shelfId="",string sectorId=""){var go=new GameObject("Open "+panel);go.transform.SetParent(transform);go.transform.position=p;go.AddComponent<BoxCollider>().size=size;var target=go.AddComponent<CheckoutTarget>();target.panel=panel;target.shelfId=shelfId;target.sectorId=sectorId;targets[go.transform]=p;}
  }
 }
