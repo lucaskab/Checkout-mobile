@@ -1035,3 +1035,313 @@ def b_espumante_casa():
         blob("SparkBub%d" % k, .012, (x + (k % 3 - 1) * .03, y, .68 + k * .04), (1, 1, 1), M("Bubble", "FFFFFF", rough=.0, coat=1))
     for k in range(5):
         blob("SparkStar%d" % k, .03, (.3 + k * .12, -.6 + (k % 2) * .1, .05), (1, 1, .3), gold, segs=8, rings=6)
+
+
+# ================================================================================================ REDO (round 2): 124 131 135 137 149 152 163 166 167
+def wood_m(hexc="B98552", dark="8A5A32"):
+    return MIX("WoodR_" + hexc, hexc, dark, "wave", 3.0, .3, .9, rough=.55)
+
+
+def parented(child, parent):
+    child.parent = parent
+    return child
+
+
+def mushroom(name, loc, s=1.0, rot=(0, 0, 0), white=False, seed=0):
+    cap = M("MushCapW", "F1ECE2", rough=.45, coat=.2) if white else MIX("MushCapB", "7A4E2E", "A87A52", "noise", 5, .35, .65, rough=.5, coat=.15)
+    stem_m = M("MushStemR", "F4EEE2", rough=.55)
+    gill = M("MushGillR", "8A6A4E", rough=.7)
+    st = cylinder(name + "Stem", .1 * s, .32 * s, loc, rot, material=stem_m, segs=20, bevel=.02 * s, r2=.085 * s)
+    c = lathe(name + "Cap", [(0, 0), (.3 * s, -.02 * s), (.33 * s, .03 * s), (.3 * s, .12 * s), (.18 * s, .2 * s), (0, .23 * s)], (0, 0, .13 * s), cap, 40)
+    parented(c, st)
+    g = lathe(name + "Gill", [(0, .005 * s), (.29 * s, -.015 * s)], (0, 0, .13 * s), gill, 40)
+    parented(g, st)
+    for k in range(18):
+        a = k * 2 * math.pi / 18
+        r_ = rb(name + "GillLine%d" % k, (.2 * s, .008 * s, .01 * s), (math.cos(a) * .17 * s, math.sin(a) * .17 * s, .12 * s), M("MushGillDark", "5A3E2A", rough=.7), 0, (0, 0, a))
+        parented(r_, st)
+    return st
+
+
+@product(124, "cogumelos", view=(.85, -1.3, 1.05), fill=.84)
+def b_cogumelos_r():
+    w = wood_m("C9A06A", "9A7046")
+    L, D, H, t = 1.7, 1.15, .32, .05
+    rb("PunBase", (L, D, t), (0, 0, t / 2), w, .015)
+    for s in (-1, 1):
+        rb("PunSideL%d" % s, (L, t, H), (0, s * (D / 2 - t / 2), H / 2), w, .015)
+        rb("PunSideW%d" % s, (t, D, H + .06), (s * (L / 2 - t / 2), 0, (H + .06) / 2), w, .015)
+    rr = rnd(124)
+    spots = [(-.55, -.25), (-.15, -.28), (.25, -.25), (.6, -.22), (-.4, .1), (0, .05), (.4, .1), (-.6, .3), (-.2, .32), (.2, .32), (.58, .32)]
+    for i, (x, y) in enumerate(spots):
+        s = rr.uniform(.9, 1.15)
+        mushroom("Mush%d" % i, (x, y, .3 + rr.uniform(0, .08)), s, (rr.uniform(-.25, .25), rr.uniform(-.25, .25), 0), white=(i % 4 == 2), seed=i)
+    # two tipped over in front, gills to the camera
+    mushroom("MushTip1", (.15, -.85, .2), 1.05, (math.radians(-100), 0, .3))
+    mushroom("MushTip2", (-.5, -.8, .18), .9, (math.radians(-95), 0, -.4), white=True)
+
+
+@product(131, "pao_integral", view=(.85, -1.35, .85), fill=.84)
+def b_pao_integral_r():
+    crust = MIX("WholeCrustR", "4A2A16", "6E4022", "noise", 10, .35, .65, rough=.6, coat=.1)
+    crumb = MIX("WholeCrumbR", "B98552", "4A2A16", "noise", 38, .6, .63, rough=.75)
+    rb("WLoaf", (1.5, .95, .7), (.35, .2, .35), crust, .2, seg=6)
+    blob("WDome", .5, (.35, .2, .68), (1.45, .9, .38), crust)
+    oat = M("OatR", "EADBB0", rough=.6)
+    seed = M("SeedR", "3A2A1A", rough=.4)
+    rr = rnd(131)
+    for i in range(60):
+        x = .35 + rr.uniform(-.65, .65); y = .2 + rr.uniform(-.36, .36)
+        z = .68 + .19 * math.sqrt(max(0, 1 - ((x - .35) / .72) ** 2 - ((y - .2) / .45) ** 2)) + .01
+        blob("WOat%d" % i, .035, (x, y, z), (1.7, .8, .45) if i % 3 else (1, 1, .6), oat if i % 3 else seed, rot=(0, 0, rr.uniform(0, 3)), segs=8, rings=6)
+    for k in range(2):
+        x = -.5 - k * .32
+        a = -.15 - k * .12
+        rb("WSliceCrust%d" % k, (.95, .17, .9), (x, -.35 - k * .12, .45), crust, .12, rot=(0, 0, a))
+        rb("WSliceCrumb%d" % k, (.85, .19, .8), (x, -.35 - k * .12, .44), crumb, .1, rot=(0, 0, a))
+
+
+@product(135, "iogurte_grego", view=(.85, -1.3, 1.05), fill=.84)
+def b_iogurte_grego_r():
+    pot = M("GreekPotR", "FBF8F1", rough=.3, coat=.3)
+    blue = M("GreekBlueR", "1F4E9A", rough=.35)
+    yog = M("GreekYogR", "FFFDF6", rough=.4, sss=.35)
+    lathe("GreekTub", [(0, 0), (.72, 0), (.8, .05), (.86, .58), (.9, .62), (.88, .64), (.82, .6), (.74, .06), (0, .06)], (0, 0, 0), pot, 64)
+    lathe("GreekBandR", [(.835, .22), (.855, .22), (.87, .44), (.85, .44)], (0, 0, 0), blue, 64)
+    lathe("GreekFillR", [(0, .06), (.74, .06), (.82, .52), (.6, .56), (.3, .6), (0, .62)], (0, 0, 0), yog, 64)
+    pts = [(math.cos(t) * (.5 - t * .04), math.sin(t) * (.5 - t * .04), .6 + t * .012) for t in [i * .45 for i in range(22)]]
+    tube("GreekSwirlR", pts, [.07] * 22, 10, yog, subsurf=1)
+    # lid half open, hinged at the back rim
+    lid = cylinder("GreekLidR", .9, .05, (0, 1.1, 1.42), (math.radians(-72), 0, 0), material=pot, segs=64, bevel=.02)
+    lathe("GreekLidRimR", [(.88, -.04), (.92, -.04), (.92, .04), (.88, .04)], (0, 1.1, 1.42), blue, 64)
+    bpy.data.objects["GreekLidRimR"].rotation_euler = (math.radians(-72), 0, 0)
+    honey = M("HoneyR", "E8A317", rough=.05, coat=1, transmission=.3)
+    blob("GreekHoneyR", .2, (.05, -.1, .7), (1.2, 1, .25), honey)
+    for k in range(3):
+        a = k * 2.1
+        tube("GreekHoneyDrip%d" % k, [(.05 + math.cos(a) * .15, -.1 + math.sin(a) * .15, .71), (.05 + math.cos(a) * .4, -.1 + math.sin(a) * .4, .66)], [.04, .02], 8, honey, subsurf=1)
+    berry = M("RaspR", "D8354A", rough=.3, coat=.3)
+    blue_b = M("BlueberryR", "2E3A7A", rough=.3, coat=.3)
+    for k, (x, y) in enumerate(((-.3, .2), (-.15, .32), (.3, .25), (.4, .05))):
+        blob("GreekBerry%d" % k, .09 if k % 2 else .08, (x, y, .72), (1, 1, .9), berry if k % 2 else blue_b, .01 if k % 2 else 0, .1)
+    spoon = M("SpoonR", "DCE3E8", rough=.15, metallic=.95)
+    tube("GreekSpoonH", [(.55, -.35, .72), (1.05, -.75, .95)], [.035, .03], 10, spoon, subsurf=0)
+    blob("GreekSpoonB", .16, (.42, -.25, .68), (1.3, .9, .3), spoon)
+    blob("GreekSpoonHoney", .13, (.42, -.25, .71), (1.25, .85, .2), honey)
+
+
+@product(137, "salame", view=(.85, -1.3, .9), fill=.84)
+def b_salame_r():
+    skin = MIX("SalamiSkinR", "6A2A22", "EAE4D8", "noise", 6, .48, .6, rough=.65)
+    cut = MIX("SalamiCutR", "B02E33", "F4E6DA", "noise", 34, .6, .63, rough=.35, coat=.3)
+    rind = M("SalamiRindR", "5A2420", rough=.6)
+    pts = [(-1.05, .25, .35), (-.4, .25, .37), (.25, .25, .36), (.55, .25, .34)]
+    tube("SalamiR", pts, [.27, .33, .32, .28], 28, skin, subsurf=1)
+    blob("SalamiEndL", .27, (-1.08, .25, .35), (.45, 1, 1), skin)
+    blob("SalamiEndR", .28, (.58, .25, .34), (.25, 1, 1), cut)
+    twine = M("TwineR", "EADBB4", rough=.85)
+    for k in range(7):
+        x = -.95 + k * .24
+        lathe("SalNetRing%d" % k, [(.335, -.012), (.345, 0), (.335, .012)], (x, .25, .36), twine, 40)
+        bpy.data.objects["SalNetRing%d" % k].rotation_euler = (0, math.pi / 2, 0)
+    for j in range(8):
+        a = j * 2 * math.pi / 8
+        tube("SalNetLine%d" % j, [(-1.0 + i * .2, .25 + math.cos(a + i * .35) * .34, .36 + math.sin(a + i * .35) * .34) for i in range(8)],
+             [.01] * 8, 6, twine, subsurf=1)
+    tube("SalLoop", [(-1.12, .25, .35), (-1.3, .25, .45), (-1.35, .25, .62), (-1.2, .25, .7), (-1.12, .25, .55)], [.012] * 5, 6, twine, subsurf=1)
+    for k in range(4):
+        x, y, z = .3 + k * .22, -.5 + k * .08, .06 + k * .035
+        cylinder("SalSlice%d" % k, .27, .035, (x, y, z), (.35, .25, 0), material=cut, segs=40, bevel=.006)
+        lathe("SalSliceRim%d" % k, [(.27, -.018), (.285, -.018), (.285, .018), (.27, .018)], (x, y, z), rind, 40)
+        bpy.data.objects["SalSliceRim%d" % k].rotation_euler = (.35, .25, 0)
+    board("SalamiBoardR", 2.6, 1.6, (0, 0, -.1), .1)
+
+
+@product(149, "kit_spa", view=(.85, -1.35, 1.0), fill=.84)
+def b_kit_spa_r():
+    wick = MIX("WickerR", "C99A5E", "7A5030", "voronoi", 14, .0, .45, rough=.75)
+    L, D, H, t = 1.8, 1.2, .5, .07
+    rb("SpaBase", (L, D, t), (0, 0, t / 2), wick, .03)
+    for s in (-1, 1):
+        rb("SpaSideL%d" % s, (L, t, H), (0, s * (D / 2 - t / 2), H / 2), wick, .03)
+        rb("SpaSideW%d" % s, (t, D, H), (s * (L / 2 - t / 2), 0, H / 2), wick, .03)
+    rb("SpaRim", (L + .04, D + .04, .06), (0, 0, H), wick, .03)
+    bpy.data.objects.remove(bpy.data.objects["SpaRim"])
+    for s in (-1, 1):
+        tube("SpaHandle%d" % s, [(s * (L / 2 - .02), -.25, H), (s * (L / 2 + .12), -.1, H + .3), (s * (L / 2 + .12), .1, H + .3), (s * (L / 2 - .02), .25, H)], [.035] * 4, 8, wick, subsurf=1)
+    towel = M("TowelR", "9ED9C3", rough=.9)
+    cylinder("SpaTowelR", .26, 1.2, (-.2, .22, .55), (0, math.pi / 2, 0), material=towel, segs=32, bevel=.08)
+    disk("SpaTowelSpiral", .2, (.41, .22, .55), M("TowelR2", "86C9B1", rough=.9), .01, (0, math.pi / 2, 0), 32)
+    def bottle(name, x, y, col, h=1.0):
+        m = M("SpaBottle_" + col, col, rough=.15, coat=.6)
+        lathe(name, [(0, 0), (.16, 0), (.18, .04), (.18, h * .7), (.12, h * .82), (.08, h * .86), (0, h * .86)], (x, y, .05), m, 32)
+        cylinder(name + "Pump", .06, .12, (x, y, .05 + h * .92), material=M("SpaPump", "FBF8F1", rough=.3), segs=16, bevel=.01)
+        tube(name + "Nozzle", [(x, y, .05 + h * .98), (x + .14, y - .05, .05 + h * .98)], [.02, .02], 8, M("SpaPump", "FBF8F1", rough=.3), subsurf=0)
+        sticker(name + "Label", (.24, .3), (x, y - .181, .05 + h * .38), M("SpaLabelW", "FBF8F1", rough=.4), bevel=.1)
+    bottle("SpaB1", .45, .1, "F2A7C3", 1.05)
+    bottle("SpaB2", .75, .25, "B9A2E0", .9)
+    rb("SpaSoap", (.5, .34, .2), (-.35, -.25, .58), M("SpaSoapY", "F6E3A0", rough=.25, coat=.5, sss=.3), .1, rot=(0, 0, .2), seg=6)
+    lav = M("Lavender", "8E6CC9", rough=.5)
+    stemm = M("LavStem", "6B8E4E", rough=.5)
+    for k in range(3):
+        x0, y0 = .15 + k * .07, -.35 - k * .04
+        tube("LavStem%d" % k, [(x0, y0, .55), (x0 + .35, y0 - .1, .66)], [.012, .01], 6, stemm, subsurf=0)
+        for j in range(8):
+            f = j / 8
+            blob("LavBud%d_%d" % (k, j), .035, (x0 + .35 + f * .25, y0 - .1 - f * .07, .66 + f * .07), (1.2, 1, 1), lav, segs=8, rings=6)
+
+
+@product(152, "risoto", view=(.8, -1.3, 1.15), fill=.84)
+def b_risoto_r():
+    tray = M("RisTrayR", "1E1E22", rough=.25, coat=.4)
+    W, D = 1.8, 1.3
+    lathe_tray = rb("RisTrayB", (W, D, .3), (0, 0, .15), tray, .12)
+    rb("RisTrayRim", (W + .12, D + .12, .04), (0, 0, .3), tray, .03)
+    rice = MIX("RisottoR", "F2E2B4", "E3C98E", "noise", 25, .4, .6, rough=.35, coat=.35, sss=.2)
+    rb("RisFillR", (W - .15, D - .15, .12), (0, 0, .3), rice, .06)
+    rr = rnd(152)
+    for i in range(70):
+        blob("RisGrainR%d" % i, .045, (rr.uniform(-.78, .78), rr.uniform(-.55, .55), .37), (1.7, .8, .7), rice, rot=(0, 0, rr.uniform(0, 3)), segs=8, rings=6)
+    mush = MIX("RisMushR", "8A5A36", "C9A47A", "noise", 8, .4, .6, rough=.5)
+    for i in range(7):
+        x, y = rr.uniform(-.6, .6), rr.uniform(-.4, .4)
+        lathe("RisMushR%d" % i, [(0, 0), (.13, 0), (.14, .03), (.08, .07), (0, .08)], (x, y, .37), mush, 20)
+        bpy.data.objects["RisMushR%d" % i].rotation_euler = (rr.uniform(-.4, .4), rr.uniform(-.4, .4), 0)
+    pea = M("PeaR", "6DB33F", rough=.3, coat=.5)
+    for i in range(18):
+        blob("RisPeaR%d" % i, .045, (rr.uniform(-.75, .75), rr.uniform(-.52, .52), .4), (1, 1, 1), pea, segs=12, rings=8)
+    for i in range(5):
+        leaf("RisHerbR%d" % i, (rr.uniform(-.5, .5), rr.uniform(-.4, .4), .42), .16, (0, 0, rr.uniform(0, 3)), M("ParsleyR", "2F8F3A", rough=.45), 5)
+    # clear lid resting on top, tilted open at the back, with frost on its edges and on the tray rim
+    lid = M("RisLidR", "EAF6FB", rough=.05, alpha=.18)
+    rb("RisLidR", (W + .1, D + .1, .1), (0, .45, .75), lid, .05, rot=(math.radians(28), 0, 0))
+    frost = M("FrostR", "F4FAFF", rough=.85)
+    for i in range(28):
+        side = i % 4
+        if side == 0:
+            x, y = rr.uniform(-W / 2, W / 2), -D / 2 - .03
+        elif side == 1:
+            x, y = rr.uniform(-W / 2, W / 2), D / 2 + .03
+        elif side == 2:
+            x, y = -W / 2 - .03, rr.uniform(-D / 2, D / 2)
+        else:
+            x, y = W / 2 + .03, rr.uniform(-D / 2, D / 2)
+        blob("RisFrost%d" % i, rr.uniform(.015, .035), (x, y, .325), (rr.uniform(1, 2.5), 1, .4), frost, segs=8, rings=6, rot=(0, 0, rr.uniform(0, 3)))
+
+
+@product(163, "picanha_wagyu", view=(.8, -1.3, 1.05), fill=.84)
+def b_picanha_r():
+    slate = MIX("SlateR", "2A2D33", "3A3E46", "noise", 3, .4, .6, rough=.85)
+    rb("SlateR", (2.4, 1.7, .08), (0, 0, .04), slate, .02)
+    meat = MIX("WagyuR", "A8222E", "FBEDE6", "noise", 6.5, .48, .52, rough=.4, coat=.35, sss=.15, band=True)
+    st = rb("WagyuSteak", (1.4, .95, .42), (-.05, .05, .3), meat, .16, seg=6)
+    displace(st, .02, .4)
+    fat = MIX("WagyuFatR", "F6E8D6", "EED8B8", "noise", 8, .4, .6, rough=.45, sss=.3, coat=.2)
+    tube("WagyuCap", [(-.7, -.42, .34), (-.2, -.46, .35), (.4, -.44, .34), (.6, -.37, .33)], [.1, .12, .12, .1], 16, fat, subsurf=1)
+    bpy.data.objects["WagyuCap"].scale = (1, .8, 1)
+    salt = M("SaltR", "FBF8F1", rough=.4, coat=.3)
+    rr = rnd(163)
+    for i in range(22):
+        rb("WagSalt%d" % i, (.05, .05, .05), (rr.uniform(-.6, .55), rr.uniform(-.35, .4), .53), salt, .01, rot=(rr.uniform(0, 1), rr.uniform(0, 1), rr.uniform(0, 1)))
+    for i in range(12):
+        rb("WagSaltS%d" % i, (.05, .05, .05), (rr.uniform(.7, 1.05), rr.uniform(-.75, -.4), .1), salt, .01, rot=(rr.uniform(0, 1), rr.uniform(0, 1), 0))
+    stemm = M("RosStemR", "6B5A3A", rough=.6)
+    needle = M("RosNeedleR", "3E6B3A", rough=.5)
+    for k in range(2):
+        x0, y0 = -.9 + k * .1, -.55 - k * .12
+        tube("RosStem%d" % k, [(x0, y0, .1), (x0 + .75, y0 + .12, .12)], [.012, .01], 6, stemm, subsurf=0)
+        for j in range(16):
+            f = j / 16
+            for sgn in (-1, 1):
+                blob("RosNeedle%d_%d_%d" % (k, j, sgn), .025, (x0 + f * .75, y0 + f * .12 + sgn * .04, .12), (2.2, .5, .4), needle, rot=(0, 0, sgn * .9 + .16), segs=8, rings=6)
+    pep = M("PepperR", "2A2A2A", rough=.5)
+    for i in range(10):
+        blob("WagPep%d" % i, .02, (rr.uniform(-.5, .5), rr.uniform(-.3, .35), .54), (1, 1, 1), pep, segs=8, rings=6)
+
+
+@product(166, "ceviche", view=(.8, -1.3, 1.1), fill=.84)
+def b_ceviche_r():
+    bowl = M("CevBowlR", "FBF8F1", rough=.15, coat=.6)
+    lathe("CevBowlR", [(0, 0), (.38, 0), (.4, .06), (.95, .55), (1.0, .62), (.96, .63), (.9, .58), (.38, .14), (0, .14)], (-.2, .1, 0), bowl, 64)
+    blob("CevJuice", .88, (-.2, .1, .42), (1, 1, .08), M("Leche", "F4F0DC", rough=.1, coat=.8, sss=.3))
+    fish = M("CevFishR", "FBF6EE", rough=.3, sss=.5, coat=.4)
+    rr = rnd(166)
+    for i in range(18):
+        a = rr.uniform(0, 6.28); d = math.sqrt(rr.uniform(0, 1)) * .6
+        rb("CevCubeR%d" % i, (.18, .18, .15), (-.2 + math.cos(a) * d, .1 + math.sin(a) * d, .5 + rr.uniform(0, .08)), fish, .045, rot=(rr.uniform(0, .6), rr.uniform(0, .6), rr.uniform(0, 3)))
+    onion = M("RedOnionR", "A23A7E", rough=.25, sss=.3, coat=.3)
+    for i in range(6):
+        a = rr.uniform(0, 6.28); d = rr.uniform(.1, .5)
+        lathe("CevRing%d" % i, [(.16, -.02), (.185, 0), (.16, .02), (.135, 0), (.16, -.02)], (-.2 + math.cos(a) * d, .1 + math.sin(a) * d, .64), onion, 24)
+        bpy.data.objects["CevRing%d" % i].rotation_euler = (rr.uniform(-.5, .5), rr.uniform(-.5, .5), 0)
+    cil = M("CilantroR", "2F8F3A", rough=.4, sss=.2)
+    for i in range(9):
+        leaf("CevCilR%d" % i, (-.2 + rr.uniform(-.45, .45), .1 + rr.uniform(-.45, .45), .67), .24, (0, 0, rr.uniform(0, 3)), cil, 8)
+    for k in range(5):
+        blob("CevChiliR%d" % k, .03, (-.2 + rr.uniform(-.4, .4), .1 + rr.uniform(-.4, .4), .64), (1, 1, 1), M("ChiliR", "E0262E", rough=.3), segs=8, rings=6)
+    # lime half and a piece of corn on the cob beside the bowl
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=28, v_segments=16, radius=.28)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, 0), plane_no=(0, 0, 1), clear_outer=True)
+    me = bm_to_mesh(bm, "CevLimeR")
+    add_obj("CevLimeR", me, (.95, -.6, .28), (0, 0, 0), material=M("LimeRindR", "3E8F2A", rough=.3, coat=.5))
+    disk("CevLimeCutR", .27, (.95, -.6, .285), M("LimeFleshR", "C8E07A", rough=.25, coat=.6), .01, (0, 0, 0), 28)
+    for j in range(8):
+        a = j * 2 * math.pi / 8
+        rb("CevLimeSeg%d" % j, (.22, .012, .005), (.95 + math.cos(a) * .12, -.6 + math.sin(a) * .12, .292), M("LimePith", "EEF4D0", rough=.4), 0, (0, 0, a))
+    cob = M("CornCob", "F2C23F", rough=.35, coat=.4)
+    cylinder("CevCorn", .17, .5, (.35, -.95, .17), (0, math.pi / 2, .3), material=M("CornCore", "E8C860", rough=.5), segs=20, bevel=.03)
+    for j in range(10):
+        for k in range(14):
+            a = k * 2 * math.pi / 14
+            x = -.22 + j * .05
+            p = Vector((x, math.cos(a) * .17, math.sin(a) * .17))
+            R = Vector((math.cos(.3) * p.x - math.sin(.3) * p.y, math.sin(.3) * p.x + math.cos(.3) * p.y, p.z))
+            if R.z > -.05:
+                blob("CevKernel%d_%d" % (j, k), .035, (.35 + R.x, -.95 + R.y, .17 + R.z), (1, 1, 1), cob, segs=8, rings=6)
+
+
+@product(167, "lagosta_grelhada", view=(.8, -1.25, 1.2), fill=.84)
+def b_lagosta_r():
+    plate("LobPlateR", 1.25, (-.45, 0, 0), "FBF8F1", "D4AF37")
+    for nm in ("LobPlateR", "LobPlateRRim"):
+        bpy.data.objects[nm].scale = (1.5, 1.05, 1)
+    shell = MIX("LobShellR", "D93A1E", "A8231A", "noise", 5, .35, .7, rough=.3, coat=.7)
+    meat = MIX("LobMeatR", "F8E2D0", "EFB08A", "noise", 6, .4, .7, rough=.35, sss=.5, coat=.3)
+    grill = M("GrillR", "5A2E16", rough=.5)
+    z0 = .12
+    for side in (-1, 1):
+        y = side * .2
+        # carapace (head) half and tail segments, each a half-ellipsoid with its cut face (meat) up
+        parts = [(-.75, .42, .6)] + [(-.3 + k * .21, .34 - k * .025, .2) for k in range(6)]
+        for i, (x, r, ln) in enumerate(parts):
+            bm = bmesh.new()
+            bmesh.ops.create_uvsphere(bm, u_segments=24, v_segments=14, radius=1)
+            bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, 0), plane_no=(0, 0, 1), clear_outer=True)
+            me = bm_to_mesh(bm, "LobPart%d_%d" % (side, i))
+            add_obj("LobPart%d_%d" % (side, i), me, (x, y + side * r * .5, z0 + r * .75), (0, 0, 0), (ln, r * .5, r * .75), material=shell)
+            blob("LobMeat%d_%d" % (side, i), 1, (x, y + side * r * .5, z0 + r * .75 + .005), (ln * .8, r * .3, .02), meat)
+        for k in range(5):
+            rb("LobGrillR%d_%d" % (side, k), (.045, .2, .012), (-.85 + k * .3, y + side * .2, z0 + .3), grill, .004, rot=(0, 0, .6 * side))
+        # tail fan
+        for k in range(3):
+            leaf("LobFanR%d_%d" % (side, k), (1.05 + k * .06, y + side * (.08 + k * .12), z0 + .06), .55, (0, 0, side * (.2 + k * .45)), shell, -8)
+        # claw
+        tube("LobArm%d" % side, [(-1.1, y + side * .15, z0 + .12), (-1.35, y + side * .55, z0 + .12), (-1.5, y + side * .75, z0 + .12)], [.07, .08, .1], 12, shell, subsurf=1)
+        blob("LobClawR%d" % side, .36, (-1.8, y + side * .98, z0 + .18), (1.5, .8, .6), shell, rot=(0, 0, side * .7))
+        blob("LobClawF%d" % side, .22, (-2.2, y + side * 1.2, z0 + .16), (1.6, .5, .5), shell, rot=(0, 0, side * .35))
+        blob("LobClawF2%d" % side, .17, (-2.12, y + side * .95, z0 + .14), (1.5, .45, .45), shell, rot=(0, 0, side * .95))
+        # legs and antenna
+        for k in range(3):
+            tube("LobLeg%d_%d" % (side, k), [(-.8 + k * .15, y + side * .3, z0 + .05), (-.85 + k * .15, y + side * .55, z0 + .02), (-.75 + k * .15, y + side * .7, z0 + .0)], [.025, .02, .015], 6, shell, subsurf=1)
+        tube("LobAnt%d" % side, [(-1.25, y + side * .05, z0 + .25), (-1.8, y + side * .25, z0 + .45), (-2.3, y + side * .55, z0 + .35), (-2.6, y + side * .9, z0 + .15)], [.02, .016, .012, .008], 6, shell, subsurf=1)
+        blob("LobRostrum%d" % side, .12, (-1.38, y + side * .12, z0 + .22), (1.8, .45, .5), shell, rot=(0, 0, side * .15))
+        blob("LobEye%d" % side, .04, (-1.15, y + side * .12, z0 + .32), (1, 1, 1), M("LobEyeR", "1B1B1B", rough=.2, coat=1))
+    lemon = M("LemonR", "F6D35B", rough=.3, coat=.3)
+    for k in range(2):
+        bm = bmesh.new()
+        bmesh.ops.create_uvsphere(bm, u_segments=20, v_segments=12, radius=.2)
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, 0), plane_no=(0, 1, 0), clear_outer=True)
+        me = bm_to_mesh(bm, "LobLemonR%d" % k)
+        add_obj("LobLemonR%d" % k, me, (.9 + k * .35, -.9, .15), (0, 0, .3 * k), (1.4, 1, 1), material=lemon)
+    leaf("LobParsleyR", (.65, .85, .15), .3, (0, 0, .5), M("ParsleyR", "2F8F3A", rough=.45), 0)
