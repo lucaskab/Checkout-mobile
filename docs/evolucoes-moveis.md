@@ -413,7 +413,7 @@ Grade: linhas escuras a cada 1 m, claras a cada 0,25 m. O contorno verde é a pe
 
 ## 5. O que entrou no jogo (implementação, 30/10; no main desde 31/10, b0a4fce)
 
-Aprovado pelo Lucas ("pode pôr no jogo já"). Fora desta entrega: o lote C. Os 7 setores especiais entraram depois (5.4.2).
+Aprovado pelo Lucas ("pode pôr no jogo já"). Fora desta entrega: o lote C. Os 7 setores especiais entraram depois (5.4.2) e foram refeitos na rodada 5 (5.9).
 
 ### 5.1 Tiers sem campo novo no save
 - **Save 47 → 48.** A migração não apaga nada. Ela só converte os carrinhos antigos (ver 5.6) e dá a registradora a quem já tinha direito (5.3).
@@ -569,3 +569,37 @@ Regras:
 - **Fluxo de clientes:** `eventscrowd-<loja>[.segundos[.clientes[.keep][.carts][.stock]]]`. Linhas `NAV` medem a entrada (caminhos, borda, o mesmo caminho sem móveis). `.carts` compra e coloca as 3 estações e conta por carregador; `.stock` repõe as prateleiras. Um dia que acabaria no meio da medição é fechado antes.
 - **Cenário:** `eventstiers-<partes>` (flow, shelves, checkout, coldroom, carts, decor, depot) roda na **cópia QA** do save.
 - **Saída:** linhas `RESULT tiers <parte>: PASS|FAIL` e fotos `Logs/ft_*.jpg` de cada móvel em cada tier dentro de uma loja de verdade, do caixa, da câmara em cada expansão, das 3 estações com clientes e do caixa eletrônico e das máquinas.
+
+### 5.9 Setores, rodada 5: parede do mercado, painel de preços e cor (no main desde 01/11, 165c414)
+Pedido do Lucas: a parede branca de azulejo do setor brigava com a parede do mercado; o painel de preços podia melhorar; o setor tem que encostar na parede do mercado sem fresta; falta cor e detalhe (a padaria "nem parece padaria"); os funcionários são gordinhos e a área deles era pequena; e tirar do jogo todos os retângulos brancos com "!". Ele aprovou o açougue ("de verdade, adorei") e depois os 7 ("pode pôr no jogo").
+
+- **Fundo do setor:** um painel no estilo do mercado (rodapé navy, filete dourado, parte de cima creme), que pinta com "Cores do mercado". Encostado nas paredes altas do mercado (oeste e fundo), o painel **some** e o setor usa a parede do mercado. Solto no meio da loja, ou depois que uma expansão tira a parede de trás, ele aparece. É só ligar/desligar o filho `Back Wall` do modelo, então funciona no celular.
+- **Encostado sem fresta:** o fundo do setor fica a 0,0 cm do filete dourado da parede (auditoria: 200 de 288 tentativas encostadas; as outras 88 são lugares bloqueados de propósito: a área do caixa na parede leste, a entrada e a porta dos fundos). Ao evoluir, o setor cresce para longe da parede.
+- **Painel de preços:** uma placa só, moldura de inox e telas escuras, nome do setor no cabeçalho creme (escrito pelo jogo, no idioma do jogador), até 3 preços por tela. T1: 1 tela, sem senha; T2: 2 telas e senha; T3: 3 telas e senha. Sem testeira e sem placa pendurada.
+- **Uma cor de destaque por setor:**
+
+  | Setor | Cor | O que leva a cor |
+  |---|---|---|
+  | Açougue | bordô | serra de fita, moedores, cepo |
+  | Padaria | terracota e madeira | forno de lastro de tijolo, armários de madeira, batedeira laranja, carrinho de pães, vime, sacos de farinha |
+  | Queijaria | amarelo-manteiga e madeira | |
+  | Peixaria | verde-mar | máquina de gelo, rede, aquário de lagostas |
+  | Sorvetes | rosa e menta pastel | |
+  | Adega | bordô e madeira escura | barril-mesa, treliça |
+  | Bebidas | laranja cítrico e verde | |
+
+- **Área do funcionário:** corredor de pelo menos 1,47 m (o mais largo, padeiro/queijeiro, tem 1,22 m). Pegadas novas, iguais para todos os setores:
+
+  | Tier | Antes | Agora |
+  |---|---|---|
+  | T1 | 2,5 × 2,0 | 2,5 × 3,25 |
+  | T2 | 3,25 × 2,5 | 3,25 × 3,5 |
+  | T3 | 4,0 × 3,25 | 4,0 × 3,5 |
+
+  O funcionário fica no meio do corredor e anda (comprimento − 1,22 m) / 2 para cada lado (±0,27 m no T1, ±0,77 no T2, ±0,72 no T3). Medido no jogo com os 4 funcionários: o balcão fica a 0,72 m ou mais na frente do centro dele e os móveis de trás a 0,76 m ou mais atrás, então ninguém atravessa nada (precisa de 0,61 m).
+- **"!" removido:** saiu o `CheckoutStatusMarker` (a pílula creme com barra de estoque e o "!" vermelho quando vazio), os pulsos de produção dos setores e os marcadores dos lotes de expansão. O aviso de prateleira vazia continua no HUD (selo "!" e REPOR).
+- **Saves antigos:** o setor cresce para o lado livre, deslizando o mínimo que dá, primeiro para a frente (quem estava encostado continua encostado). Se não cabe, fica com a pegada antiga até o jogador mover. Nunca é levado para outro lugar nem para o inventário. Teste com 45 setores postos onde o modelo antigo encostava na parede: 42 cresceram, 3 ficaram com a pegada antiga (e o modelo novo entra um pouco na parede até serem movidos).
+- **Desempenho (Hiper, os 7 em T3, editor, qualidade de iPhone médio):** 10,89 ms por quadro contra 11,18 ms no main antes (p95 17,2 contra 17,4). Triângulos dos setores 163,7k contra 146,8k. Padaria T3 (25,7k) e bebidas T3 (26,2k) ficam um pouco acima da meta de ~25k, sem custo medido.
+- **Arte:** `scripts/blender/sector_v5.py` e `sector_v5_sectors.py`; 21 FBX `ArtSource/fixture_tiers/export/sector-<id>_T<n>.fbx` com os filhos `Body`, `Back Wall` e `Wall Dressing`; dados do corredor em `sector_export_report.json` (`staffLane`). Nenhuma palavra nos modelos.
+- **Testes:** `eventstiers` paint, wallshots, flush, staff, migrate, migrateflush, sectors, upgrade, flow, markers e lineup passam. Multidão no Mercadinho e no Supermercado sem ninguém travado; as filas longas no caixa são o problema conhecido do branch `queue-line-fixes`.
+- **Em aberto:** o nome "Queijaria" ou "Frios e laticínios"; o T1 ficou mais fundo que largo (alternativa: funcionário parado no T1, corredor de 1,27 m, pegada 2,5 × 3,0).
