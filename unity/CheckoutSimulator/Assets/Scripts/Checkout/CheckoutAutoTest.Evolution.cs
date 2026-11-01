@@ -222,6 +222,17 @@ namespace Checkout {
    Note("EVO game view: " + Screen.width + "x" + Screen.height);
    yield return EnsurePlaced("shelf:drinks", 4.5f); yield return StockShelf("drinks");   // (clear of the produce stand)
    yield return RevealOne("shelf", "drinks", () => Hud("upgradeShelfCapacity", "[\"drinks\",\"coins\"]"), fails, "fridge", false);
+   // the card on narrower screens with long names: an iPad (4:3) in German and 16:9 in French (the fridge again)
+   foreach (var (w, h, lang, name) in new[] { (2048, 1536, "de", "card_ipad_de"), (1920, 1080, "fr", "card_16x9_fr") }) {
+    Note($"EVO {name}: game view {CheckoutQaGameView.Set(w, h)}"); TierLang(lang); yield return Wait(2.5f);
+    yield return RevealOne("shelf", "drinks", () => Hud("upgradeShelfCapacity", "[\"drinks\",\"coins\"]"), fails, name, false);
+   }
+   TierLang("pt"); CheckoutQaGameView.Restore(); yield return Wait(2f);
+   // what the confetti costs: the pooled system simulated on the main thread (no jobs) with a sector's worth of pieces
+   var fx = CheckoutConquestFx.Instance;
+   foreach (int n in new[] { 60, 170 }) Note($"EVO confetti cost: {n} pieces, {fx.QaConfettiBench(n, 60):0.000} ms per frame (main thread, editor on the Mac), 1 particle system, 1 material");
+   Note($"EVO confetti atlas: {CheckoutConfettiArt.Cols}x{CheckoutConfettiArt.Rows} cells of {CheckoutConfettiArt.Cell} px, drawn in {CheckoutConfettiArt.LastAtlasMs:0} ms (once per accent colour)");
+   if (CheckoutConfettiArt.Material(CheckoutConfettiArt.AccentFor("sector", "padaria")).mainTexture is Texture2D atlas) File.WriteAllBytes("Logs/ft_evo_confetti_atlas.png", atlas.EncodeToPNG());
    Note($"RESULT tiers reveal: {(fails.Count == 0 ? "PASS" : "FAIL")}" + (fails.Count > 0 ? ": " + string.Join(" | ", fails) : "") + " (Logs/ft_evo_reveal_*.mjpg)");
   }
 
@@ -277,6 +288,11 @@ namespace Checkout {
      if (stills && !cloth && revealStart > 0 && frames - revealStart == 26) { File.WriteAllBytes("Logs/ft_evo_cloth.jpg", GrabJpg(1920)); cloth = true; }
      if (popAt < 0 && revealStart > 0 && reveal.Playing && reveal.Stage >= 2) popAt = frames;
      if (stills && !pop && popAt > 0 && frames - popAt == 9) { File.WriteAllBytes("Logs/ft_evo_pop.jpg", GrabJpg(1920)); pop = true; }
+     // the confetti at its peak (about 0.6 s after the pop: up, spread and turning), shelf and sector
+     if ((name == "shelf" || name == "sector") && popAt > 0 && frames - popAt == 18) {
+      File.WriteAllBytes("Logs/ft_evo_confetti_" + name + ".jpg", GrabJpg(1920));
+      var cfx = CheckoutConquestFx.Instance; Note($"EVO {name} confetti: {cfx.LastConfettiCount} pieces over the piece's bounds, {cfx.ConfettiAlive} alive at the peak, emitted in {cfx.LastConfettiSetupMs:0.00} ms");
+     }
      if (reveal.Playing && it?.root) maxFill = Mathf.Max(maxFill, ScreenShare(it.root));
      if (cardAt < 0 && !reveal.Playing && revealStart > 0 && hud.ConquestOpen && hud.QaCardShown) cardAt = frames;
      if (cardAt > 0 && countAt < 0 && hud.QaCountDone) countAt = frames;
@@ -291,7 +307,12 @@ namespace Checkout {
    // the numbers: at their final values within ~0.8 s of the card, and the table's
    float countSeconds = cardAt > 0 && countAt > 0 ? (countAt - cardAt) / 30f : -1;
    var texts = hud.QaStatTexts; var want = ExpectedStats(name);
+   texts = texts.Select(t => System.Text.RegularExpressions.Regex.Replace(t, "<[^>]+>", "")).ToArray();
    bool match = want == null || (texts.Length == want.Length && texts.Select((t, i) => t.Replace(" ", "").EndsWith("→" + want[i])).All(x => x));
+   // the card's rhythm: room under the title, between the numbers and the NOVO tile and above the buttons; the badge inside
+   var gaps = hud.QaCardGaps();
+   Note($"EVO {name} card layout: title→next {gaps[0]:0}, numbers→NOVO {gaps[1]:0}, NOVO→buttons {gaps[2]:0} (canvas units), badge inside {gaps[3] > 0}");
+   if (gaps[0] < 6 || (!float.IsNaN(gaps[1]) && gaps[1] < 16) || gaps[2] < 16 || gaps[3] <= 0) fails.Add($"{name} card spacing {gaps[0]:0}/{gaps[1]:0}/{gaps[2]:0}/{gaps[3]}");
    Note($"EVO {name} card: numbers final {countSeconds:0.00}s after the card; {string.Join(" | ", texts)}; table {(want == null ? "-" : string.Join(" ", want))}: {(match ? "match" : "MISMATCH")}; picture {hud.QaCardPicture}");
    if (countSeconds <= 0 || countSeconds > 1.0f) fails.Add($"{name} numbers final after {countSeconds:0.00}s");
    if (!match) fails.Add(name + " card numbers differ from the table");

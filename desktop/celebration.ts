@@ -18,6 +18,8 @@ import {
 	getFixtureTierTemplate,
 	getSectorTierDefinition,
 	getSectorTierTemplate,
+	PREMIUM_TIER,
+	SECTOR_MAX_TIER,
 } from "@/data/fixture-tiers";
 import { getExclusiveProductFor } from "@/services/tier-rewards";
 import { getShelfCapacity } from "@/data/shelf-capacity";
@@ -54,7 +56,7 @@ export type CelebrationView = {
 	reveal: CelebrationReveal;
 };
 
-const noReveal: CelebrationReveal = { kind: "", targetId: "", tier: 0, template: "", chips: [], chipIcons: [] };
+const noReveal: CelebrationReveal = { kind: "", targetId: "", tier: 0, maxTier: 0, template: "", chips: [], chipIcons: [] };
 
 function view(
 	celebration: GameCelebration,
@@ -187,6 +189,8 @@ export type CelebrationReveal = {
 	kind: string;
 	targetId: string;
 	tier: number;
+	/** How many tiers the piece has (the card shows the tier as filled pips out of these; 0 = no pips). */
+	maxTier: number;
 	/** Unity template of the new model (Resources/CheckoutFixtureTiers). */
 	template: string;
 	/** The floating chips over the piece ("+5 por produto", "+1 lugar", "NOVO: Morango") and their icons. */
@@ -224,7 +228,6 @@ function tierView(state: State, celebration: GameCelebration): CelebrationView |
 	if (group === "shelf") {
 		const kind = getShelfFixtureKind(id);
 		if (!kind) return null;
-		const definition = getFixtureTierDefinition(kind, tier);
 		const capacityFrom = getShelfCapacity(Math.max(0, tier - 2));
 		const capacityTo = getShelfCapacity(Math.max(0, tier - 1));
 		const placesFrom = fixtureTierPlaces[Math.max(1, tier - 1)] ?? 4;
@@ -247,15 +250,16 @@ function tierView(state: State, celebration: GameCelebration): CelebrationView |
 			...(exclusive ? [productIcon(exclusive.id)] : []),
 		];
 		return view(celebration, {
+			// (Lucas 01/11: the name and the tier as pips; the numbers below say the rest, no description line)
 			headline: "SEU MÓVEL EVOLUIU!",
-			title: definition.name,
-			subtitle: `${getFixtureName(id, state.era.id)}: novo visual, mais lugares e mais clientes.`,
+			title: getFixtureName(id, state.era.id),
+			subtitle: "",
 			icon: gameIcon("shelf"),
 			tint: "1D2B4F",
 			chips: [],
 			stats,
 			products: exclusive ? [productEntry(exclusive.id)].filter((item): item is CelebrationProduct => !!item) : [],
-			reveal: { kind: "shelf", targetId: id, tier, template: getFixtureTierTemplate(kind, Math.min(4, tier)), chips, chipIcons },
+			reveal: { kind: "shelf", targetId: id, tier, maxTier: PREMIUM_TIER, template: getFixtureTierTemplate(kind, Math.min(4, tier)), chips, chipIcons },
 			button: exclusive ? "Colocar à venda" : "Ver móvel",
 			route: `shelf:${id}`,
 		});
@@ -285,17 +289,14 @@ function tierView(state: State, celebration: GameCelebration): CelebrationView |
 		];
 		return view(celebration, {
 			headline: "SEU SETOR EVOLUIU!",
-			title: `${sector.name} · ${definition.name}`,
-			subtitle:
-				tier >= 3
-					? "Produção 30% mais rápida, lotes maiores e produtos 10% mais valiosos."
-					: "Mais uma linha, produção 15% mais rápida e lotes maiores.",
+			title: sector.name,
+			subtitle: "",
 			icon: gameIcon("conveyor"),
 			tint: "1D2B4F",
 			chips: [],
 			stats,
 			products: exclusive ? [productEntry(exclusive.id)].filter((item): item is CelebrationProduct => !!item) : [],
-			reveal: { kind: "sector", targetId: id, tier, template: getSectorTierTemplate(id, tier), chips, chipIcons },
+			reveal: { kind: "sector", targetId: id, tier, maxTier: SECTOR_MAX_TIER, template: getSectorTierTemplate(id, tier), chips, chipIcons },
 			button: exclusive ? "Produzir" : counter ? "Ver balcão" : "",
 			route: exclusive ? `sector:${id}` : counter ? `shelf:${counter.id}` : "",
 		});
@@ -310,7 +311,7 @@ function tierView(state: State, celebration: GameCelebration): CelebrationView |
 			icon: gameIcon(group === "checkout" ? "calculator" : "warehouse"),
 			tint: "1D2B4F",
 			chips: [{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` }],
-			reveal: { kind, targetId: kind, tier, template: getFixtureTierTemplate(kind, tier), chips: [], chipIcons: [] },
+			reveal: { kind, targetId: kind, tier, maxTier: 0, template: getFixtureTierTemplate(kind, tier), chips: [], chipIcons: [] },
 			button: "",
 			route: "",
 		});
@@ -325,7 +326,7 @@ function tierView(state: State, celebration: GameCelebration): CelebrationView |
 		icon: decorIcon(id),
 		tint: "1D2B4F",
 		chips: [{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` }],
-		reveal: { kind: "decor", targetId: id, tier, template: decorTierKinds[id] ? getFixtureTierTemplate(decorTierKinds[id], tier) : "", chips: [], chipIcons: [] },
+		reveal: { kind: "decor", targetId: id, tier, maxTier: 0, template: decorTierKinds[id] ? getFixtureTierTemplate(decorTierKinds[id], tier) : "", chips: [], chipIcons: [] },
 		button: "",
 		route: "",
 	});

@@ -30,7 +30,6 @@ namespace Checkout
         public static CheckoutEvolutionReveal Instance { get { if (!instance) instance = new GameObject("Evolution reveal").AddComponent<CheckoutEvolutionReveal>(); return instance; } }
 
         static readonly Color Navy = new Color(.114f, .169f, .31f), Gold = new Color(.878f, .69f, .25f), Cream = new Color(1f, .96f, .86f);
-        static readonly Color[] Palette = { Navy, Gold, Cream, new Color(.2f, .3f, .55f), new Color(1f, .82f, .36f) };
         static float Dt => CheckoutUiKit.Dt;
 
         class Veil
@@ -332,6 +331,7 @@ namespace Checkout
         {
             Playing = true; playingKey = v.key; Stage = 0;
             Refit(v, Targets(data.kind, data.targetId));
+            CheckoutConquestFx.Instance.WarmConfetti(CheckoutConfettiArt.AccentFor(data.kind, data.targetId));   // (ready well before the pop)
             // the card's picture: the new model itself, still under the cloth, photographed once now
             try { snapshot = Snapshot(v.roots, data.kind); } catch (Exception e) { Debug.LogWarning("Evolution snapshot: " + e.Message); snapshot = null; }
             var fx = CheckoutConquestFx.Instance;
@@ -383,7 +383,7 @@ namespace Checkout
             foreach (var root in v.roots) if (root) StartCoroutine(Pop(root));
             StartCoroutine(Burst(center, Mathf.Max(size.x, size.y, size.z), cam));
             StartCoroutine(RimLight(center, Mathf.Max(size.x, size.y, size.z), cam));
-            fx.ConfettiAt(new Vector3(center.x, b.max.y + .6f, center.z), 28, .38f, Palette);   // light: the model stays in sight
+            fx.ConfettiBurst(b, CheckoutConfettiArt.AccentFor(data.kind, data.targetId));   // small tumbling pieces over the whole piece
             Play(CheckoutUiKit.Sfx("pop"), .8f);
             yield return Until(DropAt);
             // Products in, one by one (sectors: the worker hops, the price screens light up); the chips rise.

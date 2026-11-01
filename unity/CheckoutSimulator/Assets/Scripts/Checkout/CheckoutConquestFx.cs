@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using MarketDay;
 
@@ -292,6 +293,98 @@ namespace Checkout
             Destroy(m); Destroy(go);
         }
 
+        // ------------------------------------------------------------------ evolution confetti (3D)
+        // Small two-sided pieces (strips, discs, curled serpentines, gold stars and sparkles) that tumble on their own
+        // axes and flutter down; the burst covers the piece's own footprint and height (a sector gets a wide one, a shelf
+        // a tight one). One pooled particle system, one material (the CheckoutConfettiArt atlas): one draw call.
+        ParticleSystem confetti3d; Color confettiAccent = Color.clear;
+        /// <summary>QA: what the last burst cost (pieces, ms to build the atlas when it was new, ms to emit).</summary>
+        public int LastConfettiCount { get; private set; }
+        public float LastConfettiSetupMs { get; private set; }
+        public int ConfettiAlive => confetti3d ? confetti3d.particleCount : 0;
+
+        /// <summary>Draws the confetti atlas for this accent over the next frames (call it as a reveal begins).</summary>
+        public void WarmConfetti(Color accent) => StartCoroutine(CheckoutConfettiArt.Prepare(accent));
+
+        public void ConfettiBurst(Bounds b, Color accent)
+        {
+            var watch = global::System.Diagnostics.Stopwatch.StartNew();
+            var ps = ConfettiSystem(accent);
+            float w = Mathf.Max(.6f, b.size.x), d = Mathf.Max(.6f, b.size.z), h = Mathf.Max(.5f, b.size.y);
+            float span = Mathf.Max(w, d), lift = Mathf.Clamp(Mathf.Sqrt(h / 1.4f), .85f, 1.5f);
+            int count = Mathf.Clamp(Mathf.RoundToInt(15 * w * d + 9 * h), 36, 170);
+            ps.transform.position = new Vector3(b.center.x, b.min.y + h * .8f, b.center.z);
+            var shape = ps.shape; shape.scale = new Vector3(w * .85f, d * .85f, h * .35f);
+            shape.randomDirectionAmount = Mathf.Lerp(.25f, .45f, Mathf.InverseLerp(1.5f, 5f, span));
+            var main = ps.main;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(2.3f * lift, 4.3f * lift);
+            float size = Mathf.Clamp(Mathf.Sqrt(span) / 1.3f, .9f, 1.25f);
+            main.startSize = new ParticleSystem.MinMaxCurve(.13f * size, .25f * size);
+            ps.Emit(count);
+            LastConfettiCount = count; LastConfettiSetupMs = (float)watch.Elapsed.TotalMilliseconds;
+        }
+
+        /// <summary>QA: emits `count` pieces far below the map and simulates `steps` frames of 1/30 s on the main thread;
+        /// returns the ms per frame, then clears them (nothing is ever drawn).</summary>
+        public float QaConfettiBench(int count, int steps)
+        {
+            var ps = ConfettiSystem(confettiAccent == Color.clear ? CheckoutConfettiArt.Gold : confettiAccent);
+            ps.Clear(); ps.transform.position = new Vector3(0, -500, 0);
+            var shape = ps.shape; shape.scale = new Vector3(3, 2.5f, .8f); ps.Emit(count);
+            var watch = global::System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < steps; i++) ps.Simulate(1 / 30f, false, false, false);
+            float ms = (float)watch.Elapsed.TotalMilliseconds / steps;
+            ps.Clear(); ps.Play();
+            return ms;
+        }
+
+        ParticleSystem ConfettiSystem(Color accent)
+        {
+            if (!confetti3d)
+            {
+                var go = new GameObject("Evolution confetti") { layer = 2 };
+                go.transform.SetParent(transform, false); go.transform.rotation = Quaternion.Euler(-90, 0, 0);
+                var ps = go.AddComponent<ParticleSystem>(); ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = ps.main; main.playOnAwake = false; main.loop = true; main.duration = 5; main.simulationSpace = ParticleSystemSimulationSpace.World;
+                main.cullingMode = ParticleSystemCullingMode.AlwaysSimulate; main.maxParticles = 420;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(2.1f, 3.1f);
+                main.startRotation3D = true;
+                main.startRotationX = main.startRotationY = main.startRotationZ = new ParticleSystem.MinMaxCurve(0, Mathf.PI * 2);
+                main.startColor = Color.white; main.gravityModifier = .32f;
+                var emission = ps.emission; emission.enabled = true; emission.rateOverTime = 0;
+                var shape = ps.shape; shape.enabled = true; shape.shapeType = ParticleSystemShapeType.Box;
+                // tumbling on all three axes, a side-to-side drift and air drag: it flutters down instead of falling
+                var spin = ps.rotationOverLifetime; spin.enabled = true; spin.separateAxes = true;
+                spin.x = new ParticleSystem.MinMaxCurve(-9, 9); spin.y = new ParticleSystem.MinMaxCurve(-7, 7); spin.z = new ParticleSystem.MinMaxCurve(-5, 5);
+                var drag = ps.limitVelocityOverLifetime; drag.enabled = true; drag.limit = 50; drag.drag = 1.5f;
+                drag.multiplyDragByParticleSize = false; drag.multiplyDragByParticleVelocity = false;
+                var noise = ps.noise; noise.enabled = true; noise.strength = .55f; noise.frequency = .8f; noise.scrollSpeed = .6f;
+                noise.quality = ParticleSystemNoiseQuality.Low; noise.octaveCount = 1; noise.damping = true;
+                var fade = ps.colorOverLifetime; fade.enabled = true; var g = new Gradient();
+                g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                    new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, .78f), new GradientAlphaKey(0, 1) });
+                fade.color = g;
+                // the atlas: one row per piece, its columns the piece turning (the gold ones flash)
+                var sheet = ps.textureSheetAnimation; sheet.enabled = true; sheet.mode = ParticleSystemAnimationMode.Grid;
+                sheet.numTilesX = CheckoutConfettiArt.Cols; sheet.numTilesY = CheckoutConfettiArt.Rows;
+                sheet.animation = ParticleSystemAnimationType.SingleRow; sheet.rowMode = ParticleSystemAnimationRowMode.Random;
+                sheet.frameOverTime = new ParticleSystem.MinMaxCurve(1, AnimationCurve.Linear(0, 0, 1, 1)); sheet.cycleCount = 5;
+                sheet.startFrame = new ParticleSystem.MinMaxCurve(0, CheckoutConfettiArt.Cols - .01f);
+                var r = go.GetComponent<ParticleSystemRenderer>();
+                r.renderMode = ParticleSystemRenderMode.Mesh; r.mesh = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
+                r.alignment = ParticleSystemRenderSpace.World; r.sortMode = ParticleSystemSortMode.None;
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false;
+                confetti3d = ps; ps.Play();
+            }
+            if (accent != confettiAccent || !confetti3d.GetComponent<ParticleSystemRenderer>().sharedMaterial)
+            {
+                confettiAccent = accent;
+                confetti3d.GetComponent<ParticleSystemRenderer>().sharedMaterial = CheckoutConfettiArt.Material(accent);
+            }
+            if (!confetti3d.isPlaying) confetti3d.Play();
+            return confetti3d;
+        }
+
         // ------------------------------------------------------------------ generated art
         static Material Mat(Texture2D texture) => new Material(Shader.Find("Sprites/Default")) { mainTexture = texture, renderQueue = 3100 };
         Material Puff() => puffMat ? puffMat : (puffMat = Mat(PuffTexture()));
@@ -338,6 +431,203 @@ namespace Checkout
                 px[y * n + x] = new Color32(255, 255, 255, (byte)(a * 255));
             }
             t.SetPixels32(px); t.Apply(); return t;
+        }
+    }
+
+    /// <summary>The evolution confetti's art (claude/evolucoes-recompensas.md, Lucas 01/11): one atlas of small pieces in
+    /// navy, gold, cream, white and the sector's accent (strips, discs, curled serpentines, gold stars and sparkles); each
+    /// row is one piece, its columns the piece turning in the light (gold ones flash). The 3D burst uses it as a texture
+    /// sheet, the card's 2D confetti as sprites, so both look alike. Generated once per accent colour.</summary>
+    public static class CheckoutConfettiArt
+    {
+        public const int Cols = 8, Rows = 16, Cell = 48;
+        public static readonly Color Navy = new Color32(0x1D, 0x2B, 0x4F, 255), Gold = new Color32(0xF0, 0xB4, 0x3C, 255),
+            Cream = new Color32(0xF7, 0xE8, 0xC8, 255), White = new Color32(0xFA, 0xFA, 0xF7, 255);
+        enum Shape { Strip, Disc, Curl, Star, Sparkle }
+        // colour: 0 navy, 1 gold, 2 cream, 3 white, 4 accent; metal: the gold flash
+        static readonly (Shape shape, int colour, bool metal)[] Layout = {
+            (Shape.Strip, 0, false), (Shape.Strip, 1, true), (Shape.Strip, 2, false), (Shape.Strip, 3, false), (Shape.Strip, 4, false),
+            (Shape.Strip, 1, true), (Shape.Strip, 4, false), (Shape.Disc, 3, false), (Shape.Disc, 1, true), (Shape.Disc, 2, false),
+            (Shape.Disc, 4, false), (Shape.Curl, 1, true), (Shape.Curl, 4, false), (Shape.Curl, 3, false), (Shape.Star, 1, true),
+            (Shape.Sparkle, 1, true) };
+        public static int RowCount => Layout.Length;
+
+        /// <summary>The accent of a sector (its signage colour); the shelves have none (gold).</summary>
+        public static Color AccentFor(string kind, string targetId)
+        {
+            if (kind != "sector") return Gold;
+            switch (targetId)
+            {
+                case "padaria": return new Color32(0xD9, 0x7A, 0x2B, 255);
+                case "queijaria": return new Color32(0xE8, 0x9F, 0x2A, 255);
+                case "acougue": return new Color32(0xC8, 0x40, 0x2F, 255);
+                case "bebidas": return new Color32(0x2E, 0x8C, 0xAE, 255);
+                case "peixaria": return new Color32(0x3B, 0xA3, 0xB8, 255);
+                case "sorvetes": return new Color32(0xE8, 0x6F, 0xA6, 255);
+                case "adega": return new Color32(0x8E, 0x2F, 0x4F, 255);
+                default: return new Color32(0xE1, 0x55, 0x33, 255);
+            }
+        }
+
+        static readonly Dictionary<Color, Texture2D> atlases = new Dictionary<Color, Texture2D>();
+        static readonly Dictionary<Color, Material> materials = new Dictionary<Color, Material>();
+        static readonly Dictionary<(Color, int, int), Sprite> sprites = new Dictionary<(Color, int, int), Sprite>();
+        /// <summary>QA: ms the last new atlas took to draw.</summary>
+        public static float LastAtlasMs { get; private set; }
+
+        public static Material Material(Color accent)
+        {
+            if (materials.TryGetValue(accent, out var m) && m) return m;
+            m = new Material(Shader.Find("Sprites/Default")) { mainTexture = Atlas(accent), renderQueue = 3100, name = "Evolution confetti" };
+            materials[accent] = m; return m;
+        }
+
+        /// <summary>Piece `row` turned to `col` (0..Cols-1), as a sprite for the card.</summary>
+        public static Sprite Sprite(Color accent, int row, int col)
+        {
+            var key = (accent, row, col);
+            if (sprites.TryGetValue(key, out var s) && s) return s;
+            var tex = Atlas(accent);
+            s = UnityEngine.Sprite.Create(tex, new Rect(col * Cell, (Rows - 1 - row) * Cell, Cell, Cell), new Vector2(.5f, .5f), 100);
+            sprites[key] = s; return s;
+        }
+        public static bool IsStar(int row) => Layout[row].shape == Shape.Star || Layout[row].shape == Shape.Sparkle;
+
+        /// <summary>A gold five-point star (the card's tier pips).</summary>
+        public static Sprite StarSprite(bool filled)
+        {
+            var key = (filled ? Color.white : Color.black, -1, -1);
+            if (sprites.TryGetValue(key, out var s) && s) return s;
+            const int n = 96; var tex = new Texture2D(n, n, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, name = "Tier pip" };
+            var px = new Color32[n * n];
+            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
+            {
+                float cover = 0;
+                for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++)
+                { float u = ((x + (i + .5f) / 4) / n) * 2 - 1, v = ((y + (j + .5f) / 4) / n) * 2 - 1; if (InStar(u, v * 1.02f + .04f, .94f, .42f)) cover++; }
+                cover /= 16;
+                float uu = (x + .5f) / n * 2 - 1, vv = (y + .5f) / n * 2 - 1;
+                bool inner = InStar(uu, vv * 1.02f + .04f, .74f, .33f);
+                Color c = filled ? (inner ? Color.Lerp(Gold, new Color(1, .93f, .6f), Mathf.Clamp01(.55f + vv * .5f)) : new Color(.72f, .48f, .12f))
+                                 : (inner ? new Color(1, 1, 1, .16f) : new Color(1, 1, 1, .55f));
+                px[y * n + x] = new Color(c.r, c.g, c.b, c.a * cover);
+            }
+            tex.SetPixels32(px); tex.Apply(true);
+            s = UnityEngine.Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(.5f, .5f), 100);
+            sprites[key] = s; return s;
+        }
+
+        // The atlas is drawn row by row: Prepare() spreads it over frames from the start of a reveal (no hitch at the pop);
+        // anything that needs it at once finishes the rows left.
+        sealed class AtlasJob { public Color32[] px; public int row; public float ms; }
+        static readonly Dictionary<Color, AtlasJob> jobs = new Dictionary<Color, AtlasJob>();
+        public static IEnumerator Prepare(Color accent)
+        {
+            while (!atlases.ContainsKey(accent))
+            {
+                var job = Job(accent); DrawRow(job, accent);
+                if (job.row >= Rows) { Atlas(accent); yield break; }
+                yield return null;
+            }
+        }
+        static AtlasJob Job(Color accent)
+        {
+            if (!jobs.TryGetValue(accent, out var job)) jobs[accent] = job = new AtlasJob { px = new Color32[Cols * Cell * Rows * Cell] };
+            return job;
+        }
+
+        static Texture2D Atlas(Color accent)
+        {
+            if (atlases.TryGetValue(accent, out var t) && t) return t;
+            var job = Job(accent);
+            while (job.row < Rows) DrawRow(job, accent);
+            var watch = global::System.Diagnostics.Stopwatch.StartNew();
+            t = new Texture2D(Cols * Cell, Rows * Cell, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, name = "Evolution confetti" };
+            t.SetPixels32(job.px); t.Apply(true, false);
+            atlases[accent] = t; jobs.Remove(accent); LastAtlasMs = job.ms + (float)watch.Elapsed.TotalMilliseconds;
+            return t;
+        }
+
+        static void DrawRow(AtlasJob job, Color accent)
+        {
+            if (job.row >= Rows) return;
+            var watch = global::System.Diagnostics.Stopwatch.StartNew();
+            int W = Cols * Cell, row = job.row; var px = job.px;
+            Color[] palette = { Navy, Gold, Cream, White, accent };
+            var (shape, colour, metal) = Layout[row];
+            for (int col = 0; col < Cols; col++)
+            {
+                float phase = col / (float)Cols * Mathf.PI * 2;
+                int ox = col * Cell, oy = (Rows - 1 - row) * Cell;
+                for (int y = 0; y < Cell; y++) for (int x = 0; x < Cell; x++)
+                {
+                    float u = (x + .5f) / Cell * 2 - 1, v = (y + .5f) / Cell * 2 - 1;
+                    float cover = Cover(shape, u, v);
+                    if (cover <= 0) { px[(oy + y) * W + ox + x] = new Color32(0, 0, 0, 0); continue; }
+                    bool edge = Cover(shape, u * 1.12f, v * 1.12f) < .5f;   // a rim, so tiny pieces stay crisp
+                    var c = palette[colour];
+                    float light = metal ? .8f + .24f * Mathf.Cos(phase) : .82f + .18f * Mathf.Cos(phase);
+                    light *= 1 + .1f * (v - u) * .5f;                                     // light from the top left
+                    if (shape == Shape.Curl) light *= .84f + .16f * Mathf.Cos(v * Mathf.PI * 2.4f + phase);
+                    var col3 = new Color(c.r * light, c.g * light, c.b * light);
+                    if (metal)
+                    {
+                        float band = Mathf.Exp(-Mathf.Pow((u + v) * .7f - 1.7f * Mathf.Sin(phase), 2) * 5);   // a sheen sweeping over
+                        float flash = Mathf.Pow(Mathf.Max(0, Mathf.Cos(phase)), 14);                         // the moment it faces the light
+                        col3 = Color.Lerp(col3, new Color(1, .97f, .84f), Mathf.Max(band * .5f, flash * .65f));
+                    }
+                    if (edge) col3 *= colour == 0 ? 1.25f : .84f;
+                    px[(oy + y) * W + ox + x] = new Color(Mathf.Clamp01(col3.r), Mathf.Clamp01(col3.g), Mathf.Clamp01(col3.b), cover);
+                }
+            }
+            job.row++; job.ms += (float)watch.Elapsed.TotalMilliseconds;
+        }
+
+        // How much of the pixel at (u, v) (-1..1 in the cell) the piece covers, anti-aliased over about one pixel.
+        static float Cover(Shape shape, float u, float v)
+        {
+            const float px = 2f / Cell;
+            switch (shape)
+            {
+                case Shape.Strip:
+                {   // a thin rounded rectangle, a little skewed so it is not a perfect bar
+                    float x = Mathf.Abs(u + v * .08f) - .25f, y = Mathf.Abs(v) - .78f;
+                    float dist = Mathf.Min(Mathf.Max(x, y), 0) + new Vector2(Mathf.Max(x, 0), Mathf.Max(y, 0)).magnitude - .04f;
+                    return Mathf.Clamp01(.5f - dist / px);
+                }
+                case Shape.Disc:
+                    return Mathf.Clamp01(.5f - (new Vector2(u, v * 1.08f).magnitude - .5f) / px);
+                case Shape.Curl:
+                {   // a serpentine: a band along a sine, rounded at the ends
+                    float vv = Mathf.Clamp(v, -.78f, .78f), f = .34f * Mathf.Sin(vv * Mathf.PI * 1.3f), df = .34f * Mathf.PI * 1.3f * Mathf.Cos(vv * Mathf.PI * 1.3f);
+                    float dist = new Vector2((u - f) / Mathf.Sqrt(1 + df * df), v - vv).magnitude - .12f;
+                    return Mathf.Clamp01(.5f - dist / px);
+                }
+                case Shape.Star:
+                {
+                    float cover = 0;
+                    for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) if (InStar(u + (i - 1) * px / 3, v + .06f + (j - 1) * px / 3, .82f, .36f)) cover++;
+                    return cover / 9;
+                }
+                default:
+                {   // a four-point sparkle (an astroid)
+                    float k = Mathf.Pow(Mathf.Pow(Mathf.Abs(u) / .85f, .6f) + Mathf.Pow(Mathf.Abs(v) / .85f, .6f), 1 / .6f);
+                    return Mathf.Clamp01((1 - k) / (px * 1.6f));
+                }
+            }
+        }
+
+        static bool InStar(float u, float v, float outer, float inner)
+        {
+            float a = Mathf.Atan2(u, v), r = Mathf.Sqrt(u * u + v * v);
+            if (r > outer) return false; if (r < inner) return true;
+            // the star's edge between an outer point and the next inner corner (a straight line)
+            float seg = Mathf.PI * 2 / 10; float k = Mathf.Repeat(a + seg, seg * 2) - seg;     // -seg..seg, 0 at a point
+            float ka = Mathf.Abs(k);
+            var p1 = new Vector2(0, outer); var p2 = new Vector2(Mathf.Sin(seg), Mathf.Cos(seg)) * inner;
+            var p = new Vector2(Mathf.Sin(ka), Mathf.Cos(ka)) * r;
+            float cross = (p2.x - p1.x) * (p.y - p1.y) - (p2.y - p1.y) * (p.x - p1.x);
+            return cross <= 0;
         }
     }
 }
