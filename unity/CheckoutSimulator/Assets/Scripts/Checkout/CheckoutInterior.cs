@@ -378,10 +378,28 @@ namespace Checkout
                 if (building) CheckoutInteriorWorks.Show(it, entry);
                 else CheckoutInteriorWorks.Finish(it);
             }
+            // The evolution crew (builder + navy ring) on the pieces being evolved; they keep their old look and sell.
+            var evolutions = s.evolutions ?? Array.Empty<Evolution>();
+            foreach (var it in items.Values)
+            {
+                if (!it.root) continue;
+                var evo = it.building ? null : evolutions.FirstOrDefault(e => e != null && EvolutionTargets(e, it));
+                if (evo != null) CheckoutEvolutionSite.Show(it, evo);
+                else CheckoutEvolutionSite.Finish(it);
+            }
+            // Evolutions that ended wait under the cloth for their reveal (CheckoutEvolutionReveal).
+            CheckoutEvolutionReveal.Instance.Sync(s.reveals);
             MarkCheckoutZone();
             if (changed) CheckoutBlockPaths.Invalidate();
             return changed;
         }
+
+        /// <summary>Is this piece the target of the evolution (a fixture, a sector, every checkout, every machine of a kind)?</summary>
+        public static bool EvolutionTargets(Evolution e, Item it) =>
+            e.kind == "shelf" ? it.id == "shelf:" + e.targetId
+            : e.kind == "sector" ? it.id == "sector:" + e.targetId
+            : e.kind == "checkout" ? it.type == "checkout"
+            : e.kind == "decor" && it.type == e.targetId;
 
         static bool Same(InteriorItem[] a, InteriorItem[] b)
         {

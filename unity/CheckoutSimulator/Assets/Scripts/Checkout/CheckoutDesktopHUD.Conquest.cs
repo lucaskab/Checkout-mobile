@@ -17,11 +17,16 @@ namespace Checkout {
   RectTransform conquestRoot,conquestStage,conquestMedal,conquestRibbon,conquestChips,conquestButtons,conquestConfetti;
   Image conquestDim,conquestRays,conquestGlow,conquestRim,conquestIcon,conquestBand,conquestBandShade;readonly List<Image> conquestTails=new List<Image>();
   TextMeshProUGUI conquestHeadline,conquestTitle,conquestSubtitle;CanvasGroup conquestText;
+  // Evolutions: the new look (a picture of the piece), the numbers counting up and the products opened (NOVO).
+  RectTransform conquestStats,conquestProducts;RawImage conquestPortrait;Texture2D conquestPortraitTex;
+  readonly List<(TextMeshProUGUI text,DesktopCelebrationStat stat)> conquestCounters=new List<(TextMeshProUGUI,DesktopCelebrationStat)>();
   CheckoutDesktopButton conquestContinue,conquestGo;
   string conquestShownKey,conquestClosedKey,conquestId,conquestRoute;Coroutine conquestRun;bool conquestPlaying;
   AudioSource conquestAudio;
   readonly List<LevelConfetto> conquestPieces=new List<LevelConfetto>();
   public bool ConquestOpen=>conquestPlaying||(conquestRoot&&conquestRoot.gameObject.activeSelf);
+  /// <summary>QA: the view the HUD shows now.</summary>
+  public DesktopView QaView=>view;
   /// <summary>A celebration is due and has not been shown yet (the level-up waits for it).</summary>
   bool ConquestWaiting(DesktopView v)=>v!=null&&v.celebration!=null&&!string.IsNullOrEmpty(v.celebration.key)&&v.celebration.key!=conquestClosedKey;
 
@@ -46,6 +51,8 @@ namespace Checkout {
    var face=N.Image(conquestMedal,"Face",K.C("FFF7EA"),0);face.sprite=LevelDisc();U.Stretch(face.rectTransform,Vector2.zero,Vector2.one,new Vector2(22,22),new Vector2(-22,-22));
    var shine=N.Image(conquestMedal,"Shine",new Color(1,1,1,.35f),0);shine.sprite=LevelDisc();U.At(shine.rectTransform,new Vector2(.5f,.5f),new Vector2(110,40),new Vector2(-4,62));
    conquestIcon=U.Icon(conquestMedal,"Icon","Icons/key",new Vector2(.5f,.5f),new Vector2(138,138));conquestIcon.raycastTarget=false;
+   var portrait=new GameObject("Portrait",typeof(RectTransform),typeof(RawImage));portrait.transform.SetParent(conquestMedal,false);
+   conquestPortrait=portrait.GetComponent<RawImage>();conquestPortrait.raycastTarget=false;U.At(conquestPortrait.rectTransform,new Vector2(.5f,.5f),new Vector2(196,196),Vector2.zero);conquestPortrait.enabled=false;
 
    // Ribbon with the headline.
    conquestRibbon=N.Node("Ribbon",conquestStage);U.At(conquestRibbon,new Vector2(.5f,.5f),new Vector2(560,80),new Vector2(0,26));
@@ -69,6 +76,11 @@ namespace Checkout {
    conquestSubtitle.textWrappingMode=TextWrappingModes.Normal;conquestSubtitle.overflowMode=TextOverflowModes.Overflow;
    conquestChips=N.Node("Chips",textNode);U.At(conquestChips,new Vector2(.5f,1),new Vector2(900,48),new Vector2(0,-152));
    var row=N.Row(conquestChips.gameObject,12,new RectOffset(0,0,0,0));row.childAlignment=TextAnchor.MiddleCenter;row.childControlWidth=row.childControlHeight=true;row.childForceExpandWidth=false;
+   // (evolutions) before → after numbers and the new products, between the chips and the buttons
+   conquestStats=N.Node("Stats",textNode);U.At(conquestStats,new Vector2(.5f,1),new Vector2(900,74),new Vector2(0,-140));
+   var statsRow=N.Row(conquestStats.gameObject,12,new RectOffset(0,0,0,0));statsRow.childAlignment=TextAnchor.MiddleCenter;statsRow.childControlWidth=statsRow.childControlHeight=true;statsRow.childForceExpandWidth=false;
+   conquestProducts=N.Node("Products",textNode);U.At(conquestProducts,new Vector2(.5f,1),new Vector2(900,96),new Vector2(0,-222));
+   var productsRow=N.Row(conquestProducts.gameObject,14,new RectOffset(0,0,0,0));productsRow.childAlignment=TextAnchor.MiddleCenter;productsRow.childControlWidth=productsRow.childControlHeight=true;productsRow.childForceExpandWidth=false;
    conquestButtons=N.Node("Buttons",textNode);U.At(conquestButtons,new Vector2(.5f,1),new Vector2(600,64),new Vector2(0,-226));
    var buttons=N.Row(conquestButtons.gameObject,16,new RectOffset(0,0,0,0));buttons.childAlignment=TextAnchor.MiddleCenter;buttons.childControlWidth=buttons.childControlHeight=true;buttons.childForceExpandWidth=false;
    conquestGo=U.Button(conquestButtons,"Ver","secondary",()=>CloseConquest(conquestRoute),62,22);Size(conquestGo,240);
@@ -85,6 +97,8 @@ namespace Checkout {
    if(!has){if(ConquestOpen&&(data==null||string.IsNullOrEmpty(data.key)))HideConquest();return;}
    if(data.key==conquestShownKey&&ConquestOpen)return;
    if(LevelUpOpen)return; // after the level-up is closed (the next view brings it back)
+   // An evolution's reveal plays on the piece itself: it waits until the player is back on the map (no window open).
+   if(data.reveal!=null&&!string.IsNullOrEmpty(data.reveal.kind)&&v.hasPage)return;
    conquestShownKey=data.key;
    if(conquestRun!=null)StopCoroutine(conquestRun);
    conquestRun=StartCoroutine(PlayConquest(data,v.hasPage));
@@ -111,13 +125,33 @@ namespace Checkout {
     var sites=FindAnyObjectByType<CheckoutLotSites>();
     if(sites){Sound("whoosh");float wait=sites.CelebrateLot(data.lotId,!pageOpen);if(wait>0)yield return new WaitForSecondsRealtime(wait);}
    }
+   // An evolution: first the reveal on the piece (camera, cloth, pop, confetti, chips), then the card.
+   bool evolution=data.reveal!=null&&!string.IsNullOrEmpty(data.reveal.kind);
+   if(evolution){
+    float wait=CheckoutEvolutionReveal.Instance.Play(data.reveal,data.id,!pageOpen);
+    if(wait>0)yield return new WaitForSecondsRealtime(wait);
+   }
+   if(conquestPortraitTex){Destroy(conquestPortraitTex);conquestPortraitTex=null;}
+   if(evolution)conquestPortraitTex=CheckoutEvolutionReveal.Portrait(data.reveal.kind,data.reveal.targetId);
+   conquestPortrait.texture=conquestPortraitTex;conquestPortrait.enabled=conquestPortraitTex;
    var tint=K.C(string.IsNullOrEmpty(data.tint)?"3F9E52":data.tint);
    conquestRim.color=Color.Lerp(tint,Color.black,.15f);conquestBand.color=tint;
    foreach(var t in conquestTails)t.color=Color.Lerp(tint,Color.black,t.name=="Fold"?.45f:.25f);
-   conquestIcon.sprite=K.Icon(data.icon);conquestIcon.enabled=conquestIcon.sprite;
+   conquestIcon.sprite=K.Icon(data.icon);conquestIcon.enabled=conquestIcon.sprite&&!conquestPortraitTex;
    conquestHeadline.text=K.Clean(data.headline);conquestTitle.text=K.Clean(data.title);conquestSubtitle.text=K.Clean(data.subtitle);
    foreach(Transform child in conquestChips){child.gameObject.SetActive(false);Destroy(child.gameObject);}
    foreach(var chip in data.chips??new DesktopCelebrationChip[0])ConquestChip(chip);
+   foreach(Transform child in conquestStats){child.gameObject.SetActive(false);Destroy(child.gameObject);}
+   foreach(Transform child in conquestProducts){child.gameObject.SetActive(false);Destroy(child.gameObject);}
+   conquestCounters.Clear();
+   foreach(var stat in data.stats??new DesktopCelebrationStat[0])ConquestStat(stat);
+   foreach(var product in data.products??new DesktopCelebrationProduct[0])ConquestProduct(product);
+   bool hasStats=conquestStats.childCount>0,hasProducts=conquestProducts.childCount>0;
+   // the rows stack under the subtitle: chips (if any), numbers, products, then the buttons
+   float y=-152;if(conquestChips.childCount>0)y-=58;
+   conquestStats.anchoredPosition=new Vector2(0,y);if(hasStats)y-=84;
+   conquestProducts.anchoredPosition=new Vector2(0,y);if(hasProducts)y-=104;
+   conquestButtons.anchoredPosition=new Vector2(0,Mathf.Min(-226,y-10));
    conquestGo.gameObject.SetActive(!string.IsNullOrEmpty(data.button));
    if(!string.IsNullOrEmpty(data.button))conquestGo.Apply(new DesktopButton{label=K.Clean(data.button),variant="secondary",enabled=true,icon="",action="",args="[]",route="",after="",ok="",fail="",badge=""});
    LayoutRebuilder.ForceRebuildLayoutImmediate(conquestChips);LayoutRebuilder.ForceRebuildLayoutImmediate(conquestButtons);
@@ -138,6 +172,9 @@ namespace Checkout {
    for(float t=0;t<1;t+=Time.unscaledDeltaTime/.3f){conquestText.alpha=t;yield return null;}
    conquestText.alpha=1;
    float delay=0;foreach(Transform chip in conquestChips){StartCoroutine(LevelPopIn(chip,delay));delay+=.08f;}
+   foreach(Transform tile in conquestStats){StartCoroutine(LevelPopIn(tile,delay));delay+=.08f;}
+   if(conquestCounters.Count>0)StartCoroutine(CountUp(.9f));
+   foreach(Transform tile in conquestProducts){StartCoroutine(LevelPopIn(tile,delay));delay+=.1f;}
    conquestRun=null;
   }
 
@@ -149,6 +186,43 @@ namespace Checkout {
    var icon=N.Image(pill.transform,"Icon",Color.white,0);icon.sprite=K.Icon(chip.icon);icon.preserveAspect=true;var il=icon.gameObject.AddComponent<LayoutElement>();il.preferredWidth=il.preferredHeight=30;
    if(!icon.sprite)icon.gameObject.SetActive(false);
    var text=N.Text(pill.transform,"Text",K.Label,19,K.Ink);text.textWrappingMode=TextWrappingModes.NoWrap;text.alignment=TextAlignmentOptions.MidlineLeft;text.text=K.Clean(chip.text);
+  }
+
+  // A number of the evolution: "Por produto 10 → 15" (counts up from the old value to the new one).
+  void ConquestStat(DesktopCelebrationStat stat){
+   var tile=N.Image(conquestStats,"Stat",new Color(.11f,.17f,.31f,.92f),16);
+   var le=tile.gameObject.AddComponent<LayoutElement>();le.preferredWidth=196;le.preferredHeight=72;
+   var rim=tile.gameObject.AddComponent<Outline>();rim.effectColor=K.C("E0B040");rim.effectDistance=new Vector2(2,-2);
+   var icon=N.Image(tile.transform,"Icon",Color.white,0);icon.sprite=K.Icon(stat.icon);icon.preserveAspect=true;U.At(icon.rectTransform,new Vector2(0,.5f),new Vector2(34,34),new Vector2(26,0));
+   if(!icon.sprite)icon.gameObject.SetActive(false);
+   var label=N.Text(tile.transform,"Label",K.Label,15,K.C("BFD0E8"));label.alignment=TextAlignmentOptions.MidlineLeft;label.text=K.Clean(stat.label);U.Stretch(label.rectTransform,new Vector2(0,.52f),Vector2.one,new Vector2(50,0),new Vector2(-8,-4));
+   var value=N.Text(tile.transform,"Value",K.Headline,24,K.C("FFE08A"));value.alignment=TextAlignmentOptions.MidlineLeft;value.textWrappingMode=TextWrappingModes.NoWrap;
+   U.Stretch(value.rectTransform,Vector2.zero,new Vector2(1,.56f),new Vector2(50,4),new Vector2(-8,0));
+   value.text=StatText(stat,0);conquestCounters.Add((value,stat));
+  }
+  static string StatText(DesktopCelebrationStat s,float k){
+   float now=Mathf.Lerp(s.from,s.to,k);string suffix=s.suffix??"";
+   return Mathf.RoundToInt(s.from)+suffix+"  →  "+Mathf.RoundToInt(now)+suffix;
+  }
+  IEnumerator CountUp(float seconds){
+   var tick=U.Sfx("coin_0");int last=-1;
+   for(float k=0;k<1;k+=Time.unscaledDeltaTime/seconds){
+    float e=1-(1-k)*(1-k);
+    foreach(var (text,stat) in conquestCounters)if(text)text.text=StatText(stat,e);
+    int step=Mathf.FloorToInt(e*8);if(step!=last&&tick&&conquestAudio){last=step;conquestAudio.PlayOneShot(tick,.12f);}
+    yield return null;
+   }
+   foreach(var (text,stat) in conquestCounters)if(text)text.text=StatText(stat,1);
+  }
+  // A product the evolution opened: its icon with a NOVO badge and its name.
+  void ConquestProduct(DesktopCelebrationProduct product){
+   var tile=N.Image(conquestProducts,"Product",new Color(1,.97f,.9f,.96f),18);
+   var le=tile.gameObject.AddComponent<LayoutElement>();le.preferredWidth=260;le.preferredHeight=92;
+   var icon=N.Image(tile.transform,"Icon",Color.white,0);icon.sprite=K.Icon(product.icon);icon.preserveAspect=true;U.At(icon.rectTransform,new Vector2(0,.5f),new Vector2(76,76),new Vector2(48,0));
+   var name=N.Text(tile.transform,"Name",K.Label,19,K.Ink);name.alignment=TextAlignmentOptions.MidlineLeft;name.textWrappingMode=TextWrappingModes.Normal;name.text=K.Clean(product.name);
+   U.Stretch(name.rectTransform,Vector2.zero,Vector2.one,new Vector2(94,6),new Vector2(-10,-6));
+   var badge=N.Image(tile.transform,"Novo",K.C("E8452C"),12);U.At(badge.rectTransform,new Vector2(0,1),new Vector2(70,28),new Vector2(36,-4));badge.transform.localRotation=Quaternion.Euler(0,0,8);
+   var text=N.Text(badge.transform,"Text",K.Headline,15,Color.white);text.alignment=TextAlignmentOptions.Center;text.text="NOVO";U.Stretch(text.rectTransform,Vector2.zero,Vector2.one);
   }
 
   void ConquestConfettiBurst(int count){

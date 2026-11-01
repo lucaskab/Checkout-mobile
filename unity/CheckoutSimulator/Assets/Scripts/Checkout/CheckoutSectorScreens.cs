@@ -72,6 +72,26 @@ namespace Checkout
         void OnDisable() { CheckoutI18n.Changed -= Invalidate; }
         void Invalidate() => shownKey = "";
 
+        /// <summary>The evolution reveal: the price screens light up one after the other.</summary>
+        public System.Collections.IEnumerator LightUp(float step = .16f)
+        {
+            Refresh(true);
+            var list = new List<TextMeshPro>(priceTexts); list.AddRange(nameTexts);
+            var colors = new List<Color>(); foreach (var t in list) { colors.Add(t ? t.color : Color.white); if (t) t.color = new Color(t.color.r, t.color.g, t.color.b, 0); }
+            for (int i = 0; i < list.Count; i++)
+            {
+                var t = list[i]; if (!t) continue;
+                var full = t.transform.localScale; var c = colors[i];
+                for (float k = 0; k < 1; k += Time.unscaledDeltaTime / .18f)
+                {
+                    if (!t) break;
+                    t.color = new Color(c.r, c.g, c.b, k); t.transform.localScale = full * (1 + .25f * Mathf.Sin(k * Mathf.PI)); yield return null;
+                }
+                if (t) { t.color = c; t.transform.localScale = full; }
+                yield return new WaitForSecondsRealtime(step * .4f);
+            }
+        }
+
         /// <summary>Write now, seen or not (autotest close-ups from their own camera).</summary>
         public void RefreshNow() { shownKey = "~"; Refresh(true); }
 

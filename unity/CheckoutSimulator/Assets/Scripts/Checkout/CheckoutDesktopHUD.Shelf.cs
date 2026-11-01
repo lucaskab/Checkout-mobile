@@ -68,7 +68,7 @@ namespace Checkout {
    shelfSign=N.Text(shelfArt,"Sign",K.Headline,22,K.Ink);shelfSign.alignment=TextAlignmentOptions.Center;shelfSign.textWrappingMode=TextWrappingModes.NoWrap;
    var sr=shelfSign.rectTransform;sr.anchorMin=new Vector2(.3f,.855f);sr.anchorMax=new Vector2(.7f,.965f);sr.offsetMin=sr.offsetMax=Vector2.zero;
    shelfOverlay=Stretch(N.Node("Labels",shelfArt),Vector2.zero,Vector2.zero);
-      for(int i=0;i<7;i++)shelfSlots.Add(ShelfSlotUi.Create(this,i,shelfSlotsLayer,shelfOverlay));
+      for(int i=0;i<8;i++)shelfSlots.Add(ShelfSlotUi.Create(this,i,shelfSlotsLayer,shelfOverlay)); // ★ fixtures sell 8 products
 
    // Upgrades of the fixture.
    var ups=N.Node("Upgrades",stage);ups.anchorMin=Vector2.zero;ups.anchorMax=new Vector2(1,0);ups.pivot=new Vector2(.5f,0);ups.offsetMin=new Vector2(10,10);ups.offsetMax=new Vector2(-10,66);
@@ -105,13 +105,15 @@ namespace Checkout {
    shelfNoteBar.SetActive(!string.IsNullOrEmpty(s.stallNote));shelfNote.text=K.Clean(s.stallNote);
    ApplyShelfTabs(p.tabs??new DesktopButton[0]);
    var slots=s.slots??new DesktopShelfSlot[0];
-   for(int i=0;i<shelfSlots.Count;i++)shelfSlots[i].Apply(i<slots.Length?slots[i]:null,i==shelfSelected);
-   // Upgrades.
-   shelfExpand.gameObject.SetActive(s.expandCost>0);
-   if(s.expandCost>0)shelfExpand.Apply(Btn($"Mais um espaço · {Fmt(s.expandCost)}","expandShelfSlots",Args(s.id),"coin","Icons/coin",
-    v.level>=s.expandLevel,$"Novo espaço na {s.name}!",v.level>=s.expandLevel?"Moedas insuficientes.":$"Disponível no nível {s.expandLevel}."));
-   shelfCapacity.gameObject.SetActive(s.capacityCost>0);
-   if(s.capacityCost>0)shelfCapacity.Apply(CapacityButton(s,v));
+   // Eight places (a ★ fixture): the bottom row takes four like the top one; up to seven it keeps three.
+   int shown=0;for(int i=0;i<slots.Length;i++)if(slots[i]!=null&&slots[i].state!="hidden")shown++;
+   for(int i=0;i<shelfSlots.Count;i++){shelfSlots[i].Place(shown>7);shelfSlots[i].Apply(i<slots.Length?slots[i]:null,i==shelfSelected);}
+   // Upgrades. Places for products come with the evolution (no "one more place" to buy); while the evolution crew
+   // works the fixture keeps selling and the first button finishes it with diamonds.
+   shelfExpand.gameObject.SetActive(s.evolving);
+   if(s.evolving)shelfExpand.Apply(Btn(string.Format("{0} · Terminar já · {1}",K.Clean(s.evolvingLine),s.skipCost),"finishEvolutionNow",Args(s.evolutionId),"gem","Icons/diamond",true,"Evolução concluída!","Diamantes insuficientes."));
+   shelfCapacity.gameObject.SetActive(s.capacityCost>0&&!s.evolving);
+   if(s.capacityCost>0&&!s.evolving)shelfCapacity.Apply(CapacityButton(s,v));
    ApplyShelfDetail(v);
    // The build button hides behind the window, as with the shop.
    ShopOpen=true;
@@ -125,8 +127,9 @@ namespace Checkout {
    if(s.evolve&&s.grows&&CheckoutInterior.Active&&!CheckoutInterior.Active.FitsTier(CheckoutInterior.ShelfKey(s.id),s.nextTemplate))
     return new DesktopButton{label="Sem espaço: mova o móvel · Ver onde cabe",route="@build",variant="secondary",icon="Icons/construction",enabled=true,ok="",fail="",action="",args="",after="",badge=""};
    var label=s.evolve?string.Format("Evoluir para {0} · {1}",s.nextTierName,Fmt(s.capacityCost)):$"Cabem {s.capacity} → {s.capacityNext} por espaço · {Fmt(s.capacityCost)}";
+   if(!string.IsNullOrEmpty(s.evolveTime))label+=" · "+s.evolveTime;
    return Btn(label,"upgradeShelfCapacity","[\""+s.id+"\",\"coins\"]","coin","Icons/coin",levelOk,
-    s.evolve?"Seu móvel evoluiu!":"Cada espaço agora cabe mais produtos!",levelOk?"Moedas insuficientes.":$"Disponível no nível {s.capacityLevel}.");
+    "A equipe de evolução começou a obra!",levelOk?"Moedas insuficientes.":$"Disponível no nível {s.capacityLevel}.");
   }
 
   static int FirstProduct(DesktopShelf s){if(s.slots!=null)for(int i=0;i<s.slots.Length;i++)if(s.slots[i].state=="product")return i;return -1;}
@@ -201,6 +204,15 @@ namespace Checkout {
 
   void DetailLocked(DesktopShelf s,DesktopShelfSlot slot,DesktopView v){
    var col=Column(shelfDetail,10);
+   if(slot.unlockCost<=0){
+    // The next place comes with the next evolution: what it brings, and the button that starts it.
+    Line(col,"Próximo lugar",K.Headline,24,K.Ink);
+    Line(col,s.evolving?K.Clean(s.evolvingLine):"Vem com a próxima evolução deste móvel, junto com:",K.Body,15,K.Muted);
+    foreach(var reward in s.rewards??new string[0])Line(col,"• "+reward,K.Body,15,K.Ink);
+    if(s.evolving)DetailButton(col,Btn(string.Format("Terminar já · {0}",s.skipCost),"finishEvolutionNow",Args(s.evolutionId),"gem","Icons/diamond",true,"Evolução concluída!","Diamantes insuficientes."),56);
+    else if(s.capacityCost>0)DetailButton(col,CapacityButton(s,v),56);
+    return;
+   }
    Line(col,"Espaço fechado",K.Headline,24,K.Ink);
    Line(col,$"Abra mais um lugar na {s.name} para vender mais um produto.",K.Body,15,K.Muted);
    var lockRow=N.Node("Lock",col);lockRow.gameObject.AddComponent<LayoutElement>().preferredHeight=120;
@@ -298,6 +310,13 @@ namespace Checkout {
   readonly List<Image> icons=new List<Image>();DesktopShelfSlot data;
   static RectTransform dragGhost;static int dragFrom=-1;
 
+  bool eight;
+  /// <summary>Lays the place out for a fixture with eight places (bottom row of four) or up to seven (three).</summary>
+  public void Place(bool eightPlaces){
+   if(eight==eightPlaces||index<4)return;eight=eightPlaces;
+   float x0=CheckoutDesktopHUDShelfMath.X0(index,eight),x1=CheckoutDesktopHUDShelfMath.X1(index,eight);
+   foreach(var r in new[]{pile,labels}){if(!r)continue;r.anchorMin=new Vector2(x0,r.anchorMin.y);r.anchorMax=new Vector2(x1,r.anchorMax.y);r.offsetMin=r.offsetMax=Vector2.zero;}
+  }
   public static ShelfSlotUi Create(CheckoutDesktopHUD hud,int index,RectTransform productsLayer,RectTransform labelsLayer){
    float x0=CheckoutDesktopHUDShelfMath.X0(index),x1=CheckoutDesktopHUDShelfMath.X1(index),y0=CheckoutDesktopHUDShelfMath.Y0(index),y1=CheckoutDesktopHUDShelfMath.Y1(index);
    // Products layer: glow + pile.
@@ -333,7 +352,7 @@ namespace Checkout {
    gameObject.SetActive(!hidden);pile.gameObject.SetActive(!hidden);if(hidden)return;
    bool product=slot.state=="product";
    empty.SetActive(slot.state=="empty");locked.SetActive(slot.state=="locked");
-   if(slot.state=="locked")lockText.text="Abrir · "+slot.unlockCost.ToString("N0",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+   if(slot.state=="locked")lockText.text=slot.unlockCost<=0?"Com a evolução":"Abrir · "+slot.unlockCost.ToString("N0",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
    tag.SetActive(product);stockChip.SetActive(product);levelChip.SetActive(product&&slot.level>0);
    if(product){
     tagText.text=slot.price.ToString();
@@ -378,9 +397,11 @@ namespace Checkout {
 
  // Product places on the art (normalised, origin bottom-left): keep in sync with ArtSource/fixture_art.py.
  static class CheckoutDesktopHUDShelfMath {
-  static readonly float[] X={.17f,.39f,.61f,.83f,.28f,.50f,.72f};
+  static readonly float[] X={.17f,.39f,.61f,.83f,.28f,.50f,.72f,.83f};
+  // Eight places (★): the bottom row like the top one.
+  static readonly float[] X8={.17f,.39f,.61f,.83f,.17f,.39f,.61f,.83f};
   const float W=.19f;
-  public static float X0(int i)=>X[i]-W/2;public static float X1(int i)=>X[i]+W/2;
+  public static float X0(int i,bool eight=false)=>(eight?X8:X)[i]-W/2;public static float X1(int i,bool eight=false)=>(eight?X8:X)[i]+W/2;
   public static float Y0(int i)=>i<4?.50f:.14f;public static float Y1(int i)=>i<4?.78f:.42f;
  }
  // Lays the shelf window out for its width (see BuildShelf).

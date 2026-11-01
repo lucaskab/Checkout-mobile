@@ -218,8 +218,10 @@ export function shelfViewPage(state: State, requested: string): Page {
 	const slotIds = getShelfSlotIds(fixtureId, maximumSlotsPerShelf);
 	const slots = slotIds.map((slotId, index) => slotView(state, fixtureId, slotId, index, open));
 	const onShelves = new Set(Object.values(state.shelfAssignments).filter((id): id is number => typeof id === "number"));
+	// The fixture's exclusive products (an evolution's reward) come first: "Colocar à venda" lands here.
 	const picks: ShelfPickView[] = getFixtureProducts(fixtureId, state.market.unlockedProductIds)
 		.filter((product) => !onShelves.has(product.id))
+		.sort((a, b) => Number(!!b.exclusive) - Number(!!a.exclusive) || (b.exclusive?.tier ?? 0) - (a.exclusive?.tier ?? 0))
 		.map((product) => ({
 			productId: product.id,
 			name: product.name,

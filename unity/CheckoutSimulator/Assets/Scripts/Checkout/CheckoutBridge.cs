@@ -67,6 +67,9 @@ namespace Checkout {
    if(action.panel=="checkout")CheckoutCounterGame.Show(this,action.requestId);
    // Works boards: finish a build inside the market (or the expansion) right now for diamonds.
    else if(action.panel=="finishBuild"&&!string.IsNullOrEmpty(action.requestId))Command("finishInteriorConstructionNow","[\""+action.requestId+"\"]");
+   // Evolution ring: a tap shows the diamond skip under it; the gold plate spends the diamonds (CheckoutEvolutionSite).
+   else if(action.panel=="evolution")CheckoutEvolutionSite.Tapped(action.requestId);
+   else if(action.panel=="finishEvolution"&&!string.IsNullOrEmpty(action.requestId))Command("finishEvolutionNow","[\""+action.requestId+"\"]");
    else if(action.panel=="finishWorks")Command("finishMarketExpansionNow","[]");else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="windowSale"){var fx=GetComponent<CheckoutEventVisuals>();if(fx)fx.ServeWindow(action.requestId);}else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);
    return action;
   }

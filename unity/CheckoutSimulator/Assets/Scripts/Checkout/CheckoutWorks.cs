@@ -611,7 +611,7 @@ namespace Checkout
                 float raiseR = 0, raiseL = 0; float twist = 0; bool both = false;
                 switch (w.use)
                 {
-                    case Tool.Hammer: { float c = Mathf.Repeat(s * 1.6f, 1); raiseR = c < .7f ? Mathf.Lerp(50, 120, c / .7f) : Mathf.Lerp(120, 45, (c - .7f) / .3f); raiseL = 40; break; }
+                    case Tool.Hammer: { float c = Mathf.Repeat(s * 1.6f, 1); raiseR = c < .7f ? Mathf.Lerp(50, 120, c / .7f) : Mathf.Lerp(120, 45, (c - .7f) / .3f); raiseL = 40; if (w.blow < .7f && c >= .7f && w.handR) Hit(w.handR.position + fwd * .3f); w.blow = c; break; }
                     case Tool.Sledge: { float c = Mathf.Repeat(s * .75f, 1); raiseR = raiseL = c < .65f ? Mathf.Lerp(40, 165, c / .65f) : Mathf.Lerp(165, 25, (c - .65f) / .35f); both = true; if (c > .95f) Burst(w.body.position + fwd * 1.3f, 4); break; }
                     case Tool.Saw: raiseR = 60 + 18 * Mathf.Sin(s * 9f); raiseL = 35; break;
                     case Tool.Shovel: { float c = Mathf.Repeat(s * .6f, 1); raiseR = raiseL = c < .5f ? Mathf.Lerp(25, 55, c * 2) : Mathf.Lerp(55, 95, (c - .5f) * 2); both = true; if (Mathf.Abs(c - .52f) < .01f) Burst(w.body.position + fwd * 1.1f, 2); break; }
@@ -754,6 +754,13 @@ namespace Checkout
             var r = go.GetComponent<ParticleSystemRenderer>(); r.sharedMaterial = m; r.renderMode = mode;
             if (mode == ParticleSystemRenderMode.Stretch) { r.velocityScale = .06f; r.lengthScale = 1; }
             return ps;
+        }
+
+        /// <summary>A few hot sparks (a hammer blow on metal: the evolution crew, CheckoutEvolutionSite).</summary>
+        public void Sparks(Vector3 at, int count = 8)
+        {
+            if (!sparks) return;
+            sparks.transform.position = at; sparks.Emit(count);
         }
 
         /// <summary>A puff of dust (a wall knocked, a bucket emptied).</summary>

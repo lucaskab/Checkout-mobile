@@ -97,6 +97,15 @@ namespace Checkout
             simulation.Focus(point, zoom);
         }
 
+        /// <summary>Glides the camera to `point` (remembered for RestoreCamera). The evolution reveal uses it.</summary>
+        public Coroutine FocusOn(Vector3 point, float zoom, float seconds) => StartCoroutine(Glide(point, zoom, seconds, true));
+
+        // The evolution reveal (CheckoutEvolutionReveal): the same effects, called from outside.
+        public void SparkleAt(Vector3 center, float width, float depth, int count) => Sparkles(center, width, depth, count);
+        public void DustAt(Vector3 center, float width, float depth) => Dust(center, width, depth);
+        public void ConfettiAt(Vector3 at, int count, float power, Color[] colors = null) => Confetti(at, count, power, colors);
+        public void LightRays(Vector3 center, float radius, float seconds) { StartCoroutine(Beam(center, radius, seconds)); StartCoroutine(Ring(center, radius * 2.2f, seconds * .6f)); }
+
         /// <summary>Back to where the player was looking before the celebration flew the camera away.</summary>
         public void RestoreCamera()
         {
@@ -144,7 +153,7 @@ namespace Checkout
             Destroy(ps.gameObject, 2f);
         }
 
-        void Confetti(Vector3 at, int count, float power)
+        void Confetti(Vector3 at, int count, float power, Color[] palette = null)
         {
             var ps = System("Confetti", at, Flat());
             var main = ps.main;
@@ -156,6 +165,12 @@ namespace Checkout
             var colors = new Gradient();
             colors.SetKeys(new[] { new GradientColorKey(new Color(.88f, .33f, .2f), 0), new GradientColorKey(new Color(.95f, .69f, .24f), .25f), new GradientColorKey(new Color(.18f, .55f, .68f), .5f), new GradientColorKey(new Color(.36f, .65f, .22f), .75f), new GradientColorKey(new Color(.91f, .44f, .65f), 1) },
                 new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) });
+            if (palette != null && palette.Length > 1)
+            {
+                var keys = new GradientColorKey[Mathf.Min(8, palette.Length)];
+                for (int i = 0; i < keys.Length; i++) keys[i] = new GradientColorKey(palette[i], keys.Length == 1 ? 0 : i / (float)(keys.Length - 1));
+                colors = new Gradient(); colors.SetKeys(keys, new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) });
+            }
             main.startColor = new ParticleSystem.MinMaxGradient(colors) { mode = ParticleSystemGradientMode.RandomColor };
             main.maxParticles = count + 10;
             var shape = ps.shape; shape.shapeType = ParticleSystemShapeType.Cone; shape.angle = 32; shape.radius = .4f;

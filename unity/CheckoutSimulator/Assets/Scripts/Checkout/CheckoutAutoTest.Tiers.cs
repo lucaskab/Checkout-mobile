@@ -68,6 +68,12 @@ namespace Checkout {
      case "migrate": yield return TierMigrate(); break;
      case "migrateflush": yield return TierMigrateFlush(); break;
      case "wallshots": yield return TierWallShots(); break;
+     // evolutions with rewards (CheckoutAutoTest.Evolution)
+     case "rewards": yield return EvoRewards(); break;
+     case "queue": yield return EvoQueue(); break;
+     case "skip": yield return EvoSkip(); break;
+     case "oldsave": yield return EvoOldSave(); break;
+     case "reveal": yield return EvoReveal(); break;
      default: Note("unknown part " + part); break;
     }
     TierReset();
@@ -90,14 +96,14 @@ namespace Checkout {
    Hud("grantCurrencyPurchase", "[{\"coins\":20000000,\"diamonds\":5000,\"transactionId\":\"qa-tiers-" + System.DateTime.Now.Ticks + "\"}]");
    yield return GoToStage("spati");
    int before = Sh("produce").tier;
-   Hud("upgradeShelfCapacity", "[\"produce\",\"coins\"]"); yield return Wait(2);
+   Hud("upgradeShelfCapacity", "[\"produce\",\"coins\"]"); yield return Wait(1.5f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f);
    Check(Sh("produce").tier == Mathf.Min(2, before + 1) && Sh("produce").tierTemplate.StartsWith("produce_T"), $"spati: produce T{before} → T{Sh("produce").tier} ({Sh("produce").tierTemplate})");
-   Hud("upgradeShelfCapacity", "[\"produce\",\"coins\"]"); yield return Wait(2);
+   Hud("upgradeShelfCapacity", "[\"produce\",\"coins\"]"); yield return Wait(1.5f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f);
    Check(Sh("produce").tier <= 2, $"spati: capped at T2 (shows T{Sh("produce").tier}, capacity {Sh("produce").capacity})");
-   Hud("purchaseShopItem", "[\"checkout-register\",\"diamonds\"]"); yield return Wait(2);
+   Hud("purchaseShopItem", "[\"checkout-register\",\"diamonds\"]"); yield return Wait(1.5f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f);
    Check(bridge.State.fixtureTiers != null && bridge.State.fixtureTiers.checkout == 2, $"spati: checkout register → step {bridge.State.fixtureTiers?.checkout}");
    yield return GoToStage("minimercado");
-   Hud("upgradeShelfCapacity", "[\"produce\",\"diamonds\"]"); yield return Wait(2);
+   Hud("upgradeShelfCapacity", "[\"produce\",\"diamonds\"]"); yield return Wait(1.5f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f);
    Check(Sh("produce").tier == 3, $"minimercado: produce T{Sh("produce").tier} ({Sh("produce").tierTemplate}), capacity {Sh("produce").capacity}");
    Hud("purchaseShopItem", "[\"cold-room-2\",\"coins\"]"); yield return Wait(2);
    Check(!string.IsNullOrEmpty(bridge.State.fixtureTiers.coldRoomBuilding), $"minimercado: cold room T2 works '{bridge.State.fixtureTiers.coldRoomBuilding}' until {bridge.State.fixtureTiers.coldRoomEndsAt}");
@@ -107,11 +113,11 @@ namespace Checkout {
    Check(bridge.State.fixtureTiers.coldRoom == 2, $"minimercado: cold room tier {bridge.State.fixtureTiers.coldRoom} at {CheckoutColdRoom.Side}");
    yield return GoToStage("supermercado");
    Check(Sh("produce").tier == 3, $"supermercado: produce keeps T{Sh("produce").tier} (bought 3)");
-   Hud("upgradeShelfCapacity", "[\"produce\",\"diamonds\"]"); yield return Wait(1.5f);
-   Hud("upgradeShelfCapacity", "[\"produce\",\"diamonds\"]"); yield return Wait(2);
+   Hud("upgradeShelfCapacity", "[\"produce\",\"diamonds\"]"); yield return Wait(1.5f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f);
+   Hud("upgradeShelfCapacity", "[\"produce\",\"diamonds\"]"); yield return Wait(1.5f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f);
    Check(Sh("produce").tier == 5 && Sh("produce").premium, $"supermercado: produce ★ (tier {Sh("produce").tier}, premium {Sh("produce").premium})");
    Hud("purchaseDecor", "[\"atm\",\"coins\"]"); yield return Wait(1.5f);
-   Hud("upgradeDecorTier", "[\"atm\",\"coins\"]"); yield return Wait(2);
+   Hud("upgradeDecorTier", "[\"atm\",\"coins\"]"); yield return Wait(1.5f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f);
    var atm = bridge.State.interior?.tiers?.FirstOrDefault(t => t.type == "atm");
    Check(atm != null && atm.tier == 2 && atm.template == "atm_T2", $"ATM → {atm?.tier} {atm?.template}");
    Hud("purchaseDecor", "[\"big-cart-corral\",\"coins\"]"); yield return Wait(2);
@@ -455,7 +461,9 @@ namespace Checkout {
     int from = b.tier;
     var it = CheckoutInterior.Active.Get("sector:padaria");
     if (it != null) { RefreshScreens(); TierShot($"ft_sector_upgrade_before_T{from}", 1600, 1000, it.root.position + Vector3.up * 1.4f, 6.5f); }
-    Hud("upgradeSectorTier", "[\"padaria\",\"coins\"]"); yield return Wait(2.5f);
+    Hud("upgradeSectorTier", "[\"padaria\",\"coins\"]"); yield return Wait(1.5f);
+    // (the evolution crew takes 30 min / 2 h: finished here, then its reveal and card seen)
+    Hud("devFinishEvolutions", "[]"); yield return Wait(2f); yield return ClearReveals();
     b = Bakery(); it = CheckoutInterior.Active.Get("sector:padaria");
     Note($"TIERS bakery after: tier {b?.tier} {b?.tierTemplate}; Unity shows {it?.template}");
     if (b == null || b.tier != Mathf.Min(3, from + 1)) fails.Add($"tier {b?.tier} after evolving from {from}");
