@@ -74,6 +74,7 @@ namespace Checkout {
      case "skip": yield return EvoSkip(); break;
      case "oldsave": yield return EvoOldSave(); break;
      case "reveal": yield return EvoReveal(); break;
+     case "restock8": yield return EvoRestock8(); break;
      default: Note("unknown part " + part); break;
     }
     TierReset();

@@ -392,12 +392,17 @@ namespace MarketDay
         // Build mode frames the shop floor and holds the camera still while a piece is dragged.
         public bool cameraLocked,pinchLocked;
         public void Focus(Vector3 point,float size){focus=new Vector3(point.x,.1f,point.z);zoom=Mathf.Clamp(size,6,38);UpdateCamera();}
+        // A celebration's close-up (the evolution reveal): closer than the player may zoom, inside the map, for a few seconds;
+        // the camera then glides back to exactly where the player was (CheckoutConquestFx.RestoreCamera). Input waits meanwhile.
+        public static bool Cinematic;
+        public void FocusCinematic(Vector3 point,float size){focus=new Vector3(Mathf.Clamp(point.x,-26,26),.1f,point.z);zoom=Mathf.Clamp(size,2.4f,38);UpdateCamera();}
         public (Vector3 focus,float zoom) CameraState=>(focus,zoom);
         public void Zoom(float amount){zoom=Mathf.Clamp(zoom+amount,6,38);UpdateCamera();}
         void UpdateCamera(){if(!view)return;view.orthographicSize=zoom;view.transform.position=focus+new Vector3(28,33,-38);view.transform.LookAt(focus);}
         public void ExternalCamera(){HandleCamera();}
         void HandleCamera()
         {
+            if(Cinematic)return;
             if(Input.touchCount==2)
             {
                 if(pinchLocked)return; // Build mode: two fingers turn the selected piece instead.

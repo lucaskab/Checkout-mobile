@@ -204,55 +204,133 @@ namespace Checkout {
   IEnumerator EvoReveal() {
    var fails = new List<string>();
    QaRich("reveal");
-   foreach (var f in Directory.GetFiles("Logs", "ft_evo_reveal_*.jpg")) File.Delete(f);
+   foreach (var f in Directory.GetFiles("Logs", "ft_evo_*")) if (!f.EndsWith(".txt")) File.Delete(f);
    yield return GoToStage("supermercado"); yield return EnsureBakery(); yield return ClearReveals();
    Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f); yield return ClearReveals();
-   // a shelf
-   var id = bridge.State.shelves.Where(s => s.unlocked && s.tier < 5 && TierKindOf.ContainsKey(s.id)).OrderBy(s => s.tier).Select(s => s.id).FirstOrDefault();
-   if (id != null) yield return EnsurePlaced("shelf:" + id);
-   if (id != null) yield return RevealOne("shelf", id, () => Hud("upgradeShelfCapacity", "[\"" + id + "\",\"coins\"]"), fails, true);
-   else fails.Add("no shelf to evolve");
-   // a sector
+   // a shelf, taken to T3 first so the recorded reveal is the T3 → T4 one (the Mercadinho's model)
+   yield return EnsurePlaced("shelf:produce");
+   for (int i = 0; i < 2; i++) { Hud("upgradeShelfCapacity", "[\"produce\",\"coins\"]"); yield return Wait(1.2f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.2f); }
+   yield return ClearReveals();
+   yield return StockShelf("produce");
+   yield return RevealOne("shelf", "produce", () => Hud("upgradeShelfCapacity", "[\"produce\",\"coins\"]"), fails, "shelf", true);
+   // the sector (the bakery T1 → T2)
    var bakery = bridge.State.sectors?.FirstOrDefault(x => x.id == "padaria");
-   if (bakery != null && bakery.unlocked && bakery.tier < 3) yield return RevealOne("sector", "padaria", () => Hud("upgradeSectorTier", "[\"padaria\",\"coins\"]"), fails, false);
-   else Note("EVO no sector reveal (bakery " + (bakery == null ? "missing" : bakery.unlocked ? "T" + bakery.tier : "not built") + ")");
-   int frames = Directory.GetFiles("Logs", "ft_evo_reveal_*.jpg").Length;
-   Note($"RESULT tiers reveal: {(fails.Count == 0 ? "PASS" : "FAIL")} {frames} frames" + (fails.Count > 0 ? ": " + string.Join(" | ", fails) : ""));
+   if (bakery != null && bakery.unlocked && bakery.tier < 3) yield return RevealOne("sector", "padaria", () => Hud("upgradeSectorTier", "[\"padaria\",\"coins\"]"), fails, "sector", false);
+   else fails.Add("no bakery to evolve");
+   // the shelf again in a portrait iPhone frame (the drinks fridge T1 → T2)
+   var before = CheckoutQaGameView.Set(1284, 2778); Note("EVO portrait game view: " + before); yield return Wait(2.5f);
+   yield return EnsurePlaced("shelf:drinks"); yield return StockShelf("drinks");
+   yield return RevealOne("shelf", "drinks", () => Hud("upgradeShelfCapacity", "[\"drinks\",\"coins\"]"), fails, "shelf_portrait", false);
+   CheckoutQaGameView.Restore(); yield return Wait(2f);
+   Note($"RESULT tiers reveal: {(fails.Count == 0 ? "PASS" : "FAIL")}" + (fails.Count > 0 ? ": " + string.Join(" | ", fails) : "") + " (Logs/ft_evo_reveal_*.mjpg)");
   }
 
-  IEnumerator RevealOne(string kind, string target, System.Action start, List<string> fails, bool stills) {
+  // Products on the fixture, so the reveal has something to drop in: the first product of the piece, stocked.
+  IEnumerator StockShelf(string shelfId) {
+   var slot = (bridge.State.restockSlots ?? System.Array.Empty<RestockSlot>()).FirstOrDefault(r => r.shelfId == shelfId);
+   if (slot == null) {
+    var pick = (bridge.State.supplierCatalog ?? System.Array.Empty<SupplierProduct>()).FirstOrDefault(p => !p.locked && (shelfId == "drinks" ? p.category == "refrigerantes" || p.category == "aguas" : p.category == "hortifruti"));
+    if (pick == null) { Note("EVO nothing to stock on " + shelfId); yield break; }
+    Hud("assignProductToShelf", "[\"" + shelfId + "\"," + pick.productId + "]"); yield return Wait(1.2f);
+    slot = (bridge.State.restockSlots ?? System.Array.Empty<RestockSlot>()).FirstOrDefault(r => r.shelfId == shelfId);
+    if (slot == null) { Note("EVO could not assign on " + shelfId); yield break; }
+   }
+   Hud("devAdjustInventory", "[" + slot.productId + ",80]"); yield return Wait(1f);
+   Hud("restockShelf", "[{\"shelfId\":\"" + slot.slotId + "\",\"productId\":" + slot.productId + ",\"amount\":60}]"); yield return Wait(1.2f);
+   var now = (bridge.State.restockSlots ?? System.Array.Empty<RestockSlot>()).FirstOrDefault(r => r.slotId == slot.slotId);
+   Note($"EVO stocked {shelfId}: {slot.productName} {now?.stock}/{now?.capacity}");
+  }
+
+  // One reveal recorded at 30 fps (a fixed game step: Time.captureFramerate) into Logs/ft_evo_reveal_<name>.mjpg (JPEG
+  // frames back to back; ffmpeg reads them as a video), from the camera's first move to the card standing.
+  IEnumerator RevealOne(string kind, string target, System.Action start, List<string> fails, string name, bool stills) {
    start(); yield return Wait(2);
-   var e = Evo(kind, target);
-   if (e == null) { fails.Add(kind + " " + target + ": no evolution"); yield break; }
+   if (Evo(kind, target) == null) { fails.Add(kind + " " + target + ": no evolution"); yield break; }
    // keep the card from starting before we look: a page open holds the reveal (CheckoutDesktopHUD.ApplyConquest)
    var host = CheckoutDesktopHost.Active; host.Route("!shelf:produce"); yield return Wait(1);
    Hud("devFinishEvolutions", "[]"); yield return Wait(2);
-   var pieceKey = kind == "shelf" ? "shelf:" + target : "sector:" + target;
-   var it = CheckoutInterior.Active.Get(pieceKey);
+   var it = CheckoutInterior.Active.Get(kind == "shelf" ? "shelf:" + target : "sector:" + target);
    bool veiled = it?.root && it.root.GetComponentsInChildren<Renderer>().All(r => r.forceRenderingOff || r.GetComponentInParent<TMPro.TextMeshPro>());
    Note($"EVO {kind} {target}: under the cloth {veiled}");
    if (!veiled) fails.Add(kind + " not under the cloth");
-   // back to the map: the reveal starts
-   host.Route(""); var reveal = CheckoutEvolutionReveal.Instance;
-   for (float t = 0; t < 6 && !reveal.Playing; t += .1f) yield return new WaitForSecondsRealtime(.1f);
-   if (!reveal.Playing) { fails.Add(kind + " reveal did not start"); yield break; }
-   var hud = FindAnyObjectByType<CheckoutDesktopHUD>();
-   int n = 0; bool clothShot = false, popShot = false; float since = -1, popAt = -1; float t0 = Time.realtimeSinceStartup;
-   for (float t = 0; t < 11; t = Time.realtimeSinceStartup - t0) {
-    yield return new WaitForEndOfFrame();
-    if (n % 1 == 0) SaveFrame($"ft_evo_reveal_{kind}_{n:000}", 960);
-    n++;
-    if (stills && !clothShot && reveal.Stage == 0 && t > .9f) { SaveFrame("ft_evo_cloth", 1600); clothShot = true; }
-    if (stills && !popShot && reveal.Stage >= 2 && popAt < 0) popAt = t;
-    if (stills && !popShot && popAt >= 0 && t - popAt > .25f) { SaveFrame("ft_evo_pop", 1600); popShot = true; }
-    if (!reveal.Playing && hud.ConquestOpen) { if (since < 0) since = t; if (t - since > 2.8f) break; }
-    yield return new WaitForSecondsRealtime(1f / 14);
+   var hud = FindAnyObjectByType<CheckoutDesktopHUD>(); var reveal = CheckoutEvolutionReveal.Instance;
+   var sim = FindAnyObjectByType<MarketDay.MarketSimulation>(); var camBefore = sim ? sim.CameraState : default;
+   var path = "Logs/ft_evo_reveal_" + name + ".mjpg";
+   var fs = File.Create(path); int frames = 0, cardAt = -1, popAt = -1, revealStart = -1; bool cloth = false, pop = false, card = false; float maxFill = 0;
+   Time.captureFramerate = 30;
+   try {
+    host.Route("");   // back to the map: the reveal starts
+    while (frames < 30 * 9) {
+     yield return new WaitForEndOfFrame();
+     var jpg = GrabJpg(name.Contains("portrait") ? 720 : 1280); fs.Write(jpg, 0, jpg.Length); frames++;
+     if (revealStart < 0 && reveal.Playing) revealStart = frames;
+     if (stills && !cloth && revealStart > 0 && frames - revealStart == 26) { File.WriteAllBytes("Logs/ft_evo_cloth.jpg", GrabJpg(1920)); cloth = true; }
+     if (popAt < 0 && reveal.Stage >= 2) popAt = frames;
+     if (stills && !pop && popAt > 0 && frames - popAt == 9) { File.WriteAllBytes("Logs/ft_evo_pop.jpg", GrabJpg(1920)); pop = true; }
+     if (reveal.Playing && it?.root) maxFill = Mathf.Max(maxFill, ScreenShare(it.root));
+     if (cardAt < 0 && !reveal.Playing && revealStart > 0 && hud.ConquestOpen && hud.QaCardShown) cardAt = frames;
+     if (cardAt > 0 && frames - cardAt == 40) { File.WriteAllBytes("Logs/ft_evo_card" + (stills ? "" : "_" + name) + ".jpg", GrabJpg(1920)); card = true; }
+     if (card && frames - cardAt > 46) break;
+    }
+   } finally { Time.captureFramerate = 0; fs.Close(); }
+   float seconds = revealStart > 0 && cardAt > 0 ? (cardAt - revealStart) / 30f : -1;
+   Note($"EVO {kind} {target}: {frames} frames at 30 fps, cloth → card {seconds:0.00}s, piece up to {maxFill * 100:0}% of the screen height");
+   if (!card) fails.Add(kind + " card missing");
+   if (seconds > 0 && (seconds < 3.2f || seconds > 4.3f)) fails.Add($"{kind} cloth → card {seconds:0.0}s");
+   // the card closes: the camera goes back to exactly where it was
+   yield return CloseCards(); yield return Wait(1.5f);
+   if (sim) {
+    var after = sim.CameraState; bool same = Vector3.Distance(after.focus, camBefore.focus) < .05f && Mathf.Abs(after.zoom - camBefore.zoom) < .05f;
+    Note($"EVO camera back: {same} (zoom {camBefore.zoom:0.00} → {after.zoom:0.00})");
+    if (!same) fails.Add(kind + " camera not back");
    }
-   if (stills) SaveFrame("ft_evo_card", 1600);
-   SaveFrame($"ft_evo_card_{kind}", 1280);
-   Note($"EVO {kind} {target}: {n} frames, card {(hud.ConquestOpen ? "open" : "missing")}");
-   if (!hud.ConquestOpen) fails.Add(kind + " card missing");
-   yield return CloseCards(); yield return ClearReveals();
+   yield return ClearReveals();
+  }
+
+  // How much of the screen's height the piece takes now.
+  static float ScreenShare(Transform root) {
+   var cam = Camera.main; if (!cam) return 0; var rs = root.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) return 0;
+   var b = rs[0].bounds; foreach (var r in rs) if (!(r is ParticleSystemRenderer)) b.Encapsulate(r.bounds);
+   float minY = float.MaxValue, maxY = float.MinValue;
+   for (int i = 0; i < 8; i++) { var c = new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z); var p = cam.WorldToViewportPoint(c); minY = Mathf.Min(minY, p.y); maxY = Mathf.Max(maxY, p.y); }
+   return maxY - minY;
+  }
+
+  // The screen, scaled to `width` (a linear target keeps the colours: the screen texture is not flagged sRGB).
+  static byte[] GrabJpg(int width) {
+   var tex = ScreenCapture.CaptureScreenshotAsTexture();
+   float k = Mathf.Min(1, width / (float)tex.width);
+   int w = Mathf.RoundToInt(tex.width * k) / 2 * 2, h = Mathf.RoundToInt(tex.height * k) / 2 * 2;
+   var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+   Graphics.Blit(tex, rt);
+   var prev = RenderTexture.active; RenderTexture.active = rt;
+   var small = new Texture2D(w, h, TextureFormat.RGB24, false); small.ReadPixels(new Rect(0, 0, w, h), 0, 0); small.Apply();
+   RenderTexture.active = prev; RenderTexture.ReleaseTemporary(rt);
+   var bytes = small.EncodeToJPG(86); Destroy(small); Destroy(tex);
+   return bytes;
+  }
+
+  // ------------------------------------------------------------------ the 8-lane restock game (a ★ fixture)
+  IEnumerator EvoRestock8() {
+   QaRich("restock8");
+   yield return GoToStage("supermercado"); yield return ClearReveals();
+   for (int i = 0; i < 4 && (bridge.State.shelves.First(x => x.id == "produce").tier < 5); i++) { Hud("upgradeShelfCapacity", "[\"produce\",\"coins\"]"); yield return Wait(1.2f); Hud("devFinishEvolutions", "[]"); yield return Wait(1.2f); }
+   yield return ClearReveals();
+   var picks = (bridge.State.supplierCatalog ?? System.Array.Empty<SupplierProduct>()).Where(p => !p.locked && p.category == "hortifruti").Select(p => p.productId).Distinct().ToList();
+   var have = (bridge.State.restockSlots ?? System.Array.Empty<RestockSlot>()).Where(r => r.shelfId == "produce").Select(r => r.productId).ToList();
+   int lane = 0;
+   foreach (var id in picks) {
+    if (lane >= 8) break; var slot = lane == 0 ? "produce" : "produce:" + lane;
+    if (!have.Contains(id)) { Hud("assignProductToShelf", "[\"" + slot + "\"," + id + "]"); yield return Wait(.5f); }
+    Hud("devAdjustInventory", "[" + id + ",40]"); yield return Wait(.3f); lane++;
+   }
+   yield return Wait(1.5f);
+   var slots = (bridge.State.restockSlots ?? System.Array.Empty<RestockSlot>()).Where(r => r.shelfId == "produce").ToList();
+   Note($"EVO restock8: produce T{bridge.State.shelves.First(x => x.id == "produce").tier}, {slots.Count} products: {string.Join(", ", slots.Select(r => r.slotId + "=" + r.productName))}");
+   CheckoutRestockGame.ShowFixture("produce"); yield return Wait(3f);
+   yield return new WaitForEndOfFrame(); File.WriteAllBytes("Logs/ft_evo_restock8.jpg", GrabJpg(1920));
+   Note($"RESULT tiers restock8: {(slots.Count >= 8 ? "PASS" : "FAIL")} {slots.Count} products on the ★ produce stand (Logs/ft_evo_restock8.jpg)");
+   yield return Wait(1f);
   }
 
   void SaveFrame(string name, int width) {

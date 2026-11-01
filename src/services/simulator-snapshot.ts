@@ -88,7 +88,8 @@ function createSupplierCatalog(state: GameState, now: number): SimulatorSupplier
 		.filter(
 			(product) =>
 				product.acquisition === "supplier" &&
-				(unlocked.has(product.id) || product.unlockEra === state.era.id || product.unlockEra === nextEraId),
+				// (an evolution's exclusive product shows only once earned: it never opens with a level)
+				(unlocked.has(product.id) || (!product.exclusive && (product.unlockEra === state.era.id || product.unlockEra === nextEraId))),
 		)
 		.sort(
 			(a, b) =>

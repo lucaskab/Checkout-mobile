@@ -1039,6 +1039,7 @@ namespace Checkout
         public void SetFill(Item it, float ratio)
         {
             if (it?.piece?.fill == null) return;
+            if (CheckoutEvolutionReveal.Busy(it.root)) return; // its products are dropping in (the reveal)
             var groups = it.piece.fill; int n = groups.Length;
             int visible = ratio <= 0 ? 0 : Mathf.Clamp(Mathf.CeilToInt(n * ratio), 1, n);
             for (int i = 0; i < n; i++) if (groups[i]) groups[i].SetActive(i < visible);

@@ -341,7 +341,8 @@ function stockBoard(state: State, args: string[], aliasOf?: string) {
 		return next && state.market.level >= next.playerLevel && state.coins >= next.coinCost;
 	});
 	const locked = itemCatalog
-		.filter((product) => !state.market.unlockedProductIds.includes(product.id))
+		// (exclusives come with evolutions, not with a level: they are not listed as locked by level)
+		.filter((product) => !state.market.unlockedProductIds.includes(product.id) && !product.exclusive)
 		.sort((a, b) => a.unlockLevel - b.unlockLevel);
 	const tabs: { id: StockTab; label: string; icon: string; count: number }[] = [
 		{ id: "tudo", label: "Tudo", icon: gameIcon("basket"), count: 0 },

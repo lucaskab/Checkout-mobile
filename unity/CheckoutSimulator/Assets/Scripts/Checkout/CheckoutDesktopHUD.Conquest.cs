@@ -21,12 +21,14 @@ namespace Checkout {
   RectTransform conquestStats,conquestProducts;RawImage conquestPortrait;Texture2D conquestPortraitTex;
   readonly List<(TextMeshProUGUI text,DesktopCelebrationStat stat)> conquestCounters=new List<(TextMeshProUGUI,DesktopCelebrationStat)>();
   CheckoutDesktopButton conquestContinue,conquestGo;
-  string conquestShownKey,conquestClosedKey,conquestId,conquestRoute;Coroutine conquestRun;bool conquestPlaying;
+  string conquestShownKey,conquestClosedKey,conquestId,conquestRoute;Coroutine conquestRun;bool conquestPlaying,conquestEvolution;
   AudioSource conquestAudio;
   readonly List<LevelConfetto> conquestPieces=new List<LevelConfetto>();
   public bool ConquestOpen=>conquestPlaying||(conquestRoot&&conquestRoot.gameObject.activeSelf);
   /// <summary>QA: the view the HUD shows now.</summary>
   public DesktopView QaView=>view;
+  /// <summary>QA: the card itself is up (after the reveal).</summary>
+  public bool QaCardShown=>conquestRoot&&conquestRoot.gameObject.activeSelf;
   /// <summary>A celebration is due and has not been shown yet (the level-up waits for it).</summary>
   bool ConquestWaiting(DesktopView v)=>v!=null&&v.celebration!=null&&!string.IsNullOrEmpty(v.celebration.key)&&v.celebration.key!=conquestClosedKey;
 
@@ -108,11 +110,47 @@ namespace Checkout {
    if(string.IsNullOrEmpty(conquestShownKey)||conquestPlaying&&!conquestRoot.gameObject.activeSelf)return;
    conquestClosedKey=conquestShownKey;
    Silent.Add(host.Action("dismissCelebration","[\""+conquestId+"\"]",route??""));
-   Sound("tap");HideConquest();
-   if(string.IsNullOrEmpty(route))CheckoutConquestFx.Instance.RestoreCamera();
+   Sound("tap");bool evolution=conquestEvolution;HideConquest();
+   // (an evolution's close-up always goes back to the player's own view, even when the card opens a page)
+   if(string.IsNullOrEmpty(route)||evolution)CheckoutConquestFx.Instance.RestoreCamera();
+  }
+
+  // ------------------------------------------------------------------ cinematic HUD (the evolution reveal)
+  // The side HUD fades out while a reveal plays (REPOR, the objective, the day and goal cards, Bônus, the hammer, the
+  // toolbar...); the coins and diamonds stay. Every overlay canvas but the celebrations' own is faded as a whole; in the
+  // HUD's own canvas, everything but the wallet.
+  readonly List<(CanvasGroup group,float alpha,bool raycasts)> cinematic=new List<(CanvasGroup,float,bool)>();Coroutine cinematicRun;bool cinematicOn;
+  public void Cinematic(bool on){
+   if(on==cinematicOn)return;cinematicOn=on;
+   if(on){
+    cinematic.Clear();
+    void Add(GameObject go){if(!go||!go.activeInHierarchy)return;var g=go.GetComponent<CanvasGroup>();if(!g)g=go.AddComponent<CanvasGroup>();cinematic.Add((g,g.alpha,g.blocksRaycasts));}
+    var top=root?root.Find("TopBar"):null;
+    if(root)foreach(Transform child in root){if(child==top)continue;Add(child.gameObject);}
+    if(top)foreach(Transform child in top){if(child.name=="Wallet")continue;Add(child.gameObject);}
+    var hudCanvas=root?root.GetComponentInParent<Canvas>():null;
+    foreach(var c in FindObjectsByType<Canvas>(FindObjectsSortMode.None)){
+     if(!c||!c.isRootCanvas||c.renderMode!=RenderMode.ScreenSpaceOverlay||c==hudCanvas)continue;
+     var n=c.gameObject.name;if(n=="CheckoutConquest"||n=="CheckoutLevelUp"||n=="Evolution chips")continue;
+     Add(c.gameObject);
+    }
+   }
+   if(cinematicRun!=null)StopCoroutine(cinematicRun);
+   cinematicRun=StartCoroutine(CinematicFade(on));
+  }
+  IEnumerator CinematicFade(bool on){
+   var from=new List<float>();foreach(var c in cinematic)from.Add(c.group?c.group.alpha:0);
+   for(float t=0;t<1;t+=CheckoutUiKit.Dt/.3f){
+    for(int i=0;i<cinematic.Count;i++){var c=cinematic[i];if(!c.group)continue;c.group.alpha=Mathf.Lerp(from[i],on?0:c.alpha,t);c.group.blocksRaycasts=!on&&c.raycasts;}
+    yield return null;
+   }
+   foreach(var c in cinematic)if(c.group){c.group.alpha=on?0:c.alpha;c.group.blocksRaycasts=on?false:c.raycasts;}
+   if(!on)cinematic.Clear();
+   cinematicRun=null;
   }
   void HideConquest(){
    if(conquestRun!=null){StopCoroutine(conquestRun);conquestRun=null;}
+   if(conquestEvolution){conquestEvolution=false;Cinematic(false);}
    conquestPlaying=false;
    foreach(var piece in conquestPieces)if(piece.rect)Destroy(piece.rect.gameObject);conquestPieces.Clear();
    if(conquestRoot)conquestRoot.gameObject.SetActive(false);
@@ -123,21 +161,26 @@ namespace Checkout {
    // A lot: first the show on the map (the camera flies there unless a window is open).
    if(data.kind=="lot"&&!string.IsNullOrEmpty(data.lotId)){
     var sites=FindAnyObjectByType<CheckoutLotSites>();
-    if(sites){Sound("whoosh");float wait=sites.CelebrateLot(data.lotId,!pageOpen);if(wait>0)yield return new WaitForSecondsRealtime(wait);}
+    if(sites){Sound("whoosh");float wait=sites.CelebrateLot(data.lotId,!pageOpen);if(wait>0)yield return CheckoutUiKit.Wait(wait);}
    }
    // An evolution: first the reveal on the piece (camera, cloth, pop, confetti, chips), then the card.
    bool evolution=data.reveal!=null&&!string.IsNullOrEmpty(data.reveal.kind);
+   conquestEvolution=evolution;
    if(evolution){
+    Cinematic(true);
     float wait=CheckoutEvolutionReveal.Instance.Play(data.reveal,data.id,!pageOpen);
-    if(wait>0)yield return new WaitForSecondsRealtime(wait);
+    if(wait>0)yield return CheckoutUiKit.Wait(wait);
    }
+   // The new look: the build-mode picture of the new tier (bright 3/4 render); a live picture when there is none.
    if(conquestPortraitTex){Destroy(conquestPortraitTex);conquestPortraitTex=null;}
-   if(evolution)conquestPortraitTex=CheckoutEvolutionReveal.Portrait(data.reveal.kind,data.reveal.targetId);
+   var tierSprite=evolution?CheckoutEvolutionReveal.TierSprite(data.reveal.template):null;
+   if(evolution&&!tierSprite)conquestPortraitTex=CheckoutEvolutionReveal.Portrait(data.reveal.kind,data.reveal.targetId);
    conquestPortrait.texture=conquestPortraitTex;conquestPortrait.enabled=conquestPortraitTex;
    var tint=K.C(string.IsNullOrEmpty(data.tint)?"3F9E52":data.tint);
    conquestRim.color=Color.Lerp(tint,Color.black,.15f);conquestBand.color=tint;
    foreach(var t in conquestTails)t.color=Color.Lerp(tint,Color.black,t.name=="Fold"?.45f:.25f);
-   conquestIcon.sprite=K.Icon(data.icon);conquestIcon.enabled=conquestIcon.sprite&&!conquestPortraitTex;
+   conquestIcon.sprite=tierSprite?tierSprite:K.Icon(data.icon);conquestIcon.enabled=conquestIcon.sprite&&!conquestPortraitTex;
+   conquestIcon.rectTransform.sizeDelta=tierSprite?new Vector2(176,176):new Vector2(138,138);
    conquestHeadline.text=K.Clean(data.headline);conquestTitle.text=K.Clean(data.title);conquestSubtitle.text=K.Clean(data.subtitle);
    foreach(Transform child in conquestChips){child.gameObject.SetActive(false);Destroy(child.gameObject);}
    foreach(var chip in data.chips??new DesktopCelebrationChip[0])ConquestChip(chip);
@@ -169,7 +212,7 @@ namespace Checkout {
    U.Sparkles(this,conquestStage,new Vector2(0,170),12,220);
    ConquestConfettiBurst(70);
    yield return U.Scale(conquestRibbon,Vector3.one,.32f,true);
-   for(float t=0;t<1;t+=Time.unscaledDeltaTime/.3f){conquestText.alpha=t;yield return null;}
+   for(float t=0;t<1;t+=CheckoutUiKit.Dt/.3f){conquestText.alpha=t;yield return null;}
    conquestText.alpha=1;
    float delay=0;foreach(Transform chip in conquestChips){StartCoroutine(LevelPopIn(chip,delay));delay+=.08f;}
    foreach(Transform tile in conquestStats){StartCoroutine(LevelPopIn(tile,delay));delay+=.08f;}
@@ -206,7 +249,7 @@ namespace Checkout {
   }
   IEnumerator CountUp(float seconds){
    var tick=U.Sfx("coin_0");int last=-1;
-   for(float k=0;k<1;k+=Time.unscaledDeltaTime/seconds){
+   for(float k=0;k<1;k+=CheckoutUiKit.Dt/seconds){
     float e=1-(1-k)*(1-k);
     foreach(var (text,stat) in conquestCounters)if(text)text.text=StatText(stat,e);
     int step=Mathf.FloorToInt(e*8);if(step!=last&&tick&&conquestAudio){last=step;conquestAudio.PlayOneShot(tick,.12f);}
@@ -239,7 +282,7 @@ namespace Checkout {
   void UpdateConquest(){
    if(!conquestRoot||!conquestRoot.gameObject.activeSelf)return;
    if(Input.GetKeyDown(KeyCode.Escape)){CloseConquest("");return;}
-   float dt=Time.unscaledDeltaTime;
+   float dt=CheckoutUiKit.Dt;
    if(conquestRays)conquestRays.transform.Rotate(0,0,-16*dt);
    if(conquestGlow){var c=conquestGlow.color;c.a=.7f+.15f*Mathf.Sin(Time.unscaledTime*2.4f);conquestGlow.color=c;}
    if(conquestContinue&&conquestRun==null){var s=1+.03f*Mathf.Sin(Time.unscaledTime*4);conquestContinue.transform.localScale=new Vector3(s,s,1);}

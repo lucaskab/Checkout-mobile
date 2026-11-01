@@ -162,11 +162,11 @@ namespace Checkout {
     else{var fanfare=U.Sfx("levelup");if(fanfare&&levelAudio)levelAudio.PlayOneShot(fanfare,.9f);else Sound("success");}
     StartCoroutine(U.Pop(levelMedal,level==to?1.25f:1.12f,.3f));
     U.Sparkles(this,levelStage,LevelMedalPoint(),level==to?14:5,level==to?230:140);
-    if(level<to)yield return new WaitForSecondsRealtime(beat);
+    if(level<to)yield return CheckoutUiKit.Wait(beat);
    }
    LevelConfettiBurst(90);
    StartCoroutine(U.Scale(levelRibbon,Vector3.one,.35f,true));
-   yield return new WaitForSecondsRealtime(.18f);
+   yield return CheckoutUiKit.Wait(.18f);
    StartCoroutine(LevelFadeText(levelSubtitle,1,.3f));
    // The panel slides up, then its groups and cards pop one after the other.
    levelPanelGroup.interactable=true;
@@ -186,13 +186,13 @@ namespace Checkout {
   }
 
   static IEnumerator LevelFadeText(TextMeshProUGUI text,float to,float seconds){
-   float from=text.alpha;for(float t=0;t<1;t+=Time.unscaledDeltaTime/seconds){if(!text)yield break;text.alpha=Mathf.Lerp(from,to,t);yield return null;}if(text)text.alpha=to;
+   float from=text.alpha;for(float t=0;t<1;t+=CheckoutUiKit.Dt/seconds){if(!text)yield break;text.alpha=Mathf.Lerp(from,to,t);yield return null;}if(text)text.alpha=to;
   }
   static IEnumerator LevelFadeGroup(CanvasGroup group,float to,float seconds){
-   float from=group.alpha;for(float t=0;t<1;t+=Time.unscaledDeltaTime/seconds){if(!group)yield break;group.alpha=Mathf.Lerp(from,to,t);yield return null;}if(group)group.alpha=to;
+   float from=group.alpha;for(float t=0;t<1;t+=CheckoutUiKit.Dt/seconds){if(!group)yield break;group.alpha=Mathf.Lerp(from,to,t);yield return null;}if(group)group.alpha=to;
   }
   IEnumerator LevelPopIn(Transform card,float delay){
-   yield return new WaitForSecondsRealtime(delay);if(!card)yield break;
+   yield return CheckoutUiKit.Wait(delay);if(!card)yield break;
    yield return U.Scale(card,Vector3.one,.28f,true);
   }
 
@@ -284,7 +284,7 @@ namespace Checkout {
   void UpdateLevelUp(){
    if(!LevelUpOpen)return;
    if(Input.GetKeyDown(KeyCode.Escape)){CloseLevelUp("");return;}
-   float dt=Time.unscaledDeltaTime;
+   float dt=CheckoutUiKit.Dt;
    if(levelRays)levelRays.transform.Rotate(0,0,-14*dt);
    if(levelRaysBack)levelRaysBack.transform.Rotate(0,0,9*dt);
    if(levelGlow){var a=.7f+.15f*Mathf.Sin(Time.unscaledTime*2.4f);var c=levelGlow.color;c.a=a;levelGlow.color=c;}

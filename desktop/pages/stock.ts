@@ -130,6 +130,8 @@ function productsPage(state: State, args: string[]) {
 	const list = itemCatalog
 		.filter((product) => {
 			const isUnlocked = unlocked.includes(product.id);
+			// (an evolution's exclusive product is listed once earned)
+			if (product.exclusive && !isUnlocked) return false;
 			if (filter === "desbloqueados") return isUnlocked;
 			if (filter === "bloqueados") return !isUnlocked;
 			return true;

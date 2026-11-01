@@ -147,37 +147,40 @@ namespace Checkout {
    try {a=from();b=to();return true;}catch(Exception){a=b=Vector2.zero;return false;}
   }
   static IEnumerator HintLoop(RectTransform hand,CanvasGroup group,Func<Vector2> from,Func<Vector2> to,bool tap){
-   yield return new WaitForSecondsRealtime(1.2f);
+   yield return Wait(1.2f);
    while(hand){
     // The targets may be gone (a box already shelved): then the hint just ends.
     if(!HintPoints(from,to,out var a,out var b))yield break;
     hand.SetAsLastSibling();hand.anchoredPosition=a;
-    for(float t=0;t<1;t+=Time.unscaledDeltaTime/.25f){if(!hand)yield break;group.alpha=t;yield return null;}
+    for(float t=0;t<1;t+=Dt/.25f){if(!hand)yield break;group.alpha=t;yield return null;}
     if(!hand)yield break;
-    if(tap){for(int i=0;i<2;i++){for(float t=0;t<1;t+=Time.unscaledDeltaTime/.18f){if(!hand)yield break;hand.localScale=Vector3.one*(1-.15f*Mathf.Sin(t*Mathf.PI));yield return null;}}}
-    else{hand.localScale=Vector3.one*.9f;for(float t=0;t<1;t+=Time.unscaledDeltaTime/1.1f){if(!hand)yield break;hand.anchoredPosition=Vector2.Lerp(a,b,Ease(t));yield return null;}if(!hand)yield break;hand.localScale=Vector3.one;}
-    for(float t=1;t>0;t-=Time.unscaledDeltaTime/.3f){if(!hand)yield break;group.alpha=t;yield return null;}
-    yield return new WaitForSecondsRealtime(.9f);
+    if(tap){for(int i=0;i<2;i++){for(float t=0;t<1;t+=Dt/.18f){if(!hand)yield break;hand.localScale=Vector3.one*(1-.15f*Mathf.Sin(t*Mathf.PI));yield return null;}}}
+    else{hand.localScale=Vector3.one*.9f;for(float t=0;t<1;t+=Dt/1.1f){if(!hand)yield break;hand.anchoredPosition=Vector2.Lerp(a,b,Ease(t));yield return null;}if(!hand)yield break;hand.localScale=Vector3.one;}
+    for(float t=1;t>0;t-=Dt/.3f){if(!hand)yield break;group.alpha=t;yield return null;}
+    yield return Wait(.9f);
    }
   }
   // A rendered emote that pops above a point, floats up and fades.
   public static IEnumerator Emote(MonoBehaviour runner,RectTransform parent,string kind,Vector2 at,float size=110){
    var e=Art(parent,"Emote","emote_"+kind,new Vector2(.5f,.5f),size,at);e.rectTransform.localScale=Vector3.zero;
    yield return Scale(e.rectTransform,Vector3.one,.3f,true);runner.StartCoroutine(Move(e.rectTransform,at+new Vector2(0,60),1.2f));
-   yield return new WaitForSecondsRealtime(.7f);yield return Fade(e,0,.5f);if(e)UnityEngine.Object.Destroy(e.gameObject);
+   yield return Wait(.7f);yield return Fade(e,0,.5f);if(e)UnityEngine.Object.Destroy(e.gameObject);
   }
   // Sparkles bursting around a point (success).
   public static void Sparkles(MonoBehaviour runner,RectTransform parent,Vector2 at,int count=8,float radius=160){
    for(int i=0;i<count;i++){var s=Art(parent,"Sparkle","sparkle",new Vector2(.5f,.5f),UnityEngine.Random.Range(40,80),at);s.rectTransform.localScale=Vector3.zero;runner.StartCoroutine(Burst(s,at+UnityEngine.Random.insideUnitCircle.normalized*radius*UnityEngine.Random.Range(.5f,1f),i*.03f));}
   }
   static IEnumerator Burst(Image s,Vector2 to,float delay){
-   yield return new WaitForSecondsRealtime(delay);if(!s)yield break;var r=s.rectTransform;var from=r.anchoredPosition;
-   for(float t=0;t<1;t+=Time.unscaledDeltaTime/.7f){if(!s)yield break;r.anchoredPosition=Vector2.Lerp(from,to,Ease(t));r.localScale=Vector3.one*Mathf.Sin(t*Mathf.PI);r.localRotation=Quaternion.Euler(0,0,t*180);yield return null;}
+   yield return Wait(delay);if(!s)yield break;var r=s.rectTransform;var from=r.anchoredPosition;
+   for(float t=0;t<1;t+=Dt/.7f){if(!s)yield break;r.anchoredPosition=Vector2.Lerp(from,to,Ease(t));r.localScale=Vector3.one*Mathf.Sin(t*Mathf.PI);r.localRotation=Quaternion.Euler(0,0,t*180);yield return null;}
    if(s)UnityEngine.Object.Destroy(s.gameObject);
   }
 
   // Recorded-style effects from scripts/make_sounds.py (Resources/CheckoutDesktop/Sounds/<name>.wav).
   static readonly Dictionary<string,AudioClip> sfx=new Dictionary<string,AudioClip>();
+  /// <summary>Frame time of the UI animations: real time, or the fixed step while a video is recorded (Time.captureFramerate).</summary>
+  public static float Dt=>Time.captureFramerate>0?Time.deltaTime:Time.unscaledDeltaTime;
+  public static System.Collections.IEnumerator Wait(float seconds){for(float t=0;t<seconds;t+=Dt)yield return null;}
   public static AudioClip Sfx(string name){
    if(string.IsNullOrEmpty(name))return null;
    if(sfx.TryGetValue(name,out var clip))return clip;
@@ -199,22 +202,22 @@ namespace Checkout {
   static float Ease(float t)=>1-Mathf.Pow(1-t,3);
   static float Back(float t){const float c=1.7f;t-=1;return 1+(c+1)*t*t*t+c*t*t;}
   public static IEnumerator Move(RectTransform rect,Vector2 to,float seconds,bool overshoot=false){
-   if(!rect)yield break;Vector2 from=rect.anchoredPosition;for(float t=0;t<1;t+=Time.unscaledDeltaTime/Mathf.Max(.01f,seconds)){if(!rect)yield break;rect.anchoredPosition=Vector2.LerpUnclamped(from,to,overshoot?Back(t):Ease(t));yield return null;}if(rect)rect.anchoredPosition=to;
+   if(!rect)yield break;Vector2 from=rect.anchoredPosition;for(float t=0;t<1;t+=Dt/Mathf.Max(.01f,seconds)){if(!rect)yield break;rect.anchoredPosition=Vector2.LerpUnclamped(from,to,overshoot?Back(t):Ease(t));yield return null;}if(rect)rect.anchoredPosition=to;
   }
   public static IEnumerator Scale(Transform target,Vector3 to,float seconds,bool overshoot=false){
-   if(!target)yield break;var from=target.localScale;for(float t=0;t<1;t+=Time.unscaledDeltaTime/Mathf.Max(.01f,seconds)){if(!target)yield break;target.localScale=Vector3.LerpUnclamped(from,to,overshoot?Back(t):Ease(t));yield return null;}if(target)target.localScale=to;
+   if(!target)yield break;var from=target.localScale;for(float t=0;t<1;t+=Dt/Mathf.Max(.01f,seconds)){if(!target)yield break;target.localScale=Vector3.LerpUnclamped(from,to,overshoot?Back(t):Ease(t));yield return null;}if(target)target.localScale=to;
   }
   public static IEnumerator Rotate(Transform target,float toZ,float seconds){
-   if(!target)yield break;float from=target.localEulerAngles.z;if(from>180)from-=360;for(float t=0;t<1;t+=Time.unscaledDeltaTime/Mathf.Max(.01f,seconds)){if(!target)yield break;target.localRotation=Quaternion.Euler(0,0,Mathf.Lerp(from,toZ,Ease(t)));yield return null;}if(target)target.localRotation=Quaternion.Euler(0,0,toZ);
+   if(!target)yield break;float from=target.localEulerAngles.z;if(from>180)from-=360;for(float t=0;t<1;t+=Dt/Mathf.Max(.01f,seconds)){if(!target)yield break;target.localRotation=Quaternion.Euler(0,0,Mathf.Lerp(from,toZ,Ease(t)));yield return null;}if(target)target.localRotation=Quaternion.Euler(0,0,toZ);
   }
   public static IEnumerator Fade(Graphic graphic,float toAlpha,float seconds){
-   if(!graphic)yield break;var from=graphic.color;var to=new Color(from.r,from.g,from.b,toAlpha);for(float t=0;t<1;t+=Time.unscaledDeltaTime/Mathf.Max(.01f,seconds)){if(!graphic)yield break;graphic.color=Color.Lerp(from,to,t);yield return null;}if(graphic)graphic.color=to;
+   if(!graphic)yield break;var from=graphic.color;var to=new Color(from.r,from.g,from.b,toAlpha);for(float t=0;t<1;t+=Dt/Mathf.Max(.01f,seconds)){if(!graphic)yield break;graphic.color=Color.Lerp(from,to,t);yield return null;}if(graphic)graphic.color=to;
   }
   public static IEnumerator Tint(Graphic graphic,Color to,float seconds){
-   if(!graphic)yield break;var from=graphic.color;for(float t=0;t<1;t+=Time.unscaledDeltaTime/Mathf.Max(.01f,seconds)){if(!graphic)yield break;graphic.color=Color.Lerp(from,to,t);yield return null;}if(graphic)graphic.color=to;
+   if(!graphic)yield break;var from=graphic.color;for(float t=0;t<1;t+=Dt/Mathf.Max(.01f,seconds)){if(!graphic)yield break;graphic.color=Color.Lerp(from,to,t);yield return null;}if(graphic)graphic.color=to;
   }
   public static IEnumerator Shake(RectTransform rect,float seconds,float strength=14){
-   if(!rect)yield break;var home=rect.anchoredPosition;for(float t=0;t<seconds;t+=Time.unscaledDeltaTime){if(!rect)yield break;rect.anchoredPosition=home+new Vector2(Mathf.Sin(t*70)*strength*(1-t/seconds),0);yield return null;}if(rect)rect.anchoredPosition=home;
+   if(!rect)yield break;var home=rect.anchoredPosition;for(float t=0;t<seconds;t+=Dt){if(!rect)yield break;rect.anchoredPosition=home+new Vector2(Mathf.Sin(t*70)*strength*(1-t/seconds),0);yield return null;}if(rect)rect.anchoredPosition=home;
   }
   public static IEnumerator Pop(Transform target,float peak=1.18f,float seconds=.28f){
    if(!target)yield break;var home=target.localScale;yield return Scale(target,home*peak,seconds*.4f);yield return Scale(target,home,seconds*.6f,true);
@@ -223,12 +226,12 @@ namespace Checkout {
   public static IEnumerator Coins(MonoBehaviour runner,RectTransform parent,Vector2 from,Vector2 to,int count){
    for(int i=0;i<count;i++){
     var coin=Icon(parent,"Coin","Icons/coin",new Vector2(.5f,.5f),new Vector2(54,54),from+UnityEngine.Random.insideUnitCircle*30);
-    runner.StartCoroutine(Fly(coin.rectTransform,to));yield return new WaitForSecondsRealtime(.06f);
+    runner.StartCoroutine(Fly(coin.rectTransform,to));yield return Wait(.06f);
    }
   }
   static IEnumerator Fly(RectTransform coin,Vector2 to){
    var from=coin.anchoredPosition;var mid=(from+to)*.5f+new Vector2(0,220);
-   for(float t=0;t<1;t+=Time.unscaledDeltaTime/.65f){if(!coin)yield break;float e=Ease(t);coin.anchoredPosition=Vector2.Lerp(Vector2.Lerp(from,mid,e),Vector2.Lerp(mid,to,e),e);coin.localScale=Vector3.one*(1-.4f*e);yield return null;}
+   for(float t=0;t<1;t+=Dt/.65f){if(!coin)yield break;float e=Ease(t);coin.anchoredPosition=Vector2.Lerp(Vector2.Lerp(from,mid,e),Vector2.Lerp(mid,to,e),e);coin.localScale=Vector3.one*(1-.4f*e);yield return null;}
    if(coin)UnityEngine.Object.Destroy(coin.gameObject);
   }
  }

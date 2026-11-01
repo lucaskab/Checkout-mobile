@@ -28,6 +28,7 @@ namespace Checkout
         // ------------------------------------------------------------------ the big one: a lot is the player's
         public float LotCleared(Vector3 center, float width, float depth, bool moveCamera)
         {
+            cinematicTarget = false;
             StartCoroutine(LotRoutine(center, width, depth, moveCamera));
             return moveCamera ? 2.1f : 1.5f;
         }
@@ -83,22 +84,41 @@ namespace Checkout
             return simulation && simulation.view && !CheckoutBuildMode.Open && !CheckoutLotView.Open && !CheckoutMapEditor.Open;
         }
 
+        bool cinematicTarget;
         IEnumerator Glide(Vector3 point, float zoom, float seconds, bool remember)
         {
             if (!CameraFree()) yield break;
             var from = simulation.CameraState;
             if (remember && cameraBefore == null) cameraBefore = from;
-            for (float k = 0; k < 1; k += Time.unscaledDeltaTime / seconds)
+            for (float k = 0; k < 1; k += CheckoutUiKit.Dt / seconds)
             {
                 float e = k * k * (3 - 2 * k);
-                simulation.Focus(Vector3.Lerp(from.focus, point, e), Mathf.Lerp(from.zoom, zoom, e));
+                simulation.FocusCinematic(Vector3.Lerp(from.focus, point, e), Mathf.Lerp(from.zoom, zoom, e));
                 yield return null;
             }
-            simulation.Focus(point, zoom);
+            if (cinematicTarget) simulation.FocusCinematic(point, zoom); else simulation.Focus(point, zoom);
         }
 
         /// <summary>Glides the camera to `point` (remembered for RestoreCamera). The evolution reveal uses it.</summary>
-        public Coroutine FocusOn(Vector3 point, float zoom, float seconds) => StartCoroutine(Glide(point, zoom, seconds, true));
+        public Coroutine FocusOn(Vector3 point, float zoom, float seconds)
+        {
+            if (!CameraFree()) return null;
+            MarketSimulation.Cinematic = true; cinematicTarget = true;
+            return StartCoroutine(Glide(point, zoom, seconds, true));
+        }
+        public void PuffAt(Vector3 at, float size, int count)
+        {
+            var ps = System("Puff", at, Puff());
+            var main = ps.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(.35f, .6f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(.3f * size, 1.1f * size);
+            main.startSize = new ParticleSystem.MinMaxCurve(.25f * size, .55f * size);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, .97f, .9f, .75f), new Color(.93f, .88f, .78f, .6f));
+            main.gravityModifier = -.02f; main.maxParticles = count + 4;
+            var shape = ps.shape; shape.shapeType = ParticleSystemShapeType.Circle; shape.radius = .12f * size;
+            var emission = ps.emission; emission.rateOverTime = 0; emission.SetBursts(new[] { new ParticleSystem.Burst(0, (short)count) });
+            Fade(ps, .05f); ps.Play(); Destroy(ps.gameObject, 1f);
+        }
 
         // The evolution reveal (CheckoutEvolutionReveal): the same effects, called from outside.
         public void SparkleAt(Vector3 center, float width, float depth, int count) => Sparkles(center, width, depth, count);
@@ -109,9 +129,16 @@ namespace Checkout
         /// <summary>Back to where the player was looking before the celebration flew the camera away.</summary>
         public void RestoreCamera()
         {
-            if (cameraBefore == null) return;
+            if (cameraBefore == null) { MarketSimulation.Cinematic = false; return; }
             var back = cameraBefore.Value; cameraBefore = null;
-            StartCoroutine(Glide(back.focus, back.zoom, .6f, false));
+            StartCoroutine(GlideBack(back.focus, back.zoom));
+        }
+
+        IEnumerator GlideBack(Vector3 focus, float zoom)
+        {
+            cinematicTarget = false;
+            yield return Glide(focus, zoom, .6f, false);
+            MarketSimulation.Cinematic = false;
         }
 
         // ------------------------------------------------------------------ effects

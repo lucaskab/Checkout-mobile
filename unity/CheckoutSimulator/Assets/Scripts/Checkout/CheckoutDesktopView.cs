@@ -74,7 +74,7 @@ namespace Checkout {
  [Serializable] public class DesktopCelebrationChip {public string icon,text;}
  [Serializable] public class DesktopCelebrationStat {public string icon,label,suffix;public float from,to;}
  [Serializable] public class DesktopCelebrationProduct {public int productId;public string name,icon;}
- [Serializable] public class DesktopCelebrationReveal {public string kind,targetId,template;public int tier;public string[] chips;}
+ [Serializable] public class DesktopCelebrationReveal {public string kind,targetId,template;public int tier;public string[] chips,chipIcons;}
  [Serializable] public class DesktopCelebration {public string key,id,kind,headline,title,subtitle,icon,tint,button,route,lotId;public DesktopCelebrationChip[] chips;
   // Evolutions (desktop/celebration.ts tierView): numbers counting up, the products opened (NOVO), the reveal first.
   public DesktopCelebrationStat[] stats;public DesktopCelebrationProduct[] products;public DesktopCelebrationReveal reveal;}
