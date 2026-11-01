@@ -80,14 +80,15 @@ namespace Checkout {
      // back on its own and point at it again.
      var list=q.found&&q.targetUi&&!scrollChecked&&q.key!=scrollTried?q.targetUi.GetComponentInParent<UnityEngine.UI.ScrollRect>():null;
      if(list&&list.vertical&&list.content&&list.content.rect.height>((RectTransform)list.transform).rect.height+40){
-      scrollChecked=true;int before=Scrolls(q);var far=list.verticalNormalizedPosition>.5f?0f:1f;
+      scrollChecked=true;int before=Scrolls(q);float was=list.verticalNormalizedPosition;var far=was>.5f?0f:1f;
       list.StopMovement();list.verticalNormalizedPosition=far;yield return new WaitForSecondsRealtime(.3f);
       var gone=hud.CoachQa();Note($"SCROLL_CHECK '{q.key}': list moved away, target in view now: {gone.found}");
       // A list barely taller than its window: the target is still in view at the other end, so there is nothing for
       // the guide to bring back. Not a problem: the check waits for a longer list on a later step.
       if(gone.found&&gone.targetRect.Overlaps(gone.hole)){
        Note($"SCROLL_CHECK '{q.key}': the target never left the view, the check moves to a later list");
-       scrollChecked=false;scrollTried=q.key;q=gone;
+       scrollChecked=false;scrollTried=q.key;
+       list.StopMovement();list.verticalNormalizedPosition=was;yield return new WaitForSecondsRealtime(.6f);q=hud.CoachQa();   // (as it was, the hand settled)
       }else{
       yield return Mark($"ob_{tag}_{++shot:00}_{q.key}_scrolled_away",gone);
       yield return new WaitForSecondsRealtime(2.2f);
