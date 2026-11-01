@@ -312,14 +312,15 @@ namespace Checkout
             var ps = ConfettiSystem(accent);
             float w = Mathf.Max(.6f, b.size.x), d = Mathf.Max(.6f, b.size.z), h = Mathf.Max(.5f, b.size.y);
             float span = Mathf.Max(w, d), lift = Mathf.Clamp(Mathf.Sqrt(h / 1.4f), .85f, 1.5f);
-            int count = Mathf.Clamp(Mathf.RoundToInt(15 * w * d + 9 * h), 36, 170);
+            int count = Mathf.Clamp(Mathf.RoundToInt(15 * w * d + 9 * h), 64, 170);
             ps.transform.position = new Vector3(b.center.x, b.min.y + h * .8f, b.center.z);
             var shape = ps.shape; shape.scale = new Vector3(w * .85f, d * .85f, h * .35f);
             shape.randomDirectionAmount = Mathf.Lerp(.25f, .45f, Mathf.InverseLerp(1.5f, 5f, span));
             var main = ps.main;
-            main.startSpeed = new ParticleSystem.MinMaxCurve(2.3f * lift, 4.3f * lift);
+            float reach = Mathf.Lerp(.68f, 1f, Mathf.InverseLerp(1.5f, 4f, span));   // a shelf's burst stays close, a sector's goes wide
+            main.startSpeed = new ParticleSystem.MinMaxCurve(2.3f * lift * reach, 4.3f * lift * reach);
             float size = Mathf.Clamp(Mathf.Sqrt(span) / 1.3f, .9f, 1.25f);
-            main.startSize = new ParticleSystem.MinMaxCurve(.13f * size, .25f * size);
+            main.startSize = new ParticleSystem.MinMaxCurve(.15f * size, .28f * size);
             ps.Emit(count);
             LastConfettiCount = count; LastConfettiSetupMs = (float)watch.Elapsed.TotalMilliseconds;
         }

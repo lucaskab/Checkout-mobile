@@ -87,7 +87,7 @@ namespace Checkout {
    var statsRow=N.Row(conquestStats.gameObject,14,new RectOffset(0,0,0,0));statsRow.childAlignment=TextAnchor.MiddleCenter;statsRow.childControlWidth=statsRow.childControlHeight=true;statsRow.childForceExpandWidth=false;
    conquestProducts=N.Node("Products",textNode);U.At(conquestProducts,new Vector2(.5f,1),new Vector2(900,108),new Vector2(0,-222));
    var productsRow=N.Row(conquestProducts.gameObject,14,new RectOffset(0,0,0,0));productsRow.childAlignment=TextAnchor.MiddleCenter;productsRow.childControlWidth=productsRow.childControlHeight=true;productsRow.childForceExpandWidth=false;
-   conquestPipsBack=N.Image(textNode,"Pips back",new Color(.07f,.11f,.22f,.62f),22);conquestPipsBack.raycastTarget=false;U.At(conquestPipsBack.rectTransform,new Vector2(.5f,1),new Vector2(220,46),new Vector2(0,-74));
+   conquestPipsBack=N.Image(textNode,"Pips back",new Color(.07f,.11f,.22f,.8f),24);conquestPipsBack.raycastTarget=false;U.At(conquestPipsBack.rectTransform,new Vector2(.5f,1),new Vector2(220,46),new Vector2(0,-74));
    conquestPips=N.Node("Pips",textNode);U.At(conquestPips,new Vector2(.5f,1),new Vector2(400,34),new Vector2(0,-74));
    var pipsRow=N.Row(conquestPips.gameObject,6,new RectOffset(0,0,0,0));pipsRow.childAlignment=TextAnchor.MiddleCenter;pipsRow.childControlWidth=pipsRow.childControlHeight=true;pipsRow.childForceExpandWidth=false;
    conquestButtons=N.Node("Buttons",textNode);U.At(conquestButtons,new Vector2(.5f,1),new Vector2(600,64),new Vector2(0,-226));
@@ -215,15 +215,15 @@ namespace Checkout {
    int pips=tierCard&&data.reveal.maxTier>1?Mathf.Min(data.reveal.maxTier,6):0;
    for(int i=0;i<pips;i++){
     var pip=N.Image(conquestPips,"Pip",Color.white,0);pip.sprite=CheckoutConfettiArt.StarSprite(i<data.reveal.tier);pip.preserveAspect=true;pip.raycastTarget=false;
-    var pl=pip.gameObject.AddComponent<LayoutElement>();pl.preferredWidth=pl.preferredHeight=i<data.reveal.tier?38:30;
+    var pl=pip.gameObject.AddComponent<LayoutElement>();pl.preferredWidth=pl.preferredHeight=i<data.reveal.tier?44:34;
    }
    conquestPips.gameObject.SetActive(pips>0);conquestPipsBack.gameObject.SetActive(pips>0);
-   int filled=Mathf.Min(pips,tierCard?data.reveal.tier:0);conquestPipsBack.rectTransform.sizeDelta=new Vector2(filled*38+(pips-filled)*30+(pips-1)*6+30,46);
+   int filled=Mathf.Min(pips,tierCard?data.reveal.tier:0);conquestPipsBack.rectTransform.sizeDelta=new Vector2(filled*44+(pips-filled)*34+(pips-1)*6+32,52);
    conquestSubtitle.gameObject.SetActive(!tierCard);
    if(tierCard){
     const float medalY=200,ribbonY=52,titleY=-22;
     float y=titleY-28;                                              // the title's bottom, then each row's top and centre
-    if(pips>0){y-=10;conquestPips.anchoredPosition=conquestPipsBack.rectTransform.anchoredPosition=new Vector2(0,y-23);y-=46;}
+    if(pips>0){y-=10;conquestPips.anchoredPosition=conquestPipsBack.rectTransform.anchoredPosition=new Vector2(0,y-26);y-=52;}
     y-=18;conquestStats.anchoredPosition=new Vector2(0,y-58);y-=116;
     if(hasProducts){y-=26;conquestProducts.anchoredPosition=new Vector2(0,y-54);y-=108;}
     y-=28;conquestButtons.anchoredPosition=new Vector2(0,y-31);y-=62;
