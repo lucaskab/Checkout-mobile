@@ -44,7 +44,7 @@ def G(name, hexc="FFFFFF", rough=.04, ior=1.45):
     return glass("P2_" + name, lin(hexc), rough=rough, ior=ior)
 
 
-def MIX(name, hex1, hex2, kind="voronoi", scale=8.0, lo=.45, hi=.55, rough=.4, coat=.0, sss=.0, w_dist=.0):
+def MIX(name, hex1, hex2, kind="voronoi", scale=8.0, lo=.45, hi=.55, rough=.4, coat=.0, sss=.0, w_dist=.0, band=False):
     """Two-colour procedural material: kind voronoi (cells/marbling), noise (veins/speckle), wave (wood grain)."""
     m = bpy.data.materials.get("P2_" + name) or bpy.data.materials.new("P2_" + name)
     m.use_nodes = True
@@ -83,6 +83,13 @@ def MIX(name, hex1, hex2, kind="voronoi", scale=8.0, lo=.45, hi=.55, rough=.4, c
     r.color_ramp.elements[1].position = hi
     r.color_ramp.elements[0].color = (*lin(hex1), 1)
     r.color_ramp.elements[1].color = (*lin(hex2), 1)
+    if band:                                   # thin veins of hex2 around the mid value, hex1 elsewhere
+        r.color_ramp.elements[0].color = (*lin(hex1), 1)
+        r.color_ramp.elements[1].color = (*lin(hex1), 1)
+        r.color_ramp.elements[0].position = lo
+        r.color_ramp.elements[1].position = hi
+        e = r.color_ramp.elements.new((lo + hi) / 2)
+        e.color = (*lin(hex2), 1)
     nt.links.new(src, r.inputs["Fac"])
     nt.links.new(r.outputs["Color"], b.inputs["Base Color"])
     return m
