@@ -262,7 +262,8 @@ namespace Checkout {
     lv.icons.Add(icon);lv.shadows.Add(sh);lv.rows.Add(row);
    }
    // Price tag ("etiqueta") on the lane's front edge: the product and how full the lane is.
-   float laneW=(geo.fr-geo.fl).magnitude,tagW=Mathf.Clamp(laneW*.42f,46,96),tagH=tagW*.4f;
+   // (never wider than the lane: the two halves of a split crate (8 products, a ★ fixture) keep their tags apart)
+   float laneW=(geo.fr-geo.fl).magnitude,tagFull=Mathf.Clamp(laneW*.42f,46,96),tagW=Mathf.Min(tagFull,laneW*.84f),tagH=tagFull*.4f;
    lv.tag=Keep(U.Shape(view.root,"Tag "+number,"FFF1D1",8,new Vector2(.5f,.5f),new Vector2(tagW,tagH),geo.FrontMid+new Vector2(0,-tagH*.45f)));
    var outline=lv.tag.gameObject.AddComponent<Outline>();outline.effectColor=K.C("EC862E");outline.effectDistance=new Vector2(1.5f,-1.5f);
    var tagIcon=U.Icon(lv.tag.transform,"Product",$"Products/product-{slot.productId:000}",new Vector2(0,.5f),Vector2.one*tagH*.85f,new Vector2(tagH*.5f,0));tagIcon.raycastTarget=false;

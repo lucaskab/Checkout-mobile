@@ -96,7 +96,13 @@ namespace Checkout {
   void ApplyConquest(DesktopView v){
    var data=v.celebration;
    bool has=data!=null&&!string.IsNullOrEmpty(data.key)&&data.key!=conquestClosedKey;
-   if(!has){if(ConquestOpen&&(data==null||string.IsNullOrEmpty(data.key)))HideConquest();return;}
+   if(!has){
+    if(ConquestOpen&&(data==null||string.IsNullOrEmpty(data.key))){
+     // dismissed elsewhere: an evolution's close-up still flies back to the player's own view (and gives the input back)
+     bool evolution=conquestEvolution;HideConquest();if(evolution)CheckoutConquestFx.Instance.RestoreCamera();
+    }
+    return;
+   }
    if(data.key==conquestShownKey&&ConquestOpen)return;
    if(LevelUpOpen)return; // after the level-up is closed (the next view brings it back)
    // An evolution's reveal plays on the piece itself: it waits until the player is back on the map (no window open).
@@ -124,7 +130,8 @@ namespace Checkout {
    if(on==cinematicOn)return;cinematicOn=on;
    if(on){
     cinematic.Clear();
-    void Add(GameObject go){if(!go||!go.activeInHierarchy)return;var g=go.GetComponent<CanvasGroup>();if(!g)g=go.AddComponent<CanvasGroup>();cinematic.Add((g,g.alpha,g.blocksRaycasts));}
+    // (inactive ones too: the goal card comes back on the same view the page closes on, after this ran)
+    void Add(GameObject go){if(!go)return;var g=go.GetComponent<CanvasGroup>();if(!g)g=go.AddComponent<CanvasGroup>();cinematic.Add((g,g.alpha,g.blocksRaycasts));}
     var top=root?root.Find("TopBar"):null;
     if(root)foreach(Transform child in root){if(child==top)continue;Add(child.gameObject);}
     if(top)foreach(Transform child in top){if(child.name=="Wallet")continue;Add(child.gameObject);}
@@ -166,6 +173,7 @@ namespace Checkout {
    // An evolution: first the reveal on the piece (camera, cloth, pop, confetti, chips), then the card.
    bool evolution=data.reveal!=null&&!string.IsNullOrEmpty(data.reveal.kind);
    conquestEvolution=evolution;
+   if(!evolution&&cinematicOn)Cinematic(false);   // (an evolution cut short by another celebration: the HUD comes back)
    if(evolution){
     Cinematic(true);
     float wait=CheckoutEvolutionReveal.Instance.Play(data.reveal,data.id,!pageOpen);

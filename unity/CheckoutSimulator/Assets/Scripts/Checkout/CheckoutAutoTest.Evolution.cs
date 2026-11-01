@@ -217,11 +217,11 @@ namespace Checkout {
    var bakery = bridge.State.sectors?.FirstOrDefault(x => x.id == "padaria");
    if (bakery != null && bakery.unlocked && bakery.tier < 3) yield return RevealOne("sector", "padaria", () => Hud("upgradeSectorTier", "[\"padaria\",\"coins\"]"), fails, "sector", false);
    else fails.Add("no bakery to evolve");
-   // the shelf again in a portrait iPhone frame (the drinks fridge T1 → T2)
-   var before = CheckoutQaGameView.Set(1284, 2778); Note("EVO portrait game view: " + before); yield return Wait(2.5f);
+   // a second shelf (the drinks fridge T1 → T2). The QA game view is already the iPhone's (2778 × 1284, held
+   // sideways): the game is landscape only (ProjectSettings allows no portrait), so there is no portrait reveal.
+   Note("EVO game view: " + Screen.width + "x" + Screen.height);
    yield return EnsurePlaced("shelf:drinks"); yield return StockShelf("drinks");
-   yield return RevealOne("shelf", "drinks", () => Hud("upgradeShelfCapacity", "[\"drinks\",\"coins\"]"), fails, "shelf_portrait", false);
-   CheckoutQaGameView.Restore(); yield return Wait(2f);
+   yield return RevealOne("shelf", "drinks", () => Hud("upgradeShelfCapacity", "[\"drinks\",\"coins\"]"), fails, "fridge", false);
    Note($"RESULT tiers reveal: {(fails.Count == 0 ? "PASS" : "FAIL")}" + (fails.Count > 0 ? ": " + string.Join(" | ", fails) : "") + " (Logs/ft_evo_reveal_*.mjpg)");
   }
 
@@ -244,6 +244,11 @@ namespace Checkout {
   // One reveal recorded at 30 fps (a fixed game step: Time.captureFramerate) into Logs/ft_evo_reveal_<name>.mjpg (JPEG
   // frames back to back; ffmpeg reads them as a video), from the camera's first move to the card standing.
   IEnumerator RevealOne(string kind, string target, System.Action start, List<string> fails, string name, bool stills) {
+   // whatever came before (reveals dismissed half way) left no cloth behind and gave the camera back
+   int stray = CheckoutEvolutionReveal.Instance.transform.Cast<Transform>().Count(c => c.name == "Evolution cloth");
+   Note($"EVO before {name}: stray cloths {stray}, camera free {!MarketDay.MarketSimulation.Cinematic}");
+   if (stray > 0) fails.Add(name + ": " + stray + " cloth(s) left behind");
+   if (MarketDay.MarketSimulation.Cinematic) fails.Add(name + ": camera still held by a cut reveal");
    start(); yield return Wait(2);
    if (Evo(kind, target) == null) { fails.Add(kind + " " + target + ": no evolution"); yield break; }
    // keep the card from starting before we look: a page open holds the reveal (CheckoutDesktopHUD.ApplyConquest)
@@ -262,7 +267,7 @@ namespace Checkout {
     host.Route("");   // back to the map: the reveal starts
     while (frames < 30 * 9) {
      yield return new WaitForEndOfFrame();
-     var jpg = GrabJpg(name.Contains("portrait") ? 720 : 1280); fs.Write(jpg, 0, jpg.Length); frames++;
+     var jpg = GrabJpg(1280); fs.Write(jpg, 0, jpg.Length); frames++;
      if (revealStart < 0 && reveal.Playing) revealStart = frames;
      if (stills && !cloth && revealStart > 0 && frames - revealStart == 26) { File.WriteAllBytes("Logs/ft_evo_cloth.jpg", GrabJpg(1920)); cloth = true; }
      if (popAt < 0 && reveal.Stage >= 2) popAt = frames;

@@ -36,7 +36,7 @@ namespace Checkout
         class Veil
         {
             public string key, id; public List<Transform> roots = new List<Transform>(); public List<Renderer> hidden = new List<Renderer>();
-            public Transform cloth; public Mesh mesh; public Vector3[] rest; public Bounds bounds; public float ripple = .3f, sway = 1, dropped = 1, phase;
+            public Transform cloth; public Mesh mesh; public Vector3[] rest; public Bounds bounds; public float ripple = .3f, sway = 1, dropped = 1, phase; public bool pulling;
         }
         readonly Dictionary<string, Veil> veils = new Dictionary<string, Veil>();
         readonly HashSet<string> played = new HashSet<string>();
@@ -93,14 +93,22 @@ namespace Checkout
             {
                 if (r == null || string.IsNullOrEmpty(r.kind) || played.Contains(r.id)) continue;
                 var key = KeyOf(r.kind, r.targetId); due.Add(key);
+                // the next tier of a piece whose reveal is playing right now: it is covered again once that one is over
+                if (Playing && playingKey == key) continue;
                 if (veils.TryGetValue(key, out var v) && v.cloth) { Rehide(v); continue; }
                 var roots = Targets(r.kind, r.targetId);
                 if (roots.Count == 0) continue;
+                if (v != null) Uncover(v);
                 veils[key] = Cover(key, r.id, roots, false);
             }
             foreach (var key in veils.Keys.ToList())
                 if (!due.Contains(key) && !(Playing && playingKey == key)) { Uncover(veils[key]); veils.Remove(key); }
+            // no cloth is ever left behind without its veil (a reveal cut short, a piece rebuilt)
+            var live = new HashSet<Transform>(veils.Values.Where(x => x.cloth).Select(x => x.cloth));
+            foreach (Transform child in transform)
+                if (child.name == "Evolution cloth" && !live.Contains(child) && !(Playing && pulled == child)) Destroy(child.gameObject);
         }
+        Transform pulled;
 
         Veil Cover(string key, string id, List<Transform> roots, bool drop)
         {
@@ -233,6 +241,7 @@ namespace Checkout
                     verts[i] = r + outDir * w + Vector3.up * w * .25f;
                 }
                 v.mesh.vertices = verts; v.mesh.RecalculateNormals();
+                if (v.pulling) continue;   // (the pull turns the drape itself)
                 // a little sway of the whole drape while it waits
                 v.cloth.localRotation = Quaternion.Euler(Mathf.Sin(t * 1.9f + v.phase) * 1.6f * v.sway, 0, Mathf.Sin(t * 1.4f + v.phase * .7f) * 1.9f * v.sway);
             }
@@ -247,6 +256,14 @@ namespace Checkout
             if (data == null || string.IsNullOrEmpty(data.kind)) return 0;
             var key = KeyOf(data.kind, data.targetId);
             played.Add(celebrationId ?? key);
+            if (Playing)
+            {
+                // another reveal cut short: its drape and its hold on the piece go, the piece comes out
+                StopAllCoroutines(); ClearChips();
+                if (pulled) Destroy(pulled.gameObject); pulled = null; busy.Clear();
+                if (playingKey != null && playingKey != key && veils.TryGetValue(playingKey, out var old)) { Uncover(old); veils.Remove(playingKey); }
+                Playing = false; playingKey = null;
+            }
             if (!veils.TryGetValue(key, out var v) || !v.cloth)
             {
                 var roots = Targets(data.kind, data.targetId);
@@ -299,7 +316,7 @@ namespace Checkout
             var fx = CheckoutConquestFx.Instance;
             var b = v.bounds; var center = b.center; var size = b.size;
             var cam = Camera.main;
-            if (moveCamera && cam) { var f = Framing(b, cam); fx.FocusOn(f.aim, f.size, .8f); }
+            if (moveCamera && cam) { var f = Framing(b, cam, data.kind == "sector" ? .44f : .4f); fx.FocusOn(f.aim, f.size, .8f); }
             float clock = 0;
             IEnumerator Until(float at) { while (clock < at) { clock += Dt; yield return null; } }
             // The cloth falls into place first if it was not there yet.
@@ -315,7 +332,7 @@ namespace Checkout
             while (clock < PullAt) { v.ripple = Mathf.Lerp(.45f, 1.5f, Mathf.InverseLerp(.3f, PullAt, clock)); v.sway = Mathf.Lerp(1, 2.2f, Mathf.InverseLerp(.3f, PullAt, clock)); clock += Dt; yield return null; }
             // Pulled up with a flutter: it rises, twists, narrows and dissolves into gold sparkles.
             Stage = 1; Play(CheckoutUiKit.Sfx("whoosh"), .55f);
-            var cloth = v.cloth; var from = cloth.position; int bursts = 0;
+            var cloth = v.cloth; var from = cloth.position; int bursts = 0; v.pulling = true; pulled = cloth;
             for (float k = 0; k < 1; k += Dt / .45f)
             {
                 if (!cloth) break;
@@ -329,7 +346,7 @@ namespace Checkout
                 clock += Dt; yield return null;
             }
             if (cloth) { fx.SparkleAt(cloth.position + Vector3.up * size.y * .5f, .9f, .9f, 22); Destroy(cloth.gameObject); }
-            v.cloth = null;
+            v.cloth = null; v.pulling = false; pulled = null;
             yield return Until(PopAt);
             // The new model pops, with a soft burst of rays behind it and a warm rim light on it.
             Stage = 2;
@@ -364,7 +381,7 @@ namespace Checkout
             Play(TaDa(), .7f);
             for (int i = 0; i < 4; i++) { Play(CheckoutUiKit.Sfx("coin_" + (i % 3)), .3f, 1.2f + i * .12f); yield return CheckoutUiKit.Wait(.07f); }
             foreach (var root in v.roots) busy.Remove(root);
-            Stage = 4; veils.Remove(v.key);
+            Stage = 4; if (veils.TryGetValue(v.key, out var cur) && cur == v) veils.Remove(v.key);
             Playing = false; playingKey = null;
             yield return CheckoutUiKit.Wait(.4f);
             FadeChips();
