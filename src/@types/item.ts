@@ -42,4 +42,7 @@ export type ItemDefinition = {
 	unlockLevel: number;
 	visualAttractiveness: number;
 	xpPerSale: number;
+	/** An evolution's exclusive product (claude/evolucoes-recompensas.md): it opens when that fixture (a shelf type id) or
+	 * sector (a production sector id) reaches `tier`, and only that fixture sells it. */
+	exclusive?: { fixture: string; tier: number };
 };

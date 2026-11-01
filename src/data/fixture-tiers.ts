@@ -181,12 +181,20 @@ export function canBuyCapacityTier(upgradeLevel: number | undefined, eraId: Mark
 	return getCapacityTier((upgradeLevel ?? 0) + 1) <= getEraFixtureTierCap(eraId);
 }
 
-/** Product places a fixture of this tier has room for: T1 up to 5, T2 up to 6, T3 on up to 7. */
+/**
+ * Product places a fixture of this tier comes with (claude/evolucoes-recompensas.md 2.1): T1 4, T2 5, T3 6, T4 7, ★ 8.
+ * They come free with the evolution (the separate "Mais um produto" purchase is gone); places bought before never
+ * go away (src/services/tier-rewards.ts).
+ */
+export const fixtureTierPlaces: Record<number, number> = { 1: 4, 2: 5, 3: 6, 4: 7, 5: 8 };
 export function getTierSlotLimit(tier: number) {
-	if (tier <= 1) return 5;
-	if (tier === 2) return 6;
-	return 7;
+	return fixtureTierPlaces[Math.min(PREMIUM_TIER, Math.max(1, Math.floor(tier)))];
 }
+
+/** A passing customer picks from the fixture this much more often (necessity × 1 + this). */
+export const fixtureTierAttraction: Record<number, number> = { 1: 0, 2: 0.05, 3: 0.1, 4: 0.15, 5: 0.25 };
+/** Restocking it (the stock clerk's trip and the stockroom mini-game) takes this much less time. */
+export const fixtureTierRestock: Record<number, number> = { 1: 0, 2: 0.1, 3: 0.2, 4: 0.3, 5: 0.4 };
 
 // ------------------------------------------------------------------ the checkout counter
 
@@ -201,6 +209,14 @@ export const checkoutTierItemIds = [
 	CHECKOUT_SCANNER_ITEM,
 	CHECKOUT_PREMIUM_ITEM,
 ] as const;
+
+/** The checkout tier each step's shop item stands for. */
+export const checkoutItemTiers: Record<string, number> = {
+	[CHECKOUT_REGISTER_ITEM]: 2,
+	[CHECKOUT_CONVEYOR_ITEM]: 3,
+	[CHECKOUT_SCANNER_ITEM]: 3,
+	[CHECKOUT_PREMIUM_ITEM]: 4,
+};
 
 /** From the minimercado on the player places the checkout: the first one already is the register (T2). */
 export const CHECKOUT_REGISTER_GIFT_ERA: MarketEraId = "minimercado";
@@ -370,17 +386,24 @@ export function chooseCarrier(planExtra: number, available: readonly CartCarrier
 }
 
 // ------------------------------------------------------------------ the special sectors (açougue, padaria…)
-// Approved by Lucas 30/10 (docs-drafts/evolucoes-moveis.md, "Setores especiais"). Every sector built so far is T1 (a
-// smaller model than the old counter, so it always fits where it stands); T2 adds a production slot, T3 cuts the
-// production time by 20% and sells the sector's goods 10% dearer. Production queues and stock are never touched.
+// Approved by Lucas 30/10 (docs-drafts/evolucoes-moveis.md, "Setores especiais"); rewards from 01/11
+// (claude/evolucoes-recompensas.md 2.2): T2 one more production line, 15% faster and 25% more per batch; T3 two more
+// lines, 30% faster, 50% more per batch (rounded up) and the goods 10% dearer. The counter holds 5 / 6 products with
+// +5 / +10 units each. Footprints of the round-5 models (with the staff lane). Production queues and stock are never
+// touched by a tier change.
 
 export const SECTOR_MAX_TIER = 3;
 
 export const sectorTiers: SectorTierDefinition[] = [
-	{ tier: 1, name: "Compacto", width: 2.5, depth: 2, extraSlots: 0, durationMultiplier: 1, priceMultiplier: 1 },
-	{ tier: 2, name: "Completo", width: 3.25, depth: 2.5, extraSlots: 1, durationMultiplier: 1, priceMultiplier: 1 },
-	{ tier: 3, name: "Premium", width: 4, depth: 3.25, extraSlots: 1, durationMultiplier: 0.8, priceMultiplier: 1.1 },
+	{ tier: 1, name: "Compacto", width: 2.5, depth: 3.25, extraSlots: 0, durationMultiplier: 1, priceMultiplier: 1, outputMultiplier: 1, counterPlaces: 4, counterUnits: 0 },
+	{ tier: 2, name: "Completo", width: 3.25, depth: 3.5, extraSlots: 1, durationMultiplier: 0.85, priceMultiplier: 1, outputMultiplier: 1.25, counterPlaces: 5, counterUnits: 5 },
+	{ tier: 3, name: "Premium", width: 4, depth: 3.5, extraSlots: 2, durationMultiplier: 0.7, priceMultiplier: 1.1, outputMultiplier: 1.5, counterPlaces: 6, counterUnits: 10 },
 ];
+
+/** A batch at this tier: the recipe's output × the tier's multiplier, rounded up (baguette 4 → 5 → 6). */
+export function getSectorBatchOutput(outputQuantity: number, tier: number) {
+	return Math.ceil(outputQuantity * getSectorTierDefinition(tier).outputMultiplier - 1e-9);
+}
 
 /** Price of T2 / T3 by shop size (~2 h of sales where it opens); the diamond price is the same everywhere. */
 export function getSectorTierPrice(tier: number, eraId: MarketEraId): SectorTierPrice | null {

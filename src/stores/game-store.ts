@@ -73,7 +73,6 @@ import {
 	getNextShelfCapacityUpgrade,
 	getNextShelfSlotUpgrade,
 	getNextShelfUnlockUpgrade,
-	getShelfCapacity,
 	initialUnlockedShelfSlots,
 } from "@/data/shelf-capacity";
 import {
@@ -224,10 +223,18 @@ import {
 import { mmkvStorage } from "@/storage/mmkv";
 import type { MarketEraId } from "@/@types/economy";
 import { getMarketEra, marketEras, STARTING_COINS } from "@/data/economy";
-import { canShelfHold } from "@/data/shelf-categories";
+import { canFixtureSell } from "@/data/fixture-products";
+import { enqueueEvolution, findEvolution, getEvolutionDurationMs, getEvolutionProgress, normalizeEvolutions, scheduleEvolutions } from "@/data/fixture-evolution";
+import type { FixtureEvolution } from "@/@types/fixture-evolution";
+import { getFixtureAttraction, getFixtureRestockBonus, getSlotCapacity, isExclusiveAllowed, withTierRewards } from "@/services/tier-rewards";
 import { getSectorCounter, getSectorCounterFor, getShelfType, isSectorShelfId, shelfTypes } from "@/data/shelf-types";
 import {
 	canBuyCapacityTier,
+	checkoutItemTiers,
+	coldRoomTierItemIds,
+	getCapacityTier,
+	getCheckoutTier,
+	getSectorBatchOutput,
 	getColdRoomTier,
 	getColdRoomUpgradeCap,
 	getNextDecorTier,
@@ -515,6 +522,7 @@ const initialGameState: GameState = {
 	marketExpansionConstruction: null,
 	interior: createStarterInteriorState(),
 	interiorConstructions: [],
+	evolutions: [],
 	builtSectorIds: [],
 	sectorTiers: {},
 	missions: initialMissionsState,
@@ -596,6 +604,7 @@ function getInitialGameState(): GameState {
 		marketExpansionConstruction: null,
 		interior: createStarterInteriorState(),
 		interiorConstructions: [],
+		evolutions: [],
 		builtSectorIds: [],
 		sectorTiers: {},
 		missions: {
@@ -732,6 +741,21 @@ function migrateFixtures41(persistedState: unknown) {
 	} as Partial<GameState>;
 }
 
+/** v49: the rewards of the tiers an old save already has, with one celebration when anything new opened. */
+export function withMigratedTierRewards(state: GameState): GameState {
+	const rewards = withTierRewards(state);
+	if (rewards.newProducts.length === 0 && rewards.grantedPlaces.length === 0) return state;
+	return {
+		...state,
+		shelfSlotCounts: rewards.shelfSlotCounts,
+		unlockedShelfSlots: rewards.unlockedShelfSlots,
+		market: { ...state.market, unlockedProductIds: rewards.unlockedProductIds },
+		celebrations: rewards.newProducts.length
+			? pushCelebration(state.celebrations, "tier", `unlocks:${rewards.newProducts.join(",")}`)
+			: state.celebrations,
+	};
+}
+
 function migrateGameState(persistedState: unknown): GameState {
 	const state = persistedState as Partial<GameState>;
 	const market = state.market as Partial<GameMarketState> | undefined;
@@ -768,7 +792,10 @@ function migrateGameState(persistedState: unknown): GameState {
 			...initialGameState.inventory,
 			...state.inventory,
 		},
-		shelfUpgradeLevels,
+		{
+			shelfUpgradeLevels,
+			sectorTiers: normalizeSectorTiers(state.sectorTiers, productionSectors.map((sector) => sector.id)),
+		},
 		shelfSlotCounts,
 		shelfAssignments,
 	);
@@ -837,6 +864,8 @@ function migrateGameState(persistedState: unknown): GameState {
 	);
 	// (v48: every sector built so far is T1; tiers only above it)
 	const sectorTiers = normalizeSectorTiers(state.sectorTiers, productionSectors.map((sector) => sector.id));
+	// (49: evolutions take time; the queue of the evolution crew)
+	const evolutions = normalizeEvolutions(state.evolutions);
 	const persistedShop = state.shop?.ownedItemIds ?? [];
 	// Works that already finished (or whose target exists) are dropped.
 	const interiorConstructions = normalizeInteriorConstructions(
@@ -954,6 +983,7 @@ function migrateGameState(persistedState: unknown): GameState {
 		marketExpansionConstruction,
 		interior: withCartStations(withCartsFromShop(normalizeInteriorState(state.interior), state.shop?.ownedItemIds), state.shop?.ownedItemIds),
 		interiorConstructions,
+		evolutions,
 		builtSectorIds,
 		sectorTiers,
 		missions,
@@ -1079,6 +1109,8 @@ export const useGameStore = create<GameStore>()(
 				const shopEffects = getShopEffects(state.shop);
 				// Obras keep going while the player is away.
 				get().processMarketEraConstruction(now);
+				// So does the evolution crew: what ended while away is applied now (its reveal waits for the player).
+				get().processFixtureEvolutions(now);
 				// The market keeps selling while the player is away (if it was left open): every hour
 				// is worth part of a played turn, more in bigger eras (see data/economy.ts).
 				const averageTicket =
@@ -1995,6 +2027,12 @@ export const useGameStore = create<GameStore>()(
 				}
 				const installed = isBuiltShopItem(item.id);
 				const interiorConstructions = get().interiorConstructions;
+				// The checkout's steps evolve over time like every fixture (Lucas 01/11): the item joins when the crew is done.
+				const checkoutTier = checkoutItemTiers[item.id] ?? 0;
+				const evolvesCheckout = checkoutTier > getCheckoutTier(shop.ownedItemIds, get().era.id);
+				if (evolvesCheckout && findEvolution(get().evolutions, "checkout", "checkout")) {
+					return false;
+				}
 				if (installed && findInteriorConstruction(interiorConstructions, "shop", item.id)) {
 					return false;
 				}
@@ -2027,10 +2065,21 @@ export const useGameStore = create<GameStore>()(
 								}
 							: shop.consumableAmounts,
 						ownedItemIds:
-							item.isConsumable || installed
+							item.isConsumable || installed || evolvesCheckout
 								? shop.ownedItemIds
 								: [...shop.ownedItemIds, item.id],
 					},
+					...(evolvesCheckout
+						? {
+								evolutions: enqueueEvolution(get().evolutions, {
+									kind: "checkout",
+									targetId: "checkout",
+									toTier: checkoutTier,
+									itemId: item.id,
+									durationMs: getEvolutionDurationMs("checkout", "checkout", checkoutTier),
+								}),
+							}
+						: {}),
 					// Bought fixtures wait in the inventory until the player places them; works with no piece to
 					// place (the cold room, outside the depot) start right away in the builders' queue.
 					interiorConstructions: installed
@@ -2231,9 +2280,7 @@ export const useGameStore = create<GameStore>()(
 						let worked = false;
 						if (task.kind === "restock") {
 							const state = get();
-							const capacity = getShelfCapacity(
-								state.shelfUpgradeLevels[getPhysicalShelfId(task.slotId)],
-							);
+							const capacity = getSlotCapacity(state, task.slotId);
 							const amount = Math.min(
 								task.units,
 								state.inventory[task.productId] ?? 0,
@@ -2820,10 +2867,13 @@ export const useGameStore = create<GameStore>()(
 					!recipe ||
 					!get().builtSectorIds.includes(sector.id) ||
 					market.level < sector.requiredLevel ||
-					market.level < recipe.requiredLevel
+					market.level < recipe.requiredLevel ||
+					getSectorTier(get().sectorTiers, sector.id) < (recipe.requiredSectorTier ?? 1)
 				) {
 					return false;
 				}
+				// An evolved sector makes more per batch (T2 +25%, T3 +50%, rounded up).
+				const batchOutput = getSectorBatchOutput(recipe.outputQuantity, getSectorTier(get().sectorTiers, sector.id));
 
 				const usedSlots = new Set(
 					production.jobs
@@ -2855,7 +2905,7 @@ export const useGameStore = create<GameStore>()(
 				if (
 					!canAddToInventory(
 						recipe.outputProductId,
-						recipe.outputQuantity + queuedOutput,
+						batchOutput + queuedOutput,
 						inventory,
 						inventoryCapacityLevels,
 					)
@@ -2882,7 +2932,7 @@ export const useGameStore = create<GameStore>()(
 						),
 					id: `${sectorId}-${recipeId}-${now}`,
 					outputProductId: recipe.outputProductId,
-					outputQuantity: recipe.outputQuantity,
+					outputQuantity: batchOutput,
 					recipeId,
 					sectorId,
 					slotIndex,
@@ -2917,6 +2967,7 @@ export const useGameStore = create<GameStore>()(
 					!state.builtSectorIds.includes(sector.id) ||
 					state.market.level < sector.requiredLevel ||
 					state.market.level < recipe.requiredLevel ||
+					getSectorTier(state.sectorTiers, sector.id) < (recipe.requiredSectorTier ?? 1) ||
 					!recipe.ingredients.every(
 						(ingredient) => (state.inventory[ingredient.productId] ?? 0) >= ingredient.quantity,
 					)
@@ -2933,11 +2984,12 @@ export const useGameStore = create<GameStore>()(
 						state.inventory,
 						state.inventoryCapacityLevels,
 					);
-				if (!fits(recipe.outputQuantity)) {
+				const batchOutput = getSectorBatchOutput(recipe.outputQuantity, getSectorTier(state.sectorTiers, sector.id));
+				if (!fits(batchOutput)) {
 					return false;
 				}
-				const bonus = stars >= 3 && fits(recipe.outputQuantity + 1) ? 1 : 0;
-				const made = recipe.outputQuantity + bonus;
+				const bonus = stars >= 3 && fits(batchOutput + 1) ? 1 : 0;
+				const made = batchOutput + bonus;
 				const now = Date.now();
 				const nextInventory = { ...state.inventory };
 				for (const ingredient of recipe.ingredients) {
@@ -3057,6 +3109,8 @@ export const useGameStore = create<GameStore>()(
 										getTurnEffects(get().era.id, get().day.shift).necessityMultiplier(product.category) *
 										getWeeklyNecessityMultiplier(product.category, now) *
 										getSlotPositionFactor(shelf.id) *
+										// Evolved fixtures draw more customers (+5% T2 … +25% ★, src/services/tier-rewards.ts).
+										(1 + getFixtureAttraction(get(), getPhysicalShelfId(shelf.id))) *
 										// Events: cold drinks in the heat, the product in the video, cheap goods at month's end.
 										getEventDemandMultiplier(
 											eventEffects,
@@ -3506,7 +3560,7 @@ export const useGameStore = create<GameStore>()(
 					!product ||
 					!market.unlockedProductIds.includes(productId) ||
 					!isShelfUnlocked(shelfId, getCurrentShelfSlotCounts(get())) ||
-					!canShelfHold(getPhysicalShelfId(shelfId), product.category).ok ||
+					!canFixtureSell(getPhysicalShelfId(shelfId), product).ok ||
 					isAssignedElsewhere ||
 					(!replace && (shelfStock[shelfId] ?? 0) > 0)
 				) {
@@ -3688,9 +3742,7 @@ export const useGameStore = create<GameStore>()(
 				} = get();
 				const availableQuantity = inventory[productId] ?? 0;
 				const currentQuantity = shelfStock[shelfId] ?? 0;
-				const capacity = getShelfCapacity(
-					shelfUpgradeLevels[getPhysicalShelfId(shelfId)],
-				);
+				const capacity = getSlotCapacity(get(), shelfId);
 
 				if (
 					shelfAssignments[shelfId] !== productId ||
@@ -4030,7 +4082,11 @@ export const useGameStore = create<GameStore>()(
 						experience: 0,
 						level: nextLevel,
 						recentUnlockProductIds: [],
-						unlockedProductIds: getUnlockedProductIds(nextLevel, get().era.id),
+						// (exclusives came with evolutions, not with the level: they stay)
+						unlockedProductIds: [
+							...getUnlockedProductIds(nextLevel, get().era.id),
+							...market.unlockedProductIds.filter((id) => itemCatalog.find((item) => item.id === id)?.exclusive),
+						],
 					},
 				});
 			},
@@ -4163,7 +4219,11 @@ export const useGameStore = create<GameStore>()(
 				let ownedItemIds = state.shop.ownedItemIds;
 				let celebrations = state.celebrations;
 				for (const item of done) {
-					celebrations = pushCelebration(celebrations, item.kind, item.targetId, Math.min(now, Date.now()));
+					// The cold room keeps its works, and ends with the same reveal as the evolutions.
+					const coldTier = item.kind === "shop" ? Object.entries(coldRoomTierItemIds).find(([, id]) => id === item.targetId)?.[0] : undefined;
+					celebrations = coldTier
+						? pushCelebration(celebrations, "tier", `coldroom:coldroom:${coldTier}`, Math.min(now, Date.now()))
+						: pushCelebration(celebrations, item.kind, item.targetId, Math.min(now, Date.now()));
 					if (item.kind === "shelf" && getShelfSlotCount(item.targetId, shelfSlotCounts) <= 0)
 						shelfSlotCounts = { ...shelfSlotCounts, [item.targetId]: initialUnlockedShelfSlots };
 					else if (item.kind === "sector" && !builtSectorIds.includes(item.targetId as ProductionSectorId)) {
@@ -4216,42 +4276,9 @@ export const useGameStore = create<GameStore>()(
 				return get().processInteriorConstructions(Number.MAX_SAFE_INTEGER);
 			},
 			unlockNextShelfSlot: () => get().unlockNextShelf(),
-			expandShelfSlots: (shelfId) => {
-				const state = get();
-				const physicalShelfId = getPhysicalShelfId(shelfId);
-				const shelfSlotCounts = getCurrentShelfSlotCounts(state);
-				const currentSlotCount = getShelfSlotCount(
-					physicalShelfId,
-					shelfSlotCounts,
-				);
-				const nextUpgrade = getNextShelfSlotUpgrade(currentSlotCount);
-
-				if (
-					currentSlotCount <= 0 ||
-					!nextUpgrade ||
-					state.market.level < nextUpgrade.playerLevel ||
-					state.coins < nextUpgrade.coinCost
-				) {
-					return false;
-				}
-				// A small fixture has room for fewer products (T1 up to 5, T2 up to 6, then 7).
-				if (getShelfType(physicalShelfId) && nextUpgrade.unlockedSlots > getShelfSlotLimit(state, physicalShelfId)) {
-					return false;
-				}
-
-				const nextShelfSlotCounts = {
-					...shelfSlotCounts,
-					[physicalShelfId]: nextUpgrade.unlockedSlots,
-				};
-
-				set({
-					coins: state.coins - nextUpgrade.coinCost,
-					shelfSlotCounts: nextShelfSlotCounts,
-					unlockedShelfSlots: getTotalUnlockedShelfSlots(nextShelfSlotCounts),
-				});
-
-				return true;
-			},
+			// The separate "Mais um produto" purchase is gone (Lucas 01/11): places come with the evolutions
+			// (src/services/tier-rewards.ts). Kept for old buttons and the protocol, it never buys anything now.
+			expandShelfSlots: (_shelfId) => false,
 			unlockMarketExpansion: (expansionId, currency = "coins") => {
 				const {
 					coins,
@@ -4364,8 +4391,8 @@ export const useGameStore = create<GameStore>()(
 			// "Evoluções dos móveis", the special sectors: T2 / T3 for coins by shop size or a fixed diamond price. Nothing
 			// else changes: the production queue, the stock and the sector's place in the shop stay as they are.
 			upgradeSectorTier: (sectorId, currency = "coins") => {
-				const { builtSectorIds, coins, era, logistics, sectorTiers } = get();
-				if (!builtSectorIds.includes(sectorId)) return false;
+				const { builtSectorIds, coins, era, evolutions, logistics, sectorTiers } = get();
+				if (!builtSectorIds.includes(sectorId) || findEvolution(evolutions, "sector", sectorId)) return false;
 				const tier = getSectorTier(sectorTiers, sectorId);
 				if (tier >= SECTOR_MAX_TIER) return false;
 				const price = getSectorTierPrice(tier + 1, era.id);
@@ -4376,15 +4403,21 @@ export const useGameStore = create<GameStore>()(
 				set({
 					coins: useDiamonds ? coins : coins - cost,
 					logistics: useDiamonds ? { ...logistics, premiumCurrency: logistics.premiumCurrency - cost } : logistics,
-					sectorTiers: { ...sectorTiers, [sectorId]: tier + 1 },
-					celebrations: pushCelebration(get().celebrations, "tier", `sector:${sectorId}:${tier + 1}`),
+					// Timed like every evolution: the sector keeps producing until the crew finishes (processFixtureEvolutions).
+					evolutions: enqueueEvolution(evolutions, {
+						kind: "sector",
+						targetId: sectorId,
+						toTier: tier + 1,
+						durationMs: getEvolutionDurationMs("sector", sectorId, tier + 1),
+					}),
 				});
 				return true;
 			},
 			upgradeDecorTier: (decorId, currency = "coins") => {
-				const { coins, interior, logistics, market } = get();
+				const { coins, evolutions, interior, logistics, market } = get();
 				const next = getNextDecorTier(interior.tiers, decorId);
 				if (!next || market.level < next.requiredLevel || (interior.owned[decorId] ?? 0) <= 0) return false;
+				if (findEvolution(evolutions, "decor", decorId)) return false;
 				const useDiamonds = currency === "diamonds" || !next.coinPrice;
 				const price = useDiamonds ? next.diamondPrice : next.coinPrice;
 				if (!price) return false;
@@ -4392,8 +4425,12 @@ export const useGameStore = create<GameStore>()(
 				set({
 					coins: useDiamonds ? coins : coins - price,
 					logistics: useDiamonds ? { ...logistics, premiumCurrency: logistics.premiumCurrency - price } : logistics,
-					interior: { ...interior, tiers: { ...interior.tiers, [decorId]: next.tier } },
-					celebrations: pushCelebration(get().celebrations, "tier", `decor:${decorId}:${next.tier}`),
+					evolutions: enqueueEvolution(evolutions, {
+						kind: "decor",
+						targetId: decorId,
+						toTier: next.tier,
+						durationMs: getEvolutionDurationMs("decor", decorId, next.tier),
+					}),
 				});
 				return true;
 			},
@@ -4489,11 +4526,12 @@ export const useGameStore = create<GameStore>()(
 					return false;
 				}
 				shelfId = getPhysicalShelfId(shelfId);
-				const { coins, logistics, market, shelfUpgradeLevels } = get();
+				const { coins, evolutions, logistics, market, shelfUpgradeLevels } = get();
 				const upgradeLevel = shelfUpgradeLevels[shelfId] ?? 0;
 				const nextUpgrade = getNextShelfCapacityUpgrade(upgradeLevel);
 
-				if (!nextUpgrade || market.level < nextUpgrade.playerLevel) {
+				// One evolution of a fixture at a time (it is already being evolved or waiting for the crew).
+				if (!nextUpgrade || market.level < nextUpgrade.playerLevel || findEvolution(evolutions, "shelf", shelfId)) {
 					return false;
 				}
 				// Each capacity step is the fixture's next tier: a bigger piece the shop must have room for.
@@ -4508,10 +4546,9 @@ export const useGameStore = create<GameStore>()(
 					return false;
 				}
 
-				const evolves =
-					!!getShelfType(shelfId) &&
-					!isStallEra(get().era.id) &&
-					getShelfFixtureTier(upgradeLevel + 1, get().era.id) > getShelfFixtureTier(upgradeLevel, get().era.id);
+				// "Evoluções com recompensa" (Lucas 01/11): paid now, the evolution crew works on it and the tier (capacity,
+				// places, bonuses, the exclusive product) applies when the timer ends. Meanwhile the fixture keeps selling.
+				const toTier = getCapacityTier(upgradeLevel + 1);
 				set({
 					coins: currency === "coins" ? coins - nextUpgrade.coinCost : coins,
 					logistics:
@@ -4522,17 +4559,83 @@ export const useGameStore = create<GameStore>()(
 										logistics.premiumCurrency - nextUpgrade.diamondCost,
 								}
 							: logistics,
-					shelfUpgradeLevels: {
-						...shelfUpgradeLevels,
-						[shelfId]: upgradeLevel + 1,
-					},
-					// "Seu móvel evoluiu!": the new look gets its own little celebration.
-					...(evolves
-						? { celebrations: pushCelebration(get().celebrations, "tier", `shelf:${shelfId}:${upgradeLevel + 2}`) }
-						: {}),
+					evolutions: enqueueEvolution(evolutions, {
+						kind: "shelf",
+						targetId: shelfId,
+						toTier,
+						durationMs: getEvolutionDurationMs("shelf", shelfId, toTier),
+					}),
 				});
 
 				return true;
+			},
+			// The evolution crew finished (also while the game was closed): the tier and its rewards apply, the reveal plays
+			// when the player looks at the fixture (Unity, from the "tier" celebration).
+			processFixtureEvolutions: (now = Date.now()) => {
+				const state = get();
+				const done = state.evolutions.filter((item) => item.endsAt <= now);
+				if (done.length === 0) return false;
+				let shelfUpgradeLevels = state.shelfUpgradeLevels;
+				let sectorTiers = state.sectorTiers;
+				let ownedItemIds = state.shop.ownedItemIds;
+				let interior = state.interior;
+				let celebrations = state.celebrations;
+				for (const item of [...done].sort((a, b) => a.endsAt - b.endsAt)) {
+					const at = Math.min(item.endsAt, Date.now());
+					if (item.kind === "shelf") {
+						const level = Math.max(shelfUpgradeLevels[item.targetId] ?? 0, item.toTier - 1);
+						shelfUpgradeLevels = { ...shelfUpgradeLevels, [item.targetId]: level };
+						celebrations = pushCelebration(celebrations, "tier", `shelf:${item.targetId}:${item.toTier}`, at);
+					} else if (item.kind === "sector") {
+						const tier = Math.max(getSectorTier(sectorTiers, item.targetId), item.toTier);
+						sectorTiers = { ...sectorTiers, [item.targetId]: tier };
+						celebrations = pushCelebration(celebrations, "tier", `sector:${item.targetId}:${tier}`, at);
+					} else if (item.kind === "checkout") {
+						if (item.itemId && !ownedItemIds.includes(item.itemId)) ownedItemIds = [...ownedItemIds, item.itemId];
+						celebrations = pushCelebration(celebrations, "tier", `checkout:checkout:${item.toTier}`, at);
+					} else {
+						const tier = Math.max(interior.tiers?.[item.targetId] ?? 1, item.toTier);
+						interior = { ...interior, tiers: { ...interior.tiers, [item.targetId]: tier } };
+						celebrations = pushCelebration(celebrations, "tier", `decor:${item.targetId}:${tier}`, at);
+					}
+				}
+				const next = { ...state, shelfUpgradeLevels, sectorTiers };
+				const rewards = withTierRewards({ ...next, shelfSlotCounts: getCurrentShelfSlotCounts(next) });
+				set({
+					shelfUpgradeLevels,
+					sectorTiers,
+					shop: { ...state.shop, ownedItemIds },
+					interior,
+					celebrations,
+					shelfSlotCounts: rewards.shelfSlotCounts,
+					unlockedShelfSlots: rewards.unlockedShelfSlots,
+					market: { ...state.market, unlockedProductIds: rewards.unlockedProductIds },
+					// The next evolution in the queue starts right away.
+					evolutions: scheduleEvolutions(
+						state.evolutions.filter((item) => item.endsAt > now),
+						Math.min(now, Date.now()),
+					),
+				});
+				return true;
+			},
+			finishEvolutionNow: (evolutionId) => {
+				const { evolutions, logistics } = get();
+				const item = evolutions.find((entry) => entry.id === evolutionId);
+				if (!item) return false;
+				const now = Date.now();
+				const diamondCost = getEvolutionProgress(item, now).skipCost;
+				if (!enoughDiamonds(diamondCost)) return false;
+				set({
+					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - diamondCost },
+					evolutions: evolutions.map((entry) =>
+						entry.id === evolutionId ? { ...entry, startedAt: Math.min(entry.startedAt, now), endsAt: now } : entry,
+					),
+				});
+				return get().processFixtureEvolutions(now);
+			},
+			devFinishEvolutions: () => {
+				if (!__DEV__) return false;
+				return get().processFixtureEvolutions(Number.MAX_SAFE_INTEGER);
 			},
 			};
 		},
@@ -4567,7 +4670,12 @@ export const useGameStore = create<GameStore>()(
 					const state = migrated as Partial<GameState>;
 					migrated = { ...state, lots: migrateDepotLot(state.lots) ?? state.lots };
 				}
-				return migrateGameState(migrated);
+				const normalized = migrateGameState(migrated);
+				// 49: evolutions with rewards (claude/evolucoes-recompensas.md): fixtures and sectors already past T1 get the
+				// places and the exclusive products of their tiers now, with one "Novos produtos liberados" card. Nothing
+				// is lowered; production and stock are untouched.
+				if (version < 49) return withMigratedTierRewards(normalized);
+				return normalized;
 			},
 			name: "checkout.game",
 			// Everything the player built or owns is saved (and goes to the cloud, desktop/cloud.ts). Only diamondShortfall
@@ -4594,6 +4702,7 @@ export const useGameStore = create<GameStore>()(
 				marketExpansionConstruction,
 				interior,
 				interiorConstructions,
+				evolutions,
 				builtSectorIds,
 				sectorTiers,
 				missions,
@@ -4640,6 +4749,7 @@ export const useGameStore = create<GameStore>()(
 				marketExpansionConstruction,
 				interior,
 				interiorConstructions,
+				evolutions,
 				builtSectorIds,
 				sectorTiers,
 				missions,
@@ -4685,7 +4795,9 @@ export const useGameStore = create<GameStore>()(
 			// 48: "Evoluções dos móveis": tiers are derived (shelfUpgradeLevels, shop items), nothing is lost. migrateGameState
 			// gives the stations of "Cestinhas de Mão"/"Carrinhos Grandes" to place (withCartStations), the register step
 			// to the minimercado on and to who had the conveyor/scanner (withCheckoutRegister); interior.tiers is new.
-			version: 48,
+			// 49: evolutions take time (evolutions: the evolution crew's queue) and give rewards; old saves get the places and
+			// exclusive products of the tiers they have (withMigratedTierRewards).
+			version: 49,
 		},
 	),
 );
@@ -4703,7 +4815,7 @@ useGameStore.subscribe((state) => {
 function normalizeShelfState(
 	shelfStock: GameShelfStock,
 	inventory: GameInventory,
-	shelfUpgradeLevels: GameShelfUpgradeLevels,
+	tiers: Pick<GameState, "shelfUpgradeLevels" | "sectorTiers">,
 	shelfSlotCounts: GameShelfSlotCounts,
 	shelfAssignments: GameShelfAssignments,
 ) {
@@ -4726,9 +4838,7 @@ function normalizeShelfState(
 			continue;
 		}
 
-		const capacity = getShelfCapacity(
-			shelfUpgradeLevels[getPhysicalShelfId(shelf.id)],
-		);
+		const capacity = getSlotCapacity(tiers, shelf.id);
 
 		if (shelfQuantity <= capacity) {
 			continue;
@@ -4801,7 +4911,8 @@ function getRestockCandidates(state: GameState): RestockCandidate[] {
 		return [
 			{
 				available: state.inventory[productId] ?? 0,
-				capacity: getShelfCapacity(state.shelfUpgradeLevels[shelfId]),
+				capacity: getSlotCapacity(state, slot.id),
+				restockBonus: getFixtureRestockBonus(state, shelfId),
 				category: product.category,
 				productId,
 				productName: product.name,
@@ -4939,7 +5050,8 @@ function getDayForecastFor(state: GameState): DayForecast {
 					100,
 					product.demand *
 						turn.necessityMultiplier(product.category) *
-						getSlotPositionFactor(shelf.id),
+						getSlotPositionFactor(shelf.id) *
+						(1 + getFixtureAttraction(state, getPhysicalShelfId(shelf.id))),
 				),
 				productId: product.id,
 				promotionRate: 0,

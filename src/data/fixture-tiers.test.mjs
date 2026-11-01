@@ -13,6 +13,7 @@ import {
 	getEraFixtureTierCap,
 	getFixtureTierTemplate,
 	getShelfFixtureTier,
+	getSectorBatchOutput,
 	getSectorSlotCount,
 	getSectorTierDefinition,
 	getSectorTierPrice,
@@ -66,8 +67,8 @@ test("each shop caps the furniture size: Conveniência/Quitanda T2, Minimercado 
 	expect(canBuyCapacityTier(1, "minimercado")).toBe(true);
 	expect(canBuyCapacityTier(2, "minimercado")).toBe(false);
 	expect(canBuyCapacityTier(3, "supermercado")).toBe(true);
-	// product places by size
-	expect([1, 2, 3, 4, 5].map(getTierSlotLimit)).toEqual([5, 6, 7, 7, 7]);
+	// product places come with the tier (claude/evolucoes-recompensas.md): T1 4 … ★ 8
+	expect([1, 2, 3, 4, 5].map(getTierSlotLimit)).toEqual([4, 5, 6, 7, 8]);
 });
 
 test("checkout steps: register, conveyor (+ scanner), premium; the minimercado on starts at the register", () => {
@@ -153,8 +154,11 @@ test("sector steps: prices by shop size, slots, time and price", () => {
 	expect(getSectorTierPrice(4, "rede")).toBeNull();
 	expect(getSectorSlotCount(2, {}, "padaria")).toBe(2);
 	expect(getSectorSlotCount(2, { padaria: 2 }, "padaria")).toBe(3);
-	expect(getSectorSlotCount(3, { padaria: 3 }, "padaria")).toBe(4);
-	expect(getSectorTierDefinition(3)).toMatchObject({ width: 4, depth: 3.25, durationMultiplier: 0.8, priceMultiplier: 1.1 });
-	expect(getSectorTierDefinition(1)).toMatchObject({ width: 2.5, depth: 2, durationMultiplier: 1, priceMultiplier: 1 });
+	expect(getSectorSlotCount(3, { padaria: 3 }, "padaria")).toBe(5);
+	expect(getSectorTierDefinition(3)).toMatchObject({ width: 4, depth: 3.5, durationMultiplier: 0.7, priceMultiplier: 1.1, outputMultiplier: 1.5, counterPlaces: 6, counterUnits: 10 });
+	expect(getSectorTierDefinition(2)).toMatchObject({ durationMultiplier: 0.85, outputMultiplier: 1.25, counterPlaces: 5, counterUnits: 5 });
+	expect(getSectorTierDefinition(1)).toMatchObject({ width: 2.5, depth: 3.25, durationMultiplier: 1, priceMultiplier: 1 });
+	expect([1, 2, 3].map((tier) => getSectorBatchOutput(4, tier))).toEqual([4, 5, 6]);
+	expect([1, 2, 3].map((tier) => getSectorBatchOutput(3, tier))).toEqual([3, 4, 5]);
 	expect(normalizeSectorTiers({ padaria: 9, adega: 1, x: 2 }, ["padaria", "adega"])).toEqual({ padaria: 3 });
 });

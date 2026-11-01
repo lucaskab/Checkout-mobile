@@ -19,7 +19,7 @@ namespace Checkout {
   public string QaFixture;
 
   static readonly Vector2 Mid=new Vector2(.5f,.5f);
-  const int MaxLanes=7,MaxUnitsPerBox=12;
+  const int MaxLanes=8,MaxUnitsPerBox=12;
   const float PourStep=.07f,ComboWindow=2.5f,IdleHint=5f,ColdSeconds=12f,ColdRefillSeconds=30f;
 
   CheckoutBridge bridge;RectTransform root,stage;GameObject window,hint,toast;TextMeshProUGUI title;Image backdrop;
@@ -63,7 +63,7 @@ namespace Checkout {
   bool OtherGameOpen=>(CheckoutSupplierShop.Instance&&CheckoutSupplierShop.Instance.IsOpen)||(CheckoutCounterGame.Instance&&CheckoutCounterGame.Instance.IsOpen)||(CheckoutIncidents.Instance&&CheckoutIncidents.Instance.IsOpen)||(CheckoutStockroom.Instance&&CheckoutStockroom.Instance.IsOpen)||(CheckoutReceivingGame.Instance&&CheckoutReceivingGame.Instance.IsOpen)||(CheckoutPackingGame.Instance&&CheckoutPackingGame.Instance.IsOpen);
 
   // ------------------------------------------------------------------ fixtures and lanes
-  // Lane number from the slot id: "<shelfId>" is lane 0, "<shelfId>:n" is lane n (max 6).
+  // Lane number from the slot id: "<shelfId>" is lane 0, "<shelfId>:n" is lane n (max 7: the 8th place of a ★ fixture).
   static int LaneNumber(RestockSlot s){
    var id=s.slotId??"";int colon=id.LastIndexOf(':');if(colon<0||colon==id.Length-1)return 0;
    return int.TryParse(id.Substring(colon+1),out var n)?Mathf.Clamp(n,0,MaxLanes-1):0;
@@ -197,7 +197,11 @@ namespace Checkout {
 
   // ------------------------------------------------------------------ scene: fixture, lanes, cover, cart
   static int Seed(string s){int h=17;foreach(char c in s??"")h=h*31+c;return h;}
+  // An evolved fixture restocks faster (claude/evolucoes-recompensas.md: −10% T2 … −40% ★): the tape, the pour and
+  // the flights take × (1 − restockBonus).
+  float quick=1;
   void BuildFixture(Group g){
+   quick=1-Mathf.Clamp(g.slots.Count==0?0:g.slots.Max(x=>x.restockBonus),0,.6f);
    QaFixture=g.shelfId;
    float W=stage.rect.width,H=stage.rect.height;
    // Fixture on the left, standing on the floor; the cart on the right (CartWidth); tabs on top.
@@ -210,7 +214,7 @@ namespace Checkout {
    float bottomY=bottom+2,height=(top-bottom)*frac;
    var box=new Vector2(right-left,height);
    var center=new Vector2((left+right)*.5f,bottomY+height*.5f);
-   view=CheckoutFixtureArt.Build(stage,art,g.name,center,box);
+   view=CheckoutFixtureArt.Build(stage,art,g.name,center,box,Mathf.Max(7,g.slots.Count==0?0:g.slots.Max(x=>LaneNumber(x))+1));
    view.root.anchoredPosition=new Vector2(center.x,bottomY+view.root.sizeDelta.y*.5f); // feet on the floor even when width-limited
    Keep(view.root);
    Canvas.ForceUpdateCanvases();
@@ -416,7 +420,7 @@ namespace Checkout {
    if(c.tape)c.tape.fillOrigin=c.peelDir>0?1:0;
    if(!c.curl){PeelTape(c,.02f,c.peelDir);}
    var curl=c.curl;Vector2 cp=curl?curl.rectTransform.anchoredPosition:Vector2.zero;
-   for(float t=0;t<1;t+=Time.unscaledDeltaTime/.22f){
+   for(float t=0;t<1;t+=Time.unscaledDeltaTime/(.22f*quick)){
     if(!c.box)yield break;
     if(c.tape)c.tape.fillAmount=Mathf.Lerp(from,0,t);
     if(curl){var r=curl.rectTransform;float x=c.peelDir>0?Mathf.Lerp(cp.x,c.tapeR.x,t):Mathf.Lerp(cp.x,c.tapeL.x,t);r.anchoredPosition=new Vector2(x,cp.y+t*8);}
@@ -425,7 +429,7 @@ namespace Checkout {
    if(c.tape)c.tape.gameObject.SetActive(false);
    if(curl){
     var r=curl.rectTransform;var p0=r.anchoredPosition;
-    for(float t=0;t<1;t+=Time.unscaledDeltaTime/.45f){
+    for(float t=0;t<1;t+=Time.unscaledDeltaTime/(.45f*quick)){
      if(!curl)break;r.anchoredPosition=p0+new Vector2(c.peelDir*c.size*.5f*t,c.size*.35f*Mathf.Sin(t*Mathf.PI*.6f));
      r.localRotation=Quaternion.Euler(0,0,-c.peelDir*(40+120*t));var col=curl.color;col.a=1-t;curl.color=col;yield return null;
     }
@@ -519,7 +523,7 @@ namespace Checkout {
    }
    for(int i=0;i<n;i++){
     var u=c.pile[c.pile.Count-1];
-    Place(u,lane,i*PourStep);
+    Place(u,lane,i*PourStep*quick);
    }
    if(c.pile.Count>0&&c.box)StartCoroutine(U.Move(c.box,c.home,.3f,true));
    return true;
@@ -544,7 +548,7 @@ namespace Checkout {
    Vector2 at=ghost?U.LocalOf(stage,ghost.rectTransform):Vector2.zero;
    if(u.rect){
     u.rect.SetParent(stage,true);u.rect.SetAsLastSibling();Keep(u.rect);
-    yield return U.Move(u.rect,at,.22f,true);
+    yield return U.Move(u.rect,at,.22f*quick,true);
     Destroy(u.rect.gameObject);
    }
    if(ghost){

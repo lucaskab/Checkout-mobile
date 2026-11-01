@@ -7,7 +7,7 @@ import { interiorDecor } from "@/data/interior-decor";
 import { getEraOrder, itemCatalog, itemCategories } from "@/data/market-products";
 import { missions } from "@/data/missions";
 import { productionRecipes, productionSectors } from "@/data/production-sectors";
-import { shelfCapacityUpgrades, shelfSlotUpgrades } from "@/data/shelf-capacity";
+import { shelfCapacityUpgrades } from "@/data/shelf-capacity";
 import { shopItems } from "@/data/shop-items";
 
 // Everything a level opens, for the level-up celebration: levels in (from, to], read from the same tables
@@ -47,7 +47,8 @@ export function getLevelUnlocks(from: number, to: number, eraId: MarketEraId): L
 	const unlocks: LevelUnlock[] = [];
 
 	for (const product of itemCatalog) {
-		if (!inRange(product.unlockLevel) || product.acquisition === "production") continue;
+		// Exclusive products open with an evolution, not with a level.
+		if (!inRange(product.unlockLevel) || product.acquisition === "production" || product.exclusive) continue;
 		unlocks.push({
 			kind: "product",
 			id: String(product.id),
@@ -70,7 +71,8 @@ export function getLevelUnlocks(from: number, to: number, eraId: MarketEraId): L
 		});
 	}
 	for (const recipe of productionRecipes) {
-		if (!inRange(recipe.requiredLevel)) continue;
+		// (exclusive recipes open with the sector's evolution)
+		if (!inRange(recipe.requiredLevel) || (recipe.requiredSectorTier ?? 1) > 1) continue;
 		const output = itemCatalog.find((item) => item.id === recipe.outputProductId);
 		const sector = productionSectors.find((item) => item.id === recipe.sectorId);
 		unlocks.push({
@@ -83,17 +85,7 @@ export function getLevelUnlocks(from: number, to: number, eraId: MarketEraId): L
 			waitingEra: sector && !reached(sector.eraId) ? sector.eraId : undefined,
 		});
 	}
-	// Shelf upgrades bought in Prateleiras: more products per shelf, more units per product.
-	for (const upgrade of shelfSlotUpgrades) {
-		if (!inRange(upgrade.playerLevel)) continue;
-		unlocks.push({
-			kind: "shelf",
-			id: `slots-${upgrade.unlockedSlots}`,
-			name: `Prateleira com ${upgrade.unlockedSlots} espaços`,
-			detail: `Cada prateleira pode expor ${upgrade.unlockedSlots} produtos · ${coins(upgrade.coinCost)} moedas`,
-			level: upgrade.playerLevel,
-		});
-	}
+	// Shelf upgrades bought in Prateleiras: more units per product (places come with the evolutions).
 	for (const upgrade of shelfCapacityUpgrades) {
 		if (upgrade.playerLevel <= 1 || !inRange(upgrade.playerLevel)) continue;
 		unlocks.push({

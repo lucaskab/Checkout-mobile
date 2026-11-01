@@ -126,7 +126,11 @@ test("unlocks complete shelves and expands only the selected shelf", () => {
 	expect(state.shelfSlotCounts.bakery).toBe(4);
 	expect(state.unlockedShelfSlots).toBe(12);
 
-	expect(state.expandShelfSlots("produce")).toBe(true);
+	// A place more comes with the fixture's evolution (claude/evolucoes-recompensas.md), only on that fixture.
+	expect(state.expandShelfSlots("produce")).toBe(false);
+	useGameStore.setState({ coins: 50_000, market: { ...state.market, level: 10 } });
+	expect(useGameStore.getState().upgradeShelfCapacity("produce", "coins")).toBe(true);
+	expect(useGameStore.getState().processFixtureEvolutions(Number.MAX_SAFE_INTEGER)).toBe(true);
 	state = useGameStore.getState();
 	expect(state.shelfSlotCounts.produce).toBe(5);
 	expect(state.shelfSlotCounts.drinks).toBe(4);

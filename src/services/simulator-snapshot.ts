@@ -28,6 +28,8 @@ import {
 	getSectorTierTemplate,
 } from "@/data/fixture-tiers";
 import { getCheckoutTierInfo, getColdRoomInfo, getShelfTierInfo } from "@/services/fixture-tiers";
+import { getFixtureRestockBonus, getSlotCapacity } from "@/services/tier-rewards";
+import { getEvolutionProgress } from "@/data/fixture-evolution";
 import {
 	getMarketExpansionSkipCost,
 	marketExpansions,
@@ -397,6 +399,23 @@ export function createSimulatorSnapshot(
 				skipCost: getInteriorSkipCost(item.pending || queued ? duration : item.endsAt - now),
 			};
 		}),
+		// The evolution crew's queue (claude/evolucoes-recompensas.md): Unity puts the builder and the navy ring with the
+		// time left on the piece (`kind` + `targetId`), and a tap on the ring offers `skipCost` diamonds.
+		evolutions: (state.evolutions ?? []).map((item) => {
+			const progress = getEvolutionProgress(item, now);
+			return {
+				id: item.id,
+				kind: item.kind,
+				targetId: item.targetId,
+				toTier: item.toTier,
+				startedAt: item.startedAt,
+				endsAt: item.endsAt,
+				durationMs: item.durationMs,
+				queued: progress.queued,
+				progress: progress.progress,
+				skipCost: progress.skipCost,
+			};
+		}),
 		ownedItems: state.shop.ownedItemIds,
 		// Every checkout of the market wears the same step; the cold room stands by the depot.
 		fixtureTiers: (() => {
@@ -523,7 +542,7 @@ export function createSimulatorSnapshot(
 		restockSlots: shelves.flatMap((shelf) => {
 			const count = getShelfSlotCount(shelf.id, shelfSlotCounts);
 			if (count <= 0) return [];
-			const capacity = getShelfCapacity(state.shelfUpgradeLevels[shelf.id] ?? 0);
+			const restockBonus = getFixtureRestockBonus(state, shelf.id);
 			return getShelfSlotIds(shelf.id, count).flatMap((slotId) => {
 				const productId = state.shelfAssignments[slotId];
 				const product = productId
@@ -539,9 +558,11 @@ export function createSimulatorSnapshot(
 						productName: product.name,
 						zone: getWarehouseZone(product.category),
 						stock: state.shelfStock[slotId] ?? 0,
-						capacity,
+						capacity: getSlotCapacity(state, slotId),
 						reserve: state.inventory[product.id] ?? 0,
 						caseSize: product.caseSize,
+						// An evolved fixture restocks faster in the mini-game too.
+						restockBonus,
 					},
 				];
 			});

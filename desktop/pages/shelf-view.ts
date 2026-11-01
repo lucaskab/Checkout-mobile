@@ -5,7 +5,6 @@ import { describeFixtureProducts, getFixtureProducts } from "@/data/fixture-prod
 import { getEraOrder, itemCategories, itemCatalog, shelves } from "@/data/market-products";
 import {
 	getNextShelfCapacityUpgrade,
-	getNextShelfSlotUpgrade,
 	getShelfCapacity,
 } from "@/data/shelf-capacity";
 import {
@@ -16,12 +15,14 @@ import {
 	resolveShelfSlotCounts,
 	sectorShelves,
 } from "@/data/shelf-slots";
-import { getFixtureName, getSectorCounter } from "@/data/shelf-types";
+import { getFixtureName, getSectorCounter, getShelfType } from "@/data/shelf-types";
 import { getOrderRemainingTime } from "@/services/logistics";
 import { getProductLevel, getProductUpgradeCost } from "@/services/product-levels";
 import { SLOTS_PER_ROW } from "@/services/shelf-care";
 import { getFixtureTierTemplate } from "@/data/fixture-tiers";
-import { getShelfEvolution, getShelfSlotLimit, getShelfTierInfo } from "@/services/fixture-tiers";
+import { getShelfEvolution, getShelfTierInfo } from "@/services/fixture-tiers";
+import { getSlotCapacity, getTierPlaces } from "@/services/tier-rewards";
+import { evolutionStatus, evolutionTimeText, shelfRewardLines } from "./evolution-kit";
 import {
 	button,
 	decorIcon,
@@ -120,7 +121,7 @@ function slotView(state: State, fixtureId: string, slotId: string, index: number
 		name: "",
 		icon: "",
 		stock: 0,
-		capacity: getShelfCapacity(state.shelfUpgradeLevels[fixtureId]),
+		capacity: getSlotCapacity(state, slotId),
 		reserve: 0,
 		price: 0,
 		minPrice: 0,
@@ -138,10 +139,10 @@ function slotView(state: State, fixtureId: string, slotId: string, index: number
 		unlockLevel: 0,
 	};
 	if (index >= open) {
-		// The next place to open shows the price; the ones after it stay hidden.
-		const next = index === open && open < getShelfSlotLimit(state, fixtureId) ? getNextShelfSlotUpgrade(open) : null;
-		return next
-			? { ...empty, state: "locked", unlockCost: next.coinCost, unlockLevel: next.playerLevel }
+		// The next place comes with the next evolution (claude/evolucoes-recompensas.md): shown locked, no price.
+		const nextPlaces = getTierPlaces({ ...state, shelfUpgradeLevels: { ...state.shelfUpgradeLevels, [fixtureId]: (state.shelfUpgradeLevels[fixtureId] ?? 0) + 1 } }, fixtureId);
+		return index === open && nextPlaces > open && !!getShelfType(fixtureId)
+			? { ...empty, state: "locked", unlockCost: 0, unlockLevel: 0 }
 			: { ...empty, state: "hidden" };
 	}
 	const product = itemCatalog.find((item) => item.id === state.shelfAssignments[slotId]);
@@ -180,6 +181,7 @@ function slotView(state: State, fixtureId: string, slotId: string, index: number
 function evolutionFields(state: State, fixtureId: string) {
 	const info = getShelfTierInfo(state, fixtureId);
 	const next = getShelfEvolution(state, fixtureId);
+	const evolving = evolutionStatus(state, "shelf", fixtureId);
 	return {
 		tier: info?.tier ?? 0,
 		tierName: info && info.tier > 0 ? info.name : "",
@@ -191,6 +193,17 @@ function evolutionFields(state: State, fixtureId: string) {
 		nextDepth: next?.to.depth ?? 0,
 		nextTemplate: next && info ? getFixtureTierTemplate(info.kind, next.toTier) : "",
 		blockedNote: next?.blockedUntil ? `Disponível no ${next.blockedUntil}` : "",
+		// The evolution: what it gives, how long it takes, and how the crew's work is going.
+		rewards: next && !evolving
+			? shelfRewardLines(fixtureId, Math.max(1, next.fromTier), next.toTier, getShelfCapacity(state.shelfUpgradeLevels[fixtureId]), next.upgrade.capacity)
+			: [],
+		evolveTime: next ? evolutionTimeText("shelf", fixtureId, next.toTier) : "",
+		evolving: !!evolving,
+		evolutionId: evolving?.evolution.id ?? "",
+		evolvingLine: evolving?.line ?? "",
+		evolvingEndsAt: evolving ? evolving.evolution.endsAt : 0,
+		evolvingTotal: evolving ? evolving.evolution.durationMs : 0,
+		skipCost: evolving?.skipCost ?? 0,
 	};
 }
 
@@ -216,8 +229,6 @@ export function shelfViewPage(state: State, requested: string): Page {
 			price: product.sellingPrice,
 			profit: product.sellingPrice - product.purchasePrice,
 		}));
-	// A small fixture has room for fewer products: the next place opens with the next tier.
-	const slotUpgrade = open < getShelfSlotLimit(state, fixtureId) ? getNextShelfSlotUpgrade(open) : null;
 	const capacityUpgrade = getNextShelfCapacityUpgrade(state.shelfUpgradeLevels[fixtureId]);
 	const accepts = describeFixtureProducts(fixtureId, state.market.unlockedProductIds);
 	const shelf: ShelfView = {
@@ -236,9 +247,10 @@ export function shelfViewPage(state: State, requested: string): Page {
 		rowTop: `${kind.top} · vende mais`,
 		rowBottom: `${kind.bottom} · vende menos`,
 		slotCount: open,
-		expandCost: slotUpgrade?.coinCost ?? 0,
-		expandLevel: slotUpgrade?.playerLevel ?? 0,
-		capacity: getShelfCapacity(state.shelfUpgradeLevels[fixtureId]),
+		// Places come with the evolution: nothing to buy apart any more.
+		expandCost: 0,
+		expandLevel: 0,
+		capacity: getSlotCapacity(state, fixtureId),
 		capacityNext: capacityUpgrade?.capacity ?? 0,
 		capacityCost: capacityUpgrade?.coinCost ?? 0,
 		capacityLevel: capacityUpgrade?.playerLevel ?? 0,

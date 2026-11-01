@@ -116,6 +116,84 @@ R={
 }
 SECTOR={101:'padaria',102:'padaria',103:'padaria',104:'queijaria',105:'queijaria',106:'queijaria',107:'acougue',108:'acougue',109:'acougue',110:'peixaria',111:'peixaria',112:'peixaria',113:'bebidas',114:'bebidas',115:'bebidas',116:'sorvetes',117:'sorvetes',118:'sorvetes',119:'adega',120:'adega',121:'adega'}
 SLUG={101:'baguete-rustica',102:'croissant-premium',103:'bolo-de-vitrine',104:'queijo-minas',105:'brie-maturado',106:'tabua-de-queijos',107:'hamburguer-artesanal',108:'corte-dry-aged',109:'kit-churrasco',110:'file-de-peixe',111:'sushi-especial',112:'barco-de-frutos-do-mar',113:'suco-gelado',114:'cha-gelado',115:'vitamina-cremosa',116:'sorvete-creme',117:'sundae-chocolate',118:'pote-sorvete-familia',119:'vinho-da-casa',120:'sangria-da-casa',121:'kit-harmonizacao'}
+# Exclusive products of the fixture evolutions (claude/evolucoes-recompensas.md, Lucas 01/11): one per tier step of
+# each product fixture, sold only on that fixture once it reaches the tier. Prices in reais like S; the selling price
+# is set from the best markup of the normal goods that fixture sells at that stage, a bit better (EXCLUSIVE_EDGE).
+# id,name,category,shelf,tier,buy,demand,pop,preferred
+X=[
+(122,'Morango','hortifruti','produce',2,7,66,68,['familia','premium']),
+(123,'Abacate','hortifruti','produce',3,6,58,60,['normal','premium']),
+(124,'Cogumelos frescos','hortifruti','produce',4,10,46,52,['premium','normal']),
+(125,'Frutas exóticas','hortifruti','produce',5,18,38,48,['premium']),
+(126,'Água de coco','bebidas','drinks',2,4,72,70,['normal','impulsivo']),
+(127,'Kombucha','bebidas','drinks',3,9,44,52,['premium','impulsivo']),
+(128,'Cerveja artesanal','alcoolicos','drinks',4,9,58,62,['normal','premium']),
+(129,'Espumante rosé','alcoolicos','drinks',5,35,30,42,['premium']),
+(130,'Bisnaguinha','padaria','bakery',2,6,74,72,['familia','economico']),
+(131,'Pão integral','padaria','bakery',3,7,60,60,['familia','premium']),
+(132,'Pão de fermentação natural','padaria','bakery',4,14,44,52,['premium','normal']),
+(133,'Brioche amanteigado','padaria','bakery',5,16,40,50,['premium','impulsivo']),
+(134,'Requeijão','laticinios','dairy',2,6,76,74,['familia','normal']),
+(135,'Iogurte grego','laticinios','dairy',3,8,58,60,['premium','normal']),
+(136,'Gorgonzola','queijos','dairy',4,20,36,46,['premium']),
+(137,'Salame italiano','frios','dairy',5,22,40,48,['premium','normal']),
+(138,'Pipoca doce','doces','snacks',2,4,74,72,['impulsivo','familia']),
+(139,'Brigadeiro gourmet','doces','snacks',3,9,60,64,['impulsivo','premium']),
+(140,'Macarons','doces','snacks',4,18,38,50,['premium','impulsivo']),
+(141,'Bombons belgas','chocolates','snacks',5,30,30,44,['premium']),
+(142,'Molho de tomate','mercearia','coffee',2,4,78,74,['familia','economico']),
+(143,'Azeite extravirgem','mercearia','coffee',3,25,52,56,['premium','familia']),
+(144,'Café em cápsulas','mercearia','coffee',4,20,50,58,['premium','normal']),
+(145,'Azeite trufado','mercearia','coffee',5,45,24,38,['premium']),
+(146,'Sabonete','higiene','home',2,3,80,72,['familia','economico']),
+(147,'Amaciante','limpeza','home',3,12,66,62,['familia','normal']),
+(148,'Perfume','higiene','home',4,60,28,42,['premium']),
+(149,'Kit spa','higiene','home',5,70,22,38,['premium']),
+(150,'Nuggets','congelados','pizza',2,12,72,72,['familia','impulsivo']),
+(151,'Polpa de fruta','congelados','pizza',3,6,58,58,['familia','normal']),
+(152,'Risoto congelado','congelados','pizza',4,20,40,50,['premium','normal']),
+(153,'Pizza napolitana','congelados','pizza',5,30,44,54,['premium','familia']),
+(154,'Picolé de frutas','sorvetes','icecream',2,3,80,74,['impulsivo','familia']),
+(155,'Açaí na tigela','sorvetes','icecream',3,10,62,66,['impulsivo','premium']),
+(156,'Picolé gourmet','sorvetes','icecream',4,7,52,58,['premium','impulsivo']),
+(157,'Bolo de sorvete','sorvetes','icecream',5,35,30,44,['familia','premium']),
+]
+# Exclusive recipes of the sector evolutions (T2, T3): ingredients the player already sells at that stage.
+# id,name,category,sector,tier,demand,pop,preferred
+XP=[
+(158,'Pão de queijo','padaria','padaria',2,74,72,['familia','impulsivo']),
+(159,'Torta de morango','doces','padaria',3,40,50,['premium','familia']),
+(160,'Burrata','queijos','queijaria',2,46,54,['premium','normal']),
+(161,'Queijo canastra maturado','queijos','queijaria',3,32,44,['premium']),
+(162,'Linguiça artesanal','carnes','acougue',2,66,66,['familia','normal']),
+(163,'Picanha wagyu','carnes','acougue',3,22,36,['premium']),
+(164,'Limonada suíça','bebidas','bebidas',2,70,68,['impulsivo','familia']),
+(165,'Smoothie de açaí','bebidas','bebidas',3,48,56,['premium','impulsivo']),
+(166,'Ceviche','peixes','peixaria',2,42,50,['premium','impulsivo']),
+(167,'Lagosta grelhada','peixes','peixaria',3,18,32,['premium']),
+(168,'Milkshake','sorvetes','sorvetes',2,70,70,['impulsivo','familia']),
+(169,'Gelato de pistache','sorvetes','sorvetes',3,40,50,['premium','impulsivo']),
+(170,'Vinho rosé da casa','alcoolicos','adega',2,42,48,['premium','normal']),
+(171,'Espumante da casa','alcoolicos','adega',3,28,40,['premium']),
+]
+R.update({
+158:([(6,1),(5,1),(50,1),(43,1)],6,3),
+159:([(43,2),(7,1),(53,1),(5,1),(50,1)],2,8),
+160:([(5,4),(8,1)],2,5),
+161:([(5,5),(6,1)],2,15),
+162:([(57,2),(27,1)],5,6),
+163:([(27,4)],2,20),
+164:([(53,1),(21,2),(5,1)],3,3),
+165:([(46,2),(8,1),(62,2)],3,7),
+166:([(44,2),(1,1)],3,6),
+167:([(45,3),(7,1)],2,20),
+168:([(5,2),(116,1)],3,4),
+169:([(5,3),(53,2),(7,1)],2,12),
+170:([(62,5),(53,1)],3,8),
+171:([(62,6),(53,2)],2,25),
+})
+for pid,_,_,sec,_,_,_,_ in XP: SECTOR[pid]=sec
+SLUG.update({158:'pao-de-queijo',159:'torta-de-morango',160:'burrata',161:'queijo-canastra',162:'linguica-artesanal',163:'picanha-wagyu',164:'limonada-suica',165:'smoothie-de-acai',166:'ceviche',167:'lagosta-grelhada',168:'milkshake',169:'gelato-de-pistache',170:'vinho-rose-da-casa',171:'espumante-da-casa'})
 CRAFT_MARKUP=1.4
 # Coins per real: the list above is in reais; the game sells at about twice that.
 PRICE_SCALE=2
@@ -128,10 +206,26 @@ def craft(pid):
     price[pid]=(math.ceil(buy/q), round(sell*CRAFT_MARKUP/q))
     return price[pid]
 for p in P: craft(p[0])
+# Exclusive recipes earn a little more than the sector's normal ones.
+EXCLUSIVE_CRAFT_MARKUP=1.55
+def craft_x(pid):
+    ing,q,_=R[pid]
+    buy=sum(craft(i)[0]*n for i,n in ing); sell=sum(craft(i)[1]*n for i,n in ing)
+    price[pid]=(math.ceil(buy/q), round(sell*EXCLUSIVE_CRAFT_MARKUP/q))
+for p in XP: craft_x(p[0])
+# Exclusive fixture goods: the stage a tier opens (T2 from the start, T3 minimercado, T4 mercadinho, ★ supermercado,
+# never before the fixture itself) and the best markup of the normal goods that fixture sells by then, +12%.
+SHELF_CATS={'produce':['hortifruti','organicos','ovos'],'drinks':['bebidas','refrigerantes','aguas','energeticos','alcoolicos'],'bakery':['padaria','doces'],'dairy':['laticinios','queijos','frios'],'snacks':['doces','chocolates','bolachas','sazonais'],'coffee':['mercearia','massas','ovos'],'pizza':['congelados'],'home':['higiene','limpeza','pets','bebes','papelaria','eletronicos'],'icecream':['sorvetes']}
+SHELF_ERA={'produce':'mesinha','drinks':'mesinha','bakery':'tenda','dairy':'banca','snacks':'conteiner','coffee':'spati','pizza':'quitanda','home':'minimercado','icecream':'supermercado'}
+TIER_ERA={2:'mesinha',3:'minimercado',4:'mercadinho',5:'supermercado'}
+EXCLUSIVE_EDGE=1.12
+def stage_era(shelf,tier): return E[max(E.index(SHELF_ERA[shelf]),E.index(TIER_ERA[tier]))]
 def rarity(sell):
     return 'comum' if sell<=10 else 'incomum' if sell<=25 else 'raro' if sell<=60 else 'epico' if sell<=130 else 'lendario'
 def xp(sell): return max(1,round(0.5+0.5*math.sqrt(sell)))
 rows=[]
+SECTOR_ERA={'padaria':'mercadinho','queijaria':'supermercado','acougue':'supermercado','bebidas':'supermercado','peixaria':'hipermercado','sorvetes':'hipermercado','adega':'hipermercado'}
+SECTOR_LEVEL_X={'padaria':18,'queijaria':24,'acougue':25,'bebidas':26,'peixaria':33,'sorvetes':36,'adega':38}
 def lvl(tier,k):
     base=BASE[tier]; top=BASE[tier+1]-1 if tier+1<len(BASE) else base+4
     return min(max(base,top), base+k//4)
@@ -199,18 +293,43 @@ SCHEDULE={
 # Level of each production sector (it opens with its first recipe).
 SECTOR_LEVEL={'padaria':18,'queijaria':24,'acougue':25,'bebidas':26,'peixaria':33,'sorvetes':36,'adega':38}
 for r in rows:
-    r['era']=E[r['tier']]
+    r['era']=r.get('era_fixed') or E[r['tier']]
     if r['id'] in SCHEDULE: r['era'],r['level']=SCHEDULE[r['id']]
+def markup_by(shelf,era,cat):
+    # the best markup of the normal goods of the same kind (category) on that fixture by then; any of the fixture's
+    # goods when it has none of that kind yet
+    same=[r for r in rows if r['acq']=='supplier' and not r.get('exclusive') and r['category']==cat and E.index(r['era'])<=E.index(era)]
+    if not same: same=[r for r in rows if r['acq']=='supplier' and not r.get('exclusive') and r['category'] in SHELF_CATS[shelf] and E.index(r['era'])<=E.index(era)]
+    best=0.0
+    for r in same:
+        best=max(best,(r['sell']-r['buy'])/r['buy'])
+    return best
+for x in X:
+    pid,name,cat,shelf,tier,buy,dem,pop,pref=x
+    era=stage_era(shelf,tier)
+    b=buy*PRICE_SCALE
+    sl=math.ceil(b*(1+markup_by(shelf,era,cat)*EXCLUSIVE_EDGE))
+    price[pid]=(b,sl)
+    rows.append(dict(id=pid,name=name,category=cat,tier=E.index(era),buy=b,sell=sl,demand=dem,popularity=pop,pref=pref,acq='supplier',level=BASE[E.index(era)],exclusive=(shelf,tier),era_fixed=era,era=era))
+for x in XP:
+    pid,name,cat,sec,tier,dem,pop,pref=x
+    b,sl=price[pid]
+    # never before its ingredients (Lucas: recipes use what the player already has)
+    ing_ids={i for i,_ in R[pid][0]}
+    xlevel=max([SECTOR_LEVEL_X[sec]]+[r['level'] for r in rows if r['id'] in ing_ids])
+    rows.append(dict(id=pid,name=name,category=cat,tier=E.index(SECTOR_ERA[sec]),buy=b,sell=sl,demand=dem,popularity=pop,pref=pref,acq='production',level=xlevel,exclusive=(sec,tier),era_fixed=SECTOR_ERA[sec],era=SECTOR_ERA[sec]))
 rows.sort(key=lambda r:(r['acq']=='production',r['level'],E.index(r['era'])))
 lv={r['id']:r['level'] for r in rows}
 rec=[]
+XTIER={x[0]:x[4] for x in XP}
 for pid,(ing,q,mins) in R.items():
     ings=', '.join('{ productId: %d, quantity: %d }'%(i,n) for i,n in ing)
-    rec.append('\t{ id: "%s", sectorId: "%s", outputProductId: %d, outputQuantity: %d, durationMs: %d * MINUTE, requiredLevel: %d, ingredients: [%s] },'%(SLUG[pid],SECTOR[pid],pid,q,mins,lv[pid],ings))
+    xt=XTIER.get(pid)
+    rec.append('\t{ id: "%s", sectorId: "%s", outputProductId: %d, outputQuantity: %d, durationMs: %d * MINUTE, requiredLevel: %d, ingredients: [%s]%s },'%(SLUG[pid],SECTOR[pid],pid,q,mins,lv[pid],ings,(', requiredSectorTier: %d'%xt) if xt else ''))
 out=[]
 for r in rows:
     out.append('\t{ id: %d, name: "%s", category: "%s", unlockEra: "%s", unlockLevel: %d, purchasePrice: %d, sellingPrice: %d, rarity: "%s", demand: %d, popularity: %d, preferredCustomers: %s, xpPerSale: %d%s },' % (
-        r['id'],r['name'],r['category'],r['era'],r['level'],r['buy'],r['sell'],rarity(r['sell']/PRICE_SCALE),r['demand'],r['popularity'],json.dumps(r['pref']),xp(r['sell']), ', acquisition: "production"' if r['acq']=='production' else ''))
+        r['id'],r['name'],r['category'],r['era'],r['level'],r['buy'],r['sell'],rarity(r['sell']/PRICE_SCALE),r['demand'],r['popularity'],json.dumps(r['pref']),xp(r['sell']), (', acquisition: "production"' if r['acq']=='production' else '')+((', exclusive: { fixture: "%s", tier: %d }'%r['exclusive']) if r.get('exclusive') else '')))
 if '--write' in sys.argv:
     import os
     here=os.path.dirname(os.path.abspath(__file__)); repo=os.path.dirname(os.path.dirname(here))

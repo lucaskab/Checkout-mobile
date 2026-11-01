@@ -20,6 +20,8 @@ beforeEach(() => useGameStore.setState(JSON.parse(initial)));
 afterAll(() => useGameStore.setState(JSON.parse(initial)));
 const store = () => useGameStore.getState();
 const snapshot = () => createSimulatorSnapshot(store(), "test", 1);
+// Evolutions take time now (claude/evolucoes-recompensas.md): the crew finishes them all.
+const finish = () => store().processFixtureEvolutions(Number.MAX_SAFE_INTEGER);
 const rich = () => useGameStore.setState({ coins: 10_000_000, logistics: { ...store().logistics, premiumCurrency: 10_000 } });
 
 test("a v47 save keeps every coin, upgrade, piece and box; old items become their stations and steps", async () => {
@@ -69,7 +71,11 @@ test("shelves evolve with the capacity steps, capped by the shop's size", () => 
 	store().setMarketLevel(30);
 	store().devSetMarketEra("spati");
 	expect(getShelfTierInfo(store(), "produce")).toMatchObject({ tier: 1, template: "produce_T1", width: 1 });
-	expect(store().upgradeShelfCapacity("produce", "coins")).toBe(true); // T2
+	expect(store().upgradeShelfCapacity("produce", "coins")).toBe(true); // T2: paid, the crew starts
+	expect(getShelfTierInfo(store(), "produce").tier).toBe(1); // still selling with the old look
+	expect(store().evolutions).toMatchObject([{ kind: "shelf", targetId: "produce", toTier: 2, durationMs: 120_000 }]);
+	expect(store().upgradeShelfCapacity("produce", "coins")).toBe(false); // one evolution per piece at a time
+	finish();
 	expect(getShelfTierInfo(store(), "produce")).toMatchObject({ tier: 2, name: "Banca inclinada de madeira" });
 	expect(store().celebrations.at(-1)).toMatchObject({ kind: "tier", targetId: "shelf:produce:2" });
 	// the Conveniência has no room for T3
@@ -77,24 +83,28 @@ test("shelves evolve with the capacity steps, capped by the shop's size", () => 
 	expect(store().upgradeShelfCapacity("produce", "coins")).toBe(false);
 	store().devSetMarketEra("minimercado");
 	expect(store().upgradeShelfCapacity("produce", "diamonds")).toBe(true); // T3
+	finish();
 	expect(getShelfTierInfo(store(), "produce").tier).toBe(3);
 	// at the stalls the crates of the model stay (T0) but the numbers may still grow up to T2
 	store().devSetMarketEra("banca");
 	expect(getShelfTierInfo(store(), "drinks").tier).toBe(0);
 	expect(store().upgradeShelfCapacity("drinks", "coins")).toBe(true);
+	finish();
 	expect(store().upgradeShelfCapacity("drinks", "coins")).toBe(false);
 });
 
-test("product places are limited by the fixture's size (T1 5, T2 6, then 7)", () => {
+test("product places come free with the tier (T1 4 … ★ 8); nothing to buy apart", () => {
 	rich();
 	store().setMarketLevel(30);
 	store().devSetMarketEra("spati");
-	expect(getShelfSlotLimit(store(), "produce")).toBe(5);
-	expect(store().expandShelfSlots("produce")).toBe(true); // 5
-	expect(store().expandShelfSlots("produce")).toBe(false); // 6 needs T2
+	expect(getShelfSlotLimit(store(), "produce")).toBe(4);
+	expect(store().shelfSlotCounts.produce).toBe(4);
+	expect(store().expandShelfSlots("produce")).toBe(false); // "Mais um produto" is gone
 	expect(store().upgradeShelfCapacity("produce", "coins")).toBe(true);
-	expect(store().expandShelfSlots("produce")).toBe(true); // 6
-	expect(store().expandShelfSlots("produce")).toBe(false); // 7 needs T3 (Minimercado)
+	expect(store().shelfSlotCounts.produce).toBe(4); // the place comes when the evolution ends
+	finish();
+	expect(store().shelfSlotCounts.produce).toBe(5);
+	expect(getShelfSlotLimit(store(), "produce")).toBe(5);
 });
 
 test("the cold room caps the boxes of chilled products only; its tiers are built outside the depot", () => {
@@ -136,15 +146,21 @@ test("checkout steps are bought in order, from the shop that has room for them",
 	store().devSetMarketEra("spati");
 	expect(store().purchaseShopItem("smart-conveyor", "coins")).toBe(false);
 	expect(store().purchaseShopItem("checkout-register", "diamonds")).toBe(true);
+	expect(snapshot().fixtureTiers.checkout).toBe(1); // the crew takes 5 min
+	expect(snapshot().evolutions).toMatchObject([{ kind: "checkout", targetId: "checkout", toTier: 2 }]);
+	finish();
 	expect(snapshot().fixtureTiers.checkout).toBe(2);
 	expect(store().purchaseShopItem("smart-conveyor", "coins")).toBe(false); // needs a placed checkout (minimercado)
 	store().devSetMarketEra("minimercado");
 	expect(store().purchaseShopItem("smart-conveyor", "coins")).toBe(true);
+	finish();
 	expect(store().purchaseShopItem("checkout-premium", "coins")).toBe(false); // scanner first
 	expect(store().purchaseShopItem("auto-scanner", "coins")).toBe(true);
+	finish();
 	expect(store().purchaseShopItem("checkout-premium", "coins")).toBe(false); // supermarket
 	store().devSetMarketEra("supermercado");
 	expect(store().purchaseShopItem("checkout-premium", "coins")).toBe(true);
+	finish();
 	expect(snapshot().fixtureTiers).toMatchObject({ checkout: 4, checkoutTemplate: "checkout_T4" });
 });
 
@@ -190,13 +206,16 @@ test("ATM, gumball and claw machine evolve every piece of their kind", () => {
 	expect(store().upgradeDecorTier("atm")).toBe(false); // none owned
 	expect(store().purchaseDecor("atm")).toBe(true);
 	expect(store().upgradeDecorTier("atm")).toBe(true);
+	finish();
 	expect(store().interior.tiers.atm).toBe(2);
 	const placed = { ...store().interior, items: [{ id: "decor-1", type: "atm", x: 0, z: 0, rot: 0 }] };
 	expect(getDecorEffects(placed).budgetMultiplier).toBeCloseTo(1.2);
 	expect(store().upgradeDecorTier("atm")).toBe(true);
+	finish();
 	expect(store().upgradeDecorTier("atm")).toBe(false); // T3 is the last
 	expect(store().purchaseDecor("gumball")).toBe(true);
 	expect(store().upgradeDecorTier("gumball")).toBe(true);
+	finish();
 	expect(store().upgradeDecorTier("gumball")).toBe(false); // no tower: two tiers
 	const machines = getDecorEffects({ ...store().interior, items: [{ id: "g", type: "gumball", x: 0, z: 0, rot: 0 }] }).machines;
 	expect(machines[0].coins).toBe(3); // 2 × 1.5
@@ -204,6 +223,7 @@ test("ATM, gumball and claw machine evolve every piece of their kind", () => {
 	expect(store().purchaseDecor("claw-machine")).toBe(true);
 	expect(store().upgradeDecorTier("claw-machine")).toBe(true);
 	expect(store().logistics.premiumCurrency).toBe(diamonds - 25 - 30);
+	finish();
 	expect(snapshot().interior.tiers.find((t) => t.type === "claw-machine")).toMatchObject({ tier: 2, template: "claw_T2" });
 });
 
@@ -225,12 +245,16 @@ test("special sectors: built ones are T1; T2 adds a line, T3 cuts the time and s
 	const coins = store().coins;
 	expect(store().upgradeSectorTier("padaria")).toBe(true);
 	expect(store().coins).toBe(coins - 30_000); // the Supermercado's price
+	expect(store().evolutions).toMatchObject([{ kind: "sector", targetId: "padaria", toTier: 2, durationMs: 30 * 60_000 }]);
+	expect(snapshot().sectors.find((s) => s.id === "padaria").tier).toBe(1); // keeps producing as T1 meanwhile
+	finish();
 	expect(store().celebrations.at(-1)).toMatchObject({ kind: "tier", targetId: "sector:padaria:2" });
 	expect(store().production.jobs).toEqual([job]);
 	expect(snapshot().sectors.find((s) => s.id === "padaria")).toMatchObject({ tier: 2, tierTemplate: "sector-padaria_T2" });
 	const diamonds = store().logistics.premiumCurrency;
 	expect(store().upgradeSectorTier("padaria", "diamonds")).toBe(true);
 	expect(store().logistics.premiumCurrency).toBe(diamonds - 80);
+	finish();
 	expect(store().upgradeSectorTier("padaria")).toBe(false); // T3 is the last
 	// saved and loaded again: the tier stays, unknown ids are dropped
 	const saved = await useGameStore.persist.getOptions().migrate({ ...JSON.parse(JSON.stringify(store())), sectorTiers: { padaria: 3, nope: 2 } }, 48);

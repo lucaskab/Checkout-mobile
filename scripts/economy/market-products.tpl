@@ -1,6 +1,7 @@
 import type { MarketEraId } from "@/@types/economy";
 import type { ItemDefinition, ItemRarity } from "@/@types/item";
 import type { StoreShelf } from "@/@types/store";
+import { getCaseSize } from "@/data/case-sizes";
 import { getFixturesForCategory, shelfTypes } from "@/data/shelf-types";
 
 // The whole catalog of the game, from the tomato on the sidewalk table to the champagne of the chain.
@@ -69,6 +70,7 @@ type CatalogSeed = Pick<
 	unlockEra: MarketEraId;
 	unlockLevel: number;
 	xpPerSale?: number;
+	exclusive?: ItemDefinition["exclusive"];
 };
 
 const raritySettings: Record<
@@ -138,14 +140,24 @@ function createItem(seed: CatalogSeed): ItemDefinition {
 		shelfId: getDefaultShelfId(seed.category),
 		shelfSpace: seed.rarity === "luxo" || seed.rarity === "colecionavel" ? 2 : 1,
 		spoilChance: perishable ? 0.04 + (100 - demand) / 2500 : 0,
-		supplierQuantity: 1,
+		caseSize: getCaseSize({ id: seed.id, category: seed.category }),
 		supplierTime: getSupplierTime(seed.unlockLevel, seed.sellingPrice - seed.purchasePrice),
 		suggestedPrice: seed.sellingPrice,
 		unlockEra: seed.unlockEra,
 		unlockLevel: seed.unlockLevel,
 		visualAttractiveness: rarity.visualAttractiveness,
-		xpPerSale: seed.xpPerSale ?? rarity.xpPerSale,
+		...(seed.exclusive ? { exclusive: seed.exclusive } : {}),
+		xpPerSale: withSaleXpBoost(seed.xpPerSale ?? rarity.xpPerSale),
 	};
+}
+
+/**
+ * Selling felt slow to level up (Lucas 15/10: "dá pra aumentar bem pouquinho"): every product gives a little more XP
+ * per unit sold, +1 for the cheap ones and about +15 % for the rest (2→3, 3→4, 7→8, 12→14, 20→23…). Applied here so
+ * the sheet values stay as they are and every sale path (register, window, delivery) and screen agree.
+ */
+export function withSaleXpBoost(xp: number) {
+	return xp + Math.max(1, Math.round(xp * 0.15));
 }
 
 // Generated from the balance sheet (scripts/economy/catalog.py): edit there and regenerate, or edit here
@@ -210,7 +222,8 @@ export function getEraOrder(eraId: MarketEraId) {
 export function getUnlockedProductIds(level: number, eraId?: MarketEraId) {
 	const eraIndex = eraId ? getEraOrder(eraId) : eraOrder.length;
 	return itemCatalog
-		.filter((product) => product.unlockLevel <= level && getEraOrder(product.unlockEra) <= eraIndex)
+		// (the evolutions' exclusive goods open with the fixture's tier, not the level: src/services/tier-rewards.ts)
+		.filter((product) => !product.exclusive && product.unlockLevel <= level && getEraOrder(product.unlockEra) <= eraIndex)
 		.map((product) => product.id);
 }
 

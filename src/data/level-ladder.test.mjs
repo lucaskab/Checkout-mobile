@@ -32,7 +32,7 @@ test("on the sidewalk table the first levels open things that can be used right 
 test("products open one to three per level, not in heaps", () => {
 	const perLevel = {};
 	for (const product of itemCatalog)
-		if (product.acquisition !== "production" && product.unlockLevel > 1)
+		if (product.acquisition !== "production" && !product.exclusive && product.unlockLevel > 1)
 			perLevel[product.unlockLevel] = (perLevel[product.unlockLevel] ?? 0) + 1;
 	expect(Math.max(...Object.values(perLevel))).toBeLessThanOrEqual(3);
 });

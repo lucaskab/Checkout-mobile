@@ -4,11 +4,21 @@ import { getShopItemIcon } from "@/data/game-icon-assets";
 import { getMarketLot } from "@/data/market-lots";
 import { itemCatalog } from "@/data/market-products";
 import { getProductionSector, productionRecipes, productionSectors } from "@/data/production-sectors";
-import { getFixtureName, shelfTypes } from "@/data/shelf-types";
+import { getFixtureName, getSectorCounterFor, shelfTypes } from "@/data/shelf-types";
 import { shopItems } from "@/data/shop-items";
 import { getLotClearExperience, getMissingLots } from "@/services/market-lots";
-import { decorIcon, fmt, gameIcon, type State } from "./view-kit";
-import { decorTiers, getFixtureTierDefinition, getSectorSlotCount, getSectorTierDefinition } from "@/data/fixture-tiers";
+import { decorIcon, fmt, gameIcon, productIcon, type State } from "./view-kit";
+import {
+	decorTiers,
+	fixtureTierAttraction,
+	fixtureTierPlaces,
+	fixtureTierRestock,
+	getFixtureTierDefinition,
+	getFixtureTierTemplate,
+	getSectorTierDefinition,
+	getSectorTierTemplate,
+} from "@/data/fixture-tiers";
+import { getExclusiveProductFor } from "@/services/tier-rewards";
 import { getShelfCapacity } from "@/data/shelf-capacity";
 import { getShelfFixtureKind } from "@/services/fixture-tiers";
 
@@ -37,10 +47,29 @@ export type CelebrationView = {
 	route: string;
 	/** Lot to fly over and light up (lot celebrations only). */
 	lotId: string;
+	/** Evolutions: numbers counting up, the products opened (NOVO) and the reveal Unity plays on the piece first. */
+	stats: CelebrationStat[];
+	products: CelebrationProduct[];
+	reveal: CelebrationReveal;
 };
 
-function view(celebration: GameCelebration, fields: Omit<CelebrationView, "key" | "id" | "kind" | "lotId"> & { lotId?: string }) {
-	return { key: celebration.id, id: celebration.id, kind: celebration.kind, lotId: "", ...fields } satisfies CelebrationView;
+const noReveal: CelebrationReveal = { kind: "", targetId: "", tier: 0, template: "", chips: [] };
+
+function view(
+	celebration: GameCelebration,
+	fields: Omit<CelebrationView, "key" | "id" | "kind" | "lotId" | "stats" | "products" | "reveal"> &
+		Partial<Pick<CelebrationView, "lotId" | "stats" | "products" | "reveal">>,
+) {
+	return {
+		key: celebration.id,
+		id: celebration.id,
+		kind: celebration.kind,
+		lotId: "",
+		stats: [],
+		products: [],
+		reveal: noReveal,
+		...fields,
+	} satisfies CelebrationView;
 }
 
 function lotView(state: State, celebration: GameCelebration): CelebrationView | null {
@@ -147,43 +176,129 @@ function shopView(celebration: GameCelebration): CelebrationView | null {
 	});
 }
 
-/** "Seu móvel evoluiu!": a fixture or a machine took its next look (targetId "shelf:<id>:<tier>" / "decor:<id>:<tier>"). */
+/** A number of the evolution card that counts up from `from` to `to` ("Por produto 10 → 15"). */
+export type CelebrationStat = { icon: string; label: string; from: number; to: number; suffix: string };
+/** A product the evolution opened (the card shows it with a NOVO badge). */
+export type CelebrationProduct = { productId: number; name: string; icon: string };
+/** Unity's reveal on the piece itself before the card (camera, cloth, pop, confetti, chips). */
+export type CelebrationReveal = {
+	/** shelf | sector | checkout | decor | coldroom ("" = no reveal, e.g. the old-save products card). */
+	kind: string;
+	targetId: string;
+	tier: number;
+	/** Unity template of the new model (Resources/CheckoutFixtureTiers). */
+	template: string;
+	/** The floating chips over the piece ("+5 por produto", "+1 lugar", "NOVO: Morango"). */
+	chips: string[];
+};
+
+const pct = (value: number) => Math.round(value * 100);
+
+function productEntry(productId: number): CelebrationProduct | null {
+	const product = itemCatalog.find((item) => item.id === productId);
+	return product ? { productId, name: product.name, icon: productIcon(productId) } : null;
+}
+
+/** "Seu móvel evoluiu!": the end of an evolution ("shelf:<id>:<tier>", "sector:…", "checkout:checkout:<tier>",
+ * "decor:<id>:<tier>", "coldroom:coldroom:<tier>") or, on an old save, the products its tiers opened ("unlocks:<ids>"). */
 function tierView(state: State, celebration: GameCelebration): CelebrationView | null {
 	const [group, id, tierText] = celebration.targetId.split(":");
 	const tier = Number(tierText);
+	if (group === "unlocks") {
+		const products = id.split(",").map(Number).map(productEntry).filter((item): item is CelebrationProduct => !!item);
+		if (!products.length) return null;
+		return view(celebration, {
+			headline: "NOVOS PRODUTOS LIBERADOS!",
+			title: products.length === 1 ? products[0].name : `${products.length} produtos exclusivos`,
+			subtitle: "Seus móveis e setores evoluídos agora vendem produtos que só eles têm.",
+			icon: gameIcon("gift"),
+			tint: "1D2B4F",
+			chips: [],
+			products,
+			button: "Ver produtos",
+			route: "!products",
+		});
+	}
 	if (group === "shelf") {
 		const kind = getShelfFixtureKind(id);
 		if (!kind) return null;
 		const definition = getFixtureTierDefinition(kind, tier);
-		const capacity = getShelfCapacity(Math.max(0, tier - 1));
+		const capacityFrom = getShelfCapacity(Math.max(0, tier - 2));
+		const capacityTo = getShelfCapacity(Math.max(0, tier - 1));
+		const placesFrom = fixtureTierPlaces[Math.max(1, tier - 1)] ?? 4;
+		const placesTo = fixtureTierPlaces[tier] ?? placesFrom;
+		const exclusive = getExclusiveProductFor(id, tier);
+		const stats: CelebrationStat[] = [
+			{ icon: gameIcon("package"), label: "Por produto", from: capacityFrom, to: capacityTo, suffix: "" },
+			{ icon: gameIcon("shelf"), label: "Lugares", from: placesFrom, to: placesTo, suffix: "" },
+			{ icon: gameIcon("cart"), label: "Clientes", from: pct(fixtureTierAttraction[tier - 1] ?? 0), to: pct(fixtureTierAttraction[tier] ?? 0), suffix: "%" },
+			{ icon: gameIcon("forklift"), label: "Reposição", from: pct(fixtureTierRestock[tier - 1] ?? 0), to: pct(fixtureTierRestock[tier] ?? 0), suffix: "%" },
+		];
+		const chips = [
+			`+${capacityTo - capacityFrom} por produto`,
+			...(placesTo > placesFrom ? [`+${placesTo - placesFrom} lugar`] : []),
+			...(exclusive ? [`NOVO: ${exclusive.name}`] : []),
+		];
 		return view(celebration, {
 			headline: "SEU MÓVEL EVOLUIU!",
 			title: definition.name,
-			subtitle: `${getFixtureName(id, state.era.id)}: novo visual e mais espaço para os produtos.`,
+			subtitle: `${getFixtureName(id, state.era.id)}: novo visual, mais lugares e mais clientes.`,
 			icon: gameIcon("shelf"),
 			tint: "1D2B4F",
-			chips: [
-				{ icon: gameIcon("package"), text: `${capacity} por produto` },
-				{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` },
-			],
-			button: "",
-			route: "",
+			chips: [],
+			stats,
+			products: exclusive ? [productEntry(exclusive.id)].filter((item): item is CelebrationProduct => !!item) : [],
+			reveal: { kind: "shelf", targetId: id, tier, template: getFixtureTierTemplate(kind, Math.min(4, tier)), chips },
+			button: exclusive ? "Colocar à venda" : "Ver móvel",
+			route: `shelf:${id}`,
 		});
 	}
 	if (group === "sector") {
 		const sector = getProductionSector(id);
 		if (!sector) return null;
+		const before = getSectorTierDefinition(Math.max(1, tier - 1));
 		const definition = getSectorTierDefinition(tier);
+		const exclusive = getExclusiveProductFor(id, tier);
+		const counter = getSectorCounterFor(id);
+		const stats: CelebrationStat[] = [
+			{ icon: gameIcon("conveyor"), label: "Linhas", from: sector.slotCount + before.extraSlots, to: sector.slotCount + definition.extraSlots, suffix: "" },
+			{ icon: gameIcon("lightning"), label: "Mais rápido", from: pct(1 - before.durationMultiplier), to: pct(1 - definition.durationMultiplier), suffix: "%" },
+			{ icon: gameIcon("package"), label: "Rende por lote", from: pct(before.outputMultiplier - 1), to: pct(definition.outputMultiplier - 1), suffix: "%" },
+			{ icon: gameIcon("shelf"), label: "Balcão", from: before.counterPlaces, to: definition.counterPlaces, suffix: "" },
+		];
+		const chips = [
+			...(definition.extraSlots > before.extraSlots ? [`+${definition.extraSlots - before.extraSlots} linha`] : []),
+			`+${pct(definition.outputMultiplier - before.outputMultiplier)}% por lote`,
+			...(exclusive ? [`NOVO: ${exclusive.name}`] : []),
+		];
 		return view(celebration, {
 			headline: "SEU SETOR EVOLUIU!",
 			title: `${sector.name} · ${definition.name}`,
-			subtitle: tier >= 3 ? "Produção 20% mais rápida e produtos 10% mais valiosos." : "Mais uma linha de produção.",
+			subtitle:
+				tier >= 3
+					? "Produção 30% mais rápida, lotes maiores e produtos 10% mais valiosos."
+					: "Mais uma linha, produção 15% mais rápida e lotes maiores.",
 			icon: gameIcon("conveyor"),
 			tint: "1D2B4F",
-			chips: [
-				{ icon: gameIcon("conveyor"), text: `${getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id)} linhas` },
-				{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` },
-			],
+			chips: [],
+			stats,
+			products: exclusive ? [productEntry(exclusive.id)].filter((item): item is CelebrationProduct => !!item) : [],
+			reveal: { kind: "sector", targetId: id, tier, template: getSectorTierTemplate(id, tier), chips },
+			button: exclusive ? "Produzir" : counter ? "Ver balcão" : "",
+			route: exclusive ? `sector:${id}` : counter ? `shelf:${counter.id}` : "",
+		});
+	}
+	if (group === "checkout" || group === "coldroom") {
+		const kind = group === "checkout" ? "checkout" : "coldroom";
+		const definition = getFixtureTierDefinition(kind, tier);
+		return view(celebration, {
+			headline: group === "checkout" ? "SEU CAIXA EVOLUIU!" : "SUA CÂMARA FRIA EVOLUIU!",
+			title: definition.name,
+			subtitle: group === "checkout" ? "Todos os caixas do mercado ganharam o novo visual." : "Mais espaço para os produtos gelados no depósito.",
+			icon: gameIcon(group === "checkout" ? "calculator" : "warehouse"),
+			tint: "1D2B4F",
+			chips: [{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` }],
+			reveal: { kind, targetId: kind, tier, template: getFixtureTierTemplate(kind, tier), chips: [] },
 			button: "",
 			route: "",
 		});
@@ -198,6 +313,7 @@ function tierView(state: State, celebration: GameCelebration): CelebrationView |
 		icon: decorIcon(id),
 		tint: "1D2B4F",
 		chips: [{ icon: gameIcon("shelf"), text: `${fmtMetres(definition.width)} × ${fmtMetres(definition.depth)} m` }],
+		reveal: { kind: "decor", targetId: id, tier, template: `${id}_T${tier}`, chips: [] },
 		button: "",
 		route: "",
 	});

@@ -6,7 +6,6 @@ import type {
 import {
 	maximumShelfCount,
 	maximumShelfSlots,
-	maximumSlotsPerShelf,
 	productsPerShelf,
 } from "@/data/shelf-slots";
 import { shelfTypes } from "@/data/shelf-types";
@@ -35,42 +34,13 @@ export function getNextShelfCapacityUpgrade(upgradeLevel = 0) {
 	return shelfCapacityUpgrades[upgradeLevel + 1] ?? null;
 }
 
-export const shelfSlotUpgrades: ShelfSlotUpgrade[] = [
-	{ coinCost: 600, playerLevel: 3, unlockedSlots: 5 },
-	{ coinCost: 2_500, playerLevel: 6, unlockedSlots: 6 },
-	{ coinCost: 9_000, playerLevel: 10, unlockedSlots: 7 },
-];
-const lastShelfSlotUpgrade = shelfSlotUpgrades.at(-1);
-
-export function getNextShelfSlotUpgrade(unlockedSlots: number) {
-	const nextUnlockedSlots = unlockedSlots + 1;
-	const configuredUpgrade = shelfSlotUpgrades.find(
-		(upgrade) => upgrade.unlockedSlots === nextUnlockedSlots,
-	);
-
-	if (configuredUpgrade) {
-		return configuredUpgrade;
-	}
-
-	if (
-		!lastShelfSlotUpgrade ||
-		nextUnlockedSlots > maximumSlotsPerShelf ||
-		unlockedSlots < lastShelfSlotUpgrade.unlockedSlots
-	) {
-		return null;
-	}
-
-	const progressionStep =
-		nextUnlockedSlots - lastShelfSlotUpgrade.unlockedSlots;
-
-	return {
-		coinCost:
-			Math.round(
-				(lastShelfSlotUpgrade.coinCost * 1.8 ** progressionStep) / 100,
-			) * 100,
-		playerLevel: lastShelfSlotUpgrade.playerLevel + progressionStep * 4,
-		unlockedSlots: nextUnlockedSlots,
-	} satisfies ShelfSlotUpgrade;
+/**
+ * Places for products are no longer bought one by one: they come with the fixture's evolution (T1 4 … ★ 8,
+ * src/data/fixture-tiers.ts fixtureTierPlaces; claude/evolucoes-recompensas.md, Lucas 01/11). Kept for the old
+ * mobile screens, which then show no "expand" button.
+ */
+export function getNextShelfSlotUpgrade(_unlockedSlots: number): ShelfSlotUpgrade | null {
+	return null;
 }
 
 /**

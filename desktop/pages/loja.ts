@@ -27,7 +27,9 @@ import {
 	type State,
 } from "../view-kit";
 import { buildCard, placeButton, shelfThumb } from "./build-cards";
+import { evolutionSkipButton, evolutionStatus, evolutionTimeText } from "./evolution-kit";
 import {
+	checkoutItemTiers,
 	checkoutTierItemIds,
 	coldRoomTierItemIds,
 	decorTiers,
@@ -118,15 +120,28 @@ function checkoutEvolutionCard(state: State): Card {
 	const current = info.scanner && info.visualTier === 3 ? `${info.name} e leitor` : info.name;
 	if (!next)
 		return card("Caixa", { eyebrow: "NO MÁXIMO", icon: decorIcon("checkout"), tone: "success", subtitle: `Seus caixas: ${current}.` });
+	// The evolution crew takes 5 min / 20 min / 1 h; meanwhile the checkouts keep working with the old look.
+	const evolving = evolutionStatus(state, "checkout", "checkout");
+	if (evolving)
+		return card(`Evoluindo o caixa: ${next.name}`, {
+			eyebrow: "EVOLUINDO",
+			icon: decorIcon("checkout"),
+			tone: "featured",
+			subtitle: evolving.line,
+			lines: [`Agora: ${current}`, "Os caixas continuam atendendo enquanto a equipe trabalha."],
+			buttons: [evolutionSkipButton(state, evolving)],
+		});
 	const lock = shopItemLock(state, next.id);
+	const tier = checkoutItemTiers[next.id];
+	const time = tier ? evolutionTimeText("checkout", "checkout", tier) : "";
 	return card(`Evoluir o caixa: ${next.name}`, {
 		eyebrow: lock ? "BLOQUEADO" : "EVOLUÇÃO",
 		icon: decorIcon("checkout"),
 		tone: lock ? "locked" : "featured",
-		badge: `Nv ${next.level}`,
+		badge: time || `Nv ${next.level}`,
 		subtitle: next.description,
-		lines: [`Agora: ${current}`],
-		buttons: priceButtons(state, next.id, lock, "Seu caixa evoluiu!"),
+		lines: [`Agora: ${current}`, ...(time ? [`Fica pronto em ${time}`] : [])],
+		buttons: priceButtons(state, next.id, lock, tier ? "A equipe de evolução começou a obra!" : "Seu caixa evoluiu!"),
 	});
 }
 
@@ -278,13 +293,19 @@ function decoracao(state: State, sub: string) {
 			const tierLocked = !!nextTier && state.market.level < nextTier.requiredLevel;
 			const tierDiamonds = !!nextTier && !nextTier.coinPrice;
 			const tierPrice = (tierDiamonds ? nextTier?.diamondPrice : nextTier?.coinPrice) ?? 0;
+			const evolving = evolutionStatus(state, "decor", decor.id);
+			const evolveTime = nextTier ? evolutionTimeText("decor", decor.id, tier + 1) : "";
 			return card(tier > 1 ? decorTiers[decor.id][tier - 1].name : decor.name, {
 				eyebrow: locked ? (eraLock ? "BLOQUEADO" : `NÍVEL ${decor.requiredLevel}`) : "", // the zone is the selected chip above
 				icon: decorIcon(decor.id),
 				tone: locked ? "locked" : owned > 0 ? "success" : "",
 				badge: owned > 0 ? `x${owned}` : "",
 				subtitle: decor.description,
-				lines: nextTier ? [`Próximo visual: ${nextTier.name}`] : [],
+				lines: evolving
+					? [evolving.line]
+					: nextTier
+						? [`Próximo visual: ${nextTier.name}${evolveTime ? ` · fica pronto em ${evolveTime}` : ""}`]
+						: [],
 				buttons: [
 					act(locked ? lockLabel : fmt(price), "purchaseDecor", [decor.id, useDiamonds ? "diamonds" : "coins"], {
 						variant: useDiamonds ? "gem" : "coin",
@@ -293,13 +314,15 @@ function decoracao(state: State, sub: string) {
 						ok: `${decor.name} comprado! Coloque no modo construir.`,
 						fail: locked ? lockLabel : useDiamonds ? "Diamantes insuficientes" : "Moedas insuficientes",
 					}),
-					...(nextTier
+					...(evolving
+						? [evolutionSkipButton(state, evolving)]
+						: nextTier
 						? [
 								act(tierLocked ? `Nível ${nextTier.requiredLevel}` : `Evoluir · ${fmt(tierPrice)}`, "upgradeDecorTier", [decor.id, tierDiamonds ? "diamonds" : "coins"], {
 									variant: tierDiamonds ? "gem" : "coin",
 									icon: tierLocked ? "" : gameIcon(tierDiamonds ? "diamond" : "coin"),
 									enabled: !tierLocked && (tierDiamonds || coins >= tierPrice),
-									ok: "Seu móvel evoluiu!",
+									ok: "A equipe de evolução começou a obra!",
 									fail: tierLocked ? `Nível ${nextTier.requiredLevel}` : tierDiamonds ? "Diamantes insuficientes" : "Moedas insuficientes",
 								}),
 							]

@@ -86,6 +86,7 @@ const hudActions: (keyof GameActions)[] = [
 	"devSpawnDeliveryOffer",
 	"devFinishMarketExpansion",
 	"devFinishInteriorConstructions",
+	"devFinishEvolutions",
 	"devTriggerIncident",
 	"devWearShelf",
 	"dismissOfflineSummary",
@@ -103,10 +104,10 @@ const hudActions: (keyof GameActions)[] = [
 	"buyLot",
 	"clearLot",
 	"finishLotClearingNow",
-	"expandShelfSlots",
 	"finishMarketEraNow",
 	"finishMarketExpansionNow",
 	"finishInteriorConstructionNow",
+	"finishEvolutionNow",
 	"finishProductionNow",
 	"fixIncident",
 	"grantCurrencyPurchase",
@@ -464,6 +465,8 @@ setInterval(() => {
 	store().processLotClearing();
 	// Shelves, sectors and fixtures being built inside the market open on the same clock.
 	store().processInteriorConstructions();
+	// Evolutions end on the evolution crew's clock (it kept running while the game was closed).
+	store().processFixtureEvolutions();
 }, 1_000);
 // When a day ends (timer or button) its results open on their own, like the app's sheet.
 let dayPhase = store().day.phase;

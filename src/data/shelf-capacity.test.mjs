@@ -5,12 +5,8 @@ import {
 } from "./shelf-capacity.ts";
 import { maximumShelfCount } from "./shelf-slots.ts";
 
-test("starts each shelf with four slots and keeps slot expansion local", () => {
-	expect(getNextShelfSlotUpgrade(4)).toMatchObject({
-		coinCost: 600,
-		playerLevel: 3,
-		unlockedSlots: 5,
-	});
+test("places for products are not sold apart any more: they come with the evolution", () => {
+	expect(getNextShelfSlotUpgrade(4)).toBeNull();
 	expect(getNextShelfSlotUpgrade(7)).toBeNull();
 });
 

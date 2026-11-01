@@ -8,7 +8,7 @@ export const sectorShelves = sectorCounters.map((counter) => ({ id: counter.id a
 export const allFixtures = [...shelves, ...sectorShelves];
 
 export const productsPerShelf = 4;
-export const maximumSlotsPerShelf = 7;
+export const maximumSlotsPerShelf = 8;
 export const maximumShelfCount = shelves.length;
 export const maximumShelfSlots = allFixtures.length * maximumSlotsPerShelf;
 

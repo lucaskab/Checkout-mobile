@@ -120,6 +120,8 @@ export type RestockCandidate = {
 	shelfId: string;
 	slotId: string;
 	stock: number;
+	/** Evolved fixtures restock faster: the trip takes × (1 − this) (src/services/tier-rewards.ts). */
+	restockBonus?: number;
 };
 
 export type StaffPlanInput = {
@@ -221,7 +223,11 @@ export function planStaffTasks(input: StaffPlanInput): StaffPlan {
 		const task: StaffTask = {
 			box,
 			employeeId: employee.id,
-			endsAt: input.now + Math.round(getRestockTripMs(employee, input.storage) / (input.speedMultiplier ?? 1)),
+			endsAt:
+				input.now +
+				Math.round(
+					(getRestockTripMs(employee, input.storage) * (1 - (slot.restockBonus ?? 0))) / (input.speedMultiplier ?? 1),
+				),
 			id: `tarefa-${nextTaskNumber}`,
 			kind: "restock",
 			productId: slot.productId,

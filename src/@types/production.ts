@@ -19,6 +19,8 @@ export type ProductionRecipe = {
 	outputProductId: number;
 	outputQuantity: number;
 	requiredLevel: number;
+	/** The sector evolution's exclusive recipes: the sector must be at this tier (src/data/fixture-tiers.ts). */
+	requiredSectorTier?: number;
 	sectorId: ProductionSectorId;
 };
 

@@ -25,6 +25,8 @@ import {
 	getShiftSalary,
 } from "@/services/employees";
 import type { Routes } from ".";
+import { evolutionSkipButton, evolutionStatus, evolutionTimeText } from "./evolution-kit";
+import { checkoutItemTiers } from "@/data/fixture-tiers";
 import { getShopItemBuildStatus } from "@/services/interior-construction";
 import { getShopItemPlaceEra } from "@/data/interior-construction";
 import { getShopItemPieceId, hasInteriorRoom, NO_ROOM_REASON } from "@/services/interior-room";
@@ -283,6 +285,20 @@ export const routes: Routes = {
 					],
 				});
 
+			// The checkout's evolution: the evolution crew works on it (the checkouts keep serving meanwhile).
+			const evolving = checkoutItemTiers[item.id] ? evolutionStatus(state, "checkout", "checkout") : null;
+			if (evolving && evolving.evolution.itemId === item.id)
+				return card(item.name, {
+					eyebrow: "EVOLUINDO",
+					icon: gameIcon("hammer"),
+					badge: formatConstructionCountdown(evolving.remainingMs),
+					tone: "warning",
+					progress: evolving.progress,
+					subtitle: "Os caixas continuam atendendo enquanto a equipe de evolução trabalha.",
+					lines: [evolving.line],
+					buttons: [evolutionSkipButton(state, evolving)],
+				});
+
 			// Boosters: buy as many as you like, start one when the market needs it.
 			if (item.isConsumable) {
 				const endsAt = activeBoosts[item.id] ?? 0;
@@ -338,6 +354,7 @@ export const routes: Routes = {
 					...(isOwned ? ["Funcionando no mercado"] : []),
 					...(missingRequired && required ? [`Instale antes: ${required.name}`] : []),
 					...(build && !isOwned ? [`Instalação de ${formatBuildDuration(build.durationMs)}${busy ? " · construtores ocupados" : ""}`] : []),
+					...(!isOwned && checkoutItemTiers[item.id] ? [`Evolução de ${evolutionTimeText("checkout", "checkout", checkoutItemTiers[item.id])}`] : []),
 				],
 				buttons: [
 					act(
@@ -350,7 +367,9 @@ export const routes: Routes = {
 							enabled: !isOwned && !isLocked && canAfford && !busy,
 							ok: build
 								? `Os construtores começaram a instalar ${item.name}.`
-								: `${item.name} foi instalado no mercado.`,
+								: checkoutItemTiers[item.id]
+									? "A equipe de evolução começou a obra!"
+									: `${item.name} foi instalado no mercado.`,
 							fail: busy
 								? "Construtores ocupados com outra obra."
 								: missingRequired && required

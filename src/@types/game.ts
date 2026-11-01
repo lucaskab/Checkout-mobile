@@ -1,4 +1,5 @@
 import type { GameEraState, MarketEraId } from "@/@types/economy";
+import type { FixtureEvolution } from "@/@types/fixture-evolution";
 export type GameInventory = Record<number, number>;
 
 export type GameInventoryCapacityLevels = Record<number, number>;
@@ -218,6 +219,8 @@ export type GameState = {
 	interior: InteriorState;
 	/** Shelves, sectors and fixtures paid for and still being built inside the market. */
 	interiorConstructions: InteriorConstruction[];
+	/** Evolutions paid for and still in the evolution crew's hands (src/data/fixture-evolution.ts). */
+	evolutions: FixtureEvolution[];
 	/** Production sectors already built (the level only lets the player build them). */
 	builtSectorIds: ProductionSectorId[];
 	/** Special sectors evolved past T1 (2 or 3; absent = T1). src/data/fixture-tiers.ts sectorTiers. */
@@ -310,13 +313,19 @@ export type GameActions = {
 	processInteriorConstructions: (now?: number) => boolean;
 	/** DEV: finishes every build inside the market for free. */
 	devFinishInteriorConstructions: () => boolean;
+	/** Applies every evolution whose time has passed (tier, rewards, celebration). */
+	processFixtureEvolutions: (now?: number) => boolean;
+	/** Pays diamonds to finish one evolution (running or queued) right away. */
+	finishEvolutionNow: (evolutionId: string) => boolean;
+	/** DEV: finishes every evolution for free. */
+	devFinishEvolutions: () => boolean;
 	/** Build mode: stores where every piece of furniture stands. */
 	saveInteriorLayout: (items: unknown) => boolean;
 	/** Build mode shop: buys one decoration (it waits in the inventory until placed). */
 	purchaseDecor: (decorId: string, currency?: "coins" | "diamonds") => boolean;
 	/** Evolving decorations (ATM, gumball, claw machine): every piece of the kind takes the next tier. */
 	upgradeDecorTier: (decorId: string, currency?: "coins" | "diamonds") => boolean;
-	/** A built special sector takes its next tier (T2: +1 production slot; T3: −20% time, +10% price). */
+	/** A built special sector takes its next tier (after its evolution time; src/data/fixture-tiers.ts sectorTiers). */
 	upgradeSectorTier: (sectorId: ProductionSectorId, currency?: "coins" | "diamonds") => boolean;
 	/** "Cores do mercado": repaints the market in `primary` + `accent` (hex) for coins or diamonds; classic is free. */
 	applyMarketPaint: (primary: string, accent: string, currency?: MarketPaintCurrency) => boolean;

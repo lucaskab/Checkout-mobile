@@ -6,6 +6,7 @@ import { itemCatalog } from "@/data/market-products";
 import { getProductionSector, getSectorRecipes, productionSectors } from "@/data/production-sectors";
 import { getSectorCounterFor } from "@/data/shelf-types";
 import {
+	getSectorBatchOutput,
 	getSectorSlotCount,
 	getSectorTier,
 	getSectorTierDefinition,
@@ -22,6 +23,7 @@ import {
 } from "@/services/production";
 import { getMaxShelfOrderBoxes, getShelfOrderQuote } from "@/services/shelf-order-quote";
 import type { Routes } from ".";
+import { evolutionSkipButton, evolutionStatus, evolutionTimeText, sectorRewardLines } from "./evolution-kit";
 import {
 	act,
 	type BoardStat,
@@ -229,20 +231,26 @@ function lineTile(state: State, sector: ProductionSector, index: number, job: Pr
 function recipeTile(state: State, sector: ProductionSector, recipe: ProductionRecipe, freeSlot: boolean, multiplier: number, now: number): BoardTile {
 	const product = itemCatalog.find((item) => item.id === recipe.outputProductId);
 	const name = productName(recipe.outputProductId);
-	const locked = state.market.level < recipe.requiredLevel;
+	// Exclusive recipes open with the sector's evolution (T2 / T3).
+	const sectorTier = getSectorTier(state.sectorTiers, sector.id);
+	const tierLocked = sectorTier < (recipe.requiredSectorTier ?? 1);
+	const tierName = tierLocked ? getSectorTierDefinition(recipe.requiredSectorTier ?? 1).name : "";
+	const locked = tierLocked || state.market.level < recipe.requiredLevel;
+	const lockedText = tierLocked ? `Libera ao evoluir o setor para ${tierName}.` : `Libera no nível ${recipe.requiredLevel}.`;
+	const output = getSectorBatchOutput(recipe.outputQuantity, sectorTier);
 	const owned = (id: number) => state.inventory[id] ?? 0;
 	const missing = recipe.ingredients.filter((ingredient) => owned(ingredient.productId) < ingredient.quantity);
 	const have = recipe.ingredients.length - missing.length;
 	const canMake = !locked && missing.length === 0 && freeSlot;
 	const duration = getProductionRemainingTime(now + recipe.durationMs * multiplier, now);
 	const economy = getProductionEconomy(recipe);
-	const make = act(`Fabricar ${recipe.outputQuantity}`, "startProduction", [{ recipeId: recipe.id, sectorId: sector.id }], {
+	const make = act(`Fabricar ${output}`, "startProduction", [{ recipeId: recipe.id, sectorId: sector.id }], {
 		variant: "success",
 		icon: gameIcon("conveyor"),
 		enabled: canMake,
 		ok: `${name} entrou na linha de produção!`,
 		fail: locked
-			? `Libera no nível ${recipe.requiredLevel}.`
+			? lockedText
 			: !freeSlot
 				? "Todas as linhas estão ocupadas."
 				: "Faltam ingredientes.",
@@ -291,10 +299,10 @@ function recipeTile(state: State, sector: ProductionSector, recipe: ProductionRe
 	return tile(recipe.id, name, {
 		group: "RECEITAS",
 		icon: productIcon(recipe.outputProductId),
-		subtitle: `Rende ${recipe.outputQuantity} · ${duration}`,
-		sticker: locked ? `NV ${recipe.requiredLevel}` : canMake || (byHand?.enabled ?? false) ? "PODE FAZER" : missing.length ? "FALTA INGREDIENTE" : "LINHAS CHEIAS",
+		subtitle: tierLocked ? lockedText : `Rende ${output} · ${duration}`,
+		sticker: tierLocked ? tierName.toLocaleUpperCase("pt-BR") : locked ? `NV ${recipe.requiredLevel}` : canMake || (byHand?.enabled ?? false) ? "PODE FAZER" : missing.length ? "FALTA INGREDIENTE" : "LINHAS CHEIAS",
 		tone: locked ? "locked" : canMake ? "success" : missing.length ? "warning" : "",
-		badge: `x${recipe.outputQuantity}`,
+		badge: `x${output}`,
 		fill: locked ? -1 : ratio(have, recipe.ingredients.length),
 		fillText: `Ingredientes ${have}/${recipe.ingredients.length}`,
 		state: locked ? "locked" : canMake ? "ready" : "",
@@ -383,14 +391,17 @@ function slotsOf(state: State, sector: ProductionSector) {
 	return getSectorSlotCount(sector.slotCount, state.sectorTiers, sector.id);
 }
 
-// "Evoluir" the sector's counter: T2 +1 production line, T3 −20% time and +10% on its goods (coins by shop size, or diamonds).
+// "Evoluir" the sector: paid now, the evolution crew takes 30 min (T2) / 2 h (T3) and the sector keeps producing
+// meanwhile (claude/evolucoes-recompensas.md). While it evolves the button finishes it with diamonds.
 function evolveButtons(state: State, sector: ProductionSector): Button[] {
+	const status = evolutionStatus(state, "sector", sector.id);
+	if (status) return [evolutionSkipButton(state, status)];
 	const tier = getSectorTier(state.sectorTiers, sector.id);
 	if (tier >= SECTOR_MAX_TIER) return [];
 	const price = getSectorTierPrice(tier + 1, state.era.id);
 	if (!price) return [];
 	const next = getSectorTierDefinition(tier + 1);
-	const messages = { ok: "Seu setor evoluiu!", fail: "Confira seu nível e saldo." };
+	const messages = { ok: "A equipe de evolução começou a obra!", fail: "Confira seu nível e saldo." };
 	return [
 		act(`Evoluir para ${next.name} · ${fmt(price.coins)}`, "upgradeSectorTier", [sector.id, "coins"], {
 			variant: "coin",
@@ -407,11 +418,15 @@ function evolveButtons(state: State, sector: ProductionSector): Button[] {
 	];
 }
 
-/** What the next step of the sector brings (a stat on its board). */
+/** What the next step of the sector brings, or how its evolution is going (stats on its board). */
 function evolveStat(state: State, sector: ProductionSector): BoardStat[] {
+	const status = evolutionStatus(state, "sector", sector.id);
+	if (status) return [stat(gameIcon("construction"), status.line, `Evoluindo: ${getSectorTierDefinition(status.evolution.toTier).name}`)];
 	const tier = getSectorTier(state.sectorTiers, sector.id);
 	if (tier >= SECTOR_MAX_TIER) return [];
 	const next = getSectorTierDefinition(tier + 1);
-	const gain = next.extraSlots > getSectorTierDefinition(tier).extraSlots ? "+1 linha de produção" : "−20% de tempo e +10% no preço";
-	return [stat(gameIcon("construction"), gain, `Próximo: ${next.name}`)];
+	const time = evolutionTimeText("sector", sector.id, tier + 1);
+	return sectorRewardLines(sector.id, tier, tier + 1).map((line, index) =>
+		stat(gameIcon(index === 0 ? "construction" : "lightning"), line, index === 0 ? `Próximo: ${next.name} · ${time}` : ""),
+	);
 }

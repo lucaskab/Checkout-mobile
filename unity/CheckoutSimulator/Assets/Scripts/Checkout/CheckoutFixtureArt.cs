@@ -22,7 +22,7 @@ namespace Checkout {
  public sealed class FixtureView {
   public string key,kind;                 // kind: "door" (swing), "lid" (slide) or "open"
   public RectTransform root,shadows,products,front,dropArea;
-  public FixtureLane[] lanes=new FixtureLane[7]; // null where the fixture has no lane
+  public FixtureLane[] lanes=new FixtureLane[8]; // null where the fixture has no lane (lane 7: see SplitWidest)
   public RectTransform[] doors=Array.Empty<RectTransform>();public bool[] doorOpen=Array.Empty<bool>();
   public Image[] doorHits=Array.Empty<Image>();
   public Sprite[][] doorFrames=Array.Empty<Sprite[]>();   // swing doors: closed, half open, open (pre-rendered)
@@ -41,6 +41,25 @@ namespace Checkout {
   [Serializable] class JBounds {public JBound[] items;}
 
   const string Dir="Restock/";
+
+  // The art has 7 lanes; an evolved fixture (★) sells 8 products (claude/evolucoes-recompensas.md): the widest lane
+  // (the long bottom shelf on gondolas and fridges) is split in two halves, so every product keeps its own place.
+  static JLane[] Lanes(JFixture d,int laneCount){
+   var src=d.lanes??Array.Empty<JLane>();
+   if(laneCount<=src.Length)return src;
+   var list=new List<JLane>(src);
+   while(list.Count<laneCount){
+    int widest=-1;float best=0;
+    for(int i=0;i<list.Count;i++){var l=list[i];if(l?.fl==null||l.fr==null)continue;float wd=l.fr[0]-l.fl[0];if(wd>best){best=wd;widest=i;}}
+    if(widest<0)break;
+    var a=list[widest];
+    float[] Mid(float[] p,float[] q)=>new[]{(p[0]+q[0])*.5f,(p[1]+q[1])*.5f};
+    var left=new JLane{fl=a.fl,fr=Mid(a.fl,a.fr),bl=a.bl,br=Mid(a.bl,a.br),ppmFront=a.ppmFront,ppmBack=a.ppmBack,height=a.height,door=a.door};
+    var right=new JLane{fl=Mid(a.fl,a.fr),fr=a.fr,bl=Mid(a.bl,a.br),br=a.br,ppmFront=a.ppmFront,ppmBack=a.ppmBack,height=a.height,door=a.door};
+    list[widest]=left;list.Add(right);
+   }
+   return list.ToArray();
+  }
   static readonly Dictionary<string,JFixture> data=new Dictionary<string,JFixture>();
   static JFixture Data(string key){
    if(data.TryGetValue(key,out var d))return d;
@@ -72,7 +91,7 @@ namespace Checkout {
 
   // Builds the fixture as big as fits in `box` (stage pixels), centered at `center` (offset from the
   // parent's center).
-  public static FixtureView Build(RectTransform parent,string key,string displayName,Vector2 center,Vector2 box){
+  public static FixtureView Build(RectTransform parent,string key,string displayName,Vector2 center,Vector2 box,int laneCount=7){
    var d=Data(key);
    float aspect=Aspect(key);float h=Mathf.Min(box.y,box.x/aspect),w=h*aspect;
    var v=new FixtureView{key=key};
@@ -110,8 +129,9 @@ namespace Checkout {
     v.doors[i]=r;v.doorHits[i]=hit;
    }
    // Lanes
-   for(int i=0;i<(d.lanes?.Length??0)&&i<v.lanes.Length;i++){
-    var j=d.lanes[i];
+   var jl=Lanes(d,laneCount);
+   for(int i=0;i<jl.Length&&i<v.lanes.Length;i++){
+    var j=jl[i];if(j==null||j.fl==null)continue;
     var l=new FixtureLane{index=i,fl=P(j.fl),fr=P(j.fr),bl=P(j.bl),br=P(j.br),ppmFront=j.ppmFront*S,ppmBack=j.ppmBack*S,height=j.height};
     // Doors in front of the lane: every door covering at least a quarter of its width.
     var list=new List<int>();float lx0=Mathf.Min(l.fl.x,l.bl.x),lx1=Mathf.Max(l.fr.x,l.br.x);

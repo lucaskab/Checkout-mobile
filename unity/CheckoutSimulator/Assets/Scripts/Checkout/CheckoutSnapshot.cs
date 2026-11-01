@@ -28,7 +28,7 @@ namespace Checkout {
  // Trucks at the dock and the shelf slots the stockroom can refill (src/services/receiving.ts).
  [Serializable] public class DockEntry {public string id,productName,category,zone,orderId;public int productId,quantity,unloaded,boxUnits,boxes,room;public double arrivedAt;}
 [Serializable] public class StockroomEntry {public string productName,category,zone;public int productId,units,caseSize,boxes,capacityBoxes;}
- [Serializable] public class RestockSlot {public string slotId,shelfId,shelfName,productName,zone;public int productId,stock,capacity,reserve,caseSize;}
+ [Serializable] public class RestockSlot {public string slotId,shelfId,shelfName,productName,zone;public int productId,stock,capacity,reserve,caseSize;public float restockBonus;}
  // Store mishaps (src/services/store-incidents.ts).
  [Serializable] public class IncidentEntry {public string id,kind,shelfId,shelfName,productName;public int productId;public double createdAt,fixCost,tagPrice,price;}
  // What the hired stock clerks and cleaners are doing (src/services/staff-work.ts); CheckoutStaff plays it.

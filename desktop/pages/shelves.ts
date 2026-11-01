@@ -1,13 +1,11 @@
 import { getEraOrder, itemCatalog, itemCategories, shelves } from "@/data/market-products";
 import {
 	getNextShelfCapacityUpgrade,
-	getNextShelfSlotUpgrade,
 	getNextShelfUnlockUpgrade,
 	getShelfCapacity,
 } from "@/data/shelf-capacity";
-import { canShelfHold } from "@/data/shelf-categories";
 import { getFixtureName, getShelfType } from "@/data/shelf-types";
-import { describeFixtureProducts } from "@/data/fixture-products";
+import { canFixtureSell, describeFixtureProducts } from "@/data/fixture-products";
 import { getItemIncomeMultiplier, getMarketEra, MAX_ITEM_LEVEL } from "@/data/economy";
 import { getProductLevel, getProductUpgradeCost } from "@/services/product-levels";
 import {
@@ -47,7 +45,9 @@ import type { Routes } from ".";
 import { getNextShelfBuildStatus } from "@/services/interior-construction";
 import { buildCard, shelfThumb } from "./build-cards";
 import { shelfViewPage } from "./shelf-view";
-import { getShelfEvolution, getShelfSlotLimit } from "@/services/fixture-tiers";
+import { getShelfEvolution } from "@/services/fixture-tiers";
+import { getSlotCapacity } from "@/services/tier-rewards";
+import { evolutionSkipButton, evolutionStatus, evolutionTimeText, shelfRewardLines } from "./evolution-kit";
 
 /** 1.5 → "1,5" (the player's decimal comma is applied by the translator for other languages). */
 const fmtMetres = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
@@ -98,27 +98,10 @@ function storePage(state: State) {
 	];
 	const cards: Card[] = fixtures.map((shelf) => {
 		const slotCount = getShelfSlotCount(shelf.id, counts);
-		const slotUpgrade = getNextShelfSlotUpgrade(slotCount);
 		const slotIds = getShelfSlotIds(shelf.id, slotCount);
 		const filled = slotIds.filter((id) => state.shelfAssignments[id]).length;
+		// Places for products come with the fixture's evolution (claude/evolucoes-recompensas.md), not bought apart.
 		const buttons = [go("Gerenciar prateleira", `shelf:${shelf.id}`, { variant: "primary" })];
-		if (slotUpgrade)
-			buttons.push(
-				act(
-					`Expandir slots · Nv. ${slotUpgrade.playerLevel} · ${fmt(slotUpgrade.coinCost)}`,
-					"expandShelfSlots",
-					[shelf.id],
-					{
-						variant: "coin",
-						icon: gameIcon("coin"),
-						enabled:
-							state.market.level >= slotUpgrade.playerLevel &&
-							state.coins >= slotUpgrade.coinCost,
-						ok: "Espaço adicional liberado nesta prateleira.",
-						fail: "Confira seu nível e saldo.",
-					},
-				),
-			);
 		return card(shelfName(shelf.id, state), {
 			icon: gameIcon("shelf"),
 			subtitle: acceptsNow(state, shelf.id),
@@ -141,7 +124,7 @@ function storePage(state: State) {
 // ShelfManagementScreen, "slots" page
 function slotCard(state: State, shelfId: string, slotId: string, index: number) {
 	const product = productOf(state, slotId);
-	const capacity = getShelfCapacity(state.shelfUpgradeLevels[shelfId]);
+	const capacity = getSlotCapacity(state, slotId);
 	if (!product)
 		return card("Que tal algo novo?", {
 			eyebrow: `ESPAÇO ${index + 1}`,
@@ -265,43 +248,38 @@ function shelfPage(state: State, [shelfId = ""]: string[]) {
 		return page(route, shelfName(shelfId, state), [lockedCard], options);
 	}
 	const cards = slotIds.map((slotId, index) => slotCard(state, shelfId, slotId, index));
-	const slotUpgrade = slotCount < getShelfSlotLimit(state, shelfId) ? getNextShelfSlotUpgrade(slotCount) : null;
-	if (slotUpgrade)
-		cards.push(
-			card("Mais espaços nesta prateleira", {
-				icon: gameIcon("shelf"),
-				subtitle: `Aumente esta prateleira para ${slotUpgrade.unlockedSlots} espaços · Nível ${slotUpgrade.playerLevel}`,
-				buttons: [
-					act(`Expandir · ${fmt(slotUpgrade.coinCost)} moedas`, "expandShelfSlots", [shelfId], {
-						variant: "coin",
-						icon: gameIcon("coin"),
-						enabled:
-							state.market.level >= slotUpgrade.playerLevel &&
-							state.coins >= slotUpgrade.coinCost,
-						ok: "Espaço adicional liberado nesta prateleira.",
-						fail: "Confira seu nível e saldo.",
-					}),
-				],
-			}),
-		);
 	const evolution = getShelfEvolution(state, shelfId);
 	const upgrade = getNextShelfCapacityUpgrade(state.shelfUpgradeLevels[shelfId]);
-	if (upgrade) {
+	// While the evolution crew works on it the fixture keeps selling; the card shows the time left and the skip.
+	const evolving = evolutionStatus(state, "shelf", shelfId);
+	if (evolving)
+		cards.push(
+			card(`Evoluindo: ${evolution?.to.name ?? ""}`, {
+				icon: gameIcon("hammer"),
+				subtitle: evolving.line,
+				lines: ["O móvel continua vendendo enquanto a equipe trabalha."],
+				buttons: [evolutionSkipButton(state, evolving)],
+			}),
+		);
+	else if (upgrade) {
 		const levelOk = state.market.level >= upgrade.playerLevel;
 		const blocked = evolution?.blockedUntil ? `Disponível no ${evolution.blockedUntil}` : "";
 		// "Evoluções dos móveis": a capacity step that brings the next model is called "Evoluir".
 		const evolves = !!evolution?.changesLook && evolution.toTier > evolution.fromTier;
 		const messages = {
-			ok: evolves ? "Seu móvel evoluiu!" : "Capacidade ampliada nos quatro espaços!",
+			ok: "A equipe de evolução começou a obra!",
 			fail: blocked || "Confira seu nível e saldo.",
 		};
+		const fromTier = evolution?.fromTier ?? 1;
+		const toTier = evolution?.toTier ?? fromTier;
+		const time = evolutionTimeText("shelf", shelfId, toTier);
 		const verb = evolves ? "Evoluir" : "Ampliar";
 		cards.push(
 			card(evolves && evolution ? `Evoluir: ${evolution.to.name}` : "Mais produtos para vender", {
 				icon: gameIcon("basket"),
-				subtitle: blocked || `Aumente cada espaço para ${upgrade.capacity} unidades · Nível ${upgrade.playerLevel}`,
+				subtitle: blocked || `Nível ${upgrade.playerLevel}${time ? ` · fica pronto em ${time}` : ""}`,
 				lines: [
-					`${getShelfCapacity(state.shelfUpgradeLevels[shelfId])} → ${upgrade.capacity} por produto`,
+					...shelfRewardLines(shelfId, fromTier, toTier, getShelfCapacity(state.shelfUpgradeLevels[shelfId]), upgrade.capacity),
 					...(evolution?.grows ? [`${fmtMetres(evolution.from.width)} → ${fmtMetres(evolution.to.width)} m`] : []),
 				],
 				buttons: [
@@ -337,14 +315,14 @@ function pickerPage(state: State, [shelfId = "", slot = "0", filter = "all"]: st
 	const available = itemCatalog.filter(
 		(product) =>
 			state.market.unlockedProductIds.includes(product.id) &&
-			canShelfHold(shelfId, product.category).ok &&
+			canFixtureSell(shelfId, product).ok &&
 			!Object.entries(state.shelfAssignments).some(
 				([id, assigned]) => assigned === product.id && id !== slotId,
 			),
 	);
 	const categories = [...new Set(available.map((product) => product.category))];
 	const products = available.filter((product) => filter === "all" || product.category === filter);
-	const fits = (product: (typeof products)[number]) => canShelfHold(shelfId, product.category);
+	const fits = (product: (typeof products)[number]) => canFixtureSell(shelfId, product);
 	const cards = products.map((product) =>
 		card(product.name, {
 			icon: productIcon(product.id),

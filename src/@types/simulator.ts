@@ -166,6 +166,7 @@ export type SimulatorSnapshot = {
 		} | null;
 	};
 	builds: SimulatorBuild[];
+	evolutions: SimulatorEvolution[];
 	expansionStates: {
 		id: string;
 		name: string;
@@ -333,6 +334,20 @@ export type SimulatorBuild = {
 	skipCost: number;
 };
 
+/** One evolution of the evolution crew (src/data/fixture-evolution.ts): Unity's builder and ring. */
+export type SimulatorEvolution = {
+	id: string;
+	kind: "shelf" | "sector" | "checkout" | "decor";
+	targetId: string;
+	toTier: number;
+	startedAt: number;
+	endsAt: number;
+	durationMs: number;
+	queued: boolean;
+	progress: number;
+	skipCost: number;
+};
+
 export type SimulatorLayout = {
 	stage: number;
 	widthScale: number;
@@ -463,6 +478,8 @@ export type SimulatorRestockSlot = {
 	reserve: number;
 	/** Units in one supplier box of the product (REPOR boxes come out of the stockroom whole). */
 	caseSize: number;
+	/** Evolved fixtures restock faster: the mini-game's pour and flights take × (1 − this). */
+	restockBonus: number;
 };
 // One job of a stock clerk or cleaner: restock trips carry a box (box) for a shelf or sector counter
 // (shelfId); incident jobs go to a mishap (incidentId, incidentKind) at its shelf.

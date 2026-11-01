@@ -119,6 +119,16 @@ export type ShelfView = {
 	nextTemplate: string;
 	/** The shop is too small for the next step: "Disponível no Minimercado" ("" = can be bought here). */
 	blockedNote: string;
+	/** What the next evolution gives ("+1 lugar para produto", "NOVO: Morango"…) and how long it takes ("10min"). */
+	rewards: string[];
+	evolveTime: string;
+	/** The evolution crew is on it: the fixture keeps selling; `skipCost` diamonds finish it (finishEvolutionNow). */
+	evolving: boolean;
+	evolutionId: string;
+	evolvingLine: string;
+	evolvingEndsAt: number;
+	evolvingTotal: number;
+	skipCost: number;
 	stallNote: string;
 	slots: ShelfSlotView[];
 	picks: ShelfPickView[];

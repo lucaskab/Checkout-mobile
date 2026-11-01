@@ -64,6 +64,11 @@ export type SectorTierDefinition = FixtureTierDefinition & {
 	durationMultiplier: number;
 	/** The sector's goods sell for × this (the customers expect it: quality). */
 	priceMultiplier: number;
+	/** A batch makes × this (rounded up). */
+	outputMultiplier: number;
+	/** Products the sector's counter shows and the units added to each. */
+	counterPlaces: number;
+	counterUnits: number;
 };
 
 /** Price of a sector step in one shop size. */
