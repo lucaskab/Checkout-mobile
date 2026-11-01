@@ -104,8 +104,9 @@ namespace Checkout
         {
             var piece = PieceOf(template);
             if (!piece || !it.root) return false;
+            var at = TierSpot(it, piece);
             var saved = it.piece; it.piece = piece;
-            bool ok = Fits(it, it.root.position, it.rot, out _);
+            bool ok = Fits(it, at, it.rot, out _);
             it.piece = saved;
             return ok;
         }
@@ -122,10 +123,13 @@ namespace Checkout
         void SwapTemplate(Item it, string template)
         {
             if (it.template == template && it.root) return;
+            Vector3? at = it.root ? TierSpot(it, PieceOf(template)) : (Vector3?)null;
             if (it.root) Destroy(it.root.gameObject);
             it.template = template; Build(it);
             if (!it.root) return;
-            Place(it); Dress(it);
+            Place(it);
+            if (at.HasValue) MoveTo(it, at.Value); // (a sector against a wall keeps its back on the wall)
+            Dress(it);
         }
 
         /// <summary>Each tiered piece shows the biggest of its tiers that fits where it stands (never moved).</summary>

@@ -60,6 +60,9 @@ namespace Checkout {
      case "floorprobe": yield return TierFloorProbe(); break;
      case "navprobe": yield return TierNavProbe(); break;
      case "markers": yield return TierMarkerShots(); break;
+     case "flush": yield return TierFlushAudit(); break;
+     case "staff": yield return TierStaffProbe(); break;
+     case "wallshots": yield return TierWallShots(); break;
      default: Note("unknown part " + part); break;
     }
     TierReset();
@@ -529,6 +532,246 @@ namespace Checkout {
     TierReset();
    }
    Note("RESULT tiers markers: PASS shots");
+  }
+
+  // ------------------------------------------------------------------ sector walls: flush against the shop's walls
+  // Every sector at T1–T3 in each shop with sectors, pushed against each wall in each of the four turns the build mode
+  // allows, the way a drag lands it (CheckoutInterior.Snap): how far its wall-side face stays from the wall. Logs one
+  // FLUSH line per try and Logs/ft_flush_audit.txt. (Everything else stands aside meanwhile: only the walls count.)
+  IEnumerator TierFlushAudit() {
+   var lines = new List<string>(); int tries = 0, flushBack = 0, backTries = 0, overlaps = 0; float worstBack = 0;
+   foreach (var stage in new[] { "mercadinho", "supermercado", "hipermercado" }) {
+    int era = System.Array.IndexOf(EraIds, stage);
+    for (int t = 1; t <= 3; t++) {
+     tierPatching = true; tierSector = t; roomEra = era; roomExtras = false; roomKeepInterior = true;
+     yield return GoToStage(stage); yield return Reapply();
+     var inside = CheckoutInterior.Active; if (!inside) continue;
+     var floor = inside.FloorRect; var zone = inside.CheckoutZone;
+     var sectors = inside.items.Values.Where(i => i.root && i.type == "sector").OrderBy(i => i.id).ToList();
+     lines.Add($"== {stage} T{t}: floor {floor} checkout area from x {zone.xMin:0.00}; {sectors.Count} sectors");
+     inside.editing = true;
+     var others = inside.items.Values.Where(i => i.root && !i.ghost).ToList();
+     foreach (var it in sectors) {
+      var keepPos = it.root.position; float keepRot = it.rot;
+      foreach (var o in others) if (o != it) o.ghost = true;
+      var p0 = it.piece;
+      lines.Add($"  {it.id} {it.template}{(it.wantsGrow ? " (wants " + it.desired + ")" : "")}: piece x {p0.min.x:0.000}..{p0.max.x:0.000} z {p0.min.y:0.000}..{p0.max.y:0.000}");
+      foreach (var wall in new[] { "W", "R", "F", "E" }) {
+       foreach (var rot in new[] { 0f, 90f, 180f, 270f }) foreach (var off in new[] { .1f, .24f }) {
+        var f = inside.FootprintAt(it, keepPos, rot);
+        float ex = f.hx * Mathf.Abs(f.ax.x) + f.hz * Mathf.Abs(f.az.x), ez = f.hx * Mathf.Abs(f.ax.y) + f.hz * Mathf.Abs(f.az.y);
+        var offset = new Vector2(keepPos.x, keepPos.z) - f.c;
+        float midX = floor.xMin + (zone.xMin - floor.xMin) * .3f;
+        Vector2 c = wall == "W" ? new Vector2(floor.xMin + ex + off, floor.center.y) : wall == "E" ? new Vector2(floor.xMax - ex - off, floor.center.y)
+         : wall == "R" ? new Vector2(midX, floor.yMax - ez - off) : new Vector2(midX, floor.yMin + ez + off);
+        var desired = new Vector3(c.x + offset.x, keepPos.y, c.y + offset.y);
+        var p = inside.Snap(it, desired, rot, desired);
+        it.rot = rot; inside.MoveTo(it, p);
+        bool fits = inside.Fits(it, it.root.position, rot, out var why);
+        var fp = inside.FootprintOf(it);
+        float fex = fp.hx * Mathf.Abs(fp.ax.x) + fp.hz * Mathf.Abs(fp.az.x), fez = fp.hx * Mathf.Abs(fp.ax.y) + fp.hz * Mathf.Abs(fp.az.y);
+        var rs = it.root.GetComponentsInChildren<Renderer>(); var mb = rs[0].bounds; foreach (var r in rs) mb.Encapsulate(r.bounds);
+        float edge, meshEdge, floorEdge; // along the wall's normal, into the room positive
+        if (wall == "W") { edge = fp.c.x - fex; meshEdge = mb.min.x; floorEdge = floor.xMin; }
+        else if (wall == "E") { edge = -(fp.c.x + fex); meshEdge = -mb.max.x; floorEdge = -floor.xMax; }
+        else if (wall == "R") { edge = -(fp.c.y + fez); meshEdge = -mb.max.z; floorEdge = -floor.yMax; }
+        else { edge = fp.c.y - fez; meshEdge = mb.min.z; floorEdge = floor.yMin; }
+        // which side of the sector faces that wall (its back is local +Z)
+        var toWall = wall == "W" ? Vector3.left : wall == "E" ? Vector3.right : wall == "R" ? Vector3.forward : Vector3.back;
+        var back = Quaternion.Euler(0, rot, 0) * Vector3.forward;
+        string faces = Vector3.Dot(back, toWall) > .9f ? "back" : Vector3.Dot(back, toWall) < -.9f ? "front" : "side";
+        float floorGap = edge - floorEdge, meshInset = meshEdge - edge, toPlaster = floorGap + meshInset + CheckoutMarketShellRail;
+        // (overlap into the wall: the mesh past the rail's face)
+        if (faces == "back" && fits && meshEdge < floorEdge - .005f) overlaps++;
+        tries++;
+        if (faces == "back") { backTries++; if (fits && floorGap < .005f) flushBack++; if (fits) worstBack = Mathf.Max(worstBack, floorGap + meshInset); }
+        // (the back panel's rule, CheckoutInterior.BackAgainstWall, when the build has it)
+        string panel = "";
+        var against = typeof(CheckoutInterior).GetMethod("BackAgainstWall");
+        if (against != null) { var args = new object[] { it, null }; bool hide = (bool)against.Invoke(inside, args); panel = $"; back panel {(hide ? "hidden" : "shown")} ({args[1]})"; }
+        lines.Add($"FLUSH {stage} T{t} {it.id.Substring(7)} wall {wall} rot {rot:0} from {off * 100:0} cm ({faces}): fits={fits}{(fits ? "" : " (" + why + ")")} footprint-to-floor-edge {floorGap * 100:0.0} cm, mesh inset {meshInset * 100:0.0} cm, to the plaster {toPlaster * 100:0.0} cm{panel}");
+       }
+      }
+      foreach (var o in others) o.ghost = false;
+      it.rot = keepRot; inside.MoveTo(it, keepPos);
+     }
+     inside.editing = false; TierReset();
+    }
+   }
+   File.WriteAllLines("Logs/ft_flush_audit.txt", lines);
+   foreach (var l in lines.Where(x => x.StartsWith("FLUSH"))) Note(l);
+   Note($"RESULT tiers flush: {flushBack}/{backTries} back-to-wall tries flush with the floor edge ({tries} tries in all); worst back gap to the rail face (floor edge) {worstBack * 100:0.0} cm; {overlaps} placed back-to-wall tries with mesh past the rail face (Logs/ft_flush_audit.txt)");
+  }
+  const float CheckoutMarketShellRail = .05f; // CheckoutMarketShell.Rail: the clear floor stops 5 cm inside the plaster
+
+  // A sector dragged against the west wall (flush, panel hidden), standing free mid-floor (panel shown), in the
+  // west/rear corner, and against the Mercadinho's rear wall before and after the shop grows into the Supermercado
+  // (that wall goes away: the panel comes back). Logs/ft_walls_*.jpg and a WALLS line each.
+  IEnumerator TierWallShots() {
+   var fails = new List<string>();
+   IEnumerator Put(string stage, int t, string id, string where, string shot) {
+    var inside = CheckoutInterior.Active; var it = inside?.Get("sector:" + id); if (it == null) { fails.Add($"{stage}: no {id}"); yield break; }
+    var floor = inside.FloorRect; var zone = inside.CheckoutZone;
+    inside.editing = true;
+    foreach (var o in inside.items.Values) if (o != it && o.root && o.type == "sector") o.ghost = false;
+    float rot = where == "west" || where == "corner" ? 270 : where == "rear" ? 0 : 0;
+    var f = inside.FootprintAt(it, it.root.position, rot);
+    float ex = f.hx * Mathf.Abs(f.ax.x) + f.hz * Mathf.Abs(f.az.x), ez = f.hx * Mathf.Abs(f.ax.y) + f.hz * Mathf.Abs(f.az.y);
+    var offset = new Vector2(it.root.position.x, it.root.position.z) - f.c;
+    float midX = floor.xMin + (zone.xMin - floor.xMin) * .35f;
+    Vector2 c = where == "west" ? new Vector2(floor.xMin + ex + .1f, floor.center.y) : where == "corner" ? new Vector2(floor.xMin + ex + .1f, floor.yMax - ez - .1f)
+     : where == "rear" ? new Vector2(midX, floor.yMax - ez - .1f) : new Vector2(midX, floor.center.y);
+    // the others step aside from the spot (as a player would make room)
+    var spot = Rect.MinMaxRect(c.x - ex - 1, c.y - ez - 1, c.x + ex + 1, c.y + ez + 1);
+    foreach (var o in inside.items.Values) if (o != it && o.root) { var of = inside.FootprintOf(o); float oex = of.hx * Mathf.Abs(of.ax.x) + of.hz * Mathf.Abs(of.az.x), oez = of.hx * Mathf.Abs(of.ax.y) + of.hz * Mathf.Abs(of.az.y); if (Rect.MinMaxRect(of.c.x - oex, of.c.y - oez, of.c.x + oex, of.c.y + oez).Overlaps(spot)) o.ghost = true; }
+    var desired = new Vector3(c.x + offset.x, it.root.position.y, c.y + offset.y);
+    var p = inside.Snap(it, desired, rot, desired); it.rot = rot; inside.MoveTo(it, p);
+    foreach (var o in inside.items.Values) if (o.ghost && o.root) o.root.gameObject.SetActive(false);
+    yield return Wait(.6f); // (the panel check runs a few times a second)
+    var against = typeof(CheckoutInterior).GetMethod("BackAgainstWall"); string state = "";
+    if (against != null) { var args = new object[] { it, null }; state = ((bool)against.Invoke(inside, args) ? "panel hidden: " : "panel shown: ") + args[1]; }
+    bool fits = inside.Fits(it, it.root.position, it.rot, out var why);
+    inside.WallState.TryGetValue(it.id, out var shown);
+    Note($"WALLS {stage} T{t} {id} {where}: {it.template} fits={fits}{(fits ? "" : " (" + why + ")")}; {state}; runtime: {shown}");
+    if (CheckoutInterior.LastFaces != "") { Note("WALLS faces " + CheckoutInterior.LastFaces); CheckoutInterior.LastFaces = ""; }
+    RefreshScreens(); yield return null;
+    TierShot(shot, 2048, 1152, it.root.position + Vector3.up * 1.3f, 7.5f);
+    foreach (var o in inside.items.Values) if (o.ghost && o.root) { o.root.gameObject.SetActive(true); o.ghost = false; }
+   }
+   foreach (var (stage, t) in new[] { ("supermercado", 2), ("hipermercado", 3) }) {
+    tierPatching = true; tierSector = t; roomEra = System.Array.IndexOf(EraIds, stage); roomExtras = false; roomKeepInterior = true;
+    yield return GoToStage(stage); yield return Reapply();
+    foreach (var where in new[] { "west", "free", "corner", "rear" }) yield return Put(stage, t, "padaria", where, $"ft_walls_{stage}_T{t}_{where}");
+    // a flush sector evolving in place: its back stays on the wall (CheckoutInterior.TierSpot)
+    if (stage == "supermercado") {
+     var inside2 = CheckoutInterior.Active; var bakery2 = inside2?.Get("sector:padaria");
+     if (bakery2 != null) {
+      string before = bakery2.template; inside2.editing = true;
+      var aside = inside2.items.Values.Where(o => o != bakery2 && o.root && !o.ghost).ToList(); foreach (var o in aside) { o.ghost = true; o.root.gameObject.SetActive(false); }
+      bakery2.desired = "sector-padaria_T3"; bool grew = inside2.TryGrow(bakery2); yield return Wait(.6f);
+      var against2 = typeof(CheckoutInterior).GetMethod("BackAgainstWall"); string st2 = "";
+      if (against2 != null) { var args = new object[] { bakery2, null }; st2 = ((bool)against2.Invoke(inside2, args) ? "panel hidden: " : "panel shown: ") + args[1]; }
+      Note($"WALLS supermercado evolve at the rear wall: {before} -> {bakery2.template} (grew {grew}); {st2}");
+      if (!grew) fails.Add("flush padaria did not grow in place");
+      TierShot("ft_walls_supermercado_evolved_rear", 2048, 1152, bakery2.root.position + Vector3.up * 1.3f, 7.5f);
+      foreach (var o in aside) { o.ghost = false; if (o.root) o.root.gameObject.SetActive(true); }
+     }
+    }
+    var inside = CheckoutInterior.Active; if (inside) inside.editing = false; TierReset();
+   }
+   // the Mercadinho's rear wall, then the shop grows and that wall is gone
+   tierPatching = true; tierSector = 1; roomEra = System.Array.IndexOf(EraIds, "mercadinho"); roomExtras = false; roomKeepInterior = true;
+   yield return GoToStage("mercadinho"); yield return Reapply();
+   yield return Put("mercadinho", 1, "padaria", "rear", "ft_walls_grow_1_mercadinho_rear");
+   var keep = CheckoutInterior.Active; var bakery = keep?.Get("sector:padaria");
+   if (keep != null && bakery != null) {
+    keep.MarkPending(); FindAnyObjectByType<CheckoutMap>()?.SaveInterior(); keep.editing = false; yield return Wait(2);
+    roomEra = System.Array.IndexOf(EraIds, "supermercado"); roomKeepInterior = true;
+    yield return GoToStage("supermercado"); yield return Wait(2);
+    var after = CheckoutInterior.Active?.Get("sector:padaria");
+    var against = typeof(CheckoutInterior).GetMethod("BackAgainstWall"); string state = "";
+    if (after != null && against != null) { var args = new object[] { after, null }; state = ((bool)against.Invoke(CheckoutInterior.Active, args) ? "panel hidden: " : "panel shown: ") + args[1]; }
+    string shown2 = ""; CheckoutInterior.Active?.WallState.TryGetValue("sector:padaria", out shown2);
+    Note($"WALLS grown to supermercado: padaria at {(after != null ? after.root.position.ToString("0.00") : "-")}; {state}; runtime: {shown2}");
+    if (after != null) TierShot("ft_walls_grow_2_supermercado", 2048, 1152, after.root.position + Vector3.up * 1.3f, 7.5f);
+   }
+   TierReset();
+   Note($"RESULT tiers wallshots: {(fails.Count == 0 ? "PASS" : "FAIL " + string.Join(" | ", fails))}");
+  }
+
+  // ------------------------------------------------------------------ sector staff: how wide, and do they clip
+  // The workers of the staffed sectors (baker, butcher, fishmonger, cheesemaker): their mesh bounds standing and while
+  // they work, their capsule / agent radius, and at each tier how much room they have at their spot behind the counter
+  // (the largest upright capsule that fits there without touching the sector's mesh).
+  IEnumerator TierStaffProbe() {
+   var lines = new List<string>();
+   var world = GameObject.Find("Supermarket World")?.transform;
+   for (int t = 1; t <= 3; t++) {
+    tierPatching = true; tierSector = t; roomEra = System.Array.IndexOf(EraIds, "hipermercado"); roomExtras = false; roomKeepInterior = true;
+    yield return GoToStage("hipermercado"); yield return Reapply(); yield return Wait(1);
+    var inside = CheckoutInterior.Active; if (!inside || !world) { lines.Add("no interior"); break; }
+    // temporary colliders on the sectors' meshes (removed below)
+    var added = new List<Component>();
+    foreach (var it in inside.items.Values.Where(i => i.root && i.type == "sector"))
+     foreach (var mf in it.root.GetComponentsInChildren<MeshFilter>()) if (mf.sharedMesh && !mf.GetComponent<Collider>()) { var mc = mf.gameObject.AddComponent<MeshCollider>(); mc.sharedMesh = mf.sharedMesh; added.Add(mc); }
+    Physics.SyncTransforms();
+    foreach (var (id, actorName) in new[] { ("padaria", "Worker_Baker"), ("acougue", "Worker_Butcher"), ("peixaria", "Worker_Fishmonger"), ("queijaria", "Worker_Cheesemaker") }) {
+     var it = inside.Get("sector:" + id); var actor = world.Find(actorName);
+     if (it == null || !actor) { lines.Add($"T{t} {id}: {(it == null ? "no sector" : "no " + actorName)}"); continue; }
+     var spot = inside.StaffPoint(it);
+     bool wasActive = actor.gameObject.activeSelf; if (!wasActive) actor.gameObject.SetActive(true);
+     var walker = actor.GetComponent<CheckoutSectorWorker>(); bool walkerOn = walker && walker.enabled; if (walker) walker.enabled = false;
+     actor.SetPositionAndRotation(spot, it.root.rotation); yield return null;
+     var rot = it.root.rotation; Vector3 R = rot * Vector3.right, F = rot * Vector3.forward;
+     // The body's real size: its meshes baked in the pose they have now, measured along the counter's axes.
+     var bake = new Mesh(); var renderersSeen = new List<string>();
+     (Vector3 min, Vector3 max) Body() {
+      var mn = Vector3.one * 1e9f; var mx = -mn;
+      void Add(Vector3 w) { var d = w - actor.position; var l = new Vector3(Vector3.Dot(d, R), d.y, Vector3.Dot(d, F)); mn = Vector3.Min(mn, l); mx = Vector3.Max(mx, l); }
+      foreach (var r in actor.GetComponentsInChildren<Renderer>()) {
+       if (!r.enabled || !r.gameObject.activeInHierarchy || r.name.StartsWith("Handled")) continue; // (not the bag they hand over)
+       if (renderersSeen.Count < 12 && !renderersSeen.Any(x => x.StartsWith(r.name + " "))) renderersSeen.Add($"{r.name} {r.GetType().Name} {r.bounds.size.x:0.00}x{r.bounds.size.z:0.00}x{r.bounds.size.y:0.00}");
+       if (r is SkinnedMeshRenderer sk) {
+        // (the rigs' units differ: bake both ways and keep the one a person's height tall)
+        Matrix4x4 best = sk.transform.localToWorldMatrix; Vector3[] bestV = null; float bestErr = 1e9f;
+        foreach (var useScale in new[] { false, true }) {
+         sk.BakeMesh(bake, useScale); var vs = bake.vertices;
+         foreach (var m in new[] { sk.transform.localToWorldMatrix, Matrix4x4.TRS(sk.transform.position, sk.transform.rotation, Vector3.one) }) {
+          float lo = 1e9f, hi = -1e9f; foreach (var v in vs) { float y = m.MultiplyPoint3x4(v).y; lo = Mathf.Min(lo, y); hi = Mathf.Max(hi, y); }
+          float err = Mathf.Abs((hi - lo) - 1.75f); if (err < bestErr) { bestErr = err; best = m; bestV = vs; }
+         }
+        }
+        if (bestV != null) foreach (var v in bestV) Add(best.MultiplyPoint3x4(v));
+       }
+       else if (r is MeshRenderer && r.GetComponent<MeshFilter>() is MeshFilter mf && mf.sharedMesh && mf.sharedMesh.isReadable) { var m = mf.transform.localToWorldMatrix; foreach (var v in mf.sharedMesh.vertices) Add(m.MultiplyPoint3x4(v)); }
+      }
+      return (mn, mx);
+     }
+     var stand = Body(); var work = stand;
+     var anim = actor.GetComponent<MarketDay.MarketCharacterAnimator>();
+     if (anim) { anim.Perform("BuyAtSpecialSector", false); for (float w = 0; w < 2.2f; w += .1f) { yield return Wait(.1f); var b = Body(); work.min = Vector3.Min(work.min, b.min); work.max = Vector3.Max(work.max, b.max); } }
+     Destroy(bake);
+     // The lane at the spot: the free distance to the counter (customer side, -Z) and to the back (+Z), at hip and chest height.
+     bool backfaces = Physics.queriesHitBackfaces; Physics.queriesHitBackfaces = true;
+     string Lane(Vector3 at) {
+      var parts = new List<string>();
+      foreach (var hy in new[] { .5f, .95f, 1.3f }) {
+       var o = at + Vector3.up * hy;
+       float Dist(Vector3 dir) { float best = 9; foreach (var h in Physics.RaycastAll(o, dir, 3f)) if (added.Contains(h.collider)) best = Mathf.Min(best, h.distance); return best; }
+       float front = Dist(-F), back = Dist(F), left = Dist(-R), right = Dist(R);
+       parts.Add($"{hy:0.00} m: front {(front < 9 ? front.ToString("0.00") : "-")} back {(back < 9 ? back.ToString("0.00") : "-")} sides {(left < 9 ? left.ToString("0.00") : "-")}/{(right < 9 ? right.ToString("0.00") : "-")}");
+      }
+      return string.Join("; ", parts);
+     }
+     // The body (as a box in the counter's axes) against the sector's mesh, standing still and at both ends of its pacing.
+     float span = walker ? walker.span : .8f;
+     int Clips(Vector3 at, (Vector3 min, Vector3 max) b, float shrink) {
+      var c = (b.min + b.max) * .5f; var e = (b.max - b.min) * .5f * shrink;
+      return Physics.OverlapBox(at + R * c.x + Vector3.up * c.y + F * c.z, e, rot).Count(col => added.Contains(col));
+     }
+     var clips = new List<string>();
+     foreach (var off in new[] { -span, 0f, span }) {
+      var at = spot + R * off;
+      clips.Add($"x {off:+0.00;-0.00;0.00}: standing {Clips(at, stand, .9f)} working {Clips(at, work, .9f)} hits; lane {Lane(at)}");
+     }
+     Physics.queriesHitBackfaces = backfaces;
+     if (t == 1 || t == 3) TierShot($"ft_staff_{id}_T{t}", 1600, 1000, spot + Vector3.up * 1.1f, 3.2f);
+     if (walker) walker.enabled = walkerOn;
+     if (!wasActive) actor.gameObject.SetActive(false);
+     var q = Quaternion.Inverse(it.root.rotation);
+     float toBack = it.piece.max.y - (q * (spot - it.root.position)).z;
+     var sz = stand.max - stand.min; var wz = work.max - work.min;
+     lines.Add($"STAFF T{t} {id} {it.template} {actorName}: body standing {sz.x:0.00} w x {sz.z:0.00} d x {sz.y:0.00} h m (x {stand.min.x:0.00}..{stand.max.x:0.00}, z {stand.min.z:0.00}..{stand.max.z:0.00}), working {wz.x:0.00} w x {wz.z:0.00} d (z {work.min.z:0.00}..{work.max.z:0.00}); spot {toBack:0.00} m from the back, piece depth {it.piece.max.y - it.piece.min.y:0.00} m; paces +-{span:0.00} m");
+     foreach (var c in clips) lines.Add("   " + c);
+     if (t == 1 && id == "padaria") lines.Add("   renderers: " + string.Join(", ", renderersSeen));
+     yield return null;
+    }
+    foreach (var col in added) if (col) Destroy(col);
+    TierReset();
+   }
+   File.WriteAllLines("Logs/ft_staff_probe.txt", lines);
+   foreach (var l in lines) Note(l);
+   Note("RESULT tiers staff: PASS (Logs/ft_staff_probe.txt)");
   }
 
   IEnumerator TierNavProbe() {

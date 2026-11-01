@@ -23,6 +23,7 @@ namespace Checkout
 
         void Update()
         {
+            if (kit && !designMode) UpdateSectorWalls();
             if (!kit || editing || designMode || Time.unscaledTime < roomNext) return;
             roomNext = Time.unscaledTime + 1.5f;
             if (!roomBridge) roomBridge = FindAnyObjectByType<CheckoutBridge>();
