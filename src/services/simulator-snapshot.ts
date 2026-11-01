@@ -416,6 +416,14 @@ export function createSimulatorSnapshot(
 				skipCost: progress.skipCost,
 			};
 		}),
+		// Evolutions that ended and wait for their reveal (the tier celebrations not seen yet): Unity keeps the piece
+		// under the navy cloth until the reveal plays (CheckoutEvolutionReveal), so the new model is never seen early.
+		reveals: (state.celebrations ?? []).flatMap((celebration) => {
+			if (celebration.kind !== "tier") return [];
+			const [kind, targetId, tier] = celebration.targetId.split(":");
+			if (!["shelf", "sector", "checkout", "decor", "coldroom"].includes(kind)) return [];
+			return [{ id: celebration.id, kind, targetId, tier: Number(tier) || 0 }];
+		}),
 		ownedItems: state.shop.ownedItemIds,
 		// Every checkout of the market wears the same step; the cold room stands by the depot.
 		fixtureTiers: (() => {

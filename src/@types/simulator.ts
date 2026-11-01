@@ -167,6 +167,7 @@ export type SimulatorSnapshot = {
 	};
 	builds: SimulatorBuild[];
 	evolutions: SimulatorEvolution[];
+	reveals: { id: string; kind: string; targetId: string; tier: number }[];
 	expansionStates: {
 		id: string;
 		name: string;

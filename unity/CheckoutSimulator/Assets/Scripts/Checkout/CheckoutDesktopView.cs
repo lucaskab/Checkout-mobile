@@ -45,6 +45,8 @@ namespace Checkout {
   public int condition,slotCount,expandCost,expandLevel,capacity,capacityNext,capacityCost,capacityLevel;
   // "Evoluções dos móveis" (desktop/pages/shelf-view.ts): the next capacity step may bring the next model.
   public int capacityDiamonds,tier,nextTier;public string tierName,nextTierName,nextTemplate,blockedNote;public bool evolve,grows;public float nextWidth,nextDepth;
+  // Evolutions with rewards: what the next one gives and how long it takes; the crew at work and its diamond skip.
+  public string[] rewards;public string evolveTime,evolutionId,evolvingLine;public bool evolving;public double evolvingEndsAt,evolvingTotal;public int skipCost;
   public DesktopShelfSlot[] slots;public DesktopShelfPick[] picks;
  }
  [Serializable] public class DesktopView {
@@ -70,7 +72,12 @@ namespace Checkout {
  [Serializable] public class DesktopLevelUpItem {public string icon,title,detail,tag;}
  [Serializable] public class DesktopLevelUpGroup {public string title,hint,icon,tint,button,route;public DesktopLevelUpItem[] items;}
  [Serializable] public class DesktopCelebrationChip {public string icon,text;}
- [Serializable] public class DesktopCelebration {public string key,id,kind,headline,title,subtitle,icon,tint,button,route,lotId;public DesktopCelebrationChip[] chips;}
+ [Serializable] public class DesktopCelebrationStat {public string icon,label,suffix;public float from,to;}
+ [Serializable] public class DesktopCelebrationProduct {public int productId;public string name,icon;}
+ [Serializable] public class DesktopCelebrationReveal {public string kind,targetId,template;public int tier;public string[] chips;}
+ [Serializable] public class DesktopCelebration {public string key,id,kind,headline,title,subtitle,icon,tint,button,route,lotId;public DesktopCelebrationChip[] chips;
+  // Evolutions (desktop/celebration.ts tierView): numbers counting up, the products opened (NOVO), the reveal first.
+  public DesktopCelebrationStat[] stats;public DesktopCelebrationProduct[] products;public DesktopCelebrationReveal reveal;}
  [Serializable] public class DesktopLevelUp {public string key,headline,subtitle,empty,next;public int from,to,total,xp,xpGoal;public DesktopLevelUpGroup[] groups;}
  // A booster running now (desktop/view.ts BoostView): seconds left, full length and the colour of its aura.
  [Serializable] public class DesktopBoost {public string id,name,icon,effect,tint;public int seconds,total;}
