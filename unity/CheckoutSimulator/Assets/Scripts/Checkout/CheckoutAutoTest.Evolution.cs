@@ -238,14 +238,14 @@ namespace Checkout {
    if (!reveal.Playing) { fails.Add(kind + " reveal did not start"); yield break; }
    var hud = FindAnyObjectByType<CheckoutDesktopHUD>();
    int n = 0; bool clothShot = false, popShot = false; float since = -1, popAt = -1; float t0 = Time.realtimeSinceStartup;
-   for (float t = 0; t < 9; t = Time.realtimeSinceStartup - t0) {
+   for (float t = 0; t < 11; t = Time.realtimeSinceStartup - t0) {
     yield return new WaitForEndOfFrame();
     if (n % 1 == 0) SaveFrame($"ft_evo_reveal_{kind}_{n:000}", 960);
     n++;
     if (stills && !clothShot && reveal.Stage == 0 && t > .9f) { SaveFrame("ft_evo_cloth", 1600); clothShot = true; }
     if (stills && !popShot && reveal.Stage >= 2 && popAt < 0) popAt = t;
     if (stills && !popShot && popAt >= 0 && t - popAt > .25f) { SaveFrame("ft_evo_pop", 1600); popShot = true; }
-    if (!reveal.Playing && hud.ConquestOpen) { if (since < 0) since = t; if (t - since > 1.6f) break; }
+    if (!reveal.Playing && hud.ConquestOpen) { if (since < 0) since = t; if (t - since > 2.8f) break; }
     yield return new WaitForSecondsRealtime(1f / 14);
    }
    if (stills) SaveFrame("ft_evo_card", 1600);
@@ -256,14 +256,10 @@ namespace Checkout {
   }
 
   void SaveFrame(string name, int width) {
+   // Full size and straight from the screen (a blit through a render texture washed the colours out); the frames are
+   // scaled down afterwards, off the game.
    var tex = ScreenCapture.CaptureScreenshotAsTexture();
-   float k = Mathf.Min(1, width / (float)tex.width);
-   // (sRGB target: a linear one washed the pictures out)
-   var rt = RenderTexture.GetTemporary((int)(tex.width * k), (int)(tex.height * k), 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB); Graphics.Blit(tex, rt);
-   var prev = RenderTexture.active; RenderTexture.active = rt;
-   var small = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false); small.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); small.Apply();
-   RenderTexture.active = prev; RenderTexture.ReleaseTemporary(rt);
-   File.WriteAllBytes("Logs/" + name + ".jpg", small.EncodeToJPG(84)); Destroy(small); Destroy(tex);
+   File.WriteAllBytes("Logs/" + name + ".jpg", tex.EncodeToJPG(width >= 1600 ? 88 : 80)); Destroy(tex);
   }
  }
 }

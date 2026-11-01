@@ -240,7 +240,12 @@ namespace Checkout
             var fx = CheckoutConquestFx.Instance;
             var b = v.bounds; var center = b.center; var size = b.size;
             // close on the piece: a shelf fills a good part of the screen, a sector a bit less
-            if (moveCamera) fx.FocusOn(new Vector3(center.x, 0, center.z), Mathf.Clamp(Mathf.Max(size.x, size.z) * 1.4f + 3.6f, 6, 10.5f), .6f);
+            // (the camera aims at a point on the ground: the one under the piece's middle along the view, so the piece,
+            // not its foot, ends up in the middle of the screen)
+            var aim = new Vector3(center.x, 0, center.z);
+            var cam = Camera.main;
+            if (cam && cam.transform.forward.y < -.05f) { var f = cam.transform.forward; aim = center + f * ((center.y - .1f) / -f.y); }
+            if (moveCamera) fx.FocusOn(aim, Mathf.Clamp(Mathf.Max(size.x, size.z) * 1.4f + 3.6f, 6, 10.5f), .6f);
             Debug.Log($"CHECKOUT_REVEAL {data.kind} {data.targetId} T{data.tier} camera={moveCamera} size={size}");
             // The cloth falls into place if it was not there yet.
             if (v.dropped < 1)
