@@ -229,25 +229,22 @@ ICON_SETS = {
 PRICES = [["49,90", "64,90", "32,90", "21,90"], ["27,90", "18,90", "39,90", "58,90"], ["34,90", "44,90", "15,90", "29,90"]]
 
 
+def coin(d, x, y, s):
+    d.ellipse([x - 22 * s, y - 22 * s, x + 22 * s, y + 22 * s], fill=(211, 165, 61))
+    d.ellipse([x - 15 * s, y - 15 * s, x + 15 * s, y + 15 * s], outline=(246, 214, 120), width=int(4 * s))
+
+
 def price_board(variant, icons):
-    im = Image.new("RGB", (W, H), NAVY)
+    """Round 5: what CheckoutSectorScreens writes on a dark screen: up to three rows of pictogram + coin + price,
+    left aligned, off-white digits (no header: the sector name sits on the board's cream header strip)."""
+    im = Image.new("RGB", (W, H), (24, 27, 33))
     d = ImageDraw.Draw(im)
-    big = ImageFont.truetype(font_path, 78)
-    d.rectangle([0, 0, W, 70], fill=NAVY2)
-    d.rectangle([0, 66, W, 72], fill=GOLD)
-    for k in range(3):                                   # header: pictogram strip, no words
-        icons[(variant + k) % 6](d, 420 + k * 95, 36, .55)
-    for r in range(4):
-        y = 125 + r * 112
-        if r % 2:
-            d.rectangle([0, y - 52, W, y + 52], fill=(33, 50, 92))
-        icons[(variant * 2 + r) % 6](d, 110, y, 1.15)
-        for j in range(16):
-            d.ellipse([210 + j * 26, y + 8, 218 + j * 26, y + 16], fill=(120, 136, 170))
-        d.text((900, y), PRICES[variant][r], font=big, fill=WHITE if r != 1 else GOLD, anchor="rm")
-        if r == 1:
-            d.rounded_rectangle([640, y - 40, 690, y + 40], 10, fill=RED)
-            d.polygon([(652, y - 18), (678, y - 18), (665, y + 24)], fill=WHITE)
+    big = ImageFont.truetype(font_path, 118)
+    for r in range(3):
+        y = 105 + r * 183
+        icons[(variant * 3 + r) % 6](d, 120, y, 1.55)
+        coin(d, 265, y, 1.5)
+        d.text((320, y), PRICES[variant][r], font=big, fill=(245, 247, 237), anchor="lm")
     return im
 
 
