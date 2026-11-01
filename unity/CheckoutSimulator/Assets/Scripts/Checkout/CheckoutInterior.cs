@@ -28,6 +28,9 @@ namespace Checkout
             // where the piece stands), whether it waits to grow, and the premium finish (CheckoutInterior.Tiers).
             public string desired;
             public bool wantsGrow, premium;
+            // Deeper sector models (round 5) under a layout saved with the old ones: what happened (QA), and the old
+            // footprint kept at the saved spot until the player moves the piece (CheckoutInterior.Walls).
+            public string migrated; public Vector2 legacySize; public Vector3 legacyAt; public float legacyRot; public CheckoutInteriorPiece legacyPiece;
             public Vector3 baseScale = Vector3.one;
             public Transform root;
             public CheckoutInteriorPiece piece;
@@ -630,6 +633,7 @@ namespace Checkout
             var q = Quaternion.Euler(0, rot, 0);
             float s = it.scale > 0 ? it.scale : 1;
             var min = Square(it.piece.min) * s; var max = Square(it.piece.max) * s;
+            if (LegacyHere(it, position, rot)) { min = -it.legacySize * .5f * s; max = it.legacySize * .5f * s; }
             var center = position + q * new Vector3((min.x + max.x) * .5f, 0, (min.y + max.y) * .5f);
             return new Footprint { c = XZ(center), ax = XZ(q * Vector3.right), az = XZ(q * Vector3.forward), hx = (max.x - min.x) * .5f + pad, hz = (max.y - min.y) * .5f + pad };
         }

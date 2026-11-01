@@ -62,6 +62,11 @@ namespace Checkout {
      case "markers": yield return TierMarkerShots(); break;
      case "flush": yield return TierFlushAudit(); break;
      case "staff": yield return TierStaffProbe(); break;
+     case "perf": yield return TierSectorPerf(); break;
+     case "lineup": yield return TierLineup(); break;
+     case "paint": yield return TierSectorPaint(); break;
+     case "migrate": yield return TierMigrate(); break;
+     case "migrateflush": yield return TierMigrateFlush(); break;
      case "wallshots": yield return TierWallShots(); break;
      default: Note("unknown part " + part); break;
     }
@@ -633,7 +638,6 @@ namespace Checkout {
     bool fits = inside.Fits(it, it.root.position, it.rot, out var why);
     inside.WallState.TryGetValue(it.id, out var shown);
     Note($"WALLS {stage} T{t} {id} {where}: {it.template} fits={fits}{(fits ? "" : " (" + why + ")")}; {state}; runtime: {shown}");
-    if (CheckoutInterior.LastFaces != "") { Note("WALLS faces " + CheckoutInterior.LastFaces); CheckoutInterior.LastFaces = ""; }
     RefreshScreens(); yield return null;
     TierShot(shot, 2048, 1152, it.root.position + Vector3.up * 1.3f, 7.5f);
     foreach (var o in inside.items.Values) if (o.ghost && o.root) { o.root.gameObject.SetActive(true); o.ghost = false; }
@@ -677,6 +681,187 @@ namespace Checkout {
    }
    TierReset();
    Note($"RESULT tiers wallshots: {(fails.Count == 0 ? "PASS" : "FAIL " + string.Join(" | ", fails))}");
+  }
+
+  // ------------------------------------------------------------------ all seven sectors flush against the market wall
+  // Mercadinho, Supermercado and Hiper at T1–T3: the other furniture set aside, the sectors dragged one after the other
+  // with their backs on the rear wall (west to east, up to the checkout area), then on the west wall (rear to front).
+  // A floor shot each, a close-up of every sector at the Hiper. pt-BR. LINEUP lines: where each landed, its panel.
+  IEnumerator TierLineup() {
+   var fails = new List<string>(); int shots = 0;
+   var before = CheckoutI18n.Language; TierLang("pt"); yield return Wait(1);
+   foreach (var stage in new[] { "mercadinho", "supermercado", "hipermercado" })
+    for (int t = 1; t <= 3; t++) {
+     tierPatching = true; tierSector = t; roomEra = System.Array.IndexOf(EraIds, stage); roomExtras = false; roomKeepInterior = true;
+     yield return GoToStage(stage); yield return Reapply(); yield return Wait(1);
+     var inside = CheckoutInterior.Active; if (!inside) continue;
+     var floor = inside.FloorRect; var zone = inside.CheckoutZone;
+     inside.editing = true;
+     var aside = inside.items.Values.Where(i => i.root && !i.outside && !i.design && i.type != "sector" && i.type != "checkout" && i.type != "kiosk").ToList();
+     foreach (var o in aside) { o.ghost = true; o.root.gameObject.SetActive(false); }
+     var sectors = inside.items.Values.Where(i => i.root && i.type == "sector").OrderBy(i => i.id).ToList();
+     foreach (var it in sectors) it.ghost = true; // (placed one by one below)
+     float x = floor.xMin, z = floor.yMax; int placed = 0;
+     foreach (var it in sectors) {
+      bool done = false;
+      for (int side = 0; side < 2 && !done; side++) {
+       float rot = side == 0 ? 0 : 270;
+       var f = inside.FootprintAt(it, it.root.position, rot);
+       float ex = f.hx * Mathf.Abs(f.ax.x) + f.hz * Mathf.Abs(f.az.x), ez = f.hx * Mathf.Abs(f.ax.y) + f.hz * Mathf.Abs(f.az.y);
+       var offset = new Vector2(it.root.position.x, it.root.position.z) - f.c;
+       Vector2 c = side == 0 ? new Vector2(x + ex + .05f, floor.yMax - ez - .1f) : new Vector2(floor.xMin + ex + .1f, z - ez - .05f);
+       if (side == 0 && c.x + ex > zone.xMin - .05f) continue;
+       if (side == 1 && c.y - ez < floor.yMin + 2.5f) continue;
+       var desired = new Vector3(c.x + offset.x, it.root.position.y, c.y + offset.y);
+       it.ghost = false;
+       var p = inside.Snap(it, desired, rot, desired); it.rot = rot; inside.MoveTo(it, p);
+       if (!inside.Fits(it, it.root.position, rot, out _)) { it.ghost = true; continue; }
+       var fp = inside.FootprintOf(it);
+       float fex = fp.hx * Mathf.Abs(fp.ax.x) + fp.hz * Mathf.Abs(fp.az.x), fez = fp.hx * Mathf.Abs(fp.ax.y) + fp.hz * Mathf.Abs(fp.az.y);
+       if (side == 0) x = fp.c.x + fex; else z = fp.c.y - fez;
+       if (side == 0) z = Mathf.Min(z, fp.c.y - fez); // the west run starts under the rear ones
+       done = true; placed++;
+      }
+      // no room left on the tall walls: it stands free on the floor (still in the shot)
+      if (!done) { it.ghost = false; it.rot = 0; inside.MoveTo(it, new Vector3(floor.center.x - 2, it.root.position.y, floor.center.y)); if (!inside.Settle(it)) it.root.gameObject.SetActive(false); }
+     }
+     yield return Wait(.6f); RefreshScreens(); yield return null;
+     var states = sectors.Where(i => i.root && i.root.gameObject.activeSelf && !i.ghost).Select(i => { inside.WallState.TryGetValue(i.id, out var w); return $"{i.id.Substring(7)} {i.template} {w}"; }).ToList();
+     Note($"LINEUP {stage} T{t}: {placed}/{sectors.Count} flush; " + string.Join(" | ", states));
+     ShootFloor($"ft_lineup_{stage}_T{t}"); shots++;
+     if (stage == "hipermercado")
+      foreach (var it in sectors.Where(i => i.root && i.root.gameObject.activeSelf && !i.ghost)) { TierShot($"ft_lineup_hiper_{it.id.Substring(7)}_T{t}", 1600, 1000, it.root.position + Vector3.up * 1.3f, 6f); shots++; }
+     if (stage == "hipermercado" && sectors.Count(i => i.root && i.root.gameObject.activeSelf) < 7) fails.Add($"hiper T{t}: not all 7 shown");
+     foreach (var it in sectors) { it.ghost = false; if (it.root) it.root.gameObject.SetActive(true); }
+     foreach (var o in aside) { o.ghost = false; if (o.root) o.root.gameObject.SetActive(true); }
+     inside.editing = false; TierReset();
+    }
+   TierLang(before);
+   Note($"RESULT tiers lineup: {(fails.Count == 0 ? "PASS" : "FAIL " + string.Join(" | ", fails))} {shots} shots");
+  }
+
+  // "Cores do mercado" on the sectors: the bakery standing free (its panel shown) next to the market wall, in each palette
+  // (the panel's navy wainscot and gold rail/cap follow the wall; the cream body and the bakery's accents do not).
+  IEnumerator TierSectorPaint() {
+   var paint = CheckoutMarketPaint.Active; if (!paint) { Note("RESULT tiers paint: FAIL no CheckoutMarketPaint"); yield break; }
+   tierPatching = true; tierSector = 2; roomEra = System.Array.IndexOf(EraIds, "supermercado"); roomExtras = false; roomKeepInterior = true;
+   yield return GoToStage("supermercado"); yield return Reapply(); yield return Wait(1);
+   var inside = CheckoutInterior.Active; var it = inside?.Get("sector:padaria"); if (it == null) { Note("RESULT tiers paint: FAIL no padaria"); yield break; }
+   var floor = inside.FloorRect; inside.editing = true;
+   // free, a little off the rear wall: the panel shows against the market wall behind it
+   var f = inside.FootprintAt(it, it.root.position, 0); var offset = new Vector2(it.root.position.x, it.root.position.z) - f.c;
+   var c = new Vector2(floor.xMin + f.hx + 1.5f, floor.yMax - f.hz - 1.25f);
+   foreach (var o in inside.items.Values) if (o != it && o.root && !o.outside) { var of = inside.FootprintOf(o); if (Vector2.Distance(of.c, c) < 5) { o.ghost = true; o.root.gameObject.SetActive(false); } }
+   var desired = new Vector3(c.x + offset.x, it.root.position.y, c.y + offset.y);
+   it.rot = 0; inside.MoveTo(it, inside.Snap(it, desired, 0, desired)); yield return Wait(.6f);
+   inside.WallState.TryGetValue(it.id, out var wall);
+   RefreshScreens();
+   int shots = 0;
+   foreach (var (id, p, a) in ComparePalettes) {
+    paint.Preview(p, a); yield return new WaitForSecondsRealtime(.6f);
+    TierShot($"ft_paint_padaria_{id}", 1600, 1000, it.root.position + Vector3.up * 1.3f, 6f); shots++;
+    if (id != "classico") Note($"PAINT {id}: {paint.PaintedRenderers} renderers, {paint.PaintedMaterials} painted materials");
+   }
+   paint.EndPreview(); yield return Wait(.5f);
+   foreach (var o in inside.items.Values) if (o.ghost && o.root) { o.ghost = false; o.root.gameObject.SetActive(true); }
+   inside.editing = false; TierReset();
+   Note($"RESULT tiers paint: PASS {shots} shots ({wall})");
+  }
+
+  // ------------------------------------------------------------------ the seven sectors at T3: frame time (CheckoutPerfProbe)
+  // The Hiper with all seven sectors at T3 in the game camera's view, the probe's 20 s capture at the iPhone quality;
+  // the sectors' own triangles and renderers counted too. Run on main and on the branch to compare.
+  IEnumerator TierSectorPerf() {
+   tierPatching = true; tierSector = 3; roomEra = System.Array.IndexOf(EraIds, "hipermercado"); roomExtras = false; roomKeepInterior = true;
+   yield return GoToStage("hipermercado"); yield return Reapply(); yield return Wait(3);
+   var inside = CheckoutInterior.Active;
+   var sectors = inside.items.Values.Where(i => i.root && i.type == "sector").ToList();
+   int tris = 0, renderers = 0;
+   foreach (var it in sectors) foreach (var mf in it.root.GetComponentsInChildren<MeshFilter>()) if (mf.sharedMesh && mf.gameObject.activeInHierarchy && !mf.GetComponent<TMPro.TMP_Text>()) { tris += (int)Enumerable.Range(0, mf.sharedMesh.subMeshCount).Sum(k => (long)mf.sharedMesh.GetIndexCount(k)) / 3; renderers++; }
+   Note($"PERF sectors: {sectors.Count} ({string.Join(", ", sectors.Select(i => i.template))}), {tris} triangles in {renderers} renderers");
+   var probe = FindAnyObjectByType<CheckoutPerfProbe>();
+   var capture = typeof(CheckoutPerfProbe).GetMethod("Capture", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+   if (!probe || capture == null) { Note("RESULT tiers perf: FAIL no perf probe"); yield break; }
+   var started = System.DateTime.Now;
+   probe.StartCoroutine((IEnumerator)capture.Invoke(probe, null));
+   yield return new WaitForSecondsRealtime(24);
+   var file = Directory.GetFiles("Logs", "perf_*.txt").Where(f => File.GetLastWriteTime(f) >= started.AddSeconds(-1)).OrderBy(f => File.GetLastWriteTime(f)).LastOrDefault();
+   if (file == null) { Note("RESULT tiers perf: FAIL no capture written"); yield break; }
+   foreach (var l in File.ReadAllLines(file).Where(l => l.StartsWith("Frame time") || l.StartsWith("Main thread") || l.StartsWith("Batches") || l.StartsWith("SetPass") || l.StartsWith("Triangles") || l.StartsWith("Shadow casters") || l.StartsWith("Camera.Render") || l.StartsWith("Shadows"))) Note("PERF " + l);
+   File.Copy(file, "Logs/ft_sector_perf.txt", true);
+   Note($"RESULT tiers perf: PASS ({file})");
+  }
+
+  // ------------------------------------------------------------------ layouts saved with the old (shallower) sectors
+  // The QA save's own layouts (Mercadinho, Supermercado, Hiper) at T1–T3, as the game loads them with the round-5
+  // sectors: per sector what happened (fits as saved / grew toward the free side / kept the old footprint / smaller).
+  IEnumerator TierMigrate() {
+   var lines = new List<string>(); CheckoutInterior.MigrationCount.Clear(); int layouts = 0, smaller = 0, asSaved = 0, outside = 0;
+   foreach (var stage in new[] { "mercadinho", "supermercado", "hipermercado" })
+    for (int t = 1; t <= 3; t++) {
+     tierPatching = true; tierSector = t; roomEra = System.Array.IndexOf(EraIds, stage); roomExtras = false; roomKeepInterior = true;
+     yield return GoToStage(stage); yield return Reapply(); yield return Wait(1);
+     var inside = CheckoutInterior.Active; if (!inside) continue; layouts++;
+     var floor = inside.FloorRect;
+     foreach (var it in inside.items.Values.Where(i => i.root && i.type == "sector").OrderBy(i => i.id)) {
+      bool fits = inside.Fits(it, it.root.position, it.rot, out var why);
+      var f = inside.FootprintOf(it); bool inFloor = true;
+      foreach (var c in new[] { new Vector2(-1, -1), new Vector2(1, -1), new Vector2(-1, 1), new Vector2(1, 1) }) { var p = f.c + f.ax * (f.hx * c.x) + f.az * (f.hz * c.y); if (!floor.Contains(p)) inFloor = false; }
+      if (!inFloor) outside++;
+      if (it.wantsGrow) smaller++;
+      if (string.IsNullOrEmpty(it.migrated) && !it.wantsGrow) asSaved++;
+      inside.WallState.TryGetValue(it.id, out var wall);
+      lines.Add($"MIGRATE {stage} T{t} {it.id.Substring(7)}: {it.template}{(it.wantsGrow ? " (wants " + it.desired + ")" : "")}; {(string.IsNullOrEmpty(it.migrated) ? "as saved" : it.migrated)}; fits={fits}{(fits ? "" : " (" + why + ")")}; inside the floor {inFloor}; {wall}");
+     }
+     TierReset();
+    }
+   File.WriteAllLines("Logs/ft_migrate.txt", lines);
+   foreach (var l in lines) Note(l);
+   Note($"RESULT tiers migrate: {layouts} layouts; sectors as saved {asSaved}; {string.Join(", ", CheckoutInterior.MigrationCount.Select(p => p.Key + " " + p.Value))}; shown at a smaller tier {smaller}; outside the floor {outside} (Logs/ft_migrate.txt)");
+  }
+
+  // Old saves with a sector flush against a wall: every sector of the QA layouts (3 shops × T1–T3) put where the OLD
+  // model stood with its back on the rear wall (turned 0) and on the west wall (turned 270), at its own x / z, the
+  // rest of the layout as saved; only spots where the old footprint fitted count. Then the load rule (FitTiers) runs.
+  IEnumerator TierMigrateFlush() {
+   var lines = new List<string>(); var count = new Dictionary<string, int>(); int tries = 0, invalid = 0, flushAfter = 0;
+   var fit = typeof(CheckoutInterior).GetMethod("FitTiers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+   var old = new Dictionary<int, Vector2> { { 1, new Vector2(2.5f, 2f) }, { 2, new Vector2(3.25f, 2.5f) }, { 3, new Vector2(4f, 3.25f) } };
+   foreach (var stage in new[] { "mercadinho", "supermercado", "hipermercado" })
+    for (int t = 1; t <= 3; t++) {
+     tierPatching = true; tierSector = t; roomEra = System.Array.IndexOf(EraIds, stage); roomExtras = false; roomKeepInterior = true;
+     yield return GoToStage(stage); yield return Reapply(); yield return Wait(1);
+     var inside = CheckoutInterior.Active; if (!inside) continue;
+     var floor = inside.FloorRect; inside.editing = true;
+     foreach (var it in inside.items.Values.Where(i => i.root && i.type == "sector").OrderBy(i => i.id).ToList())
+      foreach (var wall in new[] { "rear", "west" }) {
+       string keepTemplate = it.template; var keepPos = it.root.position; float keepRot = it.rot;
+       int tier = it.template[it.template.Length - 1] - '0'; var o = old[tier];
+       float rot = wall == "rear" ? 0 : 270;
+       var at = wall == "rear" ? new Vector3(keepPos.x, keepPos.y, floor.yMax - o.y * .5f) : new Vector3(floor.xMin + o.y * .5f, keepPos.y, keepPos.z);
+       it.rot = rot; inside.MoveTo(it, at);
+       // a valid old layout: the old footprint fitted there
+       it.legacySize = o; it.legacyAt = it.root.position; it.legacyRot = rot; it.legacyPiece = it.piece; it.migrated = null;
+       bool valid = inside.Fits(it, it.root.position, rot, out var whyOld);
+       it.legacySize = Vector2.zero; it.legacyPiece = null;
+       if (!valid) { invalid++; it.rot = keepRot; inside.MoveTo(it, keepPos); continue; }
+       tries++;
+       fit.Invoke(inside, null);
+       var now = inside.items[it.id];
+       string what = now.legacySize != Vector2.zero ? "kept the old footprint" : !string.IsNullOrEmpty(now.migrated) ? (now.migrated.Contains("forward") ? "grew toward the free side" : "slid back") : now.template != keepTemplate ? "smaller tier" : "fits as saved";
+       count.TryGetValue(what, out var n); count[what] = n + 1;
+       bool against = inside.BackAgainstWall(now, out var why);
+       if (against) flushAfter++;
+       lines.Add($"MIGRATEFLUSH {stage} T{t} {it.id.Substring(7)} {wall}: {keepTemplate} -> {now.template}; {what}{(string.IsNullOrEmpty(now.migrated) ? "" : " (" + now.migrated + ")")}; fits={inside.Fits(now, now.root.position, now.rot, out _)}; {why}");
+       // back as it was
+       now.legacySize = Vector2.zero; now.legacyPiece = null; now.migrated = null; now.rot = keepRot; inside.MoveTo(now, keepPos);
+       if (now.template != keepTemplate) inside.TryGrow(now);
+      }
+     inside.editing = false; TierReset();
+    }
+   File.WriteAllLines("Logs/ft_migrate_flush.txt", lines);
+   foreach (var l in lines) Note(l);
+   Note($"RESULT tiers migrateflush: {tries} old flush placements ({invalid} spots where the old model did not fit either, skipped); {string.Join(", ", count.Select(p => p.Key + " " + p.Value))}; back still on the wall afterwards {flushAfter} (Logs/ft_migrate_flush.txt)");
   }
 
   // ------------------------------------------------------------------ sector staff: how wide, and do they clip

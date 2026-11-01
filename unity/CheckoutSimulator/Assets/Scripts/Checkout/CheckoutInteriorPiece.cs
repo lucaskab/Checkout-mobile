@@ -14,6 +14,8 @@ namespace Checkout
         // Where the clerk, cashier or sector worker stands.
         public bool staffed;
         public Vector3 staff;
+        // How far the worker paces each way along the counter from `staff` (-1: not given, the old 0.8 m).
+        public float staffSpan = -1;
         // Checkout lanes: where shoppers wait ([0] pays) and what they face while paying.
         public Vector3[] queue = new Vector3[0];
         public Vector3 register;

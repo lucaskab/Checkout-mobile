@@ -129,7 +129,7 @@ namespace Checkout {
      if(progress)progress.gameObject.SetActive(false);if(root)root.gameObject.SetActive(available);
      var counter=Piece(key);if(actor){actor.gameObject.SetActive(available&&counter!=null);
       if(counter!=null&&counter.piece.staffed){var spot=Interior.StaffPoint(counter);if(!staffSpots.TryGetValue(actor.name,out var last)||(last-spot).sqrMagnitude>.0001f){staffSpots[actor.name]=spot;actor.SetPositionAndRotation(spot,counter.root.rotation);}
-       var walk=actor.GetComponent<CheckoutSectorWorker>();if(!walk)walk=actor.gameObject.AddComponent<CheckoutSectorWorker>();walk.span=.8f;walk.frame=counter.root;}}
+       var walk=actor.GetComponent<CheckoutSectorWorker>();if(!walk)walk=actor.gameObject.AddComponent<CheckoutSectorWorker>();walk.span=counter.piece.staffSpan>=0?counter.piece.staffSpan:.8f;walk.frame=counter.root;}}
      continue;}if(actor&&!actor.GetComponent<CheckoutSectorWorker>())actor.gameObject.AddComponent<CheckoutSectorWorker>().span=sector.id=="padaria"?.3f:sector.id=="peixaria"?.6f:sector.id=="acougue"?.4f:.5f;if(progress){progress.gameObject.SetActive(true);progress.Apply(available,animateSectors&&!resized);if(!present){/* Sectors from expansions not bought yet still show their building site. */if(progress.construction)progress.construction.gameObject.SetActive(true);progress.finished.gameObject.SetActive(false);if(progress.worker)progress.worker.gameObject.SetActive(false);}}else if(actor)actor.gameObject.SetActive(available);
    }
    // Stock clerks and cleaners are played by CheckoutStaff from the app's task timeline.

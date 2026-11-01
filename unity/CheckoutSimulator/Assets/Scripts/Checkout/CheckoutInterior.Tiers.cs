@@ -135,9 +135,12 @@ namespace Checkout
         /// <summary>Each tiered piece shows the biggest of its tiers that fits where it stands (never moved).</summary>
         bool FitTiers()
         {
-            bool changed = false;
+            bool changed = false; slidSome = false;
             foreach (var it in items.Values.Where(i => i.root && !i.ghost && !i.design && IsTierTemplate(i.desired)).OrderBy(i => i.id).ToList())
             {
+                // A sector saved with the old, shallower model: grow toward the free side (its back stays), or keep the
+                // old footprint at that spot until the player moves it. Never moved elsewhere, never stored.
+                if (!Fits(it, it.root.position, it.rot, out _) && MigrateDeeper(it)) { changed = true; it.wantsGrow = it.template != it.desired; continue; }
                 var steps = TierSteps(it.desired);
                 if (steps.Length < 2) { it.wantsGrow = false; continue; }
                 int at = Array.IndexOf(steps, it.template); if (at < 0) at = 0;
@@ -148,6 +151,8 @@ namespace Checkout
                     for (int k = at + 1; k < steps.Length; k++) if (FitsAs(it, steps[k])) { SwapTemplate(it, steps[k]); changed = true; break; }
                 it.wantsGrow = it.template != it.desired;
             }
+            // (slid sectors: saved so the layout and the pieces agree on the next snapshots)
+            if (slidSome && !editing && !designMode) { MarkPending(); map?.SaveInterior(); }
             return changed;
         }
 
