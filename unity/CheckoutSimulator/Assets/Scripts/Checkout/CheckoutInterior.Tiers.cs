@@ -104,8 +104,9 @@ namespace Checkout
         {
             var piece = PieceOf(template);
             if (!piece || !it.root) return false;
+            var at = TierSpot(it, piece);
             var saved = it.piece; it.piece = piece;
-            bool ok = Fits(it, it.root.position, it.rot, out _);
+            bool ok = Fits(it, at, it.rot, out _);
             it.piece = saved;
             return ok;
         }
@@ -122,18 +123,24 @@ namespace Checkout
         void SwapTemplate(Item it, string template)
         {
             if (it.template == template && it.root) return;
+            Vector3? at = it.root ? TierSpot(it, PieceOf(template)) : (Vector3?)null;
             if (it.root) Destroy(it.root.gameObject);
             it.template = template; Build(it);
             if (!it.root) return;
-            Place(it); Dress(it);
+            Place(it);
+            if (at.HasValue) MoveTo(it, at.Value); // (a sector against a wall keeps its back on the wall)
+            Dress(it);
         }
 
         /// <summary>Each tiered piece shows the biggest of its tiers that fits where it stands (never moved).</summary>
         bool FitTiers()
         {
-            bool changed = false;
+            bool changed = false; slidSome = false;
             foreach (var it in items.Values.Where(i => i.root && !i.ghost && !i.design && IsTierTemplate(i.desired)).OrderBy(i => i.id).ToList())
             {
+                // A sector saved with the old, shallower model: grow toward the free side (its back stays), or keep the
+                // old footprint at that spot until the player moves it. Never moved elsewhere, never stored.
+                if (!Fits(it, it.root.position, it.rot, out _) && MigrateDeeper(it)) { changed = true; it.wantsGrow = it.template != it.desired; continue; }
                 var steps = TierSteps(it.desired);
                 if (steps.Length < 2) { it.wantsGrow = false; continue; }
                 int at = Array.IndexOf(steps, it.template); if (at < 0) at = 0;
@@ -144,6 +151,8 @@ namespace Checkout
                     for (int k = at + 1; k < steps.Length; k++) if (FitsAs(it, steps[k])) { SwapTemplate(it, steps[k]); changed = true; break; }
                 it.wantsGrow = it.template != it.desired;
             }
+            // (slid sectors: saved so the layout and the pieces agree on the next snapshots)
+            if (slidSome && !editing && !designMode) { MarkPending(); map?.SaveInterior(); }
             return changed;
         }
 

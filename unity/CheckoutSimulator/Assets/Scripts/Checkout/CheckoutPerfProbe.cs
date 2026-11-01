@@ -86,7 +86,7 @@ namespace Checkout
                 "CheckoutIncidents.Update() [Invoke]", "CheckoutStaff.Update() [Invoke]", "CheckoutDancingFountain.Update() [Invoke]",
                 "CheckoutStorageLife.Update() [Invoke]", "CheckoutCityTraffic.Update() [Invoke]", "CheckoutNeighborhoodTraffic.Update() [Invoke]",
                 "CheckoutCityPedestrian.Update() [Invoke]", "CheckoutPlazaCyclists.LateUpdate() [Invoke]", "CheckoutEventVisuals.Update() [Invoke]",
-                "CheckoutLotSites.LateUpdate() [Invoke]", "CheckoutStatusMarker.LateUpdate() [Invoke]", "CheckoutRequestBubble.LateUpdate() [Invoke]" };
+                "CheckoutLotSites.LateUpdate() [Invoke]", "CheckoutRequestBubble.LateUpdate() [Invoke]" };
             var scripts = scriptNames.Select(n => (name: n, rec: ProfilerRecorder.StartNew(ProfilerCategory.Scripts, n, 1))).ToArray();
             var scriptTotals = new double[scripts.Length];
             var scriptMax = new double[scripts.Length];

@@ -39,15 +39,16 @@ public static partial class CheckoutMarketStagesBuilder
         { "atm_T1", new Vector2(.75f, .85f) }, { "atm_T2", new Vector2(1.5f, .85f) }, { "atm_T3", new Vector2(2.25f, 1.5f) },
         { "gumball_T1", new Vector2(.5f, .5f) }, { "gumball_T2", new Vector2(1f, .5f) },
         { "claw_T1", new Vector2(.75f, .75f) }, { "claw_T2", new Vector2(1.5f, .85f) }, { "claw_T3", new Vector2(1.5f, 1.5f) },
-        // The seven special sectors (Lucas 30/10), T1 2.5 × 2.0, T2 3.25 × 2.5, T3 4.0 × 3.25; the prefabs take the game's
-        // sector ids (the juices' FBX is "sector-sucos", the game's sector "bebidas").
-        { "sector-padaria_T1", new Vector2(2.5f, 2f) }, { "sector-padaria_T2", new Vector2(3.25f, 2.5f) }, { "sector-padaria_T3", new Vector2(4f, 3.25f) },
-        { "sector-queijaria_T1", new Vector2(2.5f, 2f) }, { "sector-queijaria_T2", new Vector2(3.25f, 2.5f) }, { "sector-queijaria_T3", new Vector2(4f, 3.25f) },
-        { "sector-acougue_T1", new Vector2(2.5f, 2f) }, { "sector-acougue_T2", new Vector2(3.25f, 2.5f) }, { "sector-acougue_T3", new Vector2(4f, 3.25f) },
-        { "sector-peixaria_T1", new Vector2(2.5f, 2f) }, { "sector-peixaria_T2", new Vector2(3.25f, 2.5f) }, { "sector-peixaria_T3", new Vector2(4f, 3.25f) },
-        { "sector-sorvetes_T1", new Vector2(2.5f, 2f) }, { "sector-sorvetes_T2", new Vector2(3.25f, 2.5f) }, { "sector-sorvetes_T3", new Vector2(4f, 3.25f) },
-        { "sector-adega_T1", new Vector2(2.5f, 2f) }, { "sector-adega_T2", new Vector2(3.25f, 2.5f) }, { "sector-adega_T3", new Vector2(4f, 3.25f) },
-        { "sector-bebidas_T1", new Vector2(2.5f, 2f) }, { "sector-bebidas_T2", new Vector2(3.25f, 2.5f) }, { "sector-bebidas_T3", new Vector2(4f, 3.25f) },
+        // The seven special sectors (round 5, Lucas 01/11): T1 2.5 × 3.25, T2 3.25 × 3.5, T3 4.0 × 3.5 (the depth holds a
+        // 1.47 m staff lane); the prefabs take the game's sector ids (the juices' FBX is "sector-sucos", the game's
+        // sector "bebidas").
+        { "sector-padaria_T1", new Vector2(2.5f, 3.25f) }, { "sector-padaria_T2", new Vector2(3.25f, 3.5f) }, { "sector-padaria_T3", new Vector2(4f, 3.5f) },
+        { "sector-queijaria_T1", new Vector2(2.5f, 3.25f) }, { "sector-queijaria_T2", new Vector2(3.25f, 3.5f) }, { "sector-queijaria_T3", new Vector2(4f, 3.5f) },
+        { "sector-acougue_T1", new Vector2(2.5f, 3.25f) }, { "sector-acougue_T2", new Vector2(3.25f, 3.5f) }, { "sector-acougue_T3", new Vector2(4f, 3.5f) },
+        { "sector-peixaria_T1", new Vector2(2.5f, 3.25f) }, { "sector-peixaria_T2", new Vector2(3.25f, 3.5f) }, { "sector-peixaria_T3", new Vector2(4f, 3.5f) },
+        { "sector-sorvetes_T1", new Vector2(2.5f, 3.25f) }, { "sector-sorvetes_T2", new Vector2(3.25f, 3.5f) }, { "sector-sorvetes_T3", new Vector2(4f, 3.5f) },
+        { "sector-adega_T1", new Vector2(2.5f, 3.25f) }, { "sector-adega_T2", new Vector2(3.25f, 3.5f) }, { "sector-adega_T3", new Vector2(4f, 3.5f) },
+        { "sector-bebidas_T1", new Vector2(2.5f, 3.25f) }, { "sector-bebidas_T2", new Vector2(3.25f, 3.5f) }, { "sector-bebidas_T3", new Vector2(4f, 3.5f) },
     };
     static string FbxName(string name) => name.Replace("sector-bebidas_", "sector-sucos_");
     // Sectors with an attendant behind the counter (as the kit's counters).
@@ -105,7 +106,7 @@ public static partial class CheckoutMarketStagesBuilder
     public static void BuildFixtureTiers()
     {
         if (EditorApplication.isPlaying) throw new InvalidOperationException("Leave Play Mode first.");
-        materials.Clear(); paletteSlots.Clear();
+        materials.Clear(); paletteSlots.Clear(); sectorReport = null;
         if (!AssetDatabase.IsValidFolder("Assets/Resources/CheckoutFixtureTiers")) AssetDatabase.CreateFolder("Assets/Resources", "CheckoutFixtureTiers");
         if (!AssetDatabase.IsValidFolder("Assets/Art/Interior/Meshes/FT")) AssetDatabase.CreateFolder("Assets/Art/Interior/Meshes", "FT");
         paletteStruct = Painted("IK_PPalette_FT", "FFFFFF", null, Vector2.one);
@@ -171,6 +172,15 @@ public static partial class CheckoutMarketStagesBuilder
             {
                 piece.serves = true; piece.approach = new Vector3(0, 0, min.y - .47f);
                 piece.staffed = StaffedSectors.Contains(kind); piece.staff = new Vector3(0, 0, (min.y + max.y) * .5f + (max.y - min.y) * .25f);
+                // The staff lane the art left behind the counter (sector_export_report.json): the worker stands in its
+                // middle and paces along it, (lane length − the widest worker, 1.22 m) / 2 each way.
+                var lane = SectorLane(FbxName(name));
+                if (lane != null && lane.ok && lane.laneX != null && lane.laneX.Length == 2 && lane.staff != null && lane.staff.Length == 3)
+                {
+                    piece.staff = new Vector3((lane.laneX[0] + lane.laneX[1]) * .5f, 0, lane.staff[2]);
+                    piece.staffSpan = Mathf.Max(0, (lane.laneX[1] - lane.laneX[0] - WidestWorker) * .5f);
+                    report.Add($"{name}: staff lane {lane.lane:0.00} m deep, x {lane.laneX[0]:0.00}..{lane.laneX[1]:0.00}, staff {piece.staff}, paces ±{piece.staffSpan:0.00}");
+                }
                 var screens = root.AddComponent<CheckoutSectorScreens>();
                 screens.prices = slots.Where(q => q.slot == PriceSlot).OrderBy(q => q.center.x).Select(q => q.quad).ToArray();
                 screens.tickets = slots.Where(q => q.slot == TicketSlot).Select(q => q.quad).ToArray();
@@ -182,8 +192,12 @@ public static partial class CheckoutMarketStagesBuilder
             // empties and refills group by group.
             int before = model.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Distinct().Count();
             var fillRoots = model.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith("Anim Fill")).OrderBy(t => t.name).ToList();
-            var bodyParts = model.GetComponentsInChildren<MeshRenderer>(true).Where(r => !InFill(r.transform)).ToList();
+            // The sectors' freestanding panel ("Back Wall") stays its own renderer: CheckoutInterior hides it against a tall
+            // market wall. "Wall Dressing" (the board, rails, shelves) is always shown and goes into the body.
+            var bodyParts = model.GetComponentsInChildren<MeshRenderer>(true).Where(r => !InFill(r.transform) && !InBackWall(r.transform)).ToList();
+            var backParts = model.GetComponentsInChildren<MeshRenderer>(true).Where(r => !InFill(r.transform) && InBackWall(r.transform)).ToList();
             Merge(root.transform, "Body", bodyParts, name + "_body", true);
+            if (backParts.Count > 0) Merge(root.transform, "Back Wall", backParts, name + "_backwall", true);
             var fills = new List<GameObject>();
             for (int i = 0; i < fillRoots.Count; i++)
             {
@@ -245,6 +259,23 @@ public static partial class CheckoutMarketStagesBuilder
     }
 
     static bool InFill(Transform t) { for (; t; t = t.parent) if (t.name.StartsWith("Anim Fill")) return true; return false; }
+    static bool InBackWall(Transform t) { for (; t; t = t.parent) if (t.name == "Back Wall") return true; return false; }
+
+    // ------------------------------------------------------------------ the sectors' staff lanes (art report)
+    const float WidestWorker = 1.22f; // the baker / cheesemaker rigs, measured in game (eventstiers staff)
+    [Serializable] class SectorLaneInfo { public float lane; public float[] laneX; public float laneLength; public float[] staff; public bool ok; }
+    [Serializable] class SectorReportEntry { public string file; public SectorLaneInfo staffLane; }
+    [Serializable] class SectorReport { public SectorReportEntry[] items; }
+    static SectorReport sectorReport;
+    static SectorLaneInfo SectorLane(string fbx)
+    {
+        if (sectorReport == null)
+        {
+            var path = Path.Combine(Application.dataPath, "..", "ArtSource", "fixture_tiers", "export", "sector_export_report.json");
+            sectorReport = File.Exists(path) ? JsonUtility.FromJson<SectorReport>("{\"items\":" + File.ReadAllText(path) + "}") : new SectorReport { items = new SectorReportEntry[0] };
+        }
+        return sectorReport.items?.FirstOrDefault(e => e != null && e.file == fbx + ".fbx")?.staffLane;
+    }
 
     // ------------------------------------------------------------------ merge + palette
     const int PaletteSize = 32; // 32 x 32 colours

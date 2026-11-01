@@ -364,9 +364,9 @@ namespace Checkout
                     t.name.StartsWith("Worker_") || t.name.StartsWith("Employee_") || t.name.StartsWith("Anim_Truck"))
                     Hide(t.gameObject);
             // (the interior holder is shown or hidden after the model is placed: shops keep their furniture)
-            // Shelf markers and click targets of the building live under the map object.
+            // The click targets of the building live under the map object.
             foreach (Transform t in map.transform)
-                if (t.name.StartsWith("Status ") || t.name.StartsWith("Open ") || t.name.StartsWith("Upgrade ")) Hide(t.gameObject);
+                if (t.name.StartsWith("Open ") || t.name.StartsWith("Upgrade ")) Hide(t.gameObject);
         }
 
         void ShowMarket()

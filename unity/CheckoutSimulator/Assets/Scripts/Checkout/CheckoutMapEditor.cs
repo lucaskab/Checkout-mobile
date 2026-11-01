@@ -699,7 +699,7 @@ namespace Checkout
         // ------------------------------------------------------------------ picking objects
         static readonly string[] SkipRoots = { "Market Interior", "CheckoutBridge", "Market Staff", "Market Interface", "Map Design Paint", "Map Grid", "Build footprint", "Build spot", "Editor footprint", "Editor brush", "Market Terrain Grid", "Map Design Staging", "Isometric Camera" };
         static readonly string[] SkipNames = { "Staff Kit", "Interior Kit", "Plaza life" };
-        static readonly string[] SkipPrefixes = { "Customer_", "Worker_", "Employee_", "Anim_", "Status ", "Open ", "StockWorker_" };
+        static readonly string[] SkipPrefixes = { "Customer_", "Worker_", "Employee_", "Anim_", "Open ", "StockWorker_" };
         readonly Dictionary<Mesh, (Vector3[] v, int[] t)> meshCache = new Dictionary<Mesh, (Vector3[], int[])>();
 
         static bool Skipped(Transform t)

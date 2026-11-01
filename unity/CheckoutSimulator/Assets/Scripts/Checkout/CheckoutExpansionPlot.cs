@@ -4,7 +4,7 @@ using System.Linq;
 namespace Checkout {
  // Expansion previews stay visible while locked so simulator players can see what progression adds.
  public sealed class CheckoutExpansionPlot {
-  readonly GameObject content,construction;readonly CheckoutStatusMarker marker;bool unlocked;
+  readonly GameObject content,construction;bool unlocked;
   public Transform Root {get;private set;}
   public CheckoutExpansionPlot(CheckoutEventAssets art,Transform parent,string id,Vector3 position,Transform source){
    Root=art.Group(parent,"Expansion "+id,position);
@@ -14,11 +14,10 @@ namespace Checkout {
    art.Bar(construction.transform,new Vector3(-1.3f,.1f,.95f),new Vector3(1.3f,.1f,.95f),.08f,"D29B55");
    art.Cone(construction.transform,new Vector3(-1.2f,.05f,-.8f));art.Cone(construction.transform,new Vector3(1.2f,.05f,.8f));
    content=art.Group(Root,"Unlocked feature",Vector3.up*.08f).gameObject;BuildFeature(content.transform,id,source);
-   marker=art.Group(Root,"Unlock status",new Vector3(0,2.15f,-.25f)).gameObject.AddComponent<CheckoutStatusMarker>();marker.Initialize(art);marker.transform.localScale=Vector3.one*1.6f;
   }
   public void Apply(bool next,int requiredLevel){
    if(next&&!unlocked){content.transform.localScale=Vector3.one*.75f;}
-   unlocked=next;construction.SetActive(!unlocked);content.SetActive(true);marker.Apply(unlocked,1,1,false,requiredLevel);
+   unlocked=next;construction.SetActive(!unlocked);content.SetActive(true);
   }
   public void Update(){if(!unlocked||content.transform.localScale==Vector3.one)return;content.transform.localScale=Vector3.MoveTowards(content.transform.localScale,Vector3.one,Time.deltaTime*1.8f);}
   static void BuildFeature(Transform root,string id,Transform source){
