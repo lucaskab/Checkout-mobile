@@ -84,13 +84,15 @@ namespace Checkout
 
         void Build()
         {
-            navy = Mat("1D2B4F", .35f); gold = Mat("E0B040", .55f); track = Mat("0E1730", .1f);
-            arcMat = Mat("F2C84B", 0, true); dim = Mat("4A5677", .2f);
+            // Unlit: the ring keeps the market's navy and gold whatever the light (lit, the navy read as grey).
+            navy = Mat("1D2B4F", 0, true); gold = Mat("E0B040", 0, true); track = Mat("0B1328", 0, true);
+            arcMat = Mat("F2C84B", 0, true); dim = Mat("3A4566", 0, true);
             var b = PieceBounds();
             // The ring floats over the piece (always the same size on the screen: it faces the camera).
             ring = new GameObject("Evolution ring").transform; ring.SetParent(transform, false);
             ring.localScale = Vector3.one / Mathf.Max(.2f, item.scale);
-            ring.localPosition = new Vector3(b.center.x, b.size.y + 1.25f / Mathf.Max(.2f, item.scale), b.center.z);
+            // over the piece and over the builder's head (with room for the skip plate under the ring)
+            ring.localPosition = new Vector3(b.center.x, Mathf.Max(b.size.y, 1.9f) + 2.0f / Mathf.Max(.2f, item.scale), b.center.z);
             Disc(ring, "Rim", R + .13f, .05f, gold, .06f);
             Disc(ring, "Face", R, .02f, navy, .0f);
             Annulus(ring, "Track", R * .72f, R * .9f, track, -.035f);

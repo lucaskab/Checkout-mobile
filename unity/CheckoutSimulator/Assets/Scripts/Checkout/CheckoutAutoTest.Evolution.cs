@@ -37,6 +37,19 @@ namespace Checkout {
    yield return CloseCards();
   }
 
+  // The QA copy keeps its furniture in the build-mode inventory: put the piece on the floor (as a player would) so
+  // the evolution crew, the cloth and the reveal have something to stand on.
+  IEnumerator EnsurePlaced(string pieceId) {
+   var inside = CheckoutInterior.Active; if (!inside || inside.Get(pieceId) != null) yield break;
+   if (!inside.waiting.ContainsKey(pieceId)) { Note("EVO " + pieceId + " is neither placed nor waiting"); yield break; }
+   var floor = inside.FloorRect; CheckoutInterior.Item placed = null;
+   for (float pz = floor.yMax - 1.2f; placed == null && pz > floor.yMin + 1.2f; pz -= 1.1f)
+    for (float px = floor.xMin + 1.2f; placed == null && px < floor.xMax - 1.2f; px += 1.3f)
+     placed = inside.PlaceWaiting(pieceId, new Vector3(px, 0, pz));
+   Note("EVO placed " + pieceId + ": " + (placed != null ? placed.template + " at " + placed.root.position.ToString("0.0") : "no room"));
+   if (placed != null) { inside.MarkPending(); FindAnyObjectByType<CheckoutMap>().SaveInterior(); yield return Wait(2.5f); }
+  }
+
   IEnumerator EnsureBakery() {
    Sector Bakery() => bridge.State.sectors?.FirstOrDefault(x => x.id == "padaria");
    if (Bakery() == null || Bakery().unlocked) yield break;
@@ -58,6 +71,7 @@ namespace Checkout {
    QaRich("rewards");
    yield return GoToStage("spati"); yield return ClearReveals();
    Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f); yield return ClearReveals();
+   yield return EnsurePlaced("shelf:produce");
    var shelf = bridge.State.shelves.First(x => x.id == "produce");
    int tier = shelf.tier; int cap = shelf.capacity;
    Hud("upgradeShelfCapacity", "[\"produce\",\"coins\"]"); yield return Wait(2);
@@ -107,6 +121,7 @@ namespace Checkout {
    Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f); yield return ClearReveals();
    var ids = bridge.State.shelves.Where(s => s.unlocked && s.tier < 5 && TierKindOf.ContainsKey(s.id)).Select(s => s.id).Take(2).ToList();
    if (ids.Count < 2) { Note("RESULT tiers queue: FAIL fewer than two shelves to evolve"); yield break; }
+   foreach (var id in ids) yield return EnsurePlaced("shelf:" + id);
    foreach (var id in ids) { Hud("upgradeShelfCapacity", "[\"" + id + "\",\"coins\"]"); yield return Wait(1.5f); }
    var a = Evo("shelf", ids[0]); var b = Evo("shelf", ids[1]);
    Check(a != null && b != null, $"both queued ({ids[0]}, {ids[1]})");
@@ -138,11 +153,13 @@ namespace Checkout {
    Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f); yield return ClearReveals();
    var id = bridge.State.shelves.Where(s => s.unlocked && s.tier < 5 && TierKindOf.ContainsKey(s.id)).Select(s => s.id).FirstOrDefault();
    if (id == null) { Note("RESULT tiers skip: FAIL no shelf to evolve"); yield break; }
+   yield return EnsurePlaced("shelf:" + id);
    Hud("upgradeShelfCapacity", "[\"" + id + "\",\"coins\"]"); yield return Wait(2);
    var e = Evo("shelf", id);
    Check(e != null && e.skipCost > 0, $"evolving {id}: skip {e?.skipCost} diamonds");
    if (e == null) { Note("RESULT tiers skip: FAIL no evolution"); yield break; }
-   var it = CheckoutInterior.Active.Get("shelf:" + id); var site = it.root.GetComponent<CheckoutEvolutionSite>();
+   var it = CheckoutInterior.Active.Get("shelf:" + id); var site = it?.root ? it.root.GetComponent<CheckoutEvolutionSite>() : null;
+   Check(site, "the ring and the builder on " + id);
    // a tap on the ring (through the world tap, as a finger would)
    var cam = Camera.main; var at = site && site.Ring && cam ? (Vector2)cam.WorldToScreenPoint(site.Ring.position) : Vector2.zero;
    var hit = site && cam ? bridge.WorldTap(at) : null;
@@ -192,6 +209,7 @@ namespace Checkout {
    Hud("devFinishEvolutions", "[]"); yield return Wait(1.5f); yield return ClearReveals();
    // a shelf
    var id = bridge.State.shelves.Where(s => s.unlocked && s.tier < 5 && TierKindOf.ContainsKey(s.id)).OrderBy(s => s.tier).Select(s => s.id).FirstOrDefault();
+   if (id != null) yield return EnsurePlaced("shelf:" + id);
    if (id != null) yield return RevealOne("shelf", id, () => Hud("upgradeShelfCapacity", "[\"" + id + "\",\"coins\"]"), fails, true);
    else fails.Add("no shelf to evolve");
    // a sector
@@ -219,13 +237,14 @@ namespace Checkout {
    for (float t = 0; t < 6 && !reveal.Playing; t += .1f) yield return new WaitForSecondsRealtime(.1f);
    if (!reveal.Playing) { fails.Add(kind + " reveal did not start"); yield break; }
    var hud = FindAnyObjectByType<CheckoutDesktopHUD>();
-   int n = 0; bool clothShot = false, popShot = false; float since = -1;
-   for (float t = 0; t < 7; t += Time.unscaledDeltaTime) {
+   int n = 0; bool clothShot = false, popShot = false; float since = -1, popAt = -1; float t0 = Time.realtimeSinceStartup;
+   for (float t = 0; t < 9; t = Time.realtimeSinceStartup - t0) {
     yield return new WaitForEndOfFrame();
     if (n % 1 == 0) SaveFrame($"ft_evo_reveal_{kind}_{n:000}", 960);
     n++;
-    if (stills && !clothShot && reveal.Stage == 0 && t > 1.0f) { SaveFrame("ft_evo_cloth", 1600); clothShot = true; }
-    if (stills && !popShot && reveal.Stage >= 2 && t > 1.75f) { SaveFrame("ft_evo_pop", 1600); popShot = true; }
+    if (stills && !clothShot && reveal.Stage == 0 && t > .9f) { SaveFrame("ft_evo_cloth", 1600); clothShot = true; }
+    if (stills && !popShot && reveal.Stage >= 2 && popAt < 0) popAt = t;
+    if (stills && !popShot && popAt >= 0 && t - popAt > .25f) { SaveFrame("ft_evo_pop", 1600); popShot = true; }
     if (!reveal.Playing && hud.ConquestOpen) { if (since < 0) since = t; if (t - since > 1.6f) break; }
     yield return new WaitForSecondsRealtime(1f / 14);
    }
@@ -239,7 +258,8 @@ namespace Checkout {
   void SaveFrame(string name, int width) {
    var tex = ScreenCapture.CaptureScreenshotAsTexture();
    float k = Mathf.Min(1, width / (float)tex.width);
-   var rt = RenderTexture.GetTemporary((int)(tex.width * k), (int)(tex.height * k)); Graphics.Blit(tex, rt);
+   // (sRGB target: a linear one washed the pictures out)
+   var rt = RenderTexture.GetTemporary((int)(tex.width * k), (int)(tex.height * k), 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB); Graphics.Blit(tex, rt);
    var prev = RenderTexture.active; RenderTexture.active = rt;
    var small = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false); small.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); small.Apply();
    RenderTexture.active = prev; RenderTexture.ReleaseTemporary(rt);
