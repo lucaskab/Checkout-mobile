@@ -20,12 +20,12 @@ MARKET_WALL_H = 2.49          # CheckoutMarketShell: Top - Floor (interior plast
 PANEL_T = .05                 # the panel's cream body; the wall dressing mounts on its face (y = D/2 - PANEL_T)
 PANEL_H = 2.40                # cream top; the gold cap brings the panel to 2.45 m (< the market wall)
 BACK_CLEAR = .09              # furniture backs stay this far from the back edge (clear of the panel's rail)
-STAFF_W = .70                 # staff character width (shoulders / belly), confirmed by the implementation agent
+STAFF_W = 1.22                # widest staff rig (baker / cheesemaker, baked pose), measured in Unity by the implementation agent
 LANE = STAFF_W + .25          # clear lane behind the counter
 GRAPH = "1B1E24"              # matte screen / bezel black
 
 # new footprints (W, D) per tier; height = the panel (2.45 m)
-V5_SIZES = {sid: [(2.5, 2.75), (3.25, 3.0), (4.0, 3.25)] for sid in SECTOR_NAMES}
+V5_SIZES = {sid: [(2.5, 3.25), (3.25, 3.5), (4.0, 3.5)] for sid in SECTOR_NAMES}
 V5_H = PANEL_H + .05
 
 # one accent family per sector (machines and furniture instead of white enamel)
@@ -180,6 +180,39 @@ def v5_mat(acc, x, y, w, d):
         rbox(acc, (.012, d - .06, .004), (x - w / 2 + .05 + k * (w - .1) / max(1, n - 1), y, .014), C("3A3F46"), 0, 1)
 
 
+def v5_lane(acc, key, D, cback, cx0, cx1, items, mat=True):
+    """The staff lane behind the counter: items are the back-row pieces (x, width, depth from the furniture plane).
+    Finds the longest x-run over the counter where the clear depth (counter back -> nearest back piece or the panel)
+    is >= LANE, logs its x-range, clear depth and the staff point (its centre), and lays the rubber mat there."""
+    ye, yw, yf = v5_planes(D)
+    its = [(x - w / 2, x + w / 2, yf - d) for x, w, d in items]
+    n = int(round((cx1 - cx0) / .01))
+    xs = [cx0 + i * .01 for i in range(n + 1)]
+    clear = [min([fy for a, b, fy in its if a - .005 <= x <= b + .005] + [yw - .02]) - cback for x in xs]
+    best, i = None, 0
+    while i < len(xs):
+        if clear[i] >= LANE - 1e-6:
+            j = i
+            while j + 1 < len(xs) and clear[j + 1] >= LANE - 1e-6:
+                j += 1
+            if best is None or j - i > best[1] - best[0]:
+                best = (i, j)
+            i = j + 1
+        else:
+            i += 1
+    if best is None:
+        LANELOG[key] = {"lane": round(max(clear), 3), "ok": False}
+        return
+    i, j = best
+    lane = min(clear[i:j + 1])
+    xm, ym = (xs[i] + xs[j]) / 2, cback + lane / 2
+    LANELOG[key] = {"lane": round(lane, 3), "laneX": [round(xs[i], 2), round(xs[j], 2)], "laneLength": round(xs[j] - xs[i], 2),
+                    "laneZ": [round(cback, 3), round(cback + lane, 3)], "staff": [round(xm, 3), 0.0, round(ym, 3)], "ok": True}
+    LANEPOS[key] = (xm, ym, xs[j] - xs[i])
+    if mat:
+        v5_mat(acc, xm, ym, min(xs[j] - xs[i], 2.6), min(.7, lane - .2))
+
+
 def v5_lane_check(name, counter_back, back_front, x=0.0, w=1.5):
     lane = back_front - counter_back
     LANEPOS[name] = (x, (counter_back + back_front) / 2, w)
@@ -289,10 +322,11 @@ def a5_block_table(acc, x, yback, w, d=.55, h=.9, seed=0):
     for k in range(int((w - .1) / .3)):
         tx = x - w / 2 + .2 + k * .3
         if k % 2 == 0:
-            for j in range(4):
-                rbox(acc, (.24, .18, .02), (tx, y, .245 + j * .022), C(WHITE), .006, 1)
+            rbox(acc, (.24, .18, .09), (tx, y, .28), C(WHITE), .004, 1)
+            for j in range(3):
+                rbox(acc, (.245, .185, .004), (tx, y, .255 + j * .022), C("DAD6CC"), 0, 1)
         else:
-            open_box(acc, .26, .36, .18, (tx, y, .23), C(A), .012, .01)
+            open_box(acc, .26, .36, .18, (tx, y, .23), C(A), .012, 0)
     return y
 
 
@@ -300,8 +334,8 @@ def a5_cepo(acc, loc, seed=0):
     """Cepo: a round end-grain butcher block on a burgundy three-leg stand, a cleaver stuck in it, a cut on top."""
     A, A2 = ACCENT["acougue"]
     x, y, _ = loc
-    lathe(acc, [(0, .62), (.27, .62), (.28, .64), (.28, .86), (.27, .88), (0, .88)], (x, y, 0), "T_IK_ButcherBlock", 20, 0)
-    lathe(acc, [(.26, .6), (.3, .6), (.3, .64), (.26, .64)], (x, y, 0), C(A), 20, 0, cap_top=False, cap_bottom=False)
+    lathe(acc, [(0, .62), (.27, .62), (.28, .64), (.28, .86), (.27, .88), (0, .88)], (x, y, 0), "T_IK_ButcherBlock", 14, 0)
+    lathe(acc, [(.26, .6), (.3, .6), (.3, .64), (.26, .64)], (x, y, 0), C(A), 14, 0, cap_top=False, cap_bottom=False)
     for k in range(3):
         a = k * 2 * math.pi / 3 + .4
         tube(acc, [(x + .2 * math.cos(a), y + .2 * math.sin(a), .61), (x + .3 * math.cos(a), y + .3 * math.sin(a), 0)], .025, C(A), 8)
@@ -342,8 +376,7 @@ def acougue_v5(acc, tier):
         sd_knife(acc, (.1, ty - .1, .905), (0, 0, 10), .2, "cleaver")
         a5_cabinet(acc, .85, yf, .6, .45)
         sd_paper_roll(acc, (.85, yf - .25, .9), 0, .45, "F4F2EC")
-        v5_mat(acc, 0, (cy + .95 / 2 + yf - .55) / 2, 1.6, .5)
-        v5_lane_check(key, cy + .95 / 2, yf - .55, 0, 1.6)
+        v5_lane(acc, key, D, cy + .475, -0.875, 0.875, [(-0.45, 1.3, 0.55), (0.85, 0.6, 0.45)])
         v5_hook_rail(wd, -1.15, -.1, D, 1.82, 4, ("ham", "sausage", "sausage", "ham"))
         v5_menu_board(wd, .55, 2.32, D, 1, .78, False, 0)
         v5_knife_strip(wd, .55, D, 1.36, 4, .5)
@@ -358,8 +391,7 @@ def acougue_v5(acc, tier):
         a5_grinder(acc, (-.6, ty - .02, .9), 0)
         a5_sealer(acc, (-.05, ty, .9), 0)
         a5_label_scale(acc, (.35, ty, .9), 0)
-        v5_mat(acc, -.25, (cy + .95 / 2 + yf - .65) / 2, 2.4, .55)
-        v5_lane_check(key, cy + .95 / 2, yf - .65, -.25, 2.4)
+        v5_lane(acc, key, D, cy + .475, -1.375, 1.375, [(-1.25, 0.7, 0.67), (-0.2, 1.3, 0.55), (1.1, 1.01, 0.05)])
         v5_cold_door(wd, 1.1, D, .85, 2.05)
         v5_menu_board(wd, -.2, 2.32, D, 2, .68, True, 0)
         v5_hook_rail(wd, -.85, -.15, D, 1.52, 3, ("sausage", "ham", "sausage"))
@@ -380,12 +412,10 @@ def acougue_v5(acc, tier):
         a5_label_scale(acc, (.62, ty2, .9), 0)
         sd_paper_roll(acc, (.3, ty2 + .05, .92), 90, .3, "F4F2EC")
         a5_cepo(acc, (1.55, -.1, 0), 3)
-        v5_mat(acc, -.62, (cy + .95 / 2 + yf - .65) / 2, 2.5, .6)
-        v5_lane_check(key, cy + .95 / 2, yf - .65, -.62, 2.5)
+        v5_lane(acc, key, D, cy + .475, -1.945, 0.705, [(-1.6, 0.7, 0.67), (-0.62, 1.4, 0.55), (0.5, 0.7, 0.55), (1.5, 0.96, 0.05)])
         v5_cold_door(wd, 1.5, D, .8, 2.05)
         v5_menu_board(wd, -.14, 2.32, D, 3, .66, True, 0)
-        v5_hook_rail(wd, -1.2, -.15, D, 1.5, 4, ("ham", "sausage", None, "ham"))
-        v5_knife_strip(wd, .5, D, 1.38, 3, .4)
+        v5_hook_rail(wd, -1.2, -.15, D, 1.5, 4, ("ham", "sausage", None, "sausage"))
 
 
 def a5_selfservice(acc, x, y, W=1.25, D=.75, H=1.95, seed=0):
@@ -467,9 +497,12 @@ def place_piece(sid, tier, loc, tag, back=True):
             o.hide_render = o.hide_viewport = not back
         if grp == "Wall Dressing":          # render-only: the name as the game writes it
             pm = name_preview_material(sid, tier)
+            sm = v4_screen_material("FT5_Price_%s" % sid, "FT_PricePreview_%s.png" % sid)
             for k, mm in enumerate(o.data.materials):
                 if mm and mm.name == "E_NamePanel" and pm:
                     o.data.materials[k] = pm
+                elif mm and mm.name == "E_PriceScreen":
+                    o.data.materials[k] = sm
     root.location = loc
     return root, objs
 
@@ -551,7 +584,7 @@ def v5_previews(sid, tiers=(1, 2, 3)):
         key = "sector-%s_T%d" % (sid, t)
         lx, ly, lw = LANEPOS.get(key, (0, 0, 1))
         staff_marker(x + lx, Y0 + FREE_DY + ly, "Staff %s" % key)
-        lane_caption(("faixa %.2f m  /  pessoa %.2f m" % (LANELOG.get(key, 0), STAFF_W)).replace(".", ","), (x, Y0 + FREE_DY - d / 2 - .35, .004))
+        lane_caption(("faixa %.2f m  /  pessoa %.2f m" % ((LANELOG.get(key) or {}).get("lane", 0), STAFF_W)).replace(".", ","), (x, Y0 + FREE_DY - d / 2 - .35, .004))
         out.append(v5_iso((x, Y0 - d / 2 + .25, 1.35), w, "sector-%s_T%d_flush_gamecam" % (sid, t), ycen=Y0 - d / 2, half=d / 2 + .9))
         out.append(v5_iso((x, Y0 + FREE_DY + .25, 1.35), w, "sector-%s_T%d_free_gamecam" % (sid, t), ycen=Y0 + FREE_DY, half=d / 2 + .9))
         # top view with the staff footprint in the lane (freestanding piece)
