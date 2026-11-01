@@ -39,12 +39,12 @@ namespace Checkout {
 
   // The QA copy keeps its furniture in the build-mode inventory: put the piece on the floor (as a player would) so
   // the evolution crew, the cloth and the reveal have something to stand on.
-  IEnumerator EnsurePlaced(string pieceId) {
+  IEnumerator EnsurePlaced(string pieceId, float fromX = 0) {
    var inside = CheckoutInterior.Active; if (!inside || inside.Get(pieceId) != null) yield break;
    if (!inside.waiting.ContainsKey(pieceId)) { Note("EVO " + pieceId + " is neither placed nor waiting"); yield break; }
    var floor = inside.FloorRect; CheckoutInterior.Item placed = null;
    for (float pz = floor.yMax - 1.2f; placed == null && pz > floor.yMin + 1.2f; pz -= 1.1f)
-    for (float px = floor.xMin + 1.2f; placed == null && px < floor.xMax - 1.2f; px += 1.3f)
+    for (float px = floor.xMin + 1.2f + fromX; placed == null && px < floor.xMax - 1.2f; px += 1.3f)
      placed = inside.PlaceWaiting(pieceId, new Vector3(px, 0, pz));
    Note("EVO placed " + pieceId + ": " + (placed != null ? placed.template + " at " + placed.root.position.ToString("0.0") : "no room"));
    if (placed != null) { inside.MarkPending(); FindAnyObjectByType<CheckoutMap>().SaveInterior(); yield return Wait(2.5f); }
@@ -220,7 +220,7 @@ namespace Checkout {
    // a second shelf (the drinks fridge T1 → T2). The QA game view is already the iPhone's (2778 × 1284, held
    // sideways): the game is landscape only (ProjectSettings allows no portrait), so there is no portrait reveal.
    Note("EVO game view: " + Screen.width + "x" + Screen.height);
-   yield return EnsurePlaced("shelf:drinks"); yield return StockShelf("drinks");
+   yield return EnsurePlaced("shelf:drinks", 4.5f); yield return StockShelf("drinks");   // (clear of the produce stand)
    yield return RevealOne("shelf", "drinks", () => Hud("upgradeShelfCapacity", "[\"drinks\",\"coins\"]"), fails, "fridge", false);
    Note($"RESULT tiers reveal: {(fails.Count == 0 ? "PASS" : "FAIL")}" + (fails.Count > 0 ? ": " + string.Join(" | ", fails) : "") + " (Logs/ft_evo_reveal_*.mjpg)");
   }
@@ -236,7 +236,10 @@ namespace Checkout {
     if (slot == null) { Note("EVO could not assign on " + shelfId); yield break; }
    }
    Hud("devAdjustInventory", "[" + slot.productId + ",80]"); yield return Wait(1f);
-   Hud("restockShelf", "[{\"shelfId\":\"" + slot.slotId + "\",\"productId\":" + slot.productId + ",\"amount\":60}]"); yield return Wait(1.2f);
+   // (as much as fits and as the stock room has: the store refuses more than either)
+   slot = (bridge.State.restockSlots ?? System.Array.Empty<RestockSlot>()).FirstOrDefault(r => r.slotId == slot.slotId) ?? slot;
+   int room = Mathf.Max(1, Mathf.Min(slot.capacity - slot.stock, slot.reserve > 0 ? slot.reserve : slot.capacity));
+   Hud("restockShelf", "[{\"shelfId\":\"" + slot.slotId + "\",\"productId\":" + slot.productId + ",\"amount\":" + room + "}]"); yield return Wait(1.2f);
    var now = (bridge.State.restockSlots ?? System.Array.Empty<RestockSlot>()).FirstOrDefault(r => r.slotId == slot.slotId);
    Note($"EVO stocked {shelfId}: {slot.productName} {now?.stock}/{now?.capacity}");
   }
@@ -261,16 +264,18 @@ namespace Checkout {
    var hud = FindAnyObjectByType<CheckoutDesktopHUD>(); var reveal = CheckoutEvolutionReveal.Instance;
    var sim = FindAnyObjectByType<MarketDay.MarketSimulation>(); var camBefore = sim ? sim.CameraState : default;
    var path = "Logs/ft_evo_reveal_" + name + ".mjpg";
-   var fs = File.Create(path); int frames = 0, cardAt = -1, popAt = -1, revealStart = -1; bool cloth = false, pop = false, card = false; float maxFill = 0;
+   var fs = File.Create(path); int frames = 0, waited = 0, cardAt = -1, popAt = -1, revealStart = -1; bool cloth = false, pop = false, card = false; float maxFill = 0;
    Time.captureFramerate = 30;
    try {
     host.Route("");   // back to the map: the reveal starts
     while (frames < 30 * 9) {
      yield return new WaitForEndOfFrame();
+     // (from the reveal's first frame: the window that held it back is not part of the show)
+     if (revealStart < 0 && reveal.Playing) revealStart = frames + 1;
+     if (revealStart < 0) { if (++waited > 90) break; continue; }
      var jpg = GrabJpg(1280); fs.Write(jpg, 0, jpg.Length); frames++;
-     if (revealStart < 0 && reveal.Playing) revealStart = frames;
      if (stills && !cloth && revealStart > 0 && frames - revealStart == 26) { File.WriteAllBytes("Logs/ft_evo_cloth.jpg", GrabJpg(1920)); cloth = true; }
-     if (popAt < 0 && reveal.Stage >= 2) popAt = frames;
+     if (popAt < 0 && revealStart > 0 && reveal.Playing && reveal.Stage >= 2) popAt = frames;
      if (stills && !pop && popAt > 0 && frames - popAt == 9) { File.WriteAllBytes("Logs/ft_evo_pop.jpg", GrabJpg(1920)); pop = true; }
      if (reveal.Playing && it?.root) maxFill = Mathf.Max(maxFill, ScreenShare(it.root));
      if (cardAt < 0 && !reveal.Playing && revealStart > 0 && hud.ConquestOpen && hud.QaCardShown) cardAt = frames;
@@ -295,7 +300,13 @@ namespace Checkout {
   // How much of the screen's height the piece takes now.
   static float ScreenShare(Transform root) {
    var cam = Camera.main; if (!cam) return 0; var rs = root.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) return 0;
-   var b = rs[0].bounds; foreach (var r in rs) if (!(r is ParticleSystemRenderer)) b.Encapsulate(r.bounds);
+   bool any = false; Bounds b = default;
+   foreach (var r in rs) {
+    if (r is ParticleSystemRenderer || !r.enabled || !r.gameObject.activeInHierarchy) continue;
+    var rb = r.bounds; if (rb.size.x < .08f && rb.size.z < .08f && rb.size.y > .4f) continue;   // (a hanging cable)
+    if (!any) { b = rb; any = true; } else b.Encapsulate(rb);
+   }
+   if (!any) return 0;
    float minY = float.MaxValue, maxY = float.MinValue;
    for (int i = 0; i < 8; i++) { var c = new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z); var p = cam.WorldToViewportPoint(c); minY = Mathf.Min(minY, p.y); maxY = Mathf.Max(maxY, p.y); }
    return maxY - minY;

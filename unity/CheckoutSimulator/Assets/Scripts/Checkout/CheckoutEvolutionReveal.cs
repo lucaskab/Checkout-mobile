@@ -79,6 +79,9 @@ namespace Checkout
                 {
                     if (r is ParticleSystemRenderer || r.GetComponent<TMP_Text>()) continue;
                     if (r.name == "Evolution ring" || (r.transform.parent && r.transform.parent.name == "Evolution ring")) continue;
+                    if (!r.enabled || !r.gameObject.activeInHierarchy) continue;
+                    // a cable or a pole (a lamp hanging from the ceiling): not the piece's body, the cloth and the camera ignore it
+                    var rb = r.bounds; if (rb.size.x < .08f && rb.size.z < .08f && rb.size.y > .4f) continue;
                     if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
                 }
             if (!any) foreach (var root in roots) { b = new Bounds(root.position + Vector3.up, new Vector3(1.5f, 2, 1)); break; }
@@ -95,7 +98,7 @@ namespace Checkout
                 var key = KeyOf(r.kind, r.targetId); due.Add(key);
                 // the next tier of a piece whose reveal is playing right now: it is covered again once that one is over
                 if (Playing && playingKey == key) continue;
-                if (veils.TryGetValue(key, out var v) && v.cloth) { Rehide(v); continue; }
+                if (veils.TryGetValue(key, out var v) && v.cloth) { Refit(v, Targets(r.kind, r.targetId)); continue; }
                 var roots = Targets(r.kind, r.targetId);
                 if (roots.Count == 0) continue;
                 if (v != null) Uncover(v);
@@ -120,6 +123,20 @@ namespace Checkout
             BuildCloth(v);
             v.dropped = drop ? 0 : 1;
             return v;
+        }
+
+        // The piece is rebuilt under the cloth when its evolution ends (the new tier's model): follow the new roots, hide
+        // what appeared and tailor the cloth (and the reveal's framing) to the new model's size.
+        void Refit(Veil v, List<Transform> roots)
+        {
+            if (roots.Count > 0 && (v.roots.Any(t => !t) || roots.Any(t => !v.roots.Contains(t)))) v.roots = roots;
+            int before = v.hidden.Count; Rehide(v);
+            if (v.hidden.Count == before || !v.cloth || v.pulling) return;
+            var nb = BoundsOf(v.roots);
+            if ((nb.size - v.bounds.size).magnitude < .12f && (nb.center - v.bounds.center).magnitude < .12f) return;
+            v.bounds = nb; var old = v.cloth; var oldMesh = v.mesh; float sway = v.sway, ripple = v.ripple;
+            BuildCloth(v); v.sway = sway; v.ripple = ripple;
+            Destroy(old.gameObject); if (oldMesh) Destroy(oldMesh);
         }
 
         void Rehide(Veil v)
@@ -313,6 +330,7 @@ namespace Checkout
         IEnumerator Run(Veil v, DesktopCelebrationReveal data, bool moveCamera, float dropStep)
         {
             Playing = true; playingKey = v.key; Stage = 0;
+            Refit(v, Targets(data.kind, data.targetId));
             var fx = CheckoutConquestFx.Instance;
             var b = v.bounds; var center = b.center; var size = b.size;
             var cam = Camera.main;
@@ -362,7 +380,7 @@ namespace Checkout
             foreach (var root in v.roots) if (root) StartCoroutine(Pop(root));
             StartCoroutine(Burst(center, Mathf.Max(size.x, size.y, size.z), cam));
             StartCoroutine(RimLight(center, Mathf.Max(size.x, size.y, size.z), cam));
-            fx.ConfettiAt(new Vector3(center.x, b.max.y + .15f, center.z), 80, .55f, Palette);
+            fx.ConfettiAt(new Vector3(center.x, b.max.y + .6f, center.z), 28, .38f, Palette);   // light: the model stays in sight
             Play(CheckoutUiKit.Sfx("pop"), .8f);
             yield return Until(DropAt);
             // Products in, one by one (sectors: the worker hops, the price screens light up); the chips rise.
