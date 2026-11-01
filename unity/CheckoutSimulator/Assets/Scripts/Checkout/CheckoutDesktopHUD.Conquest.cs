@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -54,7 +55,7 @@ namespace Checkout {
    var shine=N.Image(conquestMedal,"Shine",new Color(1,1,1,.35f),0);shine.sprite=LevelDisc();U.At(shine.rectTransform,new Vector2(.5f,.5f),new Vector2(110,40),new Vector2(-4,62));
    conquestIcon=U.Icon(conquestMedal,"Icon","Icons/key",new Vector2(.5f,.5f),new Vector2(138,138));conquestIcon.raycastTarget=false;
    var portrait=new GameObject("Portrait",typeof(RectTransform),typeof(RawImage));portrait.transform.SetParent(conquestMedal,false);
-   conquestPortrait=portrait.GetComponent<RawImage>();conquestPortrait.raycastTarget=false;U.At(conquestPortrait.rectTransform,new Vector2(.5f,.5f),new Vector2(196,196),Vector2.zero);conquestPortrait.enabled=false;
+   conquestPortrait=portrait.GetComponent<RawImage>();conquestPortrait.raycastTarget=false;U.At(conquestPortrait.rectTransform,new Vector2(.5f,.5f),new Vector2(184,184),Vector2.zero);conquestPortrait.enabled=false;
 
    // Ribbon with the headline.
    conquestRibbon=N.Node("Ribbon",conquestStage);U.At(conquestRibbon,new Vector2(.5f,.5f),new Vector2(560,80),new Vector2(0,26));
@@ -164,7 +165,7 @@ namespace Checkout {
   }
 
   IEnumerator PlayConquest(DesktopCelebration data,bool pageOpen){
-   conquestPlaying=true;conquestId=data.id;conquestRoute=data.route;
+   conquestPlaying=true;conquestId=data.id;conquestRoute=data.route;QaCountDone=false;
    // A lot: first the show on the map (the camera flies there unless a window is open).
    if(data.kind=="lot"&&!string.IsNullOrEmpty(data.lotId)){
     var sites=FindAnyObjectByType<CheckoutLotSites>();
@@ -179,10 +180,13 @@ namespace Checkout {
     float wait=CheckoutEvolutionReveal.Instance.Play(data.reveal,data.id,!pageOpen);
     if(wait>0)yield return CheckoutUiKit.Wait(wait);
    }
-   // The new look: the build-mode picture of the new tier (bright 3/4 render); a live picture when there is none.
+   // The new look: a live 3/4 snapshot of the new tier's own model (taken as its reveal began); the build-mode sprite
+   // of the tier only when that picture could not be taken, and a picture of the piece as it stands as the last resort.
    if(conquestPortraitTex){Destroy(conquestPortraitTex);conquestPortraitTex=null;}
-   var tierSprite=evolution?CheckoutEvolutionReveal.TierSprite(data.reveal.template):null;
-   if(evolution&&!tierSprite)conquestPortraitTex=CheckoutEvolutionReveal.Portrait(data.reveal.kind,data.reveal.targetId);
+   if(evolution)conquestPortraitTex=CheckoutEvolutionReveal.Instance.TakeSnapshot(data.id);bool snap=conquestPortraitTex;
+   var tierSprite=evolution&&!conquestPortraitTex?CheckoutEvolutionReveal.TierSprite(data.reveal.template):null;
+   if(evolution&&!conquestPortraitTex&&!tierSprite)conquestPortraitTex=CheckoutEvolutionReveal.Portrait(data.reveal.kind,data.reveal.targetId);
+   QaCardPicture=!evolution?"":snap?"snapshot":tierSprite?"sprite":conquestPortraitTex?"portrait":"none";
    conquestPortrait.texture=conquestPortraitTex;conquestPortrait.enabled=conquestPortraitTex;
    var tint=K.C(string.IsNullOrEmpty(data.tint)?"3F9E52":data.tint);
    conquestRim.color=Color.Lerp(tint,Color.black,.15f);conquestBand.color=tint;
@@ -214,18 +218,19 @@ namespace Checkout {
    conquestText.alpha=0;foreach(Transform chip in conquestChips)chip.localScale=Vector3.zero;
    StartCoroutine(U.Fade(conquestDim,.58f,.3f));
    StartCoroutine(U.Scale(conquestRays.transform,Vector3.one,.5f,true));StartCoroutine(U.Scale(conquestGlow.transform,Vector3.one,.45f));
-   yield return U.Scale(conquestMedal,Vector3.one,.45f,true);
+   // (brisk: the numbers stand at their new values about 0.8 s after the card shows)
+   yield return U.Scale(conquestMedal,Vector3.one,.36f,true);
    var fanfare=U.Sfx("conquest");if(fanfare&&conquestAudio)conquestAudio.PlayOneShot(fanfare,.9f);else Sound("success");
    StartCoroutine(U.Pop(conquestMedal,1.18f,.3f));
    U.Sparkles(this,conquestStage,new Vector2(0,170),12,220);
    ConquestConfettiBurst(70);
-   yield return U.Scale(conquestRibbon,Vector3.one,.32f,true);
-   for(float t=0;t<1;t+=CheckoutUiKit.Dt/.3f){conquestText.alpha=t;yield return null;}
+   StartCoroutine(U.Scale(conquestRibbon,Vector3.one,.26f,true));
+   float delay=0;foreach(Transform chip in conquestChips){StartCoroutine(LevelPopIn(chip,delay));delay+=.05f;}
+   foreach(Transform tile in conquestStats){StartCoroutine(LevelPopIn(tile,delay));delay+=.05f;}
+   if(conquestCounters.Count>0)StartCoroutine(CountUp(.42f));
+   foreach(Transform tile in conquestProducts){StartCoroutine(LevelPopIn(tile,delay));delay+=.08f;}
+   for(float t=0;t<1;t+=CheckoutUiKit.Dt/.22f){conquestText.alpha=t;yield return null;}
    conquestText.alpha=1;
-   float delay=0;foreach(Transform chip in conquestChips){StartCoroutine(LevelPopIn(chip,delay));delay+=.08f;}
-   foreach(Transform tile in conquestStats){StartCoroutine(LevelPopIn(tile,delay));delay+=.08f;}
-   if(conquestCounters.Count>0)StartCoroutine(CountUp(.9f));
-   foreach(Transform tile in conquestProducts){StartCoroutine(LevelPopIn(tile,delay));delay+=.1f;}
    conquestRun=null;
   }
 
@@ -255,7 +260,11 @@ namespace Checkout {
    float now=Mathf.Lerp(s.from,s.to,k);string suffix=s.suffix??"";
    return Mathf.RoundToInt(s.from)+suffix+"  →  "+Mathf.RoundToInt(now)+suffix;
   }
+  public bool QaCountDone{get;private set;}public string QaCardPicture{get;private set;}="";
+  public Texture QaPortrait=>conquestPortrait&&conquestPortrait.enabled?conquestPortrait.texture:null;
+  public string[] QaStatTexts=>conquestCounters.Select(c=>c.text?c.text.text:"").ToArray();
   IEnumerator CountUp(float seconds){
+   QaCountDone=false;
    var tick=U.Sfx("coin_0");int last=-1;
    for(float k=0;k<1;k+=CheckoutUiKit.Dt/seconds){
     float e=1-(1-k)*(1-k);
@@ -264,6 +273,7 @@ namespace Checkout {
     yield return null;
    }
    foreach(var (text,stat) in conquestCounters)if(text)text.text=StatText(stat,1);
+   QaCountDone=true;
   }
   // A product the evolution opened: its icon with a NOVO badge and its name.
   void ConquestProduct(DesktopCelebrationProduct product){

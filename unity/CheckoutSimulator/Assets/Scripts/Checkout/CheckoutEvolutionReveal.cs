@@ -288,6 +288,7 @@ namespace Checkout
                 v = Cover(key, celebrationId, roots, true); veils[key] = v;
             }
             StopAllCoroutines(); ClearChips();
+            snapshotFor = celebrationId ?? key; if (snapshot) { Destroy(snapshot); snapshot = null; }
             int products = 0;
             foreach (var root in v.roots) { var piece = PieceOf(root); if (piece != null && piece.fill != null) products += piece.fill.Count(g => g && g.activeSelf); }
             products = Mathf.Min(products, 12);
@@ -331,6 +332,8 @@ namespace Checkout
         {
             Playing = true; playingKey = v.key; Stage = 0;
             Refit(v, Targets(data.kind, data.targetId));
+            // the card's picture: the new model itself, still under the cloth, photographed once now
+            try { snapshot = Snapshot(v.roots, data.kind); } catch (Exception e) { Debug.LogWarning("Evolution snapshot: " + e.Message); snapshot = null; }
             var fx = CheckoutConquestFx.Instance;
             var b = v.bounds; var center = b.center; var size = b.size;
             var cam = Camera.main;
@@ -648,6 +651,89 @@ namespace Checkout
         }
 
         // ---------------------------------------------------------------- the card's picture of the new look
+        Texture2D snapshot; string snapshotFor;
+        /// <summary>The snapshot of the new model taken when this celebration's reveal began (the caller owns it), or null.</summary>
+        public Texture2D TakeSnapshot(string celebrationId)
+        {
+            if (!snapshot || snapshotFor != celebrationId) return null;
+            var t = snapshot; snapshot = null; return t;
+        }
+
+        /// <summary>A bright 3/4 picture of the pieces (renderers hidden under the cloth included) on a transparent
+        /// background: a temporary camera on its own layer, neutral key and fill lights. Sectors bring their worker.</summary>
+        static Texture2D Snapshot(List<Transform> roots, string kind, int size = 512)
+        {
+            roots = roots.Where(t => t).ToList(); if (roots.Count == 0) return null;
+            var renderers = new List<Renderer>();
+            foreach (var root in roots)
+                foreach (var r in root.GetComponentsInChildren<Renderer>(false))
+                {
+                    if (!r.enabled || r is ParticleSystemRenderer) continue;
+                    if (r.name == "Evolution ring" || (r.transform.parent && r.transform.parent.name == "Evolution ring")) continue;
+                    renderers.Add(r);
+                }
+            if (kind == "sector")
+            {
+                var c = roots[0].position; CheckoutSectorWorker best = null; float bestD = 5f;
+                foreach (var w in FindObjectsByType<CheckoutSectorWorker>(FindObjectsSortMode.None))
+                { float d = Vector2.Distance(new Vector2(w.transform.position.x, w.transform.position.z), new Vector2(c.x, c.z)); if (d < bestD) { bestD = d; best = w; } }
+                if (best) renderers.AddRange(best.GetComponentsInChildren<Renderer>(false).Where(r => r.enabled && !(r is ParticleSystemRenderer)));
+            }
+            renderers = renderers.Distinct().ToList(); if (renderers.Count == 0) return null;
+            // the body only (a hanging cable does not count) for the fit
+            Bounds b = default; bool any = false;
+            foreach (var r in renderers)
+            {
+                var rb = r.bounds; if (rb.size.x < .08f && rb.size.z < .08f && rb.size.y > .4f) continue;
+                if (r.GetComponent<TMP_Text>()) continue;
+                if (!any) { b = rb; any = true; } else b.Encapsulate(rb);
+            }
+            if (!any) return null;
+            const int layer = 31;
+            var layers = renderers.Select(r => r.gameObject.layer).ToList(); var off = renderers.Select(r => r.forceRenderingOff).ToList();
+            var go = new GameObject("Evolution snapshot camera"); var cam = go.AddComponent<Camera>(); cam.enabled = false;
+            var keyGo = new GameObject("Evolution snapshot key"); var key = keyGo.AddComponent<Light>();
+            var fillGo = new GameObject("Evolution snapshot fill"); var fill = fillGo.AddComponent<Light>();
+            RenderTexture rt = null;
+            try
+            {
+                foreach (var r in renderers) { r.gameObject.layer = layer; r.forceRenderingOff = false; }
+                // three-quarter view from the customers' side, a little from above
+                var dir = Quaternion.Euler(-30, roots[0].eulerAngles.y + 180 + 35, 0) * Vector3.forward;   // (towards the camera: up and out)
+                var rot = Quaternion.LookRotation(-dir); var up = rot * Vector3.up; var right = rot * Vector3.right;
+                float minU = float.MaxValue, maxU = float.MinValue, minR = float.MaxValue, maxR = float.MinValue;
+                for (int i = 0; i < 8; i++)
+                {
+                    var p = new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z);
+                    float u = Vector3.Dot(p, up), q = Vector3.Dot(p, right);
+                    minU = Mathf.Min(minU, u); maxU = Mathf.Max(maxU, u); minR = Mathf.Min(minR, q); maxR = Mathf.Max(maxR, q);
+                }
+                var mid = b.center + up * ((minU + maxU) * .5f - Vector3.Dot(b.center, up)) + right * ((minR + maxR) * .5f - Vector3.Dot(b.center, right));
+                float r0 = b.extents.magnitude;
+                cam.orthographic = true; cam.orthographicSize = Mathf.Max(maxU - minU, maxR - minR) * .5f * 1.12f;
+                go.transform.rotation = rot; go.transform.position = mid + dir * (r0 * 3 + 5);
+                cam.nearClipPlane = .1f; cam.farClipPlane = r0 * 6 + 12;
+                cam.cullingMask = 1 << layer; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(1f, .97f, .9f, 0);
+                cam.allowHDR = false; cam.allowMSAA = true; cam.aspect = 1;
+                key.type = LightType.Directional; key.intensity = 1.05f; key.color = new Color(1f, .98f, .94f); key.cullingMask = 1 << layer; key.shadows = LightShadows.None;
+                keyGo.transform.rotation = rot * Quaternion.Euler(-20, 25, 0);
+                fill.type = LightType.Directional; fill.intensity = .5f; fill.color = new Color(.92f, .95f, 1f); fill.cullingMask = 1 << layer; fill.shadows = LightShadows.None;
+                fillGo.transform.rotation = rot * Quaternion.Euler(10, -50, 0);
+                rt = RenderTexture.GetTemporary(size, size, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default, 4);
+                cam.targetTexture = rt; cam.Render();
+                var prev = RenderTexture.active; RenderTexture.active = rt;
+                var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "Evolution snapshot" };
+                tex.ReadPixels(new Rect(0, 0, size, size), 0, 0); tex.Apply();
+                RenderTexture.active = prev;
+                return tex;
+            }
+            finally
+            {
+                for (int i = 0; i < renderers.Count; i++) if (renderers[i]) { renderers[i].gameObject.layer = layers[i]; renderers[i].forceRenderingOff = off[i]; }
+                cam.targetTexture = null; if (rt) RenderTexture.ReleaseTemporary(rt);
+                Destroy(go); Destroy(keyGo); Destroy(fillGo);
+            }
+        }
         /// <summary>The new tier's picture for the card: the build-mode sprite of its model (bright 3/4 render), or null.</summary>
         public static Sprite TierSprite(string template) => string.IsNullOrEmpty(template) ? null : K.Icon("Decor/" + template);
 
@@ -668,7 +754,7 @@ namespace Checkout
                 light.type = LightType.Directional; light.intensity = 1.1f; light.cullingMask = 1 << layer; light.color = new Color(1f, .97f, .9f);
                 cam.CopyFrom(main); cam.cullingMask = 1 << layer; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0, 0, 0, 0);
                 // three-quarter view from the customers' side, a bit from above
-                var dir = Quaternion.Euler(28, root.eulerAngles.y + 180 + 35, 0) * Vector3.forward;
+                var dir = Quaternion.Euler(-28, root.eulerAngles.y + 180 + 35, 0) * Vector3.forward;
                 float r0 = b.extents.magnitude;
                 cam.orthographic = true; cam.orthographicSize = r0 * 1.05f;
                 go.transform.rotation = Quaternion.LookRotation(-dir); go.transform.position = b.center + dir * (r0 * 4 + 5);

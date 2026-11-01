@@ -264,7 +264,7 @@ namespace Checkout {
    var hud = FindAnyObjectByType<CheckoutDesktopHUD>(); var reveal = CheckoutEvolutionReveal.Instance;
    var sim = FindAnyObjectByType<MarketDay.MarketSimulation>(); var camBefore = sim ? sim.CameraState : default;
    var path = "Logs/ft_evo_reveal_" + name + ".mjpg";
-   var fs = File.Create(path); int frames = 0, waited = 0, cardAt = -1, popAt = -1, revealStart = -1; bool cloth = false, pop = false, card = false; float maxFill = 0;
+   var fs = File.Create(path); int frames = 0, waited = 0, countAt = -1, cardAt = -1, popAt = -1, revealStart = -1; bool cloth = false, pop = false, card = false; float maxFill = 0;
    Time.captureFramerate = 30;
    try {
     host.Route("");   // back to the map: the reveal starts
@@ -279,13 +279,24 @@ namespace Checkout {
      if (stills && !pop && popAt > 0 && frames - popAt == 9) { File.WriteAllBytes("Logs/ft_evo_pop.jpg", GrabJpg(1920)); pop = true; }
      if (reveal.Playing && it?.root) maxFill = Mathf.Max(maxFill, ScreenShare(it.root));
      if (cardAt < 0 && !reveal.Playing && revealStart > 0 && hud.ConquestOpen && hud.QaCardShown) cardAt = frames;
-     if (cardAt > 0 && frames - cardAt == 40) { File.WriteAllBytes("Logs/ft_evo_card" + (stills ? "" : "_" + name) + ".jpg", GrabJpg(1920)); card = true; }
-     if (card && frames - cardAt > 46) break;
+     if (cardAt > 0 && countAt < 0 && hud.QaCountDone) countAt = frames;
+     // 1.5 s more once the last number has landed: the final values stay on screen; the still is the last frame
+     if (countAt > 0 && frames - countAt >= 45) { File.WriteAllBytes("Logs/ft_evo_card" + (stills ? "" : "_" + name) + ".jpg", GrabJpg(1920)); card = true; break; }
+     if (cardAt > 0 && frames - cardAt > 30 * 4) break;
     }
    } finally { Time.captureFramerate = 0; fs.Close(); }
    float seconds = revealStart > 0 && cardAt > 0 ? (cardAt - revealStart) / 30f : -1;
    Note($"EVO {kind} {target}: {frames} frames at 30 fps, cloth → card {seconds:0.00}s, piece up to {maxFill * 100:0}% of the screen height");
    if (!card) fails.Add(kind + " card missing");
+   // the numbers: at their final values within ~0.8 s of the card, and the table's
+   float countSeconds = cardAt > 0 && countAt > 0 ? (countAt - cardAt) / 30f : -1;
+   var texts = hud.QaStatTexts; var want = ExpectedStats(name);
+   bool match = want == null || (texts.Length == want.Length && texts.Select((t, i) => t.Replace(" ", "").EndsWith("→" + want[i])).All(x => x));
+   Note($"EVO {name} card: numbers final {countSeconds:0.00}s after the card; {string.Join(" | ", texts)}; table {(want == null ? "-" : string.Join(" ", want))}: {(match ? "match" : "MISMATCH")}; picture {hud.QaCardPicture}");
+   if (countSeconds <= 0 || countSeconds > 1.0f) fails.Add($"{name} numbers final after {countSeconds:0.00}s");
+   if (!match) fails.Add(name + " card numbers differ from the table");
+   if (hud.QaCardPicture != "snapshot") fails.Add(name + " card picture: " + hud.QaCardPicture);
+   if (hud.QaPortrait is Texture2D shot) File.WriteAllBytes("Logs/ft_evo_snapshot_" + name + ".png", shot.EncodeToPNG());
    if (seconds > 0 && (seconds < 3.2f || seconds > 4.3f)) fails.Add($"{kind} cloth → card {seconds:0.0}s");
    // the card closes: the camera goes back to exactly where it was
    yield return CloseCards(); yield return Wait(1.5f);
@@ -296,6 +307,13 @@ namespace Checkout {
    }
    yield return ClearReveals();
   }
+
+  // The card's numbers after each recorded evolution (claude/evolucoes-recompensas.md): the new values, in card order.
+  static string[] ExpectedStats(string name) => name switch {
+   "shelf" => new[] { "20", "7", "15%", "30%" },        // produce T4: per product, places, customers, restock
+   "sector" => new[] { "3", "15%", "25%", "5" },        // bakery T2: lines, faster, per batch, counter
+   "fridge" => new[] { "10", "5", "5%", "10%" },        // drinks T2
+   _ => null };
 
   // How much of the screen's height the piece takes now.
   static float ScreenShare(Transform root) {
