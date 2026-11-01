@@ -52,7 +52,7 @@ namespace Checkout {
     Hud("closeDay","[]");yield return new WaitForSecondsRealtime(2.5f);Note($"  after closeDay: guide '{hud.CoachQa().key}'");
     Note("onboarding "+tag+": a day was opened and closed, its results wait to be collected");
    }
-   obProblems.Clear();bool scrollChecked=false;int repeats=0,stucks=0,scrollsAt=Scrolls(hud.CoachQa());
+   obProblems.Clear();bool scrollChecked=false;string scrollTried="";int repeats=0,stucks=0,scrollsAt=Scrolls(hud.CoachQa());
    string last=null;float runAt=Time.realtimeSinceStartup,stepAt=runAt;int shot=0,acts=0;bool stuckNoted=false;var order=new List<string>();
    while(Time.realtimeSinceStartup-runAt<900){
     yield return new WaitForSecondsRealtime(.5f);
@@ -78,11 +78,17 @@ namespace Checkout {
      yield return Mark($"ob_{tag}_{++shot:00}_{(q.key.Length>0?q.key:"none")}",q);Report(q);
      // Once per run, a target in a scrolling list is scrolled out of view (as a player would): the guide must bring it
      // back on its own and point at it again.
-     var list=q.found&&q.targetUi&&!scrollChecked?q.targetUi.GetComponentInParent<UnityEngine.UI.ScrollRect>():null;
+     var list=q.found&&q.targetUi&&!scrollChecked&&q.key!=scrollTried?q.targetUi.GetComponentInParent<UnityEngine.UI.ScrollRect>():null;
      if(list&&list.vertical&&list.content&&list.content.rect.height>((RectTransform)list.transform).rect.height+40){
       scrollChecked=true;int before=Scrolls(q);var far=list.verticalNormalizedPosition>.5f?0f:1f;
       list.StopMovement();list.verticalNormalizedPosition=far;yield return new WaitForSecondsRealtime(.3f);
       var gone=hud.CoachQa();Note($"SCROLL_CHECK '{q.key}': list moved away, target in view now: {gone.found}");
+      // A list barely taller than its window: the target is still in view at the other end, so there is nothing for
+      // the guide to bring back. Not a problem: the check waits for a longer list on a later step.
+      if(gone.found&&gone.targetRect.Overlaps(gone.hole)){
+       Note($"SCROLL_CHECK '{q.key}': the target never left the view, the check moves to a later list");
+       scrollChecked=false;scrollTried=q.key;q=gone;
+      }else{
       yield return Mark($"ob_{tag}_{++shot:00}_{q.key}_scrolled_away",gone);
       yield return new WaitForSecondsRealtime(2.2f);
       var back=hud.CoachQa();bool ok=back.found&&Scrolls(back)>before&&back.targetRect.Overlaps(back.hole);
@@ -90,6 +96,7 @@ namespace Checkout {
       yield return Mark($"ob_{tag}_{++shot:00}_{q.key}_scrolled_back",back);
       if(!ok)Problem($"'{q.key}': the guide did not bring its target back after the list was scrolled away");
       q=back;
+      }
      }
     }
     if(q.key.Length==0){if(Time.realtimeSinceStartup-stepAt>20){Note("STUCK: no guide on screen for 20 s");break;}continue;}
