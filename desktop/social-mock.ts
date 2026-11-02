@@ -147,7 +147,7 @@ export function createMockSocialServer(start = Date.now()) {
 			level: 9,
 			coins: 4_200,
 			paint: { paletteId: "floresta", primary: "1F4D36", accent: "E3C77A" },
-			evolutions: [{ id: "evolucao-shelf-crates-2-ana", kind: "shelf", targetId: "crates", toTier: 2, minutesLeft: 42 }],
+			evolutions: [{ id: "evolucao-shelf-produce-2-ana", kind: "shelf", targetId: "produce", toTier: 2, minutesLeft: 42 }],
 			now,
 		}),
 	);
@@ -163,7 +163,7 @@ export function createMockSocialServer(start = Date.now()) {
 			level: 5,
 			coins: 1_300,
 			paint: { paletteId: "oceano", primary: "0F6A6E", accent: "F27D5E" },
-			evolutions: [{ id: "evolucao-shelf-crates-2-bruno", kind: "shelf", targetId: "crates", toTier: 2, minutesLeft: 18 }],
+			evolutions: [{ id: "evolucao-shelf-drinks-2-bruno", kind: "shelf", targetId: "drinks", toTier: 2, minutesLeft: 18 }],
 			now,
 		}),
 	);

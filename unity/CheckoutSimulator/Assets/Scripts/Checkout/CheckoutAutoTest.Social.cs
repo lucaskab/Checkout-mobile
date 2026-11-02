@@ -26,7 +26,8 @@ namespace Checkout {
    var home=FindAnyObjectByType<MarketDay.MarketSimulation>();if(home)home.HomeCamera();
    // The QA copy may wait on a day's result: collect it and open a free day, so the market runs (customers, timers, the
    // save written every second) while everything below happens.
-   Act("claimDayResult","[]");yield return new WaitForSecondsRealtime(1.5f);
+   // (and the QA copy's tutorial card would cover the shots: the tutorial is skipped on the copy only)
+   Act("skipOnboarding","[]");Act("claimDayResult","[]");yield return new WaitForSecondsRealtime(1.5f);
    Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(3f);
    Note($"social: market open {bridge.State.isOpen}, day {bridge.State.day?.phase}");
 
@@ -71,7 +72,7 @@ namespace Checkout {
    yield return Shot("social_visit");
    FocusEvolution();yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_visit_build");
    Act("socialLike","[\"u-ana\"]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot("social_visit_liked");
-   Act("socialHelp","[\"u-ana\",\"evolution:evolucao-shelf-crates-2-ana\"]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot("social_visit_helped");
+   Act("socialHelp","[\"u-ana\",\"evolution:evolucao-shelf-produce-2-ana\"]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot("social_visit_helped");
    Route("!visita");yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_visit_requests");
    Route("");yield return new WaitForSecondsRealtime(4f);
    var during=Save();
@@ -109,6 +110,11 @@ namespace Checkout {
     CheckoutBuildMode.QaOpenAndSelect();yield return new WaitForSecondsRealtime(1.5f);
     // On the plaza in front of the shop (the bench may stand inside or out), where nothing hides it.
     typeof(CheckoutBuildMode).GetMethod("Focus",BindingFlags.NonPublic|BindingFlags.Instance,null,new[]{typeof(string)},null)?.Invoke(mode,new object[]{"outside"});
+    yield return new WaitForSecondsRealtime(1.2f);
+    // the camera on the footway in front of the door: the piece lands where the camera looks
+    var floor=interior.FloorRect;var middle=new Vector3(floor.center.x,0,floor.center.y);var door=interior.EntrancePoint;
+    var outward=Vector3.ProjectOnPlane(door-middle,Vector3.up).normalized;var spot=door+outward*3f;spot.y=door.y;
+    var simulation=FindAnyObjectByType<MarketDay.MarketSimulation>();if(simulation)simulation.Focus(spot,6f);
     yield return new WaitForSecondsRealtime(1.2f);
     typeof(CheckoutBuildMode).GetMethod("PlaceFromStock",BindingFlags.NonPublic|BindingFlags.Instance)?.Invoke(mode,new object[]{"invite-reward-1"});
     yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_decor_place");
