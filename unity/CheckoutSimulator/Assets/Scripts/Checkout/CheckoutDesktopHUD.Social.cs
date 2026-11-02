@@ -41,7 +41,8 @@ namespace Checkout {
    visitButtonRow=N.Node("Buttons",face.transform);N.Row(visitButtonRow.gameObject,8).childForceExpandHeight=false;
    edge.gameObject.SetActive(false);
 
-   // Builds with no spot found on the map (the expansion works, a lot): their "Ajudar" goes in a row under the bar.
+   // Builds with no spot found on the map (the expansion works, a lot, a stall's own crates, a piece still in the
+   // friend's inventory): their "Ajudar" goes in a row under the bar.
    visitBuildRow=N.Node("VisitBuilds",root);visitBuildRow.anchorMin=visitBuildRow.anchorMax=visitBuildRow.pivot=new Vector2(.5f,1);
    var bf=visitBuildRow.gameObject.AddComponent<ContentSizeFitter>();bf.horizontalFit=bf.verticalFit=ContentSizeFitter.FitMode.PreferredSize;N.Row(visitBuildRow.gameObject,8);
    visitBuildRow.gameObject.SetActive(false);

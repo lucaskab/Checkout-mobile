@@ -29,6 +29,9 @@ namespace Checkout {
    // (and the QA copy's tutorial card would cover the shots: the tutorial is skipped on the copy only)
    Act("skipOnboarding","[]");Act("claimDayResult","[]");yield return new WaitForSecondsRealtime(1.5f);
    Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(3f);
+   // (and its one-off tips, "A mesinha está esvaziando!", would cover the shots: dismissed on the copy)
+   IEnumerator Tips(){for(int i=0;i<3;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.4f);}}
+   yield return Tips();
    Note($"social: market open {bridge.State.isOpen}, day {bridge.State.day?.phase}");
 
    // 1. First time on Amigos: name + face.
@@ -44,7 +47,7 @@ namespace Checkout {
    ScrollDrawer(1);
 
    // 2. The inbox (gift from Ana, like from Bruno, Duda's request): toasts and the badge.
-   Route("");yield return new WaitForSecondsRealtime(1f);
+   Route("");yield return new WaitForSecondsRealtime(1f);yield return Tips();
    double coins0=bridge.State.coins;
    Tick();yield return new WaitForSecondsRealtime(.9f);yield return Shot("social_toast");
    yield return new WaitForSecondsRealtime(6f);
@@ -93,6 +96,7 @@ namespace Checkout {
    Result("look-only visit save-identical",look.SequenceEqual(looked),$"{look.Length} bytes");
 
    // 6. "Pedir aos amigos" (the stock page and a contract short of a product open it).
+   yield return Tips();
    int product=bridge.State.supplierCatalog!=null&&bridge.State.supplierCatalog.Length>0?bridge.State.supplierCatalog[0].productId:1;
    Route("!amigos:pedir:"+product+":10");yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_request");
    Route("");yield return new WaitForSecondsRealtime(1f);
@@ -137,7 +141,7 @@ namespace Checkout {
     Result("invite decoration placed",placed!=null,placed!=null?placed.id+" at "+placed.root.position:"not in the layout");
     // (the QA copy's one-off tips, "A mesinha está esvaziando!", would cover the market)
     if(placed!=null){
-     for(int i=0;i<3;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.4f);}
+     yield return Tips();
      if(simulation)simulation.Focus(placed.root.position+new Vector3(0,0,-.6f),6f);yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_decor_placed");
     }
    }
