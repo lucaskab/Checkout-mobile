@@ -3961,6 +3961,7 @@ const catalog: Catalog = {
 	"{0} obras para ajudar": "{0} obras para ayudar",
 	"Pediu produtos": "Pidió productos",
 	"{0} curtidas": "{0} me gusta",
+	"1 curtida": "1 me gusta",
 	"curtidas": "me gusta",
 	"Visto": "Visto",
 	"Visto {0}": "Visto {0}",

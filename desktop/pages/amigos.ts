@@ -9,6 +9,7 @@ import {
 	formatCode,
 	helpableBuilds,
 	inviteUrl,
+	likesText,
 	marketName,
 	sendableStock,
 	socialIcon,
@@ -112,7 +113,7 @@ function friendCard(friend: SocialFriend, now: number): Card {
 		badge: builds.length + requests.length > 0 ? String(builds.length + requests.length) : "",
 		tone: builds.length + requests.length > 0 ? "success" : "",
 		// Each piece in the player's language before they are joined (stage names would match other patterns whole).
-		subtitle: [t(`Nível ${friend.level}`), t(stage), t(`${fmt(friend.likes)} curtidas`)].filter(Boolean).join(" · "),
+		subtitle: [t(`Nível ${friend.level}`), t(stage), likesText(friend.likes)].filter(Boolean).join(" · "),
 		lines: [
 			friend.lastSeen ? `Visto ${formatAgo(friend.lastSeen, now)}` : "",
 			...requests.slice(0, 2).map((request) => `Pede ${request.qty}× ${productName(request.productId)} · ${hoursLeft(request, now)} h`),
@@ -181,7 +182,7 @@ function mainPage(state: State) {
 			icon: avatarIcon(me.avatar),
 			eyebrow: "MEU CÓDIGO DE AMIGO",
 			subtitle: formatCode(me.code),
-			lines: [[t(`Nível ${state.market.level}`), t(stageName(state.era.id)), t(`${fmt(me.likes)} curtidas`)].join(" · "), "Mande o código ou chame pelo link: quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também."],
+			lines: [[t(`Nível ${state.market.level}`), t(stageName(state.era.id)), likesText(me.likes)].join(" · "), "Mande o código ou chame pelo link: quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também."],
 			qr: socialStore.showQr ? qrText(inviteUrl(me.code)) : "",
 			buttons: [
 				act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),

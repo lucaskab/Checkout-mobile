@@ -10,7 +10,7 @@ import { canSendProduct, productIdOf } from "@/services/social";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
 import { useGameStore } from "@/stores/game-store";
 import { createMockSocialServer, type MockSocialServer } from "./social-mock";
-import { act, type Button, button, gameIcon } from "./view-kit";
+import { act, type Button, button, fmt, gameIcon } from "./view-kit";
 
 // Social v1 on the host (docs/social-api.md): the friends' data, the inbox cycle, the visit and the actions of the
 // Amigos pages. Unity owns the network and the session (CheckoutSocial.cs): the host asks it for each call
@@ -913,6 +913,9 @@ export type VisitView = {
 	builds: VisitBuildView[];
 };
 
+/** "1 curtida" / "12 curtidas" (translated). */
+export const likesText = (likes: number) => (likes === 1 ? t("1 curtida") : t(`${fmt(likes)} curtidas`));
+
 const buildLabel = (item: string, kind: string) => {
 	if (kind === "era") return t("Obra da expansão");
 	if (kind === "lot") return t("Limpeza do terreno");
@@ -931,7 +934,7 @@ export function visitView(now = Date.now()): VisitView | null {
 		friendId: friend.id,
 		friendName: marketName(friend),
 		avatar: avatarIcon(friend.avatar),
-		subtitle: [t(`Nível ${friend.level ?? ""}`), t(stageName(friend.era ?? visit.state.era.id)), t(`${friend.likes ?? 0} curtidas`)].filter(Boolean).join(" · "),
+		subtitle: [t(`Nível ${friend.level ?? ""}`), t(stageName(friend.era ?? visit.state.era.id)), likesText(friend.likes ?? 0)].filter(Boolean).join(" · "),
 		note: builds.length ? "Toque em Ajudar nas obras do seu amigo: cada ajuda tira 5 minutos." : "Passeie pelo mercado do seu amigo.",
 		buttons: [
 			act(visit.liked ? "Curtido" : "Curtir", "socialLike", [friend.id], {

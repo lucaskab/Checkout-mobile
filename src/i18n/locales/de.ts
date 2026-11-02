@@ -4092,6 +4092,7 @@ const catalog: Catalog = {
 	"{0} obras para ajudar": "{0} Baustellen zum Helfen",
 	"Pediu produtos": "Bittet um Produkte",
 	"{0} curtidas": "{0} Likes",
+	"1 curtida": "1 Like",
 	"curtidas": "Likes",
 	"Visto": "Gesehen",
 	"Visto {0}": "Gesehen {0}",
