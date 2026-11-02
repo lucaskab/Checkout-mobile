@@ -4192,6 +4192,9 @@ const catalog: Catalog = {
 	"Meu mercado": "Mi mercado",
 	"Vem jogar comigo!": "¡Ven a jugar conmigo!",
 	"Código de amigo": "Código de amigo",
+	"Usar como convite": "Usar como invitación",
+	"O código de um amigo, ou o convite de quem te chamou (vocês ganham 30 diamantes no Späti).": "El código de un amigo, o la invitación de quien te invitó (ganan 30 diamantes en el Späti).",
+	"+30 diamantes por amigo": "+30 diamantes por amigo",
 };
 
 export default catalog;

@@ -165,7 +165,9 @@ namespace Checkout {
   void FocusEvolution(){
    var works=FindObjectsByType<CheckoutInteriorWorks>(FindObjectsInactive.Include,FindObjectsSortMode.None).FirstOrDefault();
    var site=FindObjectsByType<CheckoutEvolutionSite>(FindObjectsInactive.Include,FindObjectsSortMode.None).FirstOrDefault();
-   if(works)CheckoutCameraFocus(works.transform.position);else if(site)CheckoutCameraFocus(site.transform.position);
+   // (a little north of the site, so its floating "Ajudar" sits clear of the visit bar)
+   var at=works?works.transform.position:site?site.transform.position:(Vector3?)null;
+   if(at!=null)CheckoutCameraFocus(at.Value+new Vector3(0,0,1.4f));
    var ia=CheckoutInterior.Active;var s=bridge?bridge.State:null;
    Note("social: works "+(works?works.BuildId:"none")+", evolution site "+(site?site.EvolutionId:"none")
     +$", pieces [{(ia?string.Join(",",ia.items.Keys.Take(14)):"no interior")}]"

@@ -200,8 +200,16 @@ namespace Checkout {
     b.gameObject.SetActive(shown);if(!shown)continue;
     var rect=(RectTransform)b.transform;
     RectTransformUtility.ScreenPointToLocalPointInRectangle(helpLayer,screen,canvas&&canvas.renderMode!=RenderMode.ScreenSpaceOverlay?canvas.worldCamera:null,out var local);
-    rect.anchorMin=rect.anchorMax=new Vector2(.5f,.5f);rect.pivot=new Vector2(.5f,0);rect.anchoredPosition=local;
     var le=b.GetComponent<LayoutElement>();rect.sizeDelta=new Vector2(le.preferredWidth>0?le.preferredWidth:140,le.preferredHeight);
+    // never under the visit bar (and its row of buttons), never on top of the button before it
+    float top=helpLayer.rect.height*.5f-(visitBuildRow.gameObject.activeSelf?(Phone?236:220):(Phone?170:160))-rect.sizeDelta.y;
+    local.y=Mathf.Min(local.y,top);
+    for(int j=0;j<i&&j<helpButtons.Count;j++){
+     var other=(RectTransform)helpButtons[j].transform;if(!other.gameObject.activeSelf)continue;
+     var o=other.anchoredPosition;float need=(other.sizeDelta.x+rect.sizeDelta.x)*.5f+10;
+     if(Mathf.Abs(local.y-o.y)<rect.sizeDelta.y+6&&Mathf.Abs(local.x-o.x)<need)local.x=o.x+(local.x>=o.x?need:-need);
+    }
+    rect.anchorMin=rect.anchorMax=new Vector2(.5f,.5f);rect.pivot=new Vector2(.5f,0);rect.anchoredPosition=local;
    }
   }
 

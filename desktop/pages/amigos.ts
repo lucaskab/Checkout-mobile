@@ -311,13 +311,17 @@ function myCard(state: State, buttons: Button[]): Card {
 	});
 }
 
-function addFriendCard(): Card {
-	return card("Adicionar amigo", {
+function addFriendCard(invite: boolean): Card {
+	return card(invite ? "Tem um código de convite?" : "Adicionar amigo", {
 		icon: socialIcon("friends"),
 		eyebrow: "CÓDIGO DE UM AMIGO",
-		lines: ["Digite o código de amigo (8 letras e números)."],
+		lines: [invite ? "O código de um amigo, ou o convite de quem te chamou (vocês ganham 30 diamantes no Späti)." : "Digite o código de amigo (8 letras e números)."],
 		input: { id: "code", placeholder: "Ex.: K7Q2-MX4P", value: "", max: 9, kind: "code" },
-		buttons: [act(busy("add") ? "Enviando…" : "Adicionar", "socialAddFriend", ["$input:code"], { icon: socialIcon("friends"), variant: "primary", enabled: !busy("add"), ok: "" })],
+		buttons: [
+			act(busy("add") ? "Enviando…" : "Adicionar", "socialAddFriend", ["$input:code"], { icon: socialIcon("friends"), variant: "primary", enabled: !busy("add"), ok: "" }),
+			// "Tem um código de convite?": the same field, used as the invite (first 7 days, once).
+			...(invite ? [act(busy("redeem") ? "Enviando…" : "Usar como convite", "socialRedeem", ["$input:code"], { icon: socialIcon("invite"), variant: "secondary", enabled: !busy("redeem"), ok: "" })] : []),
+		],
 	});
 }
 
@@ -347,7 +351,6 @@ function amigosPage(state: State): Page {
 				buttons: [act("Convidar amigos", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" })],
 			}),
 		);
-	cards.push(addFriendCard());
 	const tiles = [
 		...socialStore.incoming.map((person) => personTile(person, true)),
 		...friends.map((friend) => friendTile(friend, now)),
@@ -360,17 +363,20 @@ function amigosPage(state: State): Page {
 			text: `${helps}/${SOCIAL_HELPS_PER_DAY} · cada ajuda tira 5 min da obra do amigo`,
 			tone: "gold",
 		}),
-		footer: friends.length
-			? [
-					act(busy("gift-all") ? "Enviando…" : toGift ? `Mandar presente para todos (${toGift})` : "Presentes de hoje enviados", "socialGiftAll", [], {
-						icon: toGift ? socialIcon("gift") : socialIcon("success"),
-						variant: toGift ? "success" : "secondary",
-						enabled: toGift > 0 && !busy("gift-all"),
-						ok: "",
-						fail: "Você já mandou presente para todos hoje.",
-					}),
-				]
-			: [],
+		footer: [
+			...(friends.length
+				? [
+						act(busy("gift-all") ? "Enviando…" : toGift ? `Mandar presente para todos (${toGift})` : "Presentes de hoje enviados", "socialGiftAll", [], {
+							icon: toGift ? socialIcon("gift") : socialIcon("success"),
+							variant: toGift ? "success" : "secondary",
+							enabled: toGift > 0 && !busy("gift-all"),
+							ok: "",
+							fail: "Você já mandou presente para todos hoje.",
+						}),
+					]
+				: []),
+			go("Adicionar amigo", "!amigos-convidar", { icon: socialIcon("friends"), variant: "primary" }),
+		],
 		empty: "Chame alguém com o seu código: vocês dois ganham 30 diamantes.",
 	});
 }
@@ -486,8 +492,7 @@ function pickerPage(state: State, productArg: string | undefined, qtyArg: string
 			sticker: missing ? "FALTANDO" : have <= 0 ? "ACABOU" : "",
 			tone: missing ? "warning" : have <= 0 ? "danger" : "",
 			action: go("Escolher", `~amigos-pedir:${product.id}:${qty}`, { variant: product.id === picked ? "coin" : "secondary" }),
-			detail: "Um amigo manda tudo de uma vez, direto para o seu estoque. O pedido vale 24 horas.",
-			facts: [stat(productIcon(product.id), fmt(have), "no estoque"), stat(socialIcon("package"), String(qty), "unidades"), stat(socialIcon("clipboard"), `${open}/${SOCIAL_REQUESTS_OPEN}`, "abertos")],
+			facts: [stat(productIcon(product.id), fmt(have), "no estoque"), stat(socialIcon("package"), String(qty), "unidades")],
 			actions: [
 				step("−5", qty - 5),
 				step("−1", qty - 1),
@@ -553,15 +558,7 @@ function convidarPage(state: State): Page {
 				],
 			}),
 		);
-	} else if (!me.invitedBy)
-		cards.push(
-			card("Tem um código de convite?", {
-				icon: socialIcon("invite"),
-				lines: ["Nos primeiros 7 dias de jogo: use o código de quem te chamou e os dois ganham 30 diamantes quando você chegar ao Späti."],
-				input: { id: "invite", placeholder: "Código do convite", value: "", max: 9, kind: "code" },
-				buttons: [act(busy("redeem") ? "Enviando…" : "Usar código", "socialRedeem", ["$input:invite"], { variant: "secondary", enabled: !busy("redeem"), ok: "" })],
-			}),
-		);
+	} else cards.push(addFriendCard(!me.invitedBy));
 	const ladder = SOCIAL_INVITE_MILESTONES.map((milestone) => {
 		const id = inviteRewardDecorId(milestone);
 		const decor = getInteriorDecor(id);
@@ -569,14 +566,13 @@ function convidarPage(state: State): Page {
 		const left = milestone - rewarded;
 		return tile(id, decor?.name ?? id, {
 			group: "Prêmios do convite",
-			icon: decorIcon(`${id}.png`),
+			icon: decorIcon(id),
 			subtitle: milestone === 1 ? "1 amigo no Späti" : `${milestone} amigos no Späti`,
 			sticker: reached ? "GANHOU!" : left === 1 ? "FALTA 1" : `FALTAM ${left}`,
 			tone: reached ? "gold" : "locked",
 			state: reached ? "done" : milestone === next ? "" : "locked",
 			fill: Math.min(1, rewarded / milestone),
 			fillText: `${Math.min(rewarded, milestone)}/${milestone}`,
-			chips: [stat(socialIcon("diamond"), "+30 por amigo", "", "info")],
 			action: reached ? button("Na sua decoração", { variant: "secondary", enabled: false, icon: socialIcon("success") }) : button(`Faltam ${left}`, { variant: "secondary", enabled: false }),
 			detail: decor?.description ?? "",
 			facts: [stat(socialIcon("friends"), `${Math.min(rewarded, milestone)}/${milestone}`, "amigos"), stat(socialIcon("diamond"), fmt(30 * milestone), "diamantes")],
@@ -589,10 +585,10 @@ function convidarPage(state: State): Page {
 		meter: meter("Amigos que chegaram ao Späti", Math.min(rewarded, 5), 5, {
 			icon: socialIcon("invite"),
 			tone: "gold",
-			text: next ? (next - rewarded === 1 ? "Falta 1 para a próxima decoração" : `Faltam ${next - rewarded} para a próxima decoração`) : "Você ganhou as três decorações!",
+			text: `${next ? (next - rewarded === 1 ? "Falta 1 para a próxima decoração" : `Faltam ${next - rewarded} para a próxima decoração`) : "Você ganhou as três decorações!"} · +30 diamantes por amigo`,
 			marks: SOCIAL_INVITE_MILESTONES.map((milestone) => ({
 				at: milestone,
-				icon: decorIcon(`${inviteRewardDecorId(milestone)}.png`),
+				icon: decorIcon(inviteRewardDecorId(milestone)),
 				label: getInteriorDecor(inviteRewardDecorId(milestone))?.name ?? "",
 				state: rewarded >= milestone ? "done" : "locked",
 				action: button("", { enabled: false }),
@@ -643,7 +639,6 @@ function correioPage(state: State): Page {
 			badge: `+${fmt(mail.coins)}`,
 			tone: "gold",
 			state: "ready",
-			chips: mail.avatar ? [stat(avatarIcon(mail.avatar), mail.name, "")] : [],
 			action: act("Abrir", "socialOpenMail", [mail.id], { icon: socialIcon("gift"), variant: "success", ok: "" }),
 			detail: "Um presente de um amigo: abra para ganhar as moedas.",
 			facts: [stat(socialIcon("coin"), `+${fmt(mail.coins)}`, "moedas")],

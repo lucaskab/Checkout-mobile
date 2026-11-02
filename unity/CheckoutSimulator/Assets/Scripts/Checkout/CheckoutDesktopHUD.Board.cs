@@ -231,7 +231,7 @@ namespace Checkout {
   static DesktopTile FindTile(DesktopTile[] tiles,string id){if(id==null)return null;foreach(var t in tiles)if(t.id==id)return t;return null;}
 
   void ApplyBoardHeroes(DesktopCard[] cards){
-   while(boardHeroCards.Count<cards.Length){var c=CheckoutDesktopCard.Create(boardHeroes);c.Clicked=BoardPress;var le=c.gameObject.AddComponent<LayoutElement>();le.flexibleWidth=1;le.minWidth=Phone?320:360;boardHeroCards.Add(c);}
+   while(boardHeroCards.Count<cards.Length){var c=CheckoutDesktopCard.Create(boardHeroes);c.Clicked=BoardPress;var le=c.gameObject.AddComponent<LayoutElement>();le.flexibleWidth=1;le.minWidth=240;boardHeroCards.Add(c);}
    for(int i=0;i<boardHeroCards.Count;i++){bool on=i<cards.Length;boardHeroCards[i].gameObject.SetActive(on);if(on){boardHeroCards[i].Apply(cards[i]);boardHeroCards[i].GetComponent<LayoutElement>().flexibleWidth=cards[i].hero?1.4f:1;}}
    boardHeroes.gameObject.SetActive(cards.Length>0);boardHeroes.SetAsFirstSibling();
    // The "nothing here" line sits under the cards, not over them.

@@ -141,6 +141,8 @@ namespace Checkout {
     foreach(var c in canvases)if(c)c.enabled=true;
    }
    var shot=postcardShot;postcardShot=null;
+   // (the screen's alpha is not a picture's: opaque RGB, or the share sheet shows a washed-out postcard)
+   if(shot){var opaque=new Texture2D(shot.width,shot.height,TextureFormat.RGB24,false);opaque.SetPixels32(shot.GetPixels32());opaque.Apply();Destroy(shot);shot=opaque;}
    string path=Path.Combine(Application.temporaryCachePath,"checkout-invite.png");
    if(shot){try{File.WriteAllBytes(path,Fit(shot,1280).EncodeToPNG());LastSharePicture=path;}catch(Exception ex){Debug.LogWarning("CHECKOUT_SOCIAL share picture: "+ex.Message);path="";}Destroy(shot);}else path="";
    string text=(message.text??"")+"\n"+(message.url??"");
