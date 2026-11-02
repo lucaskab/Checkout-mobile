@@ -1,3 +1,5 @@
+import { SOCIAL } from "./limits.ts";
+
 /**
  * What a cloud save is and the rules for replacing it — the same rules as server/src/save.ts (Render).
  *
@@ -96,7 +98,40 @@ export type Upload = {
 	deviceId: string;
 	/** The player chose to replace the cloud progress with this device's (after a conflict). */
 	force: boolean;
+	/**
+	 * The social public block (docs/social-api.md), as JSON text to store as is: undefined = not sent (older builds) or
+	 * refused by checkPublic (the save itself still goes through), null = sent as null (clears it).
+	 */
+	public?: string | null;
+	/** Set when a public block was sent but refused (why, for the log). */
+	publicRefused?: string;
 };
+
+export const MAX_PUBLIC_BYTES = SOCIAL.maxPublicBytes;
+export const MAX_PUBLIC_BUILDS = SOCIAL.maxPublicBuilds;
+
+/** Checks a public block's JSON text (at most 4 KB, an object, at most 12 builds). Null = fine, else why not. */
+export function checkPublic(text: string): string | null {
+	if (text.length > MAX_PUBLIC_BYTES || (text.length * 3 > MAX_PUBLIC_BYTES && encoder.encode(text).length > MAX_PUBLIC_BYTES)) return "too-large";
+	let value: unknown;
+	try {
+		value = JSON.parse(text);
+	} catch {
+		return "bad-json";
+	}
+	if (!value || typeof value !== "object" || Array.isArray(value)) return "not-an-object";
+	const builds = (value as { builds?: unknown }).builds;
+	if (builds !== undefined && builds !== null && (!Array.isArray(builds) || builds.length > MAX_PUBLIC_BUILDS)) return "bad-builds";
+	return null;
+}
+
+/** Applies checkPublic to what was sent: the fields of Upload. */
+function publicFields(text: string | null | undefined): Pick<Upload, "public" | "publicRefused"> {
+	if (text === undefined) return {};
+	if (text === null || text === "null") return { public: null };
+	const refused = checkPublic(text);
+	return refused ? { publicRefused: refused } : { public: text };
+}
 
 export class BadRequest extends Error {
 	code: string;
@@ -108,8 +143,11 @@ export class BadRequest extends Error {
 
 // What the game sends (Unity's JsonUtility: fields in declaration order, no spaces):
 // {"baseRevision":3,"data":"{\"state\":…}","deviceId":"…","force":false}
+// and, from the social builds on, the public block as the last field: …,"force":false,"public":{…}}
 const HEAD = /^\{"baseRevision":(0|[1-9]\d{0,8}),"data":/;
-const TAIL = /,"deviceId":("(?:[^"\\\u0000-\u001f]|\\.){0,400}"),"force":(true|false)\}$/;
+const TAIL = /,"deviceId":("(?:[^"\\\u0000-\u001f]|\\.){0,400}"),"force":(true|false)(?:,"public":(\{[^]*\}|null))?\}$/;
+// How far from the end the tail can start: deviceId (≤ 400 characters, escaped) and the public block (≤ 4 KB).
+const TAIL_WINDOW = 1024 + 6 * 400 + MAX_PUBLIC_BYTES;
 const decoder = new TextDecoder();
 
 /**
@@ -118,10 +156,11 @@ const decoder = new TextDecoder();
  * and parsed once (which also proves it is one single, well-formed string), and those same bytes are what gets stored
  * — nothing is re-encoded. Any other shape (another client, other key order) takes the general path: parse the whole
  * body, re-encode the save. Same answers either way: 400 bad-json / not-a-save / bad-upload, like the Render server.
+ * The optional public block (≤ 4 KB) is checked on its own; a refused one never refuses the save.
  */
 export function readUpload(bytes: Uint8Array): Upload {
 	const head = HEAD.exec(decoder.decode(bytes.subarray(0, 48)));
-	const tail = head ? TAIL.exec(decoder.decode(bytes.subarray(Math.max(0, bytes.length - 512)))) : null;
+	const tail = head ? TAIL.exec(decoder.decode(bytes.subarray(Math.max(0, bytes.length - TAIL_WINDOW)))) : null;
 	if (head && tail) {
 		const start = head[0].length;
 		const end = bytes.length - encoder.encode(tail[0]).length;
@@ -139,7 +178,7 @@ export function readUpload(bytes: Uint8Array): Upload {
 				if (!summary) throw new BadRequest("not-a-save");
 				const deviceId = (JSON.parse(tail[1]) as string).slice(0, 100);
 				if (!deviceId) throw new BadRequest("bad-upload");
-				return { baseRevision: Number(head[1]), literal, summary, deviceId, force: tail[2] === "true" };
+				return { baseRevision: Number(head[1]), literal, summary, deviceId, force: tail[2] === "true", ...publicFields(tail[3]) };
 			}
 		}
 	}
@@ -155,5 +194,6 @@ export function readUpload(bytes: Uint8Array): Upload {
 	const baseRevision = typeof body.baseRevision === "number" && Number.isInteger(body.baseRevision) ? body.baseRevision : -1;
 	const deviceId = typeof body.deviceId === "string" ? body.deviceId.slice(0, 100) : "";
 	if (baseRevision < 0 || !deviceId) throw new BadRequest("bad-upload");
-	return { baseRevision, literal: encoder.encode(JSON.stringify(body.data)), summary, deviceId, force: body.force === true };
+	const sent = body.public === undefined ? undefined : body.public === null ? null : JSON.stringify(body.public);
+	return { baseRevision, literal: encoder.encode(JSON.stringify(body.data)), summary, deviceId, force: body.force === true, ...publicFields(sent) };
 }

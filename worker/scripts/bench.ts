@@ -3,6 +3,7 @@
  * runs (V8 here too) on synthetic saves shaped like the game's; the real figure comes from the deployed Worker's logs
  * (cpuTime), see README.md › Limites. Storage calls (D1/R2) are not counted: they wait on the network, not the CPU.
  */
+import { pathToFileURL } from "node:url";
 import { readUpload } from "../src/save.ts";
 
 export function syntheticSave(targetBytes: number) {
@@ -27,7 +28,8 @@ const cpu = (work: () => void, runs: number) => {
 };
 
 const encoder = new TextEncoder();
-for (const size of [50_000, 500_000, 2_000_000]) {
+// Only when run directly (scripts/bench-social.ts imports syntheticSave).
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) for (const size of [50_000, 500_000, 2_000_000]) {
 	const data = syntheticSave(size);
 	const body = encoder.encode(`{"baseRevision":3,"data":${JSON.stringify(data)},"deviceId":"phone-a","force":false}`);
 	const put = cpu(() => readUpload(new Uint8Array(body.buffer.slice(0))), 20);

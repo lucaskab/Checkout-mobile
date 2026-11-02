@@ -6,7 +6,7 @@ Mesmas rotas, mesmos JSON e códigos de status, mesmo token de sessão: o jogo s
 
 - Endereço: **https://checkout-server.lucaslfurini.workers.dev** (`/health` mostra quais configurações existem, só os nomes)
 - Worker `checkout-server` · D1 `checkout-saves` (`660aad42-3495-4b98-8e91-a727acecbae2`, Europa Ocidental) · R2 `checkout-saves` (Europa Ocidental)
-- Sem dependências npm: TypeScript puro + WebCrypto. O pacote publicado tem ~34 KB (14 KB comprimido; o limite é 3 MB).
+- Sem dependências npm: TypeScript puro + WebCrypto. O pacote publicado tem ~78 KB (25 KB comprimido; o limite é 3 MB).
 
 ## Rotas (iguais às do Render)
 | Rota | O que faz |
@@ -16,7 +16,8 @@ Mesmas rotas, mesmos JSON e códigos de status, mesmo token de sessão: o jogo s
 | `POST /v1/auth/apple {idToken, authorizationCode?, name?, nonce?}` | Entrar com Apple. Com `nonce`, o token tem que trazer o SHA-256 dele (builds de 29/10 em diante) |
 | `GET /v1/save` | `{revision, updatedAt, summary, deviceId, data}` ou 404 |
 | `PUT /v1/save {baseRevision, data, deviceId, force?}` | Substitui se a nuvem ainda está em `baseRevision`; senão 409 com o atual |
-| `DELETE /v1/account` | Apaga conta, progresso e cópias (e revoga o login da Apple, se a chave estiver configurada) |
+| `DELETE /v1/account` | Apaga conta, progresso, cópias e tudo do social (e revoga o login da Apple, se a chave estiver configurada) |
+| `/v1/social/*`, `GET /i/<código>` | Amigos, convites, visitas, ajudas, presentes e pedidos — veja **Social (v1)** abaixo |
 | `GET /health` | `{ok, settings: {NOME: true/false}, storage}` — nunca mostra valores |
 
 Sessão: o mesmo token HMAC de 180 dias do Render, com o **mesmo `SESSION_SECRET`** — quem já entrou continua logado.
@@ -100,13 +101,106 @@ manda o save em pedaços de ~256 KB sem precisar o Worker ler o JSON inteiro) �
 as 8 cópias antigas vão de 5,7 a 17 KB), então o plano grátis aguenta com folga e o envio em partes não é necessário
 agora. Vale rever se um save passar de ~100 KB.
 
-`npm run bench` estima localmente o mesmo cálculo (Node usa o mesmo V8).
+`npm run bench` estima localmente o mesmo cálculo (Node usa o mesmo V8); `npm run bench:social` mede as rotas sociais.
+
+## Social (v1) — amigos, convites, visitas, ajudas, presentes, pedidos
+O contrato com o jogo é `docs/social-api.md` (rotas, formatos, números). Código: `src/social.ts` (rotas),
+`src/store.ts` (D1), `src/limits.ts` (**todos os números num bloco só**), `src/names.ts` (nome do mercado e filtro de
+palavrões), `src/codes.ts` (códigos de convite), `src/landing.ts` (página do convite). Testes: `test/social.test.ts`.
+
+O save continua sendo do aparelho: ninguém escreve no save de outro jogador. Tudo que um amigo faz (presente, curtida,
+ajuda, entrega, recompensa de convite) vira um item da **caixa de entrada** (`inbox`), que o jogo aplica no próprio
+save e depois confirma (`ack`).
+
+### Rotas (todas com `Authorization: Bearer <token>`, menos `/i/`)
+| Rota | O que faz |
+|---|---|
+| `GET /v1/social/me` · `PUT /v1/social/me {marketName?, avatar?}` | Perfil (criado na primeira chamada: código de 8 letras, nível/era do save) e troca de nome/avatar |
+| `GET /v1/social/friends` | Amigos (com o bloco público, presente/curtida de hoje, pedidos abertos), pedidos de amizade recebidos e enviados |
+| `POST /v1/social/friends/add {code}` · `accept {id}` · `decline {id}` · `DELETE /v1/social/friends/<id>` | Adicionar pelo código, aceitar, recusar, desfazer amizade |
+| `GET /v1/social/friends/<id>/market` | Visita: perfil + bloco público + o save do amigo (repassado como está guardado, sem recodificar) |
+| `POST /v1/social/gift {to}` · `like {to}` · `help {to, buildId}` | Presente, curtida, ajuda numa obra (−5 min) |
+| `GET/POST /v1/social/requests` · `DELETE …/requests/<id>` · `POST …/requests/<id>/fulfill` | Pedidos de produto: listar, criar, cancelar, atender |
+| `GET /v1/social/inbox` · `POST /v1/social/inbox/ack {ids}` | Caixa de entrada e confirmação |
+| `POST /v1/social/report {id}` | Denunciar nome de mercado |
+| `POST /v1/social/invite/redeem {code}` | Usar um código de convite (conta com menos de 7 dias) |
+| `GET /i/<código>` | Página do convite (pt-BR, en, es, fr, de pelo idioma do navegador; sem scripts externos, sem rastreamento) |
+
+`PUT /v1/save` aceita também o bloco `public` opcional (obras em andamento, estágio, nota do mercado; ≤ 4 KB, ≤ 12
+obras), que deve ser o **último campo** do corpo para o envio continuar barato. Versões antigas do jogo (sem `public`)
+funcionam exatamente como antes. A cada envio o perfil (se existir) recebe o nível e a era do save — só quando algo
+mudou, para não gastar escritas — e a recompensa de convite sai quando o convidado chega ao nível 8.
+
+### Tabelas novas (D1)
+`profiles` (código, nome, avatar, nível, era, curtidas, bloco público, quem convidou, recompensas),
+`friends` (duas linhas por amizade), `friend_requests`, `inbox`, `daily_actions` (presente/curtida por dia),
+`build_helps` (ajudas por obra; conta também as ajudas do dia), `product_requests`, `name_reports`.
+Limpeza sem cron: itens confirmados há mais de 7 dias, pedidos fechados há mais de 7 dias, ajudas de mais de 30 dias e
+contadores de dias passados são apagados durante as escritas do próprio jogador.
+
+### Limites (dia = dia UTC; em `src/limits.ts`)
+| O quê | Valor |
+|---|---|
+| Amigos | 50 por jogador (verificado dentro da escrita: dois aceites ao mesmo tempo não passam de 50) |
+| Pedidos de amizade pendentes enviados | 20 |
+| Presente | 1 por amigo por dia; quem recebe abre no máximo 25 por dia (o resto espera no servidor) |
+| Curtida | 1 por amigo por dia |
+| Ajuda | 1 por ajudante por obra; no máximo 10 por obra (também com ajudas simultâneas); 30 por ajudante por dia; 5 min cada |
+| Pedidos de produto | 2 abertos; 1–20 unidades; vencem em 24 h; um amigo atende o pedido inteiro (atômico: só um ganha) |
+| Convite | só contas com menos de 7 dias, uma vez, não o próprio código (nem o de quem você convidou) |
+| Recompensa de convite | convidado no nível 8: 30 💎 para cada; marcos 1/3/5 convites (decorações `invite-reward-1/3/5`); uma vez só |
+| Nome do mercado | 3–20 caracteres (letras de qualquer alfabeto, números, espaço, `' - & .`), lista de palavrões pt/en/es/fr/de; 3 denúncias diferentes escondem o nome até ele ser trocado |
+
+### Custo por jogador (plano grátis)
+CPU por requisição medida com `npm run bench:social` (o código do Worker de verdade, descontado o tempo do SQLite
+local, que na Cloudflare roda no D1 e não no Worker), no pior caso — 50 amigos, cada um com bloco público de 4 KB e
+2 pedidos abertos, 100 itens na caixa de entrada:
+
+| Rota | CPU do Worker |
+|---|---|
+| `GET /v1/social/friends` (50 amigos) | ~2–2,5 ms |
+| `GET /v1/social/inbox` (100 itens) | ~1 ms |
+| `GET /v1/social/friends/<id>/market` (save de 14 KB) | ~0,7–0,8 ms |
+| `GET /v1/social/requests`, `PUT /v1/social/me` | ~1 ms |
+| `help`, `like`, `fulfill`, `GET me`, `/i/<código>` | ~0,3–0,7 ms |
+| `PUT /v1/save` com bloco público | igual a sem (o bloco é recortado do fim do corpo) |
+
+Tudo bem abaixo dos 10 ms. Cada rota social faz 2 idas ao D1 (perfil + ação; adicionar/aceitar/convite fazem 3) e a
+visita faz 1 leitura no R2.
+
+Estimativa por hora de jogo de um jogador com ~10 amigos (o jogo atualiza caixa de entrada + amigos a cada 5 min e
+faz ~10 ações por hora):
+- **Requisições Worker:** +15–25 por hora (além das ~12–15 do save) → os 100 mil/dia dão para ~2.500–3.500 horas de
+  jogo por dia.
+- **D1 linhas lidas:** ~1–1,5 mil por hora (a lista de amigos lê ~6 linhas por amigo) → 5 milhões/dia dão para
+  ~3.500 horas de jogo. Com 50 amigos a lista custa ~300 linhas: vale o jogo atualizar a lista de amigos só com a
+  página Amigos aberta (ou a cada 15 min) e a caixa de entrada a cada 5 min.
+- **D1 linhas escritas:** ~2–4 por ação (item da caixa + marca do dia + índice) e ~2 por item confirmado → ~40–60 por
+  hora; somadas às do save, as 100 mil/dia dão para ~1.500–2.000 horas de jogo por dia. É o primeiro limite a
+  apertar com muitos jogadores.
+- `PUT /v1/save`: +1 linha lida por envio (o perfil vem junto com o jogador, na mesma ida ao D1); escreve no perfil só
+  quando nível, era ou bloco público mudam.
+- Apagar conta lê as tabelas `inbox`, `daily_actions`, `product_requests` e `name_reports` inteiras (raro).
+
+### Aplicar a migração no D1 (antes de publicar esta versão)
+1. Cloudflare › **Storage & Databases › D1 › checkout-saves › Console**.
+2. Colar o conteúdo inteiro de `worker/migrations/0002_social.sql` e executar. Se o console reclamar das linhas de
+   comentário (`--`), apague-as e execute de novo; se reclamar de vários comandos juntos, execute um `CREATE` por vez.
+   Pode rodar quantas vezes quiser: só cria o que falta (`CREATE TABLE/INDEX IF NOT EXISTS`) e nunca mexe nos dados.
+3. Conferir: `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;` deve listar `build_helps`,
+   `daily_actions`, `friend_requests`, `friends`, `inbox`, `name_reports`, `product_requests` e `profiles` (além de
+   `players`, `cloud_saves`, `save_history`).
+
+Com wrangler logado, o mesmo: `npx wrangler d1 execute checkout-saves --remote --file=migrations/0002_social.sql`.
+Se a versão nova for publicada antes da migração, os saves continuam funcionando normalmente (o Worker percebe que
+as tabelas não existem e ignora o social); só as rotas sociais dão erro até a migração rodar.
 
 ## Testes
 `npm test` — roda o código do Worker no Node 22 com substitutos de D1 (SQLite do Node, com o `schema.sql` de
 verdade), R2 (memória) e sockets (node:net/tls). Os testes do Render (`server/test/api.test.ts`) estão portados.
 Com `OLD_TEST_DATABASE_URL` (um Postgres com senha SCRAM e TLS), roda também a cópia de ponta a ponta contra as
-migrações do Prisma do Render (`test/migrate.test.ts`).
+migrações do Prisma do Render (`test/migrate.test.ts`). `test/social.test.ts` cobre todas as rotas sociais e limites
+(com o relógio injetável `now`), a migração rodando duas vezes sobre o banco de hoje e a exclusão de conta.
 
 ## Publicar
 `npm run build` (bun) gera `dist/index.js`. Com o wrangler logado: `npx wrangler deploy` (usa `wrangler.jsonc`).
