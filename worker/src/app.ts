@@ -1,6 +1,7 @@
 import { HEADERS, HttpError, json } from "./http.ts";
-import { SOCIAL } from "./limits.ts";
+import { MAX_LEVEL, SOCIAL } from "./limits.ts";
 import { BadRequest, canReplace, MAX_SAVE_BYTES, readUpload, type SaveMeta } from "./save.ts";
+import { type BoardCache, countryOf, rankingRoutes } from "./rankings.ts";
 import { socialRoutes } from "./social.ts";
 import type { PlayerRecord, SocialSnapshot, Store } from "./store.ts";
 import { type AppleTokens, type AppleVerifier, type GoogleVerifier, readSession, sha256Hex, signSession } from "./tokens.ts";
@@ -19,6 +20,8 @@ import { type AppleTokens, type AppleVerifier, type GoogleVerifier, readSession,
  * - GET  /health                                           → {ok, settings: which settings are present (names only)}
  * - /v1/social/* and GET /i/<code>: friends, invites, visits, helps, gifts, product requests (social.ts,
  *   docs/social-api.md). PUT /v1/save also takes the optional social `public` block.
+ * - /v1/rankings/*: world, country, friends, weekly league, opt-out (rankings.ts, docs/rankings-api.md). PUT /v1/save
+ *   also refreshes the profile's level/XP/country for the boards.
  * Everything under /v1 except the login needs `Authorization: Bearer <token>`.
  */
 export type AppOptions = {
@@ -35,6 +38,8 @@ export type AppOptions = {
 	log?: (line: string) => void;
 	/** What GET /health tells besides ok. */
 	health?: () => Record<string, unknown>;
+	/** Where the world/country top lists are kept for 10 minutes besides the isolate's memory (Workers: caches.default). */
+	cache?: BoardCache | null;
 	/** Extra routes (the temporary /admin/* ones). Answers null when the path is not theirs. */
 	extra?: (request: Request, path: string, helpers: Helpers) => Promise<Response | null>;
 };
@@ -42,8 +47,9 @@ export type AppOptions = {
 /** What the extra routes reuse: the save routes for any player (the CPU benchmark). */
 export type Helpers = {
 	getSave(player: PlayerRecord, save: SaveMeta | null): Promise<Response>;
-	/** `social`: the player's profile snapshot (from getPlayer), to refresh level/era/public block after the upload. */
-	putSave(request: Request, player: PlayerRecord, current: SaveMeta | null, social?: SocialSnapshot | null): Promise<Response>;
+	/** `social`: the player's profile snapshot (from getPlayer), to refresh level/era/public block after the upload.
+	 * `country`: the connection's country (checked, null = unknown). */
+	putSave(request: Request, player: PlayerRecord, current: SaveMeta | null, social?: SocialSnapshot | null, country?: string | null): Promise<Response>;
 };
 
 export { HttpError, json };
@@ -104,6 +110,16 @@ export function createApp(options: AppOptions) {
 		return session.sub;
 	};
 
+	/** The signed-in player's id when the request carries a valid session, else null (routes where signing in is optional). */
+	const maybeSessionOf = async (request: Request) => {
+		const header = request.headers.get("authorization") ?? "";
+		if (!header.startsWith("Bearer ")) return null;
+		const session = await readSession(header.slice(7), sessionSecret, now());
+		if (!session) return null;
+		if (!allow(`player:${session.sub}`)) throw new HttpError(429, { error: "slow-down" });
+		return session.sub;
+	};
+
 	/** The signed-in player, their save's description and social snapshot (one D1 round trip). */
 	const playerOf = async (request: Request) => {
 		const found = await store.getPlayer(await sessionOf(request));
@@ -112,6 +128,7 @@ export function createApp(options: AppOptions) {
 	};
 
 	const social = socialRoutes({ store, now, log, sessionOf });
+	const rankings = rankingRoutes({ store, now, log, sessionOf, maybeSessionOf, cache: options.cache ?? null });
 
 	// The answer to a login: the game's session, who the player is, and the summary of the cloud save.
 	const welcome = async (player: PlayerRecord, save: SaveMeta | null) => {
@@ -131,7 +148,7 @@ export function createApp(options: AppOptions) {
 			const head = `${JSON.stringify(describe(found.save)).slice(0, -1)},"data":`;
 			return new Response(new Blob([head, found.body, "}"]), { status: 200, headers: HEADERS });
 		},
-		async putSave(request, player, current, social) {
+		async putSave(request, player, current, social, country = null) {
 			let upload: ReturnType<typeof readUpload>;
 			try {
 				upload = readUpload(await readBytes(request));
@@ -140,15 +157,25 @@ export function createApp(options: AppOptions) {
 				throw error;
 			}
 			if (!canReplace(current, upload.baseRevision)) throw new HttpError(409, { error: "conflict", current: current ? describe(current) : null });
-			const result = await store.replaceSave(player.id, current, { literal: upload.literal, summary: upload.summary, deviceId: upload.deviceId, keepReplaced: upload.force });
+			const summary = upload.summary;
+			const publicChanged = !!social && upload.public !== undefined && upload.public !== social.publicJson;
+			const rewardDue = !!social?.rewardPending && summary.level >= SOCIAL.inviteRewardLevel;
+			const changed = !!social && (publicChanged || rewardDue || social.level !== summary.level || social.era !== summary.era);
+			// Social profile with the ranking columns: level, era, XP, country, strikes, public block and invite reward are
+			// written in the upload's own batch (no extra round trip), only when something changed. Over MAX_LEVEL always
+			// writes (the strike).
+			const ranked = social?.ranked;
+			const rankedChanged =
+				!!ranked && (changed || ranked.xp !== summary.xp || !ranked.hasSave || (!!country && country !== ranked.country) || summary.level > MAX_LEVEL);
+			const extra = rankedChanged ? (key: string) => store.afterUpload(player.id, key, summary, publicChanged ? upload.public : undefined, country, rewardDue) : undefined;
+			const result = await store.replaceSave(player.id, current, { literal: upload.literal, summary, deviceId: upload.deviceId, keepReplaced: upload.force }, extra);
 			if (!result.ok) throw new HttpError(409, { error: "conflict", current: result.current ? describe(result.current) : null });
 			if (upload.publicRefused) log(`public block refused for ${player.id}: ${upload.publicRefused}`);
-			// Social profile (only one that exists): level/era from the summary, the public block when sent, the invite
-			// reward when due. Skipped when nothing changed (most uploads); a failure never fails the upload.
-			if (social) {
-				const publicChanged = upload.public !== undefined && upload.public !== social.publicJson;
-				const rewardDue = social.rewardPending && upload.summary.level >= SOCIAL.inviteRewardLevel;
-				if (publicChanged || rewardDue || social.level !== upload.summary.level || social.era !== upload.summary.era) {
+			// Before migrations/0003_rankings.sql: the social profile (only one that exists) as before — level/era from the
+			// summary, the public block when sent, the invite reward when due, in a second round trip that never fails the
+			// upload.
+			if (social && !ranked) {
+				if (changed) {
 					try {
 						await store.refreshProfile(player.id, upload.summary, publicChanged ? upload.public : undefined);
 					} catch (error) {
@@ -160,7 +187,7 @@ export function createApp(options: AppOptions) {
 		},
 	};
 
-	async function route(request: Request): Promise<Response> {
+	async function route(request: Request, country: string | null): Promise<Response> {
 		const path = new URL(request.url).pathname;
 		const method = request.method;
 		if (path === "/health" || path === "/") return json(200, { ok: true, ...options.health?.() });
@@ -246,7 +273,7 @@ export function createApp(options: AppOptions) {
 
 		if (path === "/v1/save" && method === "PUT") {
 			const { player, save, social } = await playerOf(request);
-			return helpers.putSave(request, player, save, social);
+			return helpers.putSave(request, player, save, social, country);
 		}
 
 		if (path === "/v1/account" && method === "DELETE") {
@@ -264,19 +291,21 @@ export function createApp(options: AppOptions) {
 			return json(204, null);
 		}
 
-		const socialAnswer = await social(request, path, method);
+		const socialAnswer = await social(request, path, method, country);
 		if (socialAnswer) return socialAnswer;
+		const rankingAnswer = await rankings(request, path, method, country);
+		if (rankingAnswer) return rankingAnswer;
 
 		const extra = options.extra ? await options.extra(request, path, helpers) : null;
 		if (extra) return extra;
 		throw new HttpError(404, { error: "not-found" });
 	}
 
-	/** `address`: the caller's IP (Cloudflare's CF-Connecting-IP). */
-	return async (request: Request, address: string): Promise<Response> => {
+	/** `address`: the caller's IP (Cloudflare's CF-Connecting-IP); `country`: Cloudflare's request.cf.country. */
+	return async (request: Request, address: string, country?: unknown): Promise<Response> => {
 		try {
 			if (!allow(`ip:${address}`)) throw new HttpError(429, { error: "slow-down" });
-			return await route(request);
+			return await route(request, countryOf(country));
 		} catch (error) {
 			if (error instanceof HttpError) return json(error.status, error.body);
 			log(`error ${(error as Error)?.stack ?? error}`);

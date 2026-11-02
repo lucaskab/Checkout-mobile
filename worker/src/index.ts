@@ -2,12 +2,15 @@ import { connect } from "cloudflare:sockets";
 import { adminRoutes } from "./admin.ts";
 import { createApp } from "./app.ts";
 import type { Connect, Env } from "./cf.ts";
+import { closeWeeks } from "./ranking-store.ts";
+import type { BoardCache } from "./rankings.ts";
 import { Store } from "./store.ts";
 import { appleTokens, appleVerifier, googleCodeExchange, googleVerifier } from "./tokens.ts";
 
 /**
  * checkout-server on Cloudflare Workers (free plan): D1 "checkout-saves" (binding DB) + R2 "checkout-saves" (binding
  * SAVES). Settings: Workers › checkout-server › Settings › Variables and Secrets (see worker/README.md).
+ * Cron trigger "5 0 * * 1" (Monday 00:05 UTC): the weekly league close (scheduled() below).
  */
 const SETTINGS = [
 	"SESSION_SECRET",
@@ -26,7 +29,7 @@ const SETTINGS = [
 const log = (line: string) => console.log(line);
 const list = (value: string | undefined) => (value ?? "").split(",").map((id) => id.trim()).filter(Boolean);
 
-type Handler = (request: Request, address: string) => Promise<Response>;
+type Handler = (request: Request, address: string, country?: unknown) => Promise<Response>;
 const apps = new WeakMap<Env, Handler>();
 
 function build(env: Env): Handler {
@@ -72,6 +75,8 @@ function appFor(env: Env, sessionSecret: string, clientIds: string[], health: ()
 		sessionSecret,
 		log,
 		health,
+		// The Workers Cache API (the top lists of the boards, 10 min). Absent outside Workers (tests, benchmarks).
+		cache: ((globalThis as { caches?: { default?: BoardCache } }).caches?.default as BoardCache | undefined) ?? null,
 		extra: env.ADMIN_PUBLIC_KEY
 			? adminRoutes({ publicKey: env.ADMIN_PUBLIC_KEY, oldDatabaseUrl: env.OLD_DATABASE_URL, connect: connect as unknown as Connect, db: env.DB, bucket: env.SAVES, store })
 			: undefined,
@@ -86,6 +91,17 @@ export default {
 			app = build(env);
 			apps.set(env, app);
 		}
-		return app(request, request.headers.get("cf-connecting-ip") ?? "");
+		return app(request, request.headers.get("cf-connecting-ip") ?? "", (request as { cf?: { country?: unknown } }).cf?.country);
+	},
+
+	/** The cron trigger (Monday 00:05 UTC): closes last week's league groups and pays the rewards (ranking-store.ts). */
+	async scheduled(_controller: { cron?: string; scheduledTime?: number }, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+		if (!env.DB) return;
+		const store = new Store(env.DB, env.SAVES, { log });
+		ctx.waitUntil(
+			closeWeeks(store, Date.now(), log).catch((error) => {
+				log(`league close failed: ${(error as Error)?.stack ?? error}`);
+			}),
+		);
 	},
 };

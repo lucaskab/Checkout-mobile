@@ -21,6 +21,8 @@ export type SaveSummary = {
 	day: number;
 	/** The save's own format version (the game migrates older ones). */
 	version: number;
+	/** Total experience ever earned (state.market.totalExperience): the level boards' second key. 0 in old summaries. */
+	xp: number;
 };
 
 /** A cloud save as D1 knows it (the save itself is in R2, at `key`). */
@@ -71,13 +73,14 @@ function summaryOf(state: Record<string, any>, version: unknown): SaveSummary {
 		diamonds: num(state.logistics?.premiumCurrency),
 		day: num(state.day?.dayNumber),
 		version: num(version),
+		xp: Math.max(0, Math.floor(num(state.market?.totalExperience))),
 	};
 }
 
 /** A summary read back from storage (or from the old database), always in the same shape and key order. */
 export function cleanSummary(value: unknown): SaveSummary {
 	const s = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
-	return { level: num(s.level) || 1, era: typeof s.era === "string" ? s.era : "", coins: num(s.coins), diamonds: num(s.diamonds), day: num(s.day), version: num(s.version) };
+	return { level: num(s.level) || 1, era: typeof s.era === "string" ? s.era : "", coins: num(s.coins), diamonds: num(s.diamonds), day: num(s.day), version: num(s.version), xp: Math.max(0, Math.floor(num(s.xp))) };
 }
 
 /**

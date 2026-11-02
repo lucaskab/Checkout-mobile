@@ -13,6 +13,7 @@
 		"build": "bun build src/index.ts --target=browser --format=esm --external cloudflare:sockets --minify --outfile dist/index.js",
 		"bench": "node --no-warnings scripts/bench.ts",
 		"bench:social": "node --no-warnings scripts/bench-social.ts",
+		"bench:rankings": "node --no-warnings scripts/bench-rankings.ts",
 		"deploy": "wrangler deploy"
 	}
 }

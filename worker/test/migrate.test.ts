@@ -111,7 +111,7 @@ describe("copy from the Render database (Postgres)", { skip: !url && "no OLD_TES
 		assert.equal(body.revision, 3);
 		assert.equal(body.deviceId, "bia-pc");
 		assert.equal(body.updatedAt, "2026-10-28T11:00:00.000Z");
-		assert.deepEqual(body.summary, { level: 4, era: "banca", coins: 10, diamonds: 7, day: 9, version: 45 });
+		assert.deepEqual(body.summary, { level: 4, era: "banca", coins: 10, diamonds: 7, day: 9, version: 45, xp: 0 });
 		const ana = await app(new Request("https://w/v1/save", { headers: { authorization: `Bearer ${await signSession("11111111-aaaa-4aaa-8aaa-000000000001", SECRET)}` } }), "x");
 		assert.equal(((await ana.json()) as { updatedAt: string }).updatedAt, "2026-10-28T10:00:00.456Z");
 	});
