@@ -1,13 +1,12 @@
 """Runs the social v1 art inside an already open Blender (the MCP add-on session) without touching the open file:
-everything is built in its own scenes ("SocialArt" for the decorations, "SocialIcons" for the UI icons), and the user's
-scene is put back after each call. Never calls read_factory_settings and never deletes data outside those scenes
+everything is built in its own scene ("SocialArt"), and the user's scene is put back after each call. Never calls read_factory_settings and never deletes data outside those scenes
 (only orphan datablocks this pipeline created).
 
     NS = {}; exec(open(ART + "/social_art/social_run.py").read(), NS)
     NS["run_decor"]("invite-reward-1")         # decor_v4 pipeline: realize, bake atlas, FBX, thumb, previews
-    NS["run_icons"](["friends", "gift"])       # build_ui_sprites pipeline: 512 px transparent PNGs
+    NS["save_blend"]()                         # writes social_art.blend (the SocialArt scene only)
 
-Outputs: ArtSource/social_art/{fbx,tex,thumbs,previews,icons}/ and report.json.
+Outputs: ArtSource/social_art/{fbx,tex,thumbs,previews}/ and report.json.
 """
 import os, sys, re, types, time, json, importlib.util, traceback
 import bpy
@@ -115,46 +114,6 @@ def run_decor(id_):
 
 
 def save_blend(path=os.path.join(SA, "social_art.blend")):
-    scenes = {s for s in (bpy.data.scenes.get("SocialArt"), bpy.data.scenes.get("SocialIcons")) if s}
+    scenes = {s for s in (bpy.data.scenes.get("SocialArt"),) if s}
     bpy.data.libraries.write(path, scenes, fake_user=True, compress=True)
     return path
-
-
-# ================================================================================================ UI icons (build_ui_sprites)
-def run_icons(names, size=512):
-    win = bpy.context.window
-    prev = win.scene
-    log("icons start", names)
-    try:
-        sc, _ = _scene("SocialIcons")
-        NS = {"__file__": os.path.join(REPO, "scripts", "blender", "build_ui_sprites.py"), "__name__": "social_sprites"}
-        exec(open(os.path.join(REPO, "scripts", "blender", "build_ui_sprites.py")).read(), NS)
-        exec(open(os.path.join(SA, "social_icons.py")).read(), NS)
-        out = os.path.join(SA, "icons")
-        os.makedirs(out, exist_ok=True)
-
-        def safe_reset():
-            s = bpy.context.scene
-            for o in list(s.objects):
-                bpy.data.objects.remove(o, do_unlink=True)
-            _purge_orphans(("M_", "T_"))
-            NS["_mats"].clear(); NS["MARKS"].clear()
-        NS["reset"] = safe_reset
-        NS["DEVICE"] = "CPU"
-        done = []
-        for n in names:
-            safe_reset()
-            NS["SOCIAL_ICONS"][n]()
-            s = bpy.context.scene
-            s.cycles.device = "CPU"
-            s.render.resolution_x = s.render.resolution_y = size
-            s.render.filepath = os.path.join(out, n + ".png")
-            bpy.ops.render.render(write_still=True, scene=s.name)
-            done.append(s.render.filepath)
-            log("icon", n)
-        return done
-    except Exception:
-        log("icons FAIL", traceback.format_exc())
-        raise
-    finally:
-        win.scene = prev

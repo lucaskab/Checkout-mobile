@@ -130,19 +130,40 @@ def mitten(name, loc, r, paint, rot=(0, 0, 0), open_=True):
                        seg=8, rings=6, paint=paint)
 
 
-def person(name, x0, y0, z0, k, paint, wave="right", cap=True, apron=True, mustache=True, bag=None, hold=None):
+PERSON_KEYS = ("skin", "shirt", "sleeve", "apron", "pocket", "belt", "pants", "shoes", "hair", "cap", "brim", "eyes", "mouth", "cheek",
+               "mustache")
+
+
+def _person_pal(paint):
+    """One paint for the whole figure (a single-material statue) or a dict of paints per part (full colour). Missing
+    keys fall back: sleeve -> shirt, brim -> cap, mustache -> hair, everything else -> skin."""
+    if not isinstance(paint, dict):
+        return {k: paint for k in PERSON_KEYS}, None
+    pal = dict(paint)
+    pal.setdefault("sleeve", pal.get("shirt"))
+    pal.setdefault("brim", pal.get("cap"))
+    pal.setdefault("mustache", pal.get("hair"))
+    for k in PERSON_KEYS:
+        pal.setdefault(k, pal["skin"])
+    return pal, paint.get("glint")
+
+
+def person(name, x0, y0, z0, k, paint, wave="right", cap=True, apron=True, mustache=True, bag=None, hold=None, hair_cap=False):
     """Chunky figure standing at (x0, y0, z0), height ~1.05 * k. wave: which arm is raised ('right' / 'left' / None).
     hold: (x, y, z) world point the lowered hand reaches for (holding hands). bag: paint of a little shopping bag held in
-    the lowered hand (if hold is None)."""
+    the lowered hand (if hold is None). paint: one paint, or a dict per part (see _person_pal; 'glint' adds eye
+    highlights). hair_cap: a rounded hair mass over the top and back of the head (shows under the cap too)."""
+    pal, glint = _person_pal(paint)
+
     def P_(x, y, z):
         return (x0 + x * k, y0 + y * k, z0 + z * k)
     # shoes and legs
     for s in (-1, 1):
-        dv4.sphere(name + "Shoe%d" % s, .085 * k, loc=P_(s * .095, .035, .045), scale=(.75, 1.15, .5), seg=14, rings=8, paint=paint)
-        dv4.cylinder(name + "Leg%d" % s, .068 * k, .26 * k, loc=P_(s * .095, 0, .06), seg=14, paint=paint, bevel=.02 * k)
+        dv4.sphere(name + "Shoe%d" % s, .085 * k, loc=P_(s * .095, .035, .045), scale=(.75, 1.15, .5), seg=14, rings=8, paint=pal["shoes"])
+        dv4.cylinder(name + "Leg%d" % s, .068 * k, .26 * k, loc=P_(s * .095, 0, .06), seg=14, paint=pal["pants"], bevel=.02 * k)
     # body: round belly (lathe) and the apron over it
     body = [(0, .29), (.15, .29), (.205, .34), (.235, .43), (.24, .52), (.225, .61), (.19, .68), (.13, .73), (.06, .755), (0, .76)]
-    b = dv4.lathe(name + "Body", [(r * k, z0 + z * k) for r, z in body], seg=28, loc=(x0, y0, 0), paint=paint)
+    b = dv4.lathe(name + "Body", [(r * k, z0 + z * k) for r, z in body], seg=28, loc=(x0, y0, 0), paint=pal["shirt"])
     if apron:
         # apron: a bib and a skirt hugging the belly on the front (a partial lathe a hair larger)
         ap = []
@@ -150,36 +171,40 @@ def person(name, x0, y0, z0, k, paint, wave="right", cap=True, apron=True, musta
             u = i / 11
             ap.append((.245 + .02 * math.sin(math.pi * u), .31 + u * .37))
         bm = _arc_lathe([(r * k, z0 + z * k) for r, z in ap], -62, 62, 14)
-        dv4.from_bm(name + "Apron", bm, paint, loc=(x0, y0, 0), rot=(0, 0, 90))
-        dv4.torus(name + "Belt", .238 * k, .016 * k, loc=P_(0, 0, .5), seg=28, minor=6, paint=paint)
-        dv4.cube(name + "Pocket", (.12 * k, .03 * k, .08 * k), loc=P_(0, .245, .42), paint=paint, bevel=.012 * k)
+        dv4.from_bm(name + "Apron", bm, pal["apron"], loc=(x0, y0, 0), rot=(0, 0, 90))
+        dv4.torus(name + "Belt", .238 * k, .016 * k, loc=P_(0, 0, .5), seg=28, minor=6, paint=pal["belt"])
+        dv4.cube(name + "Pocket", (.12 * k, .022 * k, .08 * k), loc=P_(0, .272, .42), paint=pal["pocket"], bevel=.012 * k)
     # neck + head
-    dv4.cylinder(name + "Neck", .07 * k, .06 * k, loc=P_(0, 0, .74), seg=14, paint=paint)
+    dv4.cylinder(name + "Neck", .07 * k, .06 * k, loc=P_(0, 0, .74), seg=14, paint=pal["skin"])
     hz = .93
-    dv4.sphere(name + "Head", .2 * k, loc=P_(0, .005, hz), scale=(1, .96, 1.02), seg=22, rings=14, paint=paint)
-    dv4.sphere(name + "Nose", .038 * k, loc=P_(0, .195, hz - .02), scale=(1.05, 1, .9), seg=10, rings=7, paint=paint)
+    dv4.sphere(name + "Head", .2 * k, loc=P_(0, .005, hz), scale=(1, .96, 1.02), seg=22, rings=14, paint=pal["skin"])
+    dv4.sphere(name + "Nose", .038 * k, loc=P_(0, .195, hz - .02), scale=(1.05, 1, .9), seg=10, rings=7, paint=pal["skin"])
     for s in (-1, 1):
-        dv4.sphere(name + "Ear%d" % s, .05 * k, loc=P_(s * .195, 0, hz - .01), scale=(.5, .8, 1), seg=10, rings=6, paint=paint)
-        dv4.sphere(name + "Eye%d" % s, .024 * k, loc=P_(s * .07, .182, hz + .04), scale=(1, .5, 1.2), seg=8, rings=6, paint=paint)
-        dv4.sphere(name + "Cheek%d" % s, .05 * k, loc=P_(s * .11, .15, hz - .05), scale=(1, .6, .8), seg=10, rings=6, paint=paint)
+        dv4.sphere(name + "Ear%d" % s, .05 * k, loc=P_(s * .195, 0, hz - .01), scale=(.5, .8, 1), seg=10, rings=6, paint=pal["skin"])
+        dv4.sphere(name + "Eye%d" % s, .024 * k, loc=P_(s * .07, .182, hz + .04), scale=(1, .5, 1.2), seg=8, rings=6, paint=pal["eyes"])
+        if glint is not None:
+            dv4.sphere(name + "Glint%d" % s, .008 * k, loc=P_(s * .07 + .008, .192, hz + .052), seg=6, rings=4, paint=glint)
+        dv4.sphere(name + "Cheek%d" % s, .05 * k, loc=P_(s * .11, .15, hz - .05), scale=(1, .6, .8), seg=10, rings=6, paint=pal["cheek"])
+    if hair_cap:
+        dv4.sphere(name + "HairCap", .205 * k, loc=P_(0, -.03, hz + .04), scale=(1.04, 1, .95), seg=18, rings=12, paint=pal["hair"])
     # smile: a shallow arc
     sm = [P_(math.sin(math.radians(a)) * .07, .186 - (1 - math.cos(math.radians(a))) * .05, hz - .085 + (1 - math.cos(math.radians(a))) * .09)
           for a in range(-60, 61, 20)]
-    dv4.tube(name + "Smile", sm, radius=.011 * k, res=6, paint=paint, resolution=2)
+    dv4.tube(name + "Smile", sm, radius=.011 * k, res=6, paint=pal["mouth"], resolution=2)
     if mustache:
         for s in (-1, 1):
             dv4.sphere(name + "Must%d" % s, .05 * k, loc=P_(s * .045, .19, hz - .055), scale=(1.3, .55, .6), rot=(0, s * 18, 0), seg=10,
-                       rings=6, paint=paint)
+                       rings=6, paint=pal["mustache"])
     if cap:
         capp = [(0, 0), (.19, 0), (.2, .03), (.19, .09), (.15, .13), (0, .14)]
         dv4.lathe(name + "Cap", [(r * k, z) for r, z in [(rr, z0 + (hz + .1 + zz) * k) for rr, zz in capp]], seg=24, loc=(x0, y0, 0),
-                  paint=paint)
-        dv4.cylinder(name + "Brim", .12 * k, .02 * k, loc=P_(0, .17, hz + .095), rot=(-8, 0, 0), seg=18, paint=paint, scale=(1, .7, 1))
+                  paint=pal["cap"])
+        dv4.cylinder(name + "Brim", .12 * k, .02 * k, loc=P_(0, .17, hz + .095), rot=(-8, 0, 0), seg=18, paint=pal["brim"], scale=(1, .7, 1))
     else:
         # hair tuft
         for i in range(3):
             dv4.sphere(name + "Hair%d" % i, .07 * k, loc=P_((-.06 + i * .06), -.02, hz + .17), scale=(1, 1, .7), seg=10, rings=6,
-                       paint=paint)
+                       paint=pal["hair"])
     # arms
     for s in (-1, 1):
         sh = P_(s * .2, 0, .64)
@@ -187,8 +212,8 @@ def person(name, x0, y0, z0, k, paint, wave="right", cap=True, apron=True, musta
         if raised:
             el = P_(s * .34, .02, .76)
             hd = P_(s * .38, .05, .96)
-            _limb(name + "Arm%d" % s, [sh, el, hd], .055 * k, paint)
-            mitten(name + "Hand%d" % s, P_(s * .385, .06, 1.02), .06 * k, paint, rot=(0, s * -12, 0), open_=True)
+            _limb(name + "Arm%d" % s, [sh, el, hd], .055 * k, pal["sleeve"])
+            mitten(name + "Hand%d" % s, P_(s * .385, .06, 1.02), .06 * k, pal["skin"], rot=(0, s * -12, 0), open_=True)
         else:
             if hold is not None:
                 hd = hold
@@ -196,8 +221,8 @@ def person(name, x0, y0, z0, k, paint, wave="right", cap=True, apron=True, musta
             else:
                 el = P_(s * .27, .02, .5)
                 hd = P_(s * .29, .05, .37)
-            _limb(name + "Arm%d" % s, [sh, el, hd], .055 * k, paint)
-            dv4.sphere(name + "Fist%d" % s, .062 * k, loc=hd, scale=(1, .9, 1), seg=12, rings=8, paint=paint)
+            _limb(name + "Arm%d" % s, [sh, el, hd], .055 * k, pal["sleeve"])
+            dv4.sphere(name + "Fist%d" % s, .062 * k, loc=hd, scale=(1, .9, 1), seg=12, rings=8, paint=pal["skin"])
             if bag is not None and hold is None:
                 bx, by, bz = hd
                 dv4.cube(name + "Bag", (.16 * k, .08 * k, .17 * k), loc=(bx + s * .01 * k, by, bz - .14 * k), paint=bag, bevel=.012 * k)

@@ -81,7 +81,7 @@
  },
  "invite-reward-5": {
   "name": "InviteReward5",
-  "tris": 13164,
+  "tris": 14500,
   "budget": 15000,
   "within_budget": true,
   "footprint_half_x_half_z_height": [
@@ -111,7 +111,7 @@
    "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/social_art/previews/invite-reward-5_close.png"
   ],
   "old": null,
-  "secs": 8.9,
-  "date": "2026-11-01 22:07"
+  "secs": 9.5,
+  "date": "2026-11-01 22:23"
  }
 }
