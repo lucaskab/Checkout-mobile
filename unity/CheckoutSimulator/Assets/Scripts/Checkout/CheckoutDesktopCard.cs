@@ -6,7 +6,7 @@ using K = Checkout.CheckoutDesktopKit;
 namespace Checkout {
  // One pooled card of a HUD page. Apply() updates it in place so scrolling survives refreshes.
  public class CheckoutDesktopCard:MonoBehaviour {
-  UnityEngine.UI.Image edge,face,icon,badgeBack,fill;TextMeshProUGUI eyebrow,title,subtitle,badge;
+  UnityEngine.UI.Image edge,face,icon,badgeBack,fill,portraitClip,portrait,portraitRim;TextMeshProUGUI eyebrow,title,subtitle,badge;
   Transform lines,buttons;GameObject header,texts,progress;RectTransform fillRect;
   readonly List<TextMeshProUGUI> linePool=new List<TextMeshProUGUI>();readonly List<CheckoutDesktopButton> buttonPool=new List<CheckoutDesktopButton>();
   public Action<CheckoutDesktopButton> Clicked;
@@ -34,6 +34,11 @@ namespace Checkout {
    card.header=Node("Header",card.face.transform).gameObject;Row(card.header,12);
    card.icon=Image(card.header.transform,"Icon",Color.white,0);card.icon.preserveAspect=true;
    var iconLayout=card.icon.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();iconLayout.preferredWidth=iconLayout.preferredHeight=52;
+   // (a player's face, "avatar:…": the icon turns into a navy disc, the picture is clipped to it and a gold rim drawn over the edge)
+   card.portraitClip=K.RoundClip(card.icon.transform,"Clip");card.portrait=Image(card.portraitClip.transform,"Face",Color.white,0);card.portrait.preserveAspect=true;
+   var pr=card.portrait.rectTransform;pr.anchorMin=Vector2.zero;pr.anchorMax=Vector2.one;pr.offsetMin=pr.offsetMax=Vector2.zero;
+   card.portraitRim=Image(card.icon.transform,"Rim",K.C("E3B54A"),0);var rr=card.portraitRim.rectTransform;rr.anchorMin=Vector2.zero;rr.anchorMax=Vector2.one;rr.offsetMin=rr.offsetMax=Vector2.zero;
+   card.portraitClip.gameObject.SetActive(false);card.portraitRim.gameObject.SetActive(false);
    card.texts=Node("Texts",card.header.transform).gameObject;Column(card.texts,1);card.texts.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=1;
    card.eyebrow=Text(card.texts.transform,"Eyebrow",K.Label,12,K.Muted);card.eyebrow.characterSpacing=4;
    card.title=Text(card.texts.transform,"Title",K.Headline,21,K.Ink);
@@ -57,6 +62,14 @@ namespace Checkout {
    Set(eyebrow,data.eyebrow?.ToUpperInvariant());Set(title,data.title);Set(subtitle,data.subtitle);title.color=tone.text;
    Set(badge,data.badge);badgeBack.gameObject.SetActive(!string.IsNullOrEmpty(data.badge));
    var sprite=K.Icon(data.icon);icon.sprite=sprite;icon.gameObject.SetActive(sprite);icon.color=data.tone=="locked"?new Color(1,1,1,.5f):Color.white;
+   bool avatar=sprite&&(data.icon??"").StartsWith("avatar:",StringComparison.Ordinal);
+   portraitClip.gameObject.SetActive(avatar);portraitRim.gameObject.SetActive(avatar);
+   if(avatar){
+    float size=hero?96:52,border=hero?5:3;
+    portrait.sprite=sprite;icon.sprite=K.Disc();icon.color=K.C("1D2B4F");
+    var cr=portraitClip.rectTransform;cr.offsetMin=new Vector2(border-1,border-1);cr.offsetMax=new Vector2(1-border,1-border);
+    portraitRim.sprite=K.Rim(size,size-border*2);
+   }
    header.SetActive(sprite||!string.IsNullOrEmpty(data.title)||!string.IsNullOrEmpty(data.eyebrow)||!string.IsNullOrEmpty(data.badge));
    var values=data.lines??Array.Empty<string>();
    while(linePool.Count<values.Length)linePool.Add(Text(lines,"Line",K.Body,16,K.Ink));

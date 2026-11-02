@@ -62,6 +62,45 @@ namespace Checkout {
    rounded[radius]=sprite;return sprite;
   }
 
+  // ---- round portraits (social v1): a picture clipped to a circle under a ring ----
+  const int DiscSize=256;
+  static Sprite disc;static readonly Dictionary<int,Sprite> rims=new Dictionary<int,Sprite>();
+  static Sprite DiscSprite(float inner){
+   var texture=new Texture2D(DiscSize,DiscSize,TextureFormat.RGBA32,false){wrapMode=TextureWrapMode.Clamp,filterMode=FilterMode.Bilinear};
+   var pixels=new Color32[DiscSize*DiscSize];float r=DiscSize*.5f;
+   for(int y=0;y<DiscSize;y++)for(int x=0;x<DiscSize;x++){
+    float d=Vector2.Distance(new Vector2(x+.5f,y+.5f),new Vector2(r,r));
+    float a=Mathf.Clamp01(r-.5f-d+.5f);if(inner>0)a*=Mathf.Clamp01(d-inner+.5f);
+    pixels[y*DiscSize+x]=new Color32(255,255,255,(byte)(a*255));
+   }
+   texture.SetPixels32(pixels);texture.Apply();
+   return Sprite.Create(texture,new Rect(0,0,DiscSize,DiscSize),new Vector2(.5f,.5f),100,0,SpriteMeshType.FullRect);
+  }
+  /// <summary>A white disc, not sliced: any square rect draws a clean circle (a portrait's plate and its round mask).</summary>
+  public static Sprite Disc()=>disc?disc:(disc=DiscSprite(0));
+  /// <summary>A white ring that fills a square of <paramref name="outer"/> units and leaves a hole of
+  /// <paramref name="hole"/> units: the frame drawn over a masked picture.</summary>
+  public static Sprite Rim(float outer,float hole){
+   int inner=Mathf.Clamp(Mathf.RoundToInt(DiscSize*.5f*hole/Mathf.Max(1,outer)),8,DiscSize/2-2);
+   if(rims.TryGetValue(inner,out var cached)&&cached)return cached;
+   return rims[inner]=DiscSprite(inner);
+  }
+  /// <summary>A round holder: its children are clipped to the circle (the mask itself is not drawn). Off, it clips nothing.</summary>
+  public static UnityEngine.UI.Image RoundClip(Transform parent,string name){
+   var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(parent,false);
+   var image=go.AddComponent<UnityEngine.UI.Image>();image.sprite=Disc();image.raycastTarget=false;
+   go.AddComponent<UnityEngine.UI.Mask>().showMaskGraphic=false;
+   var r=(RectTransform)go.transform;r.anchorMin=Vector2.zero;r.anchorMax=Vector2.one;r.offsetMin=r.offsetMax=Vector2.zero;
+   return image;
+  }
+  public static void SetRound(UnityEngine.UI.Image clip,bool on){if(!clip)return;clip.enabled=on;var m=clip.GetComponent<UnityEngine.UI.Mask>();if(m)m.enabled=on;}
+  /// <summary>A gold ring over a portrait: an image laid on <paramref name="plate"/> grown by <paramref name="border"/> on each
+  /// side, its hole 1.5 units smaller than the plate so it hides the mask's hard edge.</summary>
+  public static void FitRim(UnityEngine.UI.Image rim,float plate,float border){
+   var r=rim.rectTransform;r.anchorMin=Vector2.zero;r.anchorMax=Vector2.one;r.offsetMin=new Vector2(-border,-border);r.offsetMax=new Vector2(border,border);
+   rim.sprite=Rim(plate+border*2,plate-3);rim.type=UnityEngine.UI.Image.Type.Simple;rim.preserveAspect=false;
+  }
+
   static readonly Dictionary<string,TMP_FontAsset> fonts=new Dictionary<string,TMP_FontAsset>();
   public static TMP_FontAsset Font(string name){
    if(fonts.TryGetValue(name,out var cached))return cached;

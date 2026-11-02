@@ -69,9 +69,12 @@ namespace Checkout {
    var fit=edge.gameObject.AddComponent<ContentSizeFitter>();fit.horizontalFit=fit.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
    N.Column(edge.gameObject,0,new RectOffset(2,2,2,2));
    var face=N.Image(edge.transform,"Face",SocialNavy,20);var row=N.Row(face.gameObject,Phone?12:14,new RectOffset(12,12,10,10));row.childAlignment=TextAnchor.MiddleLeft;
-   var ring=N.Image(face.transform,"Avatar",SocialGold,36);var rl=ring.gameObject.AddComponent<LayoutElement>();rl.preferredWidth=rl.preferredHeight=Phone?72:66;
-   var clip=N.Image(ring.transform,"Clip",SocialNavy,34);Stretch(clip.rectTransform,new Vector2(3,3),new Vector2(-3,-3));clip.gameObject.AddComponent<Mask>().showMaskGraphic=true;
+   // (the friend's face: a navy disc that clips the picture to its circle, a gold rim drawn over the edge)
+   float ringSize=Phone?72:66;
+   var ring=N.Image(face.transform,"Avatar",SocialGold,0);ring.sprite=K.Disc();var rl=ring.gameObject.AddComponent<LayoutElement>();rl.preferredWidth=rl.preferredHeight=ringSize;
+   var clip=N.Image(ring.transform,"Clip",SocialNavy,0);clip.sprite=K.Disc();Stretch(clip.rectTransform,new Vector2(3,3),new Vector2(-3,-3));clip.gameObject.AddComponent<Mask>().showMaskGraphic=true;
    visitAvatar=N.Image(clip.transform,"Face",Color.white,0);visitAvatar.preserveAspect=true;Stretch(visitAvatar.rectTransform,Vector2.zero,Vector2.zero);
+   var rim=N.Image(ring.transform,"Rim",SocialGold,0);rim.sprite=K.Rim(ringSize,ringSize-9);Stretch(rim.rectTransform,Vector2.zero,Vector2.zero);
    var texts=N.Node("Texts",face.transform);N.Column(texts.gameObject,0);var tl=texts.gameObject.AddComponent<LayoutElement>();tl.minWidth=Phone?230:250;tl.preferredWidth=Phone?260:280;
    var eyebrow=N.Text(texts,"Eyebrow",K.Label,12,SocialGold);eyebrow.text="VISITANDO";eyebrow.characterSpacing=4;
    visitName=N.Text(texts,"Name",K.Headline,Phone?24:22,Color.white);visitName.textWrappingMode=TextWrappingModes.NoWrap;visitName.overflowMode=TextOverflowModes.Ellipsis;

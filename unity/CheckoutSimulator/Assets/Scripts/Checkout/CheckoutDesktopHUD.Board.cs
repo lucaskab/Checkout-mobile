@@ -30,7 +30,7 @@ namespace Checkout {
   RectTransform boardHeroes;readonly List<CheckoutDesktopCard> boardHeroCards=new List<CheckoutDesktopCard>();
   // Social v1 (_v3): the bar as a player strip (my face on a navy plate that opens the profile, my code, big buttons at
   // its end, the meter in blocks), and the "more below" chevron when whole rows wait under the fold.
-  Image boardMeterPlate,boardMeterRing;RectTransform boardMeterButtons,boardMore;string boardMeterRoute;int boardMeterSegments;
+  Image boardMeterPlate,boardMeterRing,boardMeterClip,boardMeterRim;RectTransform boardMeterButtons,boardMore;string boardMeterRoute;int boardMeterSegments;
   readonly List<CheckoutDesktopButton> boardMeterButtonList=new List<CheckoutDesktopButton>();
   readonly List<Image> boardSegBacks=new List<Image>(),boardSegFills=new List<Image>();
   /// <summary>Chip rows of this board's tiles (0 = none): every card of the board is cut to the same height.</summary>
@@ -83,10 +83,14 @@ namespace Checkout {
    // Meter: a long bar with milestones.
    var meter=N.Image(face.transform,"Meter",K.Cream,18);boardMeter=meter.rectTransform;boardMeter.anchorMin=new Vector2(0,1);boardMeter.anchorMax=Vector2.one;boardMeter.pivot=new Vector2(.5f,1);boardMeter.offsetMin=new Vector2(16,-222);boardMeter.offsetMax=new Vector2(-16,-160);
    var mEdge=N.Image(meter.transform,"Edge",K.Border,18);Stretch(mEdge.rectTransform,new Vector2(0,-3),Vector2.zero);mEdge.transform.SetAsFirstSibling();
-   boardMeterRing=N.Image(meter.transform,"Ring",PortraitGold,0);boardMeterRing.sprite=K.Rounded(30);boardMeterRing.type=Image.Type.Sliced;Place(boardMeterRing.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(9,0),new Vector2(58,58));
-   boardMeterPlate=N.Image(meter.transform,"Plate",PortraitNavy,0);boardMeterPlate.sprite=K.Rounded(26);boardMeterPlate.type=Image.Type.Sliced;Place(boardMeterPlate.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(12,0),new Vector2(52,52));
+   boardMeterRing=N.Image(meter.transform,"Ring",PortraitGold,0);boardMeterRing.sprite=K.Disc();Place(boardMeterRing.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(9,0),new Vector2(58,58));
+   boardMeterPlate=N.Image(meter.transform,"Plate",PortraitNavy,0);boardMeterPlate.sprite=K.Disc();Place(boardMeterPlate.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(12,0),new Vector2(52,52));
    boardMeterRing.gameObject.SetActive(false);boardMeterPlate.gameObject.SetActive(false);
-   boardMeterIcon=N.Image(meter.transform,"Icon",Color.white,0);boardMeterIcon.preserveAspect=true;var mi=boardMeterIcon.rectTransform;mi.anchorMin=mi.anchorMax=new Vector2(0,.5f);mi.pivot=new Vector2(0,.5f);mi.sizeDelta=Phone?new Vector2(38,38):new Vector2(46,46);mi.anchoredPosition=new Vector2(12,0);
+   // (my face: the picture clipped to the plate's circle, the gold rim over its edge; any other icon sits unclipped)
+   boardMeterClip=K.RoundClip(meter.transform,"Clip");K.SetRound(boardMeterClip,false);
+   boardMeterIcon=N.Image(boardMeterClip.transform,"Icon",Color.white,0);boardMeterIcon.preserveAspect=true;Stretch(boardMeterIcon.rectTransform,Vector2.zero,Vector2.zero);
+   boardMeterRim=N.Image(meter.transform,"Rim",PortraitGold,0);Place(boardMeterRim.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(9,0),new Vector2(58,58));
+   boardMeterRim.sprite=K.Rim(58,49);boardMeterRim.gameObject.SetActive(false);
    boardMeterIcon.raycastTarget=true;Clickable(boardMeterIcon.gameObject,()=>{if(!string.IsNullOrEmpty(boardMeterRoute)){Sound("tap");host.Route(boardMeterRoute);}});
    boardMeterButtons=N.Node("Buttons",meter.transform);Place(boardMeterButtons,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,2),new Vector2(300,48));
    var mbr=N.Row(boardMeterButtons.gameObject,8);mbr.childAlignment=TextAnchor.MiddleRight;mbr.childControlHeight=true;mbr.childForceExpandHeight=true;mbr.childForceExpandWidth=false;
@@ -202,7 +206,8 @@ namespace Checkout {
    var icon=K.Icon(m.icon);boardMeterIcon.sprite=icon;boardMeterIcon.enabled=icon;
    // A face (Amigos: mine) on a navy plate in a gold ring; a tap opens its route (the profile).
    bool face=m.frame=="portrait";boardMeterPlate.gameObject.SetActive(face);boardMeterRing.gameObject.SetActive(face);
-   var mi=boardMeterIcon.rectTransform;mi.sizeDelta=face?new Vector2(48,48):Phone?new Vector2(38,38):new Vector2(46,46);mi.anchoredPosition=new Vector2(face?14:12,face?-1:0);
+   K.SetRound(boardMeterClip,face);boardMeterRim.gameObject.SetActive(face);
+   Place(boardMeterClip.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(12,0),face?new Vector2(52,52):Phone?new Vector2(38,38):new Vector2(46,46));
    boardMeterRoute=m.route;boardMeterIcon.raycastTarget=!string.IsNullOrEmpty(m.route);
    var tone=ToneStrong(string.IsNullOrEmpty(m.tone)?"success":m.tone);boardMeterFill.color=tone;
    float target=Mathf.Clamp01(m.value/Mathf.Max(.0001f,m.max));

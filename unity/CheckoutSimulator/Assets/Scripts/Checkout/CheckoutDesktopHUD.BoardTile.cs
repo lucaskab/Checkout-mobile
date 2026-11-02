@@ -21,6 +21,8 @@ namespace Checkout {
   // Compact cards (a board with chips): the chips start this far from the face's top; the card is as tall as its rows.
   const float CompactTop=166;
   static readonly Color PortraitNavy=K.C("1D2B4F"),PortraitGold=K.C("E3B54A");
+  /// <summary>A player's face ("avatar:…", or a portrait frame): drawn round, clipped inside a gold rim, wherever it shows.</summary>
+  static bool IsFace(DesktopTile t)=>t.frame=="portrait"||(t.icon??"").StartsWith("avatar:",System.StringComparison.Ordinal);
 
   // A small chip of a tile: icon + text on a soft pill (likes, "2 obras para ajudar", "pede 6× Tomate").
   sealed class TileChip {
@@ -65,7 +67,7 @@ namespace Checkout {
    Image glow,edge,face,circleImage,icon,lockIcon,stamp,ribbon,badge,timer,barFill;TextMeshProUGUI title,subtitle,ribbonText,badgeText,timerText,barText;
    BoardPips pips;CheckoutDesktopButton button;bool selected;float fillShown=-1,fillTarget;string layoutMode;
    Image ring,cornerBack,cornerIcon;RectTransform chipsBox;readonly List<TileChip> chips=new List<TileChip>();CheckoutDesktopButton alt;
-   string frame;float wobblePhase;
+   string frame;float wobblePhase;Image clip,rim;bool isFace;
 
    public static BoardTileUi Create(CheckoutDesktopHUD hud,Transform parent){
     var root=N.Node("Tile",parent);var ui=root.gameObject.AddComponent<BoardTileUi>();ui.hud=hud;ui.rect=root;
@@ -74,9 +76,12 @@ namespace Checkout {
     ui.face=N.Image(root,"Face",K.Cream,16);Stretch(ui.face.rectTransform,new Vector2(3,7),new Vector2(-3,-3));
     var f=ui.face.transform;
     // (a friend's face sits in a gold ring, the plate navy)
-    ui.ring=N.Image(f,"Ring",PortraitGold,0);ui.ring.sprite=K.Rounded(64);ui.ring.type=Image.Type.Sliced;
+    ui.ring=N.Image(f,"Ring",PortraitGold,0);ui.ring.sprite=K.Disc();
     ui.circleImage=N.Image(f,"Circle",Color.white,0);ui.circleImage.sprite=K.Rounded(56);ui.circleImage.type=Image.Type.Sliced;ui.circle=ui.circleImage.rectTransform;
-    ui.icon=N.Image(ui.circle,"Icon",Color.white,0);ui.icon.preserveAspect=true;Stretch(ui.icon.rectTransform,new Vector2(10,10),new Vector2(-10,-10));
+    // (a portrait: the picture clipped to the plate's circle, the gold rim drawn over its edge; the stamp and the stage badge on top)
+    ui.clip=K.RoundClip(ui.circle,"Clip");K.SetRound(ui.clip,false);
+    ui.icon=N.Image(ui.clip.transform,"Icon",Color.white,0);ui.icon.preserveAspect=true;Stretch(ui.icon.rectTransform,new Vector2(10,10),new Vector2(-10,-10));
+    ui.rim=N.Image(ui.circle,"Rim",PortraitGold,0);ui.rim.gameObject.SetActive(false);
     ui.lockIcon=N.Image(ui.circle,"Lock",Color.white,0);ui.lockIcon.sprite=K.Icon("Icons/lock");ui.lockIcon.preserveAspect=true;Place(ui.lockIcon.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(46,46));
     ui.stamp=N.Image(ui.circle,"Stamp",Color.white,0);ui.stamp.sprite=K.Icon("Icons/success");ui.stamp.preserveAspect=true;Place(ui.stamp.rectTransform,new Vector2(1,0),new Vector2(1,0),new Vector2(1,0),new Vector2(10,-6),new Vector2(48,48));
     ui.title=N.Text(f,"Title",K.Headline,17,K.Ink);ui.title.enableAutoSizing=true;ui.title.fontSizeMin=12;ui.title.fontSizeMax=17;ui.title.overflowMode=TextOverflowModes.Ellipsis;ui.titleRect=ui.title.rectTransform;
@@ -217,9 +222,13 @@ namespace Checkout {
     timer.gameObject.SetActive(t.timerEnd>0);
     bool hasButton=t.action!=null&&!string.IsNullOrEmpty(t.action.label);button.gameObject.SetActive(hasButton);if(hasButton)button.Apply(t.action);
     // Social v1: a framed portrait, the stage badge, the chips and a second big button.
-    bool portrait=t.frame=="portrait";ring.gameObject.SetActive(portrait);
-    if(portrait){circleImage.color=locked?K.C("6E7790"):PortraitNavy;icon.rectTransform.offsetMin=new Vector2(4,2);icon.rectTransform.offsetMax=new Vector2(-4,-4);}
-    else{icon.rectTransform.offsetMin=new Vector2(10,10);icon.rectTransform.offsetMax=new Vector2(-10,-10);}
+    bool portrait=IsFace(t);isFace=portrait;ring.gameObject.SetActive(portrait);
+    K.SetRound(clip,portrait);rim.gameObject.SetActive(portrait);
+    if(portrait){
+     circleImage.color=locked?K.C("6E7790"):PortraitNavy;circleImage.sprite=K.Disc();circleImage.type=Image.Type.Simple;
+     icon.rectTransform.offsetMin=Vector2.zero;icon.rectTransform.offsetMax=Vector2.zero;
+     float plate=circle.sizeDelta.x,border=(ring.rectTransform.sizeDelta.x-plate)*.5f;K.FitRim(rim,plate,Mathf.Max(3,border));
+    }else{circleImage.sprite=K.Rounded(56);circleImage.type=Image.Type.Sliced;icon.rectTransform.offsetMin=new Vector2(10,10);icon.rectTransform.offsetMax=new Vector2(-10,-10);}
     var corner=K.Icon(t.corner);cornerBack.gameObject.SetActive(corner);if(corner)cornerIcon.sprite=corner;
     var cs=t.chips??new DesktopStat[0];
     while(chips.Count<cs.Length&&chips.Count<ChipRows)chips.Add(TileChip.Create(chipsBox));
@@ -228,10 +237,10 @@ namespace Checkout {
     bool line=mode=="line";
     // A slim row: the face, who and what; no buttons, bars or ribbons.
     if(line){barRect.gameObject.SetActive(false);pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);ribbon.gameObject.SetActive(false);badge.gameObject.SetActive(false);button.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);hasButton=false;}
-    if(portrait&&hasRibbon)ribbon.color=PortraitGold;
+    if(t.frame=="portrait"&&hasRibbon)ribbon.color=PortraitGold;
     // (a present and a prize: big art on a soft plate, no inset)
-    if(frame=="gift"||frame=="showcase"){icon.rectTransform.offsetMin=new Vector2(frame=="gift"?2:8,frame=="gift"?2:8);icon.rectTransform.offsetMax=new Vector2(frame=="gift"?-2:-8,frame=="gift"?-2:-8);}
-    if(frame=="gift")circleImage.color=new Color(1,1,1,.55f);
+    if((frame=="gift"||frame=="showcase")&&!portrait){icon.rectTransform.offsetMin=new Vector2(frame=="gift"?2:8,frame=="gift"?2:8);icon.rectTransform.offsetMax=new Vector2(frame=="gift"?-2:-8,frame=="gift"?-2:-8);}
+    if(frame=="gift"&&!portrait)circleImage.color=new Color(1,1,1,.55f);
     bool hasAlt=t.alt!=null&&!string.IsNullOrEmpty(t.alt.label);alt.gameObject.SetActive(hasAlt&&hasButton);
     var ar=(RectTransform)alt.transform;
     if(hasAlt&&hasButton){
@@ -256,7 +265,7 @@ namespace Checkout {
     if(fillShown>=0){fillShown=Mathf.MoveTowards(fillShown,fillTarget,Time.unscaledDeltaTime*.9f);barFill.rectTransform.anchorMax=new Vector2(Mathf.Max(fillShown>0?.04f:0,fillShown),1);}
     bool ready=data.state=="ready";
     glow.color=ready?new Color(1,.82f,.3f,.38f+.22f*Mathf.Sin(t*4.5f)):selected?new Color(1,.85f,.4f,.35f):new Color(1,.85f,.3f,0);
-    icon.rectTransform.anchoredPosition=new Vector2(0,ready?Mathf.Abs(Mathf.Sin(t*3.2f))*5:0);
+    icon.rectTransform.anchoredPosition=new Vector2(0,ready&&!isFace?Mathf.Abs(Mathf.Sin(t*3.2f))*5:0);
     // A present wobbles while it waits, with a little hop now and then (like a box someone shakes).
     if(frame=="gift"){float w=t*2.6f+wobblePhase;float hop=Mathf.Repeat(t+wobblePhase,3.2f);
      icon.rectTransform.localRotation=Quaternion.Euler(0,0,Mathf.Sin(w)*7+(hop<.35f?Mathf.Sin(hop/.35f*Mathf.PI*4)*6:0));
@@ -270,7 +279,7 @@ namespace Checkout {
   // The side panel: the picked tile up close with every action.
   class BoardDetailUi:MonoBehaviour {
    CheckoutDesktopHUD hud;DesktopTile data;
-   Image hero,heroGlow,circleImage,icon,lockIcon,stamp,ribbon,barFill,timer;TextMeshProUGUI title,subtitle,ribbonText,barText,timerText,detail;
+   Image hero,heroGlow,circleImage,icon,lockIcon,stamp,ribbon,barFill,timer,clip,rim;TextMeshProUGUI title,subtitle,ribbonText,barText,timerText,detail;
    RectTransform ribbonRect,barRect,factsGrid,linesBox,actionsBox;GameObject timerRow;BoardPips pips;
    readonly List<BoardChip> facts=new List<BoardChip>();readonly List<TextMeshProUGUI> lines=new List<TextMeshProUGUI>();readonly List<CheckoutDesktopButton> actions=new List<CheckoutDesktopButton>();
    readonly List<RectTransform> stepRows=new List<RectTransform>();
@@ -285,7 +294,9 @@ namespace Checkout {
     ui.hero=N.Image(content,"Hero",K.C("FFF3C8"),20);ui.hero.gameObject.AddComponent<LayoutElement>().preferredHeight=Phone?150:190;
     ui.heroGlow=N.Image(ui.hero.transform,"Glow",new Color(1,1,1,.7f),0);ui.heroGlow.sprite=U.Glow();Place(ui.heroGlow.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(300,240));
     ui.circleImage=N.Image(ui.hero.transform,"Circle",Color.white,0);ui.circleImage.sprite=K.Rounded(80);ui.circleImage.type=Image.Type.Sliced;Place(ui.circleImage.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,Phone?new Vector2(128,128):new Vector2(160,160));
-    ui.icon=N.Image(ui.circleImage.transform,"Icon",Color.white,0);ui.icon.preserveAspect=true;Stretch(ui.icon.rectTransform,new Vector2(14,14),new Vector2(-14,-14));
+    ui.clip=K.RoundClip(ui.circleImage.transform,"Clip");K.SetRound(ui.clip,false);
+    ui.icon=N.Image(ui.clip.transform,"Icon",Color.white,0);ui.icon.preserveAspect=true;Stretch(ui.icon.rectTransform,new Vector2(14,14),new Vector2(-14,-14));
+    ui.rim=N.Image(ui.circleImage.transform,"Rim",PortraitGold,0);ui.rim.gameObject.SetActive(false);
     ui.lockIcon=N.Image(ui.circleImage.transform,"Lock",Color.white,0);ui.lockIcon.sprite=K.Icon("Icons/lock");ui.lockIcon.preserveAspect=true;Place(ui.lockIcon.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(64,64));
     ui.stamp=N.Image(ui.circleImage.transform,"Stamp",Color.white,0);ui.stamp.sprite=K.Icon("Icons/success");ui.stamp.preserveAspect=true;Place(ui.stamp.rectTransform,new Vector2(1,0),new Vector2(1,0),new Vector2(1,0),new Vector2(14,-8),new Vector2(64,64));
     ui.ribbon=Pill(ui.hero.transform,"Ribbon",K.C("E15533"),out ui.ribbonText,15,K.Label);ui.ribbonText.characterSpacing=2;ui.ribbonRect=ui.ribbon.rectTransform;
@@ -309,10 +320,15 @@ namespace Checkout {
     bool changed=shownId!=t.id;shownId=t.id;data=t;
     bool locked=t.state=="locked",done=t.state=="done";
     hero.color=ToneFace(string.IsNullOrEmpty(t.tone)?"gold":t.tone);heroGlow.color=new Color(1,1,1,.75f);
-    bool portrait=t.frame=="portrait";
+    bool portrait=IsFace(t);
     circleImage.color=locked?K.C("D8CDBB"):portrait?PortraitNavy:Color.white;
     var sprite=K.Icon(t.icon);icon.sprite=sprite;icon.enabled=sprite;icon.color=locked?new Color(.25f,.19f,.13f,.82f):Color.white;
     lockIcon.gameObject.SetActive(locked);stamp.gameObject.SetActive(done);
+    // (a friend's face: round, the picture clipped inside the plate, a gold rim over its edge)
+    K.SetRound(clip,portrait);rim.gameObject.SetActive(portrait);
+    circleImage.sprite=portrait?K.Disc():K.Rounded(80);circleImage.type=portrait?Image.Type.Simple:Image.Type.Sliced;
+    var ir=icon.rectTransform;ir.offsetMin=portrait?Vector2.zero:new Vector2(14,14);ir.offsetMax=portrait?Vector2.zero:new Vector2(-14,-14);
+    if(portrait)K.FitRim(rim,circleImage.rectTransform.sizeDelta.x,Phone?5:6);
     bool hasRibbon=!string.IsNullOrEmpty(t.sticker);ribbon.gameObject.SetActive(hasRibbon);
     if(hasRibbon){var label=K.Clean(t.sticker);ribbonText.text=label;ribbon.color=ToneStrong(string.IsNullOrEmpty(t.tone)?"danger":t.tone);ribbonRect.sizeDelta=new Vector2(PillWidth(ribbonText,label,70),30);}
     title.text=K.Clean(t.title);subtitle.text=K.Clean(t.subtitle);subtitle.gameObject.SetActive(!string.IsNullOrEmpty(t.subtitle));
@@ -355,7 +371,8 @@ namespace Checkout {
      if(data.state=="busy"&&data.timerTotal>0)fillTarget=Mathf.Clamp01(1f-(float)(left/data.timerTotal));}
     if(fillShown>=0){fillShown=Mathf.MoveTowards(fillShown,fillTarget,Time.unscaledDeltaTime*.9f);barFill.rectTransform.anchorMax=new Vector2(Mathf.Max(fillShown>0?.03f:0,fillShown),1);}
     bool ready=data.state=="ready";
-    icon.rectTransform.anchoredPosition=new Vector2(0,ready?Mathf.Abs(Mathf.Sin(t*3f))*8:Mathf.Sin(t*1.6f)*2);
+    // (a portrait stays still in its round frame: a moving picture would bare the plate's edge)
+    icon.rectTransform.anchoredPosition=IsFace(data)?Vector2.zero:new Vector2(0,ready?Mathf.Abs(Mathf.Sin(t*3f))*8:Mathf.Sin(t*1.6f)*2);
     heroGlow.rectTransform.localScale=Vector3.one*(1+.05f*Mathf.Sin(t*2.2f));
    }
   }

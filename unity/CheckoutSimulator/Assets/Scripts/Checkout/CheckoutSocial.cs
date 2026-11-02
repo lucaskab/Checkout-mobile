@@ -199,9 +199,12 @@ namespace Checkout {
    var fit=edge.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();fit.horizontalFit=fit.verticalFit=UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
    CheckoutDesktopCard.Column(edge.gameObject,0,new RectOffset(3,3,3,3));
    var face=CheckoutDesktopCard.Image(edge.transform,"Face",K.C("1D2B4F"),24);var row=CheckoutDesktopCard.Row(face.gameObject,16,new RectOffset(16,26,14,14));row.childAlignment=TextAnchor.MiddleLeft;
-   var ring=CheckoutDesktopCard.Image(face.transform,"Avatar",K.C("E3B54A"),44);var rl=ring.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();rl.preferredWidth=rl.preferredHeight=96;
-   var plate=CheckoutDesktopCard.Image(ring.transform,"Plate",K.C("2A3D6B"),40);var pr=plate.rectTransform;pr.anchorMin=Vector2.zero;pr.anchorMax=Vector2.one;pr.offsetMin=new Vector2(4,4);pr.offsetMax=new Vector2(-4,-4);
-   var avatar=CheckoutDesktopCard.Image(plate.transform,"Face",Color.white,0);avatar.preserveAspect=true;avatar.sprite=K.Icon(m.avatar);avatar.enabled=avatar.sprite;var ar=avatar.rectTransform;ar.anchorMin=Vector2.zero;ar.anchorMax=Vector2.one;ar.offsetMin=new Vector2(2,0);ar.offsetMax=new Vector2(-2,-2);
+   // (my face: a navy disc that clips the picture to its circle, a gold rim drawn over the edge)
+   var ring=CheckoutDesktopCard.Image(face.transform,"Avatar",K.C("E3B54A"),0);ring.sprite=K.Disc();var rl=ring.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();rl.preferredWidth=rl.preferredHeight=96;
+   var plate=CheckoutDesktopCard.Image(ring.transform,"Plate",K.C("2A3D6B"),0);plate.sprite=K.Disc();plate.gameObject.AddComponent<UnityEngine.UI.Mask>().showMaskGraphic=true;
+   var pr=plate.rectTransform;pr.anchorMin=Vector2.zero;pr.anchorMax=Vector2.one;pr.offsetMin=new Vector2(4,4);pr.offsetMax=new Vector2(-4,-4);
+   var avatar=CheckoutDesktopCard.Image(plate.transform,"Face",Color.white,0);avatar.preserveAspect=true;avatar.sprite=K.Icon(m.avatar);avatar.enabled=avatar.sprite;var ar=avatar.rectTransform;ar.anchorMin=Vector2.zero;ar.anchorMax=Vector2.one;ar.offsetMin=ar.offsetMax=Vector2.zero;
+   var rim=CheckoutDesktopCard.Image(ring.transform,"Rim",K.C("E3B54A"),0);rim.sprite=K.Rim(96,85);var rr=rim.rectTransform;rr.anchorMin=Vector2.zero;rr.anchorMax=Vector2.one;rr.offsetMin=rr.offsetMax=Vector2.zero;
    var texts=CheckoutDesktopCard.Node("Texts",face.transform);CheckoutDesktopCard.Column(texts.gameObject,0);
    var caption=CheckoutDesktopCard.Text(texts,"Caption",K.Label,18,K.C("E3B54A"));caption.text=(m.caption??"").ToUpperInvariant();caption.characterSpacing=3;caption.textWrappingMode=TMPro.TextWrappingModes.NoWrap;
    var name=CheckoutDesktopCard.Text(texts,"Name",K.Headline,38,Color.white);name.text=m.name??"";name.textWrappingMode=TMPro.TextWrappingModes.NoWrap;
