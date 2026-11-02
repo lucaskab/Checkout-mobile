@@ -53,6 +53,9 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(6f);
    Result("inbox applied",bridge.State.coins>coins0,$"coins {coins0} -> {bridge.State.coins}");
    yield return Shot("social_badge");
+   // The Amigos entry in the corner "Bônus" menu (no new button on the screen), with its count.
+   var hudQ=FindAnyObjectByType<CheckoutDesktopHUD>();var setQuick=typeof(CheckoutDesktopHUD).GetMethod("SetQuickOpen",BindingFlags.NonPublic|BindingFlags.Instance);
+   if(hudQ&&setQuick!=null){setQuick.Invoke(hudQ,new object[]{true});yield return new WaitForSecondsRealtime(.8f);yield return Shot("social_badge_menu");setQuick.Invoke(hudQ,new object[]{false});}
 
    // 3. A gift whose ack is lost (the app "died"): applied once, acked the next time without paying again.
    Act("socialMock","[\"gift\"]");Act("socialMock","[\"fail\",\"/v1/social/inbox/ack\"]");yield return new WaitForSecondsRealtime(.5f);
