@@ -17,7 +17,8 @@ namespace Checkout {
   readonly List<CheckoutDesktopButton> visitButtons=new List<CheckoutDesktopButton>(),visitBuildButtons=new List<CheckoutDesktopButton>(),helpButtons=new List<CheckoutDesktopButton>();
   readonly Queue<(string text,string icon,bool ok)> socialToasts=new Queue<(string text,string icon,bool ok)>();
   readonly List<Transform> helpAnchors=new List<Transform>();
-  float socialToastUntil;bool visiting;
+  float socialToastUntil,siteCheckAt;bool visiting;
+  readonly List<DesktopVisitBuild> looseBuilds=new List<DesktopVisitBuild>();
   /// <summary>Visiting a friend (the HUD shows the visit bar instead of the player's own).</summary>
   public bool VisitShown=>visiting;
 
@@ -105,7 +106,7 @@ namespace Checkout {
    }
    // "Ajudar" over each build of the friend's market (or in the row under the bar when its site is not on the map).
    var builds=visit.builds??new DesktopVisitBuild[0];
-   helpAnchors.Clear();var loose=new List<DesktopVisitBuild>();
+   helpAnchors.Clear();var loose=looseBuilds;loose.Clear();
    for(int i=0;i<builds.Length;i++){
     var anchor=SiteOf(builds[i]);
     if(anchor){helpAnchors.Add(anchor);while(helpButtons.Count<helpAnchors.Count){var b=CheckoutDesktopButton.Create(helpLayer,Phone?64:56,Phone?20:18,16);b.Clicked=x=>{Sound("tap",1.1f);Press(x);};helpButtons.Add(b);}
@@ -130,14 +131,17 @@ namespace Checkout {
   /// <summary>Where a build of the friend's market stands: its works board or evolution ring (null = not on the map).</summary>
   static Transform SiteOf(DesktopVisitBuild build){
    if(build==null||string.IsNullOrEmpty(build.targetId))return null;
-   if(build.kind=="interior")foreach(var w in FindObjectsByType<CheckoutInteriorWorks>(FindObjectsSortMode.None))if(w&&w.BuildId==build.targetId)return w.Board?w.Board:w.transform;
-   if(build.kind=="evolution")foreach(var e in FindObjectsByType<CheckoutEvolutionSite>(FindObjectsSortMode.None))if(e&&e.EvolutionId==build.targetId)return e.Ring?e.Ring:e.transform;
+   // (also under a roof that hides the shop's inside: the button floats over the building)
+   if(build.kind=="interior")foreach(var w in FindObjectsByType<CheckoutInteriorWorks>(FindObjectsInactive.Include,FindObjectsSortMode.None))if(w&&w.BuildId==build.targetId)return w.Board?w.Board:w.transform;
+   if(build.kind=="evolution")foreach(var e in FindObjectsByType<CheckoutEvolutionSite>(FindObjectsInactive.Include,FindObjectsSortMode.None))if(e&&e.EvolutionId==build.targetId)return e.Ring?e.Ring:e.transform;
    return null;
   }
 
   void UpdateSocial(){
    if(socialToastBox.gameObject.activeSelf&&Time.unscaledTime>socialToastUntil)NextSocialToast();
    if(!visiting)return;
+   // The friend's market is built over a few frames after the view: a build still in the row looks for its spot again.
+   if(looseBuilds.Count>0&&view!=null&&Time.unscaledTime>siteCheckAt){siteCheckAt=Time.unscaledTime+1f;bool found=false;foreach(var b in looseBuilds)if(SiteOf(b)){found=true;break;}if(found)ApplySocial(view);}
    var cam=Camera.main;var canvas=root.GetComponentInParent<Canvas>();
    for(int i=0;i<helpAnchors.Count&&i<helpButtons.Count;i++){
     var anchor=helpAnchors[i];var b=helpButtons[i];

@@ -177,8 +177,11 @@ test("a visit never touches the player's save; what was earned there is booked o
 	expect(snapshot.customers).toEqual([]);
 	const visit = social.visitView();
 	expect(visit.friendName).toBe("Mercado da Ana");
-	expect(visit.builds).toHaveLength(1);
-	expect(visit.builds[0]).toMatchObject({ kind: "evolution", helped: false, button: { label: "Ajudar" } });
+	// Ana's builds: the evolution of her produce crates and the bakery being built in her yard.
+	expect(visit.builds.map((build) => build.kind).sort()).toEqual(["evolution", "interior"]);
+	const evolution = visit.builds.find((build) => build.kind === "evolution");
+	expect(evolution).toMatchObject({ helped: false, button: { label: "Ajudar" } });
+	expect(visit.builds.find((build) => build.kind === "interior")).toMatchObject({ targetId: "obra-shelf-bakery-ana", helped: false });
 	// The HUD at home waits: no tools, no corner menu, no tutorial.
 	const hud = createDesktopView(game(), 2, []);
 	expect(hud.visit.active).toBe(true);
@@ -187,13 +190,13 @@ test("a visit never touches the player's save; what was earned there is booked o
 	// Only the visit's actions go through.
 	expect(social.requestSocialAction("socialAddFriend", ["EVA3V4RT"]).ok).toBe(false);
 	await act("socialLike", "u-ana");
-	await act("socialHelp", "u-ana", visit.builds[0].buildId);
+	await act("socialHelp", "u-ana", evolution.buildId);
 	const request = social.socialStore.visit.friend.openRequests[0];
 	expect(request).toMatchObject({ productId: apple.id, qty: 6 });
 	expect(pages(game(), "visita").cards[0].buttons[0]).toMatchObject({ label: "Enviar", enabled: true });
 	await act("socialSend", request.id, "u-ana", apple.id, 6);
 	expect(social.sendableStock(apple.id)).toBe(3);
-	expect(social.visitView().builds[0].button.label).toBe("Ajudado");
+	expect(social.visitView().builds.find((build) => build.kind === "evolution").button.label).toBe("Ajudado");
 	// Frozen: byte for byte, in memory and on disk.
 	expect(exportSave().data).toBe(before.data);
 	expect(storedSave()).toBe(before.stored);

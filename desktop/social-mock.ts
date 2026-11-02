@@ -147,6 +147,7 @@ export function createMockSocialServer(start = Date.now()) {
 			level: 9,
 			coins: 4_200,
 			paint: { paletteId: "floresta", primary: "1F4D36", accent: "E3C77A" },
+			builds: [{ id: "obra-shelf-bakery-ana", kind: "shelf", targetId: "bakery", minutesLeft: 25 }],
 			evolutions: [{ id: "evolucao-shelf-produce-2-ana", kind: "shelf", targetId: "produce", toTier: 2, minutesLeft: 42 }],
 			now,
 		}),

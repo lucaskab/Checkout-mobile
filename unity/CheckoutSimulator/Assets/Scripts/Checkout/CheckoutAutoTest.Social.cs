@@ -108,22 +108,38 @@ namespace Checkout {
    Note($"social decor: owned {(interior?interior.Owned("invite-reward-1"):-1)}, template {(interior&&interior.HasTemplate(interior.DecorTemplate("invite-reward-1")))}");
    if(interior&&mode){
     CheckoutBuildMode.QaOpenAndSelect();yield return new WaitForSecondsRealtime(1.5f);
-    // On the plaza in front of the shop (the bench may stand inside or out), where nothing hides it.
+    // Outside, on the block (the bench may stand inside or out): the piece lands where the camera looks.
     typeof(CheckoutBuildMode).GetMethod("Focus",BindingFlags.NonPublic|BindingFlags.Instance,null,new[]{typeof(string)},null)?.Invoke(mode,new object[]{"outside"});
     yield return new WaitForSecondsRealtime(1.2f);
-    // the camera on the footway in front of the door: the piece lands where the camera looks
-    var floor=interior.FloorRect;var middle=new Vector3(floor.center.x,0,floor.center.y);var door=interior.EntrancePoint;
-    var outward=Vector3.ProjectOnPlane(door-middle,Vector3.up).normalized;var spot=door+outward*3f;spot.y=door.y;
-    var simulation=FindAnyObjectByType<MarketDay.MarketSimulation>();if(simulation)simulation.Focus(spot,6f);
+    var simulation=FindAnyObjectByType<MarketDay.MarketSimulation>();
+    var stall=CheckoutStall.Centre;if(simulation)simulation.Focus(new Vector3(stall.x+4,0,CheckoutInterior.BlockRect.yMin+1.5f),6f);
     yield return new WaitForSecondsRealtime(1.2f);
     typeof(CheckoutBuildMode).GetMethod("PlaceFromStock",BindingFlags.NonPublic|BindingFlags.Instance)?.Invoke(mode,new object[]{"invite-reward-1"});
+    yield return new WaitForSecondsRealtime(.5f);
+    // Then slid (as a drag would) to the free spot nearest the camera, beside the stall: the camera looks from the
+    // south-east, so the block's south edge is never behind a building or the stall's umbrella.
+    var piece=interior.items.Values.FirstOrDefault(i=>i.type=="invite-reward-1"&&i.root);
+    if(piece!=null){
+     var block=CheckoutInterior.BlockRect;Vector3? best=null;float bestScore=float.MaxValue;
+     for(float z=block.yMin+.8f;z<block.yMin+12;z+=.5f)for(float x=block.xMin+.8f;x<block.xMax-.8f;x+=.5f){
+      float score=(z-block.yMin)+Mathf.Abs(x-(stall.x+4))*.35f;if(score>=bestScore)continue;
+      var p=new Vector3(x,piece.root.position.y,z);if(interior.Fits(piece,p,piece.rot,out _)){best=p;bestScore=score;}
+     }
+     if(best!=null){interior.MoveTo(piece,best.Value);typeof(CheckoutBuildMode).GetMethod("ShowFootprint",BindingFlags.NonPublic|BindingFlags.Instance,null,System.Type.EmptyTypes,null)?.Invoke(mode,null);}
+     Note($"social decor: spot {(best?.ToString()??"none free")}, piece at {piece.root.position}");
+     if(simulation)simulation.Focus(piece.root.position+new Vector3(0,0,-1.2f),6f);
+    }
     yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_decor_place");
     typeof(CheckoutBuildMode).GetMethod("Finish",BindingFlags.NonPublic|BindingFlags.Instance,null,System.Type.EmptyTypes,null)?.Invoke(mode,null);
     yield return new WaitForSecondsRealtime(3f);
     if(CheckoutBuildMode.Open)CheckoutBuildMode.QaClose();
     var placed=interior.items.Values.FirstOrDefault(i=>i.type=="invite-reward-1"&&i.root);
     Result("invite decoration placed",placed!=null,placed!=null?placed.id+" at "+placed.root.position:"not in the layout");
-    if(placed!=null){var sim=FindAnyObjectByType<MarketDay.MarketSimulation>();if(sim)sim.Focus(placed.root.position,4.5f);yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_decor_placed");}
+    // (the QA copy's one-off tips, "A mesinha está esvaziando!", would cover the market)
+    if(placed!=null){
+     for(int i=0;i<3;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.4f);}
+     if(simulation)simulation.Focus(placed.root.position+new Vector3(0,0,-.6f),6f);yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_decor_placed");
+    }
    }
 
    // 8. QR code and "Chamar amigo" (the Editor copies the invite; the phones open the system's share sheet).
@@ -148,10 +164,15 @@ namespace Checkout {
    var field=typeof(CheckoutDesktopHUD).GetField("cardScroll",BindingFlags.NonPublic|BindingFlags.Instance);
    if(field?.GetValue(hud) is UnityEngine.UI.ScrollRect scroll)scroll.verticalNormalizedPosition=position;
   }
+  // The camera on a build of the friend's market (the works of a piece, or an evolution ring) for the "Ajudar" over it.
   void FocusEvolution(){
-   var site=FindObjectsByType<CheckoutEvolutionSite>(FindObjectsSortMode.None).FirstOrDefault();
-   if(site)CheckoutCameraFocus(site.transform.position);
-   Note("social: evolution site "+(site?site.EvolutionId:"none"));
+   var works=FindObjectsByType<CheckoutInteriorWorks>(FindObjectsInactive.Include,FindObjectsSortMode.None).FirstOrDefault();
+   var site=FindObjectsByType<CheckoutEvolutionSite>(FindObjectsInactive.Include,FindObjectsSortMode.None).FirstOrDefault();
+   if(works)CheckoutCameraFocus(works.transform.position);else if(site)CheckoutCameraFocus(site.transform.position);
+   var ia=CheckoutInterior.Active;var s=bridge?bridge.State:null;
+   Note("social: works "+(works?works.BuildId:"none")+", evolution site "+(site?site.EvolutionId:"none")
+    +$", pieces [{(ia?string.Join(",",ia.items.Keys.Take(14)):"no interior")}]"
+    +$", evolutions [{(s?.evolutions==null?"":string.Join(",",s.evolutions.Select(e=>e.kind+":"+e.targetId)))}]");
   }
  }
 }
