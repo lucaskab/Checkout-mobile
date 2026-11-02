@@ -173,7 +173,7 @@ function profilePage(state: State, required: boolean): Page {
 		icon: avatarIcon(chosen),
 		eyebrow: first ? "PRIMEIRA VEZ AQUI" : "SEU PERFIL",
 		tone: hidden ? "warning" : "",
-		hero: !first && !hidden,
+		// (not the big hero title: on a phone the faces stay above the fold under the card)
 		// (first time: the title says it; the faces stay above the fold on a phone)
 		lines: [
 			first
