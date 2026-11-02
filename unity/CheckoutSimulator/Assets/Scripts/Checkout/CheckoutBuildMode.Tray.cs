@@ -233,6 +233,8 @@ namespace Checkout
             foreach (var d in s.decorCatalog ?? new DecorEntry[0])
             {
                 if (d.upgrade != upgrades) continue;
+                // Earned only (social v1 invite rewards): listed once owned, never for sale.
+                if (d.exclusive && Interior.Owned(d.id) - Interior.Placed(d.id) <= 0) continue;
                 string zone = string.IsNullOrEmpty(d.zone) ? "inside" : d.zone;
                 if (zone != shopZone && zone != "both") continue;
                 list.Add(DecorCard(d, s, Interior.Owned(d.id) - Interior.Placed(d.id)));

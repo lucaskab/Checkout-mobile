@@ -1,3 +1,5 @@
+import { itemCatalog } from "@/data/market-products";
+import { socialIcon } from "../social";
 import type { DayContract } from "@/@types/market-day";
 import { canOpenAtNight, getPiecesToPlaceBeforeOpening, NIGHT_TURN } from "@/services/market-era";
 import type { GameIconId } from "@/data/game-icon-assets";
@@ -12,6 +14,7 @@ import {
 	card,
 	fmt,
 	gameIcon,
+	go,
 	page,
 	type State,
 } from "../view-kit";
@@ -76,6 +79,7 @@ function contractCard(contract: DayContract, canOpen = true) {
 function dayStatus(state: State, now: number): Card {
 	const { day } = state;
 	const progress = getContractProgress(day.contract, day.stats);
+	const short = contractShortfall(state);
 	return card(day.contract?.title ?? "Dia livre", {
 		eyebrow: `DIA ${day.dayNumber} · ${clock((day.endsAt ?? now) - now)} restantes`,
 		subtitle:
@@ -87,8 +91,11 @@ function dayStatus(state: State, now: number): Card {
 		progress: day.contract ? progress.ratio : -1,
 		lines: [
 			`${day.stats.customers} clientes · ${fmt(day.stats.revenue)} moedas · lucro ${fmt(day.stats.profit)}`,
+			...(short ? [`Acabou ${short.name} no estoque: peça aos amigos.`] : []),
 		],
 		buttons: [
+			// Social v1: the contract needs a product the stock room ran out of → a friend can send it.
+			...(short ? [go("Pedir aos amigos", `amigos:pedir:${short.id}:10`, { icon: socialIcon("package") })] : []),
 			act("Encerrar o dia", "closeDay", [], {
 				variant: "danger",
 				icon: gameIcon("lock"),
@@ -96,6 +103,17 @@ function dayStatus(state: State, now: number): Card {
 			}),
 		],
 	});
+}
+
+/** A product of the day's category contract that the stock room has run out of (the first one), or null. */
+function contractShortfall(state: State) {
+	const contract = state.day.contract;
+	if (!contract?.category || getContractProgress(contract, state.day.stats).completed) return null;
+	return (
+		itemCatalog.find(
+			(product) => product.category === contract.category && state.market.unlockedProductIds.includes(product.id) && (state.inventory[product.id] ?? 0) <= 0,
+		) ?? null
+	);
 }
 
 function planning(state: State) {

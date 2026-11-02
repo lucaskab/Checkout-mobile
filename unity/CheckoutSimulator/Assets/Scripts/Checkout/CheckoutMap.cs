@@ -46,7 +46,7 @@ namespace Checkout {
   // Over every shelf in use: where the sale tags of Liquidação Relâmpago hang.
   public IEnumerable<Vector3> BoostShelfPoints(){if(state?.shelves==null)yield break;foreach(var shelf in state.shelves){if(!shelf.unlocked)continue;if(StallCrate(shelf.id)){yield return CheckoutStall.Crate(shelf.id)+Vector3.up*1.1f;continue;}if(Piece(shelf.id)!=null)yield return MarkerPoint(shelf.id,1.35f);else if(fixtures.ContainsKey(shelf.id))yield return Fixture(shelf.id)+Vector3.up*1.35f;}}
   public Transform StaffTemplate(string name)=>world?world.Find("Staff Kit/"+name):null;
-  public void SaveInterior(){if(bridge&&Interior)bridge.Command("saveInteriorLayout","["+Interior.ExportJson()+"]");}
+  public void SaveInterior(){if(bridge&&Interior&&!CheckoutSocial.Visiting)bridge.Command("saveInteriorLayout","["+Interior.ExportJson()+"]");}
   // The map design ("Modo edição"): moved/hidden/added scene objects and the painted ground.
   public CheckoutDesignWorld Design {get;private set;}
   public CheckoutMarketLayout Layout=>layout;

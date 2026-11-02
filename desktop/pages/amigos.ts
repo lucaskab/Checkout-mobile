@@ -1,6 +1,7 @@
 import type { Routes } from ".";
 import { itemCatalog } from "@/data/market-products";
 import { SOCIAL_REQUEST_MAX, SOCIAL_REQUEST_MIN } from "@/data/social";
+import { t } from "@/i18n";
 import { cloudStore, formatAgo } from "../cloud";
 import { qrText } from "../qr";
 import {
@@ -110,7 +111,8 @@ function friendCard(friend: SocialFriend, now: number): Card {
 		eyebrow: badges.join(" · ").toUpperCase(),
 		badge: builds.length + requests.length > 0 ? String(builds.length + requests.length) : "",
 		tone: builds.length + requests.length > 0 ? "success" : "",
-		subtitle: [`Nível ${friend.level}`, stage, `${fmt(friend.likes)} curtidas`].filter(Boolean).join(" · "),
+		// Each piece in the player's language before they are joined (stage names would match other patterns whole).
+		subtitle: [t(`Nível ${friend.level}`), t(stage), t(`${fmt(friend.likes)} curtidas`)].filter(Boolean).join(" · "),
 		lines: [
 			friend.lastSeen ? `Visto ${formatAgo(friend.lastSeen, now)}` : "",
 			...requests.slice(0, 2).map((request) => `Pede ${request.qty}× ${productName(request.productId)} · ${hoursLeft(request, now)} h`),
@@ -138,7 +140,7 @@ function requestCard(person: SocialPerson): Card {
 	return card(marketName(person), {
 		icon: avatarIcon(person.avatar),
 		eyebrow: "QUER SER SEU AMIGO",
-		subtitle: [`Nível ${person.level}`, stageName(person.era)].filter(Boolean).join(" · "),
+		subtitle: [t(`Nível ${person.level}`), t(stageName(person.era))].filter(Boolean).join(" · "),
 		tone: "info",
 		buttons: [
 			act("Aceitar", "socialAccept", [person.id], { icon: socialIcon("friends"), variant: "success", enabled: !busy(`accept:${person.id}`), ok: "" }),
@@ -179,10 +181,10 @@ function mainPage(state: State) {
 			icon: avatarIcon(me.avatar),
 			eyebrow: "MEU CÓDIGO DE AMIGO",
 			subtitle: formatCode(me.code),
-			lines: [`Nível ${state.market.level} · ${stageName(state.era.id)} · ${fmt(me.likes)} curtidas`, "Mande o código ou chame pelo link: quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também."],
+			lines: [[t(`Nível ${state.market.level}`), t(stageName(state.era.id)), t(`${fmt(me.likes)} curtidas`)].join(" · "), "Mande o código ou chame pelo link: quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também."],
 			qr: socialStore.showQr ? qrText(inviteUrl(me.code)) : "",
 			buttons: [
-				act("Chamar amigo", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
+				act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
 				act("Copiar", "socialCopy", [], { variant: "secondary", ok: "" }),
 				act(socialStore.showQr ? "Fechar QR" : "QR", "socialQr", [], { variant: "secondary", ok: "" }),
 				go("Perfil", "amigos:perfil"),
@@ -309,7 +311,7 @@ function friendPage(id: string) {
 				buttons: [act("Denunciar nome", "socialReport", [id], { variant: "secondary", enabled: !busy(`report:${id}`), ok: "" })],
 			}),
 		],
-		{ icon: avatarIcon(friend.avatar), subtitle: [`Nível ${friend.level}`, stageName(friend.era)].filter(Boolean).join(" · ") },
+		{ icon: avatarIcon(friend.avatar), subtitle: [t(`Nível ${friend.level}`), t(stageName(friend.era))].filter(Boolean).join(" · ") },
 	);
 }
 

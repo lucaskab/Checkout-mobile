@@ -39,7 +39,7 @@ namespace Checkout
         CheckoutInterior Interior => map ? map.Interior : null;
         static CheckoutBuildMode instance;
         // The HUD's "Colocar" buttons (shop, inventory cards) open the build mode directly.
-        public static void OpenFromHud() { if (instance && instance.enabled && !Open && !CheckoutMapEditor.Open) instance.Enter(); }
+        public static void OpenFromHud() { if (instance && instance.enabled && !Open && !CheckoutMapEditor.Open && !CheckoutSocial.Visiting) instance.Enter(); }
         static bool Touch => Input.touchSupported && Application.isMobilePlatform;
         // The game is played mostly on phones (Lucas 20/10: "no celular não tem Ctrl, não tem G"): the hint talks about
         // fingers and the on-screen buttons; the keys (Ctrl + mouse, G, Delete, Esc) are only quiet extras on a computer.
@@ -111,7 +111,7 @@ namespace Checkout
         void Enter() => Enter(null);
         void Enter(CheckoutInterior.Item picked)
         {
-            if (Open || bridge.State == null || CheckoutMapEditor.Open) return;
+            if (Open || bridge.State == null || CheckoutMapEditor.Open || CheckoutSocial.Visiting) return;
             Open = true; Interior.editing = true; GameHud(false);
             backup = Interior.Export();
             waitingBefore = new Dictionary<string, (string type, string template)>(Interior.waiting);
@@ -311,7 +311,8 @@ namespace Checkout
         {
             // The map editor has its own tools: no build button while it is open.
             // At the stalls (CheckoutStall.Yard) only once there is something of the player's to place around it.
-            bool hidden = Open || CheckoutMapEditor.Open || CheckoutDesktopHUD.ShopOpen || CheckoutMarketPaintPanel.Open
+            // A friend's market (CheckoutSocial visit): nothing to build there.
+            bool hidden = Open || CheckoutMapEditor.Open || CheckoutDesktopHUD.ShopOpen || CheckoutMarketPaintPanel.Open || CheckoutSocial.Visiting
                 || (CheckoutStall.Yard && (!Interior || (Interior.waiting.Count == 0 && !Interior.items.Values.Any(i => !i.design))));
             if (buildButton && !CheckoutStartMenu.Showing && buildButton.activeSelf == hidden) buildButton.SetActive(!hidden);
             if (buildButton && CheckoutStartMenu.Showing && buildButton.activeSelf) buildButton.SetActive(false);

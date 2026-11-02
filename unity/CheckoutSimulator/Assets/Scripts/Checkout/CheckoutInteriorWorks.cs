@@ -18,6 +18,8 @@ namespace Checkout
         }
 
         public string BuildId { get; private set; }
+        /// <summary>The works board (the visit's "Ajudar" button stands over it).</summary>
+        public Transform Board => board;
         double startedAt, endsAt; int skipCost; string title; bool queued;
         CheckoutInterior.Item item;
         Transform works, board, progressFill, speedUp;
@@ -315,7 +317,8 @@ namespace Checkout
             string label = waitingTurn ? string.Format("COMEÇA EM {0}", CheckoutConstructionSite.Countdown(startedAt - Now)) : remaining > 0 ? CheckoutConstructionSite.Countdown(remaining) : "FINALIZANDO...";
             if (countdown) { countdown.text = label; countdownShadow.text = label; }
             int cost = remaining <= 0 ? 0 : waitingTurn ? skipCost : CheckoutSkipPrice.Cost(remaining);
-            if (speedUp) speedUp.gameObject.SetActive(remaining > 0);
+            // A friend's market (visit): no diamond skip, their "Ajudar" button stands over the board instead.
+            if (speedUp) speedUp.gameObject.SetActive(remaining > 0 && !CheckoutSocial.Visiting);
             if (speedUpText) speedUpText.text = "ACELERAR  " + cost;
             if (progressFill)
             {

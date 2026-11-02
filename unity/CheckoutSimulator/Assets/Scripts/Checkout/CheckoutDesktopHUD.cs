@@ -23,7 +23,7 @@ namespace Checkout {
    CheckoutScreen.Fit(canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>());
    canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
    root=CheckoutScreen.SafeArea(canvasGo.transform);
-   BuildTop();BuildBoosts();BuildToolbar();BuildQuick();BuildDrawer();BuildShop();BuildShelf();BuildBoard();BuildKitchen();BuildOverlay();BuildLevelUp();BuildConquest();BuildCoach();
+   BuildTop();BuildBoosts();BuildToolbar();BuildQuick();BuildDrawer();BuildShop();BuildShelf();BuildBoard();BuildKitchen();BuildOverlay();BuildLevelUp();BuildConquest();BuildCoach();BuildSocial();
    Offline("Carregando o jogo…");
   }
 
@@ -44,7 +44,7 @@ namespace Checkout {
   public void Apply(string json){
    DesktopView next;try {next=JsonUtility.FromJson<DesktopView>(json);}catch(System.Exception ex){Debug.LogError("CHECKOUT_DESKTOP bad view: "+ex.Message);return;}
    if(next==null||next.kind!="view")return;
-   view=next;ApplyTop(next);ApplyBoosts(next);ApplyToolbar(next);ApplyQuick(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyBoard(next);ApplyKitchen(next);ApplyOverlay(next);ApplyConquest(next);ApplyLevelUp(next);ApplyCoach(next);
+   view=next;ApplyTop(next);ApplyBoosts(next);ApplyToolbar(next);ApplyQuick(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyBoard(next);ApplyKitchen(next);ApplyOverlay(next);ApplyConquest(next);ApplyLevelUp(next);ApplyCoach(next);ApplySocial(next);
    // A window opened: the lot balloon (its own canvas, above the windows) closes.
    if(next.hasPage)CheckoutLotPopup.Hide();
   }
@@ -52,6 +52,8 @@ namespace Checkout {
    var result=JsonUtility.FromJson<DesktopResult>(json);if(result==null)return;
    // Actions sent by the map editor for its sandbox (unlocks, money top-ups) finish without toasts.
    if(Silent.Remove(result.id??""))return;
+   // Social actions answer "quiet": their outcome comes later as a social toast (desktop/social.ts).
+   if(result.reason=="quiet"){pending.Remove(result.id??"");return;}
    if(Answers.TryGetValue(result.id??"",out var answer)){Answers.Remove(result.id);answer(result.ok,result.reason);return;}
    pending.TryGetValue(result.id??"",out var source);pending.Remove(result.id??"");
    BoardFeedback(result.ok);
@@ -62,7 +64,7 @@ namespace Checkout {
   void Press(CheckoutDesktopButton button){
    var data=button.Data;if(data==null)return;
    if(!data.enabled){if(!string.IsNullOrEmpty(data.fail))Toast(data.fail,false);return;}
-   if(!string.IsNullOrEmpty(data.action)){pending[host.Action(data.action,data.args,data.after)]=data;return;}
+   if(!string.IsNullOrEmpty(data.action)){pending[host.Action(data.action,WithTyped(data.args),data.after)]=data;return;}
    // "@build" opens the build mode (bought furniture waits there to be placed).
    if(data.route=="@build"){host.Route("");CheckoutBuildMode.OpenFromHud();return;}
    // "@lots" shows the lots of the block from above (CheckoutLotView).
@@ -81,7 +83,7 @@ namespace Checkout {
    bool celebrating=LevelUpOpen||ConquestOpen;
    // The Opções window (CheckoutSettings) takes Esc for itself while it is open.
    if(Input.GetKeyDown(KeyCode.Escape)&&!celebrating&&!CheckoutSettings.Open&&view!=null&&view.hasPage)host.Route(view.canBack?"back":"");
-   UpdateToast();UpdateBoosts();UpdateBoard();UpdateLevelUp();UpdateConquest();UpdateCoach();
+   UpdateToast();UpdateBoosts();UpdateBoard();UpdateLevelUp();UpdateConquest();UpdateCoach();UpdateSocial();
   }
  }
 }

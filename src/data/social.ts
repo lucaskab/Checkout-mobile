@@ -38,8 +38,9 @@ const round5 = (value: number) => Math.round(value / 5) * 5;
 const scale = (eraId: MarketEraId) => getMarketEra(eraId).itemUpgradeBaseCost;
 
 /**
- * What the social actions pay, in coins (Lucas: "economia modesta"). For a sense of size: a friend's gift is 30 % of
- * the first day of the daily login gift; a like / a help / a thank-you is 10 %. At the Späti: gift 90, like 30.
+ * What the social actions pay, in coins (a modest economy). Scaled to the stage: a friend's gift is 30 % of the price
+ * of one product upgrade there, a like / a help / a thank-you 10 % (mesinha: gift 10, like 5; Späti: 90 / 30;
+ * supermercado: 390 / 130). The receiver opens at most 25 gifts a day.
  */
 export function getSocialRewards(eraId: MarketEraId) {
 	const base = scale(eraId);

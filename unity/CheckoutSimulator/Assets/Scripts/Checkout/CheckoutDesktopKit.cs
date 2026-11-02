@@ -77,6 +77,8 @@ namespace Checkout {
   static readonly Dictionary<string,Sprite> icons=new Dictionary<string,Sprite>();static readonly Dictionary<string,float> misses=new Dictionary<string,float>();
   public static Sprite Icon(string path){
    if(string.IsNullOrEmpty(path))return null;
+   // Social v1: "avatar:shopper-3" = a portrait of one of the game's own shoppers (drawn once by CheckoutSocial).
+   if(path.StartsWith("avatar:",System.StringComparison.Ordinal))return CheckoutSocial.Avatar(path.Substring(7));
    if(icons.TryGetValue(path,out var cached))return cached;
    // Misses are retried after a moment: a texture that was still importing loads next time.
    if(misses.TryGetValue(path,out var missedAt)&&Time.realtimeSinceStartup-missedAt<2)return null;

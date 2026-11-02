@@ -39,11 +39,11 @@ export const interiorDecor: InteriorDecorDefinition[] = [
 	{ id: "giant-teddy", name: "Ursão de pelúcia", description: "Ursão gigante de laço, a alegria da criançada.", diamondPrice: 25, requiredLevel: 12, zone: "inside" },
 	{ id: "party-tree", name: "Árvore de festa", description: "Árvore enfeitada com bolas e luzinhas piscando.", diamondPrice: 30, requiredLevel: 15, zone: "inside" },
 	{ id: "aquarium", name: "Aquário", description: "Peixinhos coloridos nadando entre plantas.", diamondPrice: 40, requiredLevel: 20, zone: "inside" },
-	// Social v1 (docs/social-api.md): earned at 1 / 3 / 5 friends who reached the Späti with the player's invite. Never sold.
-	// Placeholder ids until the art lands (the art agent is making the models; Unity shows a stand-in meanwhile).
-	{ id: "invite-reward-1", name: "Troféu do convite", description: "Exclusivo: um amigo chegou ao Späti com o seu convite.", requiredLevel: 1, zone: "both", exclusive: "invite" },
-	{ id: "invite-reward-3", name: "Estátua dos amigos", description: "Exclusivo: três amigos chegaram ao Späti com o seu convite.", requiredLevel: 1, zone: "both", exclusive: "invite" },
-	{ id: "invite-reward-5", name: "Fonte da amizade", description: "Exclusivo: cinco amigos chegaram ao Späti com o seu convite.", requiredLevel: 1, zone: "both", exclusive: "invite" },
+	// Social v1 invite rewards (docs/social-api.md; art approved by Lucas 01/11): earned at 1 / 3 / 5 friends who reached
+	// the Späti with the player's invite; never on sale (exclusive), placed from the inventory.
+	{ id: "invite-reward-1", name: "Banco do Bairro", description: "Exclusivo: um amigo chegou ao Späti com o seu convite.", requiredLevel: 1, zone: "both", exclusive: "invite" },
+	{ id: "invite-reward-3", name: "Poste da Amizade", description: "Exclusivo: três amigos chegaram ao Späti com o seu convite.", requiredLevel: 1, zone: "outside", exclusive: "invite" },
+	{ id: "invite-reward-5", name: "Estátua dos Amigos", description: "Exclusivo: cinco amigos chegaram ao Späti com o seu convite.", requiredLevel: 1, zone: "both", exclusive: "invite" },
 	// Outside the market: the plaza and footways of the city block.
 	{ id: "flower-bed", name: "Canteiro de flores", description: "Floreira comprida para a calçada.", coinPrice: 1_500, requiredLevel: 1, zone: "outside" },
 	{ id: "bike-rack", name: "Bicicletário", description: "Vagas para as bicicletas dos clientes.", coinPrice: 1_200, requiredLevel: 3, zone: "outside" },

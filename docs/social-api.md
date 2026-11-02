@@ -43,9 +43,10 @@ build against it; change it only together.
   - `public_json`: the small public block the game sends with the save (below), ≤ 4 KB.
 - `friends(player_id, friend_id, created_at, PK(player_id, friend_id))` — two rows per friendship.
 - `friend_requests(from_id, to_id, created_at, PK(from_id, to_id))`
-- `inbox(id INTEGER PK AUTOINCREMENT, player_id, kind, from_id, payload, created_at, acked_at)`
-- `daily_actions(player_id, day, kind, target, PK(player_id, day, kind, target))` — gift/like/help-given limits.
-- `build_helps(owner_id, build_id, helper_id, created_at, PK(owner_id, build_id, helper_id))`
+- `inbox(id INTEGER PK AUTOINCREMENT, player_id, kind, from_id, payload, created_at, acked_at)` — payload is JSON text.
+- `daily_actions(player_id, day, kind, target, PK(player_id, day, kind, target))` — gift/like limits (`day` = UTC day number).
+- `build_helps(owner_id, build_id, helper_id, created_at, PK(owner_id, build_id, helper_id))` — also counts the helps
+  given per helper per UTC day.
 - `product_requests(id INTEGER PK AUTOINCREMENT, player_id, product_id, qty, status ['open','fulfilled','cancelled','expired'], fulfilled_by, created_at, expires_at)`
 - `name_reports(target_id, reporter_id, created_at, PK(target_id, reporter_id))`
 - `DELETE /v1/account` removes all of the player's social rows (and their friendships on the other side).
@@ -57,33 +58,68 @@ build against it; change it only together.
   "stage": "spati", "marketRating": 4.2 }
 ```
 Only builds that are running or queued. The server stores it as-is (validated: object, ≤ 4 KB, ≤ 12 builds).
+- **Send it as the last field**, after `force` (Unity: declare the field last in the upload class):
+  `{"baseRevision":3,"data":"…","deviceId":"…","force":false,"public":{…}}`. The server then cuts the save out of the
+  body without parsing the whole body (the cheap path). Any other position works but parses the whole body.
+- No `public` = keep the stored one (old builds). `"public": null` = clear it. A block that fails the checks is
+  ignored (logged) and **the save itself is still stored** — a bad public block never blocks a cloud save.
+- Only a profile that exists is updated (one is created by the first `/v1/social/*` call, never by an upload).
+- **Build ids must be unique per build instance** (never reused by a later build in the same slot), e.g.
+  `interior:42:<startedAt>`: helps are counted per (owner, buildId) and kept 30 days.
 
 ## Routes (all `Authorization: Bearer <token>`; JSON in and out)
 | Route | Body → Answer |
 |---|---|
 | `GET /v1/social/me` | → `{code, marketName, avatar, level, era, likes, friends, invitedBy: code\|null, invites: {rewarded, milestones:[1,3,5]}}` (creates the profile on first call; default name `null` = the game asks the player to choose) |
-| `PUT /v1/social/me` | `{marketName?, avatar?}` → the profile \| 400 `{error:"name-not-allowed"}` \| 400 `{error:"bad-avatar"}` |
+| `PUT /v1/social/me` | `{marketName?, avatar?}` → the profile (same shape as GET) \| 400 `{error:"name-not-allowed"}` \| 400 `{error:"bad-avatar"}` |
 | `GET /v1/social/friends` | → `{friends:[Friend], incoming:[{id, code, marketName, avatar, level, era}], outgoing:[…same]}` |
-| `POST /v1/social/friends/add` | `{code}` → `{status:"requested"\|"friends"}` \| 404 `not-found` \| 409 `already-friends`\|`self` \| 429 `limit` |
-| `POST /v1/social/friends/accept` | `{id}` → `{status:"friends"}` |
+| `POST /v1/social/friends/add` | `{code}` → `{status:"requested"\|"friends"}` ("friends" when they had already asked me) \| 404 `not-found` \| 409 `already-friends`\|`self` \| 429 `limit` (my or their list full, or 20 pending) |
+| `POST /v1/social/friends/accept` | `{id}` → `{status:"friends"}` \| 404 `not-found` (no pending request from them) \| 429 `limit` |
 | `POST /v1/social/friends/decline` | `{id}` → 204 |
 | `DELETE /v1/social/friends/{id}` | → 204 (removes both sides; also cancels their pending requests) |
-| `POST /v1/social/report` | `{id}` → 204 (market name report) |
+| `POST /v1/social/report` | `{id}` → 204 (market name report; reporting yourself does nothing) \| 404 `not-found` |
 | `GET /v1/social/friends/{id}/market` | → `{profile: Friend, public, data}` — `data` is the friend's save exactly as `GET /v1/save` returns it (read-only use: render the visit). 403 `not-friends`, 404 `no-save` |
 | `POST /v1/social/gift` | `{to}` → 204 \| 409 `already-today` \| 403 `not-friends` |
-| `POST /v1/social/like` | `{to}` → `{likes}` \| 409 `already-today` |
-| `POST /v1/social/help` | `{to, buildId}` → `{helps}` (that build's count) \| 409 `already-helped`\|`build-full` \| 429 `daily-limit` \| 404 `no-build` (not in the friend's public block) |
+| `POST /v1/social/like` | `{to}` → `{likes}` (the friend's new total) \| 409 `already-today` \| 403 `not-friends` |
+| `POST /v1/social/help` | `{to, buildId}` → `{helps}` (that build's count) \| 409 `already-helped`\|`build-full` \| 429 `daily-limit` \| 404 `no-build` (not in the friend's public block) \| 403 `not-friends` |
 | `GET /v1/social/requests` | → `{mine:[Request], friends:[Request & {owner: id}]}` (open ones only) |
-| `POST /v1/social/requests` | `{productId, qty}` → `Request` \| 429 `limit` \| 400 `bad-request` |
-| `DELETE /v1/social/requests/{id}` | → 204 (only the owner, only open) |
-| `POST /v1/social/requests/{id}/fulfill` | → 204 \| 409 `taken` (someone else was first / expired / cancelled) \| 403 `not-friends` |
+| `POST /v1/social/requests` | `{productId, qty}` → `Request` \| 429 `limit` \| 400 `bad-request` (`productId` 1–64 of `A-Z a-z 0-9 _ . : -`, `qty` integer 1–20) |
+| `DELETE /v1/social/requests/{id}` | → 204 (only the owner, only open) \| 404 `not-found` (not an open request of mine) |
+| `POST /v1/social/requests/{id}/fulfill` | → 204 \| 409 `taken` (someone else was first / expired / cancelled) \| 403 `not-friends` (also: my own request) \| 404 `not-found` |
 | `GET /v1/social/inbox` | → `{items:[{id, kind, from: {id, code, marketName, avatar}\|null, payload, createdAt}]}` (unacked, oldest first, ≤ 100) |
-| `POST /v1/social/inbox/ack` | `{ids:[…]}` → 204 |
-| `POST /v1/social/invite/redeem` | `{code}` → `{status:"friends"}` \| 409 `already-invited`\|`too-late`\|`self` \| 404 `not-found` |
-| `GET /i/{code}` (no auth) | HTML landing page: the inviter's market name, store buttons (Play link with `&referrer=invite%3D<code>`, App Store link), "Copiar código", "Abrir no jogo" (`checkout://add/<code>`). Unknown code → same page without the name. |
+| `POST /v1/social/inbox/ack` | `{ids:[…]}` (≤ 300; ids not mine or already acked are ignored) → 204 \| 400 `bad-request` |
+| `POST /v1/social/invite/redeem` | `{code}` → `{status:"friends"\|"invited"}` ("invited": the invite counts but a friend list is full) \| 409 `already-invited`\|`too-late`\|`self` (also: the code of a player I invited) \| 404 `not-found` |
+| `GET /i/{code}` (no auth) | HTML landing page: the inviter's market name, store buttons (Play link with `&referrer=invite%3D<code>`, App Store link), "Copiar código", "Abrir no jogo" (`checkout://add/<code>`). Unknown code → same page without the name. A malformed code → no code box, plain store links. |
 
 `Friend = {id, code, marketName, avatar, level, era, likes, lastSeen, giftedToday, likedToday, public, openRequests:[Request]}`
 `Request = {id, productId, qty, createdAt, expiresAt}`
+
+### Details settled while building the server (02/11/2026)
+- **Codes** travel as the 8 characters without the dash (`"7KQ2M9XA"`) in every answer and URL
+  (`/i/7KQ2M9XA`, `checkout://add/7KQ2M9XA`, `referrer=invite%3D7KQ2M9XA`); the game shows `7KQ2-M9XA`. The server
+  accepts typed codes with or without the dash, spaces, lower case.
+- **Times** (`lastSeen`, `createdAt`, `expiresAt`) are numbers: milliseconds since 1970, UTC. `lastSeen` = the
+  friend's last cloud upload or login, whichever is later.
+- **`GET /v1/social/me`** also returns `id` (the player id) and `nameHidden`. `invites.milestones` is the fixed list
+  of thresholds `[1,3,5]`; reached = those ≤ `rewarded`.
+- **Hidden names:** other players get `marketName: null` (the game shows "Mercado #<code>"); the owner still gets
+  their own name plus `nameHidden: true` → ask for a new one. Re-sending the same name in another spelling (case,
+  accents, spaces) does not count as a change: 400 `name-not-allowed`. A new name clears the reports.
+- **`avatar`**: a string id from the game's avatar list, 1–32 of `A-Z a-z 0-9 _ -`; `null` = default (send `null`
+  to reset). `marketName: null` in `PUT /me` = leave the name unchanged.
+- **`friend_added`** goes only to the player who did not act (the requester when the other accepts; the inviter when
+  a code is redeemed). The actor already knows from the answer.
+- **Inbox `from`**: `null` when the sender's account was deleted. For `invite_reward` it is the other player.
+  When an account is deleted, what it sent (gifts, deliveries…) stays with the receivers, with `from: null`; players
+  it invited stay "already invited" (their own reward still comes at level 8).
+- **Invite reward:** granted when the invited player's level in the save summary reaches 8 on `PUT /v1/save`, or
+  right away when the code is redeemed by a player already at level 8. Exactly once (checked inside one D1
+  transaction). The inviter's item carries `milestone` when their rewarded count becomes 1, 3 or 5.
+- **Gifts held back:** the receiver is offered at most 25 `gift` items per UTC day (counted by acks); the rest stay
+  unacked on the server and show up on the next days. Other kinds are never held back.
+- **Social bodies** are at most 16 KB (413 `too-large`). Every social route answers 401 `signed-out` without a
+  valid session and 429 `slow-down` past the rate limit, like the save routes.
+- `GET /v1/social/friends`: friends most recently seen first; `incoming` / `outgoing` oldest first.
 
 ### Inbox kinds and payloads
 | kind | payload | The receiving game does |
@@ -111,3 +147,35 @@ Only builds that are running or queued. The server stores it as-is (validated: o
 - **Pedir ajuda**: from a contract shortfall or the stock page, "Pedir aos amigos" for one product (1–20 units).
 - Inbox fetch on app start, after login and every 5 min with the cloud sync; results celebrated in a small toast
   queue + a badge on the Amigos button.
+
+## The game side as built (branch `social-game`, 02/11/2026)
+Where it lives: `src/services/social.ts` (inbox → save, public block, help on builds), `src/data/social.ts` (numbers),
+`desktop/social.ts` (calls, inbox cycle, actions, visit), `desktop/pages/amigos.ts` (Amigos, profile, Pedir aos amigos,
+the friend's requests during a visit), `desktop/social-mock.ts` (these routes in process, for the Editor),
+`unity/…/CheckoutSocial.cs` (HTTP with the session token, inbox clock, flush before ack, share sheet, links, Play Install
+Referrer, avatars) and `CheckoutDesktopHUD.Social.cs` (visit bar, "Ajudar" over the builds, toast queue).
+
+How the game uses the contract (read these as the game's half of it):
+- **Product ids** go out as the catalog's numeric id written as text (`"47"`, the Worker's rule) and are read back from
+  text or number (requests, `delivery` payloads).
+- **Avatar ids**: `shopper-1` … `shopper-12`, portraits of the game's own shoppers drawn by Unity (no image upload).
+- **Build ids** in the public block: `interior:<constructionId>` and `evolution:<evolutionId>` (both ids already carry
+  their creation time), `era:<eraId>:<startedAt>`, `lot:<lotId>:<startedAt>`; `item` = `<kind>-<targetId>`. The old
+  market-expansion works (`marketExpansionConstruction`) are not listed (not one of the four kinds).
+- **Upload**: `public` is written after `force` as raw JSON (Unity's JsonUtility cannot write a raw object, so the game
+  appends it to the class's own JSON: same bytes as a last field). Omitted when empty or over 4096 characters.
+- **`GET …/market`**: `data` is read as the save text; a CloudSave object or a bare `{state, version}` also work. The
+  friend's save is migrated with the game's own migrations into a separate object (never the player's store).
+- **Background calls**: only `GET /inbox`, at start, after a login and every 5 minutes, and only once the player has
+  opened Amigos on this save (the save keeps the code; the first social call creates the profile). After a login the
+  game also calls `GET /me` once. The friend list loads only while Amigos is open (at most every 20 s).
+- **Ack**: after the items are in the save and the save is on disk (`CheckoutDesktopHost.Flush`), in chunks of ≤ 300.
+  Gifts over the day's 25 are not acked (they come again the next UTC day).
+- **Helper rewards** (like, help) and the sender's delivery refund are booked only after the server's OK; during a
+  visit they wait until the player is back home (the player's save is frozen while visiting).
+
+Open questions for the server:
+1. Should the market-expansion works (`marketExpansionConstruction`) be a fifth build kind (`expansion`) friends can
+   help? The game would send `expansion:<id>:<startedAt>`.
+2. A friend whose cloud save is very old (before a migration) is still shown; is there a minimum save version the
+   server should refuse for `…/market`? The game copes either way.

@@ -931,7 +931,7 @@ export function visitView(now = Date.now()): VisitView | null {
 		friendId: friend.id,
 		friendName: marketName(friend),
 		avatar: avatarIcon(friend.avatar),
-		subtitle: [`${t("Nível")} ${friend.level ?? ""}`, stageName(friend.era ?? visit.state.era.id), `${friend.likes ?? 0} ${t("curtidas")}`].filter(Boolean).join(" · "),
+		subtitle: [t(`Nível ${friend.level ?? ""}`), t(stageName(friend.era ?? visit.state.era.id)), t(`${friend.likes ?? 0} curtidas`)].filter(Boolean).join(" · "),
 		note: builds.length ? "Toque em Ajudar nas obras do seu amigo: cada ajuda tira 5 minutos." : "Passeie pelo mercado do seu amigo.",
 		buttons: [
 			act(visit.liked ? "Curtido" : "Curtir", "socialLike", [friend.id], {

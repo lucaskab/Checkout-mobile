@@ -116,7 +116,7 @@ namespace Checkout {
     var file=Application.platform==RuntimePlatform.Android?"checkout-android-save.json":"checkout-iphone-save.json";
     if(!StartEmbedded(Path.Combine(Application.persistentDataPath,file))){Destroy(this);return;}
     Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
-    CheckoutIap.Attach(this);CheckoutAds.Attach(this);CheckoutCloud.Attach(this);
+    CheckoutIap.Attach(this);CheckoutAds.Attach(this);CheckoutCloud.Attach(this);CheckoutSocial.Attach(this);
     return;
    }
    ProcessStartInfo start;var bundled=BundledHost();
@@ -147,6 +147,8 @@ namespace Checkout {
    if(!CheckoutStartMenu.EditMode){CheckoutIap.Attach(this);CheckoutAds.Attach(this);} // + rewarded videos (CheckoutAds)
    // Cloud saves (Google login): the real game only, never the editor's sandbox or a QA copy.
    if(!CheckoutStartMenu.EditMode&&!CheckoutStartMenu.QaMode)CheckoutCloud.Attach(this);
+   // Amigos (social v1): QA runs and the Editor talk to the host's fake server (desktop/social-mock.ts).
+   if(!CheckoutStartMenu.EditMode)CheckoutSocial.Attach(this);
    if(CheckoutStartMenu.EditMode)gameObject.AddComponent<CheckoutMapEditor>().Initialize(this);
   }
 
@@ -198,6 +200,7 @@ namespace Checkout {
     else if(kind=="ad-show")CheckoutAds.Active?.Show(line);
     else if(kind=="ad-privacy")CheckoutAds.Active?.ShowPrivacy();
     else if(kind!=null&&kind.StartsWith("cloud-",System.StringComparison.Ordinal))CheckoutCloud.Active?.OnHost(kind,line);
+    else if(kind!=null&&kind.StartsWith("social-",System.StringComparison.Ordinal))CheckoutSocial.Active?.OnHost(kind,line);
    }
    if(latestView!=null)hud.Apply(latestView);
    if(process!=null&&process.HasExited&&Active==this){Active=null;hud.Offline(CheckoutI18n.T(IsRelease?"O jogo parou de responder. Feche e abra de novo.":"O processo do jogo (node) parou. Veja o Console."));}

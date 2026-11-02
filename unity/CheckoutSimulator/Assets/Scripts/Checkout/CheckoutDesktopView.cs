@@ -6,7 +6,16 @@ namespace Checkout {
  }
  [Serializable] public class DesktopCard {
   public string title,eyebrow,subtitle,icon,badge,tone;public string[] lines;public float progress=-1;public DesktopButton[] buttons;
+  // Social v1 (desktop/view-kit.ts CardInput, desktop/qr.ts): a text field (id "" = none) and a QR code ("" = none).
+  public DesktopInput input;public string qr;
  }
+ /// <summary>A text field on a card: buttons send what was typed with "$input:&lt;id&gt;" in their args.</summary>
+ [Serializable] public class DesktopInput {public string id,placeholder,value,kind;public int max;}
+ /// <summary>Visiting a friend's market (desktop/social.ts VisitView): the bar on top and an "Ajudar" per build.</summary>
+ [Serializable] public class DesktopVisit {
+  public bool active;public string friendId,friendName,avatar,subtitle,note;public DesktopButton[] buttons;public DesktopVisitBuild[] builds;
+ }
+ [Serializable] public class DesktopVisitBuild {public string buildId,kind,targetId,label;public bool helped;public DesktopButton button;}
  [Serializable] public class DesktopPage {
   public string route,title,subtitle,icon,layout;public DesktopButton[] tabs,chips,sections;public DesktopCard[] cards;public DesktopShelf shelf;public DesktopBoard board;public DesktopKitchen kitchen;
  }
@@ -60,6 +69,8 @@ namespace Checkout {
   public DesktopButton quickMain;
   public DesktopButton[] tools;public DesktopCard offline;public DesktopPage page;public DesktopLevelUp levelUp;public DesktopCelebration celebration;
   public DesktopCoach coach;public DesktopGoal goal;
+  // null (an empty object in JsonUtility) = at home; active = the player is visiting a friend.
+  public DesktopVisit visit;
  }
  // Dona Neide's tutorial / tip card (src/services/onboarding.ts CoachView); key "" = nothing on screen.
  [Serializable] public class DesktopCoach {

@@ -1057,7 +1057,9 @@ namespace Checkout
         }
 
         // ------------------------------------------------------------------ saving
-        public void MarkPending() { pending = Export(); pendingAt = Time.unscaledTime; foreach (var it in items.Values) it.saved = true; }
+        public void MarkPending() { if (CheckoutSocial.Visiting) return; pending = Export(); pendingAt = Time.unscaledTime; foreach (var it in items.Values) it.saved = true; }
+        /// <summary>Back from a friend's market (CheckoutSocial): no layout of theirs waits to be saved as the player's.</summary>
+        public void ClearPending() { pending = null; }
 
         public InteriorItem[] Export() => items.Values.Where(i => i.root && !i.design).Select(i => new InteriorItem { id = i.id, type = i.type, x = i.x, z = i.z, rot = Mathf.Repeat(Mathf.Round(i.rot), 360), outside = i.outside })
             .Concat(waiting.Where(w => !items.ContainsKey(w.Key)).Select(w => new InteriorItem { id = w.Key, type = w.Value.type, stored = true }))
@@ -1167,7 +1169,8 @@ namespace Checkout
     [Serializable] public class DecorTier { public string type, template; public int tier; }
     [Serializable] public class InteriorItem { public string id, type; public float x, z, rot; public bool stored, outside; }
     [Serializable] public class DecorOwned { public string type; public int count; }
-    [Serializable] public class DecorEntry { public string id, name, description, zone, lockedNote; public int coinPrice, diamondPrice, requiredLevel, limit; public bool upgrade; }
+    // exclusive: earned only (social v1 invite rewards, never for sale).
+    [Serializable] public class DecorEntry { public string id, name, description, zone, lockedNote; public int coinPrice, diamondPrice, requiredLevel, limit; public bool upgrade, exclusive; }
     // Coins a placed machine (gumball, claw machine) just took: CheckoutDecorPlays floats them over it.
     [Serializable] public class DecorPlay { public string itemId, decorId; public int coins; public double at; }
 }

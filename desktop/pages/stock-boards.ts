@@ -1,3 +1,4 @@
+import { socialIcon } from "../social";
 import { t } from "@/i18n";
 import { getInventoryUpgradeCap } from "@/services/fixture-tiers";
 import type { ItemDefinition } from "@/@types/item";
@@ -543,9 +544,13 @@ function rackTile(state: State, product: ItemDefinition, now: number, group: str
 			stat(gameIcon("warehouse"), info.nextCapacity ? `${info.capacity} → ${room}` : String(info.capacity), "Espaço"),
 		],
 		lines: [expiryText(info, now)].filter(Boolean),
-		actions: [capacity, refillButton(product, info), fillButton(product, info)].filter(
-			(item): item is Button => item !== null,
-		),
+		actions: [
+			capacity,
+			refillButton(product, info),
+			fillButton(product, info),
+			// Social v1: a friend can send it (1–20 units, straight into the stock room).
+			go("Pedir aos amigos", `amigos:pedir:${product.id}:10`, { icon: socialIcon("package") }),
+		].filter((item): item is Button => item !== null),
 	});
 }
 

@@ -32,6 +32,11 @@ namespace Checkout {
    button.label.textWrappingMode=TextWrappingModes.NoWrap;button.label.overflowMode=TextOverflowModes.Ellipsis;button.label.raycastTarget=false;CheckoutHandheldText.Register(button.label,.8f);
    button.Layout();return button;
   }
+  /// <summary>A taller button with a big icon (the avatar picker of the Amigos profile).</summary>
+  public void SetSize(float height,float iconSize){
+   layout.minHeight=layout.preferredHeight=height;
+   var il=icon.GetComponent<UnityEngine.UI.LayoutElement>();if(il)il.preferredWidth=il.preferredHeight=iconSize;
+  }
   public void SetWidth(float width){layout.flexibleWidth=width>0?0:1;layout.preferredWidth=width>0?width:-1;layout.minWidth=width>0?width:-1;}
   public void Apply(DesktopButton data){
    Data=data;var style=K.Variant(data.variant,data.enabled,data.active);

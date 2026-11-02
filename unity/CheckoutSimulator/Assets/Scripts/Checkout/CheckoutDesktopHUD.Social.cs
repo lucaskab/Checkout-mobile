@@ -1,0 +1,171 @@
+using System.Collections.Generic;
+using System.Text;
+using System.Text.RegularExpressions;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+using K = Checkout.CheckoutDesktopKit;
+using N = Checkout.CheckoutDesktopCard;
+namespace Checkout {
+ // Social v1 in the HUD (desktop/social.ts): the visit bar over a friend's market (their face and name, Curtir, Presente,
+ // Pedidos, "Voltar ao meu mercado"), an "Ajudar" button floating over each of their running builds, and the small
+ // queue of social toasts ("Ana te ajudou na obra: −5 min"). Navy with a thin gold trim, like the market's own colours.
+ public partial class CheckoutDesktopHUD {
+  static readonly Color SocialNavy=K.C("1D2B4F"),SocialGold=K.C("E3B54A"),SocialCream=K.C("F3E6CC");
+  RectTransform visitBar,visitButtonRow,visitBuildRow,visitNote,socialToastBox,helpLayer;
+  Image visitAvatar,socialToastIcon;TextMeshProUGUI visitName,visitSubtitle,visitNoteText,socialToastText;
+  readonly List<CheckoutDesktopButton> visitButtons=new List<CheckoutDesktopButton>(),visitBuildButtons=new List<CheckoutDesktopButton>(),helpButtons=new List<CheckoutDesktopButton>();
+  readonly Queue<(string text,string icon,bool ok)> socialToasts=new Queue<(string text,string icon,bool ok)>();
+  readonly List<Transform> helpAnchors=new List<Transform>();
+  float socialToastUntil;bool visiting;
+  /// <summary>Visiting a friend (the HUD shows the visit bar instead of the player's own).</summary>
+  public bool VisitShown=>visiting;
+
+  void BuildSocial(){
+   // Under everything else of the HUD: the "Ajudar" buttons that follow the builds of the friend's market.
+   helpLayer=N.Node("VisitHelp",root);Stretch(helpLayer,Vector2.zero,Vector2.zero);helpLayer.SetAsFirstSibling();
+
+   var edge=N.Image(root,"VisitBar",SocialGold,22);visitBar=edge.rectTransform;
+   visitBar.anchorMin=visitBar.anchorMax=visitBar.pivot=new Vector2(.5f,1);visitBar.anchoredPosition=new Vector2(0,Phone?-8:-14);
+   var fit=edge.gameObject.AddComponent<ContentSizeFitter>();fit.horizontalFit=fit.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
+   N.Column(edge.gameObject,0,new RectOffset(2,2,2,2));
+   var face=N.Image(edge.transform,"Face",SocialNavy,20);var row=N.Row(face.gameObject,Phone?12:14,new RectOffset(12,12,10,10));row.childAlignment=TextAnchor.MiddleLeft;
+   var ring=N.Image(face.transform,"Avatar",SocialGold,36);var rl=ring.gameObject.AddComponent<LayoutElement>();rl.preferredWidth=rl.preferredHeight=Phone?72:66;
+   var clip=N.Image(ring.transform,"Clip",SocialNavy,34);Stretch(clip.rectTransform,new Vector2(3,3),new Vector2(-3,-3));clip.gameObject.AddComponent<Mask>().showMaskGraphic=true;
+   visitAvatar=N.Image(clip.transform,"Face",Color.white,0);visitAvatar.preserveAspect=true;Stretch(visitAvatar.rectTransform,Vector2.zero,Vector2.zero);
+   var texts=N.Node("Texts",face.transform);N.Column(texts.gameObject,0);var tl=texts.gameObject.AddComponent<LayoutElement>();tl.minWidth=Phone?230:250;tl.preferredWidth=Phone?260:280;
+   var eyebrow=N.Text(texts,"Eyebrow",K.Label,12,SocialGold);eyebrow.text="VISITANDO";eyebrow.characterSpacing=4;
+   visitName=N.Text(texts,"Name",K.Headline,Phone?24:22,Color.white);visitName.textWrappingMode=TextWrappingModes.NoWrap;visitName.overflowMode=TextOverflowModes.Ellipsis;
+   visitSubtitle=N.Text(texts,"Subtitle",K.Body,Phone?15:14,SocialCream);visitSubtitle.textWrappingMode=TextWrappingModes.NoWrap;visitSubtitle.overflowMode=TextOverflowModes.Ellipsis;
+   visitButtonRow=N.Node("Buttons",face.transform);N.Row(visitButtonRow.gameObject,8).childForceExpandHeight=false;
+   edge.gameObject.SetActive(false);
+
+   // Builds with no spot found on the map (the expansion works, a lot): their "Ajudar" goes in a row under the bar.
+   visitBuildRow=N.Node("VisitBuilds",root);visitBuildRow.anchorMin=visitBuildRow.anchorMax=visitBuildRow.pivot=new Vector2(.5f,1);
+   var bf=visitBuildRow.gameObject.AddComponent<ContentSizeFitter>();bf.horizontalFit=bf.verticalFit=ContentSizeFitter.FitMode.PreferredSize;N.Row(visitBuildRow.gameObject,8);
+   visitBuildRow.gameObject.SetActive(false);
+
+   // The hint at the bottom ("Toque em Ajudar…").
+   var note=N.Image(root,"VisitNote",SocialGold,18);visitNote=note.rectTransform;visitNote.anchorMin=visitNote.anchorMax=visitNote.pivot=new Vector2(.5f,0);visitNote.anchoredPosition=new Vector2(0,Phone?14:20);
+   var nf=note.gameObject.AddComponent<ContentSizeFitter>();nf.horizontalFit=nf.verticalFit=ContentSizeFitter.FitMode.PreferredSize;N.Column(note.gameObject,0,new RectOffset(2,2,2,2));
+   var nface=N.Image(note.transform,"Face",SocialNavy,16);N.Row(nface.gameObject,0,new RectOffset(20,20,10,10));
+   visitNoteText=N.Text(nface.transform,"Text",K.Label,Phone?18:16,SocialCream);visitNoteText.textWrappingMode=TextWrappingModes.NoWrap;
+   note.gameObject.SetActive(false);
+
+   // Social toasts: one at a time, under the top bar, with the icon of what happened.
+   var tedge=N.Image(root,"SocialToast",SocialGold,20);socialToastBox=tedge.rectTransform;socialToastBox.anchorMin=socialToastBox.anchorMax=socialToastBox.pivot=new Vector2(.5f,1);
+   var tf=tedge.gameObject.AddComponent<ContentSizeFitter>();tf.horizontalFit=tf.verticalFit=ContentSizeFitter.FitMode.PreferredSize;N.Column(tedge.gameObject,0,new RectOffset(2,2,2,2));
+   var tface=N.Image(tedge.transform,"Face",SocialNavy,18);var trow=N.Row(tface.gameObject,12,new RectOffset(14,22,10,10));trow.childAlignment=TextAnchor.MiddleLeft;
+   socialToastIcon=N.Image(tface.transform,"Icon",Color.white,0);socialToastIcon.preserveAspect=true;var il=socialToastIcon.gameObject.AddComponent<LayoutElement>();il.preferredWidth=il.preferredHeight=Phone?44:40;
+   socialToastText=N.Text(tface.transform,"Text",K.Label,Phone?20:18,Color.white);socialToastText.textWrappingMode=TextWrappingModes.Normal;
+   var stl=socialToastText.gameObject.AddComponent<LayoutElement>();stl.preferredWidth=-1;
+   tedge.gameObject.SetActive(false);
+  }
+
+  /// <summary>Queues a social toast (CheckoutSocial: inbox results, answers of the friends' server).</summary>
+  public void SocialToast(string text,string icon,bool ok){
+   if(string.IsNullOrEmpty(text))return;
+   if(socialToasts.Count<8)socialToasts.Enqueue((text,icon,ok));
+   if(!socialToastBox.gameObject.activeSelf)NextSocialToast();
+  }
+  void NextSocialToast(){
+   if(socialToasts.Count==0){socialToastBox.gameObject.SetActive(false);return;}
+   var (text,icon,ok)=socialToasts.Dequeue();
+   socialToastText.text=K.Clean(text);
+   var size=socialToastText.GetPreferredValues(socialToastText.text);socialToastText.GetComponent<LayoutElement>().preferredWidth=Mathf.Min(size.x+4,Phone?820:760);
+   var sprite=K.Icon(icon);socialToastIcon.sprite=sprite;socialToastIcon.gameObject.SetActive(sprite);
+   socialToastBox.GetComponent<Image>().color=ok?SocialGold:K.C("E15533");
+   // Visiting: under the bar (and its row of "Ajudar" buttons). At home: just above the toolbar, clear of the top bar,
+   // the tutorial card and the open window.
+   var at=visiting?new Vector2(.5f,1):new Vector2(.5f,0);socialToastBox.anchorMin=socialToastBox.anchorMax=socialToastBox.pivot=at;
+   socialToastBox.anchoredPosition=visiting?new Vector2(0,Phone?-178:-170):new Vector2(0,Phone?124:142);
+   socialToastBox.gameObject.SetActive(true);socialToastBox.SetAsLastSibling();socialToastUntil=Time.unscaledTime+2.8f;
+   StartCoroutine(CheckoutUiKit.Pop(socialToastBox,1.06f,.18f));
+  }
+
+  void ApplySocial(DesktopView v){
+   bool on=v.visit!=null&&v.visit.active;
+   if(on!=visiting){
+    visiting=on;
+    // The player's own top bar and toolbar wait at home (the rest of the HUD already hides from the view).
+    foreach(var name in new[]{"TopBar","Toolbar"}){var t=root.Find(name);if(t)t.gameObject.SetActive(!on);}
+    if(!on){foreach(var b in helpButtons)b.gameObject.SetActive(false);helpAnchors.Clear();}
+   }
+   if(on)foreach(var name in new[]{"TopBar","Toolbar"}){var t=root.Find(name);if(t&&t.gameObject.activeSelf)t.gameObject.SetActive(false);}
+   visitBar.gameObject.SetActive(on&&!v.hasPage);visitNote.gameObject.SetActive(on&&!v.hasPage&&!string.IsNullOrEmpty(v.visit.note));
+   if(!on){visitBuildRow.gameObject.SetActive(false);return;}
+   var visit=v.visit;
+   visitName.text=visit.friendName;visitSubtitle.text=visit.subtitle;visitNoteText.text=visit.note;
+   var face=K.Icon(visit.avatar);visitAvatar.sprite=face;visitAvatar.enabled=face;
+   var buttons=visit.buttons??new DesktopButton[0];
+   while(visitButtons.Count<buttons.Length){var b=CheckoutDesktopButton.Create(visitButtonRow,Phone?62:56,Phone?18:16,14);b.Clicked=x=>{Sound("tap",1.05f);Press(x);};visitButtons.Add(b);}
+   for(int i=0;i<visitButtons.Count;i++){
+    bool shown=i<buttons.Length;visitButtons[i].gameObject.SetActive(shown);if(!shown)continue;
+    visitButtons[i].Apply(buttons[i]);FitVisitButton(visitButtons[i]);
+   }
+   // "Ajudar" over each build of the friend's market (or in the row under the bar when its site is not on the map).
+   var builds=visit.builds??new DesktopVisitBuild[0];
+   helpAnchors.Clear();var loose=new List<DesktopVisitBuild>();
+   for(int i=0;i<builds.Length;i++){
+    var anchor=SiteOf(builds[i]);
+    if(anchor){helpAnchors.Add(anchor);while(helpButtons.Count<helpAnchors.Count){var b=CheckoutDesktopButton.Create(helpLayer,Phone?64:56,Phone?20:18,16);b.Clicked=x=>{Sound("tap",1.1f);Press(x);};helpButtons.Add(b);}
+     var hb=helpButtons[helpAnchors.Count-1];hb.Apply(builds[i].button);FitVisitButton(hb);}
+    else loose.Add(builds[i]);
+   }
+   for(int i=helpAnchors.Count;i<helpButtons.Count;i++)helpButtons[i].gameObject.SetActive(false);
+   while(visitBuildButtons.Count<loose.Count){var b=CheckoutDesktopButton.Create(visitBuildRow,Phone?58:52,Phone?17:15,14);b.Clicked=x=>{Sound("tap",1.1f);Press(x);};visitBuildButtons.Add(b);}
+   for(int i=0;i<visitBuildButtons.Count;i++){
+    bool shown=i<loose.Count;visitBuildButtons[i].gameObject.SetActive(shown);if(!shown)continue;
+    var data=loose[i].button;var labelled=JsonUtility.FromJson<DesktopButton>(JsonUtility.ToJson(data));labelled.label=loose[i].label+" · "+data.label;
+    visitBuildButtons[i].Apply(labelled);FitVisitButton(visitBuildButtons[i]);
+   }
+   visitBuildRow.gameObject.SetActive(loose.Count>0&&!v.hasPage);
+   visitBuildRow.anchoredPosition=new Vector2(0,visitBar.anchoredPosition.y-(Phone?104:96));
+  }
+  static void FitVisitButton(CheckoutDesktopButton b){
+   var label=b.GetComponentInChildren<TextMeshProUGUI>(true);var icon=b.transform.Find("Face/Icon");
+   float w=(label&&label.gameObject.activeSelf?label.GetPreferredValues(label.text).x:0)+(icon&&icon.gameObject.activeSelf?(Phone?40:34):0)+(Phone?34:30);
+   b.SetWidth(Mathf.Clamp(w,Phone?96:88,Phone?360:320));
+  }
+  /// <summary>Where a build of the friend's market stands: its works board or evolution ring (null = not on the map).</summary>
+  static Transform SiteOf(DesktopVisitBuild build){
+   if(build==null||string.IsNullOrEmpty(build.targetId))return null;
+   if(build.kind=="interior")foreach(var w in FindObjectsByType<CheckoutInteriorWorks>(FindObjectsSortMode.None))if(w&&w.BuildId==build.targetId)return w.Board?w.Board:w.transform;
+   if(build.kind=="evolution")foreach(var e in FindObjectsByType<CheckoutEvolutionSite>(FindObjectsSortMode.None))if(e&&e.EvolutionId==build.targetId)return e.Ring?e.Ring:e.transform;
+   return null;
+  }
+
+  void UpdateSocial(){
+   if(socialToastBox.gameObject.activeSelf&&Time.unscaledTime>socialToastUntil)NextSocialToast();
+   if(!visiting)return;
+   var cam=Camera.main;var canvas=root.GetComponentInParent<Canvas>();
+   for(int i=0;i<helpAnchors.Count&&i<helpButtons.Count;i++){
+    var anchor=helpAnchors[i];var b=helpButtons[i];
+    if(!anchor||!cam||view==null||view.hasPage){b.gameObject.SetActive(false);continue;}
+    var screen=cam.WorldToScreenPoint(anchor.position+Vector3.up*.9f);
+    bool shown=screen.z>0&&screen.x>0&&screen.x<Screen.width&&screen.y>0&&screen.y<Screen.height;
+    b.gameObject.SetActive(shown);if(!shown)continue;
+    var rect=(RectTransform)b.transform;
+    RectTransformUtility.ScreenPointToLocalPointInRectangle(helpLayer,screen,canvas&&canvas.renderMode!=RenderMode.ScreenSpaceOverlay?canvas.worldCamera:null,out var local);
+    rect.anchorMin=rect.anchorMax=new Vector2(.5f,.5f);rect.pivot=new Vector2(.5f,0);rect.anchoredPosition=local;
+    var le=b.GetComponent<LayoutElement>();rect.sizeDelta=new Vector2(le.preferredWidth>0?le.preferredWidth:140,le.preferredHeight);
+   }
+  }
+
+  // "$input:<id>" in a button's args: what the player typed in that card field (CheckoutDesktopCard.Typed).
+  static readonly Regex TypedArg=new Regex("\"\\$input:([A-Za-z0-9_-]+)\"",RegexOptions.Compiled);
+  static string WithTyped(string args){
+   if(string.IsNullOrEmpty(args)||args.IndexOf("$input:",System.StringComparison.Ordinal)<0)return args;
+   return TypedArg.Replace(args,m=>JsonText(N.Typed.TryGetValue(m.Groups[1].Value,out var v)?v:""));
+  }
+  static string JsonText(string value){
+   var b=new StringBuilder("\"");
+   foreach(var c in value??""){
+    if(c=='"'||c=='\\')b.Append('\\').Append(c);
+    else if(c<' ')b.Append("\\u").Append(((int)c).ToString("x4"));
+    else b.Append(c);
+   }
+   return b.Append('"').ToString();
+  }
+ }
+}

@@ -2,3 +2,7 @@
 # (com.google.unity.ads.nextgen) that references the GMA Next-Gen SDK, which the game does not use
 # (it uses play-services-ads). With Minify Release on, R8 stops on those missing classes.
 -dontwarn com.google.android.libraries.ads.mobile.sdk.**
+
+# Social v1 (02/11/2026): Unity calls these by name (AndroidJavaClass), and the referrer library's API.
+-keep class com.checkout.social.** { *; }
+-keep class com.android.installreferrer.** { *; }

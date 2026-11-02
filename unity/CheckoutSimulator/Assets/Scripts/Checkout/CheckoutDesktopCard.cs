@@ -10,6 +10,10 @@ namespace Checkout {
   Transform lines,buttons;GameObject header,texts,progress;RectTransform fillRect;
   readonly List<TextMeshProUGUI> linePool=new List<TextMeshProUGUI>();readonly List<CheckoutDesktopButton> buttonPool=new List<CheckoutDesktopButton>();
   public Action<CheckoutDesktopButton> Clicked;
+  // Social v1: a text field (friend code, market name) and a QR code on the card.
+  GameObject inputRow,qrRow;TMP_InputField field;UnityEngine.UI.RawImage qrImage;string inputId,inputValue,qrShown;
+  /// <summary>What was typed in each card field (by input id): buttons send it with "$input:&lt;id&gt;" in their args.</summary>
+  public static readonly Dictionary<string,string> Typed=new Dictionary<string,string>();
 
   public static RectTransform Node(string name,Transform parent){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(parent,false);return (RectTransform)go.transform;}
   public static UnityEngine.UI.VerticalLayoutGroup Column(GameObject go,int spacing,RectOffset padding=null){var v=go.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();v.spacing=spacing;v.padding=padding??new RectOffset();v.childControlWidth=v.childControlHeight=true;v.childForceExpandWidth=true;v.childForceExpandHeight=false;return v;}
@@ -55,10 +59,76 @@ namespace Checkout {
    for(int i=0;i<linePool.Count;i++){bool on=i<values.Length;linePool[i].gameObject.SetActive(on);if(on&&linePool[i].text!=values[i])linePool[i].text=values[i];}
    lines.gameObject.SetActive(values.Length>0);
    progress.SetActive(data.progress>=0);fillRect.anchorMax=new Vector2(Mathf.Clamp01(data.progress),1);
+   ApplyInput(data.input);ApplyQr(data.qr);
    var actions=data.buttons??Array.Empty<DesktopButton>();
    while(buttonPool.Count<actions.Length){var b=CheckoutDesktopButton.Create(buttons,44,15);b.Clicked=x=>Clicked?.Invoke(x);buttonPool.Add(b);}
-   for(int i=0;i<buttonPool.Count;i++){bool on=i<actions.Length;buttonPool[i].gameObject.SetActive(on);if(on)buttonPool[i].Apply(actions[i]);}
+   // The avatar picker: big faces instead of small icons.
+   bool faces=actions.Length>0&&Array.TrueForAll(actions,a=>(a.icon??"").StartsWith("avatar:",StringComparison.Ordinal)&&string.IsNullOrEmpty(a.label));
+   for(int i=0;i<buttonPool.Count;i++){bool on=i<actions.Length;buttonPool[i].gameObject.SetActive(on);if(on){buttonPool[i].Apply(actions[i]);buttonPool[i].SetSize(faces?92:44,faces?78:22);}}
    buttons.gameObject.SetActive(actions.Length>0);
+  }
+
+  void ApplyInput(DesktopInput input){
+   bool has=input!=null&&!string.IsNullOrEmpty(input.id);
+   if(!has){if(inputRow)inputRow.SetActive(false);return;}
+   if(!field)BuildInput();
+   inputRow.SetActive(true);
+   if(inputId!=input.id){
+    inputId=input.id;inputValue=input.value??"";
+    field.SetTextWithoutNotify(Typed.TryGetValue(input.id,out var typed)?typed:inputValue);Typed[input.id]=field.text;
+   }else if(!field.isFocused&&field.text==inputValue&&(input.value??"")!=inputValue){
+    // The page got the saved value later (the profile loaded): shown while the player has not typed.
+    inputValue=input.value??"";field.SetTextWithoutNotify(inputValue);Typed[input.id]=inputValue;
+   }
+   field.characterLimit=input.max>0?input.max:0;
+   ((TextMeshProUGUI)field.placeholder).text=input.placeholder??"";
+   // Friend codes: capital letters and digits (a dash is fine, the host removes it).
+   if(input.kind=="code")field.onValidateInput=(text,index,c)=>char.IsLetterOrDigit(c)&&c<128?char.ToUpperInvariant(c):c=='-'?c:'\0';
+   else field.onValidateInput=null;
+   inputRow.transform.SetSiblingIndex(buttons.GetSiblingIndex());
+  }
+  void BuildInput(){
+   var edgeImage=Image(face.transform,"Input",K.Border,12);inputRow=edgeImage.gameObject;inputRow.SetActive(false);
+   inputRow.AddComponent<UnityEngine.UI.LayoutElement>().preferredHeight=CheckoutScreen.Handheld?60:52;
+   var inner=Image(inputRow.transform,"Face",K.White,10);var ir=inner.rectTransform;ir.anchorMin=Vector2.zero;ir.anchorMax=Vector2.one;ir.offsetMin=new Vector2(2,2);ir.offsetMax=new Vector2(-2,-2);
+   inner.raycastTarget=true;
+   var area=Node("Text Area",inner.transform);area.anchorMin=Vector2.zero;area.anchorMax=Vector2.one;area.offsetMin=new Vector2(14,4);area.offsetMax=new Vector2(-14,-4);
+   area.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
+   // Not registered with the translators: the player's own text (and the placeholder comes translated by the host).
+   TextMeshProUGUI Field(string name,Color color){
+    var t=Node(name,area).gameObject.AddComponent<TextMeshProUGUI>();t.font=K.Body;t.fontSize=CheckoutScreen.Handheld?24:20;t.color=color;
+    t.textWrappingMode=TextWrappingModes.NoWrap;t.alignment=TextAlignmentOptions.MidlineLeft;t.raycastTarget=false;
+    var r=t.rectTransform;r.anchorMin=Vector2.zero;r.anchorMax=Vector2.one;r.offsetMin=r.offsetMax=Vector2.zero;return t;
+   }
+   var placeholder=Field("Placeholder",K.Muted);placeholder.fontStyle=FontStyles.Italic;
+   var text=Field("Text",K.Ink);
+   inner.gameObject.SetActive(false);
+   field=inner.gameObject.AddComponent<TMP_InputField>();
+   field.textViewport=area;field.textComponent=text;field.placeholder=placeholder;field.fontAsset=K.Body;field.pointSize=text.fontSize;
+   field.lineType=TMP_InputField.LineType.SingleLine;field.caretWidth=3;field.customCaretColor=true;field.caretColor=K.Ink;
+   field.selectionColor=new Color(.95f,.69f,.24f,.45f);
+   field.onValueChanged.AddListener(v=>{if(!string.IsNullOrEmpty(inputId))Typed[inputId]=v;});
+   inner.gameObject.SetActive(true);
+  }
+  void ApplyQr(string qr){
+   bool has=!string.IsNullOrEmpty(qr);
+   if(!has){if(qrRow)qrRow.SetActive(false);return;}
+   if(!qrRow){
+    qrRow=Node("QR",face.transform).gameObject;qrRow.AddComponent<UnityEngine.UI.LayoutElement>().preferredHeight=250;
+    var raw=Node("Code",qrRow.transform).gameObject.AddComponent<UnityEngine.UI.RawImage>();qrImage=raw;raw.raycastTarget=false;
+    var r=raw.rectTransform;r.anchorMin=r.anchorMax=r.pivot=new Vector2(.5f,.5f);r.sizeDelta=new Vector2(240,240);
+   }
+   qrRow.SetActive(true);qrRow.transform.SetSiblingIndex(buttons.GetSiblingIndex());
+   if(qrShown!=qr){qrShown=qr;if(qrImage.texture)Destroy(qrImage.texture);qrImage.texture=QrTexture(qr);}
+  }
+  /// <summary>"&lt;size&gt;:" + rows of 1/0 (desktop/qr.ts) as a black-on-white texture with a quiet zone.</summary>
+  static Texture2D QrTexture(string text){
+   int colon=text.IndexOf(':');if(colon<1||!int.TryParse(text.Substring(0,colon),out int size)||text.Length<colon+1+size*size)return null;
+   const int quiet=3;int n=size+quiet*2;
+   var pixels=new Color32[n*n];for(int i=0;i<pixels.Length;i++)pixels[i]=new Color32(255,255,255,255);
+   for(int y=0;y<size;y++)for(int x=0;x<size;x++)if(text[colon+1+y*size+x]=='1')pixels[(n-1-(y+quiet))*n+x+quiet]=new Color32(29,43,79,255);
+   var texture=new Texture2D(n,n,TextureFormat.RGBA32,false){filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Clamp};
+   texture.SetPixels32(pixels);texture.Apply();return texture;
   }
  }
 }

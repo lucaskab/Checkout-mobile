@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Social v1 on Android: the Play Install Referrer (Plugins/Android/CheckoutReferrer.java) reads which invite link
+     installed the game. Resolved by the External Dependency Manager (installed with Google Mobile Ads). -->
+<dependencies>
+  <androidPackages>
+    <androidPackage spec="com.android.installreferrer:installreferrer:2.2" />
+  </androidPackages>
+</dependencies>

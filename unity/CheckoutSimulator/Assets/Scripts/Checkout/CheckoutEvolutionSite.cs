@@ -221,7 +221,7 @@ namespace Checkout
             tagText.text = queued ? "NA FILA" : "EVOLUINDO";
             var face = ring.Find("Face"); if (face) face.GetComponent<Renderer>().sharedMaterial = queued ? dim : navy;
             int cost = left <= 0 ? 0 : CheckoutSkipPrice.Cost(left);
-            bool showPlate = cost > 0 && plateUntil > Time.unscaledTime;
+            bool showPlate = cost > 0 && plateUntil > Time.unscaledTime && !CheckoutSocial.Visiting;
             if (plate.gameObject.activeSelf != showPlate) plate.gameObject.SetActive(showPlate);
             plateText.text = "TERMINAR JÁ  " + cost;
         }

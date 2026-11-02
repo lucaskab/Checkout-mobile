@@ -38,6 +38,10 @@ namespace Checkout {
   const string IosClientId="";
   const float UploadEvery=300f,RetryOffline=60f;
   static string Server{get{var env=Environment.GetEnvironmentVariable("CHECKOUT_SERVER");return string.IsNullOrEmpty(env)?DefaultServer:env.TrimEnd('/');}}
+  /// <summary>Social v1 (CheckoutSocial): the same server and session; the token stays in Unity.</summary>
+  internal static string ServerUrl=>Server;
+  internal string SessionToken=>token;
+  public bool HasSession=>SignedIn;
 
   CheckoutDesktopHost host;
   string token,playerId,email,playerName,provider,deviceId,lastHash;int revision;long lastSyncAt;
@@ -58,7 +62,8 @@ namespace Checkout {
   [Serializable] class CodeLogin{public string code;public string codeVerifier;public string redirectUri;public string client;}
   [Serializable] class AppleAnswer{public string identityToken;public string authorizationCode;public string name;public string email;}
   [Serializable] class AppleLogin{public string idToken;public string authorizationCode;public string name;public string nonce;}
-  [Serializable] class Exported{public string id;public string data;public Summary summary;public bool fresh;}
+  // publicJson: the social public block (desktop/cloud.ts exportSave), sent as the last field of the upload.
+  [Serializable] class Exported{public string id;public string data;public Summary summary;public bool fresh;public string publicJson;}
   [Serializable] class Imported{public string id;public bool ok;}
   [Serializable] class Resolve{public string keep;}
   [Serializable] class Conflict{public Summary cloud;public long cloudAt;public string cloudDevice;public bool otherAccount;}
@@ -255,7 +260,7 @@ namespace Checkout {
    if(!force&&!always&&hash==lastHash&&status!="offline"&&status!="error"){if(status!="synced")Report("synced");yield break;}
    Report("syncing");
    int baseRevision=force&&conflictCloud!=null?conflictCloud.revision:revision;
-   Reply r=null;yield return Call("PUT","/v1/save",JsonUtility.ToJson(new Upload{baseRevision=baseRevision,data=local.data,deviceId=deviceId,force=force}),x=>r=x);
+   Reply r=null;yield return Call("PUT","/v1/save",UploadBody(new Upload{baseRevision=baseRevision,data=local.data,deviceId=deviceId,force=force},local.publicJson),x=>r=x);
    if(r.code==409){
     var reply=JsonUtility.FromJson<ConflictReply>(r.text);conflictCloud=reply?.current;
     if(conflictCloud==null||conflictCloud.revision==0){revision=0;Report("error","Tente de novo.");yield break;}
@@ -266,6 +271,16 @@ namespace Checkout {
    var saved=JsonUtility.FromJson<CloudSave>(r.text);
    revision=saved.revision;lastHash=hash;synced=local.summary;lastSyncAt=ParseTime(saved.updatedAt);if(lastSyncAt==0)lastSyncAt=Now();
    conflictCloud=null;SavePlayerState();Report("synced");nextUpload=Time.unscaledTime+UploadEvery;
+  }
+  /// <summary>
+  /// The upload as the server reads it fast: {"baseRevision":…,"data":"…","deviceId":"…","force":…} and, from social v1
+  /// on, the public block (running builds, stage, rating; ≤ 4 KB) as the LAST field: …,"force":false,"public":{…}}
+  /// (docs/social-api.md). JsonUtility cannot write a raw JSON object, so it goes in after the class's own fields.
+  /// </summary>
+  static string UploadBody(Upload upload,string publicJson){
+   var json=JsonUtility.ToJson(upload);
+   if(string.IsNullOrEmpty(publicJson)||publicJson[0]!='{'||publicJson.Length>4096)return json;
+   return json.Substring(0,json.Length-1)+",\"public\":"+publicJson+"}";
   }
   IEnumerator DeleteAccount(){
    Report("syncing");

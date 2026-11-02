@@ -57,7 +57,8 @@ namespace Checkout {
    if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutWalker.ShopCrowded){var walker=NextAvailableWalker();if(walker){if(EventVisit(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}else if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(WalkersClearOfEntrance()){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
    if(Input.GetMouseButtonDown(0)){pointerStart=Input.mousePosition;pointerDragged=false;}
    if(Input.touchCount>1||(Input.GetMouseButton(0)&&Vector2.Distance(pointerStart,Input.mousePosition)>10))pointerDragged=true;
-   if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutPointer.OverUi)WorldTap(Input.mousePosition);
+   // A friend's market is looked at only (its builds have their own "Ajudar" buttons, CheckoutDesktopHUD.Social).
+   if(Input.GetMouseButtonUp(0)&&!pointerDragged&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutPointer.OverUi&&!CheckoutSocial.Visiting)WorldTap(Input.mousePosition);
   }
   /// <summary>A tap on the map at this screen point: the clickable thing under it (CheckoutTarget) opens its window.
   /// Returns what was hit (the onboarding test taps where the guide's hand points).</summary>
@@ -98,7 +99,8 @@ namespace Checkout {
   // revision the receipt reports (the mini-game already happened, it only has to be recorded).
   public void Command(string action,string args)=>SendCommand(action,args,State?.revision??0,0);
   void SendCommand(string action,string args,int revision,int tries){
-   if(State==null)return;var id="unity-"+(++commandSequence);
+   // Visiting a friend (CheckoutSocial): nothing the map does there may change the player's game.
+   if(State==null||CheckoutSocial.Visiting)return;var id="unity-"+(++commandSequence);
    if(pending.Count>100)pending.Clear();pending[id]=new PendingCommand{action=action,args=args,tries=tries};
    Emit("{\"kind\":\"command\",\"protocol\":1,\"session\":\""+State.session+"\",\"revision\":"+Mathf.Max(revision,State.revision)+",\"id\":\""+id+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
   }

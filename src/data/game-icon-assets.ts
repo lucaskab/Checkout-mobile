@@ -31,6 +31,11 @@ export const gameIconAssets = {
 	fuelPump: require("../../assets/game-art/icons/fuel-pump.png"),
 	garden: require("../../assets/game-art/icons/garden.png"),
 	gift: require("../../assets/game-art/icons/gift.png"),
+	// Social v1 (Amigos, 02/11/2026): friends, like, share, invite.
+	friends: require("../../assets/game-art/icons/friends.png"),
+	like: require("../../assets/game-art/icons/like.png"),
+	share: require("../../assets/game-art/icons/share.png"),
+	invite: require("../../assets/game-art/icons/invite.png"),
 	graduation: require("../../assets/game-art/icons/graduation.png"),
 	hammer: require("../../assets/game-art/icons/hammer.png"),
 	handshake: require("../../assets/game-art/icons/handshake.png"),
