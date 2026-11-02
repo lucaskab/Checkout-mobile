@@ -430,7 +430,9 @@ function pedidosPage(state: State): Page {
 	const mineTiles = mine.map((request) => {
 		const cancel = act("Cancelar", "socialCancelRequest", [request.id], { variant: "danger", enabled: !busy(`cancel:${request.id}`), ok: "" });
 		return tile(`mine-${request.id}`, `${request.qty}× ${productName(request.productId)}`, {
-			group: "Seus pedidos",
+			// (one group: mine and the friends' side by side, the ribbon says whose)
+			group: "Pedidos abertos",
+			sticker: "SEU PEDIDO",
 			icon: productIcon(request.productId),
 			subtitle: `Vale por mais ${hoursLeft(request, now)} h`,
 			tone: "info",
@@ -449,7 +451,7 @@ function pedidosPage(state: State): Page {
 			request,
 			socialStore.friends.find((friend) => friend.id === request.owner),
 			now,
-			"Pedidos dos amigos",
+			"Pedidos abertos",
 		),
 	);
 	const open = mine.length;

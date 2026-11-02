@@ -4324,6 +4324,8 @@ const catalog: Catalog = {
 	"Usar como convite": "Als Einladung nutzen",
 	"O código de um amigo, ou o convite de quem te chamou (vocês ganham 30 diamantes no Späti).": "Der Code eines Freundes oder die Einladung von dem, der dich eingeladen hat (ihr bekommt 30 Diamanten im Späti).",
 	"+30 diamantes por amigo": "+30 Diamanten pro Freund",
+	"Pedidos abertos": "Offene Anfragen",
+	"SEU PEDIDO": "DEINE ANFRAGE",
 };
 
 export default catalog;

@@ -270,7 +270,7 @@ test("ask friends for a product; the delivery lands in the stock room", async ()
 	await act("socialRequest", product.id, 8);
 	expect(game().social.requests).toEqual([expect.objectContaining({ productId: product.id, qty: 8 })]);
 	const pedidos = pages(game(), "amigos-pedidos");
-	expect(pedidos.board.tiles.find((t) => t.group === "Seus pedidos")).toMatchObject({ title: `8× ${product.name}`, action: { action: "socialCancelRequest" } });
+	expect(pedidos.board.tiles.find((t) => t.sticker === "SEU PEDIDO")).toMatchObject({ title: `8× ${product.name}`, action: { action: "socialCancelRequest" } });
 	const have = game().inventory[product.id] ?? 0;
 	social.socialMock().control("deliver");
 	expect((await social.runInboxCycle()).applied).toBe(2);
