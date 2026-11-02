@@ -79,8 +79,10 @@ namespace Checkout {
    socialToastBox.GetComponent<Image>().color=ok?SocialGold:K.C("E15533");
    // Visiting: under the bar (and its row of "Ajudar" buttons). At home: just above the toolbar, clear of the top bar,
    // the tutorial card and the open window.
+   // With a window open, over the free part of the screen left of it (never over the window's cards).
    var at=visiting?new Vector2(.5f,1):new Vector2(.5f,0);socialToastBox.anchorMin=socialToastBox.anchorMax=socialToastBox.pivot=at;
-   socialToastBox.anchoredPosition=visiting?new Vector2(0,Phone?-178:-170):new Vector2(0,Phone?124:142);
+   float shift=drawer&&drawer.activeSelf?-(Phone?284:308):0;
+   socialToastBox.anchoredPosition=visiting?new Vector2(shift,Phone?-178:-170):new Vector2(shift,Phone?124:142);
    socialToastBox.gameObject.SetActive(true);socialToastBox.SetAsLastSibling();socialToastUntil=Time.unscaledTime+2.8f;
    StartCoroutine(CheckoutUiKit.Pop(socialToastBox,1.06f,.18f));
   }
