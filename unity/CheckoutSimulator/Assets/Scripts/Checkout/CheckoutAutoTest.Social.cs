@@ -37,7 +37,7 @@ namespace Checkout {
    // 1. First time on Amigos: name + face.
    Route("!amigos");yield return new WaitForSecondsRealtime(2.5f);
    // the faces are drawn once (one per frame), then the page shows them
-   Route("~amigos");yield return new WaitForSecondsRealtime(1.5f);
+   yield return Tips();Route("~amigos");yield return new WaitForSecondsRealtime(1.5f);
    yield return Shot("social_profile");
    Act("socialSaveProfile","[\"Mercadinho do Lucas\",\"shopper-4\"]");yield return new WaitForSecondsRealtime(2f);
    Route("~amigos");yield return new WaitForSecondsRealtime(1.5f);
