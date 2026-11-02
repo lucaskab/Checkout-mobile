@@ -123,7 +123,11 @@ await http("POST", "/v1/social/like", { to: lucas.id }, bruno.token);
 const coins0 = game().coins;
 const first = await social.runInboxCycle("login");
 const rewards = getSocialRewards(game().era.id);
-assert.equal(game().coins, coins0 + rewards.gift + rewards.like);
+// the like pays at once; the gift waits in the Correio until "Abrir"
+assert.equal(game().coins, coins0 + rewards.like);
+assert.equal(game().social.mailbox.length, 1);
+await act("socialOpenMail", "all");
+assert.equal(game().coins, coins0 + rewards.like + rewards.gift);
 assert.equal(first.acked, first.applied);
 assert.equal((await http("GET", "/v1/social/inbox", undefined, lucas.token)).body.items.length, 0);
 ok(`inbox applied ${first.applied} and acked (friend_added, gift, like)`);
@@ -133,10 +137,12 @@ await http("POST", "/v1/social/gift", { to: lucas.id }, bruno.token);
 failAck = 1;
 const coins1 = game().coins;
 assert.deepEqual(await social.runInboxCycle(), { applied: 1, acked: 0 });
-assert.equal(game().coins, coins1 + rewards.gift);
+assert.equal(game().social.mailbox.length, 1);
 assert.deepEqual(await social.runInboxCycle(), { applied: 0, acked: 1 });
+assert.equal(game().social.mailbox.length, 1);
+await act("socialOpenMail", "all");
 assert.equal(game().coins, coins1 + rewards.gift);
-ok("gift applied exactly once across a lost ack");
+ok("gift box applied exactly once across a lost ack, paid once when opened");
 
 // like + help Ana at home (helper rewards after the server's OK)
 const coins2 = game().coins;
