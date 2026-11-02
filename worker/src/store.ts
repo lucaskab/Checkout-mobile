@@ -1,4 +1,6 @@
-import type { D1Database, R2Bucket, Row } from "./cf.ts";
+import type { D1Database, D1Result, R2Bucket, Row } from "./cf.ts";
+import { newCode } from "./codes.ts";
+import { DAY_MS, dayOf, SOCIAL } from "./limits.ts";
 import { cleanSummary, HISTORY_EVERY_MS, HISTORY_KEPT, type SaveMeta, type SaveSummary } from "./save.ts";
 
 /** Who vouches for the player: Google (Android, PC, iPhone) or Apple (iPhone). */
@@ -15,6 +17,56 @@ export type PlayerRecord = {
 };
 
 export type ReplaceResult = { ok: true; save: SaveMeta } | { ok: false; current: SaveMeta | null };
+
+/** What PUT /v1/save needs to know about the player's social profile (read with the player, no extra round trip). */
+export type SocialSnapshot = { level: number; era: string; publicJson: string | null; rewardPending: boolean };
+
+/** A row of `profiles` (docs/social-api.md › Data). */
+export type Profile = {
+	id: string;
+	code: string;
+	marketName: string | null;
+	avatar: string | null;
+	level: number;
+	era: string;
+	likes: number;
+	publicJson: string | null;
+	invitedBy: string | null;
+	inviteRewarded: boolean;
+	invitesRewarded: number;
+	nameHidden: boolean;
+	createdAt: number;
+};
+
+/** A friend as the friend list and the visit see them (public_json stays raw text: spliced into the answer). */
+export type FriendRow = Profile & { lastSeen: number; giftedToday: boolean; likedToday: boolean };
+
+export type RequestRow = { id: number; owner: string; productId: string; qty: number; createdAt: number; expiresAt: number };
+
+export type InboxRow = {
+	id: number;
+	kind: string;
+	payload: string;
+	createdAt: number;
+	from: { id: string; code: string; marketName: string | null; avatar: string | null } | null;
+};
+
+/** How another player stands to the signed-in one (friend add / accept / invite redeem). */
+export type Relation = {
+	id: string;
+	areFriends: boolean;
+	/** Who invited them (to refuse circular invites). */
+	invitedBy: string | null;
+	/** They asked me. */
+	incoming: boolean;
+	/** I asked them. */
+	outgoing: boolean;
+	myFriends: number;
+	theirFriends: number;
+	myOutgoing: number;
+};
+
+export type HelpResult = { ok: true; helps: number } | { ok: false; error: "not-friends" | "already-helped" | "build-full" | "daily-limit" };
 
 /**
  * Players and saves: D1 (SQLite) holds the players and what each save is (revision, summary, device, date, where it
@@ -65,14 +117,40 @@ export class Store {
 		await this.db.prepare("UPDATE players SET apple_refresh = ? WHERE id = ?").bind(token, playerId).run();
 	}
 
-	/** The player and their save's description (one round trip). Null when the player is gone. */
-	async getPlayer(id: string): Promise<{ player: PlayerRecord; save: SaveMeta | null } | null> {
-		const [player, save] = await this.db.batch([
-			this.db.prepare("SELECT * FROM players WHERE id = ?").bind(id),
-			this.db.prepare("SELECT * FROM cloud_saves WHERE player_id = ?").bind(id),
-		]);
+	/**
+	 * Until migrations/0002_social.sql has run on the live database, the save routes must keep working exactly as
+	 * before: a "no such table" error turns the social reads off for a minute (the social routes then answer 500).
+	 */
+	socialOffUntil = 0;
+	socialTables() {
+		return this.clock() >= this.socialOffUntil;
+	}
+	missingSocial(error: unknown) {
+		if (!/no such table/i.test(String((error as Error)?.message ?? error))) return false;
+		this.socialOffUntil = this.clock() + 60_000;
+		this.log("social tables missing: run worker/migrations/0002_social.sql in the D1 console");
+		return true;
+	}
+
+	/** The player, their save's description and their social snapshot (one round trip). Null when the player is gone. */
+	async getPlayer(id: string): Promise<{ player: PlayerRecord; save: SaveMeta | null; social: SocialSnapshot | null } | null> {
+		const withSocial = this.socialTables();
+		const statements = [this.db.prepare("SELECT * FROM players WHERE id = ?").bind(id), this.db.prepare("SELECT * FROM cloud_saves WHERE player_id = ?").bind(id)];
+		if (withSocial) statements.push(this.db.prepare("SELECT level, era, public_json, invited_by, invite_rewarded FROM profiles WHERE player_id = ?").bind(id));
+		let results: D1Result[];
+		try {
+			results = await this.db.batch<Row>(statements);
+		} catch (error) {
+			if (withSocial && this.missingSocial(error)) return this.getPlayer(id);
+			throw error;
+		}
+		const [player, save, profile] = results;
 		if (!player.results[0]) return null;
-		return { player: toPlayer(player.results[0]), save: save.results[0] ? toSave(save.results[0]) : null };
+		const p = profile?.results[0];
+		const social = p
+			? { level: Number(p.level), era: String(p.era), publicJson: str(p.public_json), rewardPending: p.invited_by !== null && !Number(p.invite_rewarded) }
+			: null;
+		return { player: toPlayer(player.results[0]), save: save.results[0] ? toSave(save.results[0]) : null, social };
 	}
 
 	async getSave(playerId: string): Promise<SaveMeta | null> {
@@ -155,14 +233,417 @@ export class Store {
 		return { ok: true, save: { revision, summary: upload.summary, deviceId: upload.deviceId, updatedAt: now, key, bytes } };
 	}
 
-	/** The player, their save and every restore point, for good. */
-	async deletePlayer(id: string) {
-		const [save, history] = await this.db.batch<{ body_key: string }>([
-			this.db.prepare("DELETE FROM cloud_saves WHERE player_id = ? RETURNING body_key").bind(id),
-			this.db.prepare("DELETE FROM save_history WHERE player_id = ? RETURNING body_key").bind(id),
-			this.db.prepare("DELETE FROM players WHERE id = ?").bind(id),
-		]);
+	/**
+	 * The player, their save and every restore point, for good — and every social row: profile, both sides of each
+	 * friendship, friend requests both ways, inbox, product requests, helps, daily counters, reports by and about them.
+	 * What they sent to others stays (a gift or a delivery is the receiver's now) without their id; players they
+	 * invited keep "already invited" (invited_by '').
+	 */
+	async deletePlayer(id: string): Promise<void> {
+		const social = this.socialTables() ? socialDeletes(this.db, id) : [];
+		let results: D1Result[];
+		try {
+			results = await this.db.batch([
+				this.db.prepare("DELETE FROM cloud_saves WHERE player_id = ? RETURNING body_key").bind(id),
+				this.db.prepare("DELETE FROM save_history WHERE player_id = ? RETURNING body_key").bind(id),
+				this.db.prepare("DELETE FROM players WHERE id = ?").bind(id),
+				...social,
+			]);
+		} catch (error) {
+			if (social.length && this.missingSocial(error)) return this.deletePlayer(id);
+			throw error;
+		}
+		const [save, history] = results as unknown as { results: { body_key: string }[] }[];
 		await this.deleteObjects([...save.results, ...history.results].map((row) => row.body_key));
+	}
+
+	// ── Social v1 (docs/social-api.md) ──────────────────────────────────────────────────────────────────────────
+
+	/**
+	 * The signed-in player's profile, created on first use (new code; level and era from the cloud save's summary), and
+	 * when their account was created. One round trip. Null when the player is gone. `counts`: also the number of
+	 * friends and the inviter's code (GET/PUT /v1/social/me).
+	 */
+	async socialMe(playerId: string, counts = false): Promise<{ profile: Profile; accountCreatedAt: number; friends: number; inviterCode: string | null } | null> {
+		const now = this.clock();
+		const extra = counts
+			? ", (SELECT COUNT(*) FROM friends WHERE player_id = pl.id) AS friend_count, (SELECT code FROM profiles WHERE player_id = pr.invited_by) AS inviter_code"
+			: "";
+		for (let attempt = 0; attempt < 4; attempt++) {
+			const [, found] = await this.db.batch([
+				this.db
+					.prepare(
+						`INSERT INTO profiles (player_id, code, level, era, created_at, updated_at)
+						 SELECT p.id, ?, COALESCE((SELECT json_extract(summary, '$.level') FROM cloud_saves WHERE player_id = p.id), 1),
+						   COALESCE((SELECT json_extract(summary, '$.era') FROM cloud_saves WHERE player_id = p.id), ''), ?, ?
+						 FROM players p WHERE p.id = ? AND NOT EXISTS (SELECT 1 FROM profiles WHERE player_id = p.id) ON CONFLICT DO NOTHING`,
+					)
+					.bind(newCode(), now, now, playerId),
+				this.db.prepare(`SELECT pl.created_at AS account_created_at, pr.*${extra} FROM players pl LEFT JOIN profiles pr ON pr.player_id = pl.id WHERE pl.id = ?`).bind(playerId),
+			]);
+			const row = found.results[0];
+			if (!row) return null;
+			// No profile yet means the random code was someone else's: draw another.
+			if (row.player_id)
+				return { profile: toProfile(row), accountCreatedAt: Number(row.account_created_at), friends: Number(row.friend_count ?? 0), inviterCode: str(row.inviter_code) };
+		}
+		throw new Error("no free invite code");
+	}
+
+	/** Changes the market name and/or avatar (undefined = unchanged). A new name clears the reports and the hiding. */
+	async updateProfile(playerId: string, changes: { marketName?: string; avatar?: string | null; clearReports?: boolean }) {
+		const sets = ["updated_at = ?"];
+		const values: unknown[] = [this.clock()];
+		if (changes.marketName !== undefined) {
+			sets.push("market_name = ?");
+			values.push(changes.marketName);
+		}
+		if (changes.avatar !== undefined) {
+			sets.push("avatar = ?");
+			values.push(changes.avatar);
+		}
+		if (changes.clearReports) sets.push("name_hidden = 0");
+		const statements = [this.db.prepare(`UPDATE profiles SET ${sets.join(", ")} WHERE player_id = ?`).bind(...values, playerId)];
+		if (changes.clearReports) statements.push(this.db.prepare("DELETE FROM name_reports WHERE target_id = ?").bind(playerId));
+		await this.db.batch(statements);
+	}
+
+	/**
+	 * After an upload won: the profile's level and era from the save's summary, the public block when one was sent
+	 * (undefined = keep), and the invite reward when it is due (self-guarded, see inviteReward). Only an existing profile.
+	 */
+	async refreshProfile(playerId: string, summary: { level: number; era: string }, publicJson: string | null | undefined) {
+		const now = this.clock();
+		const withPublic = publicJson !== undefined;
+		await this.db.batch([
+			this.db
+				.prepare(`UPDATE profiles SET level = ?, era = ?, ${withPublic ? "public_json = ?, " : ""}updated_at = ? WHERE player_id = ?`)
+				.bind(...[summary.level, summary.era, ...(withPublic ? [publicJson] : []), now, playerId]),
+			...inviteReward(this.db, playerId, now),
+		]);
+	}
+
+	/** The friend list (most recently seen first), their open product requests, and friend requests both ways. */
+	async friendsOf(playerId: string) {
+		const now = this.clock();
+		const [friends, requests, incoming, outgoing] = await this.db.batch([
+			this.db.prepare(`${FRIEND_SELECT} WHERE f.player_id = ? ORDER BY last_seen DESC`).bind(dayOf(now), dayOf(now), playerId),
+			this.db
+				.prepare(
+					`SELECT r.* FROM friends f JOIN product_requests r ON r.player_id = f.friend_id AND r.status = 'open' AND r.expires_at > ?
+					 WHERE f.player_id = ? ORDER BY r.id`,
+				)
+				.bind(now, playerId),
+			this.db.prepare("SELECT pr.* FROM friend_requests q JOIN profiles pr ON pr.player_id = q.from_id WHERE q.to_id = ? ORDER BY q.created_at").bind(playerId),
+			this.db.prepare("SELECT pr.* FROM friend_requests q JOIN profiles pr ON pr.player_id = q.to_id WHERE q.from_id = ? ORDER BY q.created_at").bind(playerId),
+		]);
+		return {
+			friends: friends.results.map(toFriend),
+			requests: requests.results.map(toRequest),
+			incoming: incoming.results.map(toProfile),
+			outgoing: outgoing.results.map(toProfile),
+		};
+	}
+
+	/** A friend's profile, open requests and save description, for a visit. Null when they are not friends. */
+	async friendMarket(playerId: string, friendId: string) {
+		const now = this.clock();
+		const [friend, requests, save] = await this.db.batch([
+			this.db.prepare(`${FRIEND_SELECT} WHERE f.player_id = ? AND f.friend_id = ?`).bind(dayOf(now), dayOf(now), playerId, friendId),
+			this.db.prepare("SELECT * FROM product_requests WHERE player_id = ? AND status = 'open' AND expires_at > ? ORDER BY id").bind(friendId, now),
+			this.db.prepare("SELECT * FROM cloud_saves WHERE player_id = ? AND EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?)").bind(friendId, playerId, friendId),
+		]);
+		if (!friend.results[0]) return null;
+		return { friend: toFriend(friend.results[0]), requests: requests.results.map(toRequest), save: save.results[0] ? toSave(save.results[0]) : null };
+	}
+
+	/** How the player found by code (or id) stands to me. Null when there is no such profile. */
+	async relation(playerId: string, other: { code: string } | { id: string }): Promise<Relation | null> {
+		const row = await this.db
+			.prepare(
+				`SELECT pr.player_id AS id, pr.invited_by,
+				   EXISTS (SELECT 1 FROM friends WHERE player_id = ?1 AND friend_id = pr.player_id) AS are_friends,
+				   EXISTS (SELECT 1 FROM friend_requests WHERE from_id = pr.player_id AND to_id = ?1) AS incoming,
+				   EXISTS (SELECT 1 FROM friend_requests WHERE from_id = ?1 AND to_id = pr.player_id) AS outgoing,
+				   (SELECT COUNT(*) FROM friends WHERE player_id = ?1) AS my_friends,
+				   (SELECT COUNT(*) FROM friends WHERE player_id = pr.player_id) AS their_friends,
+				   (SELECT COUNT(*) FROM friend_requests WHERE from_id = ?1) AS my_outgoing
+				 FROM profiles pr WHERE ${"code" in other ? "pr.code" : "pr.player_id"} = ?2`,
+			)
+			.bind(playerId, "code" in other ? other.code : other.id)
+			.first();
+		if (!row) return null;
+		return {
+			id: String(row.id),
+			invitedBy: str(row.invited_by),
+			areFriends: !!Number(row.are_friends),
+			incoming: !!Number(row.incoming),
+			outgoing: !!Number(row.outgoing),
+			myFriends: Number(row.my_friends),
+			theirFriends: Number(row.their_friends),
+			myOutgoing: Number(row.my_outgoing),
+		};
+	}
+
+	/** A friend request (and its inbox item), unless one is already pending or the outgoing limit is reached. */
+	async requestFriend(fromId: string, toId: string) {
+		const now = this.clock();
+		const allowed = `NOT EXISTS (SELECT 1 FROM friend_requests WHERE from_id = ? AND to_id = ?) AND (SELECT COUNT(*) FROM friend_requests WHERE from_id = ?) < ${SOCIAL.maxOutgoingRequests}`;
+		const guard = [fromId, toId, fromId];
+		const [, inserted] = await this.db.batch([
+			this.db.prepare(`INSERT INTO inbox (player_id, kind, from_id, payload, created_at) SELECT ?, 'friend_request', ?, '{}', ? WHERE ${allowed}`).bind(toId, fromId, now, ...guard),
+			this.db.prepare(`INSERT INTO friend_requests (from_id, to_id, created_at) SELECT ?, ?, ? WHERE ${allowed} ON CONFLICT DO NOTHING`).bind(fromId, toId, now, ...guard),
+		]);
+		return inserted.meta.changes === 1;
+	}
+
+	/**
+	 * Makes two players friends — both rows, unless either already has the maximum (checked inside the write, so two
+	 * accepts at once cannot pass it) — clears the requests between them and tells `notify` (friend_added). Answers
+	 * whether they are friends now.
+	 */
+	async befriend(a: string, b: string, via: "code" | "invite", notify: string) {
+		const statements = befriendStatements(this.db, a, b, via, notify, this.clock());
+		const results = await this.db.batch([...statements, this.db.prepare("SELECT EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?) AS friends").bind(a, b)]);
+		return { friends: !!Number(results[results.length - 1].results[0]?.friends), made: results[1].meta.changes === 1 };
+	}
+
+	/**
+	 * Redeems an invite: records who invited me (only if nobody did yet), makes us friends when both have room, and
+	 * sends the invite rewards right away if I am already at the reward level. One transaction.
+	 */
+	async redeemInvite(playerId: string, inviterId: string) {
+		const now = this.clock();
+		const unclaimed = "(SELECT invited_by FROM profiles WHERE player_id = ?) IS NULL";
+		const statements = befriendStatements(this.db, playerId, inviterId, "invite", inviterId, now, { sql: unclaimed, values: [playerId] });
+		const results = await this.db.batch([
+			...statements,
+			this.db.prepare("UPDATE profiles SET invited_by = ?, updated_at = ? WHERE player_id = ? AND invited_by IS NULL").bind(inviterId, now, playerId),
+			...inviteReward(this.db, playerId, now),
+			this.db.prepare("SELECT EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?) AS friends").bind(playerId, inviterId),
+		]);
+		return { claimed: results[statements.length].meta.changes === 1, friends: !!Number(results[results.length - 1].results[0]?.friends) };
+	}
+
+	async declineFriend(playerId: string, fromId: string) {
+		await this.db.prepare("DELETE FROM friend_requests WHERE from_id = ? AND to_id = ?").bind(fromId, playerId).run();
+	}
+
+	/** Ends a friendship (both rows) and drops any friend request between the two. */
+	async removeFriend(playerId: string, friendId: string) {
+		await this.db.batch([
+			this.db.prepare("DELETE FROM friends WHERE (player_id = ? AND friend_id = ?) OR (player_id = ? AND friend_id = ?)").bind(playerId, friendId, friendId, playerId),
+			this.db.prepare("DELETE FROM friend_requests WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)").bind(playerId, friendId, friendId, playerId),
+		]);
+	}
+
+	/** A market-name report; the third distinct reporter hides the name. False when there is no such player. */
+	async reportName(reporterId: string, targetId: string) {
+		const now = this.clock();
+		const [, , found] = await this.db.batch([
+			this.db
+				.prepare(
+					`INSERT INTO name_reports (target_id, reporter_id, created_at) SELECT ?, ?, ?
+					 WHERE EXISTS (SELECT 1 FROM profiles WHERE player_id = ? AND market_name IS NOT NULL) ON CONFLICT DO NOTHING`,
+				)
+				.bind(targetId, reporterId, now, targetId),
+			this.db
+				.prepare(`UPDATE profiles SET name_hidden = 1 WHERE player_id = ? AND name_hidden = 0 AND (SELECT COUNT(*) FROM name_reports WHERE target_id = ?) >= ${SOCIAL.reportsToHide}`)
+				.bind(targetId, targetId),
+			this.db.prepare("SELECT 1 AS found FROM profiles WHERE player_id = ?").bind(targetId),
+		]);
+		return found.results.length > 0;
+	}
+
+	/**
+	 * A once-a-day action towards a friend (gift or like): the inbox item, the daily mark (and the like counter) are
+	 * written together, all guarded by "friends and not yet today" inside the write. Answers the outcome and, for a
+	 * like, the friend's likes.
+	 */
+	async daily(kind: "gift" | "like", fromId: string, toId: string): Promise<{ result: "ok" | "not-friends" | "already-today"; likes: number }> {
+		const now = this.clock();
+		const day = dayOf(now);
+		const guard = `EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?)
+			AND NOT EXISTS (SELECT 1 FROM daily_actions WHERE player_id = ? AND day = ? AND kind = '${kind}' AND target = ?)`;
+		const values = [fromId, toId, fromId, day, toId];
+		const statements = [
+			this.db.prepare(`INSERT INTO inbox (player_id, kind, from_id, payload, created_at) SELECT ?, '${kind}', ?, '{}', ? WHERE ${guard}`).bind(toId, fromId, now, ...values),
+		];
+		if (kind === "like") statements.push(this.db.prepare(`UPDATE profiles SET likes_total = likes_total + 1 WHERE player_id = ? AND ${guard}`).bind(toId, ...values));
+		statements.push(
+			this.db.prepare(`INSERT INTO daily_actions (player_id, day, kind, target) SELECT ?, ?, '${kind}', ? WHERE ${guard} ON CONFLICT DO NOTHING`).bind(fromId, day, toId, ...values),
+			this.db.prepare("DELETE FROM daily_actions WHERE player_id = ? AND day < ?").bind(fromId, day),
+			this.db
+				.prepare("SELECT EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?) AS friends, (SELECT likes_total FROM profiles WHERE player_id = ?) AS likes")
+				.bind(fromId, toId, toId),
+		);
+		const results = await this.db.batch(statements);
+		const marked = results[statements.length - 3].meta.changes === 1;
+		const check = results[statements.length - 1].results[0] ?? {};
+		return { result: marked ? "ok" : Number(check.friends) ? "already-today" : "not-friends", likes: Number(check.likes ?? 0) };
+	}
+
+	/** The friend's public block (to check a build id) and whether we are friends. */
+	async helpTarget(helperId: string, ownerId: string) {
+		const row = await this.db
+			.prepare("SELECT public_json, EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?) AS friends FROM profiles WHERE player_id = ?")
+			.bind(helperId, ownerId, ownerId)
+			.first();
+		return { friends: !!Number(row?.friends), publicJson: str(row?.public_json) };
+	}
+
+	/**
+	 * A help on a friend's build: one per helper per build, at most SOCIAL.maxHelpsPerBuild per build and
+	 * SOCIAL.maxHelpsGivenPerDay per helper per UTC day — all checked inside the write (two helps at once cannot pass
+	 * the maximum). The inbox item is written with it.
+	 */
+	async help(helperId: string, ownerId: string, buildId: string): Promise<HelpResult> {
+		const now = this.clock();
+		const dayStart = dayOf(now) * DAY_MS;
+		const guard = `EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?)
+			AND NOT EXISTS (SELECT 1 FROM build_helps WHERE owner_id = ? AND build_id = ? AND helper_id = ?)
+			AND (SELECT COUNT(*) FROM build_helps WHERE owner_id = ? AND build_id = ?) < ${SOCIAL.maxHelpsPerBuild}
+			AND (SELECT COUNT(*) FROM build_helps WHERE helper_id = ? AND created_at >= ?) < ${SOCIAL.maxHelpsGivenPerDay}`;
+		const values = [helperId, ownerId, ownerId, buildId, helperId, ownerId, buildId, helperId, dayStart];
+		const payload = JSON.stringify({ buildId, minutes: SOCIAL.helpMinutes });
+		const [, inserted, , check] = await this.db.batch([
+			this.db.prepare(`INSERT INTO inbox (player_id, kind, from_id, payload, created_at) SELECT ?, 'help', ?, ?, ? WHERE ${guard}`).bind(ownerId, helperId, payload, now, ...values),
+			this.db.prepare(`INSERT INTO build_helps (owner_id, build_id, helper_id, created_at) SELECT ?, ?, ?, ? WHERE ${guard} ON CONFLICT DO NOTHING`).bind(ownerId, buildId, helperId, now, ...values),
+			this.db.prepare("DELETE FROM build_helps WHERE owner_id = ? AND created_at < ?").bind(ownerId, now - SOCIAL.keepHelpsMs),
+			this.db
+				.prepare(
+					`SELECT (SELECT COUNT(*) FROM build_helps WHERE owner_id = ? AND build_id = ?) AS helps,
+					   EXISTS (SELECT 1 FROM build_helps WHERE owner_id = ? AND build_id = ? AND helper_id = ?) AS helped,
+					   (SELECT COUNT(*) FROM build_helps WHERE helper_id = ? AND created_at >= ?) AS today,
+					   EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?) AS friends`,
+				)
+				.bind(ownerId, buildId, ownerId, buildId, helperId, helperId, dayStart, helperId, ownerId),
+		]);
+		const c = check.results[0] ?? {};
+		if (inserted.meta.changes === 1) return { ok: true, helps: Number(c.helps) };
+		if (!Number(c.friends)) return { ok: false, error: "not-friends" };
+		if (Number(c.helped)) return { ok: false, error: "already-helped" };
+		if (Number(c.helps) >= SOCIAL.maxHelpsPerBuild) return { ok: false, error: "build-full" };
+		return { ok: false, error: "daily-limit" };
+	}
+
+	/** My open requests and my friends' (not expired). */
+	async requestsFor(playerId: string) {
+		const now = this.clock();
+		const [mine, friends] = await this.db.batch([
+			this.db.prepare("SELECT * FROM product_requests WHERE player_id = ? AND status = 'open' AND expires_at > ? ORDER BY id").bind(playerId, now),
+			this.db
+				.prepare(
+					`SELECT r.* FROM friends f JOIN product_requests r ON r.player_id = f.friend_id AND r.status = 'open' AND r.expires_at > ?
+					 WHERE f.player_id = ? ORDER BY r.id`,
+				)
+				.bind(now, playerId),
+		]);
+		return { mine: mine.results.map(toRequest), friends: friends.results.map(toRequest) };
+	}
+
+	/** A new product request, unless SOCIAL.maxOpenRequests are open (checked inside the write). Null = limit. */
+	async createRequest(playerId: string, productId: string, qty: number): Promise<RequestRow | null> {
+		const now = this.clock();
+		const [, , created] = await this.db.batch([
+			// Housekeeping first: expired ones stop counting, old closed ones go.
+			this.db.prepare("UPDATE product_requests SET status = 'expired' WHERE player_id = ? AND status = 'open' AND expires_at <= ?").bind(playerId, now),
+			this.db.prepare("DELETE FROM product_requests WHERE player_id = ? AND status != 'open' AND created_at < ?").bind(playerId, now - SOCIAL.keepClosedRequestsMs),
+			this.db
+				.prepare(
+					`INSERT INTO product_requests (player_id, product_id, qty, status, created_at, expires_at)
+					 SELECT ?, ?, ?, 'open', ?, ? WHERE (SELECT COUNT(*) FROM product_requests WHERE player_id = ? AND status = 'open') < ${SOCIAL.maxOpenRequests}
+					 RETURNING *`,
+				)
+				.bind(playerId, productId, qty, now, now + SOCIAL.requestTtlMs, playerId),
+		]);
+		return created.results[0] ? toRequest(created.results[0]) : null;
+	}
+
+	/** Cancels one of my open requests. False when there is no such open request of mine. */
+	async cancelRequest(playerId: string, requestId: number) {
+		const result = await this.db.prepare("UPDATE product_requests SET status = 'cancelled' WHERE id = ? AND player_id = ? AND status = 'open'").bind(requestId, playerId).run();
+		return result.meta.changes === 1;
+	}
+
+	/**
+	 * Fulfils a friend's request — atomically: the two inbox items (delivery + request_fulfilled) are inserted in the
+	 * same transaction as `UPDATE … WHERE status = 'open' AND expires_at > now`, all guarded by that same condition and
+	 * written before the update flips it, so either all three happen or none. The update's changes decide the answer;
+	 * when it lost (someone else first, cancelled, expired) nothing was delivered.
+	 */
+	async fulfillRequest(playerId: string, requestId: number): Promise<"ok" | "not-found" | "not-friends" | "taken"> {
+		const now = this.clock();
+		const guard = `r.id = ? AND r.status = 'open' AND r.expires_at > ? AND EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = r.player_id)`;
+		const values = [requestId, now, playerId];
+		const results = await this.db.batch([
+			this.db
+				.prepare(
+					`INSERT INTO inbox (player_id, kind, from_id, payload, created_at)
+					 SELECT r.player_id, 'delivery', ?, json_object('requestId', r.id, 'productId', r.product_id, 'qty', r.qty), ? FROM product_requests r WHERE ${guard}`,
+				)
+				.bind(playerId, now, ...values),
+			this.db
+				.prepare(
+					`INSERT INTO inbox (player_id, kind, from_id, payload, created_at)
+					 SELECT r.player_id, 'request_fulfilled', ?, json_object('requestId', r.id), ? FROM product_requests r WHERE ${guard}`,
+				)
+				.bind(playerId, now, ...values),
+			this.db
+				.prepare(
+					`UPDATE product_requests SET status = 'fulfilled', fulfilled_by = ? WHERE id = ? AND status = 'open' AND expires_at > ?
+					 AND EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = product_requests.player_id)`,
+				)
+				.bind(playerId, requestId, now, playerId),
+			this.db
+				.prepare("SELECT r.player_id, EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = r.player_id) AS friends FROM product_requests r WHERE r.id = ?")
+				.bind(playerId, requestId),
+		]);
+		if (results[2].meta.changes === 1) return "ok";
+		const row = results[3].results[0];
+		if (!row) return "not-found";
+		return Number(row.friends) ? "taken" : "not-friends";
+	}
+
+	/**
+	 * Unacked inbox items, oldest first, at most SOCIAL.inboxPage. Gifts beyond what the player may still claim today
+	 * (SOCIAL.maxGiftsClaimedPerDay minus gifts acked today) stay on the server for the next days.
+	 */
+	async inbox(playerId: string): Promise<InboxRow[]> {
+		const dayStart = dayOf(this.clock()) * DAY_MS;
+		const { results } = await this.db
+			.prepare(
+				`SELECT i.id, i.kind, i.payload, i.created_at, i.from_id, pr.code, pr.market_name, pr.avatar, pr.name_hidden FROM (
+				   SELECT *, CASE WHEN kind = 'gift' THEN ROW_NUMBER() OVER (PARTITION BY kind = 'gift' ORDER BY id) END AS gift_n
+				   FROM inbox WHERE player_id = ? AND acked_at IS NULL
+				 ) i LEFT JOIN profiles pr ON pr.player_id = i.from_id
+				 WHERE i.gift_n IS NULL OR i.gift_n <= ${SOCIAL.maxGiftsClaimedPerDay} - (SELECT COUNT(*) FROM inbox WHERE player_id = ? AND acked_at >= ? AND kind = 'gift')
+				 ORDER BY i.id LIMIT ${SOCIAL.inboxPage}`,
+			)
+			.bind(playerId, playerId, dayStart)
+			.all();
+		return results.map((row) => ({
+			id: Number(row.id),
+			kind: String(row.kind),
+			payload: String(row.payload),
+			createdAt: Number(row.created_at),
+			from: row.code ? { id: String(row.from_id), code: String(row.code), marketName: Number(row.name_hidden) ? null : str(row.market_name), avatar: str(row.avatar) } : null,
+		}));
+	}
+
+	/** Acks inbox items (only the player's own, unacked ones) and drops the ones acked long ago. */
+	async ackInbox(playerId: string, ids: number[]) {
+		const now = this.clock();
+		await this.db.batch([
+			this.db.prepare("UPDATE inbox SET acked_at = ? WHERE player_id = ? AND acked_at IS NULL AND id IN (SELECT value FROM json_each(?))").bind(now, playerId, JSON.stringify(ids)),
+			this.db.prepare("DELETE FROM inbox WHERE player_id = ? AND acked_at < ?").bind(playerId, now - SOCIAL.keepAckedMs),
+		]);
+	}
+
+	/** The invite landing page's lookup: the market name behind a code (null when unknown, unnamed or hidden). */
+	async marketNameByCode(code: string) {
+		const row = await this.db.prepare("SELECT market_name, name_hidden FROM profiles WHERE code = ?").bind(code).first();
+		return row && !Number(row.name_hidden) ? str(row.market_name) : null;
 	}
 
 	/** Objects nothing points at any more. A failure only leaves an orphan behind (never a missing save). */
@@ -184,6 +665,86 @@ export function pruneHistory(db: D1Database, playerId: string) {
 			 RETURNING body_key`,
 		)
 		.bind(playerId, playerId);
+}
+
+// ── Social statements shared by several store methods ───────────────────────────────────────────────────────
+
+/** A friend as seen by f.player_id: profile, last seen (last upload or login), gifted/liked today. Binds: day, day. */
+const FRIEND_SELECT = `SELECT pr.*, MAX(COALESCE(s.updated_at, 0), COALESCE(pl.last_seen, 0)) AS last_seen,
+	  EXISTS (SELECT 1 FROM daily_actions d WHERE d.player_id = f.player_id AND d.day = ? AND d.kind = 'gift' AND d.target = f.friend_id) AS gifted,
+	  EXISTS (SELECT 1 FROM daily_actions d WHERE d.player_id = f.player_id AND d.day = ? AND d.kind = 'like' AND d.target = f.friend_id) AS liked
+	FROM friends f JOIN profiles pr ON pr.player_id = f.friend_id LEFT JOIN players pl ON pl.id = f.friend_id LEFT JOIN cloud_saves s ON s.player_id = f.friend_id`;
+
+/**
+ * Friendship between a and b, as statements for one batch. The inbox item for `notify` and the first row are guarded
+ * by "both below the friend maximum and not friends yet" (plus `extra`), evaluated before either is written; the
+ * second row and the clean-up of requests follow the first row (so a pair is never half made).
+ */
+function befriendStatements(db: D1Database, a: string, b: string, via: "code" | "invite", notify: string, now: number, extra?: { sql: string; values: unknown[] }) {
+	const guard = `(SELECT COUNT(*) FROM friends WHERE player_id = ?) < ${SOCIAL.maxFriends} AND (SELECT COUNT(*) FROM friends WHERE player_id = ?) < ${SOCIAL.maxFriends}
+		AND NOT EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?)${extra ? ` AND ${extra.sql}` : ""}`;
+	const values = [a, b, a, b, ...(extra?.values ?? [])];
+	const paired = "EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?)";
+	return [
+		db
+			.prepare(`INSERT INTO inbox (player_id, kind, from_id, payload, created_at) SELECT ?, 'friend_added', ?, ?, ? WHERE ${guard}`)
+			.bind(notify, notify === a ? b : a, JSON.stringify({ via }), now, ...values),
+		db.prepare(`INSERT INTO friends (player_id, friend_id, created_at) SELECT ?, ?, ? WHERE ${guard} ON CONFLICT DO NOTHING`).bind(a, b, now, ...values),
+		db.prepare(`INSERT INTO friends (player_id, friend_id, created_at) SELECT ?, ?, ? WHERE ${paired} ON CONFLICT DO NOTHING`).bind(b, a, now, a, b),
+		db
+			.prepare(`DELETE FROM friend_requests WHERE ((from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)) AND ${paired}`)
+			.bind(a, b, b, a, a, b),
+	];
+}
+
+const INVITER_REWARD = `CASE invites_rewarded ${SOCIAL.inviteMilestones
+	.map((m) => `WHEN ${m} THEN '${JSON.stringify({ diamonds: SOCIAL.inviteRewardDiamonds, role: "inviter", milestone: m })}'`)
+	.join(" ")} ELSE '${JSON.stringify({ diamonds: SOCIAL.inviteRewardDiamonds, role: "inviter" })}' END`;
+const INVITED_REWARD = JSON.stringify({ diamonds: SOCIAL.inviteRewardDiamonds, role: "invited" });
+
+/**
+ * The invite reward, as statements for one batch: when the invited player (playerId) has an inviter, is at the
+ * reward level and was not rewarded yet, the inviter's count goes up, both get an invite_reward inbox item (the
+ * inviter's carries the milestone when the new count is one) and the invited player is marked rewarded. Every
+ * statement checks that same condition and the mark is written last, so all happen or none, and never twice
+ * (D1 runs batches one at a time). An inviter whose account is gone ('') gets nothing; the invited player still does.
+ */
+export function inviteReward(db: D1Database, playerId: string, now: number) {
+	const due = `invited_by IS NOT NULL AND invite_rewarded = 0 AND level >= ${SOCIAL.inviteRewardLevel}`;
+	const dueMe = `EXISTS (SELECT 1 FROM profiles WHERE player_id = ? AND ${due})`;
+	const inviter = "(SELECT invited_by FROM profiles WHERE player_id = ?)";
+	return [
+		db.prepare(`UPDATE profiles SET invites_rewarded = invites_rewarded + 1 WHERE player_id = ${inviter} AND ${dueMe}`).bind(playerId, playerId),
+		db
+			.prepare(`INSERT INTO inbox (player_id, kind, from_id, payload, created_at) SELECT player_id, 'invite_reward', ?, ${INVITER_REWARD}, ? FROM profiles WHERE player_id = ${inviter} AND ${dueMe}`)
+			.bind(playerId, now, playerId, playerId),
+		db
+			.prepare(`INSERT INTO inbox (player_id, kind, from_id, payload, created_at) SELECT player_id, 'invite_reward', NULLIF(invited_by, ''), ?, ? FROM profiles WHERE player_id = ? AND ${due}`)
+			.bind(INVITED_REWARD, now, playerId),
+		db.prepare(`UPDATE profiles SET invite_rewarded = 1 WHERE player_id = ? AND ${due}`).bind(playerId),
+	];
+}
+
+/** Every social row of a deleted player (see Store.deletePlayer). */
+function socialDeletes(db: D1Database, id: string) {
+	return [
+		"DELETE FROM friends WHERE (player_id, friend_id) IN (SELECT friend_id, player_id FROM friends WHERE player_id = ?)",
+		"DELETE FROM friends WHERE player_id = ?",
+		"DELETE FROM friend_requests WHERE from_id = ?",
+		"DELETE FROM friend_requests WHERE to_id = ?",
+		"DELETE FROM inbox WHERE player_id = ?",
+		"UPDATE inbox SET from_id = NULL WHERE from_id = ?",
+		"DELETE FROM daily_actions WHERE player_id = ?",
+		"DELETE FROM daily_actions WHERE target = ?",
+		"DELETE FROM build_helps WHERE owner_id = ?",
+		"DELETE FROM build_helps WHERE helper_id = ?",
+		"DELETE FROM product_requests WHERE player_id = ?",
+		"UPDATE product_requests SET fulfilled_by = NULL WHERE fulfilled_by = ?",
+		"DELETE FROM name_reports WHERE target_id = ?",
+		"DELETE FROM name_reports WHERE reporter_id = ?",
+		"UPDATE profiles SET invited_by = '' WHERE invited_by = ?",
+		"DELETE FROM profiles WHERE player_id = ?",
+	].map((sql) => db.prepare(sql).bind(id));
 }
 
 /** A new, never reused R2 key for a save of that player. */
@@ -211,5 +772,40 @@ export function toSave(row: Row): SaveMeta {
 		updatedAt: Number(row.updated_at),
 		key: String(row.body_key),
 		bytes: Number(row.bytes),
+	};
+}
+
+const flag = (value: unknown) => !!Number(value);
+
+export function toProfile(row: Row): Profile {
+	return {
+		id: String(row.player_id),
+		code: String(row.code),
+		marketName: str(row.market_name),
+		avatar: str(row.avatar),
+		level: Number(row.level),
+		era: String(row.era ?? ""),
+		likes: Number(row.likes_total ?? 0),
+		publicJson: str(row.public_json),
+		invitedBy: str(row.invited_by),
+		inviteRewarded: flag(row.invite_rewarded),
+		invitesRewarded: Number(row.invites_rewarded ?? 0),
+		nameHidden: flag(row.name_hidden),
+		createdAt: Number(row.created_at),
+	};
+}
+
+export function toFriend(row: Row): FriendRow {
+	return { ...toProfile(row), lastSeen: Number(row.last_seen ?? 0), giftedToday: flag(row.gifted), likedToday: flag(row.liked) };
+}
+
+export function toRequest(row: Row): RequestRow {
+	return {
+		id: Number(row.id),
+		owner: String(row.player_id),
+		productId: String(row.product_id),
+		qty: Number(row.qty),
+		createdAt: Number(row.created_at),
+		expiresAt: Number(row.expires_at),
 	};
 }

@@ -1,5 +1,8 @@
+import { HEADERS, HttpError, json } from "./http.ts";
+import { SOCIAL } from "./limits.ts";
 import { BadRequest, canReplace, MAX_SAVE_BYTES, readUpload, type SaveMeta } from "./save.ts";
-import type { PlayerRecord, Store } from "./store.ts";
+import { socialRoutes } from "./social.ts";
+import type { PlayerRecord, SocialSnapshot, Store } from "./store.ts";
 import { type AppleTokens, type AppleVerifier, type GoogleVerifier, readSession, sha256Hex, signSession } from "./tokens.ts";
 
 /**
@@ -10,10 +13,12 @@ import { type AppleTokens, type AppleVerifier, type GoogleVerifier, readSession,
  * - POST /v1/auth/apple   {idToken, authorizationCode?, name?, nonce?} → the same (Sign in with Apple; nonce: the raw
  *   one-time value whose SHA-256 the phone gave Apple; when sent, the token's nonce claim must match it)
  * - GET  /v1/save                                          → {revision, updatedAt, summary, deviceId, data} | 404
- * - PUT  /v1/save         {baseRevision, data, deviceId, force?} → {revision, updatedAt, summary, deviceId}
+ * - PUT  /v1/save         {baseRevision, data, deviceId, force?, public?} → {revision, updatedAt, summary, deviceId}
  *                                                           | 409 {error:"conflict", current: {…} | null}
- * - DELETE /v1/account                                     → 204 (the player and every save, for good)
+ * - DELETE /v1/account                                     → 204 (the player, every save and every social row, for good)
  * - GET  /health                                           → {ok, settings: which settings are present (names only)}
+ * - /v1/social/* and GET /i/<code>: friends, invites, visits, helps, gifts, product requests (social.ts,
+ *   docs/social-api.md). PUT /v1/save also takes the optional social `public` block.
  * Everything under /v1 except the login needs `Authorization: Bearer <token>`.
  */
 export type AppOptions = {
@@ -37,21 +42,11 @@ export type AppOptions = {
 /** What the extra routes reuse: the save routes for any player (the CPU benchmark). */
 export type Helpers = {
 	getSave(player: PlayerRecord, save: SaveMeta | null): Promise<Response>;
-	putSave(request: Request, player: PlayerRecord, current: SaveMeta | null): Promise<Response>;
+	/** `social`: the player's profile snapshot (from getPlayer), to refresh level/era/public block after the upload. */
+	putSave(request: Request, player: PlayerRecord, current: SaveMeta | null, social?: SocialSnapshot | null): Promise<Response>;
 };
 
-export class HttpError extends Error {
-	status: number;
-	body: Record<string, unknown>;
-	constructor(status: number, body: Record<string, unknown>) {
-		super(String(body.error));
-		this.status = status;
-		this.body = body;
-	}
-}
-
-const HEADERS = { "content-type": "application/json", "cache-control": "no-store" };
-export const json = (status: number, body: unknown) => new Response(body === null ? null : JSON.stringify(body), { status, headers: HEADERS });
+export { HttpError, json };
 
 export const describe = (save: SaveMeta) => ({
 	revision: save.revision,
@@ -100,16 +95,23 @@ export function createApp(options: AppOptions) {
 		return ++entry.count <= limit;
 	};
 
-	/** The signed-in player and their save's description (one D1 round trip). */
-	const playerOf = async (request: Request) => {
+	/** The signed-in player's id: a valid session, within the rate limit (no storage read). */
+	const sessionOf = async (request: Request) => {
 		const header = request.headers.get("authorization") ?? "";
 		const session = await readSession(header.startsWith("Bearer ") ? header.slice(7) : undefined, sessionSecret, now());
 		if (!session) throw new HttpError(401, { error: "signed-out" });
 		if (!allow(`player:${session.sub}`)) throw new HttpError(429, { error: "slow-down" });
-		const found = await store.getPlayer(session.sub);
+		return session.sub;
+	};
+
+	/** The signed-in player, their save's description and social snapshot (one D1 round trip). */
+	const playerOf = async (request: Request) => {
+		const found = await store.getPlayer(await sessionOf(request));
 		if (!found) throw new HttpError(401, { error: "signed-out" });
 		return found;
 	};
+
+	const social = socialRoutes({ store, now, log, sessionOf });
 
 	// The answer to a login: the game's session, who the player is, and the summary of the cloud save.
 	const welcome = async (player: PlayerRecord, save: SaveMeta | null) => {
@@ -129,7 +131,7 @@ export function createApp(options: AppOptions) {
 			const head = `${JSON.stringify(describe(found.save)).slice(0, -1)},"data":`;
 			return new Response(new Blob([head, found.body, "}"]), { status: 200, headers: HEADERS });
 		},
-		async putSave(request, player, current) {
+		async putSave(request, player, current, social) {
 			let upload: ReturnType<typeof readUpload>;
 			try {
 				upload = readUpload(await readBytes(request));
@@ -140,6 +142,20 @@ export function createApp(options: AppOptions) {
 			if (!canReplace(current, upload.baseRevision)) throw new HttpError(409, { error: "conflict", current: current ? describe(current) : null });
 			const result = await store.replaceSave(player.id, current, { literal: upload.literal, summary: upload.summary, deviceId: upload.deviceId, keepReplaced: upload.force });
 			if (!result.ok) throw new HttpError(409, { error: "conflict", current: result.current ? describe(result.current) : null });
+			if (upload.publicRefused) log(`public block refused for ${player.id}: ${upload.publicRefused}`);
+			// Social profile (only one that exists): level/era from the summary, the public block when sent, the invite
+			// reward when due. Skipped when nothing changed (most uploads); a failure never fails the upload.
+			if (social) {
+				const publicChanged = upload.public !== undefined && upload.public !== social.publicJson;
+				const rewardDue = social.rewardPending && upload.summary.level >= SOCIAL.inviteRewardLevel;
+				if (publicChanged || rewardDue || social.level !== upload.summary.level || social.era !== upload.summary.era) {
+					try {
+						await store.refreshProfile(player.id, upload.summary, publicChanged ? upload.public : undefined);
+					} catch (error) {
+						log(`profile refresh failed for ${player.id}: ${(error as Error)?.message ?? error}`);
+					}
+				}
+			}
 			return json(200, describe(result.save));
 		},
 	};
@@ -229,8 +245,8 @@ export function createApp(options: AppOptions) {
 		}
 
 		if (path === "/v1/save" && method === "PUT") {
-			const { player, save } = await playerOf(request);
-			return helpers.putSave(request, player, save);
+			const { player, save, social } = await playerOf(request);
+			return helpers.putSave(request, player, save, social);
 		}
 
 		if (path === "/v1/account" && method === "DELETE") {
@@ -247,6 +263,9 @@ export function createApp(options: AppOptions) {
 			log(`deleted ${player.id}`);
 			return json(204, null);
 		}
+
+		const socialAnswer = await social(request, path, method);
+		if (socialAnswer) return socialAnswer;
 
 		const extra = options.extra ? await options.extra(request, path, helpers) : null;
 		if (extra) return extra;
