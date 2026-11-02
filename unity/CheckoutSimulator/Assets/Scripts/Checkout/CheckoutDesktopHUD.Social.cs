@@ -81,8 +81,7 @@ namespace Checkout {
    // the tutorial card and the open window.
    // With a window open, over the free part of the screen left of it (never over the window's cards).
    var at=visiting?new Vector2(.5f,1):new Vector2(.5f,0);socialToastBox.anchorMin=socialToastBox.anchorMax=socialToastBox.pivot=at;
-   float shift=drawer&&drawer.activeSelf?-(Phone?284:308):0;
-   socialToastBox.anchoredPosition=visiting?new Vector2(shift,Phone?-178:-170):new Vector2(shift,Phone?124:142);
+   socialToastBox.anchoredPosition=visiting?new Vector2(ToastShift(),Phone?-178:-170):new Vector2(ToastShift(),Phone?124:142);
    socialToastBox.gameObject.SetActive(true);socialToastBox.SetAsLastSibling();socialToastUntil=Time.unscaledTime+2.8f;
    StartCoroutine(CheckoutUiKit.Pop(socialToastBox,1.06f,.18f));
   }
@@ -140,8 +139,12 @@ namespace Checkout {
    return null;
   }
 
+  float ToastShift()=>drawer&&drawer.activeSelf?-(Phone?284:308):0;
+
   void UpdateSocial(){
    if(socialToastBox.gameObject.activeSelf&&Time.unscaledTime>socialToastUntil)NextSocialToast();
+   // (a window that opens while a toast shows: the toast steps aside)
+   if(socialToastBox.gameObject.activeSelf){var p=socialToastBox.anchoredPosition;float shift=ToastShift();if(Mathf.Abs(p.x-shift)>.5f)socialToastBox.anchoredPosition=new Vector2(shift,p.y);}
    if(!visiting)return;
    // The friend's market is built over a few frames after the view: a build still in the row looks for its spot again.
    if(looseBuilds.Count>0&&view!=null&&Time.unscaledTime>siteCheckAt){siteCheckAt=Time.unscaledTime+1f;bool found=false;foreach(var b in looseBuilds)if(SiteOf(b)){found=true;break;}if(found)ApplySocial(view);}
