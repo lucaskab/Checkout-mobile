@@ -4197,6 +4197,13 @@ const catalog: Catalog = {
 	"+30 diamantes por amigo": "+30 diamantes por amigo",
 	"Pedidos abertos": "Pedidos abiertos",
 	"SEU PEDIDO": "TU PEDIDO",
+	// Amigos and Convidar strips, _v3 (02/11/2026)
+	"Aceite para visitar, ajudar e trocar presentes.": "Acepta para visitar, ayudar e intercambiar regalos.",
+	"{0}/{1} no Späti": "{0}/{1} en el Späti",
+	"QR DO CONVITE": "QR DE INVITACIÓN",
+	"Aponte a câmera do celular do amigo.": "Apunta la cámara del móvil de tu amigo.",
+	"Fechar o código": "Cerrar el código",
+	"Adicionar por código": "Añadir por código",
 };
 
 export default catalog;

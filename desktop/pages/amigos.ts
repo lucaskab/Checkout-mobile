@@ -174,14 +174,15 @@ function profilePage(state: State, required: boolean): Page {
 		eyebrow: first ? "PRIMEIRA VEZ AQUI" : "SEU PERFIL",
 		tone: hidden ? "warning" : "",
 		hero: !first && !hidden,
+		// (first time: the title says it; the faces stay above the fold on a phone)
 		lines: [
 			first
-				? "É assim que os seus amigos vão ver o seu mercado."
+				? ""
 				: hidden
 					? "O nome do seu mercado foi denunciado e está escondido. Os amigos veem só o código até você escolher outro."
-					: "O nome e o rosto que os seus amigos veem.",
+					: "",
 			"De 3 a 20 letras ou números. Nada de palavrões: nomes denunciados ficam escondidos.",
-		],
+		].filter(Boolean),
 		input: { id: "name", placeholder: "Nome do mercado", value: hidden ? "" : (me.marketName ?? ""), max: 20, kind: "name" },
 		buttons: [
 			act(busy("profile") ? "Salvando…" : "Salvar", "socialSaveProfile", ["$input:name", chosen], {
@@ -256,7 +257,6 @@ function friendTile(friend: SocialFriend, now: number): BoardTile {
 			stat(socialIcon("handshake"), String(builds.length), "obras"),
 		],
 		lines: [
-			friend.lastSeen ? `Visto ${formatAgo(friend.lastSeen, now)}` : "",
 			...requests.map((request) => `Pede ${request.qty}× ${productName(request.productId)} · ${hoursLeft(request, now)} h`),
 			builds.length ? "Visite o mercado e toque em Ajudar em cada obra: −5 min para o amigo, moedas para você." : "",
 		].filter(Boolean),
@@ -289,7 +289,8 @@ function personTile(person: SocialPerson, incoming: boolean): BoardTile {
 			? act("Aceitar", "socialAccept", [person.id], { icon: socialIcon("friends"), variant: "success", enabled: !busy(`accept:${person.id}`), ok: "" })
 			: button("Esperando…", { variant: "secondary", enabled: false }),
 		alt: incoming ? act("Recusar", "socialDecline", [person.id], { variant: "secondary", enabled: !busy(`decline:${person.id}`), ok: "" }) : button("", { enabled: false }),
-		detail: incoming ? "Quer ser seu amigo. Aceite e vocês podem visitar, ajudar e mandar presentes um para o outro." : "O pedido de amizade foi enviado. Falta o amigo aceitar.",
+		// (short: on a phone the side panel shows it whole, with Aceitar and Recusar under it)
+		detail: incoming ? "Aceite para visitar, ajudar e trocar presentes." : "Pedido enviado. Falta o amigo aceitar.",
 		actions: incoming
 			? [
 					act("Aceitar", "socialAccept", [person.id], { icon: socialIcon("friends"), variant: "success", enabled: !busy(`accept:${person.id}`), ok: "" }),
@@ -299,15 +300,21 @@ function personTile(person: SocialPerson, incoming: boolean): BoardTile {
 	});
 }
 
-/** My card on top of every tab: face, name, code, likes. */
-function myCard(state: State, buttons: Button[]): Card {
+/** My strip across the top of Amigos (the board's bar): my face (opens the profile), my code, Copiar / Convidar and
+ * the helps of the day as a meter in blocks of five. */
+function myStrip(helps: number) {
 	const me = socialStore.me!;
-	return card(formatCode(me.code), {
+	return meter(formatCode(me.code), helps, SOCIAL_HELPS_PER_DAY, {
 		icon: avatarIcon(me.avatar),
-		eyebrow: "MEU CÓDIGO DE AMIGO",
-		hero: true,
-		subtitle: [marketName(me), `Nível ${state.market.level}`, likesText(me.likes)].join(" · "),
-		buttons,
+		frame: "portrait",
+		route: "amigos:perfil",
+		tone: "gold",
+		segments: SOCIAL_HELPS_PER_DAY / 5,
+		text: `${marketName(me)} · Ajudas hoje ${helps}/${SOCIAL_HELPS_PER_DAY}`,
+		buttons: [
+			act("Copiar", "socialCopy", [], { variant: "secondary", ok: "" }),
+			act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
+		],
 	});
 }
 
@@ -334,35 +341,29 @@ function amigosPage(state: State): Page {
 	);
 	const helps = Math.min(SOCIAL_HELPS_PER_DAY, socialHelpsToday());
 	const toGift = friends.filter((friend) => !friend.giftedToday).length;
-	const cards: Card[] = [
-		myCard(state, [
-			go("Perfil", "amigos:perfil", { icon: avatarIcon(socialStore.me!.avatar) }),
-			act("Copiar", "socialCopy", [], { variant: "secondary", ok: "" }),
-			act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
-		]),
-	];
-	if (!friends.length)
-		cards.push(
-			card("Jogue junto com os amigos!", {
-				icon: socialIcon("friends"),
-				eyebrow: "NENHUM AMIGO AINDA",
-				tone: "gold",
-				lines: ["Visitem o mercado um do outro, ajudem nas obras e mandem presentes.", "Quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também."],
-				buttons: [act("Convidar amigos", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" })],
-			}),
-		);
+	const cards: Card[] = friends.length
+		? []
+		: [
+				card("Jogue junto com os amigos!", {
+					icon: socialIcon("friends"),
+					eyebrow: "NENHUM AMIGO AINDA",
+					tone: "gold",
+					lines: ["Visitem o mercado um do outro, ajudem nas obras e mandem presentes.", "Quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também."],
+					buttons: [act("Convidar amigos", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" })],
+				}),
+			];
+	// The friends first (the whole first row on a phone), the requests at the end of the grid: a new one is also the
+	// side panel's first pick, with Aceitar and Recusar.
 	const tiles = [
-		...socialStore.incoming.map((person) => personTile(person, true)),
 		...friends.map((friend) => friendTile(friend, now)),
+		...socialStore.incoming.map((person) => personTile(person, true)),
 		...socialStore.outgoing.map((person) => personTile(person, false)),
 	];
+	const firstRequest = socialStore.incoming[0];
 	return boardPage(state, "amigos", "Amigos", "amigos", cards, tiles, {
+		focus: firstRequest ? `in-${firstRequest.id}` : "",
 		stats: [stat(socialIcon("friends"), fmt(friends.length), "amigos"), stat(socialIcon("like"), fmt(socialStore.me!.likes), "curtidas")],
-		meter: meter("Ajudas hoje", helps, SOCIAL_HELPS_PER_DAY, {
-			icon: socialIcon("handshake"),
-			text: `${helps}/${SOCIAL_HELPS_PER_DAY} · cada ajuda tira 5 min da obra do amigo`,
-			tone: "gold",
-		}),
+		meter: myStrip(helps),
 		footer: [
 			...(friends.length
 				? [
@@ -375,9 +376,9 @@ function amigosPage(state: State): Page {
 						}),
 					]
 				: []),
-			go("Adicionar amigo", "!amigos-convidar", { icon: socialIcon("friends"), variant: "primary" }),
+			go("Adicionar amigo", "!amigos-convidar:codigo", { icon: socialIcon("friends"), variant: "primary" }),
 		],
-		empty: "Chame alguém com o seu código: vocês dois ganham 30 diamantes.",
+		empty: "",
 	});
 }
 
@@ -524,26 +525,17 @@ function pickerPage(state: State, productArg: string | undefined, qtyArg: string
 
 // ------------------------------------------------------------------------------------------------------------ convidar
 
-function convidarPage(state: State): Page {
-	const gated = gate(state, "amigos-convidar", "convidar");
+/** Convidar: my invite code as the bar (Convidar / Copiar / QR, the friends who reached the Späti in blocks with the
+ * three prizes on it) and the reward ladder as the hero, big pictures above the fold. "Tem um código?" opens the field
+ * (route "amigos-convidar:codigo"), the QR its own card; both only when asked for. */
+function convidarPage(state: State, codeField: boolean): Page {
+	const gated = gate(state, codeField ? "amigos-convidar:codigo" : "amigos-convidar", "convidar");
 	if (gated) return gated;
 	const me = socialStore.me!;
 	const rewarded = Math.max(0, me.invites?.rewarded ?? 0);
+	const top = SOCIAL_INVITE_MILESTONES[SOCIAL_INVITE_MILESTONES.length - 1];
 	const next = SOCIAL_INVITE_MILESTONES.find((milestone) => milestone > rewarded);
-	const cards: Card[] = [
-		card(formatCode(me.code), {
-			icon: socialIcon("invite"),
-			eyebrow: "SEU CÓDIGO DE CONVITE",
-			hero: true,
-			subtitle: "Quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também.",
-			qr: socialStore.showQr ? qrText(inviteUrl(me.code)) : "",
-			buttons: [
-				act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
-				act("Copiar", "socialCopy", [], { variant: "secondary", ok: "" }),
-				act(socialStore.showQr ? "Fechar QR" : "QR", "socialQr", [], { variant: "secondary", ok: "" }),
-			],
-		}),
-	];
+	const cards: Card[] = [];
 	if (socialStore.offeredCode) {
 		const code = socialStore.offeredCode;
 		cards.push(
@@ -560,7 +552,17 @@ function convidarPage(state: State): Page {
 				],
 			}),
 		);
-	} else cards.push(addFriendCard(!me.invitedBy));
+	} else if (codeField) cards.push(addFriendCard(!me.invitedBy));
+	if (socialStore.showQr)
+		cards.push(
+			card(formatCode(me.code), {
+				icon: socialIcon("invite"),
+				eyebrow: "QR DO CONVITE",
+				subtitle: "Aponte a câmera do celular do amigo.",
+				// (closed from the bar's "Fechar QR": the card stays short enough to show whole on a phone)
+				qr: qrText(inviteUrl(me.code)),
+			}),
+		);
 	const ladder = SOCIAL_INVITE_MILESTONES.map((milestone) => {
 		const id = inviteRewardDecorId(milestone);
 		const decor = getInteriorDecor(id);
@@ -569,6 +571,7 @@ function convidarPage(state: State): Page {
 		return tile(id, decor?.name ?? id, {
 			group: "Prêmios do convite",
 			icon: decorIcon(id),
+			frame: "showcase",
 			subtitle: milestone === 1 ? "1 amigo no Späti" : `${milestone} amigos no Späti`,
 			sticker: reached ? "GANHOU!" : left === 1 ? "FALTA 1" : `FALTAM ${left}`,
 			tone: reached ? "gold" : "locked",
@@ -581,13 +584,21 @@ function convidarPage(state: State): Page {
 			lines: [reached ? "Está no seu inventário: coloque no mercado pelo modo construir." : "Exclusivo: não se compra na loja."],
 		});
 	});
-	return boardPage(state, "amigos-convidar", "Convidar", "convidar", cards, ladder, {
+	const asking = codeField || Boolean(socialStore.offeredCode);
+	return boardPage(state, codeField ? "amigos-convidar:codigo" : "amigos-convidar", "Convidar", "convidar", cards, ladder, {
 		columns: 3,
+		focus: inviteRewardDecorId(next ?? top),
 		stats: [stat(socialIcon("friends"), String(rewarded), "convites premiados"), stat(socialIcon("diamond"), fmt(rewarded * 30), "diamantes")],
-		meter: meter("Amigos que chegaram ao Späti", Math.min(rewarded, 5), 5, {
+		meter: meter(formatCode(me.code), Math.min(rewarded, top), top, {
 			icon: socialIcon("invite"),
 			tone: "gold",
-			text: `${next ? (next - rewarded === 1 ? "Falta 1 para a próxima decoração" : `Faltam ${next - rewarded} para a próxima decoração`) : "Você ganhou as três decorações!"} · +30 diamantes por amigo`,
+			segments: top,
+			text: `${Math.min(rewarded, top)}/${top} no Späti · +30 diamantes por amigo`,
+			buttons: [
+				act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
+				act("Copiar", "socialCopy", [], { variant: "secondary", ok: "" }),
+				act(socialStore.showQr ? "Fechar QR" : "QR", "socialQr", [], { variant: "secondary", ok: "" }),
+			],
 			marks: SOCIAL_INVITE_MILESTONES.map((milestone) => ({
 				at: milestone,
 				icon: decorIcon(inviteRewardDecorId(milestone)),
@@ -596,6 +607,13 @@ function convidarPage(state: State): Page {
 				action: button("", { enabled: false }),
 			})),
 		}),
+		footer: socialStore.offeredCode
+			? []
+			: [
+					asking
+						? go("Fechar o código", "~amigos-convidar", { variant: "secondary" })
+						: go(me.invitedBy ? "Adicionar por código" : "Tem um código de convite?", "~amigos-convidar:codigo", { icon: socialIcon("friends"), variant: "primary" }),
+				],
 		empty: "",
 	});
 }
@@ -614,17 +632,19 @@ const historyLine: Record<string, string> = {
 	request_fulfilled: "atendeu o seu pedido",
 };
 
+/** One line of the history: the friend's face, who, what and when, as a slim row (two per line). */
 function historyTile(entry: SocialLogEntry, index: number, now: number): BoardTile {
-	const line = toastText(historyLine[entry.kind] ?? entry.text, { coins: entry.coins, minutes: entry.minutes, qty: entry.qty, product: productName(entry.productId), diamonds: entry.diamonds });
+	const values = { name: entry.name, coins: entry.coins, minutes: entry.minutes, qty: entry.qty, product: productName(entry.productId), diamonds: entry.diamonds };
+	const line = toastText(historyLine[entry.kind] ?? entry.text, values);
+	const icon = socialIcon((historyIcon[entry.kind] ?? "friends") as never);
 	return tile(`log-${index}`, entry.name || "Um amigo", {
 		group: "Histórico",
-		icon: entry.avatar ? avatarIcon(entry.avatar) : socialIcon((historyIcon[entry.kind] ?? "friends") as never),
-		frame: entry.avatar ? "portrait" : "",
-		corner: socialIcon((historyIcon[entry.kind] ?? "friends") as never),
-		subtitle: formatAgo(entry.at, now),
-		chips: [stat(socialIcon((historyIcon[entry.kind] ?? "friends") as never), line, "")],
-		detail: line,
-		lines: [toastText(entry.text, { name: entry.name, coins: entry.coins, minutes: entry.minutes, qty: entry.qty, product: productName(entry.productId), diamonds: entry.diamonds })],
+		icon: entry.avatar ? avatarIcon(entry.avatar) : icon,
+		frame: "line",
+		corner: icon,
+		subtitle: `${line} · ${formatAgo(entry.at, now)}`,
+		// (the side panel: who, when, and the whole message once)
+		detail: toastText(entry.text, values),
 	});
 }
 
@@ -637,6 +657,7 @@ function correioPage(state: State): Page {
 		tile(`mail-${mail.id}`, "Presente", {
 			group: "Para abrir",
 			icon: socialIcon("gift"),
+			frame: "gift",
 			subtitle: mail.name || "Um amigo",
 			badge: `+${fmt(mail.coins)}`,
 			tone: "gold",
@@ -684,7 +705,7 @@ export const routes: Routes = {
 	},
 	"amigos-pedidos": (state) => pedidosPage(state),
 	"amigos-pedir": (state, [id, qty]) => pickerPage(state, id, qty),
-	"amigos-convidar": (state) => convidarPage(state),
+	"amigos-convidar": (state, [arg]) => convidarPage(state, arg === "codigo"),
 	"amigos-correio": (state) => correioPage(state),
 	visita: (state) => visitRequestsPage(state),
 };

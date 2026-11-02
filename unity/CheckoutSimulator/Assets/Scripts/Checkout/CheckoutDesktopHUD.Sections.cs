@@ -28,7 +28,8 @@ namespace Checkout {
   static float SectionH=>Phone?44:52;
 
   /// <summary>Shows the tabs (and hides the title) when the page has sections; returns whether it does.</summary>
-  bool ApplySections(SectionBar bar,DesktopButton[] sections,TextMeshProUGUI title,TextMeshProUGUI subtitle,bool subtitleShown){
+  /// <param name="compact">A narrow window (an iPad's 4:3): the other tabs show their icon only, the open one its name.</param>
+  bool ApplySections(SectionBar bar,DesktopButton[] sections,TextMeshProUGUI title,TextMeshProUGUI subtitle,bool subtitleShown,bool compact=false){
    bool on=sections!=null&&sections.Length>0;
    bar.row.gameObject.SetActive(on);
    title.gameObject.SetActive(!on);subtitle.gameObject.SetActive(!on&&subtitleShown);
@@ -45,11 +46,12 @@ namespace Checkout {
    for(int i=0;i<bar.buttons.Count;i++){
     bool shown=i<sections.Length;bar.buttons[i].gameObject.SetActive(shown);if(!shown)continue;
     var s=sections[i];bar.open[i]=s.active;
+    bool iconOnly=compact&&!s.active&&!string.IsNullOrEmpty(s.icon);
     // The open tab in full gold (the "active" style is the pale one of the small tabs below it).
-    bar.buttons[i].Apply(new DesktopButton{label=s.label,icon=s.icon,variant=s.active?"coin":"secondary",enabled=true,active=false,action=s.action,args=s.args,route=s.route,after=s.after,ok=s.ok,fail=s.fail,badge=s.badge});
+    bar.buttons[i].Apply(new DesktopButton{label=iconOnly?"":s.label,icon=s.icon,variant=s.active?"coin":"secondary",enabled=true,active=false,action=s.action,args=s.args,route=s.route,after=s.after,ok=s.ok,fail=s.fail,badge=s.badge});
     var label=bar.buttons[i].GetComponentInChildren<TextMeshProUGUI>(true);
     float width=(label?label.GetPreferredValues(K.Clean(s.label)).x:90)+(string.IsNullOrEmpty(s.icon)?0:SectionH*.5f+6)+30;
-    bar.buttons[i].SetWidth(Mathf.Max(Phone?110:140,width));
+    bar.buttons[i].SetWidth(iconOnly?SectionH+22:Mathf.Max(Phone?110:140,width));
     // The open tab sits a little higher, like a pulled folder tab.
     bar.buttons[i].transform.localScale=s.active?Vector3.one*1.04f:Vector3.one;
     bool badge=!string.IsNullOrEmpty(s.badge)&&!s.active;bar.badges[i].SetActive(badge);

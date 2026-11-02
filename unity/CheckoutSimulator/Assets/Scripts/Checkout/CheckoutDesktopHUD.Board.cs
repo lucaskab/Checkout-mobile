@@ -24,10 +24,20 @@ namespace Checkout {
   readonly List<BoardChip> boardStatChips=new List<BoardChip>();readonly List<BoardMarkUi> boardMarks=new List<BoardMarkUi>();
   readonly List<BoardSection> boardSections=new List<BoardSection>();readonly List<BoardTileUi> boardTiles=new List<BoardTileUi>();
   readonly List<CheckoutDesktopButton> boardFooterButtons=new List<CheckoutDesktopButton>();
-  BoardDetailUi boardDetailUi;DesktopBoard boardData;string boardShown,boardSelected;float boardReceivedAt;float boardMeterShown=-1;
+  BoardDetailUi boardDetailUi;DesktopBoard boardData;string boardShown,boardSelected,boardRouteShown;float boardReceivedAt;float boardMeterShown=-1;
   AudioSource boardSound;RectTransform boardPressed;string boardPressedVariant;GameObject boardDetailPanel;
   // The page's cards as a row of big cards over the tiles (Amigos: my code, add a friend; Convidar: the code, the QR).
   RectTransform boardHeroes;readonly List<CheckoutDesktopCard> boardHeroCards=new List<CheckoutDesktopCard>();
+  // Social v1 (_v3): the bar as a player strip (my face on a navy plate that opens the profile, my code, big buttons at
+  // its end, the meter in blocks), and the "more below" chevron when whole rows wait under the fold.
+  Image boardMeterPlate,boardMeterRing;RectTransform boardMeterButtons,boardMore;string boardMeterRoute;int boardMeterSegments;
+  readonly List<CheckoutDesktopButton> boardMeterButtonList=new List<CheckoutDesktopButton>();
+  readonly List<Image> boardSegBacks=new List<Image>(),boardSegFills=new List<Image>();
+  /// <summary>Chip rows of this board's tiles (0 = none): every card of the board is cut to the same height.</summary>
+  int boardChipRows;float boardScrollBottom,boardCellWidth;bool boardFaces;
+  /// <summary>A narrow window (an iPad's 4:3): a slimmer side panel and the header tabs as icons.</summary>
+  bool BoardNarrow=>boardWin&&((RectTransform)boardWin.transform).rect.width>100&&((RectTransform)boardWin.transform).rect.width<1100;
+  float BoardDetailWidth=>BoardNarrow?290:BoardDetailW;
 
   // Tile colours by tone: face, edge, ribbon.
   static Color ToneFace(string tone)=>tone=="success"?K.C("EFF8E6"):tone=="warning"?K.C("FFF4D6"):tone=="danger"?K.C("FDE9E2"):tone=="info"?K.C("E6F3F8"):tone=="gold"?K.C("FFF3C8"):tone=="locked"?K.C("EAE2D5"):K.Cream;
@@ -73,7 +83,13 @@ namespace Checkout {
    // Meter: a long bar with milestones.
    var meter=N.Image(face.transform,"Meter",K.Cream,18);boardMeter=meter.rectTransform;boardMeter.anchorMin=new Vector2(0,1);boardMeter.anchorMax=Vector2.one;boardMeter.pivot=new Vector2(.5f,1);boardMeter.offsetMin=new Vector2(16,-222);boardMeter.offsetMax=new Vector2(-16,-160);
    var mEdge=N.Image(meter.transform,"Edge",K.Border,18);Stretch(mEdge.rectTransform,new Vector2(0,-3),Vector2.zero);mEdge.transform.SetAsFirstSibling();
+   boardMeterRing=N.Image(meter.transform,"Ring",PortraitGold,0);boardMeterRing.sprite=K.Rounded(30);boardMeterRing.type=Image.Type.Sliced;Place(boardMeterRing.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(9,0),new Vector2(58,58));
+   boardMeterPlate=N.Image(meter.transform,"Plate",PortraitNavy,0);boardMeterPlate.sprite=K.Rounded(26);boardMeterPlate.type=Image.Type.Sliced;Place(boardMeterPlate.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(12,0),new Vector2(52,52));
+   boardMeterRing.gameObject.SetActive(false);boardMeterPlate.gameObject.SetActive(false);
    boardMeterIcon=N.Image(meter.transform,"Icon",Color.white,0);boardMeterIcon.preserveAspect=true;var mi=boardMeterIcon.rectTransform;mi.anchorMin=mi.anchorMax=new Vector2(0,.5f);mi.pivot=new Vector2(0,.5f);mi.sizeDelta=Phone?new Vector2(38,38):new Vector2(46,46);mi.anchoredPosition=new Vector2(12,0);
+   boardMeterIcon.raycastTarget=true;Clickable(boardMeterIcon.gameObject,()=>{if(!string.IsNullOrEmpty(boardMeterRoute)){Sound("tap");host.Route(boardMeterRoute);}});
+   boardMeterButtons=N.Node("Buttons",meter.transform);Place(boardMeterButtons,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,2),new Vector2(300,48));
+   var mbr=N.Row(boardMeterButtons.gameObject,8);mbr.childAlignment=TextAnchor.MiddleRight;mbr.childControlHeight=true;mbr.childForceExpandHeight=true;mbr.childForceExpandWidth=false;
    boardMeterTitle=N.Text(meter.transform,"Title",K.Headline,19,K.Ink);boardMeterTitle.textWrappingMode=TextWrappingModes.NoWrap;var mt=boardMeterTitle.rectTransform;mt.anchorMin=new Vector2(0,.5f);mt.anchorMax=new Vector2(0,1);mt.pivot=new Vector2(0,1);mt.offsetMin=new Vector2(66,0);mt.offsetMax=new Vector2(330,-6);
    boardMeterText=N.Text(meter.transform,"Text",K.Body,14,K.Muted);boardMeterText.textWrappingMode=TextWrappingModes.NoWrap;boardMeterText.overflowMode=TextOverflowModes.Ellipsis;var mx=boardMeterText.rectTransform;mx.anchorMin=new Vector2(0,0);mx.anchorMax=new Vector2(0,.5f);mx.pivot=new Vector2(0,0);mx.offsetMin=new Vector2(66,6);mx.offsetMax=new Vector2(430,0);
    var track=N.Image(meter.transform,"Track",K.C("EADBC4"),11);boardMeterTrack=track.rectTransform;boardMeterTrack.anchorMin=new Vector2(0,.5f);boardMeterTrack.anchorMax=new Vector2(1,.5f);boardMeterTrack.offsetMin=new Vector2(450,-11);boardMeterTrack.offsetMax=new Vector2(-30,11);
@@ -96,6 +112,10 @@ namespace Checkout {
    boardTip=N.Text(tip.transform,"Text",K.Body,15,K.Ink);boardTip.textWrappingMode=TextWrappingModes.Normal;boardTip.overflowMode=TextOverflowModes.Ellipsis;boardTip.alignment=TextAlignmentOptions.MidlineLeft;Stretch(boardTip.rectTransform,new Vector2(56,2),new Vector2(-12,-2));
    boardFooter=N.Node("Footer",area.transform);boardFooter.anchorMin=Vector2.zero;boardFooter.anchorMax=new Vector2(1,0);boardFooter.pivot=new Vector2(.5f,0);boardFooter.offsetMin=new Vector2(10,10);boardFooter.offsetMax=new Vector2(-10,64);
    var fr=N.Row(boardFooter.gameObject,10);fr.childControlHeight=true;fr.childForceExpandHeight=true;fr.childForceExpandWidth=true;
+   // "More below": a small bobbing chevron at the foot of the tiles when whole rows wait under the fold.
+   var more=N.Image(area.transform,"More",new Color(.11f,.17f,.31f,.82f),13);boardMore=more.rectTransform;Place(boardMore,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(.5f,.5f),new Vector2(0,76),new Vector2(54,28));
+   foreach(var side in new[]{-1,1}){var bar=N.Image(more.transform,"Bar",Color.white,2);Place(bar.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(side*5,-1),new Vector2(15,4));bar.rectTransform.localRotation=Quaternion.Euler(0,0,side*38);}
+   more.raycastTarget=false;boardMore.gameObject.SetActive(false);
 
    var detail=N.Image(boardBody,"Detail",K.Cream,22);boardDetailPanel=detail.gameObject;var dr=detail.rectTransform;dr.anchorMin=new Vector2(1,0);dr.anchorMax=Vector2.one;dr.pivot=new Vector2(1,.5f);dr.offsetMin=new Vector2(-BoardDetailW,14);dr.offsetMax=new Vector2(-16,0);
    var dEdge=N.Image(detail.transform,"Edge",K.Border,22);Stretch(dEdge.rectTransform,new Vector2(0,-4),Vector2.zero);dEdge.transform.SetAsFirstSibling();
@@ -113,12 +133,15 @@ namespace Checkout {
    string page=(p.route??"").Split(':')[0];bool fresh=page!=boardShown;
    // A header tab switch (Produtos, Missões) swaps the window in place: no opening pop.
    if(fresh){boardShown=page;boardLaneStates.Clear();boardSelected=string.IsNullOrEmpty(b.focus)?null:b.focus;boardMeterShown=-1;if(!TakeSectionHop())StartCoroutine(U.Pop(boardWin.transform.Find("Window"),1.02f,.22f));}
+   // (another view of the same window, the profile back to Amigos: its own first pick)
+   else if(p.route!=boardRouteShown&&!string.IsNullOrEmpty(b.focus))boardSelected=b.focus;
+   boardRouteShown=p.route;
    boardCoins.text=v.coins;boardDiamonds.text=v.diamonds;
    boardHeader.color=K.C(string.IsNullOrEmpty(b.tint)?"2E8CAE":b.tint);
    boardTitle.text=K.Clean(p.title);boardSubtitle.text=K.Clean(p.subtitle);
    var icon=K.Icon(p.icon);boardIcon.sprite=icon;boardIcon.enabled=icon;
    // Windows of a toolbar group: the sibling windows as big tabs instead of the title (the tabs have icons).
-   bool grouped=ApplySections(boardGroupTabs,p.sections,boardTitle,boardSubtitle,!Phone);
+   bool grouped=ApplySections(boardGroupTabs,p.sections,boardTitle,boardSubtitle,!Phone,BoardNarrow);
    if(boardIconBack)boardIconBack.SetActive(!grouped);
    var back=K.Icon(b.backdrop);boardBackdrop.sprite=back;boardBackdrop.enabled=back;
    ApplyBoardStats(b.stats??new DesktopStat[0]);
@@ -132,11 +155,14 @@ namespace Checkout {
    if(hasMeter)ApplyBoardMeter(b.meter,fresh);
    // Delivery lanes take the whole width: no side panel.
    bool road=b.style=="road";
-   boardGridArea.offsetMax=new Vector2(road?-16:-BoardDetailW-12,0);
+   float detailW=BoardDetailWidth;
+   boardGridArea.offsetMax=new Vector2(road?-16:-detailW-12,0);
+   var dr=(RectTransform)boardDetailPanel.transform;dr.offsetMin=new Vector2(-detailW,14);
    ApplyBoardTiles(b);
    ApplyBoardHeroes(p.cards??new DesktopCard[0]);
    ApplyBoardFooter(b);
    if(fresh){Canvas.ForceUpdateCanvases();boardScroll.verticalNormalizedPosition=1;}
+   SnapBoardRows();
    ShopOpen=true;
   }
 
@@ -174,10 +200,56 @@ namespace Checkout {
   void ApplyBoardMeter(DesktopMeter m,bool fresh){
    boardMeterTitle.text=K.Clean(m.title);boardMeterText.text=K.Clean(m.text);
    var icon=K.Icon(m.icon);boardMeterIcon.sprite=icon;boardMeterIcon.enabled=icon;
-   boardMeterFill.color=ToneStrong(string.IsNullOrEmpty(m.tone)?"success":m.tone);
+   // A face (Amigos: mine) on a navy plate in a gold ring; a tap opens its route (the profile).
+   bool face=m.frame=="portrait";boardMeterPlate.gameObject.SetActive(face);boardMeterRing.gameObject.SetActive(face);
+   var mi=boardMeterIcon.rectTransform;mi.sizeDelta=face?new Vector2(48,48):Phone?new Vector2(38,38):new Vector2(46,46);mi.anchoredPosition=new Vector2(face?14:12,face?-1:0);
+   boardMeterRoute=m.route;boardMeterIcon.raycastTarget=!string.IsNullOrEmpty(m.route);
+   var tone=ToneStrong(string.IsNullOrEmpty(m.tone)?"success":m.tone);boardMeterFill.color=tone;
    float target=Mathf.Clamp01(m.value/Mathf.Max(.0001f,m.max));
    if(fresh||boardMeterShown<0)boardMeterShown=0;
    boardMeterTarget=target;
+   // Big buttons at the end of the bar (Copiar, Convidar, QR).
+   var buttons=m.buttons??new DesktopButton[0];
+   while(boardMeterButtonList.Count<buttons.Length){var x=CheckoutDesktopButton.Create(boardMeterButtons,46,17,14);x.Clicked=BoardPress;boardMeterButtonList.Add(x);}
+   float buttonsW=0;
+   for(int i=0;i<boardMeterButtonList.Count;i++){
+    bool on=i<buttons.Length;var x=boardMeterButtonList[i];x.gameObject.SetActive(on);if(!on)continue;x.Apply(buttons[i]);
+    var label=x.GetComponentInChildren<TextMeshProUGUI>(true);
+    float w=Mathf.Max(Phone?92:84,(label?label.GetPreferredValues(K.Clean(buttons[i].label)).x*1.15f:60)+(string.IsNullOrEmpty(buttons[i].icon)?0:30)+34);
+    x.SetWidth(w);buttonsW+=w+(buttonsW>0?8:0);
+   }
+   boardMeterButtons.gameObject.SetActive(buttons.Length>0);boardMeterButtons.sizeDelta=new Vector2(buttonsW,48);
+   // Title, text, the bar and the buttons share the width; the text column is as wide as its words (no "…" on a
+   // phone), the bar takes what is left and gives up first on a narrow screen.
+   boardMeterTitle.fontSize=buttons.Length>0?24:19;
+   float width=boardMeter.rect.width>100?boardMeter.rect.width:1400;
+   float left=face?76:66;
+   float column=Mathf.Clamp(Mathf.Max(boardMeterTitle.GetPreferredValues(boardMeterTitle.text).x,boardMeterText.GetPreferredValues(boardMeterText.text).x*1.25f)+10,150,460);
+   // (a prize at the bar's end stands half out of it: room for it before the buttons)
+   float right=(buttons.Length>0?buttonsW+26:30)+(m.marks!=null&&m.marks.Length>0?26:0);
+   float track=width-left-column-20-right;
+   // The words first: a narrow screen (an iPad) drops the bar rather than cut the text with "…".
+   bool showTrack=track>=170;
+   if(!showTrack)column=Mathf.Max(150,width-left-right);
+   var mt=boardMeterTitle.rectTransform;mt.offsetMin=new Vector2(left,mt.offsetMin.y);mt.offsetMax=new Vector2(left+column,mt.offsetMax.y);
+   var mx=boardMeterText.rectTransform;mx.offsetMin=new Vector2(left,mx.offsetMin.y);mx.offsetMax=new Vector2(left+column,mx.offsetMax.y);
+   boardMeterTrack.gameObject.SetActive(showTrack);boardMeterTrack.offsetMin=new Vector2(left+column+20,-11);boardMeterTrack.offsetMax=new Vector2(-right,11);
+   // Blocks: one per step (5 helps, 1 friend), each filling on its own, so even 0/30 reads as a game meter.
+   int segments=showTrack?Mathf.Max(0,m.segments):0;boardMeterSegments=segments;
+   var track0=boardMeterTrack.GetComponent<Image>();track0.color=segments>0?new Color(0,0,0,0):K.C("EADBC4");
+   boardMeterFill.gameObject.SetActive(segments==0);
+   while(boardSegBacks.Count<segments){
+    var back=N.Image(boardMeterTrack,"Block",K.C("EADBC4"),9);var edge=N.Image(back.transform,"Edge",new Color(.55f,.4f,.25f,.35f),9);Stretch(edge.rectTransform,new Vector2(0,-2),Vector2.zero);edge.transform.SetAsFirstSibling();
+    var fill=N.Image(back.transform,"Fill",tone,9);var fr=fill.rectTransform;fr.anchorMin=Vector2.zero;fr.anchorMax=new Vector2(0,1);fr.offsetMin=fr.offsetMax=Vector2.zero;
+    var gloss=N.Image(fill.transform,"Gloss",new Color(1,1,1,.3f),6);var gr=gloss.rectTransform;gr.anchorMin=new Vector2(0,.55f);gr.anchorMax=Vector2.one;gr.offsetMin=new Vector2(3,0);gr.offsetMax=new Vector2(-3,-2);
+    boardSegBacks.Add(back);boardSegFills.Add(fill);
+   }
+   for(int i=0;i<boardSegBacks.Count;i++){
+    bool on=i<segments;boardSegBacks[i].gameObject.SetActive(on);if(!on)continue;
+    var r=boardSegBacks[i].rectTransform;r.anchorMin=new Vector2((float)i/segments,0);r.anchorMax=new Vector2((float)(i+1)/segments,1);r.offsetMin=new Vector2(3,-1);r.offsetMax=new Vector2(-3,1);
+    boardSegFills[i].color=tone;
+   }
+   boardMeterMarks.SetAsLastSibling();
    var marks=m.marks??new DesktopMark[0];
    while(boardMarks.Count<marks.Length)boardMarks.Add(BoardMarkUi.Create(this,boardMeterMarks));
    for(int i=0;i<boardMarks.Count;i++){bool on=i<marks.Length;boardMarks[i].gameObject.SetActive(on);if(on)boardMarks[i].Apply(marks[i],m.max);}
@@ -189,8 +261,18 @@ namespace Checkout {
    int columns=Mathf.Max(1,b.columns);if(Phone)columns=Mathf.Min(columns,4); // phones: wider cards, ribbons clear of the badges
    // The window has a fixed size on the 1600×1000 canvas: before its first layout use that width.
    float width=boardGridArea.rect.width>100?boardGridArea.rect.width-40:(road?1440:1020);
-   bool chipped=false;foreach(var x in tiles)if(x.chips!=null&&x.chips.Length>0){chipped=true;break;}
-   var cell=road?new Vector2(width-10,LaneHeight):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),chipped?ChipRows*ChipH+274:268);
+   // Every card of a board has the same height: as tall as its tallest content (chip rows, a bar, big art) and no more.
+   int chipRows=0;bool barred=false,showcase=false;
+   foreach(var x in tiles){if(x.chips!=null)chipRows=Mathf.Max(chipRows,Mathf.Min(ChipRows,x.chips.Length));if(x.fill>=0&&x.frame!="line")barred=true;if(x.frame=="showcase")showcase=true;}
+   boardChipRows=chipRows;
+   // (a narrow window keeps cards wide enough for two buttons: fewer columns)
+   if(!rows){float least=chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+14)/(least+14))));}
+   // (faces without chips, the profile's twelve, a friend request alone: a short card)
+   bool faces=tiles.Length>0;foreach(var x in tiles)if(x.frame!="portrait"&&x.frame!="line"){faces=false;break;}
+   boardFaces=faces&&chipRows==0;
+   float cellH=chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
+   var cell=road?new Vector2(width-10,LaneHeight):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
+   var slimCell=new Vector2(Mathf.Floor((width-14)/2),64);boardCellWidth=rows?0:cell.x;
    // Sections: a title each time the group changes.
    int section=-1;string group=null;
    if(road)while(boardLanes.Count<tiles.Length)boardLanes.Add(BoardLaneUi.Create(this,boardContent));
@@ -199,7 +281,9 @@ namespace Checkout {
     var t=tiles[i];string g=t.group??"";
     if(section<0||g!=group){section++;group=g;
      if(boardSections.Count<=section)boardSections.Add(BoardSection.Create(boardContent));
-     var s=boardSections[section];s.gameObject.SetActive(true);s.transform.SetSiblingIndex(section);s.Apply(g,cell,rows,columns);}
+     // (the Correio's history: slim rows, two per line)
+     bool slim=!rows&&t.frame=="line";
+     var s=boardSections[section];s.gameObject.SetActive(true);s.transform.SetSiblingIndex(section);s.Apply(g,slim?slimCell:cell,rows,slim?2:columns);}
     Component ui=road?(Component)boardLanes[i]:boardTiles[i];ui.gameObject.SetActive(true);
     if(ui.transform.parent!=boardSections[section].grid)ui.transform.SetParent(boardSections[section].grid,false);
     ui.transform.SetAsLastSibling();
@@ -220,7 +304,9 @@ namespace Checkout {
    for(int i=road?tiles.Length:0;i<boardLanes.Count;i++)boardLanes[i].gameObject.SetActive(false);
    boardEmpty.gameObject.SetActive(tiles.Length==0);boardEmpty.text=K.Clean(b.empty);
    if(road){boardDetailPanel.SetActive(false);return;}
-   boardDetailPanel.SetActive(true);
+   // Nothing to pick (no friends yet): no empty side panel, the cards take the width.
+   boardDetailPanel.SetActive(tiles.Length>0);
+   if(tiles.Length==0){boardGridArea.offsetMax=new Vector2(-16,0);return;}
    var picked=FindTile(tiles,SelectedId(tiles));
    boardDetailUi.gameObject.SetActive(picked!=null);if(picked!=null)boardDetailUi.Apply(picked,rows);
   }
@@ -242,7 +328,7 @@ namespace Checkout {
   void ApplyBoardFooter(DesktopBoard b){
    var buttons=b.footer??new DesktopButton[0];
    while(boardFooterButtons.Count<buttons.Length){var x=CheckoutDesktopButton.Create(boardFooter,54,18,16);x.Clicked=BoardPress;boardFooterButtons.Add(x);}
-   for(int i=0;i<boardFooterButtons.Count;i++){bool on=i<buttons.Length;boardFooterButtons[i].gameObject.SetActive(on);if(on)boardFooterButtons[i].Apply(buttons[i]);}
+   for(int i=0;i<boardFooterButtons.Count;i++){bool on=i<buttons.Length;boardFooterButtons[i].gameObject.SetActive(on);if(on){boardFooterButtons[i].Apply(buttons[i]);boardFooterButtons[i].Shrink(12);}}
    boardFooter.gameObject.SetActive(buttons.Length>0);
    // Phones skip the clerk's tip: the tabs' red counters and the footer buttons already say it.
    bool tip=!Phone&&!string.IsNullOrEmpty(b.tip);
@@ -250,7 +336,38 @@ namespace Checkout {
    // Without big buttons or tip the tiles take the room.
    float bottom=(buttons.Length>0?64:6)+(tip?52:0)+6;
    boardTipBar.offsetMin=new Vector2(10,(buttons.Length>0?70:10));boardTipBar.offsetMax=new Vector2(-10,(buttons.Length>0?116:56));
-   ((RectTransform)boardScroll.transform).offsetMin=new Vector2(10,bottom);
+   ((RectTransform)boardScroll.transform).offsetMin=new Vector2(10,bottom);boardScrollBottom=bottom;
+  }
+
+  // Whole rows on the first view (QA 02/11 "no card should ever be sliced by the footer"): when a row (a section's
+  // title goes with its first row) would stand half under the footer, the tile view ends just above it. The rows below
+  // wait for a scroll, with the chevron saying so.
+  void SnapBoardRows(){
+   var view=(RectTransform)boardScroll.transform;view.offsetMin=new Vector2(10,boardScrollBottom);
+   Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(boardContent);
+   var viewport=boardScroll.viewport?boardScroll.viewport:view;float height=viewport.rect.height;
+   if(height<100)return;
+   float scrolled=boardContent.anchoredPosition.y;
+   var corners=new Vector3[4];
+   (float top,float bottom) Span(RectTransform r){r.GetWorldCorners(corners);var a=boardContent.InverseTransformPoint(corners[1]);var z=boardContent.InverseTransformPoint(corners[0]);return (-a.y-scrolled,-z.y-scrolled);}
+   var rows=new List<(float top,float bottom)>();
+   if(boardHeroes.gameObject.activeSelf)rows.Add(Span(boardHeroes));
+   foreach(var section in boardSections){
+    if(!section.gameObject.activeSelf)continue;
+    float? head=section.HeaderShown?Span((RectTransform)section.HeaderRect).top:(float?)null;
+    var tops=new List<(float top,float bottom)>();
+    foreach(Transform child in section.grid){if(!child.gameObject.activeSelf)continue;var sp=Span((RectTransform)child);
+     int at=tops.FindIndex(x=>Mathf.Abs(x.top-sp.top)<1);if(at<0)tops.Add(sp);else tops[at]=(tops[at].top,Mathf.Max(tops[at].bottom,sp.bottom));}
+    tops.Sort((x,y)=>x.top.CompareTo(y.top));
+    for(int i=0;i<tops.Count;i++)rows.Add(i==0&&head.HasValue?(head.Value,tops[i].bottom):tops[i]);
+   }
+   rows.Sort((x,y)=>x.top.CompareTo(y.top));
+   foreach(var row in rows){
+    if(row.bottom<=height+.5f)continue;
+    // the first row that does not fit: cut above it if it starts inside the view (not for a row taller than the view)
+    if(row.top<height&&row.top>80)view.offsetMin=new Vector2(10,boardScrollBottom+height-row.top+4);
+    break;
+   }
   }
 
   // ------------------------------------------------------------------ interaction
@@ -296,7 +413,14 @@ namespace Checkout {
    if(boardMeter.gameObject.activeSelf){
     boardMeterShown=Mathf.MoveTowards(boardMeterShown,boardMeterTarget,Time.unscaledDeltaTime*.8f);
     boardMeterFill.rectTransform.anchorMax=new Vector2(Mathf.Max(.015f,boardMeterShown),1);
+    // (a block just started still shows a good third of colour: 1 help of 30 reads at a glance)
+    for(int i=0;i<boardMeterSegments&&i<boardSegFills.Count;i++){float f=Mathf.Clamp01(boardMeterShown*boardMeterSegments-i);boardSegFills[i].rectTransform.anchorMax=new Vector2(f>0&&f<.34f?.34f:f,1);}
    }
+   // The chevron while rows wait below and the list is still at its top.
+   var vp=boardScroll.viewport?boardScroll.viewport:(RectTransform)boardScroll.transform;
+   bool more=boardContent.rect.height>vp.rect.height+20&&boardScroll.verticalNormalizedPosition>.97f;
+   if(boardMore.gameObject.activeSelf!=more)boardMore.gameObject.SetActive(more);
+   if(more)boardMore.anchoredPosition=new Vector2(0,((RectTransform)boardScroll.transform).offsetMin.y-2+Mathf.Abs(Mathf.Sin(t*3))*5);
   }
 
   public static string Clock(double ms){
@@ -362,6 +486,7 @@ namespace Checkout {
   // A title over a group of tiles plus the grid they sit in.
   class BoardSection:MonoBehaviour {
    public RectTransform grid;TextMeshProUGUI title;GameObject header;GridLayoutGroup layout;
+   public bool HeaderShown=>header.activeSelf;public Transform HeaderRect=>header.transform;
    public static BoardSection Create(Transform parent){
     var root=N.Node("Section",parent);var s=root.gameObject.AddComponent<BoardSection>();N.Column(root.gameObject,6);
     s.header=N.Node("Header",root).gameObject;var hl=s.header.AddComponent<LayoutElement>();hl.preferredHeight=30;

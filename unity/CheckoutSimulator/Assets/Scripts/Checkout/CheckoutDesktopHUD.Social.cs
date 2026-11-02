@@ -102,6 +102,8 @@ namespace Checkout {
    tedge.gameObject.SetActive(false);
   }
 
+  /// <summary>QA: a social toast is on screen or waiting (the shots wait for them to fade).</summary>
+  public bool SocialToastShowing=>socialToastBox&&(socialToastBox.gameObject.activeSelf||socialToasts.Count>0);
   /// <summary>Queues a social toast (CheckoutSocial: inbox results, answers of the friends' server).</summary>
   public void SocialToast(string text,string icon,bool ok){
    if(string.IsNullOrEmpty(text))return;

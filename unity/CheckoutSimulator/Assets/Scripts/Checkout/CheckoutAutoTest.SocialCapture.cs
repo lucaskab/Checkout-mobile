@@ -39,6 +39,23 @@ namespace Checkout {
    Note($"capture: builds [{string.Join(",",(bridge.State.builds??new BuildEntry[0]).Select(b=>b.kind+":"+b.targetId+":"+b.id))}]");
    var sim=FindAnyObjectByType<MarketDay.MarketSimulation>();if(sim)sim.Focus(new Vector3(floor.center.x,0,floor.center.y-1.5f),8f);
    yield return new WaitForSecondsRealtime(2f);yield return Shot("social_capture_spati");
+
+   // The same for a supermercado (the friend "Supermercado da Gabi", far ahead): the stage's own shelves on its floor,
+   // as the game lays them out, and the next shelf bought and placed (its works site). Logs/social_capture_supermercado.json.
+   Act("setMarketLevel","[30]");Act("devAdjustCoins","[3000000]");yield return new WaitForSecondsRealtime(1f);
+   Act("devSetMarketEra","[\"supermercado\"]");yield return new WaitForSecondsRealtime(10f);
+   ia=CheckoutInterior.Active;map=FindAnyObjectByType<CheckoutMap>();
+   if(!ia||!map){Note("capture: no supermercado interior");yield break;}
+   floor=ia.FloorRect;middle=new Vector3(floor.center.x,CheckoutStall.FloorY,floor.center.y);
+   Note($"capture: era {bridge.State.era?.id} small {CheckoutStall.Small} floor {ia.FloorRect} waiting [{string.Join(",",ia.waiting.Keys)}] pieces [{string.Join(",",ia.items.Keys)}]");
+   PlaceAll();map.SaveInterior();yield return new WaitForSecondsRealtime(2f);
+   Act("unlockNextShelf","[]");yield return new WaitForSecondsRealtime(2.5f);
+   PlaceAll();map.SaveInterior();yield return new WaitForSecondsRealtime(3f);
+   var market=ia.ExportJson();File.WriteAllText("Logs/social_capture_supermercado.json",market);
+   Note("CAPTURE supermercado "+market);
+   Note($"capture: builds [{string.Join(",",(bridge.State.builds??new BuildEntry[0]).Select(b=>b.kind+":"+b.targetId+":"+b.id))}]");
+   if(sim)sim.Focus(new Vector3(floor.center.x,0,floor.center.y-1.5f),12f);
+   yield return new WaitForSecondsRealtime(2f);yield return Shot("social_capture_supermercado");
   }
  }
 }

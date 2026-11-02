@@ -18,6 +18,8 @@ namespace Checkout {
   static float PillWidth(TextMeshProUGUI text,string value,float min){return Mathf.Max(min,text.GetPreferredValues(value).x+20);}
   // Social v1 tiles: up to three chips (icon + text) under the title, in rows of this height.
   const int ChipRows=3;const float ChipH=26;
+  // Compact cards (a board with chips): the chips start this far from the face's top; the card is as tall as its rows.
+  const float CompactTop=166;
   static readonly Color PortraitNavy=K.C("1D2B4F"),PortraitGold=K.C("E3B54A");
 
   // A small chip of a tile: icon + text on a soft pill (likes, "2 obras para ajudar", "pede 6× Tomate").
@@ -63,6 +65,7 @@ namespace Checkout {
    Image glow,edge,face,circleImage,icon,lockIcon,stamp,ribbon,badge,timer,barFill;TextMeshProUGUI title,subtitle,ribbonText,badgeText,timerText,barText;
    BoardPips pips;CheckoutDesktopButton button;bool selected;float fillShown=-1,fillTarget;string layoutMode;
    Image ring,cornerBack,cornerIcon;RectTransform chipsBox;readonly List<TileChip> chips=new List<TileChip>();CheckoutDesktopButton alt;
+   string frame;float wobblePhase;
 
    public static BoardTileUi Create(CheckoutDesktopHUD hud,Transform parent){
     var root=N.Node("Tile",parent);var ui=root.gameObject.AddComponent<BoardTileUi>();ui.hud=hud;ui.rect=root;
@@ -97,42 +100,106 @@ namespace Checkout {
     return ui;
    }
 
-   void Layout(bool asRows){
-    string mode=asRows?"row":"card";if(mode==layoutMode)return;layoutMode=mode;
-    if(!asRows){
-     Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-12),new Vector2(112,112));
-     Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-128),new Vector2(-16,38));title.alignment=TextAlignmentOptions.Center;
-     Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-166),new Vector2(-16,18));subtitle.alignment=TextAlignmentOptions.Center;
-     // Face is 258 tall (tile 268 minus the edge): pips, bar and button stack without touching.
-     Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-181),new Vector2(120,14));
-     Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-197),new Vector2(-24,15));
-     Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,4),new Vector2(-14,40)); // top at 214 from the face top: clear of the bar (ends at 212)
-     Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-122),new Vector2(96,26));
-     Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-8,10),new Vector2(100,26));ribbonRect.localRotation=Quaternion.Euler(0,0,6);
-     Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(8,10),new Vector2(48,28));
-     Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-7),new Vector2(122,122));
-     Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(46,-106),new Vector2(44,44));
-     Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(-16,ChipRows*ChipH));
-     title.fontSizeMax=17;
-    } else {
-     Place(circle,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(12,2),new Vector2(84,84));
-     Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-12),new Vector2(-430,30));title.alignment=TextAlignmentOptions.MidlineLeft;
-     Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-42),new Vector2(-430,20));subtitle.alignment=TextAlignmentOptions.MidlineLeft;
-     Place(pips.Rect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(-232,-16),new Vector2(90,14));
-     Place(barRect,new Vector2(0,0),new Vector2(1,0),new Vector2(0,0),new Vector2(110,18),new Vector2(-430,20));
-     Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(200,52));
-     Place(timerRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-222,-20),new Vector2(96,26));
-     Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-8,10),new Vector2(100,26));ribbonRect.localRotation=Quaternion.Euler(0,0,4);
-     Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(-224,-34),new Vector2(48,28));
-     Place(ring.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(7,2),new Vector2(94,94));
-     Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(86,-26),new Vector2(36,36));
-     Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-64),new Vector2(-430,ChipH));
-     title.fontSizeMax=20;
+   // Modes: card (the usual square tile), compact (a board with chips: the friends, the requests), showcase (a prize,
+   // big art), gift (a present to open, big wobbling art), line (a slim row: the Correio's history) and row (wide rows).
+   void Layout(string mode,int chipRows){
+    string key=mode+chipRows;if(key==layoutMode)return;layoutMode=key;
+    ring.gameObject.SetActive(false);
+    // (ribbons sit inside the card's corner, clear of the section title above; the number pill too)
+    Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-6,-6),new Vector2(100,26));ribbonRect.localRotation=Quaternion.Euler(0,0,mode=="row"?4:6);
+    Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(6,2),new Vector2(48,28));
+    title.alignment=TextAlignmentOptions.Center;subtitle.alignment=TextAlignmentOptions.Center;title.fontSizeMax=17;
+    switch(mode){
+     case "row":
+      Place(circle,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(12,2),new Vector2(84,84));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-12),new Vector2(-430,30));title.alignment=TextAlignmentOptions.MidlineLeft;
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-42),new Vector2(-430,20));subtitle.alignment=TextAlignmentOptions.MidlineLeft;
+      Place(pips.Rect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(-232,-16),new Vector2(90,14));
+      Place(barRect,new Vector2(0,0),new Vector2(1,0),new Vector2(0,0),new Vector2(110,18),new Vector2(-430,20));
+      Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(200,52));
+      Place(timerRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-222,-20),new Vector2(96,26));
+      Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-8,10),new Vector2(100,26));
+      Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(-224,-34),new Vector2(48,28));
+      Place(ring.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(7,2),new Vector2(94,94));
+      Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(86,-26),new Vector2(36,36));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-64),new Vector2(-430,ChipH));
+      title.fontSizeMax=20;break;
+     case "line":
+      Place(circle,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10,0),new Vector2(42,42));
+      Place(ring.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(7,0),new Vector2(48,48));
+      Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(50,-12),new Vector2(24,24));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(66,-5),new Vector2(-76,24));title.alignment=TextAlignmentOptions.MidlineLeft;
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(66,-29),new Vector2(-76,20));subtitle.alignment=TextAlignmentOptions.MidlineLeft;
+      title.fontSizeMax=16;break;
+     case "compact":{
+      // face 96 high in its ring, the timer on its foot, title, subtitle, the chip rows, a bar, the buttons
+      Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-10),new Vector2(96,96));
+      Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-5),new Vector2(106,106));
+      Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(42,-92),new Vector2(40,40));
+      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-104),new Vector2(92,24));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-118),new Vector2(-16,28));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-146),new Vector2(-16,18));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-CompactTop),new Vector2(-16,chipRows*ChipH));
+      float below=-CompactTop-chipRows*ChipH-2;
+      Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,below),new Vector2(-24,14));
+      Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,below),new Vector2(120,14));
+      break;}
+     case "face":
+      // a face on a short card (the profile's faces, a friend request): ring, name, a line, the buttons
+      Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-8),new Vector2(90,90));
+      Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-3),new Vector2(100,100));
+      Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(40,-84),new Vector2(36,36));
+      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-96),new Vector2(92,24));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-102),new Vector2(-16,26));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-128),new Vector2(-16,18));
+      Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-148),new Vector2(120,14));
+      Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-148),new Vector2(-24,14));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-148),new Vector2(-16,ChipH));
+      break;
+     case "showcase":
+      // the prize big: a 150 plate, then its name, the friends it takes and the bar
+      Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-8),new Vector2(150,150));
+      Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-3),new Vector2(160,160));
+      Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(62,-140),new Vector2(44,44));
+      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-150),new Vector2(96,26));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-162),new Vector2(-16,30));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-192),new Vector2(-16,18));
+      Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-212),new Vector2(120,14));
+      Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-216),new Vector2(-24,15));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-212),new Vector2(-16,ChipH));
+      title.fontSizeMax=19;break;
+     case "gift":
+      // a present: big art (132), its sender, Abrir
+      Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-4),new Vector2(132,132));
+      Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,0),new Vector2(140,140));
+      Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(54,-118),new Vector2(40,40));
+      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-130),new Vector2(96,26));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-140),new Vector2(-16,28));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-168),new Vector2(-16,18));
+      Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-188),new Vector2(120,14));
+      Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-190),new Vector2(-24,15));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(-16,ChipH));
+      break;
+     default:
+      Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-12),new Vector2(112,112));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-128),new Vector2(-16,38));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-166),new Vector2(-16,18));
+      // Face is 258 tall (tile 268 minus the edge): pips, bar and button stack without touching.
+      Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-181),new Vector2(120,14));
+      Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-197),new Vector2(-24,15));
+      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-122),new Vector2(96,26));
+      Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-7),new Vector2(122,122));
+      Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(46,-106),new Vector2(44,44));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(-16,ChipRows*ChipH));
+      break;
     }
    }
 
    public void Apply(DesktopTile t,bool asRows,bool isSelected){
-    bool changed=data==null||data.id!=t.id;data=t;Id=t.id;rows=asRows;Layout(asRows);
+    bool changed=data==null||data.id!=t.id;data=t;Id=t.id;rows=asRows;frame=t.frame??"";
+    int chipRows=hud.boardChipRows;
+    string mode=asRows?"row":frame=="line"?"line":frame=="showcase"?"showcase":frame=="gift"?"gift":chipRows>0?"compact":frame=="portrait"&&hud.boardFaces?"face":"card";
+    Layout(mode,chipRows);if(changed)wobblePhase=(t.id??"").GetHashCode()%100*.07f;
     bool locked=t.state=="locked",done=t.state=="done";
     face.color=ToneFace(t.tone);circleImage.color=locked?K.C("D8CDBB"):Color.Lerp(Color.white,ToneFace(t.tone),.6f);
     var sprite=K.Icon(t.icon);icon.sprite=sprite;icon.enabled=sprite;
@@ -158,17 +225,24 @@ namespace Checkout {
     while(chips.Count<cs.Length&&chips.Count<ChipRows)chips.Add(TileChip.Create(chipsBox));
     for(int i=0;i<chips.Count;i++){bool on=i<cs.Length;chips[i].rect.gameObject.SetActive(on);if(on)chips[i].Apply(cs[i]);}
     chipsBox.gameObject.SetActive(cs.Length>0);
-    if(cs.Length>0&&!asRows){barRect.anchoredPosition=new Vector2(0,-186-ChipRows*ChipH);pips.Rect.anchoredPosition=new Vector2(0,-186-ChipRows*ChipH);}
-    else if(!asRows){barRect.anchoredPosition=new Vector2(0,-197);pips.Rect.anchoredPosition=new Vector2(0,-181);}
+    bool line=mode=="line";
+    // A slim row: the face, who and what; no buttons, bars or ribbons.
+    if(line){barRect.gameObject.SetActive(false);pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);ribbon.gameObject.SetActive(false);badge.gameObject.SetActive(false);button.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);hasButton=false;}
     if(portrait&&hasRibbon)ribbon.color=PortraitGold;
+    // (a present and a prize: big art on a soft plate, no inset)
+    if(frame=="gift"||frame=="showcase"){icon.rectTransform.offsetMin=new Vector2(frame=="gift"?2:8,frame=="gift"?2:8);icon.rectTransform.offsetMax=new Vector2(frame=="gift"?-2:-8,frame=="gift"?-2:-8);}
+    if(frame=="gift")circleImage.color=new Color(1,1,1,.55f);
     bool hasAlt=t.alt!=null&&!string.IsNullOrEmpty(t.alt.label);alt.gameObject.SetActive(hasAlt&&hasButton);
     var ar=(RectTransform)alt.transform;
     if(hasAlt&&hasButton){
      if(asRows){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(150,52));Place(ar,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-170,-2),new Vector2(150,52));}
      else{Place(buttonRect,new Vector2(0,0),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(2,4),new Vector2(-12,44));Place(ar,new Vector2(.5f,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(-2,4),new Vector2(-12,44));}
      alt.Apply(t.alt);
+     // Two buttons on a narrow card (phones: four friends a row): words without icons, shrinking before any "…".
+     bool tight=!asRows&&hud.boardCellWidth>0&&hud.boardCellWidth<300;
+     button.Fit(tight);alt.Fit(tight);
     } else if(asRows)Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(200,52));
-    else Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,4),new Vector2(-14,40));
+    else Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,4),new Vector2(-14,mode=="card"?40:44));
     Select(isSelected);
    }
    public void Select(bool on){selected=on;edge.color=on?K.C("F2B03D"):ToneEdge(data!=null?data.tone:"");rect.localScale=on?Vector3.one*1.0f:Vector3.one;}
@@ -183,6 +257,11 @@ namespace Checkout {
     bool ready=data.state=="ready";
     glow.color=ready?new Color(1,.82f,.3f,.38f+.22f*Mathf.Sin(t*4.5f)):selected?new Color(1,.85f,.4f,.35f):new Color(1,.85f,.3f,0);
     icon.rectTransform.anchoredPosition=new Vector2(0,ready?Mathf.Abs(Mathf.Sin(t*3.2f))*5:0);
+    // A present wobbles while it waits, with a little hop now and then (like a box someone shakes).
+    if(frame=="gift"){float w=t*2.6f+wobblePhase;float hop=Mathf.Repeat(t+wobblePhase,3.2f);
+     icon.rectTransform.localRotation=Quaternion.Euler(0,0,Mathf.Sin(w)*7+(hop<.35f?Mathf.Sin(hop/.35f*Mathf.PI*4)*6:0));
+     icon.rectTransform.anchoredPosition=new Vector2(0,hop<.35f?Mathf.Sin(hop/.35f*Mathf.PI)*9:0);}
+    else if(icon.rectTransform.localRotation!=Quaternion.identity)icon.rectTransform.localRotation=Quaternion.identity;
    }
 
    public void OnPointerClick(PointerEventData e){if(e.button!=PointerEventData.InputButton.Left||data==null)return;hud.BoardSelect(data.id);StartCoroutine(U.Pop(transform,1.05f,.18f));}
@@ -199,11 +278,13 @@ namespace Checkout {
 
    public static BoardDetailUi Create(CheckoutDesktopHUD hud,RectTransform content){
     var ui=content.gameObject.AddComponent<BoardDetailUi>();ui.hud=hud;
-    var col=content.GetComponent<VerticalLayoutGroup>();col.spacing=10;col.padding=new RectOffset(6,10,6,14);col.childAlignment=TextAnchor.UpperCenter;
+    // (phones: a little tighter, so a friend request shows whole with both buttons)
+    var col=content.GetComponent<VerticalLayoutGroup>();col.spacing=Phone?8:10;col.padding=Phone?new RectOffset(6,10,4,6):new RectOffset(6,10,6,14);col.childAlignment=TextAnchor.UpperCenter;
     // Hero: the icon big on a soft glow, its ribbon.
-    ui.hero=N.Image(content,"Hero",K.C("FFF3C8"),20);ui.hero.gameObject.AddComponent<LayoutElement>().preferredHeight=190;
+    // (phones: a shorter hero, so a friend request's text and both its buttons fit without a scroll)
+    ui.hero=N.Image(content,"Hero",K.C("FFF3C8"),20);ui.hero.gameObject.AddComponent<LayoutElement>().preferredHeight=Phone?150:190;
     ui.heroGlow=N.Image(ui.hero.transform,"Glow",new Color(1,1,1,.7f),0);ui.heroGlow.sprite=U.Glow();Place(ui.heroGlow.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(300,240));
-    ui.circleImage=N.Image(ui.hero.transform,"Circle",Color.white,0);ui.circleImage.sprite=K.Rounded(80);ui.circleImage.type=Image.Type.Sliced;Place(ui.circleImage.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(160,160));
+    ui.circleImage=N.Image(ui.hero.transform,"Circle",Color.white,0);ui.circleImage.sprite=K.Rounded(80);ui.circleImage.type=Image.Type.Sliced;Place(ui.circleImage.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,Phone?new Vector2(128,128):new Vector2(160,160));
     ui.icon=N.Image(ui.circleImage.transform,"Icon",Color.white,0);ui.icon.preserveAspect=true;Stretch(ui.icon.rectTransform,new Vector2(14,14),new Vector2(-14,-14));
     ui.lockIcon=N.Image(ui.circleImage.transform,"Lock",Color.white,0);ui.lockIcon.sprite=K.Icon("Icons/lock");ui.lockIcon.preserveAspect=true;Place(ui.lockIcon.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(64,64));
     ui.stamp=N.Image(ui.circleImage.transform,"Stamp",Color.white,0);ui.stamp.sprite=K.Icon("Icons/success");ui.stamp.preserveAspect=true;Place(ui.stamp.rectTransform,new Vector2(1,0),new Vector2(1,0),new Vector2(1,0),new Vector2(14,-8),new Vector2(64,64));
@@ -242,6 +323,8 @@ namespace Checkout {
     timerRow.SetActive(t.timerEnd>0);
     detail.text=K.Clean(t.detail);detail.gameObject.SetActive(!string.IsNullOrEmpty(t.detail));
     var f=t.facts??new DesktopStat[0];
+    // (two facts a row as wide as the panel: a narrow panel on an iPad cut them at 186 each)
+    var fg=factsGrid.GetComponent<GridLayoutGroup>();fg.cellSize=new Vector2(Mathf.Min(186,Mathf.Floor((hud.BoardDetailWidth-40-8)/2)),60);
     while(facts.Count<f.Length)facts.Add(BoardChip.Create(factsGrid,false));
     for(int i=0;i<facts.Count;i++){bool on=i<f.Length;facts[i].gameObject.SetActive(on);if(on)facts[i].Apply(f[i]);}
     factsGrid.gameObject.SetActive(f.Length>0);

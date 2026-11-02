@@ -182,6 +182,11 @@ namespace Checkout {
     for(int depth=0;depth<3&&t&&!hit;depth++,t=t.parent)foreach(var w in words)if(t.name.Contains(w)){hit=true;break;}
     if(hit){r.enabled=false;list.Add(r);}
    }
+   // A clear day for the picture: the rain's puddles and the people's open umbrellas go too (QA 02/11).
+   void Hide(GameObject go){if(!go)return;foreach(var r in go.GetComponentsInChildren<Renderer>())if(r.enabled){r.enabled=false;list.Add(r);}}
+   // (the puddles hang under the weather's own object: only them)
+   foreach(var p in FindObjectsByType<CheckoutRainPuddles>(FindObjectsSortMode.None))foreach(Transform child in p.transform)if(child.name=="Rain puddle")Hide(child.gameObject);
+   foreach(var u in FindObjectsByType<MarketDay.MarketRainUmbrellaRig>(FindObjectsSortMode.None))Hide(u.Umbrella);
    return list;
   }
 

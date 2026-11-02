@@ -20,6 +20,8 @@ namespace MarketDay
         float shelterWeight;
         bool sheltering;
         public bool HasVisibleUmbrella => umbrella && umbrella.activeInHierarchy;
+        /// <summary>The open umbrella (null = none): the share postcard hides it for its clear-day picture.</summary>
+        public GameObject Umbrella => umbrella;
         public bool HasRightHandRig => upperArm && forearm && hand && IsRightSide(hand.name);
         public bool ForearmIsUpright => forearm && hand && Vector3.Dot((hand.position - forearm.position).normalized, Vector3.up) > .5f;
         public bool IsShelteringHead

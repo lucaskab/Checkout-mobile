@@ -24,7 +24,11 @@ namespace Checkout {
  // Game windows built from tiles (layout "board"): mirrors BoardView / BoardTile / BoardMeter / BoardStat of desktop/view-kit.ts.
  [Serializable] public class DesktopStat {public string icon,value,label,tone;}
  [Serializable] public class DesktopMark {public float at;public string icon,label,state;public DesktopButton action;}
- [Serializable] public class DesktopMeter {public string title,icon,text,tone;public float value,max;public DesktopMark[] marks;}
+ [Serializable] public class DesktopMeter {
+  public string title,icon,text,tone;public float value,max;public DesktopMark[] marks;
+  // Social v1: the bar as a player strip: buttons at its end, drawn in blocks, a face for the icon that opens a route.
+  public DesktopButton[] buttons;public int segments;public string frame,route;
+ }
  [Serializable] public class DesktopTile {
   public string id,group,icon,title,subtitle,sticker,tone,badge,fillText,state,detail,origin,originLabel,vehicle,lane;
   public int stars,maxStars;public float fill=-1;public double timerEnd,timerTotal;

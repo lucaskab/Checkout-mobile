@@ -163,6 +163,15 @@ export type BoardMeter = {
 	/** success | warning | danger | info | gold */
 	tone: string;
 	marks: BoardMark[];
+	/** Social v1, the bar as a player strip (Amigos: my face, my code, Copiar/Convidar and the helps of the day):
+	 * big buttons at the right end of the bar. */
+	buttons: Button[];
+	/** The bar drawn as this many blocks (a game meter: 6 blocks of 5 helps), 0 = one bar. */
+	segments: number;
+	/** "portrait" = the icon is a face on a navy plate in a gold ring. */
+	frame: string;
+	/** Where a tap on the icon goes ("" = nowhere): my face opens the profile. */
+	route: string;
 };
 /** One tile of a board: a product, a delivery, a machine, a mission, a trophy… */
 export type BoardTile = {
@@ -203,7 +212,8 @@ export type BoardTile = {
 	lane: string;
 	/** Small chips under the title (likes, "2 obras", "6× Tomate"): icon + text. */
 	chips: BoardStat[];
-	/** "portrait" = the icon is a face in a gold-ringed frame (friends); "" = the usual round plate. */
+	/** "portrait" = the icon is a face in a gold-ringed frame (friends); "gift" = a big wobbling present (the Correio);
+	 * "showcase" = big art (a prize); "line" = a slim row, two per line (the Correio's history); "" = the usual round plate. */
 	frame: string;
 	/** A small badge on the icon's corner (a friend's stage). */
 	corner: string;
@@ -422,7 +432,7 @@ export function tile(id: string, title: string, options: Partial<BoardTile> = {}
 	};
 }
 export function meter(title: string, value: number, max: number, options: Partial<BoardMeter> = {}): BoardMeter {
-	return { title, icon: "", value, max, text: "", tone: "success", marks: [], ...options };
+	return { title, icon: "", value, max, text: "", tone: "success", marks: [], buttons: [], segments: 0, frame: "", route: "", ...options };
 }
 export const noMeter = () => meter("", 0, 0);
 export function board(tiles: BoardTile[], options: Partial<BoardView> = {}): BoardView {

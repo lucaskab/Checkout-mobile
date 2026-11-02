@@ -45,6 +45,15 @@ namespace Checkout {
    var sprite=K.Icon(data.icon);icon.sprite=sprite;icon.gameObject.SetActive(sprite);
    icon.color=data.enabled?Color.white:new Color(1,1,1,.55f);
   }
+  /// <summary>A narrow spot (two buttons on a phone's friend card): the word only, shrinking to fit before any "…".
+  /// Call after Apply (which shows the icon again).</summary>
+  public void Fit(bool tight){
+   if(!tight)return;
+   icon.gameObject.SetActive(false);label.enableAutoSizing=true;label.fontSizeMin=Mathf.Min(label.fontSizeMin>0?label.fontSizeMin:label.fontSize,10);
+   if(label.fontSizeMax<label.fontSize)label.fontSizeMax=label.fontSize;
+  }
+  /// <summary>A long label in a narrow window (an iPad's footer): shrinks down to this size before any "…".</summary>
+  public void Shrink(float min){label.enableAutoSizing=true;label.fontSizeMin=Mathf.Min(label.fontSizeMin>0?label.fontSizeMin:label.fontSize,min);if(label.fontSizeMax<label.fontSize)label.fontSizeMax=label.fontSize;}
   /// <summary>An icon that is not a file in Resources (Apple's logo, made by the iPhone itself).</summary>
   public void SetIconSprite(Sprite sprite){icon.sprite=sprite;icon.gameObject.SetActive(sprite);}
   void Layout(){float drop=pressed?Lift-2:0;faceRect.offsetMin=new Vector2(0,Lift-drop);faceRect.offsetMax=new Vector2(0,-drop);}

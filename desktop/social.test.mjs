@@ -86,13 +86,18 @@ test("first time on Amigos: the profile asks for a market name and a face", asyn
 	expect(main.layout).toBe("board");
 	expect(main.sections.map((s) => s.label)).toEqual(["Amigos", "Pedidos", "Convidar", "Correio"]);
 	expect(main.sections[0].active).toBe(true);
-	expect(main.cards[0]).toMatchObject({ title: "K7Q2-MX4P", hero: true });
-	expect(main.cards[0].subtitle).toContain("Mercadinho do Lucas");
+	// My strip across the top (the board's bar): my face opens the profile, my code, Copiar / Convidar, the helps.
+	expect(main.cards).toHaveLength(0);
+	expect(main.board.meter).toMatchObject({ title: "K7Q2-MX4P", frame: "portrait", route: "amigos:perfil", value: 0, max: 30, segments: 6 });
+	expect(main.board.meter.text).toContain("Mercadinho do Lucas");
+	expect(main.board.meter.buttons.map((b) => b.action)).toEqual(["socialCopy", "socialShare"]);
 	const ana = main.board.tiles.find((t) => t.title === "Mercado da Ana");
 	expect(ana).toMatchObject({ frame: "portrait", sticker: "NV 9", action: { action: "socialVisit" }, alt: { action: "socialGift" } });
 	expect(ana.chips.map((c) => c.value)).toContain("2 obras para ajudar");
-	expect(main.board.tiles.some((t) => t.group === "Querem ser seus amigos" && t.action.action === "socialAccept")).toBe(true);
-	expect(main.board.meter).toMatchObject({ title: "Ajudas hoje", value: 0, max: 30 });
+	// The friends fill the first row; a friend request comes after them, and is the side panel's first pick.
+	const request = main.board.tiles.findIndex((t) => t.group === "Querem ser seus amigos" && t.action.action === "socialAccept");
+	expect(request).toBeGreaterThan(main.board.tiles.findIndex((t) => t.title === "Mercado da Ana"));
+	expect(main.board.focus).toBe(main.board.tiles[request].id);
 	expect(main.board.footer[0].action).toBe("socialGiftAll");
 });
 
@@ -312,7 +317,7 @@ test("share, copy and the QR code", async () => {
 	await act("socialCopy");
 	expect(sent.find((m) => m.kind === "social-copy").text).toBe("K7Q2-MX4P");
 	await act("socialQr");
-	expect(pages(game(), "amigos-convidar").cards[0].qr).toMatch(/^33:[01]{1089}$/);
+	expect(pages(game(), "amigos-convidar").cards.find((c) => c.qr).qr).toMatch(/^33:[01]{1089}$/);
 });
 
 test("a reported name: the owner is asked for a new one", async () => {

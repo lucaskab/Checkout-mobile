@@ -119,9 +119,9 @@ namespace Checkout {
    bool has=!string.IsNullOrEmpty(qr);
    if(!has){if(qrRow)qrRow.SetActive(false);return;}
    if(!qrRow){
-    qrRow=Node("QR",face.transform).gameObject;qrRow.AddComponent<UnityEngine.UI.LayoutElement>().preferredHeight=250;
+    qrRow=Node("QR",face.transform).gameObject;qrRow.AddComponent<UnityEngine.UI.LayoutElement>().preferredHeight=CheckoutScreen.Handheld?200:250; // (phones: the QR card whole above the fold, still a big code)
     var raw=Node("Code",qrRow.transform).gameObject.AddComponent<UnityEngine.UI.RawImage>();qrImage=raw;raw.raycastTarget=false;
-    var r=raw.rectTransform;r.anchorMin=r.anchorMax=r.pivot=new Vector2(.5f,.5f);r.sizeDelta=new Vector2(240,240);
+    var r=raw.rectTransform;r.anchorMin=r.anchorMax=r.pivot=new Vector2(.5f,.5f);r.sizeDelta=CheckoutScreen.Handheld?new Vector2(196,196):new Vector2(240,240);
    }
    qrRow.SetActive(true);qrRow.transform.SetSiblingIndex(buttons.GetSiblingIndex());
    if(qrShown!=qr){qrShown=qr;if(qrImage.texture)Destroy(qrImage.texture);qrImage.texture=QrTexture(qr);}
