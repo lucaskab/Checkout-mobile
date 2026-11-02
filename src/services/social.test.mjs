@@ -117,9 +117,11 @@ test("help on evolutions, the stage works and the lot clearing", () => {
 		lots: { ...game().lots, clearing: { lotId: "lote-1", startedAt: NOW - MIN, endsAt: NOW + 60 * MIN } },
 	});
 	const builds = getSocialBuilds(game(), NOW).map((build) => build.id);
-	expect(builds).toEqual(["era:spati", "evolution:evo-1", "lot:lote-1"]);
+	expect(builds).toEqual([`era:spati:${NOW - MIN}`, "evolution:evo-1", `lot:lote-1:${NOW - MIN}`]);
+	// A help for an older build in the same place (another start time) is not this one.
+	expect(applyBuildHelp(game(), `lot:lote-1:${NOW - 99 * MIN}`, 5, NOW)).toBe(null);
 	game().applySocialInbox(
-		[item("help", { buildId: "evolution:evo-1", minutes: 5 }), item("help", { buildId: "era:spati", minutes: 5 }), item("help", { buildId: "lot:lote-1", minutes: 5 })],
+		[item("help", { buildId: "evolution:evo-1", minutes: 5 }), item("help", { buildId: builds[0], minutes: 5 }), item("help", { buildId: builds[2], minutes: 5 })],
 		NOW,
 	);
 	expect(game().evolutions[0].endsAt).toBe(NOW + 25 * MIN);
@@ -148,6 +150,9 @@ test("a delivery goes into the stock room even past its room, and closes the req
 	expect(game().inventory[product.id]).toBe(19);
 	expect(game().inventoryLots[product.id].reduce((sum, lot) => sum + lot.quantity, 0)).toBe(19);
 	expect(game().social.requests).toEqual([]);
+	// The server sends product ids as text ("47"): the same delivery.
+	game().applySocialInbox([item("delivery", { requestId: 99, productId: String(product.id), qty: 2 })], NOW);
+	expect(game().inventory[product.id]).toBe(21);
 	// An unknown product: acked, nothing added.
 	const before = JSON.stringify(game().inventory);
 	expect(game().applySocialInbox([item("delivery", { productId: 999_999, qty: 3 })], NOW).ack).toHaveLength(1);

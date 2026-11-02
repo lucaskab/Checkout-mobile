@@ -19,6 +19,7 @@ import { canClaimDailyLogin, canDoubleDailyLogin } from "@/services/daily-login"
 import { getRewardedAdOffer } from "@/services/rewarded-ads";
 import { adsStore, isAdOpening } from "./ads";
 import { cloudStore } from "./cloud";
+import { socialBadge, socialIcon, socialStore, type VisitView, visitView } from "./social";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getNextSimulatorUnlocks } from "@/services/simulator-progression";
 import { getStoredInteriorBuilds } from "@/services/interior-construction";
@@ -92,6 +93,8 @@ export type DesktopView = {
 	hasPage: boolean;
 	canBack: boolean;
 	page: Page;
+	/** Visiting a friend's market (desktop/social.ts): Unity swaps the HUD for the visit bar. null = at home. */
+	visit: VisitView | null;
 };
 
 export type BoostView = {
@@ -158,6 +161,11 @@ function quickButtons(state: State, now: number): Button[] {
 				}),
 		button("Loja", { icon: gameIcon("diamond"), route: "!currency", variant: "gem" }),
 	];
+	// Amigos (social v1): in the same corner menu, no new button on the screen; a red count of what friends did.
+	if (cloudStore.status !== "unavailable" || socialStore.mock) {
+		const news = socialBadge();
+		quick.push(button("Amigos", { icon: socialIcon("friends"), route: "!amigos", variant: news > 0 ? "success" : "secondary", badge: news > 0 ? String(news) : "" }));
+	}
 	if (!signedIn && cloudStore.status !== "unavailable")
 		quick.push(button("Salvar", { icon: gameIcon("smartphone"), route: "!conta", variant: "primary", badge: "!" }));
 	return quick;
@@ -305,7 +313,10 @@ export function createDesktopView(
 		return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 	};
 	const current = route ? pages(state, route) : page("", "", []);
-	const quick = quickButtons(state, now);
+	const visit = visitView(now);
+	// Visiting: only the visit's own bar and pages (the player's HUD, tutorial and celebrations wait at home).
+	const quick = visit ? [] : quickButtons(state, now);
+	const home = !visit;
 	return {
 		kind: "view",
 		revision,
@@ -421,5 +432,19 @@ export function createDesktopView(
 		hasPage: Boolean(route),
 		canBack: stack.length > 1,
 		page: current,
+		visit,
+		...(home
+			? {}
+			: {
+					hasEvent: false,
+					boosts: [],
+					tools: [],
+					quickMain: quickMainButton([]),
+					hasOffline: false,
+					levelUp: null,
+					celebration: null,
+					coach: { ...getCoachView(state, route, now), key: "" },
+					goal: { ...getNextGoal(state, { lot: "", coin: "", build: "", done: "" }), text: "" },
+				}),
 	};
 }

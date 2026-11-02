@@ -32,7 +32,21 @@ export type Card = {
 	lines: string[];
 	progress: number;
 	buttons: Button[];
+	/** A text field on the card (Amigos: friend code, market name); id "" = none. Buttons pass what was typed with "$input:<id>" in their args. */
+	input: CardInput;
+	/** A QR code on the card ("<size>:" + rows of 1/0, desktop/qr.ts); "" = none. */
+	qr: string;
 };
+export type CardInput = {
+	id: string;
+	placeholder: string;
+	value: string;
+	/** Most characters (0 = no limit). */
+	max: number;
+	/** "code" (capital letters and digits) | "name" | "". */
+	kind: string;
+};
+export const noInput = (): CardInput => ({ id: "", placeholder: "", value: "", max: 0, kind: "" });
 /** One place of a fixture in the shelf window (layout "shelf"). */
 export type ShelfSlotView = {
 	slotId: string;
@@ -344,6 +358,8 @@ export function card(title: string, options: Partial<Card> = {}): Card {
 		lines: [],
 		progress: -1,
 		buttons: [],
+		input: noInput(),
+		qr: "",
 		...options,
 	};
 }

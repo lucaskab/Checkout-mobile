@@ -1,3 +1,4 @@
+import { computePublicBlock } from "@/services/social";
 import type { GameStore } from "@/@types/game";
 import { getMarketEra } from "@/data/economy";
 import { useGameStore } from "@/stores/game-store";
@@ -67,7 +68,13 @@ export function exportSave() {
 	const persisted = options.partialize ? options.partialize(state) : state;
 	const summary = summarize(state, version);
 	const purchases = (state.currencyPurchases?.processedTransactionIds?.length ?? 0) + (state.currencyPurchases?.purchasedPackIds?.length ?? 0);
-	return { data: JSON.stringify({ state: persisted, version }), summary, fresh: isFreshGame(summary, purchases) };
+	// Social v1: the small public block (running builds, stage, rating) goes with every upload, as JSON text Unity puts
+	// as the last field of the body (docs/social-api.md: the server's cheap path). Old saves get an empty list.
+	let publicJson = "";
+	try {
+		publicJson = JSON.stringify(computePublicBlock(state));
+	} catch {}
+	return { data: JSON.stringify({ state: persisted, version }), summary, fresh: isFreshGame(summary, purchases), publicJson };
 }
 
 /** Replaces this device's progress with `data` (a cloud save). Older save versions are migrated on the way in. */

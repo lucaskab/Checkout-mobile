@@ -32,6 +32,20 @@ import {
 	requestCloudAction,
 } from "./cloud.ts";
 import { isGameLink } from "./links.ts";
+import {
+	applySocialFlushed,
+	applySocialLink,
+	applySocialReply,
+	applySocialStatus,
+	initSocial,
+	isVisiting,
+	onSocialRoute,
+	requestSocialAction,
+	runInboxCycle,
+	socialActions,
+	visitActions,
+	visitSnapshot,
+} from "./social.ts";
 import { type AdPlacement, adPlacements, type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
@@ -168,6 +182,9 @@ function send(message: unknown) {
 function snapshot() {
 	if (!ready) return;
 	dirty = false;
+	// Visiting a friend: their market (read-only, its own session) instead of the player's.
+	const visit = visitSnapshot();
+	if (visit) return send(localizeSnapshot(visit));
 	send(localizeSnapshot(createSimulatorSnapshot(useGameStore.getState(), session, revision)));
 }
 // The tutorial's "Guarde o seu progresso" step (src/data/onboarding.ts "conta") has nothing to ask of a player who
@@ -179,7 +196,7 @@ function skipAccountStep() {
 	if (signedIn) state.onboardingNext();
 }
 function view() {
-	skipAccountStep();
+	if (!isVisiting()) skipAccountStep();
 	viewDirty = false;
 	viewSentAt = Date.now();
 	send(localizeView(createDesktopView(useGameStore.getState(), revision, routes)));
@@ -192,8 +209,10 @@ function navigate(route: string) {
 	else if (route === "back") routes.pop();
 	else if (route.startsWith("~")) routes.splice(-1, 1, route.slice(1));
 	else if (routes.at(-1) !== route) routes.push(route);
-	// Opening a page can finish a tutorial step ("toque no caixote"), so the coach moves on right away.
-	useGameStore.getState().processOnboarding(routes.at(-1) ?? "");
+	// Opening a page can finish a tutorial step ("toque no caixote"), so the coach moves on right away. Never during a
+	// visit: the player's save stays as it was.
+	if (!isVisiting()) useGameStore.getState().processOnboarding(routes.at(-1) ?? "");
+	onSocialRoute(routes.at(-1) ?? "");
 	view();
 }
 
@@ -205,6 +224,18 @@ const command = createSimulatorCommandHandler(
 useGameStore.subscribe(() => {
 	revision++;
 	dirty = viewDirty = true;
+});
+// Social v1 (desktop/social.ts): Unity does the calls; the visit swaps the snapshot and the HUD.
+initSocial({
+	send,
+	refresh: () => {
+		viewDirty = true;
+	},
+	onVisit: () => {
+		routes.length = 0;
+		snapshot();
+		view();
+	},
 });
 
 // World clicks open the same pages the toolbar does, starting a fresh stack.
@@ -260,6 +291,25 @@ function runHudAction(message: {
 	after?: unknown;
 }) {
 	const id = typeof message.id === "string" ? message.id : "invalid";
+	// Amigos and the visit (desktop/social.ts): answered at once and quietly; the outcome comes as a social toast.
+	if (typeof message.action === "string" && socialActions.includes(message.action)) {
+		const request = requestSocialAction(message.action, Array.isArray(message.args) ? message.args : []);
+		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "quiet" : request.reason ? t(request.reason) : "quiet" });
+		if (request.ok && message.after === "back") routes.pop();
+		view();
+		return;
+	}
+	// Visiting a friend: the player's own market waits (only the visit's buttons, the account and purchases go through).
+	if (
+		isVisiting() &&
+		typeof message.action === "string" &&
+		!visitActions.includes(message.action) &&
+		!cloudActions.includes(message.action) &&
+		!["grantCurrencyPack", "openLink", "openAdPrivacy"].includes(message.action)
+	) {
+		send({ kind: "result", id, action: message.action, ok: false, reason: t("Volte ao seu mercado primeiro.") });
+		return;
+	}
 	// "Conta e nuvem" buttons: Unity signs in with Google and talks to the save server (CheckoutCloud.cs).
 	if (typeof message.action === "string" && cloudActions.includes(message.action)) {
 		const request = requestCloudAction(message.action, Array.isArray(message.args) ? message.args : []);
@@ -391,6 +441,22 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		send({ kind: "i18n", lang: getLanguage(), keys: Object.keys(catalog), values: Object.values(catalog) });
 		snapshot();
 		view();
+	} else if (message.kind === "social") {
+		applySocialStatus(message);
+		view();
+	} else if (message.kind === "social-tick") {
+		void runInboxCycle(typeof message.reason === "string" ? message.reason : "tick");
+	} else if (message.kind === "social-reply") {
+		applySocialReply(message);
+	} else if (message.kind === "social-flushed") {
+		applySocialFlushed(message);
+	} else if (message.kind === "social-link") {
+		// checkout://add/<code> or the Play Install Referrer: the Amigos page opens with the code offered.
+		if (applySocialLink(message) && !isVisiting()) navigate("!amigos");
+	} else if (isVisiting() && (message.kind === "panel" || message.kind === "room")) {
+		// The friend's market: no windows of the player's market, and its floor is not the player's.
+	} else if (isVisiting() && message.kind === "command") {
+		send({ kind: "receipt", protocol: 1, session: message.session ?? "", id: message.id ?? "", ok: false, reason: "visiting", revision });
 	} else if (message.kind === "panel" && message.panel === "day") {
 		navigate("!day");
 	} else if (
@@ -440,18 +506,22 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 // Unity closing its end of the pipe is the only shutdown signal.
 process.stdin.on("end", () => process.exit(0));
 
-// Same cadence as the simulation components mounted in src/app/_layout.tsx.
+// Same cadence as the simulation components mounted in src/app/_layout.tsx. While the player visits a friend their own
+// market waits: nothing runs and nothing is saved (desktop/social.ts).
 const store = () => useGameStore.getState();
+const live = (work: () => unknown) => () => {
+	if (!isVisiting()) work();
+};
 store().processSessionResume();
 store().processInventorySpoilage();
 // Every second, so an event ends exactly at 0:00 and the market closing ends it at once.
-setInterval(() => store().processGameEvents(), 1_000);
-setInterval(() => store().processEmployeePayroll(), 5_000);
-setInterval(() => store().processInventorySpoilage(), 60_000);
-setInterval(() => store().market.isOpen && store().processNextCustomer(), 1_000);
-setInterval(() => store().processProductionJobs(), 1_000);
-setInterval(() => store().processSupplierOrders(), 1_000);
-setInterval(() => {
+setInterval(live(() => store().processGameEvents()), 1_000);
+setInterval(live(() => store().processEmployeePayroll()), 5_000);
+setInterval(live(() => store().processInventorySpoilage()), 60_000);
+setInterval(live(() => store().market.isOpen && store().processNextCustomer()), 1_000);
+setInterval(live(() => store().processProductionJobs()), 1_000);
+setInterval(live(() => store().processSupplierOrders()), 1_000);
+setInterval(live(() => {
 	store().processCheckoutCounter();
 	store().processStoreIncidents();
 	store().processReceiving();
@@ -467,10 +537,14 @@ setInterval(() => {
 	store().processInteriorConstructions();
 	// Evolutions end on the evolution crew's clock (it kept running while the game was closed).
 	store().processFixtureEvolutions();
-}, 1_000);
+}), 1_000);
 // When a day ends (timer or button) its results open on their own, like the app's sheet.
 let dayPhase = store().day.phase;
 setInterval(() => {
+	if (isVisiting()) {
+		if (viewDirty && Date.now() - viewSentAt > 250) view();
+		return;
+	}
 	openStoreOnShortfall();
 	const phase = store().day.phase;
 	if (phase !== dayPhase && phase === "results") navigate("!day-result");

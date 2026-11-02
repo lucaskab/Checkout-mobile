@@ -44,12 +44,14 @@ export function createSocialState(): SocialState {
 
 const num = (value: unknown, fallback = 0) => (typeof value === "number" && Number.isFinite(value) ? value : fallback);
 const str = (value: unknown) => (typeof value === "string" ? value : "");
+/** Product ids travel as text on the server ("47", docs/social-api.md); the game's catalog ids are numbers. */
+export const productIdOf = (value: unknown) => (typeof value === "string" && /^\d+$/.test(value.trim()) ? Number(value) : num(value, NaN));
 
 function normalizeRequest(value: unknown): SocialRequestMirror | null {
 	const item = value as Partial<SocialRequestMirror> | null;
 	if (!item || typeof item !== "object") return null;
 	const id = num(item.id, NaN);
-	const productId = num(item.productId, NaN);
+	const productId = productIdOf(item.productId);
 	if (!Number.isFinite(id) || !Number.isFinite(productId)) return null;
 	return { id, productId, qty: Math.max(1, Math.floor(num(item.qty, 1))), createdAt: num(item.createdAt), expiresAt: num(item.expiresAt) };
 }
@@ -94,10 +96,24 @@ type BuildState = Pick<GameState, "interiorConstructions" | "evolutions" | "era"
 /** The builds running or queued, as the public block lists them (oldest end first). */
 export function getSocialBuilds(state: BuildState, now = Date.now()): SocialPublicBuild[] {
 	const builds: SocialPublicBuild[] = [];
+	// Ids are unique per build instance (the server counts helps per owner and id for 30 days): the stage works and the
+	// lot clearing carry their start time; interior builds and evolutions already have one in their own ids.
 	if (state.era?.construction && state.era.construction.endsAt > now)
-		builds.push({ id: `era:${state.era.construction.eraId}`, kind: "era", item: state.era.construction.eraId, tier: getMarketEra(state.era.construction.eraId).index, endsAt: state.era.construction.endsAt });
+		builds.push({
+			id: `era:${state.era.construction.eraId}:${state.era.construction.startedAt}`,
+			kind: "era",
+			item: state.era.construction.eraId,
+			tier: getMarketEra(state.era.construction.eraId).index,
+			endsAt: state.era.construction.endsAt,
+		});
 	if (state.lots?.clearing && state.lots.clearing.endsAt > now)
-		builds.push({ id: `lot:${state.lots.clearing.lotId}`, kind: "lot", item: state.lots.clearing.lotId, tier: 0, endsAt: state.lots.clearing.endsAt });
+		builds.push({
+			id: `lot:${state.lots.clearing.lotId}:${state.lots.clearing.startedAt}`,
+			kind: "lot",
+			item: state.lots.clearing.lotId,
+			tier: 0,
+			endsAt: state.lots.clearing.endsAt,
+		});
 	for (const item of state.interiorConstructions ?? [])
 		if (!item.pending && item.endsAt > now)
 			builds.push({ id: `interior:${item.id}`, kind: "interior", item: `${item.kind}-${item.targetId}`, tier: 0, endsAt: item.endsAt });
@@ -126,14 +142,17 @@ export function applyBuildHelp(state: BuildState, buildId: string, minutes: numb
 	const target = rest.join(":");
 	const ms = Math.max(0, minutes) * MINUTE;
 	if (!target || ms <= 0) return null;
+	// "era:<eraId>:<startedAt>" / "lot:<lotId>:<startedAt>": a later build in the same place is another build.
+	const [place, started] = rest;
+	const sameStart = (startedAt: number) => started === undefined || Number(started) === startedAt;
 	if (kind === "era") {
 		const works = state.era?.construction;
-		if (!works || works.eraId !== target || works.endsAt <= now) return null;
+		if (!works || works.eraId !== place || !sameStart(works.startedAt) || works.endsAt <= now) return null;
 		return { era: { ...state.era, construction: { ...works, endsAt: Math.max(now, works.endsAt - ms) } } };
 	}
 	if (kind === "lot") {
 		const clearing = state.lots?.clearing;
-		if (!clearing || clearing.lotId !== target || clearing.endsAt <= now) return null;
+		if (!clearing || clearing.lotId !== place || !sameStart(clearing.startedAt) || clearing.endsAt <= now) return null;
 		return { lots: { ...state.lots, clearing: { ...clearing, endsAt: Math.max(now, clearing.endsAt - ms) } } };
 	}
 	if (kind === "interior") {
@@ -267,7 +286,7 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 				break;
 			}
 			case "delivery": {
-				const productId = Math.floor(num(payload.productId, NaN));
+				const productId = Math.floor(productIdOf(payload.productId));
 				const product = itemCatalog.find((entry) => entry.id === productId);
 				const qty = Math.max(SOCIAL_REQUEST_MIN, Math.min(SOCIAL_REQUEST_MAX, Math.floor(num(payload.qty, 1))));
 				if (!product) {

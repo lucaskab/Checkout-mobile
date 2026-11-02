@@ -24,6 +24,8 @@ export type SimulatorAction = Exclude<
 	keyof GameActions,
 	| `dev${string}`
 	| `process${string}`
+	// Social v1: applied by the host from the server's answers only, never a command from the map.
+	| `${string}Social${string}`
 	| "resetGame"
 	| "grantCurrencyPurchase"
 	| "grantCurrencyPack"
