@@ -50,6 +50,9 @@ namespace Checkout {
   static void Set(TextMeshProUGUI text,string value){bool has=!string.IsNullOrEmpty(value);text.gameObject.SetActive(has);if(has&&text.text!=value)text.text=value;}
   public void Apply(DesktopCard data){
    var tone=K.Tone(data.tone);edge.color=tone.edge;face.color=tone.face;
+   // A hero card (board windows): the title in large type (a friend code), a bigger face.
+   bool hero=data.hero;title.fontSize=hero?(CheckoutScreen.Handheld?40:46):21;title.characterSpacing=hero?6:0;
+   var il=icon.GetComponent<UnityEngine.UI.LayoutElement>();il.preferredWidth=il.preferredHeight=hero?96:52;
    Set(eyebrow,data.eyebrow?.ToUpperInvariant());Set(title,data.title);Set(subtitle,data.subtitle);title.color=tone.text;
    Set(badge,data.badge);badgeBack.gameObject.SetActive(!string.IsNullOrEmpty(data.badge));
    var sprite=K.Icon(data.icon);icon.sprite=sprite;icon.gameObject.SetActive(sprite);icon.color=data.tone=="locked"?new Color(1,1,1,.5f):Color.white;

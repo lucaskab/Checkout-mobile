@@ -264,6 +264,8 @@ export type GameActions = {
 	claimSocialHelperReward: (kind: "like" | "help") => number;
 	/** The friend's request is the player's to fill (server OK): the units leave the stock room, the sender is paid back. */
 	completeSocialDelivery: (productId: number, qty: number) => number | null;
+	/** "Abrir" / "Abrir tudo" in the Correio: the gift boxes pay their coins (null = nothing to open). */
+	openSocialMail: (ids: string[] | "all") => { coins: number; count: number } | null;
 	/** The profile and the open requests as the server last answered (cache for the pages). */
 	rememberSocialProfile: (profile: { code?: string; marketName?: string | null; avatar?: string }) => boolean;
 	rememberSocialRequests: (requests: SocialRequestMirror[]) => boolean;

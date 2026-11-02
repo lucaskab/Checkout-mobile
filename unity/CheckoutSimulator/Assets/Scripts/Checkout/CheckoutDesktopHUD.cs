@@ -63,6 +63,7 @@ namespace Checkout {
   // Every HUD button lands here: store actions go to the host, routes navigate.
   void Press(CheckoutDesktopButton button){
    var data=button.Data;if(data==null)return;
+   lastPressed=(RectTransform)button.transform;
    if(!data.enabled){if(!string.IsNullOrEmpty(data.fail))Toast(data.fail,false);return;}
    if(!string.IsNullOrEmpty(data.action)){pending[host.Action(data.action,WithTyped(data.args),data.after)]=data;return;}
    // "@build" opens the build mode (bought furniture waits there to be placed).

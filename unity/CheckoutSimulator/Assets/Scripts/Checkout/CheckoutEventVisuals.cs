@@ -38,6 +38,13 @@ namespace Checkout {
   // Night turn: a dark blue sky over whatever the event set, with the street lights on.
   bool night;
   public void SetNight(bool value){if(night==value)return;night=value;var id=active;active="\u0000";SetEvent(id);}
+  // The invite postcard (CheckoutSocial.Share): a clear day for one picture (no rain, no night), then back.
+  bool photo,photoNight;
+  public void Photo(bool on){
+   if(on==photo)return;photo=on;
+   if(on){photoNight=night;night=false;previewing=true;SetEvent("");}
+   else{night=photoNight;previewing=false;active="\u0000";Apply(lastSnapshot);}
+  }
   void NightLight(){if(sun){sun.color=new Color(.55f,.64f,.98f);sun.intensity=(sun.intensity>0?sun.intensity:sunIntensity)*.28f;}RenderSettings.ambientLight=new Color(.16f,.19f,.31f);if(view)view.backgroundColor=new Color(.07f,.09f,.17f);}
   // Rain: the city's people and the market's own customers (CheckoutWalker) open an umbrella out on the street; a
   // customer closes it on stepping into the market and opens it again on the way out (CheckoutWalker.OutdoorWalk).

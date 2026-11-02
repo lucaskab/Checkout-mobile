@@ -16,6 +16,26 @@ namespace Checkout {
    text.textWrappingMode=TextWrappingModes.NoWrap;Stretch(text.rectTransform,new Vector2(8,0),new Vector2(-8,0));return image;
   }
   static float PillWidth(TextMeshProUGUI text,string value,float min){return Mathf.Max(min,text.GetPreferredValues(value).x+20);}
+  // Social v1 tiles: up to three chips (icon + text) under the title, in rows of this height.
+  const int ChipRows=3;const float ChipH=26;
+  static readonly Color PortraitNavy=K.C("1D2B4F"),PortraitGold=K.C("E3B54A");
+
+  // A small chip of a tile: icon + text on a soft pill (likes, "2 obras para ajudar", "pede 6× Tomate").
+  sealed class TileChip {
+   public RectTransform rect;Image back,icon;TextMeshProUGUI text;
+   public static TileChip Create(Transform parent){
+    var c=new TileChip();var img=N.Image(parent,"Chip",K.C("F3E6CC"),11);c.back=img;c.rect=img.rectTransform;
+    var le=img.gameObject.AddComponent<LayoutElement>();le.preferredHeight=ChipH-4;
+    var row=N.Row(img.gameObject,5,new RectOffset(6,9,2,2));row.childAlignment=TextAnchor.MiddleCenter;
+    c.icon=N.Image(img.transform,"Icon",Color.white,0);c.icon.preserveAspect=true;var il=c.icon.gameObject.AddComponent<LayoutElement>();il.preferredWidth=il.preferredHeight=18;
+    c.text=N.Text(img.transform,"Text",K.Label,12,K.Ink);c.text.textWrappingMode=TextWrappingModes.NoWrap;c.text.overflowMode=TextOverflowModes.Ellipsis;
+    return c;
+   }
+   public void Apply(DesktopStat s){
+    var sprite=K.Icon(s.icon);icon.sprite=sprite;icon.gameObject.SetActive(sprite);text.text=K.Clean(s.value);
+    back.color=string.IsNullOrEmpty(s.tone)?K.C("F3E6CC"):ToneFace(s.tone);text.color=string.IsNullOrEmpty(s.tone)?K.Ink:ToneStrong(s.tone);
+   }
+  }
 
   // Small diamonds for levels/stars: maxStars above 5 is drawn as 5 diamonds worth 2 points each.
   class BoardPips {
@@ -42,6 +62,7 @@ namespace Checkout {
    RectTransform rect,circle,titleRect,subtitleRect,barRect,buttonRect,ribbonRect,badgeRect,timerRect;
    Image glow,edge,face,circleImage,icon,lockIcon,stamp,ribbon,badge,timer,barFill;TextMeshProUGUI title,subtitle,ribbonText,badgeText,timerText,barText;
    BoardPips pips;CheckoutDesktopButton button;bool selected;float fillShown=-1,fillTarget;string layoutMode;
+   Image ring,cornerBack,cornerIcon;RectTransform chipsBox;readonly List<TileChip> chips=new List<TileChip>();CheckoutDesktopButton alt;
 
    public static BoardTileUi Create(CheckoutDesktopHUD hud,Transform parent){
     var root=N.Node("Tile",parent);var ui=root.gameObject.AddComponent<BoardTileUi>();ui.hud=hud;ui.rect=root;
@@ -49,6 +70,8 @@ namespace Checkout {
     ui.edge=N.Image(root,"Edge",K.Border,18);ui.edge.raycastTarget=true;Stretch(ui.edge.rectTransform,Vector2.zero,Vector2.zero);
     ui.face=N.Image(root,"Face",K.Cream,16);Stretch(ui.face.rectTransform,new Vector2(3,7),new Vector2(-3,-3));
     var f=ui.face.transform;
+    // (a friend's face sits in a gold ring, the plate navy)
+    ui.ring=N.Image(f,"Ring",PortraitGold,0);ui.ring.sprite=K.Rounded(64);ui.ring.type=Image.Type.Sliced;
     ui.circleImage=N.Image(f,"Circle",Color.white,0);ui.circleImage.sprite=K.Rounded(56);ui.circleImage.type=Image.Type.Sliced;ui.circle=ui.circleImage.rectTransform;
     ui.icon=N.Image(ui.circle,"Icon",Color.white,0);ui.icon.preserveAspect=true;Stretch(ui.icon.rectTransform,new Vector2(10,10),new Vector2(-10,-10));
     ui.lockIcon=N.Image(ui.circle,"Lock",Color.white,0);ui.lockIcon.sprite=K.Icon("Icons/lock");ui.lockIcon.preserveAspect=true;Place(ui.lockIcon.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(46,46));
@@ -62,6 +85,13 @@ namespace Checkout {
     ui.timer=Pill(f,"Timer",new Color(.17f,.13f,.09f,.88f),out ui.timerText,14,K.Number);ui.timerRect=ui.timer.rectTransform;
     ui.button=CheckoutDesktopButton.Create(f,42,15,12);ui.button.Clicked=hud.BoardPress;ui.buttonRect=(RectTransform)ui.button.transform;
     Destroy(ui.button.GetComponent<LayoutElement>());
+    ui.alt=CheckoutDesktopButton.Create(f,42,15,12);ui.alt.Clicked=hud.BoardPress;Destroy(ui.alt.GetComponent<LayoutElement>());ui.alt.gameObject.SetActive(false);
+    ui.chipsBox=N.Node("Chips",f);var cv=N.Column(ui.chipsBox.gameObject,4);cv.childAlignment=TextAnchor.UpperCenter;cv.childForceExpandWidth=false;cv.childControlWidth=true;
+    ui.cornerBack=N.Image(f,"Corner",K.Cream,22);var cb=ui.cornerBack.rectTransform;
+    var cEdge=N.Image(ui.cornerBack.transform,"Edge",PortraitGold,22);Stretch(cEdge.rectTransform,new Vector2(-3,-3),new Vector2(3,3));cEdge.transform.SetAsFirstSibling();
+    var cFace=N.Image(ui.cornerBack.transform,"Face",K.Cream,20);Stretch(cFace.rectTransform,Vector2.zero,Vector2.zero);
+    ui.cornerIcon=N.Image(ui.cornerBack.transform,"Icon",Color.white,0);ui.cornerIcon.preserveAspect=true;Stretch(ui.cornerIcon.rectTransform,new Vector2(5,5),new Vector2(-5,-5));
+    ui.cornerBack.gameObject.SetActive(false);
     ui.ribbon=Pill(root,"Ribbon",K.C("E15533"),out ui.ribbonText,13,K.Label);ui.ribbonText.characterSpacing=2;ui.ribbonRect=ui.ribbon.rectTransform;
     ui.badge=Pill(root,"Badge",new Color(.29f,.21f,.14f,.92f),out ui.badgeText,15,K.Number);ui.badgeRect=ui.badge.rectTransform;
     return ui;
@@ -80,6 +110,9 @@ namespace Checkout {
      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-122),new Vector2(96,26));
      Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-8,10),new Vector2(100,26));ribbonRect.localRotation=Quaternion.Euler(0,0,6);
      Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(8,10),new Vector2(48,28));
+     Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-7),new Vector2(122,122));
+     Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(46,-106),new Vector2(44,44));
+     Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(-16,ChipRows*ChipH));
      title.fontSizeMax=17;
     } else {
      Place(circle,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(12,2),new Vector2(84,84));
@@ -91,6 +124,9 @@ namespace Checkout {
      Place(timerRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-222,-20),new Vector2(96,26));
      Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-8,10),new Vector2(100,26));ribbonRect.localRotation=Quaternion.Euler(0,0,4);
      Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(-224,-34),new Vector2(48,28));
+     Place(ring.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(7,2),new Vector2(94,94));
+     Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(86,-26),new Vector2(36,36));
+     Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-64),new Vector2(-430,ChipH));
      title.fontSizeMax=20;
     }
    }
@@ -113,6 +149,26 @@ namespace Checkout {
     if(hasBadge){var label=K.Clean(t.badge);badgeText.text=label;badgeRect.sizeDelta=new Vector2(PillWidth(badgeText,label,40),28);}
     timer.gameObject.SetActive(t.timerEnd>0);
     bool hasButton=t.action!=null&&!string.IsNullOrEmpty(t.action.label);button.gameObject.SetActive(hasButton);if(hasButton)button.Apply(t.action);
+    // Social v1: a framed portrait, the stage badge, the chips and a second big button.
+    bool portrait=t.frame=="portrait";ring.gameObject.SetActive(portrait);
+    if(portrait){circleImage.color=locked?K.C("6E7790"):PortraitNavy;icon.rectTransform.offsetMin=new Vector2(4,2);icon.rectTransform.offsetMax=new Vector2(-4,-4);}
+    else{icon.rectTransform.offsetMin=new Vector2(10,10);icon.rectTransform.offsetMax=new Vector2(-10,-10);}
+    var corner=K.Icon(t.corner);cornerBack.gameObject.SetActive(corner);if(corner)cornerIcon.sprite=corner;
+    var cs=t.chips??new DesktopStat[0];
+    while(chips.Count<cs.Length&&chips.Count<ChipRows)chips.Add(TileChip.Create(chipsBox));
+    for(int i=0;i<chips.Count;i++){bool on=i<cs.Length;chips[i].rect.gameObject.SetActive(on);if(on)chips[i].Apply(cs[i]);}
+    chipsBox.gameObject.SetActive(cs.Length>0);
+    if(cs.Length>0&&!asRows){barRect.anchoredPosition=new Vector2(0,-186-ChipRows*ChipH);pips.Rect.anchoredPosition=new Vector2(0,-186-ChipRows*ChipH);}
+    else if(!asRows){barRect.anchoredPosition=new Vector2(0,-197);pips.Rect.anchoredPosition=new Vector2(0,-181);}
+    if(portrait&&hasRibbon)ribbon.color=PortraitGold;
+    bool hasAlt=t.alt!=null&&!string.IsNullOrEmpty(t.alt.label);alt.gameObject.SetActive(hasAlt&&hasButton);
+    var ar=(RectTransform)alt.transform;
+    if(hasAlt&&hasButton){
+     if(asRows){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(150,52));Place(ar,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-170,-2),new Vector2(150,52));}
+     else{Place(buttonRect,new Vector2(0,0),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(2,4),new Vector2(-12,44));Place(ar,new Vector2(.5f,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(-2,4),new Vector2(-12,44));}
+     alt.Apply(t.alt);
+    } else if(asRows)Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(200,52));
+    else Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,4),new Vector2(-14,40));
     Select(isSelected);
    }
    public void Select(bool on){selected=on;edge.color=on?K.C("F2B03D"):ToneEdge(data!=null?data.tone:"");rect.localScale=on?Vector3.one*1.0f:Vector3.one;}
@@ -138,6 +194,7 @@ namespace Checkout {
    Image hero,heroGlow,circleImage,icon,lockIcon,stamp,ribbon,barFill,timer;TextMeshProUGUI title,subtitle,ribbonText,barText,timerText,detail;
    RectTransform ribbonRect,barRect,factsGrid,linesBox,actionsBox;GameObject timerRow;BoardPips pips;
    readonly List<BoardChip> facts=new List<BoardChip>();readonly List<TextMeshProUGUI> lines=new List<TextMeshProUGUI>();readonly List<CheckoutDesktopButton> actions=new List<CheckoutDesktopButton>();
+   readonly List<RectTransform> stepRows=new List<RectTransform>();
    float fillShown=-1,fillTarget;string shownId;
 
    public static BoardDetailUi Create(CheckoutDesktopHUD hud,RectTransform content){
@@ -171,7 +228,8 @@ namespace Checkout {
     bool changed=shownId!=t.id;shownId=t.id;data=t;
     bool locked=t.state=="locked",done=t.state=="done";
     hero.color=ToneFace(string.IsNullOrEmpty(t.tone)?"gold":t.tone);heroGlow.color=new Color(1,1,1,.75f);
-    circleImage.color=locked?K.C("D8CDBB"):Color.white;
+    bool portrait=t.frame=="portrait";
+    circleImage.color=locked?K.C("D8CDBB"):portrait?PortraitNavy:Color.white;
     var sprite=K.Icon(t.icon);icon.sprite=sprite;icon.enabled=sprite;icon.color=locked?new Color(.25f,.19f,.13f,.82f):Color.white;
     lockIcon.gameObject.SetActive(locked);stamp.gameObject.SetActive(done);
     bool hasRibbon=!string.IsNullOrEmpty(t.sticker);ribbon.gameObject.SetActive(hasRibbon);
@@ -193,7 +251,18 @@ namespace Checkout {
     linesBox.gameObject.SetActive(l.Length>0);
     var a=t.actions??new DesktopButton[0];
     while(actions.Count<a.Length){var b=CheckoutDesktopButton.Create(actionsBox,52,17,14);b.Clicked=hud.BoardPress;actions.Add(b);}
-    for(int i=0;i<actions.Count;i++){bool on=i<a.Length;actions[i].gameObject.SetActive(on);if(on)actions[i].Apply(a[i]);}
+    // Short buttons in a row of four (a quantity stepper: −5 −1 +1 +5), the others one per line.
+    int rowIndex=0,inRow=0;
+    for(int i=0;i<actions.Count;i++){
+     bool on=i<a.Length;actions[i].gameObject.SetActive(on);if(!on)continue;actions[i].Apply(a[i]);
+     bool small=K.Clean(a[i].label??"").Length<=3&&string.IsNullOrEmpty(a[i].icon);
+     Transform parent=actionsBox;
+     if(small){if(inRow==0||inRow==4){while(stepRows.Count<=rowIndex){var r=N.Node("Steps",actionsBox);var h=N.Row(r.gameObject,8);h.childForceExpandWidth=true;h.childControlHeight=true;stepRows.Add(r);}parent=stepRows[rowIndex];rowIndex++;inRow=0;}else parent=stepRows[rowIndex-1];inRow++;}
+     else inRow=0;
+     if(actions[i].transform.parent!=parent)actions[i].transform.SetParent(parent,false);
+     if(parent==actionsBox)actions[i].transform.SetAsLastSibling();else{parent.SetAsLastSibling();actions[i].transform.SetAsLastSibling();}
+    }
+    for(int r=0;r<stepRows.Count;r++)stepRows[r].gameObject.SetActive(r<rowIndex);
     actionsBox.gameObject.SetActive(a.Length>0);
    }
 

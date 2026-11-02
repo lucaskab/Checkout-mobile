@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using K = Checkout.CheckoutDesktopKit;
 using N = Checkout.CheckoutDesktopCard;
+using U = Checkout.CheckoutUiKit;
 namespace Checkout {
  // Social v1 in the HUD (desktop/social.ts): the visit bar over a friend's market (their face and name, Curtir, Presente,
  // Pedidos, "Voltar ao meu mercado"), an "Ajudar" button floating over each of their running builds, and the small
@@ -18,9 +19,46 @@ namespace Checkout {
   readonly Queue<(string text,string icon,bool ok)> socialToasts=new Queue<(string text,string icon,bool ok)>();
   readonly List<Transform> helpAnchors=new List<Transform>();
   float socialToastUntil,siteCheckAt;bool visiting;
+  /// <summary>The last HUD button pressed (a sparkle bursts there when a like or a help lands).</summary>
+  RectTransform lastPressed;
+  RectTransform socialFxLayer;
+  sealed class SocialConfetto{public RectTransform rect;public Image image;public Vector2 velocity;public float spin,life,age;}
+  readonly List<SocialConfetto> socialConfetti=new List<SocialConfetto>();
   readonly List<DesktopVisitBuild> looseBuilds=new List<DesktopVisitBuild>();
   /// <summary>Visiting a friend (the HUD shows the visit bar instead of the player's own).</summary>
   public bool VisitShown=>visiting;
+
+  /// <summary>A social celebration (desktop/social.ts fx): confetti and coins flying to the counter, or a sparkle.</summary>
+  public void SocialFx(string kind,int coins){
+   if(!socialFxLayer){socialFxLayer=N.Node("SocialFx",root);Stretch(socialFxLayer,Vector2.zero,Vector2.zero);}
+   socialFxLayer.SetAsLastSibling();
+   var from=lastPressed&&lastPressed.gameObject.activeInHierarchy?U.PointIn(socialFxLayer,lastPressed):socialFxLayer.rect.center;
+   if(kind=="sparkle"){U.Sparkles(this,socialFxLayer,from,12,170);Sound("success",1.1f);return;}
+   if(kind!="confetti")return;
+   Sound("coin_"+Random.Range(0,3));Sound("success");
+   var accent=CheckoutConfettiArt.Gold;
+   for(int i=0;i<46;i++){
+    int row=Random.Range(0,CheckoutConfettiArt.RowCount),col=Random.Range(0,CheckoutConfettiArt.Cols);
+    var go=new GameObject("Piece",typeof(RectTransform),typeof(Image));go.transform.SetParent(socialFxLayer,false);
+    var img=go.GetComponent<Image>();img.sprite=CheckoutConfettiArt.Sprite(accent,row,col);img.raycastTarget=false;
+    var r=img.rectTransform;r.anchorMin=r.anchorMax=new Vector2(.5f,.5f);float size=Random.Range(18f,30f);r.sizeDelta=new Vector2(size,size);
+    r.anchoredPosition=from+Random.insideUnitCircle*24;r.localRotation=Quaternion.Euler(0,0,Random.Range(0f,360f));
+    float angle=Random.Range(30f,150f)*Mathf.Deg2Rad,speed=Random.Range(380f,820f);
+    socialConfetti.Add(new SocialConfetto{rect=r,image=img,velocity=new Vector2(Mathf.Cos(angle)*speed,Mathf.Sin(angle)*speed),spin=Random.Range(-360f,360f),life=Random.Range(1.2f,1.9f)});
+   }
+   // the coins fly to the counter (the board window's balance, else the top bar's)
+   var counter=BoardOpen&&boardCoins?boardCoins.rectTransform:null;
+   if(counter)StartCoroutine(U.Coins(this,socialFxLayer,from,U.PointIn(socialFxLayer,counter),Mathf.Clamp(coins/5,4,10)));
+  }
+  void UpdateSocialFx(){
+   float dt=U.Dt;
+   for(int i=socialConfetti.Count-1;i>=0;i--){
+    var p=socialConfetti[i];if(!p.rect){socialConfetti.RemoveAt(i);continue;}
+    p.age+=dt;p.velocity+=new Vector2(-p.velocity.x*1.6f*dt,-900f*dt);p.rect.anchoredPosition+=p.velocity*dt;p.rect.Rotate(0,0,p.spin*dt);
+    var c=p.image.color;c.a=Mathf.Clamp01((p.life-p.age)/.4f);p.image.color=c;
+    if(p.age>=p.life){Destroy(p.rect.gameObject);socialConfetti.RemoveAt(i);}
+   }
+  }
 
   void BuildSocial(){
    // Under everything else of the HUD: the "Ajudar" buttons that follow the builds of the friend's market.
@@ -111,7 +149,11 @@ namespace Checkout {
    helpAnchors.Clear();var loose=looseBuilds;loose.Clear();
    for(int i=0;i<builds.Length;i++){
     var anchor=SiteOf(builds[i]);
-    if(anchor){helpAnchors.Add(anchor);while(helpButtons.Count<helpAnchors.Count){var b=CheckoutDesktopButton.Create(helpLayer,Phone?64:56,Phone?20:18,16);b.Clicked=x=>{Sound("tap",1.1f);Press(x);};helpButtons.Add(b);}
+    if(anchor){helpAnchors.Add(anchor);while(helpButtons.Count<helpAnchors.Count){var b=CheckoutDesktopButton.Create(helpLayer,Phone?64:56,Phone?20:18,16);b.Clicked=x=>{Sound("tap",1.1f);Press(x);};helpButtons.Add(b);
+      // a gold pin from the button down to the site, so it reads as "this build"
+      var pin=N.Image(b.transform,"Pin",SocialGold,0);var pr=pin.rectTransform;pr.anchorMin=pr.anchorMax=new Vector2(.5f,0);pr.pivot=new Vector2(.5f,1);pr.sizeDelta=new Vector2(4,30);pr.anchoredPosition=new Vector2(0,2);pin.transform.SetAsFirstSibling();
+      var dot=N.Image(pin.transform,"Dot",SocialNavy,8);var dr=dot.rectTransform;dr.anchorMin=dr.anchorMax=new Vector2(.5f,0);dr.sizeDelta=new Vector2(16,16);dr.anchoredPosition=Vector2.zero;
+      var ring=N.Image(dot.transform,"Ring",SocialGold,8);Stretch(ring.rectTransform,new Vector2(-3,-3),new Vector2(3,3));ring.transform.SetAsFirstSibling();}
      var hb=helpButtons[helpAnchors.Count-1];hb.Apply(builds[i].button);FitVisitButton(hb);}
     else loose.Add(builds[i]);
    }
@@ -142,6 +184,7 @@ namespace Checkout {
   float ToastShift()=>drawer&&drawer.activeSelf?-(Phone?284:308):0;
 
   void UpdateSocial(){
+   UpdateSocialFx();
    if(socialToastBox.gameObject.activeSelf&&Time.unscaledTime>socialToastUntil)NextSocialToast();
    // (a window that opens while a toast shows: the toast steps aside)
    if(socialToastBox.gameObject.activeSelf){var p=socialToastBox.anchoredPosition;float shift=ToastShift();if(Mathf.Abs(p.x-shift)>.5f)socialToastBox.anchoredPosition=new Vector2(shift,p.y);}
@@ -152,7 +195,7 @@ namespace Checkout {
    for(int i=0;i<helpAnchors.Count&&i<helpButtons.Count;i++){
     var anchor=helpAnchors[i];var b=helpButtons[i];
     if(!anchor||!cam||view==null||view.hasPage){b.gameObject.SetActive(false);continue;}
-    var screen=cam.WorldToScreenPoint(anchor.position+Vector3.up*.9f);
+    var screen=cam.WorldToScreenPoint(anchor.position+Vector3.up*.9f)+new Vector3(0,34*(root.lossyScale.y>0?1:1),0);
     bool shown=screen.z>0&&screen.x>0&&screen.x<Screen.width&&screen.y>0&&screen.y<Screen.height;
     b.gameObject.SetActive(shown);if(!shown)continue;
     var rect=(RectTransform)b.transform;

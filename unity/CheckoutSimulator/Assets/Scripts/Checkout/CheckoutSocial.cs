@@ -37,7 +37,8 @@ namespace Checkout {
   [Serializable] class Flushed{public string kind="social-flushed";public string id;}
   [Serializable] class Link{public string kind="social-link";public string code;public string source;}
   [Serializable] class ToastMessage{public string text,icon;public bool ok;}
-  [Serializable] class ShareMessage{public string url,code,text;}
+  [Serializable] class FxMessage{public string fx;public int coins;}
+  [Serializable] class ShareMessage{public string url,code,text,name,caption,codeLabel,avatar,stage;}
   [Serializable] class CopyMessage{public string text;}
   [Serializable] class VisitMessage{public bool active;public string friendId,name;}
 
@@ -87,6 +88,7 @@ namespace Checkout {
     case "social-copy":{var c=JsonUtility.FromJson<CopyMessage>(line);if(c!=null)GUIUtility.systemCopyBuffer=c.text??"";break;}
     case "social-share":{var s=JsonUtility.FromJson<ShareMessage>(line);if(s!=null)StartCoroutine(Share(s));break;}
     case "social-visit":{var v=JsonUtility.FromJson<VisitMessage>(line);if(v!=null)SetVisiting(v.active,v.name);break;}
+    case "social-fx":{var f=JsonUtility.FromJson<FxMessage>(line);if(f!=null)host.Hud?.SocialFx(f.fx,f.coins);break;}
    }
   }
 
@@ -115,12 +117,30 @@ namespace Checkout {
 
   // ---- share / links ----
   IEnumerator Share(ShareMessage message){
-   // A picture of the market without the HUD.
+   // A postcard of the player's own market: the camera framed on the shop (a 3/4 view like the reveal camera), a clear
+   // day (no rain, no night) for that one picture, no HUD, padlocks or world markers, and the market's name and friend
+   // code laid over by the game's UI (runtime text in the player's language). Everything is put back right after.
    var canvases=FindObjectsByType<Canvas>(FindObjectsSortMode.None).Where(c=>c.enabled&&c.isRootCanvas&&c.renderMode==RenderMode.ScreenSpaceOverlay).ToList();
-   foreach(var c in canvases)c.enabled=false;
-   yield return new WaitForEndOfFrame();
-   Texture2D shot=null;try{shot=ScreenCapture.CaptureScreenshotAsTexture();}catch(Exception ex){Debug.LogWarning("CHECKOUT_SOCIAL share picture: "+ex.Message);}
-   foreach(var c in canvases)if(c)c.enabled=true;
+   var sim=FindAnyObjectByType<MarketDay.MarketSimulation>();var camera=sim?sim.CameraState:(focus:Vector3.zero,zoom:0f);
+   var visuals=FindAnyObjectByType<CheckoutEventVisuals>();
+   var hidden=PostcardHide();
+   try{
+    foreach(var c in canvases)c.enabled=false;
+    if(visuals)visuals.Photo(true);
+    if(sim){var (at,size)=PostcardFrame();sim.FocusCinematic(at,size);}
+    var card=PostcardOverlay(message);
+    yield return null;yield return null;
+    yield return new WaitForEndOfFrame();
+    Texture2D grabbed=null;try{grabbed=ScreenCapture.CaptureScreenshotAsTexture();}catch(Exception ex){Debug.LogWarning("CHECKOUT_SOCIAL share picture: "+ex.Message);}
+    if(card)Destroy(card);
+    postcardShot=grabbed;
+   }finally{
+    foreach(var r in hidden)if(r)r.enabled=true;
+    if(visuals)visuals.Photo(false);
+    if(sim&&camera.zoom>0)sim.Focus(camera.focus,camera.zoom);
+    foreach(var c in canvases)if(c)c.enabled=true;
+   }
+   var shot=postcardShot;postcardShot=null;
    string path=Path.Combine(Application.temporaryCachePath,"checkout-invite.png");
    if(shot){try{File.WriteAllBytes(path,Fit(shot,1280).EncodeToPNG());LastSharePicture=path;}catch(Exception ex){Debug.LogWarning("CHECKOUT_SOCIAL share picture: "+ex.Message);path="";}Destroy(shot);}else path="";
    string text=(message.text??"")+"\n"+(message.url??"");
@@ -138,6 +158,50 @@ namespace Checkout {
    GUIUtility.systemCopyBuffer=text;host.Hud?.SocialToast(CheckoutI18n.T("Convite copiado! Cole numa conversa."),"Icons/smartphone",true);
 #endif
   }
+  Texture2D postcardShot;
+
+  // The shop (stall, small shop or the market building) and the lot it stands on: centre and camera size so it fills
+  // about 60 % of the picture.
+  static (Vector3 at,float size) PostcardFrame(){
+   var ia=CheckoutInterior.Active;
+   Bounds b=ia?new Bounds(new Vector3(ia.FloorRect.center.x,0,ia.FloorRect.center.y),new Vector3(ia.FloorRect.width,2,ia.FloorRect.height)):new Bounds(Vector3.zero,new Vector3(10,2,10));
+   if(CheckoutStall.Small)b.Encapsulate(CheckoutStall.Footprint);
+   float span=b.size.x+b.size.z;float aspect=Screen.width/(float)Mathf.Max(1,Screen.height);
+   float size=Mathf.Max(span*.42f/(2*.6f),span*.8f/(2*.6f*aspect));
+   return (b.center+new Vector3(0,0,-.6f),Mathf.Clamp(size,3.6f,30f));
+  }
+
+  // Padlocks over the lots, request bubbles, markers and icons in the world: hidden for the picture.
+  static List<Renderer> PostcardHide(){
+   var list=new List<Renderer>();
+   string[] words={"Padlock","bubble","Bubble","Marker","Icon","Speed up","Plate","Ring"};
+   foreach(var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)){
+    if(!r.enabled)continue;var t=r.transform;bool hit=false;
+    for(int depth=0;depth<3&&t&&!hit;depth++,t=t.parent)foreach(var w in words)if(t.name.Contains(w)){hit=true;break;}
+    if(hit){r.enabled=false;list.Add(r);}
+   }
+   return list;
+  }
+
+  // The postcard's ribbon: the player's face, the market's name and stage, "Vem jogar comigo!" and the friend code.
+  GameObject PostcardOverlay(ShareMessage m){
+   var go=new GameObject("Postcard",typeof(RectTransform),typeof(Canvas),typeof(UnityEngine.UI.CanvasScaler));
+   var canvas=go.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=32000;CheckoutScreen.Fit(go.GetComponent<UnityEngine.UI.CanvasScaler>());
+   var root=(RectTransform)go.transform;
+   var edge=CheckoutDesktopCard.Image(root,"Ribbon",K.C("E3B54A"),26);var er=edge.rectTransform;er.anchorMin=er.anchorMax=er.pivot=new Vector2(0,0);er.anchoredPosition=new Vector2(28,26);
+   var fit=edge.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();fit.horizontalFit=fit.verticalFit=UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
+   CheckoutDesktopCard.Column(edge.gameObject,0,new RectOffset(3,3,3,3));
+   var face=CheckoutDesktopCard.Image(edge.transform,"Face",K.C("1D2B4F"),24);var row=CheckoutDesktopCard.Row(face.gameObject,16,new RectOffset(16,26,14,14));row.childAlignment=TextAnchor.MiddleLeft;
+   var ring=CheckoutDesktopCard.Image(face.transform,"Avatar",K.C("E3B54A"),44);var rl=ring.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();rl.preferredWidth=rl.preferredHeight=96;
+   var plate=CheckoutDesktopCard.Image(ring.transform,"Plate",K.C("2A3D6B"),40);var pr=plate.rectTransform;pr.anchorMin=Vector2.zero;pr.anchorMax=Vector2.one;pr.offsetMin=new Vector2(4,4);pr.offsetMax=new Vector2(-4,-4);
+   var avatar=CheckoutDesktopCard.Image(plate.transform,"Face",Color.white,0);avatar.preserveAspect=true;avatar.sprite=K.Icon(m.avatar);avatar.enabled=avatar.sprite;var ar=avatar.rectTransform;ar.anchorMin=Vector2.zero;ar.anchorMax=Vector2.one;ar.offsetMin=new Vector2(2,0);ar.offsetMax=new Vector2(-2,-2);
+   var texts=CheckoutDesktopCard.Node("Texts",face.transform);CheckoutDesktopCard.Column(texts.gameObject,0);
+   var caption=CheckoutDesktopCard.Text(texts,"Caption",K.Label,18,K.C("E3B54A"));caption.text=(m.caption??"").ToUpperInvariant();caption.characterSpacing=3;caption.textWrappingMode=TMPro.TextWrappingModes.NoWrap;
+   var name=CheckoutDesktopCard.Text(texts,"Name",K.Headline,38,Color.white);name.text=m.name??"";name.textWrappingMode=TMPro.TextWrappingModes.NoWrap;
+   var code=CheckoutDesktopCard.Text(texts,"Code",K.Number,24,K.C("F3E6CC"));code.text=(string.IsNullOrEmpty(m.stage)?"":m.stage+"  ·  ")+(m.codeLabel??"")+"  "+(m.code??"");code.textWrappingMode=TMPro.TextWrappingModes.NoWrap;
+   return go;
+  }
+
   static Texture2D Fit(Texture2D source,int maxWidth){
    if(source.width<=maxWidth)return source;
    int w=maxWidth,h=Mathf.RoundToInt(source.height*(maxWidth/(float)source.width));

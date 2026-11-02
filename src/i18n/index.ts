@@ -82,7 +82,7 @@ const viewIdKeys = new Set([
 	"shape", "color", "targetId", "eraId", "sectorId", "shelfId", "requestId", "customerId", "status", "zone", "role",
 	"incidentId", "incidentKind", "ruin", "shift", "phase", "coins", "diamonds", "productCategory", "box", "key",
 	// social v1: what the player typed, the QR modules, avatars, friend codes and names (never translated)
-	"value", "qr", "avatar", "code", "friendId", "buildId", "friendName", "max",
+	"value", "qr", "avatar", "code", "friendId", "buildId", "friendName", "max", "frame", "corner",
 ]);
 /** Snapshot keys Unity shows as text (names, labels); everything else in a snapshot is data. */
 const snapshotTextKeys = new Set([

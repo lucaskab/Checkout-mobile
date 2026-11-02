@@ -8,6 +8,8 @@ namespace Checkout {
   public string title,eyebrow,subtitle,icon,badge,tone;public string[] lines;public float progress=-1;public DesktopButton[] buttons;
   // Social v1 (desktop/view-kit.ts CardInput, desktop/qr.ts): a text field (id "" = none) and a QR code ("" = none).
   public DesktopInput input;public string qr;
+  // Board windows: the cards stand in a row over the tiles; "hero" = the title in large type (a friend code).
+  public bool hero;
  }
  /// <summary>A text field on a card: buttons send what was typed with "$input:&lt;id&gt;" in their args.</summary>
  [Serializable] public class DesktopInput {public string id,placeholder,value,kind;public int max;}
@@ -27,6 +29,9 @@ namespace Checkout {
   public string id,group,icon,title,subtitle,sticker,tone,badge,fillText,state,detail,origin,originLabel,vehicle,lane;
   public int stars,maxStars;public float fill=-1;public double timerEnd,timerTotal;
   public DesktopButton action;public DesktopStat[] facts;public string[] lines;public DesktopButton[] actions;
+  // Social v1: chips under the title (likes, builds to help, a request), a framed portrait, a corner badge (stage)
+  // and a second big button (Presente next to Visitar).
+  public DesktopStat[] chips;public string frame,corner;public DesktopButton alt;
  }
  [Serializable] public class DesktopBoard {
   public string tint,backdrop,tip,style,empty,focus;public int columns;public double now;

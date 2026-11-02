@@ -42,6 +42,29 @@ export type SocialState = {
 	invites: { milestones: number[]; invited: boolean };
 	/** Lifetime counts (the Amigos page shows them; nothing depends on them). */
 	totals: { gifts: number; likes: number; helpsReceived: number; helpsGiven: number; deliveries: number; sent: number };
+	/** Gift boxes from friends waiting in the Correio (applied from the inbox exactly once; "Abrir" pays them). */
+	mailbox: SocialMail[];
+	/** The latest things friends did for the player (the Correio's history), newest first. */
+	history: SocialLogEntry[];
+	/** Helps given on `day` (UTC): the Amigos page's "Ajudas hoje" meter (the server allows 30 a day). */
+	daily: { day: string; helps: number };
+};
+
+/** One unopened gift box in the Correio. */
+export type SocialMail = { id: string; kind: "gift"; name: string; avatar: string; coins: number; at: number };
+/** One line of the Correio's history: the toast's text (Portuguese template) and its numbers, translated when shown. */
+export type SocialLogEntry = {
+	kind: string;
+	text: string;
+	icon: string;
+	name: string;
+	avatar: string;
+	coins: number;
+	diamonds: number;
+	minutes: number;
+	productId: number;
+	qty: number;
+	at: number;
 };
 
 /** The small public block sent with every cloud save (`PUT /v1/save` → `public`). */

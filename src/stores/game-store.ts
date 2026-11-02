@@ -257,7 +257,7 @@ import {
 } from "@/services/shelf-care";
 import { albumCollections, getCollectionProgress } from "@/data/product-album";
 import { ERA_LOTS, getMarketLot, migrateDepotLot } from "@/data/market-lots";
-import { applyInboxItems, createSocialState, normalizeSocialState, sendProductPatch } from "@/services/social";
+import { applyInboxItems, createSocialState, normalizeSocialState, openMailPatch, sendProductPatch, utcDay } from "@/services/social";
 import { getSocialRewards } from "@/data/social";
 import {
 	checkBuyLot,
@@ -1887,11 +1887,22 @@ export const useGameStore = create<GameStore>()(
 				const state = get();
 				const reward = getSocialRewards(state.era.id)[kind === "help" ? "help" : "like"];
 				const social = normalizeSocialState(state.social);
+				const today = utcDay(Date.now());
+				const daily = social.daily.day === today ? social.daily : { day: today, helps: 0 };
 				set({
 					coins: state.coins + reward,
-					social: kind === "help" ? { ...social, totals: { ...social.totals, helpsGiven: social.totals.helpsGiven + 1 } } : social,
+					social:
+						kind === "help"
+							? { ...social, totals: { ...social.totals, helpsGiven: social.totals.helpsGiven + 1 }, daily: { day: today, helps: daily.helps + 1 } }
+							: social,
 				});
 				return reward;
+			},
+			openSocialMail: (ids) => {
+				const result = openMailPatch(get(), ids);
+				if (!result) return null;
+				set(result.patch);
+				return { coins: result.coins, count: result.count };
 			},
 			completeSocialDelivery: (productId, qty) => {
 				// The friend already has it (server OK): whatever is in the stock room leaves, never refused now. The

@@ -4,6 +4,8 @@ import type {
 	SocialInboxOutcome,
 	SocialPublicBlock,
 	SocialPublicBuild,
+	SocialLogEntry,
+	SocialMail,
 	SocialRequestMirror,
 	SocialState,
 } from "@/@types/social";
@@ -18,7 +20,9 @@ import {
 	SOCIAL_APPLIED_KEEP,
 	SOCIAL_GIFTS_PER_DAY,
 	SOCIAL_HELP_MINUTES,
+	SOCIAL_HISTORY_KEEP,
 	SOCIAL_INVITE_DIAMONDS_MAX,
+	SOCIAL_MAILBOX_KEEP,
 	SOCIAL_INVITE_MILESTONES,
 	SOCIAL_PUBLIC_BUILDS,
 	SOCIAL_REQUEST_MAX,
@@ -39,6 +43,9 @@ export function createSocialState(): SocialState {
 		requests: [],
 		invites: { milestones: [], invited: false },
 		totals: { gifts: 0, likes: 0, helpsReceived: 0, helpsGiven: 0, deliveries: 0, sent: 0 },
+		mailbox: [],
+		history: [],
+		daily: { day: "", helps: 0 },
 	};
 }
 
@@ -54,6 +61,30 @@ function normalizeRequest(value: unknown): SocialRequestMirror | null {
 	const productId = productIdOf(item.productId);
 	if (!Number.isFinite(id) || !Number.isFinite(productId)) return null;
 	return { id, productId, qty: Math.max(1, Math.floor(num(item.qty, 1))), createdAt: num(item.createdAt), expiresAt: num(item.expiresAt) };
+}
+
+function normalizeMail(value: unknown): SocialMail | null {
+	const item = value as Partial<SocialMail> | null;
+	if (!item || typeof item !== "object" || (typeof item.id !== "string" && typeof item.id !== "number")) return null;
+	return { id: String(item.id), kind: "gift", name: str(item.name), avatar: str(item.avatar), coins: Math.max(0, Math.floor(num(item.coins))), at: num(item.at) };
+}
+
+function normalizeLog(value: unknown): SocialLogEntry | null {
+	const item = value as Partial<SocialLogEntry> | null;
+	if (!item || typeof item !== "object" || !str(item.text)) return null;
+	return {
+		kind: str(item.kind),
+		text: str(item.text),
+		icon: str(item.icon),
+		name: str(item.name),
+		avatar: str(item.avatar),
+		coins: num(item.coins),
+		diamonds: num(item.diamonds),
+		minutes: num(item.minutes),
+		productId: num(item.productId),
+		qty: num(item.qty),
+		at: num(item.at),
+	};
 }
 
 /** Old saves (no `social`) and anything odd in the field: a clean slice, keeping whatever is valid. */
@@ -83,6 +114,9 @@ export function normalizeSocialState(value: unknown): SocialState {
 			deliveries: Math.max(0, num(totals.deliveries)),
 			sent: Math.max(0, num(totals.sent)),
 		},
+		mailbox: Array.isArray(state.mailbox) ? state.mailbox.map(normalizeMail).filter((item): item is SocialMail => !!item).slice(-SOCIAL_MAILBOX_KEEP) : [],
+		history: Array.isArray(state.history) ? state.history.map(normalizeLog).filter((item): item is SocialLogEntry => !!item).slice(0, SOCIAL_HISTORY_KEEP) : [],
+		daily: { day: str(state.daily?.day), helps: Math.max(0, Math.floor(num(state.daily?.helps))) },
 	};
 }
 
@@ -237,6 +271,7 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 	let invites = social.invites;
 	let requests = social.requests;
 	let changed = false;
+	const log: SocialLogEntry[] = [];
 
 	for (const raw of items) {
 		const item = raw as SocialInboxItem;
@@ -258,10 +293,14 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 					outcomes.push(outcome(id, kind, { ack: false, name }));
 					continue;
 				}
-				social = { ...social, gifts: { day: today, claimed: social.gifts.claimed + 1 } };
-				coins += rewards.gift;
+				// Into the Correio as a box ("Abrir" pays it): applied exactly once like every item.
+				social = {
+					...social,
+					gifts: { day: today, claimed: social.gifts.claimed + 1 },
+					mailbox: [...social.mailbox, { id, kind: "gift" as const, name, avatar: str(item.from?.avatar), coins: rewards.gift, at: now }].slice(-SOCIAL_MAILBOX_KEEP),
+				};
 				totals.gifts++;
-				result = outcome(id, kind, { applied: true, name, coins: rewards.gift, icon: "gift", text: name ? "{0} te mandou um presente: +{1} moedas" : "Você ganhou um presente: +{1} moedas" });
+				result = outcome(id, kind, { applied: true, name, coins: rewards.gift, icon: "gift", text: name ? "{0} te mandou um presente: abra no Correio" : "Chegou um presente: abra no Correio" });
 				break;
 			}
 			case "like": {
@@ -353,11 +392,13 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 		seen.add(id);
 		changed = true;
 		outcomes.push(result);
+		if (result.applied && result.text) log.unshift(logEntry(result, str(item.from?.avatar), now));
 	}
 
 	social = {
 		...social,
 		appliedInbox: [...social.appliedInbox, ...applied].slice(-SOCIAL_APPLIED_KEEP),
+		history: [...log, ...social.history].slice(0, SOCIAL_HISTORY_KEEP),
 		totals,
 		invites,
 		requests,
@@ -378,6 +419,44 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 		: {};
 	return { patch, outcomes, ack: outcomes.filter((entry) => entry.ack).map((entry) => entry.id) };
 }
+
+function logEntry(result: SocialInboxOutcome, avatar: string, now: number): SocialLogEntry {
+	return {
+		kind: result.kind,
+		text: result.text,
+		icon: result.icon,
+		name: result.name,
+		avatar,
+		coins: result.coins,
+		diamonds: result.diamonds,
+		minutes: result.minutes,
+		productId: result.productId,
+		qty: result.qty,
+		at: now,
+	};
+}
+
+/** "Abrir" in the Correio: the boxes (`ids`, or all) pay their coins and leave the mailbox. */
+export function openMailPatch(state: Pick<GameState, "social" | "coins">, ids: readonly string[] | "all") {
+	const social = normalizeSocialState(state.social);
+	const opened = social.mailbox.filter((mail) => ids === "all" || ids.includes(mail.id));
+	if (!opened.length) return null;
+	const coins = opened.reduce((sum, mail) => sum + mail.coins, 0);
+	return {
+		coins,
+		count: opened.length,
+		patch: {
+			coins: state.coins + coins,
+			social: { ...social, mailbox: social.mailbox.filter((mail) => !opened.includes(mail)) },
+		} satisfies Partial<GameState>,
+	};
+}
+
+/** Helps the player gave today (UTC), for the "Ajudas hoje" meter. */
+export const helpsToday = (state: Pick<GameState, "social">, now = Date.now()) => {
+	const social = normalizeSocialState(state.social);
+	return social.daily.day === utcDay(now) ? social.daily.helps : 0;
+};
 
 // ------------------------------------------------------------------------------------------------- the player's own side
 

@@ -34,135 +34,125 @@ namespace Checkout {
    yield return Tips();
    Note($"social: market open {bridge.State.isOpen}, day {bridge.State.day?.phase}");
 
-   // 1. First time on Amigos: name + face.
-   Route("!amigos");yield return new WaitForSecondsRealtime(2.5f);
-   // the faces are drawn once (one per frame), then the page shows them
-   yield return Tips();Route("~amigos");yield return new WaitForSecondsRealtime(1.5f);
-   yield return Shot("social_profile");
-   Act("socialSaveProfile","[\"Mercadinho do Lucas\",\"shopper-4\"]");yield return new WaitForSecondsRealtime(2f);
-   Route("~amigos");yield return new WaitForSecondsRealtime(1.5f);
-   yield return Shot("social_amigos");
-   ScrollDrawer(.45f);yield return new WaitForSecondsRealtime(.6f);yield return Shot("social_amigos_friends");
-   ScrollDrawer(0);yield return new WaitForSecondsRealtime(.6f);yield return Shot("social_amigos_end");
-   ScrollDrawer(1);
+   var langBefore=CheckoutI18n.Language;
+   void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
+   void Mock(string cmd,string arg="")=>Act("socialMock",arg==""?"[\""+cmd+"\"]":"[\""+cmd+"\",\""+arg+"\"]");
+   bool BoardShown()=>CheckoutDesktopHUD.BoardOpen;
 
-   // 2. The inbox (gift from Ana, like from Bruno, Duda's request): toasts and the badge.
+   // 1. First time on Amigos: the full-screen window asks for a name and a face (the 12 faces as tiles).
+   Route("!amigos");yield return new WaitForSecondsRealtime(2.5f);
+   yield return Tips();Route("~amigos");yield return new WaitForSecondsRealtime(1.5f);
+   Result("Amigos is a full-screen window",BoardShown(),"board open "+BoardShown());
+   yield return Shot("social_profile_v2");
+   Act("socialSaveProfile","[\"Mercadinho do Lucas\",\"shopper-4\"]");yield return new WaitForSecondsRealtime(2f);
+   Route("~amigos");yield return new WaitForSecondsRealtime(1.8f);
+   yield return Shot("social_amigos_v2");
+
+   // 2. The inbox (gift from Ana, like from Bruno, Duda's request): toasts, the badge, the gift as a box in the Correio.
    Route("");yield return new WaitForSecondsRealtime(1f);yield return Tips();
    double coins0=bridge.State.coins;
-   Tick();yield return new WaitForSecondsRealtime(.9f);yield return Shot("social_toast");
+   Tick();yield return new WaitForSecondsRealtime(.9f);yield return Shot("social_toast_v2");
    yield return new WaitForSecondsRealtime(6f);
-   Result("inbox applied",bridge.State.coins>coins0,$"coins {coins0} -> {bridge.State.coins}");
-   yield return Shot("social_badge");
-   // The Amigos entry in the corner "Bônus" menu (no new button on the screen), with its count.
+   Result("inbox applied (the like pays, the gift waits in the Correio)",bridge.State.coins>coins0,$"coins {coins0} -> {bridge.State.coins}");
    var hudQ=FindAnyObjectByType<CheckoutDesktopHUD>();var setQuick=typeof(CheckoutDesktopHUD).GetMethod("SetQuickOpen",BindingFlags.NonPublic|BindingFlags.Instance);
-   if(hudQ&&setQuick!=null){setQuick.Invoke(hudQ,new object[]{true});yield return new WaitForSecondsRealtime(.8f);yield return Shot("social_badge_menu");setQuick.Invoke(hudQ,new object[]{false});}
+   if(hudQ&&setQuick!=null){setQuick.Invoke(hudQ,new object[]{true});yield return new WaitForSecondsRealtime(.8f);yield return Shot("social_badge_menu_v2");setQuick.Invoke(hudQ,new object[]{false});}
 
-   // 3. A gift whose ack is lost (the app "died"): applied once, acked the next time without paying again.
-   Act("socialMock","[\"gift\"]");Act("socialMock","[\"fail\",\"/v1/social/inbox/ack\"]");yield return new WaitForSecondsRealtime(.5f);
-   double coins1=bridge.State.coins;Tick();yield return new WaitForSecondsRealtime(3f);
-   double coins2=bridge.State.coins;Tick();yield return new WaitForSecondsRealtime(3f);
-   double coins3=bridge.State.coins;
-   Result("gift exactly once across a lost ack",coins2>coins1&&coins3==coins2,$"coins {coins1} -> {coins2} -> {coins3}");
+   // 3. A gift whose ack is lost (the app "died"): one box, acked the next time without a second box.
+   Mock("gift");Mock("fail","/v1/social/inbox/ack");yield return new WaitForSecondsRealtime(.5f);
+   Tick();yield return new WaitForSecondsRealtime(3f);Tick();yield return new WaitForSecondsRealtime(3f);
+   Route("!amigos-correio");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_correio_v2");
+   double coins1=bridge.State.coins;
+   Act("socialOpenMail","[\"all\"]");yield return new WaitForSecondsRealtime(.45f);yield return Shot("social_correio_open_v2");
+   yield return new WaitForSecondsRealtime(2.2f);double coins2=bridge.State.coins;
+   Act("socialOpenMail","[\"all\"]");yield return new WaitForSecondsRealtime(1.2f);double coins3=bridge.State.coins;
+   var gift=10.0; // mesinha gift
+   Result("gifts opened once (two boxes, one of them across a lost ack)",coins2-coins1==2*gift&&coins3==coins2,$"coins {coins1} -> {coins2} -> {coins3}");
+   yield return Shot("social_correio_after_v2");
 
-   // 4. The visit. First the market opens (a free day: customers, timers, the save written every second), then how
-   // much the save moves at home in 8 s, then the same save frozen for the whole visit.
+   // 4. Pedidos: mine (asked now) and the friends' (Ana asks for 6 apples), then the product picker.
+   int product=bridge.State.supplierCatalog!=null&&bridge.State.supplierCatalog.Length>0?bridge.State.supplierCatalog[0].productId:1;
+   Act("socialRequest","["+product+",8]");yield return new WaitForSecondsRealtime(1.5f);
+   Route("!amigos-pedidos");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_pedidos_v2");
+   Route("!amigos-pedir");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_picker_v2");
+   Route("!amigos-convidar");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_convidar_0_v2");
+   Route("");yield return new WaitForSecondsRealtime(.8f);
+
+   // 5. The visit to Ana's Späti: her shelves, plants and bench, a works site and an evolution ring with a floating
+   // "Ajudar" each. The save stays byte-identical for the whole visit.
    var a=Save();yield return new WaitForSecondsRealtime(8f);var b=Save();
    Note($"social: at home the save {(a.SequenceEqual(b)?"did not change":"changed")} in 8 s ({a.Length} -> {b.Length} bytes)");
-   string homeSession=bridge.State.session;int homeItems=CheckoutInterior.Active?CheckoutInterior.Active.items.Count:-1;double homeCoins=bridge.State.coins;
+   string homeSession=bridge.State.session;string homeEra=bridge.State.era?.id;bool homeSmall=CheckoutStall.Small;int homeItems=CheckoutInterior.Active?CheckoutInterior.Active.items.Count:-1;double homeCoins=bridge.State.coins;
    var before=Save();
    Act("socialVisit","[\"u-ana\"]");
    for(float t=0;t<15&&!(bridge.State?.session??"").StartsWith("visit-");t+=.5f)yield return new WaitForSecondsRealtime(.5f);
    yield return new WaitForSecondsRealtime(5f);
-   if(home)home.HomeCamera();yield return new WaitForSecondsRealtime(1.5f);
-   Result("visit shows the friend's market",(bridge.State?.session??"").StartsWith("visit-")&&bridge.State.era?.id=="spati"&&CheckoutSocial.Visiting,$"session {bridge.State?.session} era {bridge.State?.era?.id}");
-   yield return Shot("social_visit");
-   FocusEvolution();yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_visit_build");
-   Act("socialLike","[\"u-ana\"]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot("social_visit_liked");
-   Act("socialHelp","[\"u-ana\",\"evolution:evolucao-shelf-produce-2-ana\"]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot("social_visit_helped");
-   Route("!visita");yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_visit_requests");
-   Route("");yield return new WaitForSecondsRealtime(4f);
+   var ia=CheckoutInterior.Active;
+   Result("visit shows the friend's Späti",(bridge.State?.session??"").StartsWith("visit-")&&bridge.State.era?.id=="spati"&&CheckoutSocial.Visiting&&ia&&ia.items.ContainsKey("shelf:produce"),$"era {bridge.State?.era?.id} pieces [{(ia?string.Join(",",ia.items.Keys):"")}]");
+   FocusEvolution();yield return new WaitForSecondsRealtime(2.5f);
+   var helpLayer=hudQ?hudQ.transform.GetComponentsInChildren<RectTransform>(true).FirstOrDefault(r=>r.name=="VisitHelp"):null;
+   int floating=helpLayer?helpLayer.GetComponentsInChildren<CheckoutDesktopButton>(false).Length:0;
+   Result("floating Ajudar over the works site and the evolution ring",floating>=2,$"{floating} floating");
+   yield return Shot("social_visit_v2");
+   Act("socialLike","[\"u-ana\"]");yield return new WaitForSecondsRealtime(.5f);yield return Shot("social_visit_liked_v2");
+   yield return new WaitForSecondsRealtime(.8f);
+   Act("socialHelp","[\"u-ana\",\"evolution:evolucao-shelf-produce-2-ana\"]");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("social_visit_helped_v2");
+   Route("!visita");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_visit_requests_v2");
+   Route("");yield return new WaitForSecondsRealtime(3f);
    var during=Save();
-   Result("save byte-identical during the visit",before.Length>0&&before.SequenceEqual(during),$"{before.Length} bytes, {Time.realtimeSinceStartup:0}s");
+   Result("save byte-identical during the visit",before.Length>0&&before.SequenceEqual(during),$"{before.Length} bytes");
    Act("socialLeave","[]");
    for(float t=0;t<10&&(bridge.State?.session??"").StartsWith("visit-");t+=.5f)yield return new WaitForSecondsRealtime(.5f);
    yield return new WaitForSecondsRealtime(3f);
-   int backItems=CheckoutInterior.Active?CheckoutInterior.Active.items.Count:-1;
-   Result("back home exactly",bridge.State.session==homeSession&&!CheckoutSocial.Visiting&&backItems==homeItems,$"session {bridge.State.session} items {homeItems} -> {backItems}");
-   Result("like + help + delivery booked on the way back",bridge.State.coins>homeCoins,$"coins {homeCoins} -> {bridge.State.coins}");
-   yield return Shot("social_back_home");
+   Result("back home exactly",bridge.State.session==homeSession&&!CheckoutSocial.Visiting&&bridge.State.era?.id==homeEra,$"session {bridge.State.session} era {bridge.State.era?.id}");
+   Result("like + help booked on the way back",bridge.State.coins>homeCoins,$"coins {homeCoins} -> {bridge.State.coins}");
 
-   // 5. A visit where the player only looks: the save stays the same bytes up to "Voltar".
-   var look=Save();Act("socialVisit","[\"u-carla\"]");
+   // 6. A friend far ahead (Gabi's supermercado on six lots with its wings): it renders for the visit, and lots, wings
+   // and the stall come back exactly on "Voltar". The save stays the same bytes.
+   var look=Save();Act("socialVisit","[\"u-gabi\"]");
    for(float t=0;t<15&&!(bridge.State?.session??"").StartsWith("visit-");t+=.5f)yield return new WaitForSecondsRealtime(.5f);
-   yield return new WaitForSecondsRealtime(4f);yield return Shot("social_visit_carla");
-   var looked=Save();Act("socialLeave","[]");yield return new WaitForSecondsRealtime(3f);
+   yield return new WaitForSecondsRealtime(6f);
+   if(home)home.HomeCamera();yield return new WaitForSecondsRealtime(1.5f);
+   Result("supermercado friend renders",bridge.State.era?.id=="supermercado"&&!CheckoutStall.Small,$"era {bridge.State.era?.id} small {CheckoutStall.Small}");
+   yield return Shot("social_visit_gabi_v2");
+   FocusEvolution();yield return new WaitForSecondsRealtime(2.5f);yield return Shot("social_visit_gabi_build_v2");
+   var looked=Save();Act("socialLeave","[]");
+   for(float t=0;t<10&&(bridge.State?.session??"").StartsWith("visit-");t+=.5f)yield return new WaitForSecondsRealtime(.5f);
+   yield return new WaitForSecondsRealtime(4f);
+   if(home)home.HomeCamera();yield return new WaitForSecondsRealtime(1.5f);
    Result("look-only visit save-identical",look.SequenceEqual(looked),$"{look.Length} bytes");
+   Result("everything restored after the supermercado",bridge.State.era?.id==homeEra&&CheckoutStall.Small==homeSmall&&bridge.State.session==homeSession,$"era {bridge.State.era?.id} small {CheckoutStall.Small}");
+   yield return Tips();yield return Shot("social_back_home_v2");
 
-   // 6. "Pedir aos amigos" (the stock page and a contract short of a product open it).
-   yield return Tips();
-   int product=bridge.State.supplierCatalog!=null&&bridge.State.supplierCatalog.Length>0?bridge.State.supplierCatalog[0].productId:1;
-   Route("!amigos:pedir:"+product+":10");yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_request");
-   Route("");yield return new WaitForSecondsRealtime(1f);
+   // 7. Invites: three of the player's friends reached the Späti (30 diamonds each; decorations at 1 and 3).
+   double gems=bridge.State.diamonds;
+   for(int i=0;i<3;i++){Mock("invite-reward");yield return new WaitForSecondsRealtime(.2f);}
+   Tick();yield return new WaitForSecondsRealtime(4f);
+   Result("invite rewards",bridge.State.diamonds>=gems+90,$"diamonds {gems} -> {bridge.State.diamonds}");
+   Act("socialRefresh","[]");yield return new WaitForSecondsRealtime(1.5f);
+   Route("!amigos-convidar");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_convidar_3_v2");
+   Act("socialQr","[]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot("social_qr_v2");
+   Act("socialQr","[]");yield return new WaitForSecondsRealtime(.6f);
 
-   // 7. Eva (invited by the player) reached the Späti: 30 diamonds and the first exclusive decoration.
-   double gems=bridge.State.diamonds;Act("socialMock","[\"invite-reward\"]");yield return new WaitForSecondsRealtime(.5f);
-   Tick();yield return new WaitForSecondsRealtime(.9f);yield return Shot("social_invite_toast");
-   yield return new WaitForSecondsRealtime(3f);
-   Result("invite reward",bridge.State.diamonds>=gems+30,$"diamonds {gems} -> {bridge.State.diamonds}");
+   // 8. The share postcard (the Editor copies the invite; the phones open the system's share sheet).
+   Act("socialShare","[]");yield return new WaitForSecondsRealtime(2f);yield return Shot("social_share_v2");
+   if(File.Exists(CheckoutSocial.LastSharePicture)){File.Copy(CheckoutSocial.LastSharePicture,"Logs/at_social_share_picture_v2.png",true);Note("shot social_share_picture_v2");}
+   Result("share postcard",File.Exists(CheckoutSocial.LastSharePicture),CheckoutSocial.LastSharePicture);
+   Route("~amigos:perfil");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_perfil_v2");
 
-   // 7b. The reward decoration in the market: the build mode places it from the inventory and the layout is saved.
-   var interior=CheckoutInterior.Active;var mode=FindAnyObjectByType<CheckoutBuildMode>();
-   Note($"social decor: owned {(interior?interior.Owned("invite-reward-1"):-1)}, template {(interior&&interior.HasTemplate(interior.DecorTemplate("invite-reward-1")))}");
-   if(interior&&mode){
-    CheckoutBuildMode.QaOpenAndSelect();yield return new WaitForSecondsRealtime(1.5f);
-    // Outside, on the block (the bench may stand inside or out): the piece lands where the camera looks.
-    typeof(CheckoutBuildMode).GetMethod("Focus",BindingFlags.NonPublic|BindingFlags.Instance,null,new[]{typeof(string)},null)?.Invoke(mode,new object[]{"outside"});
-    yield return new WaitForSecondsRealtime(1.2f);
-    var simulation=FindAnyObjectByType<MarketDay.MarketSimulation>();
-    var stall=CheckoutStall.Centre;if(simulation)simulation.Focus(new Vector3(stall.x+4,0,CheckoutInterior.BlockRect.yMin+1.5f),6f);
-    yield return new WaitForSecondsRealtime(1.2f);
-    typeof(CheckoutBuildMode).GetMethod("PlaceFromStock",BindingFlags.NonPublic|BindingFlags.Instance)?.Invoke(mode,new object[]{"invite-reward-1"});
-    yield return new WaitForSecondsRealtime(.5f);
-    // Then slid (as a drag would) to the free spot nearest the camera, beside the stall: the camera looks from the
-    // south-east, so the block's south edge is never behind a building or the stall's umbrella.
-    var piece=interior.items.Values.FirstOrDefault(i=>i.type=="invite-reward-1"&&i.root);
-    if(piece!=null){
-     var block=CheckoutInterior.BlockRect;Vector3? best=null;float bestScore=float.MaxValue;
-     for(float z=block.yMin+.8f;z<block.yMin+12;z+=.5f)for(float x=block.xMin+.8f;x<block.xMax-.8f;x+=.5f){
-      float score=(z-block.yMin)+Mathf.Abs(x-(stall.x+4))*.35f;if(score>=bestScore)continue;
-      var p=new Vector3(x,piece.root.position.y,z);if(interior.Fits(piece,p,piece.rot,out _)){best=p;bestScore=score;}
-     }
-     if(best!=null){interior.MoveTo(piece,best.Value);typeof(CheckoutBuildMode).GetMethod("ShowFootprint",BindingFlags.NonPublic|BindingFlags.Instance,null,System.Type.EmptyTypes,null)?.Invoke(mode,null);}
-     Note($"social decor: spot {(best?.ToString()??"none free")}, piece at {piece.root.position}");
-     if(simulation)simulation.Focus(piece.root.position+new Vector3(0,0,-1.2f),6f);
-    }
-    yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_decor_place");
-    typeof(CheckoutBuildMode).GetMethod("Finish",BindingFlags.NonPublic|BindingFlags.Instance,null,System.Type.EmptyTypes,null)?.Invoke(mode,null);
-    yield return new WaitForSecondsRealtime(3f);
-    if(CheckoutBuildMode.Open)CheckoutBuildMode.QaClose();
-    var placed=interior.items.Values.FirstOrDefault(i=>i.type=="invite-reward-1"&&i.root);
-    Result("invite decoration placed",placed!=null,placed!=null?placed.id+" at "+placed.root.position:"not in the layout");
-    // (the QA copy's one-off tips, "A mesinha está esvaziando!", would cover the market)
-    if(placed!=null){
-     yield return Tips();
-     if(simulation)simulation.Focus(placed.root.position+new Vector3(0,0,-.6f),6f);yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_decor_placed");
-    }
-   }
-
-   // 8. QR code and "Chamar amigo" (the Editor copies the invite; the phones open the system's share sheet).
-   Route("!amigos");yield return new WaitForSecondsRealtime(1.5f);
-   Act("socialQr","[]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot("social_qr");
-   Act("socialShare","[]");yield return new WaitForSecondsRealtime(1.5f);yield return Shot("social_share");
-   if(File.Exists(CheckoutSocial.LastSharePicture)){File.Copy(CheckoutSocial.LastSharePicture,"Logs/at_social_share_picture.png",true);Note("shot social_share_picture");}
-   Result("share picture",File.Exists(CheckoutSocial.LastSharePicture),CheckoutSocial.LastSharePicture);
-   Act("socialQr","[]");Route("");yield return new WaitForSecondsRealtime(1f);
-
-   // 9. The Amigos page in English (Lucas tests in English: no Portuguese may leak).
-   var langBefore=CheckoutI18n.Language;
-   void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
+   // 9. English (Lucas tests in English: no Portuguese may leak).
    Lang("en");yield return new WaitForSecondsRealtime(1.5f);
-   Route("!amigos");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_amigos_en");
-   Route("");Lang(langBefore);yield return new WaitForSecondsRealtime(1.5f);
+   foreach(var r in new[]{"amigos","amigos-pedidos","amigos-convidar","amigos-correio"}){Route("!"+r);yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_"+r.Replace("amigos-","")+"_en_v2");}
+   Lang(langBefore);yield return new WaitForSecondsRealtime(1f);
+
+   // 10. iPad (4:3): the same windows must lay out.
+   Note("social: "+CheckoutQaGameView.Set(2048,1536));yield return new WaitForSecondsRealtime(2f);
+   foreach(var r in new[]{"amigos","amigos-convidar"}){Route("!"+r);yield return new WaitForSecondsRealtime(2f);yield return Shot("social_"+r.Replace("amigos-","")+"_ipad_v2");}
+   Note("social: "+CheckoutQaGameView.Set(2778,1284));yield return new WaitForSecondsRealtime(2f);
+
+   // 11. No friends at all: the empty state invites.
+   Mock("solo");Act("socialRefresh","[]");yield return new WaitForSecondsRealtime(1.5f);
+   Route("!amigos");yield return new WaitForSecondsRealtime(1.8f);yield return Shot("social_amigos_empty_v2");
+   Route("");yield return new WaitForSecondsRealtime(1f);
   }
 
   // The drawer's card list (0 = bottom, 1 = top).

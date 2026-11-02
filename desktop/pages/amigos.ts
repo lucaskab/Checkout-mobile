@@ -1,7 +1,16 @@
 import type { Routes } from ".";
+import type { SocialLogEntry } from "@/@types/social";
+import { getInteriorDecor } from "@/data/interior-decor";
 import { itemCatalog } from "@/data/market-products";
-import { SOCIAL_REQUEST_MAX, SOCIAL_REQUEST_MIN } from "@/data/social";
-import { t } from "@/i18n";
+import {
+	inviteRewardDecorId,
+	SOCIAL_HELPS_PER_DAY,
+	SOCIAL_INVITE_MILESTONES,
+	SOCIAL_REQUEST_MAX,
+	SOCIAL_REQUEST_MIN,
+	SOCIAL_REQUESTS_OPEN,
+} from "@/data/social";
+import { normalizeSocialState } from "@/services/social";
 import { cloudStore, formatAgo } from "../cloud";
 import { qrText } from "../qr";
 import {
@@ -12,186 +21,522 @@ import {
 	likesText,
 	marketName,
 	sendableStock,
+	socialHelpsToday,
 	socialIcon,
 	socialStore,
+	stageIcon,
 	stageName,
+	toastText,
 	type SocialFriend,
 	type SocialPerson,
 	type SocialRequestView,
 } from "../social";
-import { act, button, type Card, card, fmt, go, noInput, page, productIcon, type State } from "../view-kit";
+import {
+	act,
+	board,
+	type BoardTile,
+	button,
+	type Button,
+	type Card,
+	card,
+	decorIcon,
+	fmt,
+	go,
+	meter,
+	page,
+	type Page,
+	productIcon,
+	stat,
+	type State,
+	tile,
+} from "../view-kit";
+import { contractShortfall } from "./day";
 
-// Amigos (social v1, docs/social-api.md): my code (copy, share, QR), add a friend by code, the invite code, friend
-// requests, the friends (level, stage, likes, Presente, Visitar, badges for builds to help and open requests), the
-// player's own product requests, and the first-time profile (market name + one of the game's shoppers as the face).
+// Amigos (social v1, docs/social-api.md) as full-screen game windows (Lucas 02/11: "use a tela inteira, como a Loja"),
+// with big header tabs: Amigos (my card, the daily helps meter and a grid of friend cards), Pedidos (product
+// requests, mine and the friends'), Convidar (my code, the QR and the reward ladder of the exclusive decorations) and
+// Correio (gift boxes to open, the history of what friends did). The friend's Pedidos during a visit, the product
+// picker and the profile (market name + face) use the same window.
 
+const NAVY = "1D2B4F";
+const DAY_MS = 24 * 3_600_000;
 const productName = (id: number) => itemCatalog.find((item) => item.id === id)?.name ?? "";
 const hoursLeft = (request: SocialRequestView, now: number) => Math.max(1, Math.ceil((request.expiresAt - now) / 3_600_000));
 const online = () => socialStore.signedIn || socialStore.mock;
 const busy = (key: string) => socialStore.busy.has(key);
+const social = (state: State) => normalizeSocialState(state.social);
 
-function signedOutCards(): Card[] {
+type Tab = "amigos" | "pedidos" | "convidar" | "correio";
+
+/** The four big tabs, with red counts like the other windows. */
+function sections(state: State, active: Tab): Button[] {
+	const now = Date.now();
+	const mine = social(state);
+	const fulfil = friendRequests(now).filter((request) => sendableStock(request.productId) >= request.qty).length;
+	const tabs: { id: Tab; label: string; icon: string; route: string; badge: number }[] = [
+		{ id: "amigos", label: "Amigos", icon: socialIcon("friends"), route: "!amigos", badge: socialStore.incoming.length },
+		{ id: "pedidos", label: "Pedidos", icon: socialIcon("package"), route: "!amigos-pedidos", badge: fulfil },
+		{ id: "convidar", label: "Convidar", icon: socialIcon("invite"), route: "!amigos-convidar", badge: socialStore.offeredCode ? 1 : 0 },
+		{ id: "correio", label: "Correio", icon: socialIcon("gift"), route: "!amigos-correio", badge: mine.mailbox.length },
+	];
+	return tabs.map((tab) =>
+		button(tab.label, { icon: tab.icon, route: tab.route, variant: tab.id === active ? "coin" : "secondary", active: tab.id === active, badge: tab.badge > 0 ? String(tab.badge) : "" }),
+	);
+}
+
+/** One full-screen social window: navy header, the four tabs, big cards over the tiles. */
+function boardPage(state: State, route: string, title: string, active: Tab | null, cards: Card[], tiles: BoardTile[], options: Parameters<typeof board>[1] = {}, extra: Partial<Page> = {}) {
+	return page(route, title, cards, {
+		icon: socialIcon("friends"),
+		layout: "board",
+		sections: active ? sections(state, active) : [],
+		board: board(tiles, { tint: NAVY, columns: 4, ...options }),
+		...extra,
+	});
+}
+
+// ------------------------------------------------------------------------------------------------------------ states
+
+function signedOutCard(): Card {
 	const providers = cloudStore.providers.length ? cloudStore.providers : ["google" as const];
 	const canSignIn = cloudStore.status === "signed-out";
-	return [
-		card("Entre para jogar com amigos", {
-			icon: socialIcon("friends"),
-			eyebrow: "AMIGOS",
-			tone: cloudStore.status === "unavailable" ? "locked" : "info",
-			lines: [
-				"Visite o mercado dos amigos, mande presentes, ajude nas obras e peça produtos.",
-				"Sua conta também guarda o seu progresso na nuvem.",
-			],
-			buttons:
-				cloudStore.status === "unavailable"
-					? []
-					: providers.map((provider) =>
-							act(cloudStore.status === "signing-in" ? "Entrando…" : provider === "apple" ? "Iniciar sessão com a Apple" : "Entrar com Google", "cloudSignIn", [provider], {
-								variant: provider === "apple" ? "secondary" : "success",
-								enabled: canSignIn,
-								ok: provider === "apple" ? "Abrindo o login da Apple…" : "Abrindo o login do Google…",
-							}),
-						),
-		}),
-	];
-}
-
-/** Profile: the market's name and a face (first time the page opens, and "Editar perfil"). */
-function profileCards(first: boolean, hidden = false): Card[] {
-	const me = socialStore.me;
-	const chosen = socialStore.draft.avatar || me?.avatar || "";
-	const ids = Array.from({ length: socialStore.avatars }, (_, i) => `shopper-${i + 1}`);
-	const rows: Card[] = [];
-	for (let i = 0; i < ids.length; i += 4)
-		rows.push(
-			card("", {
-				eyebrow: i === 0 ? "ESCOLHA UM ROSTO" : "",
-				buttons: ids.slice(i, i + 4).map((id) =>
-					act("", "socialPickAvatar", [id], { icon: avatarIcon(id), variant: id === chosen ? "coin" : "secondary", active: id === chosen, ok: "" }),
-				),
-			}),
-		);
-	return [
-		card(first ? "Dê um nome ao seu mercado" : hidden ? "Escolha outro nome" : "Seu perfil", {
-			icon: avatarIcon(chosen),
-			eyebrow: first ? "PRIMEIRA VEZ AQUI" : "PERFIL",
-			tone: hidden ? "warning" : "",
-			lines: [
-				first
-					? "É assim que os seus amigos vão ver o seu mercado."
-					: hidden
-						? "O nome do seu mercado foi denunciado e está escondido. Os amigos veem só o código até você escolher outro."
-						: "O nome e o rosto que os seus amigos veem.",
-				"De 3 a 20 letras ou números. Nada de palavrões: nomes denunciados ficam escondidos.",
-			],
-			input: { id: "name", placeholder: "Nome do mercado", value: hidden ? "" : (me?.marketName ?? ""), max: 20, kind: "name" },
-			buttons: [
-				act(busy("profile") ? "Salvando…" : "Salvar", "socialSaveProfile", ["$input:name", chosen], {
-					variant: "success",
-					enabled: !busy("profile") && Boolean(chosen),
-					fail: "Escolha um rosto primeiro.",
-					ok: "",
-					after: first || hidden ? "" : "back",
-				}),
-			],
-		}),
-		...rows,
-	];
-}
-
-function friendCard(friend: SocialFriend, now: number): Card {
-	const builds = helpableBuilds(friend, now);
-	const requests = friend.openRequests ?? [];
-	const stage = stageName(friend.era);
-	const badges = [
-		builds.length === 1 ? "1 obra para ajudar" : builds.length > 1 ? `${builds.length} obras para ajudar` : "",
-		requests.length ? "Pediu produtos" : "",
-	].filter(Boolean);
-	return card(marketName(friend), {
-		icon: avatarIcon(friend.avatar),
-		eyebrow: badges.join(" · ").toUpperCase(),
-		badge: builds.length + requests.length > 0 ? String(builds.length + requests.length) : "",
-		tone: builds.length + requests.length > 0 ? "success" : "",
-		// Each piece in the player's language before they are joined (stage names would match other patterns whole).
-		subtitle: [t(`Nível ${friend.level}`), t(stage), likesText(friend.likes)].filter(Boolean).join(" · "),
-		lines: [
-			friend.lastSeen ? `Visto ${formatAgo(friend.lastSeen, now)}` : "",
-			...requests.slice(0, 2).map((request) => `Pede ${request.qty}× ${productName(request.productId)} · ${hoursLeft(request, now)} h`),
-		].filter(Boolean),
-		buttons: [
-			act(busy(`visit-start:${friend.id}`) || busy(`visit:${friend.id}`) ? "Abrindo…" : "Visitar", "socialVisit", [friend.id], {
-				icon: socialIcon("market"),
-				variant: "primary",
-				enabled: !busy(`visit-start:${friend.id}`),
-				ok: "",
-			}),
-			act(friend.giftedToday ? "Enviado hoje" : "Presente", "socialGift", [friend.id], {
-				icon: socialIcon("gift"),
-				variant: friend.giftedToday ? "secondary" : "success",
-				enabled: !friend.giftedToday && !busy(`gift:${friend.id}`),
-				ok: "",
-				fail: "Você já mandou um presente hoje. Volte amanhã!",
-			}),
-			go("Mais", `amigos:amigo:${friend.id}`),
-		],
+	return card("Entre para jogar com amigos", {
+		icon: socialIcon("friends"),
+		eyebrow: "AMIGOS",
+		tone: cloudStore.status === "unavailable" ? "locked" : "info",
+		lines: ["Visite o mercado dos amigos, mande presentes, ajude nas obras e peça produtos.", "Sua conta também guarda o seu progresso na nuvem."],
+		buttons:
+			cloudStore.status === "unavailable"
+				? []
+				: providers.map((provider) =>
+						act(cloudStore.status === "signing-in" ? "Entrando…" : provider === "apple" ? "Iniciar sessão com a Apple" : "Entrar com Google", "cloudSignIn", [provider], {
+							variant: provider === "apple" ? "secondary" : "success",
+							enabled: canSignIn,
+							ok: provider === "apple" ? "Abrindo o login da Apple…" : "Abrindo o login do Google…",
+						}),
+					),
 	});
 }
 
-function requestCard(person: SocialPerson): Card {
-	return card(marketName(person), {
-		icon: avatarIcon(person.avatar),
-		eyebrow: "QUER SER SEU AMIGO",
-		subtitle: [t(`Nível ${person.level}`), t(stageName(person.era))].filter(Boolean).join(" · "),
-		tone: "info",
-		buttons: [
-			act("Aceitar", "socialAccept", [person.id], { icon: socialIcon("friends"), variant: "success", enabled: !busy(`accept:${person.id}`), ok: "" }),
-			act("Recusar", "socialDecline", [person.id], { variant: "secondary", enabled: !busy(`decline:${person.id}`), ok: "" }),
-		],
-	});
-}
-
-function mainPage(state: State) {
-	const now = Date.now();
-	const title = "Amigos";
-	const icon = socialIcon("friends");
-	if (!online()) return page("amigos", title, signedOutCards(), { icon, subtitle: "Jogue junto com os seus amigos" });
+/** Signed out, loading, an error, or the first-time profile: what every tab shows before the real content. */
+function gate(state: State, route: string, active: Tab): Page | null {
+	if (!online()) return boardPage(state, route, "Amigos", null, [signedOutCard()], [], { empty: "Entre na sua conta para ver os amigos." });
 	const me = socialStore.me;
-	if (!me)
-		return page(
-			"amigos",
-			title,
+	if (!me) {
+		const failed = Boolean(socialStore.error);
+		return boardPage(
+			state,
+			route,
+			"Amigos",
+			null,
 			[
-				socialStore.error
+				failed
 					? card("Não deu para carregar os amigos", {
 							icon: socialIcon("warning"),
 							tone: "warning",
 							lines: [socialStore.error],
 							buttons: [act("Tentar de novo", "socialRefresh", [], { ok: "" })],
 						})
-					: card("Carregando os amigos…", { icon }),
+					: card("Carregando os amigos…", { icon: socialIcon("friends") }),
 			],
-			{ icon },
+			[],
+			{ empty: "" },
 		);
-	if (!me.marketName) return page("amigos", title, profileCards(true), { icon, subtitle: "Seu perfil" });
-	// The name was reported and is hidden ("Mercado #code" for the others): ask for a new one.
-	if (me.nameHidden) return page("amigos", title, profileCards(false, true), { icon, subtitle: "Seu perfil" });
+	}
+	// First time (no name yet) or a reported name: the profile comes first.
+	if (!me.marketName || me.nameHidden) return profilePage(state, true);
+	void active;
+	return null;
+}
 
-	const cards: Card[] = [];
-	cards.push(
-		card(marketName(me), {
-			icon: avatarIcon(me.avatar),
-			eyebrow: "MEU CÓDIGO DE AMIGO",
-			subtitle: formatCode(me.code),
-			lines: [[t(`Nível ${state.market.level}`), t(stageName(state.era.id)), likesText(me.likes)].join(" · "), "Mande o código ou chame pelo link: quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também."],
+// ------------------------------------------------------------------------------------------------------------ profile
+
+function profilePage(state: State, required: boolean): Page {
+	const me = socialStore.me!;
+	const hidden = me.nameHidden;
+	const first = !me.marketName;
+	const chosen = socialStore.draft.avatar || me.avatar || "";
+	const ids = Array.from({ length: socialStore.avatars }, (_, i) => `shopper-${i + 1}`);
+	const tiles = ids.map((id, index) =>
+		tile(id, `Rosto ${index + 1}`, {
+			icon: avatarIcon(id),
+			frame: "portrait",
+			tone: id === chosen ? "gold" : "",
+			state: id === chosen ? "done" : "",
+			sticker: id === chosen ? "ESCOLHIDO" : "",
+			action: act(id === chosen ? "Escolhido" : "Escolher", "socialPickAvatar", [id], { variant: id === chosen ? "coin" : "secondary", ok: "" }),
+			detail: "Este é o rosto que os seus amigos veem no seu cartão.",
+			actions: [act("Escolher este rosto", "socialPickAvatar", [id], { variant: "success", ok: "" })],
+		}),
+	);
+	const hero = card(first ? "Dê um nome ao seu mercado" : hidden ? "Escolha outro nome" : marketName(me), {
+		icon: avatarIcon(chosen),
+		eyebrow: first ? "PRIMEIRA VEZ AQUI" : "SEU PERFIL",
+		tone: hidden ? "warning" : "",
+		hero: !first && !hidden,
+		lines: [
+			first
+				? "É assim que os seus amigos vão ver o seu mercado."
+				: hidden
+					? "O nome do seu mercado foi denunciado e está escondido. Os amigos veem só o código até você escolher outro."
+					: "O nome e o rosto que os seus amigos veem.",
+			"De 3 a 20 letras ou números. Nada de palavrões: nomes denunciados ficam escondidos.",
+		],
+		input: { id: "name", placeholder: "Nome do mercado", value: hidden ? "" : (me.marketName ?? ""), max: 20, kind: "name" },
+		buttons: [
+			act(busy("profile") ? "Salvando…" : "Salvar", "socialSaveProfile", ["$input:name", chosen], {
+				icon: socialIcon("success"),
+				variant: "success",
+				enabled: !busy("profile") && Boolean(chosen),
+				fail: "Escolha um rosto primeiro.",
+				ok: "",
+				after: required ? "" : "back",
+			}),
+		],
+	});
+	return boardPage(state, "amigos:perfil", required ? "Seu perfil" : "Perfil", required ? null : "amigos", [hero], tiles, {
+		columns: 6,
+		focus: chosen,
+		empty: "",
+		stats: [stat(socialIcon("like"), fmt(me.likes), "curtidas"), stat(socialIcon("friends"), fmt(socialStore.friends.length), "amigos")],
+	});
+}
+
+// ------------------------------------------------------------------------------------------------------------ amigos
+
+function friendChips(friend: SocialFriend, now: number) {
+	const builds = helpableBuilds(friend, now);
+	const requests = (friend.openRequests ?? []).filter((request) => request.expiresAt > now);
+	return [
+		stat(socialIcon("like"), fmt(friend.likes ?? 0), ""),
+		...(builds.length ? [stat(socialIcon("handshake"), builds.length === 1 ? "1 obra para ajudar" : `${builds.length} obras para ajudar`, "", "success")] : []),
+		...requests.slice(0, 1).map((request) => stat(productIcon(request.productId), `pede ${request.qty}× ${productName(request.productId)}`, "", "info")),
+	];
+}
+
+function giftButton(friend: SocialFriend) {
+	return act(friend.giftedToday ? "Enviado" : "Presente", "socialGift", [friend.id], {
+		icon: friend.giftedToday ? socialIcon("success") : socialIcon("gift"),
+		variant: friend.giftedToday ? "secondary" : "success",
+		enabled: !friend.giftedToday && !busy(`gift:${friend.id}`),
+		ok: "",
+		fail: "Você já mandou um presente hoje. Volte amanhã!",
+	});
+}
+
+function visitButton(friend: SocialFriend) {
+	return act(busy(`visit-start:${friend.id}`) || busy(`visit:${friend.id}`) ? "Abrindo…" : "Visitar", "socialVisit", [friend.id], {
+		icon: socialIcon("market"),
+		variant: "primary",
+		enabled: !busy(`visit-start:${friend.id}`),
+		ok: "",
+	});
+}
+
+function friendTile(friend: SocialFriend, now: number): BoardTile {
+	const builds = helpableBuilds(friend, now);
+	const requests = (friend.openRequests ?? []).filter((request) => request.expiresAt > now);
+	const confirming = socialStore.confirmRemove === friend.id;
+	return tile(friend.id, marketName(friend), {
+		group: "Seus amigos",
+		icon: avatarIcon(friend.avatar),
+		frame: "portrait",
+		corner: stageIcon(friend.era),
+		subtitle: friend.lastSeen ? `Visto ${formatAgo(friend.lastSeen, now)}` : stageName(friend.era),
+		sticker: `NV ${friend.level}`,
+		tone: builds.length + requests.length > 0 ? "success" : "",
+		state: builds.length ? "ready" : "",
+		chips: friendChips(friend, now),
+		action: visitButton(friend),
+		alt: giftButton(friend),
+		detail: [stageName(friend.era), likesText(friend.likes ?? 0)].filter(Boolean).join(" · "),
+		facts: [
+			stat(stageIcon(friend.era), String(friend.level), "nível"),
+			stat(socialIcon("like"), fmt(friend.likes ?? 0), "curtidas"),
+			stat(socialIcon("handshake"), String(builds.length), "obras"),
+		],
+		lines: [
+			friend.lastSeen ? `Visto ${formatAgo(friend.lastSeen, now)}` : "",
+			...requests.map((request) => `Pede ${request.qty}× ${productName(request.productId)} · ${hoursLeft(request, now)} h`),
+			builds.length ? "Visite o mercado e toque em Ajudar em cada obra: −5 min para o amigo, moedas para você." : "",
+		].filter(Boolean),
+		actions: [
+			visitButton(friend),
+			giftButton(friend),
+			act(friend.likedToday ? "Curtido hoje" : "Curtir", "socialLike", [friend.id], {
+				icon: socialIcon("like"),
+				variant: friend.likedToday ? "secondary" : "success",
+				enabled: !friend.likedToday && !busy(`like:${friend.id}`),
+				ok: "",
+			}),
+			act(confirming ? "Remover mesmo?" : "Remover amigo", "socialRemove", [friend.id], { variant: "danger", enabled: !busy(`remove:${friend.id}`), ok: "" }),
+			act("Denunciar nome", "socialReport", [friend.id], { variant: "secondary", enabled: !busy(`report:${friend.id}`), ok: "" }),
+		],
+	});
+}
+
+function personTile(person: SocialPerson, incoming: boolean): BoardTile {
+	return tile(`${incoming ? "in" : "out"}-${person.id}`, marketName(person), {
+		group: incoming ? "Querem ser seus amigos" : "Esperando resposta",
+		icon: avatarIcon(person.avatar),
+		frame: "portrait",
+		corner: stageIcon(person.era),
+		subtitle: `Nível ${person.level} · ${stageName(person.era)}`,
+		sticker: incoming ? "NOVO" : "",
+		tone: incoming ? "info" : "locked",
+		state: incoming ? "ready" : "",
+		action: incoming
+			? act("Aceitar", "socialAccept", [person.id], { icon: socialIcon("friends"), variant: "success", enabled: !busy(`accept:${person.id}`), ok: "" })
+			: button("Esperando…", { variant: "secondary", enabled: false }),
+		alt: incoming ? act("Recusar", "socialDecline", [person.id], { variant: "secondary", enabled: !busy(`decline:${person.id}`), ok: "" }) : button("", { enabled: false }),
+		detail: incoming ? "Quer ser seu amigo. Aceite e vocês podem visitar, ajudar e mandar presentes um para o outro." : "O pedido de amizade foi enviado. Falta o amigo aceitar.",
+		actions: incoming
+			? [
+					act("Aceitar", "socialAccept", [person.id], { icon: socialIcon("friends"), variant: "success", enabled: !busy(`accept:${person.id}`), ok: "" }),
+					act("Recusar", "socialDecline", [person.id], { variant: "secondary", enabled: !busy(`decline:${person.id}`), ok: "" }),
+				]
+			: [],
+	});
+}
+
+/** My card on top of every tab: face, name, code, likes. */
+function myCard(state: State, buttons: Button[]): Card {
+	const me = socialStore.me!;
+	return card(formatCode(me.code), {
+		icon: avatarIcon(me.avatar),
+		eyebrow: "MEU CÓDIGO DE AMIGO",
+		hero: true,
+		subtitle: [marketName(me), `Nível ${state.market.level}`, likesText(me.likes)].join(" · "),
+		buttons,
+	});
+}
+
+function addFriendCard(): Card {
+	return card("Adicionar amigo", {
+		icon: socialIcon("friends"),
+		eyebrow: "CÓDIGO DE UM AMIGO",
+		lines: ["Digite o código de amigo (8 letras e números)."],
+		input: { id: "code", placeholder: "Ex.: K7Q2-MX4P", value: "", max: 9, kind: "code" },
+		buttons: [act(busy("add") ? "Enviando…" : "Adicionar", "socialAddFriend", ["$input:code"], { icon: socialIcon("friends"), variant: "primary", enabled: !busy("add"), ok: "" })],
+	});
+}
+
+function amigosPage(state: State): Page {
+	const gated = gate(state, "amigos", "amigos");
+	if (gated) return gated;
+	const now = Date.now();
+	const friends = [...socialStore.friends].sort(
+		(a, b) => helpableBuilds(b, now).length + (b.openRequests?.length ?? 0) - (helpableBuilds(a, now).length + (a.openRequests?.length ?? 0)) || b.lastSeen - a.lastSeen,
+	);
+	const helps = Math.min(SOCIAL_HELPS_PER_DAY, socialHelpsToday());
+	const toGift = friends.filter((friend) => !friend.giftedToday).length;
+	const cards: Card[] = [
+		myCard(state, [
+			go("Perfil", "amigos:perfil", { icon: avatarIcon(socialStore.me!.avatar) }),
+			act("Copiar", "socialCopy", [], { variant: "secondary", ok: "" }),
+			act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
+		]),
+	];
+	if (!friends.length)
+		cards.push(
+			card("Jogue junto com os amigos!", {
+				icon: socialIcon("friends"),
+				eyebrow: "NENHUM AMIGO AINDA",
+				tone: "gold",
+				lines: ["Visitem o mercado um do outro, ajudem nas obras e mandem presentes.", "Quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também."],
+				buttons: [act("Convidar amigos", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" })],
+			}),
+		);
+	cards.push(addFriendCard());
+	const tiles = [
+		...socialStore.incoming.map((person) => personTile(person, true)),
+		...friends.map((friend) => friendTile(friend, now)),
+		...socialStore.outgoing.map((person) => personTile(person, false)),
+	];
+	return boardPage(state, "amigos", "Amigos", "amigos", cards, tiles, {
+		stats: [stat(socialIcon("friends"), fmt(friends.length), "amigos"), stat(socialIcon("like"), fmt(socialStore.me!.likes), "curtidas")],
+		meter: meter("Ajudas hoje", helps, SOCIAL_HELPS_PER_DAY, {
+			icon: socialIcon("handshake"),
+			text: `${helps}/${SOCIAL_HELPS_PER_DAY} · cada ajuda tira 5 min da obra do amigo`,
+			tone: "gold",
+		}),
+		footer: friends.length
+			? [
+					act(busy("gift-all") ? "Enviando…" : toGift ? `Mandar presente para todos (${toGift})` : "Presentes de hoje enviados", "socialGiftAll", [], {
+						icon: toGift ? socialIcon("gift") : socialIcon("success"),
+						variant: toGift ? "success" : "secondary",
+						enabled: toGift > 0 && !busy("gift-all"),
+						ok: "",
+						fail: "Você já mandou presente para todos hoje.",
+					}),
+				]
+			: [],
+		empty: "Chame alguém com o seu código: vocês dois ganham 30 diamantes.",
+	});
+}
+
+// ------------------------------------------------------------------------------------------------------------ pedidos
+
+/** The friends' open requests (from the friend list and the requests route), newest first, one per id. */
+function friendRequests(now: number) {
+	const seen = new Map<number, SocialRequestView & { owner: string }>();
+	for (const friend of socialStore.friends) for (const request of friend.openRequests ?? []) seen.set(request.id, { ...request, owner: friend.id });
+	for (const request of socialStore.requests.friends) if (request.owner && !seen.has(request.id)) seen.set(request.id, { ...request, owner: request.owner });
+	return [...seen.values()].filter((request) => request.expiresAt > now).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function sendTile(request: SocialRequestView, owner: SocialFriend | undefined, now: number, group: string): BoardTile {
+	const have = sendableStock(request.productId);
+	const enough = have >= request.qty;
+	const product = itemCatalog.find((item) => item.id === request.productId);
+	const reward = product ? Math.max(1, Math.round(product.purchasePrice * request.qty * 1.25)) : 0;
+	const send = act(busy(`send:${request.id}`) ? "Enviando…" : "Enviar", "socialSend", [request.id, owner?.id ?? request.owner ?? "", request.productId, request.qty], {
+		icon: socialIcon("package"),
+		variant: "success",
+		enabled: enough && !busy(`send:${request.id}`),
+		fail: `Faltam ${fmt(request.qty - have)} no seu estoque.`,
+		ok: "",
+	});
+	return tile(`send-${request.id}`, `${request.qty}× ${productName(request.productId)}`, {
+		group,
+		icon: productIcon(request.productId),
+		subtitle: owner ? marketName(owner) : "",
+		badge: `+${fmt(reward)}`,
+		sticker: enough ? "PODE ENVIAR" : "",
+		tone: enough ? "success" : "locked",
+		state: enough ? "ready" : "",
+		chips: [stat(productIcon(request.productId), `você tem ${fmt(have)}`, "", enough ? "success" : "danger"), stat(socialIcon("coin"), `+${fmt(reward)} moedas`, "", "gold")],
+		timerEnd: request.expiresAt,
+		timerTotal: DAY_MS,
+		action: send,
+		detail: enough ? "Você recebe o preço do fornecedor de volta e mais 25%." : `Faltam ${fmt(request.qty - have)} no seu estoque.`,
+		facts: [stat(productIcon(request.productId), fmt(have), "no estoque"), stat(socialIcon("coin"), `+${fmt(reward)}`, "moedas"), stat(socialIcon("package"), String(request.qty), "pedido")],
+		lines: [owner ? `Pedido de ${marketName(owner)}` : "", `Vale por mais ${hoursLeft(request, now)} h`].filter(Boolean),
+		actions: [send],
+	});
+}
+
+function pedidosPage(state: State): Page {
+	const gated = gate(state, "amigos-pedidos", "pedidos");
+	if (gated) return gated;
+	const now = Date.now();
+	const mine = socialStore.requests.mine.filter((request) => request.expiresAt > now);
+	const mineTiles = mine.map((request) => {
+		const cancel = act("Cancelar", "socialCancelRequest", [request.id], { variant: "danger", enabled: !busy(`cancel:${request.id}`), ok: "" });
+		return tile(`mine-${request.id}`, `${request.qty}× ${productName(request.productId)}`, {
+			group: "Seus pedidos",
+			icon: productIcon(request.productId),
+			subtitle: `Vale por mais ${hoursLeft(request, now)} h`,
+			tone: "info",
+			state: "busy",
+			timerEnd: request.expiresAt,
+			timerTotal: DAY_MS,
+			fill: Math.max(0, Math.min(1, (request.expiresAt - now) / DAY_MS)),
+			chips: [stat(productIcon(request.productId), `no estoque: ${fmt(state.inventory[request.productId] ?? 0)}`, "")],
+			action: cancel,
+			detail: "Um amigo manda tudo de uma vez, direto para o seu estoque.",
+			actions: [cancel],
+		});
+	});
+	const theirs = friendRequests(now).map((request) =>
+		sendTile(
+			request,
+			socialStore.friends.find((friend) => friend.id === request.owner),
+			now,
+			"Pedidos dos amigos",
+		),
+	);
+	const open = mine.length;
+	return boardPage(state, "amigos-pedidos", "Pedidos", "pedidos", [], [...mineTiles, ...theirs], {
+		stats: [stat(socialIcon("package"), `${open}/${SOCIAL_REQUESTS_OPEN}`, "seus pedidos"), stat(socialIcon("friends"), String(theirs.length), "dos amigos")],
+		footer: [
+			go(open >= SOCIAL_REQUESTS_OPEN ? "2 pedidos abertos" : "Pedir aos amigos", "amigos-pedir", {
+				icon: socialIcon("package"),
+				variant: "success",
+				enabled: open < SOCIAL_REQUESTS_OPEN,
+			}),
+		],
+		empty: "Nenhum pedido aberto. Falta um produto? Peça aos amigos!",
+	});
+}
+
+/** "Pedir aos amigos": a grid of products (the contract's missing one first) and a big quantity stepper. */
+function pickerPage(state: State, productArg: string | undefined, qtyArg: string | undefined): Page {
+	const gated = gate(state, "amigos-pedir", "pedidos");
+	if (gated) return gated;
+	const short = contractShortfall(state);
+	const unlocked = itemCatalog.filter((item) => state.market.unlockedProductIds.includes(item.id));
+	const products = [...(short ? [short] : []), ...unlocked.filter((item) => item.id !== short?.id).sort((a, b) => (state.inventory[a.id] ?? 0) - (state.inventory[b.id] ?? 0))];
+	const picked = Number(productArg) || products[0]?.id || 0;
+	const amount = Math.max(SOCIAL_REQUEST_MIN, Math.min(SOCIAL_REQUEST_MAX, Math.floor(Number(qtyArg)) || 10));
+	const open = socialStore.requests.mine.length;
+	const tiles = products.map((product) => {
+		const qty = product.id === picked ? amount : 10;
+		const step = (label: string, to: number) => {
+			const value = Math.max(SOCIAL_REQUEST_MIN, Math.min(SOCIAL_REQUEST_MAX, to));
+			return button(label, { route: `~amigos-pedir:${product.id}:${value}`, variant: value === qty ? "coin" : "secondary", active: value === qty });
+		};
+		const have = state.inventory[product.id] ?? 0;
+		const missing = short?.id === product.id;
+		return tile(String(product.id), product.name, {
+			group: missing ? "Falta no contrato" : "Seus produtos",
+			icon: productIcon(product.id),
+			subtitle: `${qty} unidades`,
+			badge: fmt(have),
+			sticker: missing ? "FALTANDO" : have <= 0 ? "ACABOU" : "",
+			tone: missing ? "warning" : have <= 0 ? "danger" : "",
+			action: go("Escolher", `~amigos-pedir:${product.id}:${qty}`, { variant: product.id === picked ? "coin" : "secondary" }),
+			detail: "Um amigo manda tudo de uma vez, direto para o seu estoque. O pedido vale 24 horas.",
+			facts: [stat(productIcon(product.id), fmt(have), "no estoque"), stat(socialIcon("package"), String(qty), "unidades"), stat(socialIcon("clipboard"), `${open}/${SOCIAL_REQUESTS_OPEN}`, "abertos")],
+			actions: [
+				step("−5", qty - 5),
+				step("−1", qty - 1),
+				step("+1", qty + 1),
+				step("+5", qty + 5),
+				step("5", 5),
+				step("10", 10),
+				step("20", 20),
+				act(busy(`request:${product.id}`) ? "Enviando…" : `Pedir ${qty}× ${product.name}`, "socialRequest", [product.id, qty], {
+					icon: socialIcon("package"),
+					variant: "success",
+					enabled: open < SOCIAL_REQUESTS_OPEN && !busy(`request:${product.id}`),
+					fail: "Você já tem 2 pedidos abertos.",
+					ok: "",
+					after: "back",
+				}),
+			],
+		});
+	});
+	return boardPage(state, `amigos-pedir:${picked}:${amount}`, "Pedir aos amigos", "pedidos", [], tiles, {
+		columns: 5,
+		focus: String(picked),
+		stats: [stat(socialIcon("package"), `${open}/${SOCIAL_REQUESTS_OPEN}`, "pedidos abertos")],
+		empty: "Nenhum produto liberado ainda.",
+	});
+}
+
+// ------------------------------------------------------------------------------------------------------------ convidar
+
+function convidarPage(state: State): Page {
+	const gated = gate(state, "amigos-convidar", "convidar");
+	if (gated) return gated;
+	const me = socialStore.me!;
+	const rewarded = Math.max(0, me.invites?.rewarded ?? 0);
+	const next = SOCIAL_INVITE_MILESTONES.find((milestone) => milestone > rewarded);
+	const cards: Card[] = [
+		card(formatCode(me.code), {
+			icon: socialIcon("invite"),
+			eyebrow: "SEU CÓDIGO DE CONVITE",
+			hero: true,
+			subtitle: "Quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também.",
 			qr: socialStore.showQr ? qrText(inviteUrl(me.code)) : "",
 			buttons: [
 				act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
 				act("Copiar", "socialCopy", [], { variant: "secondary", ok: "" }),
 				act(socialStore.showQr ? "Fechar QR" : "QR", "socialQr", [], { variant: "secondary", ok: "" }),
-				go("Perfil", "amigos:perfil"),
 			],
 		}),
-	);
+	];
 	if (socialStore.offeredCode) {
 		const code = socialStore.offeredCode;
 		cards.push(
@@ -208,53 +553,7 @@ function mainPage(state: State) {
 				],
 			}),
 		);
-	}
-	for (const person of socialStore.incoming) cards.push(requestCard(person));
-	cards.push(
-		card("Adicionar amigo", {
-			icon: socialIcon("friends"),
-			lines: ["Digite o código de amigo (8 letras e números)."],
-			input: { id: "code", placeholder: "Ex.: K7Q2-MX4P", value: "", max: 9, kind: "code" },
-			buttons: [act(busy("add") ? "Enviando…" : "Adicionar", "socialAddFriend", ["$input:code"], { variant: "primary", enabled: !busy("add"), ok: "" })],
-		}),
-	);
-	if (socialStore.news.length)
-		cards.push(
-			card("Novidades", {
-				icon: socialIcon("like"),
-				lines: socialStore.news.slice(0, 5).map((item) => `${item.text} · ${formatAgo(item.at, now)}`),
-			}),
-		);
-	if (socialStore.requests.mine.length)
-		cards.push(
-			card("Seus pedidos aos amigos", {
-				icon: socialIcon("package"),
-				lines: socialStore.requests.mine.map((request) => `${request.qty}× ${productName(request.productId)} · ${hoursLeft(request, now)} h restantes`),
-				buttons: socialStore.requests.mine.map((request) =>
-					act(`Cancelar ${productName(request.productId)}`, "socialCancelRequest", [request.id], { variant: "secondary", enabled: !busy(`cancel:${request.id}`), ok: "" }),
-				),
-			}),
-		);
-	const friends = [...socialStore.friends].sort(
-		(a, b) => helpableBuilds(b, now).length + (b.openRequests?.length ?? 0) - (helpableBuilds(a, now).length + (a.openRequests?.length ?? 0)) || b.lastSeen - a.lastSeen,
-	);
-	if (!friends.length)
-		cards.push(
-			card("Nenhum amigo ainda", {
-				icon: socialIcon("friends"),
-				lines: ["Chame alguém com o seu código ou o link do convite."],
-				buttons: [act("Chamar amigo", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" })],
-			}),
-		);
-	for (const friend of friends) cards.push(friendCard(friend, now));
-	if (socialStore.outgoing.length)
-		cards.push(
-			card("Esperando resposta", {
-				icon: socialIcon("friends"),
-				lines: socialStore.outgoing.map((person) => marketName(person)),
-			}),
-		);
-	if (!me.invitedBy && !socialStore.offeredCode)
+	} else if (!me.invitedBy)
 		cards.push(
 			card("Tem um código de convite?", {
 				icon: socialIcon("invite"),
@@ -263,141 +562,132 @@ function mainPage(state: State) {
 				buttons: [act(busy("redeem") ? "Enviando…" : "Usar código", "socialRedeem", ["$input:invite"], { variant: "secondary", enabled: !busy("redeem"), ok: "" })],
 			}),
 		);
-	return page("amigos", title, cards, {
-		icon,
-		subtitle: friends.length === 1 ? "1 amigo" : `${friends.length} amigos`,
-	});
-}
-
-function friendPage(id: string) {
-	const friend = socialStore.friends.find((item) => item.id === id);
-	if (!friend) return page(`amigos:amigo:${id}`, "Amigo", [card("Esse amigo não está mais na lista.", { icon: socialIcon("friends") })]);
-	const now = Date.now();
-	const confirming = socialStore.confirmRemove === id;
-	const builds = helpableBuilds(friend, now);
-	return page(
-		`amigos:amigo:${id}`,
-		marketName(friend),
-		[
-			friendCard(friend, now),
-			card("Curtir o mercado", {
-				icon: socialIcon("like"),
-				lines: ["Uma curtida por dia: vocês dois ganham moedas."],
-				buttons: [
-					act(friend.likedToday ? "Curtido hoje" : "Curtir", "socialLike", [id], {
-						icon: socialIcon("like"),
-						variant: friend.likedToday ? "secondary" : "success",
-						enabled: !friend.likedToday && !busy(`like:${id}`),
-						ok: "",
-					}),
-				],
-			}),
-			...(builds.length
-				? [
-						card("Obras para ajudar", {
-							icon: socialIcon("handshake"),
-							lines: ["Visite o mercado e toque em Ajudar em cada obra: −5 min para o amigo, moedas para você."],
-						}),
-					]
-				: []),
-			card(confirming ? "Remover mesmo?" : "Remover amigo", {
-				icon: socialIcon("warning"),
-				tone: confirming ? "danger" : "",
-				lines: [confirming ? "Toque de novo para remover. Vocês deixam de ver o mercado um do outro." : "Tira esse amigo da sua lista (e você da lista dele)."],
-				buttons: [act(confirming ? "Remover" : "Remover amigo", "socialRemove", [id], { variant: "danger", enabled: !busy(`remove:${id}`), ok: "", after: confirming ? "back" : "" })],
-			}),
-			card("Denunciar o nome", {
-				icon: socialIcon("warning"),
-				lines: ["O nome deste mercado é ofensivo? Depois de algumas denúncias ele fica escondido até ser trocado."],
-				buttons: [act("Denunciar nome", "socialReport", [id], { variant: "secondary", enabled: !busy(`report:${id}`), ok: "" })],
-			}),
-		],
-		{ icon: avatarIcon(friend.avatar), subtitle: [t(`Nível ${friend.level}`), t(stageName(friend.era))].filter(Boolean).join(" · ") },
-	);
-}
-
-/** "Pedir aos amigos": one product, 1–20 units (the stock page and a contract short of a product open it). */
-function requestPage(state: State, productId: number, qty: number) {
-	const product = itemCatalog.find((item) => item.id === productId);
-	const route = `amigos:pedir:${productId}`;
-	if (!product) return page(route, "Pedir aos amigos", [card("Produto não encontrado.")]);
-	const amount = Math.max(SOCIAL_REQUEST_MIN, Math.min(SOCIAL_REQUEST_MAX, Math.floor(qty) || 10));
-	const open = socialStore.requests.mine.length;
-	const step = (label: string, to: number) =>
-		button(label, { route: `~${route}:${Math.max(SOCIAL_REQUEST_MIN, Math.min(SOCIAL_REQUEST_MAX, to))}`, variant: to === amount ? "coin" : "secondary", active: to === amount });
-	const cards: Card[] = [];
-	if (!online()) cards.push(...signedOutCards());
-	else
-		cards.push(
-			card(product.name, {
-				icon: productIcon(product.id),
-				eyebrow: "PEDIR AOS AMIGOS",
-				subtitle: `${amount} unidades`,
-				lines: [
-					`No seu estoque: ${fmt(state.inventory[product.id] ?? 0)}`,
-					"Um amigo manda tudo de uma vez, direto para o seu estoque. O pedido vale 24 horas.",
-					open >= 2 ? "Você já tem 2 pedidos abertos: cancele um na página Amigos." : `Pedidos abertos: ${open} de 2`,
-				],
-				buttons: [step("−5", amount - 5), step("−1", amount - 1), step("+1", amount + 1), step("+5", amount + 5)],
-			}),
-			card("", {
-				buttons: [step("5", 5), step("10", 10), step("20", 20)],
-			}),
-			card("", {
-				buttons: [
-					act(busy(`request:${product.id}`) ? "Enviando…" : `Pedir ${amount}× ${product.name}`, "socialRequest", [product.id, amount], {
-						icon: socialIcon("package"),
-						variant: "success",
-						enabled: open < 2 && !busy(`request:${product.id}`),
-						fail: "Você já tem 2 pedidos abertos.",
-						ok: "",
-						after: "back",
-					}),
-				],
-			}),
-		);
-	return page(route, "Pedir aos amigos", cards, { icon: socialIcon("package"), subtitle: product.name });
-}
-
-/** During a visit: the friend's open product requests, each with "Enviar" (checks the stock room first). */
-function visitRequestsPage() {
-	const visit = socialStore.visit;
-	if (!visit) return page("visita", "Pedidos", [card("Você está no seu mercado.")]);
-	const now = Date.now();
-	const requests = (visit.friend.openRequests ?? []).filter((request) => request.expiresAt > now);
-	const cards: Card[] = requests.map((request) => {
-		const have = sendableStock(request.productId);
-		const enough = have >= request.qty;
-		return card(`${request.qty}× ${productName(request.productId)}`, {
-			icon: productIcon(request.productId),
-			eyebrow: "PEDIDO DE AJUDA",
-			subtitle: `No seu estoque: ${fmt(have)}`,
-			lines: [enough ? "Você recebe o preço do fornecedor de volta e mais 25%." : `Faltam ${fmt(request.qty - have)} no seu estoque.`, `Vale por mais ${hoursLeft(request, now)} h`],
-			tone: enough ? "success" : "locked",
-			buttons: [
-				act(busy(`send:${request.id}`) ? "Enviando…" : "Enviar", "socialSend", [request.id, visit.friend.id, request.productId, request.qty], {
-					icon: socialIcon("package"),
-					variant: "success",
-					enabled: enough && !busy(`send:${request.id}`),
-					fail: `Faltam ${fmt(request.qty - have)} no seu estoque.`,
-					ok: "",
-				}),
-			],
+	const ladder = SOCIAL_INVITE_MILESTONES.map((milestone) => {
+		const id = inviteRewardDecorId(milestone);
+		const decor = getInteriorDecor(id);
+		const reached = rewarded >= milestone;
+		const left = milestone - rewarded;
+		return tile(id, decor?.name ?? id, {
+			group: "Prêmios do convite",
+			icon: decorIcon(`${id}.png`),
+			subtitle: milestone === 1 ? "1 amigo no Späti" : `${milestone} amigos no Späti`,
+			sticker: reached ? "GANHOU!" : left === 1 ? "FALTA 1" : `FALTAM ${left}`,
+			tone: reached ? "gold" : "locked",
+			state: reached ? "done" : milestone === next ? "" : "locked",
+			fill: Math.min(1, rewarded / milestone),
+			fillText: `${Math.min(rewarded, milestone)}/${milestone}`,
+			chips: [stat(socialIcon("diamond"), "+30 por amigo", "", "info")],
+			action: reached ? button("Na sua decoração", { variant: "secondary", enabled: false, icon: socialIcon("success") }) : button(`Faltam ${left}`, { variant: "secondary", enabled: false }),
+			detail: decor?.description ?? "",
+			facts: [stat(socialIcon("friends"), `${Math.min(rewarded, milestone)}/${milestone}`, "amigos"), stat(socialIcon("diamond"), fmt(30 * milestone), "diamantes")],
+			lines: [reached ? "Está no seu inventário: coloque no mercado pelo modo construir." : "Exclusivo: não se compra na loja."],
 		});
 	});
-	if (!cards.length) cards.push(card("Nenhum pedido aberto", { icon: socialIcon("package"), lines: ["Este amigo não está pedindo produtos agora."] }));
-	return page("visita", `Pedidos de ${marketName(visit.friend)}`, cards, { icon: socialIcon("package") });
+	return boardPage(state, "amigos-convidar", "Convidar", "convidar", cards, ladder, {
+		columns: 3,
+		stats: [stat(socialIcon("friends"), String(rewarded), "convites premiados"), stat(socialIcon("diamond"), fmt(rewarded * 30), "diamantes")],
+		meter: meter("Amigos que chegaram ao Späti", Math.min(rewarded, 5), 5, {
+			icon: socialIcon("invite"),
+			tone: "gold",
+			text: next ? (next - rewarded === 1 ? "Falta 1 para a próxima decoração" : `Faltam ${next - rewarded} para a próxima decoração`) : "Você ganhou as três decorações!",
+			marks: SOCIAL_INVITE_MILESTONES.map((milestone) => ({
+				at: milestone,
+				icon: decorIcon(`${inviteRewardDecorId(milestone)}.png`),
+				label: getInteriorDecor(inviteRewardDecorId(milestone))?.name ?? "",
+				state: rewarded >= milestone ? "done" : "locked",
+				action: button("", { enabled: false }),
+			})),
+		}),
+		empty: "",
+	});
+}
+
+// ------------------------------------------------------------------------------------------------------------ correio
+
+const historyIcon: Record<string, string> = { gift: "gift", like: "like", help: "handshake", delivery: "package", friend_request: "friends", friend_added: "friends", invite_reward: "diamond", request_fulfilled: "package" };
+const historyLine: Record<string, string> = {
+	gift: "mandou um presente",
+	like: "curtiu seu mercado",
+	help: "ajudou na obra: −{2} min",
+	delivery: "mandou {3}× {4}",
+	friend_request: "quer ser seu amigo",
+	friend_added: "virou seu amigo",
+	invite_reward: "convite premiado: +{5} diamantes",
+	request_fulfilled: "atendeu o seu pedido",
+};
+
+function historyTile(entry: SocialLogEntry, index: number, now: number): BoardTile {
+	const line = toastText(historyLine[entry.kind] ?? entry.text, { coins: entry.coins, minutes: entry.minutes, qty: entry.qty, product: productName(entry.productId), diamonds: entry.diamonds });
+	return tile(`log-${index}`, entry.name || "Um amigo", {
+		group: "Histórico",
+		icon: entry.avatar ? avatarIcon(entry.avatar) : socialIcon((historyIcon[entry.kind] ?? "friends") as never),
+		frame: entry.avatar ? "portrait" : "",
+		corner: socialIcon((historyIcon[entry.kind] ?? "friends") as never),
+		subtitle: formatAgo(entry.at, now),
+		chips: [stat(socialIcon((historyIcon[entry.kind] ?? "friends") as never), line, "")],
+		detail: line,
+		lines: [toastText(entry.text, { name: entry.name, coins: entry.coins, minutes: entry.minutes, qty: entry.qty, product: productName(entry.productId), diamonds: entry.diamonds })],
+	});
+}
+
+function correioPage(state: State): Page {
+	const gated = gate(state, "amigos-correio", "correio");
+	if (gated) return gated;
+	const now = Date.now();
+	const mine = social(state);
+	const boxes = [...mine.mailbox].reverse().map((mail) =>
+		tile(`mail-${mail.id}`, "Presente", {
+			group: "Para abrir",
+			icon: socialIcon("gift"),
+			subtitle: mail.name || "Um amigo",
+			badge: `+${fmt(mail.coins)}`,
+			tone: "gold",
+			state: "ready",
+			chips: mail.avatar ? [stat(avatarIcon(mail.avatar), mail.name, "")] : [],
+			action: act("Abrir", "socialOpenMail", [mail.id], { icon: socialIcon("gift"), variant: "success", ok: "" }),
+			detail: "Um presente de um amigo: abra para ganhar as moedas.",
+			facts: [stat(socialIcon("coin"), `+${fmt(mail.coins)}`, "moedas")],
+			lines: [formatAgo(mail.at, now)],
+			actions: [act("Abrir", "socialOpenMail", [mail.id], { icon: socialIcon("gift"), variant: "success", ok: "" })],
+		}),
+	);
+	const total = mine.mailbox.reduce((sum, mail) => sum + mail.coins, 0);
+	const history = mine.history.map((entry, index) => historyTile(entry, index, now));
+	return boardPage(state, "amigos-correio", "Correio", "correio", [], [...boxes, ...history], {
+		stats: [stat(socialIcon("gift"), String(mine.mailbox.length), "para abrir"), stat(socialIcon("coin"), `+${fmt(total)}`, "moedas")],
+		footer: mine.mailbox.length
+			? [act(mine.mailbox.length === 1 ? "Abrir o presente" : `Abrir tudo (${mine.mailbox.length})`, "socialOpenMail", ["all"], { icon: socialIcon("gift"), variant: "success", ok: "" })]
+			: [],
+		empty: "Nada no correio ainda. Os presentes dos amigos chegam aqui.",
+	});
+}
+
+// ------------------------------------------------------------------------------------------------------------ visit
+
+/** During a visit: the friend's open product requests, each with "Enviar" (checks the stock room first). */
+function visitRequestsPage(state: State): Page {
+	const visit = socialStore.visit;
+	if (!visit) return boardPage(state, "visita", "Pedidos", null, [], [], { empty: "Você está no seu mercado." });
+	const now = Date.now();
+	const requests = (visit.friend.openRequests ?? []).filter((request) => request.expiresAt > now);
+	const tiles = requests.map((request) => sendTile({ ...request, owner: visit.friend.id }, visit.friend, now, "Pedidos de ajuda"));
+	return boardPage(state, "visita", `Pedidos de ${marketName(visit.friend)}`, null, [], tiles, {
+		columns: 4,
+		stats: [stat(socialIcon("package"), String(requests.length), "pedidos")],
+		empty: "Este amigo não está pedindo produtos agora.",
+	});
 }
 
 export const routes: Routes = {
 	amigos: (state, [section, id, qty]) => {
-		if (section === "perfil") return online() && socialStore.me ? page("amigos:perfil", "Perfil", profileCards(false), { icon: avatarIcon(socialStore.me.avatar) }) : mainPage(state);
-		if (section === "amigo" && id) return friendPage(id);
-		if (section === "pedir" && id) return requestPage(state, Number(id), Number(qty ?? 10));
-		return mainPage(state);
+		if (section === "perfil") return online() && socialStore.me ? profilePage(state, false) : amigosPage(state);
+		// Old links ("amigos:pedir:<product>:<qty>") open the product picker.
+		if (section === "pedir") return pickerPage(state, id, qty);
+		return amigosPage(state);
 	},
-	visita: () => visitRequestsPage(),
+	"amigos-pedidos": (state) => pedidosPage(state),
+	"amigos-pedir": (state, [id, qty]) => pickerPage(state, id, qty),
+	"amigos-convidar": (state) => convidarPage(state),
+	"amigos-correio": (state) => correioPage(state),
+	visita: (state) => visitRequestsPage(state),
 };
-
-// The view-kit's empty input, for pages that build cards by hand.
-export const emptyInput = noInput;

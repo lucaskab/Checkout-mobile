@@ -36,6 +36,8 @@ export type Card = {
 	input: CardInput;
 	/** A QR code on the card ("<size>:" + rows of 1/0, desktop/qr.ts); "" = none. */
 	qr: string;
+	/** Board windows show their cards as a row of big cards over the tiles; "hero" = the title in large type (a code). */
+	hero: boolean;
 };
 export type CardInput = {
 	id: string;
@@ -199,6 +201,14 @@ export type BoardTile = {
 	originLabel: string;
 	vehicle: string;
 	lane: string;
+	/** Small chips under the title (likes, "2 obras", "6× Tomate"): icon + text. */
+	chips: BoardStat[];
+	/** "portrait" = the icon is a face in a gold-ringed frame (friends); "" = the usual round plate. */
+	frame: string;
+	/** A small badge on the icon's corner (a friend's stage). */
+	corner: string;
+	/** A second big button beside the main one (label "" = none): Presente next to Visitar. */
+	alt: Button;
 };
 /** A game window built from tiles (layout "board"): stock, deposit, deliveries, production, missions, trophies. */
 export type BoardView = {
@@ -360,6 +370,7 @@ export function card(title: string, options: Partial<Card> = {}): Card {
 		buttons: [],
 		input: noInput(),
 		qr: "",
+		hero: false,
 		...options,
 	};
 }
@@ -403,6 +414,10 @@ export function tile(id: string, title: string, options: Partial<BoardTile> = {}
 		originLabel: "",
 		vehicle: "",
 		lane: "",
+		chips: [],
+		frame: "",
+		corner: "",
+		alt: noButton(),
 		...options,
 	};
 }

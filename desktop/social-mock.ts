@@ -37,6 +37,13 @@ const reply = (code: number, body: unknown = null): MockReply => ({ code, body, 
 const fail = (code: number, error: string) => reply(code, { error });
 
 /** A friend's save: a new game moved to `era` / `level`, painted, with running builds (what the visit shows). */
+/**
+ * A furnished Späti as the game itself laid it out (Unity's "eventssocialcapture" on the QA copy, 02/11): the shelves
+ * on the shop floor, a shelf being built, plants inside and the bench, flowers, a tree and a lamp on the block. The
+ * friend "Mercado da Ana" uses it, so a visit shows a real Späti (a stall keeps unplaced pieces in the inventory).
+ */
+export const SPATI_LAYOUT: { id: string; type: string; x: number; z: number; rot: number; outside?: boolean }[] = [{"id": "shelf:drinks", "type": "shelf", "x": -4.414, "z": -0.087, "rot": 270}, {"id": "shelf:produce", "type": "shelf", "x": -4.561, "z": -1.602, "rot": 0}, {"id": "shelf:bakery", "type": "shelf", "x": -5.408, "z": -1.602, "rot": 0}, {"id": "decor-1", "type": "plant-small", "x": -4.985, "z": -0.27, "rot": 0}, {"id": "decor-2", "type": "monstera", "x": -5.623, "z": -0.334, "rot": 0}, {"id": "decor-3", "type": "fruit-pyramid", "x": -5.408, "z": -4.267, "rot": 0}, {"id": "decor-4", "type": "flower-bed", "x": -9.21, "z": 4.223, "rot": 0, "outside": true}, {"id": "decor-5", "type": "park-bench", "x": -11.306, "z": 4.19, "rot": 0, "outside": true}, {"id": "decor-6", "type": "tree-planter", "x": -6.642, "z": 4.502, "rot": 0, "outside": true}, {"id": "decor-7", "type": "street-lamp", "x": -7.825, "z": 4.027, "rot": 0, "outside": true}, {"id": "decor-8", "type": "bike-rack", "x": -13.271, "z": 4.056, "rot": 0, "outside": true}];
+
 export function createMockFriendSave(options: {
 	era: MarketEraId;
 	level: number;
@@ -44,6 +51,8 @@ export function createMockFriendSave(options: {
 	paint?: { paletteId: string; primary: string; accent: string };
 	builds?: { id: string; kind: "shelf" | "sector" | "shop"; targetId: string; minutesLeft: number }[];
 	evolutions?: { id: string; kind: string; targetId: string; toTier: number; minutesLeft: number }[];
+	/** Placed furniture and decorations (the decorations are owned once each). */
+	interior?: typeof SPATI_LAYOUT;
 	now: number;
 }) {
 	const store = useGameStore;
@@ -64,6 +73,11 @@ export function createMockFriendSave(options: {
 	persisted.unlockedMarketExpansionIds = [...(ERA_BUILDING_EXPANSIONS[era] ?? [])];
 	persisted.marketExpansionConstruction = null;
 	if (options.paint) persisted.marketPaint = { ...persisted.marketPaint, ...options.paint };
+	if (options.interior) {
+		const owned: Record<string, number> = { ...(persisted.interior?.owned ?? {}) };
+		for (const item of options.interior) if (item.id.startsWith("decor-")) owned[item.type] = (owned[item.type] ?? 0) + 1;
+		persisted.interior = { ...(persisted.interior ?? {}), items: options.interior.map((item) => ({ ...item })), owned };
+	}
 	persisted.interiorConstructions = (options.builds ?? []).map((build) => ({
 		id: build.id,
 		kind: build.kind,
@@ -147,9 +161,10 @@ export function createMockSocialServer(start = Date.now()) {
 			level: 9,
 			coins: 4_200,
 			paint: { paletteId: "floresta", primary: "1F4D36", accent: "E3C77A" },
-			// (the bakery is not placed in her yard yet, and her produce crates are part of the Späti stall: both
-			// "Ajudar" buttons sit in the row under the visit bar)
+			// a furnished Späti: the bakery shelf placed and being built, the produce shelf evolving (both with a
+			// floating "Ajudar" in a visit), plants inside, a bench, flowers, a tree and a lamp outside
 			builds: [{ id: "obra-shelf-bakery-ana", kind: "shelf", targetId: "bakery", minutesLeft: 25 }],
+			interior: SPATI_LAYOUT,
 			evolutions: [{ id: "evolucao-shelf-produce-2-ana", kind: "shelf", targetId: "produce", toTier: 2, minutesLeft: 42 }],
 			now,
 		}),
@@ -170,6 +185,25 @@ export function createMockSocialServer(start = Date.now()) {
 			now,
 		}),
 	);
+	// Gabi is far ahead (a supermercado on six lots with its wings): lots and wings the player has not got render
+	// for the visit only and everything comes back on "Voltar".
+	const gabi = person(
+		"u-gabi",
+		"GAB5R7TK",
+		"Supermercado da Gabi",
+		"shopper-6",
+		"supermercado",
+		30,
+		createMockFriendSave({
+			era: "supermercado",
+			level: 30,
+			coins: 48_000,
+			paint: { paletteId: "oceano", primary: "0F6A6E", accent: "F27D5E" },
+			builds: [{ id: "obra-shelf-snacks-gabi", kind: "shelf", targetId: "snacks", minutesLeft: 50 }],
+			evolutions: [{ id: "evolucao-shelf-drinks-3-gabi", kind: "shelf", targetId: "drinks", toTier: 3, minutesLeft: 75 }],
+			now,
+		}),
+	);
 	const carla = person("u-carla", "CAR6M7XY", "Tenda da Carla", "shopper-5", "tenda", 3, createMockFriendSave({ era: "tenda", level: 3, coins: 600, now }));
 	const duda = person("u-duda", "DUD8A9ZW", "Quitanda da Duda", "shopper-9", "banca", 6);
 	person("u-eva", "EVA3V4RT", "Mercadinho da Eva", "shopper-2", "tenda", 2, createMockFriendSave({ era: "tenda", level: 2, coins: 300, now }));
@@ -181,6 +215,9 @@ export function createMockSocialServer(start = Date.now()) {
 	befriend(me.id, ana.id);
 	befriend(me.id, bruno.id);
 	befriend(me.id, carla.id);
+	befriend(me.id, gabi.id);
+	gabi.likes = 57;
+	gabi.lastSeen = now - 20 * 60_000;
 	friendRequests.add(`${duda.id}|${me.id}`);
 	const apple = itemCatalog[0];
 	requests.push({ id: nextRequest++, owner: ana.id, productId: String(apple.id), qty: 6, status: "open", createdAt: now - HOUR, expiresAt: now + 23 * HOUR });
@@ -433,6 +470,12 @@ export function createMockSocialServer(start = Date.now()) {
 				friendRequests.delete(`${me.id}|${eva.id}`);
 				befriend(me.id, eva.id);
 				return Boolean(push(me.id, "friend_added", eva.id, { via: "code" }));
+			}
+			if (command === "solo") {
+				// QA: the player without friends (the Amigos window's empty state).
+				for (const key of [...friends]) if (key.startsWith(`${me.id}|`) || key.endsWith(`|${me.id}`)) friends.delete(key);
+				for (const key of [...friendRequests]) if (key.includes(me.id)) friendRequests.delete(key);
+				return true;
 			}
 			if (command === "request") {
 				// Duda asks to be friends again (after a decline): the badge test.

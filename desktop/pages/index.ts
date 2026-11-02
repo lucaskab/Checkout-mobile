@@ -55,7 +55,11 @@ export function pages(state: State, route: string): Page {
 	try {
 		const built = build(state, args);
 		// The windows of a toolbar group (Produtos, Missões) carry their siblings as big header tabs.
-		if (built.layout === "shelf" || built.layout === "board") built.sections = sectionsFor(state, route);
+		if (built.layout === "shelf" || built.layout === "board") {
+			const tabs = sectionsFor(state, route);
+			// (the Amigos windows bring their own tabs)
+			if (tabs.length) built.sections = tabs;
+		}
 		return built;
 	} catch (error) {
 		return page(route, "Erro ao montar a tela", [], { subtitle: String(error) });

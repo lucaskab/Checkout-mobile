@@ -69,9 +69,11 @@ test("first time on Amigos: the profile asks for a market name and a face", asyn
 	expect(social.socialStore.me.code).toBe("K7Q2MX4P");
 	expect(social.socialStore.me.marketName).toBe(null);
 	const first = pages(game(), "amigos");
+	// A full-screen window (like the Loja): the name card on top, the 12 faces as tiles.
+	expect(first.layout).toBe("board");
 	expect(first.cards[0].title).toBe("Dê um nome ao seu mercado");
 	expect(first.cards[0].input).toMatchObject({ id: "name", max: 20 });
-	expect(first.cards.slice(1).flatMap((c) => c.buttons).filter((b) => b.action === "socialPickAvatar")).toHaveLength(12);
+	expect(first.board.tiles.filter((t) => t.action.action === "socialPickAvatar")).toHaveLength(12);
 	await act("socialPickAvatar", "shopper-4");
 	await act("socialSaveProfile", "ab", "shopper-4");
 	expect(toasts().at(-1)).toBe("Esse nome não é permitido. Escolha outro.");
@@ -81,9 +83,17 @@ test("first time on Amigos: the profile asks for a market name and a face", asyn
 	expect(game().social.profile).toEqual({ code: "K7Q2MX4P", marketName: "Mercadinho do Lucas", avatar: "shopper-4" });
 	expect(social.socialTouched()).toBe(true);
 	const main = pages(game(), "amigos");
-	expect(main.cards[0]).toMatchObject({ title: "Mercadinho do Lucas", subtitle: "K7Q2-MX4P" });
-	expect(main.cards.some((c) => c.title === "Mercado da Ana" && c.buttons.some((b) => b.action === "socialVisit"))).toBe(true);
-	expect(main.cards.some((c) => c.eyebrow === "QUER SER SEU AMIGO")).toBe(true);
+	expect(main.layout).toBe("board");
+	expect(main.sections.map((s) => s.label)).toEqual(["Amigos", "Pedidos", "Convidar", "Correio"]);
+	expect(main.sections[0].active).toBe(true);
+	expect(main.cards[0]).toMatchObject({ title: "K7Q2-MX4P", hero: true });
+	expect(main.cards[0].subtitle).toContain("Mercadinho do Lucas");
+	const ana = main.board.tiles.find((t) => t.title === "Mercado da Ana");
+	expect(ana).toMatchObject({ frame: "portrait", sticker: "NV 9", action: { action: "socialVisit" }, alt: { action: "socialGift" } });
+	expect(ana.chips.map((c) => c.value)).toContain("2 obras para ajudar");
+	expect(main.board.tiles.some((t) => t.group === "Querem ser seus amigos" && t.action.action === "socialAccept")).toBe(true);
+	expect(main.board.meter).toMatchObject({ title: "Ajudas hoje", value: 0, max: 30 });
+	expect(main.board.footer[0].action).toBe("socialGiftAll");
 });
 
 test("the inbox: applied once, toasts, badge, then acked", async () => {
@@ -91,36 +101,52 @@ test("the inbox: applied once, toasts, badge, then acked", async () => {
 	const result = await social.runInboxCycle("start");
 	expect(result).toEqual({ applied: 3, acked: 3 });
 	const rewards = getSocialRewards(game().era.id);
-	expect(game().coins).toBe(coins + rewards.gift + rewards.like);
+	// The like pays at once; the gift waits in the Correio as a box.
+	expect(game().coins).toBe(coins + rewards.like);
+	expect(game().social.mailbox).toHaveLength(1);
 	expect(toasts().slice(-3)).toEqual([
-		`Mercado da Ana te mandou um presente: +${rewards.gift} moedas`,
+		"Mercado da Ana te mandou um presente: abra no Correio",
 		`Banca do Bruno curtiu seu mercado: +${rewards.like} moedas`,
 		"Quitanda da Duda quer ser seu amigo",
 	]);
-	expect(social.socialBadge()).toBe(3);
+	expect(social.socialBadge()).toBe(4);
 	const view = createDesktopView(game(), 1, []);
-	expect(view.quick.find((b) => b.label === "Amigos").badge).toBe("3");
+	expect(view.quick.find((b) => b.label === "Amigos").badge).toBe("4");
 	expect(view.quickMain.badge).not.toBe("");
 	social.onSocialRoute("amigos");
-	expect(social.socialBadge()).toBe(0);
+	expect(social.socialBadge()).toBe(1);
 	expect(await social.runInboxCycle()).toEqual({ applied: 0, acked: 0 });
+	// The Correio: the box with "Abrir tudo", the history below; opening pays (confetti in Unity) once.
+	const correio = pages(game(), "amigos-correio");
+	expect(correio.sections[3]).toMatchObject({ active: true, badge: "1" });
+	expect(correio.board.tiles.filter((t) => t.group === "Para abrir")).toHaveLength(1);
+	expect(correio.board.tiles.filter((t) => t.group === "Histórico").map((t) => t.title)).toEqual(["Quitanda da Duda", "Banca do Bruno", "Mercado da Ana"]);
+	expect(correio.board.footer[0]).toMatchObject({ action: "socialOpenMail", args: JSON.stringify(["all"]) });
+	const before = game().coins;
+	await act("socialOpenMail", "all");
+	expect(game().coins).toBe(before + rewards.gift);
+	expect(sent.filter((m) => m.kind === "social-fx").at(-1)).toMatchObject({ fx: "confetti", coins: rewards.gift });
+	expect(social.requestSocialAction("socialOpenMail", ["all"]).ok).toBe(false);
+	expect(game().coins).toBe(before + rewards.gift);
 });
 
 test("a crash between the save and the ack: the gift comes again and is acked without paying twice", async () => {
 	const server = social.socialMock();
 	server.control("gift");
 	server.control("fail", "/v1/social/inbox/ack");
-	const coins = game().coins;
 	expect(await social.runInboxCycle()).toEqual({ applied: 1, acked: 0 });
-	const paid = game().coins;
-	expect(paid).toBe(coins + getSocialRewards(game().era.id).gift);
+	expect(game().social.mailbox).toHaveLength(1);
 	// The game restarts from the save on disk (written before the ack) and asks again.
 	const saved = JSON.parse(storedSave());
 	useGameStore.setState(JSON.parse(initial));
 	await useGameStore.persist.getOptions().storage.setItem("checkout.game", saved);
 	await useGameStore.persist.rehydrate();
 	expect(await social.runInboxCycle()).toEqual({ applied: 0, acked: 1 });
-	expect(game().coins).toBe(paid);
+	// One box, not two.
+	expect(game().social.mailbox).toHaveLength(1);
+	const coins = game().coins;
+	await act("socialOpenMail", "all");
+	expect(game().coins).toBe(coins + getSocialRewards(game().era.id).gift);
 	expect(server.inbox.filter((row) => row.to === "qa-player" && !row.acked)).toEqual([]);
 });
 
@@ -159,8 +185,17 @@ test("gift, like and help at home: the helper's coins only after the server said
 	expect(toasts().at(-1)).toBe("Você já ajudou nesta obra.");
 	expect(game().coins).toBe(coins + rewards.help);
 	expect(game().social.totals.helpsGiven).toBe(1);
+	expect(pages(game(), "amigos").board.meter.value).toBe(1);
+	// "Mandar presente para todos": every friend not gifted today (Bruno already was).
+	const left = social.socialStore.friends.filter((f) => !f.giftedToday).length;
+	expect(left).toBeGreaterThan(0);
+	await act("socialGiftAll");
+	await settle();
+	expect(social.socialStore.friends.every((f) => f.giftedToday)).toBe(true);
+	expect(pages(game(), "amigos").board.footer[0]).toMatchObject({ enabled: false });
 	// What Bruno's game will get from the server.
 	expect(social.socialMock().inbox.filter((row) => row.to === "u-bruno").map((row) => row.kind)).toEqual(["gift", "like", "help"]);
+	expect(social.socialMock().inbox.filter((row) => row.to === "u-ana" && row.kind === "gift")).toHaveLength(1);
 });
 
 test("a visit never touches the player's save; what was earned there is booked on the way back", async () => {
@@ -193,7 +228,9 @@ test("a visit never touches the player's save; what was earned there is booked o
 	await act("socialHelp", "u-ana", evolution.buildId);
 	const request = social.socialStore.visit.friend.openRequests[0];
 	expect(request).toMatchObject({ productId: apple.id, qty: 6 });
-	expect(pages(game(), "visita").cards[0].buttons[0]).toMatchObject({ label: "Enviar", enabled: true });
+	const visita = pages(game(), "visita");
+	expect(visita.layout).toBe("board");
+	expect(visita.board.tiles[0].action).toMatchObject({ label: "Enviar", enabled: true });
 	await act("socialSend", request.id, "u-ana", apple.id, 6);
 	expect(social.sendableStock(apple.id)).toBe(3);
 	expect(social.visitView().builds.find((build) => build.kind === "evolution").button.label).toBe("Ajudado");
@@ -223,10 +260,17 @@ test("a visit where the player only looks leaves the save byte-identical", async
 
 test("ask friends for a product; the delivery lands in the stock room", async () => {
 	const product = itemCatalog[1];
-	const page = pages(game(), `amigos:pedir:${product.id}:8`);
-	expect(page.cards[2].buttons[0]).toMatchObject({ action: "socialRequest", args: JSON.stringify([product.id, 8]) });
+	const page = pages(game(), `amigos-pedir:${product.id}:8`);
+	// The product picker: the picked product's big stepper and "Pedir".
+	expect(page.sections[1].active).toBe(true);
+	const picked = page.board.tiles.find((t) => t.id === String(product.id));
+	expect(page.board.focus).toBe(String(product.id));
+	expect(picked.actions.at(-1)).toMatchObject({ action: "socialRequest", args: JSON.stringify([product.id, 8]) });
+	expect(picked.actions.map((b) => b.label).slice(0, 4)).toEqual(["−5", "−1", "+1", "+5"]);
 	await act("socialRequest", product.id, 8);
 	expect(game().social.requests).toEqual([expect.objectContaining({ productId: product.id, qty: 8 })]);
+	const pedidos = pages(game(), "amigos-pedidos");
+	expect(pedidos.board.tiles.find((t) => t.group === "Seus pedidos")).toMatchObject({ title: `8× ${product.name}`, action: { action: "socialCancelRequest" } });
 	const have = game().inventory[product.id] ?? 0;
 	social.socialMock().control("deliver");
 	expect((await social.runInboxCycle()).applied).toBe(2);
@@ -252,8 +296,12 @@ test("invite: redeem a code, then the reward at the Späti (diamonds and the fir
 
 test("a link or the Play Install Referrer offers the code on Amigos", async () => {
 	expect(social.applySocialLink({ code: "bru4-n5pq", source: "deeplink" })).toBe(true);
-	const page = pages(game(), "amigos");
+	const page = pages(game(), "amigos-convidar");
 	expect(page.cards.find((c) => c.title === "Convite de um amigo").subtitle).toBe("BRU4-N5PQ");
+	expect(page.sections[2].badge).toBe("1");
+	// The reward ladder: the three exclusive decorations at 1, 3 and 5 friends.
+	expect(page.board.tiles.map((t) => t.id)).toEqual(["invite-reward-1", "invite-reward-3", "invite-reward-5"]);
+	expect(page.board.meter.marks.map((m) => m.at)).toEqual([1, 3, 5]);
 	expect(social.applySocialLink({ code: "nope" })).toBe(false);
 });
 
@@ -264,7 +312,7 @@ test("share, copy and the QR code", async () => {
 	await act("socialCopy");
 	expect(sent.find((m) => m.kind === "social-copy").text).toBe("K7Q2-MX4P");
 	await act("socialQr");
-	expect(pages(game(), "amigos").cards[0].qr).toMatch(/^33:[01]{1089}$/);
+	expect(pages(game(), "amigos-convidar").cards[0].qr).toMatch(/^33:[01]{1089}$/);
 });
 
 test("a reported name: the owner is asked for a new one", async () => {

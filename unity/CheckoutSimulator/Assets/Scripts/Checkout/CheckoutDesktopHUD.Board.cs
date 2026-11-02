@@ -26,6 +26,8 @@ namespace Checkout {
   readonly List<CheckoutDesktopButton> boardFooterButtons=new List<CheckoutDesktopButton>();
   BoardDetailUi boardDetailUi;DesktopBoard boardData;string boardShown,boardSelected;float boardReceivedAt;float boardMeterShown=-1;
   AudioSource boardSound;RectTransform boardPressed;string boardPressedVariant;GameObject boardDetailPanel;
+  // The page's cards as a row of big cards over the tiles (Amigos: my code, add a friend; Convidar: the code, the QR).
+  RectTransform boardHeroes;readonly List<CheckoutDesktopCard> boardHeroCards=new List<CheckoutDesktopCard>();
 
   // Tile colours by tone: face, edge, ribbon.
   static Color ToneFace(string tone)=>tone=="success"?K.C("EFF8E6"):tone=="warning"?K.C("FFF4D6"):tone=="danger"?K.C("FDE9E2"):tone=="info"?K.C("E6F3F8"):tone=="gold"?K.C("FFF3C8"):tone=="locked"?K.C("EAE2D5"):K.Cream;
@@ -85,6 +87,8 @@ namespace Checkout {
    boardBackdrop=N.Image(area.transform,"Backdrop",new Color(1,1,1,.22f),0);boardBackdrop.preserveAspect=false;Stretch(boardBackdrop.rectTransform,new Vector2(4,4),new Vector2(-4,-4));
    boardScroll=Scroll(area.transform,"Tiles",true,out boardContent);Stretch((RectTransform)boardScroll.transform,new Vector2(10,124),new Vector2(-6,-8));
    var col=boardContent.GetComponent<VerticalLayoutGroup>();col.spacing=6;col.padding=new RectOffset(8,14,6,16);
+   boardHeroes=N.Node("Heroes",boardContent);var hrow=N.Row(boardHeroes.gameObject,14,new RectOffset(2,2,2,8));hrow.childControlHeight=true;hrow.childForceExpandHeight=true;hrow.childForceExpandWidth=true;
+   boardHeroes.gameObject.SetActive(false);
    boardEmpty=N.Text(area.transform,"Empty",K.Headline,22,K.Muted);boardEmpty.alignment=TextAlignmentOptions.Center;Stretch(boardEmpty.rectTransform,new Vector2(40,140),new Vector2(-40,-40));
    // Tip bar (the clerk's advice) and the big buttons.
    var tip=N.Image(area.transform,"Tip",K.C("FFF8E8"),16);boardTipBar=tip.rectTransform;boardTipBar.anchorMin=Vector2.zero;boardTipBar.anchorMax=new Vector2(1,0);boardTipBar.pivot=new Vector2(.5f,0);boardTipBar.offsetMin=new Vector2(10,70);boardTipBar.offsetMax=new Vector2(-10,116);
@@ -130,6 +134,7 @@ namespace Checkout {
    bool road=b.style=="road";
    boardGridArea.offsetMax=new Vector2(road?-16:-BoardDetailW-12,0);
    ApplyBoardTiles(b);
+   ApplyBoardHeroes(p.cards??new DesktopCard[0]);
    ApplyBoardFooter(b);
    if(fresh){Canvas.ForceUpdateCanvases();boardScroll.verticalNormalizedPosition=1;}
    ShopOpen=true;
@@ -184,7 +189,8 @@ namespace Checkout {
    int columns=Mathf.Max(1,b.columns);if(Phone)columns=Mathf.Min(columns,4); // phones: wider cards, ribbons clear of the badges
    // The window has a fixed size on the 1600×1000 canvas: before its first layout use that width.
    float width=boardGridArea.rect.width>100?boardGridArea.rect.width-40:(road?1440:1020);
-   var cell=road?new Vector2(width-10,LaneHeight):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),268);
+   bool chipped=false;foreach(var x in tiles)if(x.chips!=null&&x.chips.Length>0){chipped=true;break;}
+   var cell=road?new Vector2(width-10,LaneHeight):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),chipped?ChipRows*ChipH+274:268);
    // Sections: a title each time the group changes.
    int section=-1;string group=null;
    if(road)while(boardLanes.Count<tiles.Length)boardLanes.Add(BoardLaneUi.Create(this,boardContent));
@@ -223,6 +229,15 @@ namespace Checkout {
    return tiles.Length>0?tiles[0].id:null;
   }
   static DesktopTile FindTile(DesktopTile[] tiles,string id){if(id==null)return null;foreach(var t in tiles)if(t.id==id)return t;return null;}
+
+  void ApplyBoardHeroes(DesktopCard[] cards){
+   while(boardHeroCards.Count<cards.Length){var c=CheckoutDesktopCard.Create(boardHeroes);c.Clicked=BoardPress;var le=c.gameObject.AddComponent<LayoutElement>();le.flexibleWidth=1;le.minWidth=Phone?320:360;boardHeroCards.Add(c);}
+   for(int i=0;i<boardHeroCards.Count;i++){bool on=i<cards.Length;boardHeroCards[i].gameObject.SetActive(on);if(on){boardHeroCards[i].Apply(cards[i]);boardHeroCards[i].GetComponent<LayoutElement>().flexibleWidth=cards[i].hero?1.4f:1;}}
+   boardHeroes.gameObject.SetActive(cards.Length>0);boardHeroes.SetAsFirstSibling();
+   // The "nothing here" line sits under the cards, not over them.
+   float top=40;if(cards.Length>0){LayoutRebuilder.ForceRebuildLayoutImmediate(boardHeroes);top=LayoutUtility.GetPreferredHeight(boardHeroes)+60;}
+   boardEmpty.rectTransform.offsetMax=new Vector2(-40,-top);
+  }
 
   void ApplyBoardFooter(DesktopBoard b){
    var buttons=b.footer??new DesktopButton[0];

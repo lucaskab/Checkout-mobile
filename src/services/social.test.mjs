@@ -44,20 +44,30 @@ test("old saves get an empty social slice and keep everything else (v49 → v50)
 	});
 });
 
-test("a gift pays coins scaled to the stage, once, and acks", () => {
+test("a gift lands in the Correio once (coins scaled to the stage), acks, and pays when opened", () => {
 	const gift = item("gift");
 	const coins = game().coins;
+	const boxes = game().social.mailbox.length;
 	const first = game().applySocialInbox([gift], NOW);
 	const reward = getSocialRewards(game().era.id).gift;
 	expect(first.ack).toEqual([String(gift.id)]);
 	expect(first.outcomes[0]).toMatchObject({ applied: true, coins: reward, name: "Mercado da Ana" });
-	expect(game().coins).toBe(coins + reward);
-	// The server sends it again (the ack was lost): acked, never paid twice.
+	// A box in the Correio, not coins yet; the history keeps the line.
+	expect(game().coins).toBe(coins);
+	expect(game().social.mailbox).toHaveLength(boxes + 1);
+	expect(game().social.history[0]).toMatchObject({ kind: "gift", name: "Mercado da Ana" });
+	// The server sends it again (the ack was lost): acked, never a second box.
 	const again = game().applySocialInbox([gift], NOW + 1000);
 	expect(again.ack).toEqual([String(gift.id)]);
 	expect(again.outcomes[0].applied).toBe(false);
-	expect(game().coins).toBe(coins + reward);
+	expect(game().social.mailbox).toHaveLength(boxes + 1);
 	expect(game().social.totals.gifts).toBe(1);
+	// "Abrir tudo": every box pays once.
+	const opened = game().openSocialMail("all");
+	expect(opened.coins).toBe(reward * (boxes + 1));
+	expect(game().coins).toBe(coins + reward * (boxes + 1));
+	expect(game().social.mailbox).toEqual([]);
+	expect(game().openSocialMail("all")).toBe(null);
 });
 
 test("gifts stop at 25 a UTC day; the rest stay on the server until the next day", () => {
@@ -67,6 +77,7 @@ test("gifts stop at 25 a UTC day; the rest stay on the server until the next day
 	const today = game().applySocialInbox(gifts, NOW);
 	expect(today.ack).toHaveLength(SOCIAL_GIFTS_PER_DAY);
 	expect(today.outcomes.filter((entry) => !entry.ack)).toHaveLength(3);
+	expect(game().openSocialMail("all").coins).toBe(reward * SOCIAL_GIFTS_PER_DAY);
 	expect(game().coins).toBe(coins + reward * SOCIAL_GIFTS_PER_DAY);
 	expect(game().social.gifts).toEqual({ day: utcDay(NOW), claimed: SOCIAL_GIFTS_PER_DAY });
 	// Same day, later: still capped.
@@ -74,6 +85,7 @@ test("gifts stop at 25 a UTC day; the rest stay on the server until the next day
 	// Next UTC day: the three waiting gifts open.
 	const tomorrow = Date.UTC(2026, 10, 3, 0, 5);
 	expect(game().applySocialInbox(gifts.slice(-3), tomorrow).ack).toHaveLength(3);
+	game().openSocialMail("all");
 	expect(game().coins).toBe(coins + reward * (SOCIAL_GIFTS_PER_DAY + 3));
 	expect(game().social.gifts.claimed).toBe(3);
 });

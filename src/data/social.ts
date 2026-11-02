@@ -22,6 +22,10 @@ export const SOCIAL_INVITE_MILESTONES = [1, 3, 5] as const;
 export const inviteRewardDecorId = (milestone: number) => `invite-reward-${milestone}`;
 /** Builds listed in the public block (the server takes at most 12). */
 export const SOCIAL_PUBLIC_BUILDS = 12;
+/** Gift boxes kept in the Correio, history lines kept, helps a player may give a day (the server's limit). */
+export const SOCIAL_MAILBOX_KEEP = 50;
+export const SOCIAL_HISTORY_KEEP = 30;
+export const SOCIAL_HELPS_PER_DAY = 30;
 /** Avatars: the game's own shoppers (rendered portraits in Unity), "shopper-1" … "shopper-12". */
 export const SOCIAL_AVATARS = Array.from({ length: 12 }, (_, index) => `shopper-${index + 1}`);
 export const SOCIAL_DEFAULT_AVATAR = "shopper-1";

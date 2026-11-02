@@ -6,7 +6,7 @@ import { type GameIconId, gameIconAssets } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { getSocialRewards, SOCIAL_REQUEST_MAX, SOCIAL_REQUEST_MIN } from "@/data/social";
 import { t } from "@/i18n";
-import { canSendProduct, productIdOf } from "@/services/social";
+import { canSendProduct, helpsToday, normalizeSocialState, productIdOf } from "@/services/social";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
 import { useGameStore } from "@/stores/game-store";
 import { createMockSocialServer, type MockSocialServer } from "./social-mock";
@@ -191,6 +191,21 @@ export const stageName = (era: string) => {
 	}
 };
 export const avatarIcon = (avatar: string | null | undefined) => (avatar ? `avatar:${avatar}` : "avatar:shopper-1");
+/** The badge of a stage on a friend's portrait (the game's own 2D icons). */
+const stageIcons: Record<string, GameIconId> = {
+	mesinha: "priceTag",
+	tenda: "festival",
+	banca: "basket",
+	conteiner: "package",
+	spati: "shelf",
+	quitanda: "plant",
+	minimercado: "cart",
+	mercadinho: "market",
+	supermercado: "market",
+	hipermercado: "distributionCenter",
+	rede: "crown",
+};
+export const stageIcon = (era: string) => gameIcon(stageIcons[era] ?? "market");
 /**
  * Social icons (2D, the game's painted style). friends / like / share / invite are coming as new files: until they are
  * in src/data/game-icon-assets.ts these fall back to icons already in the set, so adding the files is a drop-in.
@@ -407,7 +422,7 @@ export async function loadSocial(force = false) {
 /** Opening any Amigos page loads the data and clears the badge. */
 export function onSocialRoute(route: string) {
 	const name = route.split(":")[0];
-	if (name !== "amigos") return;
+	if (name !== "amigos" && !name.startsWith("amigos-")) return;
 	socialStore.unseen = 0;
 	void loadSocial(false);
 }
@@ -529,6 +544,8 @@ export function sendableStock(productId: number) {
 
 export const socialActions = [
 	"socialRefresh",
+	"socialGiftAll",
+	"socialOpenMail",
 	"socialPickAvatar",
 	"socialSaveProfile",
 	"socialAddFriend",
@@ -590,6 +607,12 @@ export function requestSocialAction(action: string, args: unknown[]): Result {
 				text: t(name ? "Vem jogar Checkout comigo! Meu mercado: {0}. Código de amigo: {1}" : "Vem jogar Checkout comigo! Código de amigo: {1}")
 					.replaceAll("{0}", name)
 					.replaceAll("{1}", formatCode(code)),
+				// The postcard's lines, drawn by Unity over the picture of the market (never baked in an asset).
+				name: name || t("Meu mercado"),
+				caption: t("Vem jogar comigo!"),
+				codeLabel: t("Código de amigo"),
+				avatar: avatarIcon(socialStore.me?.avatar),
+				stage: t(stageName(useGameStore.getState().era.id)),
 			});
 			return done(true);
 		}
@@ -644,6 +667,10 @@ export function requestSocialAction(action: string, args: unknown[]): Result {
 			return run(`cancel:${a}`, () => cancelRequest(Number(a)));
 		case "socialRedeem":
 			return run("redeem", () => redeem(String(a ?? "")));
+		case "socialGiftAll":
+			return run("gift-all", () => giftAll());
+		case "socialOpenMail":
+			return done(openMail(a === "all" || a === undefined ? "all" : [String(a)]));
 	}
 	return done(false, "invalid-action");
 }
@@ -754,6 +781,41 @@ async function gift(to: string) {
 	return true;
 }
 
+/** "Mandar presente para todos": one gift to every friend not gifted today, one after the other. */
+async function giftAll() {
+	const targets = socialStore.friends.filter((friend) => !friend.giftedToday);
+	if (!targets.length) {
+		toast(t("Você já mandou presente para todos hoje."), "gift");
+		return false;
+	}
+	let sent = 0;
+	for (const friend of targets) {
+		const reply = await call("POST", "/v1/social/gift", { to: friend.id });
+		if (reply.code === 204 || reply.code === 200 || errorOf(reply) === "already-today") friend.giftedToday = true;
+		if (reply.code === 204 || reply.code === 200) sent++;
+		else if (reply.network || reply.code === 0) break;
+		refresh();
+	}
+	if (sent) fx("sparkle");
+	toast(sent === 1 ? t("Presente enviado para 1 amigo!") : toastText("Presentes enviados para {3} amigos!", { qty: sent }), "gift", sent > 0);
+	return sent > 0;
+}
+
+/** "Abrir" / "Abrir tudo" in the Correio: the boxes pay their coins (confetti, the coins fly to the counter). */
+function openMail(ids: string[] | "all") {
+	const opened = useGameStore.getState().openSocialMail(ids);
+	if (!opened) return false;
+	fx("confetti", opened.coins);
+	toast(opened.count === 1 ? toastText("Você abriu um presente: +{1} moedas", { coins: opened.coins }) : toastText("Você abriu {3} presentes: +{1} moedas", { qty: opened.count, coins: opened.coins }), "gift");
+	refresh();
+	return true;
+}
+
+/** A little celebration in Unity: confetti (and coins flying to the counter), or a sparkle where the button was. */
+function fx(kind: "confetti" | "sparkle", coins = 0) {
+	send({ kind: "social-fx", fx: kind, coins });
+}
+
 async function like(to: string) {
 	const reply = await call("POST", "/v1/social/like", { to });
 	const friend = socialStore.friends.find((item) => item.id === to);
@@ -776,6 +838,7 @@ async function like(to: string) {
 		socialStore.visit.friend.likes = Number(reply.body?.likes) || socialStore.visit.friend.likes + 1;
 		socialStore.visit.earned.likes++;
 	} else useGameStore.getState().claimSocialHelperReward("like");
+	fx("sparkle", reward);
 	toast(toastText("Você curtiu o mercado: +{1} moedas", { coins: reward }), "like");
 	return true;
 }
@@ -806,6 +869,7 @@ async function help(to: string, buildId: string) {
 		socialStore.visit.helped.add(buildId);
 		socialStore.visit.earned.helps++;
 	} else useGameStore.getState().claimSocialHelperReward("help");
+	fx("sparkle", reward);
 	toast(toastText("Você ajudou na obra: −5 min para o amigo, +{1} moedas para você", { coins: reward }), "handshake");
 	return true;
 }
@@ -976,7 +1040,10 @@ export function visitView(now = Date.now()): VisitView | null {
 	};
 }
 
-/** The red count on the Amigos button: inbox results and friend requests not seen yet. */
+/** The red count on the Amigos button: inbox results not seen yet and gift boxes waiting in the Correio. */
 export function socialBadge() {
-	return socialStore.unseen;
+	return socialStore.unseen + normalizeSocialState(useGameStore.getState().social).mailbox.length;
 }
+
+/** Helps given today, counting the ones of a visit still to be booked. */
+export const socialHelpsToday = () => helpsToday(useGameStore.getState()) + (socialStore.visit?.earned.helps ?? 0);

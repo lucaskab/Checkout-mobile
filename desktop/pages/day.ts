@@ -95,7 +95,7 @@ function dayStatus(state: State, now: number): Card {
 		],
 		buttons: [
 			// Social v1: the contract needs a product the stock room ran out of → a friend can send it.
-			...(short ? [go("Pedir aos amigos", `amigos:pedir:${short.id}:10`, { icon: socialIcon("package") })] : []),
+			...(short ? [go("Pedir aos amigos", `amigos-pedir:${short.id}:10`, { icon: socialIcon("package") })] : []),
 			act("Encerrar o dia", "closeDay", [], {
 				variant: "danger",
 				icon: gameIcon("lock"),
@@ -106,7 +106,7 @@ function dayStatus(state: State, now: number): Card {
 }
 
 /** A product of the day's category contract that the stock room has run out of (the first one), or null. */
-function contractShortfall(state: State) {
+export function contractShortfall(state: State) {
 	const contract = state.day.contract;
 	if (!contract?.category || getContractProgress(contract, state.day.stats).completed) return null;
 	return (

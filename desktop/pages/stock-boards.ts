@@ -549,7 +549,7 @@ function rackTile(state: State, product: ItemDefinition, now: number, group: str
 			refillButton(product, info),
 			fillButton(product, info),
 			// Social v1: a friend can send it (1–20 units, straight into the stock room).
-			go("Pedir aos amigos", `amigos:pedir:${product.id}:10`, { icon: socialIcon("package") }),
+			go("Pedir aos amigos", `amigos-pedir:${product.id}:10`, { icon: socialIcon("package") }),
 		].filter((item): item is Button => item !== null),
 	});
 }
