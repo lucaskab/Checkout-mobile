@@ -500,6 +500,8 @@ export function createSimulatorSnapshot(
 			zone: decor.zone,
 			upgrade: Boolean(decor.effect),
 			limit: decor.effect?.play?.maxPlaced ?? 0,
+			// earned only (invite rewards): Unity's build-mode shop never sells it, the inventory still places it
+			exclusive: Boolean(decor.exclusive),
 			// The cart bays come with the market building: shown locked before it.
 			lockedNote:
 				decor.placeEra && getEraOrder(state.era.id) < getEraOrder(decor.placeEra)

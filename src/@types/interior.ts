@@ -39,6 +39,8 @@ export type InteriorDecorDefinition = {
 	effect?: DecorEffect;
 	/** Only sold from this expansion on (the cart bays need the market building's aisles). */
 	placeEra?: import("./economy").MarketEraId;
+	/** Never sold: earned only (social v1 invite milestones, docs/social-api.md). Hidden from the shop and the unlocks. */
+	exclusive?: "invite";
 };
 
 /**

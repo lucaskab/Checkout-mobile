@@ -194,6 +194,8 @@ export type SimulatorSnapshot = {
 		upgrade: boolean;
 		/** Machines that pay only up to this many placed copies (0: no limit); the build tray shows "2/3". */
 		limit: number;
+		/** Earned only (social v1 invite rewards): never on sale, placed from the inventory. */
+		exclusive: boolean;
 		/** Not on sale yet in this expansion ("Chega com: Mercadinho"); "" = on sale. */
 		lockedNote: string;
 	}[];

@@ -163,6 +163,7 @@ import type {
 import type { ShelfUpgradeCurrency } from "./shelf-capacity";
 import type { GameShopState, ShopCurrency } from "./shop";
 import type { ReceivingState } from "./receiving";
+import type { SocialInboxOutcome, SocialRequestMirror, SocialState } from "./social";
 import type { StoreIncidentKind, StoreIncidentsState } from "./store-incident";
 import type { SupplierOrderSlotCurrency } from "./supplier-capacity";
 
@@ -246,12 +247,26 @@ export type GameState = {
 	delivery: DeliveryState;
 	/** "Cores do mercado": the two colours the market is painted in (src/data/market-paint.ts). */
 	marketPaint: MarketPaintState;
+	/** Social v1 (docs/social-api.md): inbox items applied, gifts opened today, profile cache, requests, invite rewards. */
+	social: SocialState;
 };
 
 /** Condition 0–100 of each physical fixture (shelf or sector counter). */
 export type GameShelfCare = Record<string, number>;
 
 export type GameActions = {
+	/**
+	 * Social inbox items (docs/social-api.md), oldest first: each is applied to this save exactly once. Returns what each
+	 * one did and the ids to ack once the save is written (gifts over today's cap wait, unacked).
+	 */
+	applySocialInbox: (items: unknown[], now?: number) => { outcomes: SocialInboxOutcome[]; ack: string[] };
+	/** The server counted the player's like / help on a friend: the helper's own coins (once per server OK). */
+	claimSocialHelperReward: (kind: "like" | "help") => number;
+	/** The friend's request is the player's to fill (server OK): the units leave the stock room, the sender is paid back. */
+	completeSocialDelivery: (productId: number, qty: number) => number | null;
+	/** The profile and the open requests as the server last answered (cache for the pages). */
+	rememberSocialProfile: (profile: { code?: string; marketName?: string | null; avatar?: string }) => boolean;
+	rememberSocialRequests: (requests: SocialRequestMirror[]) => boolean;
 	activateLogisticsBoost: () => boolean;
 	claimDailyGoal: () => boolean;
 	claimDayResult: () => boolean;

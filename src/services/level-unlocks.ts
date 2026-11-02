@@ -112,7 +112,7 @@ export function getLevelUnlocks(from: number, to: number, eraId: MarketEraId): L
 		unlocks.push({ kind: "shop", id: item.id, name: item.name, detail: item.description, level: item.level });
 	}
 	for (const decor of interiorDecor) {
-		if (!inRange(decor.requiredLevel)) continue;
+		if (decor.exclusive || !inRange(decor.requiredLevel)) continue;
 		unlocks.push({
 			kind: "decor",
 			id: decor.id,

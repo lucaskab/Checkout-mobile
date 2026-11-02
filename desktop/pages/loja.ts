@@ -278,7 +278,8 @@ function decoracao(state: State, sub: string) {
 	const coins = state.coins;
 	const diamonds = state.logistics.premiumCurrency;
 	const cards = interiorDecor
-		.filter((decor) => decor.zone === zone)
+		// earned-only decorations (invite rewards) are placed from the build-mode inventory, never sold here
+		.filter((decor) => decor.zone === zone && !decor.exclusive)
 		.map((decor) => {
 			// The cart bays need the market building's aisles: on sale from the mercadinho.
 			const eraLock = decor.placeEra && getEraOrder(state.era.id) < getEraOrder(decor.placeEra) ? `Chega com: ${getMarketEra(decor.placeEra).name}` : "";
@@ -375,7 +376,7 @@ function destaques(state: State) {
 	}
 	const hire = upgrades.team(state, []).cards.find((c) => c.eyebrow === "DISPONÍVEL");
 	if (hire) picks.push({ ...hire, eyebrow: "CONTRATE" });
-	const decor = interiorDecor.find((d) => state.market.level >= d.requiredLevel && !(state.interior.owned[d.id] ?? 0) && d.coinPrice && state.coins >= d.coinPrice);
+	const decor = interiorDecor.find((d) => !d.exclusive && state.market.level >= d.requiredLevel && !(state.interior.owned[d.id] ?? 0) && d.coinPrice && state.coins >= d.coinPrice);
 	if (decor) {
 		const c = decoracao(state, decor.zone === "outside" ? "fora" : "dentro").cards.find((x) => x.title === decor.name);
 		if (c) picks.push({ ...c, eyebrow: "DECORAÇÃO" });

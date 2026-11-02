@@ -257,6 +257,8 @@ import {
 } from "@/services/shelf-care";
 import { albumCollections, getCollectionProgress } from "@/data/product-album";
 import { ERA_LOTS, getMarketLot, migrateDepotLot } from "@/data/market-lots";
+import { applyInboxItems, createSocialState, normalizeSocialState, sendProductPatch } from "@/services/social";
+import { getSocialRewards } from "@/data/social";
 import {
 	checkBuyLot,
 	checkClearLot,
@@ -541,6 +543,7 @@ const initialGameState: GameState = {
 	delivery: createInitialDeliveryState(),
 	onboarding: createOnboardingState(),
 	marketPaint: createMarketPaintState(),
+	social: createSocialState(),
 };
 
 function getInitialGameState(): GameState {
@@ -633,6 +636,7 @@ function getInitialGameState(): GameState {
 		delivery: createInitialDeliveryState(),
 		onboarding: createOnboardingState(),
 		marketPaint: createMarketPaintState(),
+		social: createSocialState(),
 	};
 }
 
@@ -1006,6 +1010,8 @@ function migrateGameState(persistedState: unknown): GameState {
 		}),
 		// 47: "Cores do mercado". Older saves (no field) keep the classic navy and gold.
 		marketPaint: normalizeMarketPaintState(state.marketPaint),
+		// 50: social v1. Older saves (no field) start with an empty slice; nothing else changes.
+		social: normalizeSocialState(state.social),
 	};
 }
 
@@ -1870,6 +1876,48 @@ export const useGameStore = create<GameStore>()(
 					logistics: { ...current.logistics, premiumCurrency: current.logistics.premiumCurrency + result.diamonds },
 				}));
 				return result.diamonds;
+			},
+			applySocialInbox: (items, now = Date.now()) => {
+				const state = get();
+				const { patch, outcomes, ack } = applyInboxItems(state, Array.isArray(items) ? items : [], now);
+				if (Object.keys(patch).length) set(patch);
+				return { outcomes, ack };
+			},
+			claimSocialHelperReward: (kind) => {
+				const state = get();
+				const reward = getSocialRewards(state.era.id)[kind === "help" ? "help" : "like"];
+				const social = normalizeSocialState(state.social);
+				set({
+					coins: state.coins + reward,
+					social: kind === "help" ? { ...social, totals: { ...social.totals, helpsGiven: social.totals.helpsGiven + 1 } } : social,
+				});
+				return reward;
+			},
+			completeSocialDelivery: (productId, qty) => {
+				// The friend already has it (server OK): whatever is in the stock room leaves, never refused now. The
+				// page checked the stock before asking the server (canSendProduct).
+				const result = sendProductPatch(get(), productId, qty);
+				if (!result) return null;
+				set(result.patch);
+				return result.reward;
+			},
+			rememberSocialProfile: (profile) => {
+				const social = normalizeSocialState(get().social);
+				const next = {
+					code: typeof profile.code === "string" ? profile.code : social.profile.code,
+					marketName: typeof profile.marketName === "string" ? profile.marketName : profile.marketName === null ? "" : social.profile.marketName,
+					avatar: typeof profile.avatar === "string" ? profile.avatar : social.profile.avatar,
+				};
+				if (next.code === social.profile.code && next.marketName === social.profile.marketName && next.avatar === social.profile.avatar) return false;
+				set({ social: { ...social, profile: next } });
+				return true;
+			},
+			rememberSocialRequests: (requests) => {
+				const social = normalizeSocialState(get().social);
+				const next = normalizeSocialState({ ...social, requests }).requests;
+				if (JSON.stringify(next) === JSON.stringify(social.requests)) return false;
+				set({ social: { ...social, requests: next } });
+				return true;
 			},
 			dismissDiamondShortfall: () => {
 				if (get().diamondShortfall) rawSet({ diamondShortfall: null });
@@ -4727,6 +4775,7 @@ export const useGameStore = create<GameStore>()(
 				delivery,
 				onboarding,
 				marketPaint,
+				social,
 			}) => ({
 				era,
 				checkout,
@@ -4774,6 +4823,7 @@ export const useGameStore = create<GameStore>()(
 				delivery,
 				onboarding,
 				marketPaint,
+				social,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
 			// A save that fails to load or migrate is kept on disk untouched (src/storage/save-guard.ts).
@@ -4797,7 +4847,9 @@ export const useGameStore = create<GameStore>()(
 			// to the minimercado on and to who had the conveyor/scanner (withCheckoutRegister); interior.tiers is new.
 			// 49: evolutions take time (evolutions: the evolution crew's queue) and give rewards; old saves get the places and
 			// exclusive products of the tiers they have (withMigratedTierRewards).
-			version: 49,
+			// 50: social v1 (social: inbox ids applied, gifts today, profile cache, requests, invite rewards). Old saves get
+			// an empty slice (migrateGameState); nothing else changes.
+			version: 50,
 		},
 	),
 );
