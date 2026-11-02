@@ -30,7 +30,7 @@ namespace Checkout {
    Act("skipOnboarding","[]");Act("claimDayResult","[]");yield return new WaitForSecondsRealtime(1.5f);
    Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(3f);
    // (and its one-off tips, "A mesinha está esvaziando!", would cover the shots: dismissed on the copy)
-   IEnumerator Tips(){for(int i=0;i<3;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.4f);}}
+   IEnumerator Tips(){var h=FindAnyObjectByType<CheckoutDesktopHUD>();for(int i=0;i<3&&h&&h.CoachQa().isTip;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.5f);}}
    yield return Tips();
    Note($"social: market open {bridge.State.isOpen}, day {bridge.State.day?.phase}");
 
