@@ -173,6 +173,11 @@ How the game uses the contract (read these as the game's half of it):
   Gifts over the day's 25 are not acked (they come again the next UTC day).
 - **Helper rewards** (like, help) and the sender's delivery refund are booked only after the server's OK; during a
   visit they wait until the player is back home (the player's save is frozen while visiting).
+- **Gifts land in the Correio** (02/11): an applied `gift` becomes a box in the save (`social.mailbox`, applied and
+  acked exactly once like every item); "Abrir" / "Abrir tudo" pays its coins. The daily cap of 25 still counts at
+  receipt. The Correio also keeps the last 30 things friends did (`social.history`); `social.daily` counts the helps
+  the player gave today (the "Ajudas hoje" meter, 30 a day like the server).
+- **UI**: Amigos · Pedidos · Convidar · Correio are full-screen windows (the Loja's board layout, Lucas 02/11).
 
 Open questions for the server:
 1. Should the market-expansion works (`marketExpansionConstruction`) be a fifth build kind (`expansion`) friends can
