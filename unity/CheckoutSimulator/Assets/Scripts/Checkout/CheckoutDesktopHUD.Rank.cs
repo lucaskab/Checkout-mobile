@@ -152,7 +152,8 @@ namespace Checkout {
     var root=N.Node("Place "+place,parent);var c=root.gameObject.AddComponent<PodiumColumn>();c.hud=hud;c.place=place;c.rect=root;
     float x=place==1?.5f:place==2?.2f:.8f;root.anchorMin=root.anchorMax=new Vector2(x,0);root.pivot=new Vector2(.5f,0);root.sizeDelta=new Vector2(230*s,PodiumHeight);root.anchoredPosition=new Vector2(0,6);
     var hit=root.gameObject.AddComponent<Image>();hit.color=new Color(0,0,0,0);
-    float plinthH=(place==1?96:place==2?72:54)*s,face=(place==1?124:100)*s;
+    // (a phone's plinths keep room for the place and its value)
+    float plinthH=Mathf.Max(place==1?72:place==2?58:50,(place==1?96:place==2?72:54)*s),face=(place==1?124:100)*s;
     int i=place-1;
     // the plinth: a darker edge, its lighter face, the place in big numbers and the value under it
     c.plinth=N.Image(root,"Plinth",PlinthEdge[i],14);U.Stretch(c.plinth.rectTransform,new Vector2(.08f,0),new Vector2(.92f,0),Vector2.zero,new Vector2(0,plinthH));
