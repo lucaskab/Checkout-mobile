@@ -20,7 +20,10 @@ const game = (diamonds: number, coins = 200, level = 1) =>
 
 describe("cloud save rules", () => {
 	test("reads what the player sees about a save, refuses what is not one", () => {
-		assert.deepEqual(readSave(game(120, 5000, 7)), { level: 7, era: "mesinha", coins: 5000, diamonds: 120, day: 3, version: 45 });
+		assert.deepEqual(readSave(game(120, 5000, 7)), { level: 7, era: "mesinha", coins: 5000, diamonds: 120, day: 3, version: 45, xp: 0 });
+		// Rankings v1: xp = state.market.totalExperience (whole, ≥ 0).
+		const withXp = (xp: unknown) => readSave(JSON.stringify({ state: { market: { level: 9, totalExperience: xp } }, version: 45 }))?.xp;
+		assert.deepEqual([withXp(12345), withXp(12.9), withXp(-5), withXp("7"), withXp(undefined)], [12345, 12, 0, 0, 0]);
 		for (const bad of ["", "{", "[]", JSON.stringify({ version: 1 }), JSON.stringify({ state: [] }), 42, null])
 			assert.equal(readSave(bad), null, String(bad));
 		assert.equal(readSave(save({ blob: "x".repeat(2 * 1024 * 1024) })), null);

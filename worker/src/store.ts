@@ -1,6 +1,6 @@
-import type { D1Database, D1Result, R2Bucket, Row } from "./cf.ts";
+import type { D1Database, D1PreparedStatement, D1Result, R2Bucket, Row } from "./cf.ts";
 import { newCode } from "./codes.ts";
-import { DAY_MS, dayOf, SOCIAL } from "./limits.ts";
+import { DAY_MS, dayOf, MAX_LEVEL, RANKINGS, SOCIAL } from "./limits.ts";
 import { cleanSummary, HISTORY_EVERY_MS, HISTORY_KEPT, type SaveMeta, type SaveSummary } from "./save.ts";
 
 /** Who vouches for the player: Google (Android, PC, iPhone) or Apple (iPhone). */
@@ -18,8 +18,15 @@ export type PlayerRecord = {
 
 export type ReplaceResult = { ok: true; save: SaveMeta } | { ok: false; current: SaveMeta | null };
 
-/** What PUT /v1/save needs to know about the player's social profile (read with the player, no extra round trip). */
-export type SocialSnapshot = { level: number; era: string; publicJson: string | null; rewardPending: boolean };
+/** What PUT /v1/save needs to know about the player's social profile (read with the player, no extra round trip).
+ * `ranked`: the rankings columns (null until migrations/0003_rankings.sql has run). */
+export type SocialSnapshot = {
+	level: number;
+	era: string;
+	publicJson: string | null;
+	rewardPending: boolean;
+	ranked: { xp: number; country: string | null; hasSave: boolean } | null;
+};
 
 /** A row of `profiles` (docs/social-api.md › Data). */
 export type Profile = {
@@ -36,6 +43,15 @@ export type Profile = {
 	invitesRewarded: number;
 	nameHidden: boolean;
 	createdAt: number;
+	// Rankings v1 (docs/rankings-api.md); defaults until migrations/0003_rankings.sql has run.
+	xp: number;
+	levelAt: number;
+	country: string | null;
+	optOut: boolean;
+	hidden: boolean;
+	strikes: number;
+	division: string;
+	hasSave: boolean;
 };
 
 /** A friend as the friend list and the visit see them (public_json stays raw text: spliced into the answer). */
@@ -126,29 +142,56 @@ export class Store {
 		return this.clock() >= this.socialOffUntil;
 	}
 	missingSocial(error: unknown) {
-		if (!/no such table/i.test(String((error as Error)?.message ?? error))) return false;
+		if (!/no such table: (profiles|friends|friend_requests|inbox|daily_actions|build_helps|product_requests|name_reports)\b/i.test(String((error as Error)?.message ?? error)))
+			return false;
 		this.socialOffUntil = this.clock() + 60_000;
 		this.log("social tables missing: run worker/migrations/0002_social.sql in the D1 console");
+		return true;
+	}
+
+	/**
+	 * The same for rankings: until migrations/0003_rankings.sql has run, the profile has none of its columns. A "no such
+	 * column" (or a missing league table) turns the ranking columns off for a minute: saves, social and account deletion
+	 * work as before; only the /v1/rankings routes answer 500.
+	 */
+	rankingsOffUntil = 0;
+	rankingColumns() {
+		return this.socialTables() && this.clock() >= this.rankingsOffUntil;
+	}
+	missingRankings(error: unknown) {
+		if (!/no such column|has no column named|no such table: league_/i.test(String((error as Error)?.message ?? error))) return false;
+		this.rankingsOffUntil = this.clock() + 60_000;
+		this.log("ranking columns missing: run worker/migrations/0003_rankings.sql in the D1 console");
 		return true;
 	}
 
 	/** The player, their save's description and their social snapshot (one round trip). Null when the player is gone. */
 	async getPlayer(id: string): Promise<{ player: PlayerRecord; save: SaveMeta | null; social: SocialSnapshot | null } | null> {
 		const withSocial = this.socialTables();
+		const withRankings = withSocial && this.rankingColumns();
 		const statements = [this.db.prepare("SELECT * FROM players WHERE id = ?").bind(id), this.db.prepare("SELECT * FROM cloud_saves WHERE player_id = ?").bind(id)];
-		if (withSocial) statements.push(this.db.prepare("SELECT level, era, public_json, invited_by, invite_rewarded FROM profiles WHERE player_id = ?").bind(id));
+		if (withSocial)
+			statements.push(
+				this.db.prepare(`SELECT level, era, public_json, invited_by, invite_rewarded${withRankings ? ", xp, country, has_save" : ""} FROM profiles WHERE player_id = ?`).bind(id),
+			);
 		let results: D1Result[];
 		try {
 			results = await this.db.batch<Row>(statements);
 		} catch (error) {
-			if (withSocial && this.missingSocial(error)) return this.getPlayer(id);
+			if (withSocial && (this.missingSocial(error) || (withRankings && this.missingRankings(error)))) return this.getPlayer(id);
 			throw error;
 		}
 		const [player, save, profile] = results;
 		if (!player.results[0]) return null;
 		const p = profile?.results[0];
 		const social = p
-			? { level: Number(p.level), era: String(p.era), publicJson: str(p.public_json), rewardPending: p.invited_by !== null && !Number(p.invite_rewarded) }
+			? {
+					level: Number(p.level),
+					era: String(p.era),
+					publicJson: str(p.public_json),
+					rewardPending: p.invited_by !== null && !Number(p.invite_rewarded),
+					ranked: withRankings ? { xp: Number(p.xp ?? 0), country: str(p.country), hasSave: flag(p.has_save) } : null,
+				}
 			: null;
 		return { player: toPlayer(player.results[0]), save: save.results[0] ? toSave(save.results[0]) : null, social };
 	}
@@ -182,6 +225,8 @@ export class Store {
 		playerId: string,
 		current: SaveMeta | null,
 		upload: { literal: Uint8Array; summary: SaveSummary; deviceId: string; keepReplaced?: boolean },
+		/** More statements for the same batch, given the new save's key (they must check the upload won, see afterUpload). */
+		extra?: (key: string) => D1PreparedStatement[],
 	): Promise<ReplaceResult> {
 		const now = this.clock();
 		const revision = (current?.revision ?? 0) + 1;
@@ -192,14 +237,15 @@ export class Store {
 		const keep = !!current && (upload.keepReplaced === true || now - current.updatedAt >= this.historyEveryMs);
 		let won: boolean;
 		let pruned: string[] = [];
+		const more = extra ? extra(key) : [];
 		if (!current) {
-			const result = await this.db
+			const insert = this.db
 				.prepare(
 					`INSERT INTO cloud_saves (player_id, revision, summary, device_id, updated_at, body_key, bytes) VALUES (?, ?, ?, ?, ?, ?, ?)
 					 ON CONFLICT(player_id) DO NOTHING`,
 				)
-				.bind(playerId, revision, summary, upload.deviceId, now, key, bytes)
-				.run();
+				.bind(playerId, revision, summary, upload.deviceId, now, key, bytes);
+			const result = more.length ? (await this.db.batch([insert, ...more]))[0] : await insert.run();
 			won = result.meta.changes === 1;
 		} else {
 			const statements = [
@@ -221,6 +267,7 @@ export class Store {
 						.bind(playerId, current.revision, JSON.stringify(current.summary), current.deviceId, current.updatedAt, current.key, current.bytes, playerId, key),
 					pruneHistory(this.db, playerId),
 				);
+			statements.push(...more);
 			const results = await this.db.batch<{ body_key: string }>(statements);
 			won = results[0].meta.changes === 1;
 			if (keep) pruned = results[2].results.map((row) => row.body_key);
@@ -240,7 +287,8 @@ export class Store {
 	 * invited keep "already invited" (invited_by '').
 	 */
 	async deletePlayer(id: string): Promise<void> {
-		const social = this.socialTables() ? socialDeletes(this.db, id) : [];
+		const withRankings = this.rankingColumns();
+		const social = this.socialTables() ? [...(withRankings ? leagueDeletes(this.db, id) : []), ...socialDeletes(this.db, id)] : [];
 		let results: D1Result[];
 		try {
 			results = await this.db.batch([
@@ -250,7 +298,7 @@ export class Store {
 				...social,
 			]);
 		} catch (error) {
-			if (social.length && this.missingSocial(error)) return this.deletePlayer(id);
+			if (social.length && (this.missingSocial(error) || (withRankings && this.missingRankings(error)))) return this.deletePlayer(id);
 			throw error;
 		}
 		const [save, history] = results as unknown as { results: { body_key: string }[] }[];
@@ -264,30 +312,65 @@ export class Store {
 	 * when their account was created. One round trip. Null when the player is gone. `counts`: also the number of
 	 * friends and the inviter's code (GET/PUT /v1/social/me).
 	 */
-	async socialMe(playerId: string, counts = false): Promise<{ profile: Profile; accountCreatedAt: number; friends: number; inviterCode: string | null } | null> {
-		const now = this.clock();
+	async socialMe(
+		playerId: string,
+		counts = false,
+		country: string | null = null,
+	): Promise<{ profile: Profile; accountCreatedAt: number; friends: number; inviterCode: string | null } | null> {
 		const extra = counts
 			? ", (SELECT COUNT(*) FROM friends WHERE player_id = pl.id) AS friend_count, (SELECT code FROM profiles WHERE player_id = pr.invited_by) AS inviter_code"
 			: "";
 		for (let attempt = 0; attempt < 4; attempt++) {
-			const [, found] = await this.db.batch([
-				this.db
-					.prepare(
-						`INSERT INTO profiles (player_id, code, level, era, created_at, updated_at)
-						 SELECT p.id, ?, COALESCE((SELECT json_extract(summary, '$.level') FROM cloud_saves WHERE player_id = p.id), 1),
-						   COALESCE((SELECT json_extract(summary, '$.era') FROM cloud_saves WHERE player_id = p.id), ''), ?, ?
-						 FROM players p WHERE p.id = ? AND NOT EXISTS (SELECT 1 FROM profiles WHERE player_id = p.id) ON CONFLICT DO NOTHING`,
-					)
-					.bind(newCode(), now, now, playerId),
-				this.db.prepare(`SELECT pl.created_at AS account_created_at, pr.*${extra} FROM players pl LEFT JOIN profiles pr ON pr.player_id = pl.id WHERE pl.id = ?`).bind(playerId),
-			]);
-			const row = found.results[0];
+			const withRankings = this.rankingColumns();
+			const ensure = this.ensureProfile(playerId, country, withRankings);
+			let results: D1Result[];
+			try {
+				results = await this.db.batch([
+					...ensure,
+					this.db.prepare(`SELECT pl.created_at AS account_created_at, pr.*${extra} FROM players pl LEFT JOIN profiles pr ON pr.player_id = pl.id WHERE pl.id = ?`).bind(playerId),
+				]);
+			} catch (error) {
+				if (withRankings && this.missingRankings(error)) continue;
+				throw error;
+			}
+			const row = results[ensure.length].results[0];
 			if (!row) return null;
 			// No profile yet means the random code was someone else's: draw another.
 			if (row.player_id)
 				return { profile: toProfile(row), accountCreatedAt: Number(row.account_created_at), friends: Number(row.friend_count ?? 0), inviterCode: str(row.inviter_code) };
 		}
 		throw new Error("no free invite code");
+	}
+
+	/**
+	 * Statements that create the player's profile when it is missing (new code; level, era, XP from the cloud save's
+	 * summary) and, with the ranking columns, keep its country: written only when it changed (`country` is the
+	 * connection's, already checked: null = unknown, keep the old one).
+	 */
+	ensureProfile(playerId: string, country: string | null, withRankings = this.rankingColumns()): D1PreparedStatement[] {
+		const now = this.clock();
+		const fromSave = (field: string) => `(SELECT json_extract(summary, '$.${field}') FROM cloud_saves WHERE player_id = p.id)`;
+		const hasSave = "EXISTS (SELECT 1 FROM cloud_saves WHERE player_id = p.id)";
+		const statements = [
+			withRankings
+				? this.db
+						.prepare(
+							`INSERT INTO profiles (player_id, code, level, era, created_at, updated_at, xp, has_save, level_at, country)
+							 SELECT p.id, ?, COALESCE(${fromSave("level")}, 1), COALESCE(${fromSave("era")}, ''), ?, ?,
+							   MAX(0, CAST(COALESCE(${fromSave("xp")}, 0) AS INTEGER)), ${hasSave}, CASE WHEN ${hasSave} THEN ? ELSE 0 END, ?
+							 FROM players p WHERE p.id = ? AND NOT EXISTS (SELECT 1 FROM profiles WHERE player_id = p.id) ON CONFLICT DO NOTHING`,
+						)
+						.bind(newCode(), now, now, now, country, playerId)
+				: this.db
+						.prepare(
+							`INSERT INTO profiles (player_id, code, level, era, created_at, updated_at)
+							 SELECT p.id, ?, COALESCE(${fromSave("level")}, 1), COALESCE(${fromSave("era")}, ''), ?, ?
+							 FROM players p WHERE p.id = ? AND NOT EXISTS (SELECT 1 FROM profiles WHERE player_id = p.id) ON CONFLICT DO NOTHING`,
+						)
+						.bind(newCode(), now, now, playerId),
+		];
+		if (withRankings && country) statements.push(this.db.prepare("UPDATE profiles SET country = ? WHERE player_id = ? AND country IS NOT ?").bind(country, playerId, country));
+		return statements;
 	}
 
 	/** Changes the market name and/or avatar (undefined = unchanged). A new name clears the reports and the hiding. */
@@ -321,6 +404,43 @@ export class Store {
 				.bind(...[summary.level, summary.era, ...(withPublic ? [publicJson] : []), now, playerId]),
 			...inviteReward(this.db, playerId, now),
 		]);
+	}
+
+	/**
+	 * After an upload (ranking columns present), as statements for the upload's own batch — no extra round trip: the
+	 * profile's level, era, XP, has_save, the public block when sent (undefined = keep), the country when known and
+	 * changed, `level_at` when the level went up (or was never set), and the anti-cheat strike (a jump of more than
+	 * RANKINGS.maxLevelJump levels past the early levels since the last upload, or a level above MAX_LEVEL; the level is
+	 * stored anyway). All guarded by "this upload won" (the save now points at `key`), and only an existing profile.
+	 * Then the invite reward when it is due.
+	 */
+	afterUpload(
+		playerId: string,
+		key: string,
+		summary: { level: number; era: string; xp: number },
+		publicJson: string | null | undefined,
+		country: string | null,
+		rewardDue: boolean,
+	): D1PreparedStatement[] {
+		const now = this.clock();
+		const withPublic = publicJson !== undefined;
+		// SET expressions all read the row as it was before the update (SQLite), so `level` here is the old level.
+		const strike = `(CASE WHEN ?1 > ${MAX_LEVEL} OR (has_save = 1 AND ?1 - level > ${RANKINGS.maxLevelJump} AND ?1 > ${RANKINGS.earlyLevels}) THEN 1 ELSE 0 END)`;
+		const statements = [
+			this.db
+				.prepare(
+					`UPDATE profiles SET level = ?1, era = ?2, xp = ?3, has_save = 1,
+					   level_at = CASE WHEN ?1 > level OR level_at = 0 THEN ?4 ELSE level_at END,
+					   country = COALESCE(?5, country),
+					   ranking_hidden = CASE WHEN strikes + ${strike} >= ${RANKINGS.strikesToHide} THEN 1 ELSE ranking_hidden END,
+					   strikes = strikes + ${strike},
+					   ${withPublic ? "public_json = ?8, " : ""}updated_at = ?4
+					 WHERE player_id = ?6 AND EXISTS (SELECT 1 FROM cloud_saves WHERE player_id = ?6 AND body_key = ?7)`,
+				)
+				.bind(...[summary.level, summary.era, summary.xp, now, country, playerId, key, ...(withPublic ? [publicJson] : [])]),
+		];
+		if (rewardDue) statements.push(...inviteReward(this.db, playerId, now));
+		return statements;
 	}
 
 	/** The friend list (most recently seen first), their open product requests, and friend requests both ways. */
@@ -725,6 +845,14 @@ export function inviteReward(db: D1Database, playerId: string, now: number) {
 	];
 }
 
+/** A deleted player's league rows (their group keeps one member less). */
+function leagueDeletes(db: D1Database, id: string) {
+	return [
+		db.prepare("UPDATE league_groups SET members = members - 1 WHERE id IN (SELECT group_id FROM league_members WHERE player_id = ?)").bind(id),
+		db.prepare("DELETE FROM league_members WHERE player_id = ?").bind(id),
+	];
+}
+
 /** Every social row of a deleted player (see Store.deletePlayer). */
 function socialDeletes(db: D1Database, id: string) {
 	return [
@@ -792,6 +920,14 @@ export function toProfile(row: Row): Profile {
 		invitesRewarded: Number(row.invites_rewarded ?? 0),
 		nameHidden: flag(row.name_hidden),
 		createdAt: Number(row.created_at),
+		xp: Number(row.xp ?? 0),
+		levelAt: Number(row.level_at ?? 0),
+		country: str(row.country),
+		optOut: flag(row.ranking_opt_out),
+		hidden: flag(row.ranking_hidden),
+		strikes: Number(row.strikes ?? 0),
+		division: typeof row.league_division === "string" ? row.league_division : "bronze",
+		hasSave: flag(row.has_save),
 	};
 }
 

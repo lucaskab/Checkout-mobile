@@ -10,6 +10,9 @@
 	"observability": { "enabled": true, "head_sampling_rate": 1 },
 	"d1_databases": [{ "binding": "DB", "database_name": "checkout-saves", "database_id": "660aad42-3495-4b98-8e91-a727acecbae2" }],
 	"r2_buckets": [{ "binding": "SAVES", "bucket_name": "checkout-saves" }],
+	// The weekly league close (src/ranking-store.ts closeWeeks), Monday 00:05 UTC. A dashboard/API upload does not carry
+	// this: add it in Workers › checkout-server › Settings › Triggers › Cron Triggers.
+	"triggers": { "crons": ["5 0 * * 1"] },
 	"vars": {
 		"GOOGLE_CLIENT_IDS": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com,663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
 		"GOOGLE_DESKTOP_CLIENT_ID": "663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",

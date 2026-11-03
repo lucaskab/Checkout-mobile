@@ -195,6 +195,42 @@ Com wrangler logado, o mesmo: `npx wrangler d1 execute checkout-saves --remote -
 Se a versão nova for publicada antes da migração, os saves continuam funcionando normalmente (o Worker percebe que
 as tabelas não existem e ignora o social); só as rotas sociais dão erro até a migração rodar.
 
+## Rankings (v1) — amigos, liga semanal, mundo e país
+Contrato: `docs/rankings-api.md` (com "Details settled"). Código: `src/rankings.ts` (rotas), `src/ranking-store.ts`
+(SQL dos placares e da liga, fechamento da semana), números em `src/limits.ts` (`RANKINGS`, `MAX_LEVEL`, divisões,
+prêmios). `PUT /v1/save` passa a gravar no perfil nível, XP, país (de `request.cf.country`) e os avisos do anti-cheat
+no mesmo lote do envio (sem ida extra ao D1).
+
+### CPU estimada (`npm run bench:rankings`: 20 mil perfis, 50 amigos, grupo de 30, 500 grupos para fechar)
+| Rota | Worker (CPU) | SQLite local (≈ trabalho do D1) |
+|---|---|---|
+| `GET /v1/rankings/world` sem cache, logado | ~1,4 ms | ~2,8 ms |
+| `GET /v1/rankings/world` com o top na memória | ~0,6 ms | ~0,9 ms |
+| `GET /v1/rankings/country` sem cache | ~0,8 ms | ~1,2 ms |
+| `GET /v1/rankings/friends` (50 amigos) | ~0,6 ms | ~1,2 ms |
+| `GET /v1/rankings/league` | ~0,6 ms | ~0,7 ms |
+| `POST /v1/rankings/league/points` | ~0,5 ms | ~0,6 ms |
+| cron: fechar 500 grupos (15 mil jogadores, 6 lotes) | ~1,4 ms no total | ~145 ms no total |
+
+Custos D1: o "minha posição" (`me.rank`) lê ~1 linha por jogador à minha frente (quem está em #10 000 lê ~10 mil
+linhas por abertura da aba Mundo); o top 100 e o total ficam 10 min em cache (memória do isolate + Cache API — que pode
+não guardar nada em `*.workers.dev`; a memória já basta para segurar o D1). O fechamento da semana escreve ~4 linhas por
+jogador da liga (lugar, divisão, item da caixa de entrada) uma vez por semana.
+
+### Antes de publicar esta versão
+1. **Migração (uma vez só):** Cloudflare › Storage & Databases › D1 › checkout-saves › Console. Conferir antes:
+   `SELECT name FROM pragma_table_info('profiles') WHERE name = 'league_division';` — sem linhas = ainda não rodou.
+   Colar o conteúdo inteiro de `worker/migrations/0003_rankings.sql` e executar (se o console reclamar dos comentários
+   `--`, apague-os). **Não rode duas vezes:** o D1 não tem `ADD COLUMN IF NOT EXISTS`; a segunda vez para no primeiro
+   `ALTER` com "duplicate column name: xp" (sem estragar nada, mas o que vem depois não roda). Se parar no meio, rode só
+   as linhas que faltam. Conferir depois: `SELECT name FROM sqlite_master WHERE name LIKE 'league_%' OR name LIKE 'profiles_rank%';`
+   deve listar `league_groups`, `league_members`, os índices `league_*` e `profiles_rank`, `profiles_rank_country`.
+   Com wrangler: `npx wrangler d1 execute checkout-saves --remote --file=migrations/0003_rankings.sql`.
+2. **Cron:** Workers › checkout-server › Settings › Triggers › Cron Triggers › Add → `5 0 * * 1` (segunda 00:05 UTC).
+   Sem o cron a liga fecha mesmo assim, aos poucos, nas primeiras chamadas da liga da semana nova.
+3. Publicar o Worker. Se for publicado antes da migração, saves, social e exclusão de conta seguem normais; só as
+   rotas `/v1/rankings/*` dão erro 500 até a migração rodar.
+
 ## Testes
 `npm test` — roda o código do Worker no Node 22 com substitutos de D1 (SQLite do Node, com o `schema.sql` de
 verdade), R2 (memória) e sockets (node:net/tls). Os testes do Render (`server/test/api.test.ts`) estão portados.

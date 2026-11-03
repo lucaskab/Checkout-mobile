@@ -40,7 +40,7 @@ const ROUTES = new Set(
 );
 
 /** Social bodies are small: refuse anything bigger than 16 KB before reading it. */
-async function readBody(request: Request): Promise<Record<string, unknown>> {
+export async function readBody(request: Request): Promise<Record<string, unknown>> {
 	if (Number(request.headers.get("content-length") ?? "0") > MAX_SOCIAL_BODY) fail(413, "too-large");
 	const text = await request.text();
 	if (text.length > MAX_SOCIAL_BODY) fail(413, "too-large");
@@ -112,13 +112,14 @@ export function socialRoutes(options: SocialOptions) {
 	const { store, sessionOf } = options;
 
 	/** The signed-in player's profile (created on first use); the session was checked before the body was read. */
-	const profileOf = async (id: string, counts = false) => {
-		const found = await store.socialMe(id, counts);
+	const profileOf = async (id: string, counts = false, country: string | null = null) => {
+		const found = await store.socialMe(id, counts, country);
 		if (!found) fail(401, "signed-out");
 		return found as NonNullable<typeof found>;
 	};
 
-	return async (req: Request, path: string, method: string): Promise<Response | null> => {
+	/** `country`: the connection's country (checked; null = unknown), kept on the profile when it changed. */
+	return async (req: Request, path: string, method: string, country: string | null = null): Promise<Response | null> => {
 		// The invite landing page (no session).
 		if (path.startsWith("/i/") && (method === "GET" || method === "HEAD")) {
 			const segment = path.slice(3).split("/")[0];
@@ -136,7 +137,7 @@ export function socialRoutes(options: SocialOptions) {
 		const route = `${method} ${parts.map((part, i) => (i === 1 && !VERBS.has(part) ? ":id" : part)).join("/")}`;
 		if (!ROUTES.has(route)) return null;
 		const id = await sessionOf(req);
-		const me = (counts = false) => profileOf(id, counts);
+		const me = (counts = false) => profileOf(id, counts, country);
 
 		switch (route) {
 			case "GET me":
