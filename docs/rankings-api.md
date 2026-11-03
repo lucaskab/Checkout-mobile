@@ -114,7 +114,7 @@ position (count of players ahead + 1), `null` if I am not ranked (opt-out, hidde
 ### Inbox kind added
 | kind | payload | The receiving game does |
 |---|---|---|
-| `league_reward` | `{week, division, place, diamonds, chest: bool, movedTo: division}` | Shows the end-of-week card (podium, place, new division with a badge animation), + diamonds, + coin chest if `chest` |
+| `league_reward` | `{week, division, place, diamonds, chest: bool, movedTo: division, points, size, top: [{id, code, marketName, avatar, points}]}` (points: mine that week; size: placed players in the group; top: places 1–3, best first) | Shows the end-of-week card (podium, place, new division with a badge animation), + diamonds, + coin chest if `chest` |
 
 ## Anti-cheat (the save stays device-authoritative; the server only refuses the impossible)
 - League points above the daily cap → stored at the cap + 1 strike.
@@ -191,7 +191,10 @@ position (count of players ahead + 1), `null` if I am not ranked (opt-out, hidde
     diamond) + `chest: true` (also in diamond); place > n − zone, or 0 points → down one (bronze stays bronze); the rest
     stay. Diamonds = base(place) × multiplier rounded down, only with ≥ 1 point.
   - **Every placed member** gets one `league_reward` item (`diamonds` may be 0, `chest` false) so the game can show the
-    end-of-week card to all; `from` is `null`. Exactly once per (player, week): the group's `closed` flag is written in
+    end-of-week card to all; `from` is `null`. Added 03/11 (rank-game): `top` = the group's podium, places 1–3 best
+    first (fewer in a group of 1–2), each `{id, code, marketName, avatar, points}`; `marketName` is `null` for a hidden
+    name except in the receiver's own item; hidden (ranking-off) members are never on it. Also `points` (the receiver's
+    week total) and `size` (placed members of the group), for the card's stats row. Exactly once per (player, week): the group's `closed` flag is written in
     the same transaction, and the insert also checks for an earlier item of that week.
   - Players who did not play keep their division. League rows older than 8 weeks are deleted by the cron.
   - Cron `5 0 * * 1` closes everything in batches of 100 groups. Lazy close: `GET league` / `POST …/points` first close
@@ -235,8 +238,10 @@ end-of-week card), `desktop/rankings-mock.ts` (these routes in process for the E
 - **`league_reward`:** applied through the social inbox like every kind (exactly once by `appliedInbox`, plus
   `rewardedWeeks`): diamonds (capped at 100 against a bad payload), the chest = `3 × getSocialRewards(era).gift` coins
   when `chest: true`, and a card in the save. A 0-diamond item still makes a card. The card shows the podium of that
-  week's group when this phone saw it (names and faces kept in memory while the Liga tab was open), otherwise the
-  player's own face on their plinth (or "#14" beside the podium).
+  week's group from the item's `top` (03/11; real faces and names, kept in the save's card), falling back to what this
+  phone saw while the Liga tab was open, then to the division medal; me on my own plinth with a "VOCÊ" tag, or my place
+  on a card under the podium. The card also shows the week's points, "#place of N" and how many players I passed
+  (N − place) from the item's `points` / `size`.
 - **Signed out:** Mundo / País are read with `open: true` in the `social-call` (Unity sends them without the session
   when signed out); Amigos and Liga show the sign-in card. Unity only lets `GET /v1/rankings/*` go out open.
 - **Opt-out:** `PUT …/settings` first, then the save's `optOut` (the server's answer decides); the boards reload.

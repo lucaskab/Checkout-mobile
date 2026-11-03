@@ -200,7 +200,9 @@ export class RankingStore {
 	 *    chest; places > n − zone or 0 points move down (not below bronze); diamonds = base(place) × multiplier,
 	 *    rounded down, only with ≥ 1 point;
 	 * 2. next week's division onto the profiles;
-	 * 3. one `league_reward` inbox item per ranked member (also checked against an earlier item of that week);
+	 * 3. one `league_reward` inbox item per ranked member (also checked against an earlier item of that week), with
+	 *    the group's podium as `top` (places 1–3: id, code, marketName (null when hidden, except for the receiver),
+	 *    avatar, points), my week's `points` and the group's placed `size`;
 	 * 4. the groups marked closed.
 	 * Every statement only touches groups still open and the mark is written last, so a second run (cron and a lazy
 	 * close at once, or the cron twice) changes nothing and never pays twice. Answers how many groups it closed.
@@ -242,7 +244,14 @@ export class RankingStore {
 					`INSERT INTO inbox (player_id, kind, from_id, payload, created_at)
 					 SELECT m.player_id, 'league_reward', NULL,
 					   json_object('week', m.week, 'division', g.division, 'place', m.final_place, 'diamonds', m.diamonds,
-					     'chest', json(CASE WHEN m.chest = 1 THEN 'true' ELSE 'false' END), 'movedTo', m.moved_to), ?2
+					     'chest', json(CASE WHEN m.chest = 1 THEN 'true' ELSE 'false' END), 'movedTo', m.moved_to,
+					     'points', m.points, 'size', (SELECT COUNT(*) FROM league_members x WHERE x.group_id = m.group_id AND x.final_place IS NOT NULL),
+					     'top', (SELECT json_group_array(json_object('id', t.player_id, 'code', t.code,
+					         'marketName', CASE WHEN t.name_hidden = 1 AND t.player_id <> m.player_id THEN NULL ELSE t.market_name END,
+					         'avatar', t.avatar, 'points', t.points))
+					       FROM (SELECT t2.player_id, t2.points, tp.code, tp.market_name, tp.name_hidden, tp.avatar
+					             FROM league_members t2 JOIN profiles tp ON tp.player_id = t2.player_id
+					             WHERE t2.group_id = m.group_id AND t2.final_place BETWEEN 1 AND 3 ORDER BY t2.final_place) t)), ?2
 					 FROM league_members m JOIN league_groups g ON g.id = m.group_id AND g.closed = 0
 					 WHERE m.group_id IN (SELECT value FROM json_each(?1)) AND m.final_place IS NOT NULL
 					   AND NOT EXISTS (SELECT 1 FROM inbox i WHERE i.player_id = m.player_id AND i.kind = 'league_reward' AND json_extract(i.payload, '$.week') = m.week)`,

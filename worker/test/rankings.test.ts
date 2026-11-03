@@ -10,6 +10,8 @@ import { Store } from "../src/store.ts";
 import { fakeD1, fakeR2 } from "./fakes.ts";
 
 // Rankings v1 (docs/rankings-api.md) against the Worker's own code: real schema on node:sqlite, R2 in memory.
+/** A league_reward payload without its podium (`top`, checked on its own). */
+const noTop = ({ top, points, size, ...rest }: any) => (assert.equal(top.length, 3), assert.equal(typeof points, "number"), assert.equal(size, 30), rest);
 const SECRET = "test-secret-test-secret-test-secret-123";
 // Wednesday 2026-11-04 10:00 UTC: ISO week 2026-W45, third day of the week.
 const T0 = Date.UTC(2026, 10, 4, 10);
@@ -486,10 +488,10 @@ describe("rankings: end of the week", () => {
 		// The inbox item.
 		const items = await w.inbox(users[0]);
 		assert.equal(items.length, 1);
-		assert.deepEqual(items[0].payload, { week: WEEK, division: "silver", place: 1, diamonds: 20, chest: true, movedTo: "gold" });
+		assert.deepEqual(noTop(items[0].payload), { week: WEEK, division: "silver", place: 1, diamonds: 20, chest: true, movedTo: "gold" });
 		assert.equal(items[0].from, null);
-		assert.deepEqual((await w.inbox(users[12]))[0].payload, { week: WEEK, division: "silver", place: 30, diamonds: 0, chest: false, movedTo: "bronze" });
-		assert.deepEqual((await w.inbox(users[29]))[0].payload, { week: WEEK, division: "silver", place: 29, diamonds: 0, chest: false, movedTo: "bronze" });
+		assert.deepEqual(noTop((await w.inbox(users[12]))[0].payload), { week: WEEK, division: "silver", place: 30, diamonds: 0, chest: false, movedTo: "bronze" });
+		assert.deepEqual(noTop((await w.inbox(users[29]))[0].payload), { week: WEEK, division: "silver", place: 29, diamonds: 0, chest: false, movedTo: "bronze" });
 	});
 
 	test("edges: not above diamond, not below bronze; small groups: zone = min(5, n/2); multipliers", async () => {
@@ -530,6 +532,12 @@ describe("rankings: end of the week", () => {
 		assert.equal(items.length, 3, "one per ranked member, none for the hidden one");
 		assert.ok(!items.some((i) => i.player_id === users[1].id));
 		assert.deepEqual(outcome(w, users).map((g) => g[0]), [1, null, 2, 3]);
+		// The group's podium rides along (places 1–3, best first; the hidden player is not on it).
+		for (const item of items) {
+			const top = JSON.parse(item.payload).top;
+			assert.deepEqual(top.map((t: any) => [t.id, t.points]), [[users[0].id, 30], [users[2].id, 10], [users[3].id, 5]]);
+			assert.ok(top.every((t: any) => typeof t.code === "string" && "marketName" in t && "avatar" in t));
+		}
 		assert.equal(w.profile(users[1]).league_division, "bronze", "hidden: division unchanged");
 		// Even if the group were reopened by mistake, the inbox guard keeps one item per (player, week).
 		w.db.sqlite.exec("UPDATE league_groups SET closed = 0");
@@ -558,6 +566,19 @@ describe("rankings: end of the week", () => {
 		// A player who did not play last week: no lastWeek, division unchanged.
 		const fresh = await w.user("fresh", 3);
 		assert.deepEqual([(await w.league(fresh)).lastWeek, (await w.league(fresh)).division], [null, "bronze"]);
+	});
+
+	test("league_reward top: a hidden name is null for the others and kept for its owner", async () => {
+		const w = world();
+		const users = await group(w, "n", [30, 20, 10]);
+		w.db.sqlite.prepare("UPDATE profiles SET market_name = 'Mercado Topo', name_hidden = 1 WHERE player_id = ?").run(users[0].id);
+		w.clock.now = nextMonday;
+		await closeWeeks(w.store, w.clock.now, () => {});
+		const payload = (u: { id: string }) => JSON.parse(w.rows("SELECT payload FROM inbox WHERE kind = 'league_reward' AND player_id = ?", u.id)[0].payload);
+		assert.equal(payload(users[1]).top[0].marketName, null);
+		assert.equal(payload(users[0]).top[0].marketName, "Mercado Topo");
+		assert.equal(payload(users[0]).top.length, 3);
+		assert.deepEqual([payload(users[1]).points, payload(users[1]).size], [20, 3]);
 	});
 
 	test("chunks: the cron closes groups in batches and can stop and resume", async () => {
