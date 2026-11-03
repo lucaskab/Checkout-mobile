@@ -551,7 +551,8 @@ export function leagueCardView(state: State): LeagueCardView | null {
 		podiumAvatars: avatars,
 		podiumPoints: points,
 		stats,
-		button: "Pegar prêmios",
+		// (nothing to collect after a drop: the button just sends the player on to the new week)
+		button: card0.diamonds > 0 || card0.coins > 0 ? "Pegar prêmios" : "Vamos lá!",
 		tint: LEAGUE_DIVISION_TINTS[card0.movedTo],
 	};
 }

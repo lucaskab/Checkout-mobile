@@ -280,7 +280,7 @@ namespace Checkout {
    yield return CheckoutUiKit.Wait(.2f);
    // the plinths rise (3rd, 2nd, 1st); my place pops with its glow
    foreach(var i in new[]{2,1,0}){StartCoroutine(U.Scale(leaguePodium[i].col,Vector3.one,.3f,true));Sound("pop",1+.08f*(2-i));yield return CheckoutUiKit.Wait(.14f);}
-   if(onPodium){var mine=leaguePodium[card.place-1];StartCoroutine(U.Pop(mine.holder,1.16f,.35f));StartCoroutine(U.Fade(mine.glow,.75f,.4f));U.Sparkles(this,leagueFx,U.PointIn(leagueFx,mine.holder),12,170);}
+   if(onPodium){var mine=leaguePodium[card.place-1];StartCoroutine(U.Pop(mine.holder,1.16f,.35f));StartCoroutine(U.Fade(mine.glow,.75f,.4f));LeagueSparklesUp(U.PointIn(leagueFx,mine.holder),10,mine.holder.rect.height*.5f+70);}
    else if(card.place>0){StartCoroutine(U.Scale(leagueMeBox,Vector3.one,.3f,true));}
    yield return CheckoutUiKit.Wait(.25f);
    // the division: the old badge greys and shrinks, the chevrons run, the new badge pops in big with a glow; the stamp
@@ -292,7 +292,7 @@ namespace Checkout {
    } else {leagueTo.transform.localScale=Vector3.zero;}
    StartCoroutine(U.Fade(leagueToGlow,card.moved=="down"?.35f:.6f,.4f));
    yield return U.Scale(leagueTo.transform,Vector3.one,.42f,true);
-   if(card.moved=="up"){Sound("success");U.Sparkles(this,leagueFx,U.PointIn(leagueFx,leagueTo.rectTransform),16,210);}
+   if(card.moved=="up"){Sound("success");LeagueSparklesUp(U.PointIn(leagueFx,leagueTo.rectTransform),12,150);}
    else Sound("pop",card.moved=="down"?.85f:1f);
    // the stamp slams down
    leagueStamp.localScale=Vector3.one*2.2f;yield return U.Scale(leagueStamp,Vector3.one,.18f);Sound("pop",.7f);StartCoroutine(U.Shake(leagueStamp,.18f,5));
@@ -317,6 +317,20 @@ namespace Checkout {
    for(float t=0;t<seconds;t+=U.Dt){label.text="+"+Mathf.RoundToInt(amount*Mathf.SmoothStep(0,1,t/seconds));yield return null;}
    label.text="+"+amount;
   }
+  /// <summary>A sparkle burst that only flies up and to the sides (over the face or the badge, never down onto the name or the line under it).</summary>
+  void LeagueSparklesUp(Vector2 at,int count,float radius){
+   for(int i=0;i<count;i++){
+    var s=U.Art(leagueFx,"Sparkle","sparkle",new Vector2(.5f,.5f),Random.Range(30,56),at);s.raycastTarget=false;s.rectTransform.localScale=Vector3.zero;
+    float a=Mathf.Lerp(20f,160f,count<2?.5f:i/(float)(count-1))*Mathf.Deg2Rad;
+    StartCoroutine(LeagueSparkle(s,at+new Vector2(Mathf.Cos(a),Mathf.Sin(a))*radius*Random.Range(.75f,1f),i*.03f));
+   }
+  }
+  IEnumerator LeagueSparkle(Image s,Vector2 to,float delay){
+   yield return CheckoutUiKit.Wait(delay);if(!s)yield break;var r=s.rectTransform;var from=r.anchoredPosition;
+   for(float t=0;t<1;t+=U.Dt/.7f){if(!s)yield break;r.anchoredPosition=Vector2.Lerp(from,to,1-(1-t)*(1-t));r.localScale=Vector3.one*Mathf.Sin(t*Mathf.PI);r.localRotation=Quaternion.Euler(0,0,t*180);yield return null;}
+   if(s)Destroy(s.gameObject);
+  }
+
   void LeagueConfetti(int count,Color accent){
    var from=new Vector2(0,leagueFx.rect.height*.32f);
    for(int i=0;i<count;i++){

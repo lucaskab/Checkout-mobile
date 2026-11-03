@@ -154,21 +154,28 @@ namespace Checkout {
   bool RankFillFold(float height){
    var c=new Vector3[4];
    rankPodium.GetWorldCorners(c);float podiumBottom=-boardContent.InverseTransformPoint(c[0]).y;
-   float first=float.MaxValue;
+   float first=float.MaxValue,firstH=0;
    foreach(var t in boardTiles){
     if(!t.gameObject.activeSelf)continue;((RectTransform)t.transform).GetWorldCorners(c);
     float top=-boardContent.InverseTransformPoint(c[1]).y,bottom=-boardContent.InverseTransformPoint(c[0]).y;
-    if(top>=podiumBottom-1&&bottom>height+.5f&&top<first)first=top;
+    if(top>=podiumBottom-1&&bottom>height+.5f&&top<first){first=top;firstH=bottom-top;}
    }
    float grow=0;
-   if(first<float.MaxValue){float g=height-(first-rankPodiumGrow);if(g>0&&g<=(Phone?150:200))grow=g;}
+   if(first<float.MaxValue){
+    float g=height-(first-rankPodiumGrow);
+    // (a row that misses by a little comes in whole instead: the podium gives up to ~40 of its top's free room,
+    // where only the bunting hangs; more than that and the podium grows into the room as before)
+    float shrink=firstH-g+2;
+    if(shrink>0&&shrink<=(Phone?34:44))grow=-shrink;
+    else if(g>0&&g<=(Phone?150:200))grow=g;
+   }
    if(Mathf.Abs(grow-rankPodiumGrow)<1)return false;
    rankPodiumGrow=grow;SetPodiumGrow();return true;
   }
   void SetPodiumGrow(){
    rankPodium.GetComponent<LayoutElement>().preferredHeight=PodiumHeight+rankPodiumGrow;
-   float lift=rankPodiumGrow*.5f;
-   foreach(var col in podiumColumns)((RectTransform)col.transform).anchoredPosition=new Vector2(0,6+lift);
+   float lift=Mathf.Max(0,rankPodiumGrow)*.5f; // (a shrink keeps the plinths on the floor: the columns' free top just hangs closer to the bunting)
+   foreach(var col in podiumColumns){var r=(RectTransform)col.transform;r.anchoredPosition=new Vector2(0,6+lift);r.sizeDelta=new Vector2(r.sizeDelta.x,PodiumHeight+Mathf.Min(0,rankPodiumGrow));}
    rankPodiumFloor.offsetMin=new Vector2(0,-14+lift);rankPodiumFloor.offsetMax=new Vector2(0,26+lift);
    podiumSpot.rectTransform.sizeDelta=new Vector2(PodiumHeight*.95f,PodiumHeight+rankPodiumGrow);
    buntingWidth=-1;
@@ -256,7 +263,7 @@ namespace Checkout {
     float x=place==1?.5f:place==2?.2f:.8f;root.anchorMin=root.anchorMax=new Vector2(x,0);root.pivot=new Vector2(.5f,0);root.sizeDelta=new Vector2(230*s,PodiumHeight);root.anchoredPosition=new Vector2(0,6);
     var hit=root.gameObject.AddComponent<Image>();hit.color=new Color(0,0,0,0);
     // (a phone's plinths keep room for the place and its value)
-    float plinthH=Mathf.Max(place==1?72:place==2?58:50,(place==1?96:place==2?72:54)*s),face=(place==1?124:100)*s;
+    float plinthH=Mathf.Max(place==1?76:place==2?62:56,(place==1?96:place==2?72:54)*s),face=(place==1?124:100)*s;
     int i=place-1;
     // the plinth: a darker edge, the marble face with a gold trim on top, a shadowed big numeral, the value under it
     c.plinth=N.Image(root,"Plinth",PlinthEdge[i],14);U.Stretch(c.plinth.rectTransform,new Vector2(.06f,0),new Vector2(.94f,0),Vector2.zero,new Vector2(0,plinthH));
@@ -268,9 +275,11 @@ namespace Checkout {
     // (the winner's shimmer: a slanted light band sweeping across, clipped to the plinth)
     if(place==1){var sh=N.Image(c.plinthFace.transform,"Shimmer",new Color(1,1,1,.5f),0);sh.sprite=U.Glow();c.shine=sh.rectTransform;c.shine.anchorMin=new Vector2(0,0);c.shine.anchorMax=new Vector2(0,1);c.shine.pivot=new Vector2(.5f,.5f);c.shine.sizeDelta=new Vector2(36,40);c.shine.localRotation=Quaternion.Euler(0,0,-20);c.shine.anchoredPosition=new Vector2(-60,0);}
     float numSize=(place==1?60:48)*s;
-    c.numberShadow=N.Text(c.plinthFace.transform,"NumberShadow",K.Headline,numSize,new Color(.3f,.18f,.06f,.35f));c.numberShadow.alignment=TextAlignmentOptions.Center;c.numberShadow.text=place.ToString();U.Stretch(c.numberShadow.rectTransform,new Vector2(0,.3f),Vector2.one,new Vector2(2,-3),new Vector2(2,-3));
+    c.numberShadow=N.Text(c.plinthFace.transform,"NumberShadow",K.Headline,numSize,new Color(.3f,.18f,.06f,.35f));c.numberShadow.alignment=TextAlignmentOptions.Center;c.numberShadow.text=place.ToString();U.Stretch(c.numberShadow.rectTransform,new Vector2(0,.34f),Vector2.one,new Vector2(2,-3),new Vector2(2,-3));
     c.number=N.Text(c.plinthFace.transform,"Number",K.Headline,numSize,Color.white);c.number.alignment=TextAlignmentOptions.Center;c.number.text=place.ToString();
-    c.number.outlineWidth=.24f;c.number.outlineColor=new Color32(110,66,22,230);U.Stretch(c.number.rectTransform,new Vector2(0,.3f),Vector2.one);
+    c.number.outlineWidth=.24f;c.number.outlineColor=new Color32(110,66,22,230);U.Stretch(c.number.rectTransform,new Vector2(0,.34f),Vector2.one);
+    // (the numeral fits above the value on the shortest plinth: it never runs into the points)
+    foreach(var n in new[]{c.number,c.numberShadow}){n.enableAutoSizing=true;n.fontSizeMin=16;n.fontSizeMax=numSize;n.overflowMode=TextOverflowModes.Overflow;}
     c.value=N.Text(c.plinthFace.transform,"Value",K.Number,13*Mathf.Max(.85f,s),new Color(.25f,.16f,.06f,.9f));c.value.alignment=TextAlignmentOptions.Center;c.value.textWrappingMode=TextWrappingModes.NoWrap;
     c.value.enableAutoSizing=true;c.value.fontSizeMin=9;c.value.fontSizeMax=14;U.Stretch(c.value.rectTransform,new Vector2(0,0),new Vector2(1,.34f),new Vector2(6,2),new Vector2(-6,0));
     // the face first (rays, glow and crown with it), so the name and the ribbon are always drawn over any effect
