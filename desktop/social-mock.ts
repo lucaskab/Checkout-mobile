@@ -225,6 +225,9 @@ export function createMockSocialServer(start = Date.now()) {
 	push(me.id, "gift", ana.id);
 	push(me.id, "like", bruno.id);
 	push(me.id, "friend_request", duda.id);
+	// Items pushed from here on get ids no earlier Editor session used (a QA copy of the save remembers the ids it
+	// applied, like the real app: a fresh "1, 2, 3…" would be acked unpaid as already seen).
+	nextInbox = Math.max(nextInbox, 1000 + (Math.floor(Date.now() / 1000) % 1_000_000_000) * 100);
 
 	// Rankings v1 (desktop/rankings-mock.ts): the boards and the league answer here too, with these friends in them.
 	const rankings = createMockRankings({
