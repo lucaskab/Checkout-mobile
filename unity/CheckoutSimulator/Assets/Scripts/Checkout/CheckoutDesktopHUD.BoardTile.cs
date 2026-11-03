@@ -293,23 +293,34 @@ namespace Checkout {
     if(isFace){float border=3;K.FitRim(rim,face,border);}
     Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(10+lead+face-2,-face*.36f),new Vector2(26,26));
     float x=10+lead+face+18;
-    // the right end: the button, then the value block, then the flag
-    float right=12;
-    if(hasButton){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(Phone?180:200,Phone?46:50));button.Fit(true);right+=(Phone?180:200)+12;}
-    bool hasValue=!string.IsNullOrEmpty(t.value);
+    // the right end: the button, then the value block, then the flag. A narrow row (an iPad's pinned row with its
+    // button) keeps room for the name: the flag goes first, then the value (the subtitle and the bar say it too),
+    // then the button narrows.
+    bool hasValue=!string.IsNullOrEmpty(t.value),label=hasValue&&!string.IsNullOrEmpty(t.valueLabel);
+    var flag=K.Icon(t.flag);
+    float fw=hud.BoardNarrow?34:44,fh=hud.BoardNarrow?26:34,flagRoom=fw+(hud.BoardNarrow?8:14);
+    float btnW=hasButton?(Phone?180:200):0,valueW=0;
     if(hasValue){
-     valueText.gameObject.SetActive(true);valueText.text=K.Clean(t.value);
-     bool label=!string.IsNullOrEmpty(t.valueLabel);valueLabelText.gameObject.SetActive(label);valueLabelText.text=K.Clean(t.valueLabel).ToUpperInvariant();
-     float w=Mathf.Clamp(Mathf.Max(valueText.GetPreferredValues(valueText.text).x,label?valueLabelText.GetPreferredValues(valueLabelText.text).x:0)+6,70,170);
-     Place(valueText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,label?8:0),new Vector2(w,28));
-     Place(valueLabelText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,-15),new Vector2(w,16));
-     valueText.color=t.tone=="gold"?K.C("9A6A10"):K.Ink;
-     right+=w+14;
+     valueText.text=K.Clean(t.value);valueLabelText.text=label?K.Clean(t.valueLabel).ToUpperInvariant():"";
+     valueW=Mathf.Clamp(Mathf.Max(valueText.GetPreferredValues(valueText.text).x,label?valueLabelText.GetPreferredValues(valueLabelText.text).x:0)+6,70,170);
     }
-    var flag=K.Icon(t.flag);flagEdge.gameObject.SetActive(flag);
+    float width=rect.rect.width,nameMin=160;
+    float Need()=>x+12+(hasButton?btnW+12:0)+(hasValue?valueW+14:0)+(flag?flagRoom:0);
+    if(width>0&&width-Need()<nameMin&&flag)flag=null;
+    if(width>0&&width-Need()<nameMin&&hasValue&&hasButton)hasValue=false;
+    if(width>0&&width-Need()<nameMin&&hasButton)btnW=Mathf.Max(132,btnW-(nameMin-(width-Need())));
+    float right=12;
+    if(hasButton){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(btnW,Phone?46:50));button.Fit(true);right+=btnW+12;}
+    valueText.gameObject.SetActive(hasValue);valueLabelText.gameObject.SetActive(hasValue&&label);
+    if(hasValue){
+     Place(valueText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,label?8:0),new Vector2(valueW,28));
+     Place(valueLabelText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,-15),new Vector2(valueW,16));
+     valueText.color=t.tone=="gold"?K.C("9A6A10"):K.Ink;
+     right+=valueW+14;
+    }
+    flagEdge.gameObject.SetActive(flag);
     // (a narrow window, an iPad: a smaller flag, so the name keeps its room)
-    float fw=hud.BoardNarrow?34:44,fh=hud.BoardNarrow?26:34;
-    if(flag){flagImage.sprite=flag;Place(flagEdge.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,0),new Vector2(fw,fh));right+=fw+(hud.BoardNarrow?8:14);}
+    if(flag){flagImage.sprite=flag;Place(flagEdge.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,0),new Vector2(fw,fh));right+=flagRoom;}
     // the name on top; the level ribbon and the stage under it
     // (one line, shrinking before any "…"; alone in the middle when nothing goes under it: the "how to earn" rows)
     title.textWrappingMode=TextWrappingModes.NoWrap;title.overflowMode=TextOverflowModes.Ellipsis;

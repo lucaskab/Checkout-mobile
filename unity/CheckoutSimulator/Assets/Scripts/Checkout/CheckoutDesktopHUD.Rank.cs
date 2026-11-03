@@ -19,13 +19,16 @@ namespace Checkout {
   static float PodiumScale=>Phone?.72f:1f;
   static readonly Color[] PlinthEdge={K.C("D79E2C"),K.C("98A3B0"),K.C("B06A32")};
   static readonly Color[] PlinthFace={K.C("F2C552"),K.C("CBD3DC"),K.C("DE9A5E")};
+  readonly RectTransform[] rankStripLines=new RectTransform[2];
   RectTransform rankStrip,rankPodium,rankFx;readonly List<BoardChip> rankStripChips=new List<BoardChip>();
   PodiumColumn[] podiumColumns;BoardTileUi rankPinned;RectTransform rankPinnedRect;
   string rankPodiumKey,rankScrollShown;float rankSparkleAt,rankPodiumGrow;RectTransform rankPodiumFloor;
   readonly List<SocialConfetto> rankConfetti=new List<SocialConfetto>();
 
   void BuildRankBoard(){
-   rankStrip=N.Node("Rank strip",boardContent);var row=N.Row(rankStrip.gameObject,10,new RectOffset(4,4,2,6));row.childAlignment=TextAnchor.MiddleCenter;row.childForceExpandWidth=true;
+   // (two lines of chips in a narrow window, an iPad: the three podium prizes, then the rest)
+   rankStrip=N.Node("Rank strip",boardContent);N.Column(rankStrip.gameObject,8,new RectOffset(4,4,2,6));
+   for(int r=0;r<2;r++){var line=N.Node("Line "+r,rankStrip);var row=N.Row(line.gameObject,10);row.childAlignment=TextAnchor.MiddleCenter;row.childForceExpandWidth=true;line.gameObject.AddComponent<LayoutElement>().preferredHeight=60;rankStripLines[r]=line;}
    rankStrip.gameObject.AddComponent<LayoutElement>().preferredHeight=Phone?62:66;rankStrip.gameObject.SetActive(false);
    rankPodium=N.Node("Podium",boardContent);rankPodium.gameObject.AddComponent<LayoutElement>().preferredHeight=PodiumHeight;
    // (a soft floor under the plinths)
@@ -51,8 +54,20 @@ namespace Checkout {
   void ApplyRankBoard(DesktopBoard b,bool fresh){
    bool rank=b.style=="rank";
    var strip=rank&&b.strip!=null?b.strip:new DesktopStat[0];
-   while(rankStripChips.Count<strip.Length)rankStripChips.Add(BoardChip.Create(rankStrip,false));
-   for(int i=0;i<rankStripChips.Count;i++){bool on=i<strip.Length;rankStripChips[i].gameObject.SetActive(on);if(on)rankStripChips[i].Apply(strip[i]);}
+   while(rankStripChips.Count<strip.Length){
+    var chip=BoardChip.Create(rankStripLines[0],false);
+    // (a long value shrinks inside its chip, never past its edge)
+    foreach(var tmp in chip.GetComponentsInChildren<TextMeshProUGUI>(true)){tmp.enableAutoSizing=true;tmp.fontSizeMax=tmp.fontSize;tmp.fontSizeMin=Mathf.Min(11,tmp.fontSize);tmp.overflowMode=TextOverflowModes.Ellipsis;}
+    rankStripChips.Add(chip);
+   }
+   bool twoLines=BoardNarrow&&strip.Length>4;
+   for(int i=0;i<rankStripChips.Count;i++){
+    bool on=i<strip.Length;var chip=rankStripChips[i];chip.gameObject.SetActive(on);if(!on)continue;
+    var line=rankStripLines[twoLines&&i>=3?1:0];if(chip.transform.parent!=line)chip.transform.SetParent(line,false);
+    chip.transform.SetSiblingIndex(twoLines&&i>=3?i-3:i);chip.Apply(strip[i]);
+   }
+   rankStripLines[1].gameObject.SetActive(twoLines);
+   rankStrip.GetComponent<LayoutElement>().preferredHeight=(Phone?62:66)+(twoLines?68:0);
    rankStrip.gameObject.SetActive(strip.Length>0);
    var podium=rank&&b.podium!=null&&b.podium.Length>=3?b.podium:null;
    rankPodium.gameObject.SetActive(podium!=null);
