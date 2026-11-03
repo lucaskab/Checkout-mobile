@@ -39,7 +39,7 @@ namespace Checkout {
    rankPinned.gameObject.SetActive(false);
    rankFx=N.Node("Rank fx",(RectTransform)boardWin.transform.Find("Window"));Stretch(rankFx,Vector2.zero,Vector2.zero);
   }
-  static float PodiumHeight=>(Phone?232:300);
+  static float PodiumHeight=>(Phone?252:322);
 
   DesktopTile RankFind(DesktopBoard b,string id){
    if(b==null||string.IsNullOrEmpty(id))return null;
@@ -76,7 +76,11 @@ namespace Checkout {
   }
 
   // "Ver minha posição": the row of that id comes into the middle of the list and is picked.
+  string rankTopRoute;
   void RankScrollIfAsked(DesktopBoard b){
+   // (another tab of the window, Mundo → Liga: its list starts at the top, with its podium or its prizes)
+   if(b.style=="rank"&&boardRouteShown!=rankTopRoute){rankTopRoute=boardRouteShown;Canvas.ForceUpdateCanvases();boardScroll.verticalNormalizedPosition=1;}
+   else if(b.style!="rank")rankTopRoute=null;
    var ask=b.style=="rank"?b.scroll??"":"";
    if(ask==rankScrollShown)return;rankScrollShown=ask;
    if(string.IsNullOrEmpty(ask))return;
@@ -181,7 +185,7 @@ namespace Checkout {
     c.icon=N.Image(c.clip.transform,"Icon",Color.white,0);c.icon.preserveAspect=true;Stretch(c.icon.rectTransform,Vector2.zero,Vector2.zero);
     c.rim=N.Image(holder,"Rim",PlinthFace[i],0);K.FitRim(c.rim,face,6*Mathf.Max(.8f,s));
     c.stage=N.Image(holder,"Stage",Color.white,0);c.stage.preserveAspect=true;U.At(c.stage.rectTransform,new Vector2(.86f,.12f),new Vector2(face*.34f,face*.34f));
-    if(place==1){c.crown=N.Image(holder,"Crown",Color.white,0);c.crown.sprite=K.Icon("Icons/crown");c.crown.preserveAspect=true;U.At(c.crown.rectTransform,new Vector2(.5f,1),new Vector2(face*.62f,face*.62f),new Vector2(0,face*.12f));c.crown.rectTransform.localRotation=Quaternion.Euler(0,0,-8);}
+    if(place==1){c.crown=N.Image(holder,"Crown",Color.white,0);c.crown.sprite=K.Icon("Icons/crown");c.crown.preserveAspect=true;U.At(c.crown.rectTransform,new Vector2(.5f,1),new Vector2(face*.56f,face*.56f),new Vector2(0,face*.04f));c.crown.rectTransform.localRotation=Quaternion.Euler(0,0,-8);}
     return c;
    }
    public void Apply(DesktopTile t,bool picked){
@@ -200,7 +204,7 @@ namespace Checkout {
    public void Tick(float t){
     if(rays)rays.transform.localRotation=Quaternion.Euler(0,0,-t*14);
     if(glow){var c=glow.color;c.a=.5f+.18f*Mathf.Sin(t*2.4f);glow.color=c;}
-    if(crown)crown.rectTransform.anchoredPosition=new Vector2(0,portrait.sizeDelta.y*.12f+Mathf.Abs(Mathf.Sin(t*2.2f))*5);
+    if(crown)crown.rectTransform.anchoredPosition=new Vector2(0,portrait.sizeDelta.y*.04f+Mathf.Abs(Mathf.Sin(t*2.2f))*4);
    }
    public void OnPointerClick(PointerEventData e){if(string.IsNullOrEmpty(id))return;hud.BoardSelect(id);StartCoroutine(U.Pop(portrait,1.08f,.22f));}
   }
@@ -367,6 +371,7 @@ namespace Checkout {
   }
   void UpdateLeagueCard(){
    if(!LeagueCardOpen)return;
+   if(leagueRoot.GetSiblingIndex()!=leagueRoot.parent.childCount-1)leagueRoot.SetAsLastSibling();
    if(leagueRays)leagueRays.transform.Rotate(0,0,-12*U.Dt);
    if(leagueRun==null&&leagueButton){float s=1+.03f*Mathf.Sin(Time.unscaledTime*4);leagueButton.transform.localScale=new Vector3(s,s,1);}
    // (the confetti of the card falls even while no board is open)

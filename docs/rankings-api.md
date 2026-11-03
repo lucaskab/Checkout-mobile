@@ -205,3 +205,45 @@ position (count of players ahead + 1), `null` if I am not ranked (opt-out, hidde
   read by `lastWeek`); indexes `league_members (player_id)` and `league_groups (week) WHERE closed = 0`.
 - **Before `0003_rankings.sql` runs** the new Worker keeps saves, social and account deletion working as before (it
   notices the missing columns); only `/v1/rankings/*` answers 500.
+
+### Game (branch `rank-game`, 03/11/2026)
+Where it lives: `src/data/rankings.ts` (points table, divisions, prizes for display, polling), `src/services/rankings.ts`
+(ISO week, `addLeaguePoints`, wrong-week, the send rule), `src/data/countries.ts` (country names, 5 languages),
+`desktop/rankings.ts` (calls, sending, the window's actions), `desktop/pages/ranking.ts` (the four tabs and the
+end-of-week card), `desktop/rankings-mock.ts` (these routes in process for the Editor and tests),
+`unity/…/CheckoutDesktopHUD.Rank.cs` (podium, rank rows, pinned row, the card) and `CheckoutAutoTest.Rankings.cs`
+(`rankings-phone`). `scripts/rankings/server-qa.mts` runs the host against the real Worker.
+- **Save:** `rankings = {week, points, pointsAt, lastSent, sentPoints, optOut, skew, rewardedWeeks, cards}` — the
+  contract's fields plus `sentPoints` (the server's stored total, to send only when it changed), `skew` (see 409),
+  `rewardedWeeks` (last 12 weeks paid, a second guard next to `social.appliedInbox`) and `cards` (end-of-week cards not
+  seen yet). Defaults on load (`migrateGameState` normalizes it; no version bump). Viewing never writes the save: a new
+  ISO week only resets the counter when points are added.
+- **Points, where they happen:** a customer rung up at the register (`applyCheckoutPayment`) +1; the end of a day (the
+  phase going open → results, any path) +25 if the contract was kept and +10 per star; an interior build / evolution /
+  stage works / lot clearing finished (their `process*`, so diamonds and offline finishes count too) +50 each; a help on
+  a friend's build once the friends' server counted it (`claimSocialHelperReward("help")`, booked on the way home after
+  a visit) +5. Offline sales and street (car-window) sales give none. **The day's stars** = the customers' average
+  satisfaction of that day ÷ 20, rounded, 0–5 (the same scale as the public `marketRating`).
+- **Sending:** `POST …/league/points` with the week total only when it changed, at most every 10 min (a 60 s timer
+  checks), at once when a day ends and when Unity says the app is paused or closed (`rankings-pause`, best effort).
+  Never while visiting a friend, signed out, opted out, or before the player has a social profile (Amigos or Ranking
+  opened once; opening Ranking calls `GET /v1/social/me` first, so it creates the profile).
+- **409 `wrong-week`:** the answer's `week` wins. Server ahead of the device: the counter starts over for the server's
+  week. Device ahead: the points are kept and counted for the server's week. Either way `skew = {week, deviceWeek}`
+  keeps using the server's week while the device clock still says `deviceWeek`; then the device clock rules again.
+  Without a week in the answer the counter starts over for the device's week. One retry per send.
+- **`league_reward`:** applied through the social inbox like every kind (exactly once by `appliedInbox`, plus
+  `rewardedWeeks`): diamonds (capped at 100 against a bad payload), the chest = `3 × getSocialRewards(era).gift` coins
+  when `chest: true`, and a card in the save. A 0-diamond item still makes a card. The card shows the podium of that
+  week's group when this phone saw it (names and faces kept in memory while the Liga tab was open), otherwise the
+  player's own face on their plinth (or "#14" beside the podium).
+- **Signed out:** Mundo / País are read with `open: true` in the `social-call` (Unity sends them without the session
+  when signed out); Amigos and Liga show the sign-in card. Unity only lets `GET /v1/rankings/*` go out open.
+- **Opt-out:** `PUT …/settings` first, then the save's `optOut` (the server's answer decides); the boards reload.
+- **Zones:** the game draws the `promote` / `demote` the server sends (clamped so they never overlap).
+- **Faces / names:** `avatar` ids and the "Mercado #<code>" fallback as in social; flags from the ISO code
+  (`Resources/CheckoutDesktop/Flags/<code>.png`, flag-icons 7.6.0, MIT — `scripts/rankings/flag-icons-LICENSE.txt`,
+  rendered by `scripts/rankings/render_flags.py`); unknown or missing country = no flag.
+- **Art:** the 7 division badges `Icons/league-<division>.png` are PLACEHOLDERS (the game's medal recoloured,
+  `scripts/rankings/placeholder_badges.py`); the painted badges replace the files under the same names. Mundo uses the
+  game's own painted globe (`Icons/globe.png`, also the Idioma tab's icon), so a new globe would replace both.

@@ -4419,6 +4419,9 @@ const catalog: Catalog = {
 	"Fim da liga: +{5} diamantes": "Liga beendet: +{5} Diamanten",
 	"Fim da liga: um baú de +{1} moedas": "Liga beendet: eine Truhe mit +{1} Münzen",
 	"fim da liga: +{5} diamantes": "Liga beendet: +{5} Diamanten",
+	"No ranking: não": "Im Ranking: nein",
+	"No ranking: sim": "Im Ranking: ja",
+	"Você é #{0} de {1} entre os amigos": "Du bist #{0} von {1} unter Freunden",
 };
 
 export default catalog;

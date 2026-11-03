@@ -43,6 +43,12 @@ export const divisionIcon = (division: LeagueDivision) => `Icons/${leagueBadgeFi
 export const divisionName = (division: LeagueDivision) => `Liga ${LEAGUE_DIVISION_NAMES[division]}`;
 const nameOf = (row: { marketName: string | null; code: string }) => row.marketName?.trim() || `Mercado #${formatCode(row.code)}`;
 const myId = () => socialStore.me?.id ?? "";
+/** A face id this phone can draw: "shopper-N" past the shoppers Unity has (fewer looks on some builds) wraps around. */
+export function faceOf(avatar: string | null | undefined) {
+	const match = /^shopper-(\d+)$/.exec(avatar ?? "");
+	const count = Math.max(1, socialStore.avatars || 12);
+	return avatarIcon(match ? `shopper-${((Number(match[1]) - 1) % count) + 1}` : avatar);
+}
 const busy = (key: string) => rankingsStore.busy.has(key);
 
 // ------------------------------------------------------------------------------------------------------------ frame
@@ -109,7 +115,7 @@ function troubleCard(text: string): Card {
 /** "Aparecer no ranking" (the switch of the opt-out, PUT /v1/rankings/settings). */
 function optOutButton(): Button {
 	const optOut = viewRankings().optOut;
-	return act(optOut ? "Aparecer no ranking: não" : "Aparecer no ranking: sim", "rankingOptOut", [!optOut], {
+	return act(optOut ? "No ranking: não" : "No ranking: sim", "rankingOptOut", [!optOut], {
 		icon: optOut ? socialIcon("lock") : socialIcon("success"),
 		variant: optOut ? "secondary" : "success",
 		enabled: rankingsOnline() && !busy("optout"),
@@ -126,12 +132,12 @@ function playerTile(id: string, row: { marketName: string | null; code: string; 
 	const name = nameOf(row);
 	const facts: BoardStat[] = [
 		stat(stageIcon(row.era ?? "mesinha"), String(row.level), "nível"),
-		...(look.value ? [stat("Icons/trophy", look.value, look.valueLabel)] : []),
+		...(look.value ? [stat("Icons/trophy", look.value, look.valueLabel === "XP" ? "experiência" : look.valueLabel)] : []),
 		...(row.country ? [stat(flagIcon(row.country), row.country, countryName(row.country))] : []),
 	];
 	return tile(id, look.you ? `${name} (você)` : name, {
 		group: look.group ?? "",
-		icon: avatarIcon(row.avatar),
+		icon: faceOf(row.avatar),
 		frame: "rank",
 		corner: row.era ? stageIcon(row.era) : "",
 		subtitle: row.era ? stageName(row.era) : "",
@@ -141,7 +147,7 @@ function playerTile(id: string, row: { marketName: string | null; code: string; 
 		flag: row.country ? flagIcon(row.country) : "",
 		value: look.value,
 		valueLabel: look.valueLabel,
-		detail: [row.era ? stageName(row.era) : "", row.country ? countryName(row.country) : ""].filter(Boolean).join(" · "),
+		detail: row.country ? countryName(row.country) : "",
 		facts,
 		lines: rank && rank > 0 ? [`Posição #${fmt(rank)}`] : [],
 		actions: look.actions ?? [],
@@ -166,13 +172,13 @@ function pinnedTile(row: RankRow | null, look: RowLook & { inTop: boolean }): Bo
 function levelBoardView(board0: LevelBoard, me: RankRow | null) {
 	const id = me?.id ?? myId();
 	const tiles = board0.top.map((row) =>
-		playerTile(row.id, row, row.rank, { value: `${fmt(row.xp)} XP`, valueLabel: "experiência", you: row.id === id }),
+		playerTile(row.id, row, row.rank, { value: fmt(row.xp), valueLabel: "XP", you: row.id === id }),
 	);
 	const inTop = !!me && board0.top.some((row) => row.id === me.id);
 	return {
 		podium: tiles.slice(0, 3),
 		tiles: tiles.slice(3),
-		pinned: pinnedTile(me, { value: me ? `${fmt(me.xp)} XP` : "", valueLabel: "experiência", inTop }),
+		pinned: pinnedTile(me, { value: me ? fmt(me.xp) : "", valueLabel: "XP", inTop }),
 	};
 }
 
@@ -196,11 +202,13 @@ function levelPage(state: State, tab: "mundo" | "pais"): Page {
 		? meter("Mundo", ranked ? Math.max(1, data.total - me!.rank! + 1) : 0, Math.max(1, data.total), {
 				icon: "Icons/globe",
 				tone: "gold",
+				buttons: online ? [optOutButton()] : [],
 				text: ranked ? `Você é #${fmt(me!.rank!)} de ${fmt(data.total)} jogadores` : `Top ${RANKING_TOP} de ${fmt(data.total)} jogadores`,
 			})
 		: meter(country ? countryName(country) : "País", ranked ? Math.max(1, data.total - me!.rank! + 1) : 0, Math.max(1, data.total), {
 				icon: flagIcon(country),
 				tone: "gold",
+				buttons: online ? [optOutButton()] : [],
 				text: ranked ? `Você é #${fmt(me!.rank!)} de ${fmt(data.total)} no seu país` : `Top ${RANKING_TOP} de ${fmt(data.total)} jogadores do país`,
 			});
 	return rankPage(state, tab, cards, view.tiles, {
@@ -209,7 +217,6 @@ function levelPage(state: State, tab: "mundo" | "pais"): Page {
 		meter: strip,
 		focus: ranked && view.pinned.action.action ? me!.id : "",
 		stats: [stat(socialIcon("friends"), fmt(data.total), "jogadores"), ...(ranked ? [stat("Icons/trophy", `#${fmt(me!.rank!)}`, "sua posição")] : [])],
-		footer: online ? [optOutButton()] : [],
 		empty: data.top.length ? "" : "Ninguém no ranking ainda.",
 	});
 }
@@ -256,7 +263,7 @@ function leaguePage(state: State): Page {
 	const lastText = last ? (last.movedTo !== last.division ? (rankOf(last.movedTo) > rankOf(last.division) ? `Semana passada:${lastPlace} · subiu!` : `Semana passada:${lastPlace} · desceu`) : `Semana passada:${lastPlace}`) : "";
 	const strip = rewardsStrip(league, division);
 	const bar = (points: number, goal: number, words: string) =>
-		meter(divisionName(division), points, Math.max(1, goal), { icon: divisionIcon(division), tone: "gold", text: words });
+		meter(divisionName(division), points, Math.max(1, goal), { icon: divisionIcon(division), tone: "gold", text: words, buttons: [optOutButton()] });
 	if (!league.me || !league.group.length) {
 		// Not in this week's league yet: it opens with the first points that reach the server.
 		const hero = card("Faça pontos para entrar na liga desta semana", {
@@ -299,7 +306,6 @@ function leaguePage(state: State): Page {
 		pinned: { ...leagueTile(me, true, ""), id: "pinned-me", title: `Você · #${me.place}`, subtitle: `${fmt(me.points)} pontos`, action: act("Ver minha posição", "rankingMyPosition", [me.id], { variant: "primary", ok: "" }) },
 		focus: me.id,
 		stats: [stat(divisionIcon(division), `#${me.place}`, "na liga"), stat("Icons/trophy", fmt(me.points), "pontos")],
-		footer: [optOutButton()],
 		empty: "",
 	});
 }
@@ -324,7 +330,7 @@ function friendValue(row: FriendRank, column: FriendsColumn) {
 	if (column === "semana") return { value: fmt(row.weekPoints), valueLabel: "pontos" };
 	if (column === "curtidas") return { value: fmt(row.likes), valueLabel: row.likes === 1 ? "curtida" : "curtidas" };
 	if (column === "nota") return { value: row.marketRating === null ? "–" : row.marketRating.toFixed(1).replace(".", ","), valueLabel: "nota" };
-	return { value: `${fmt(row.xp)} XP`, valueLabel: "experiência" };
+	return { value: fmt(row.xp), valueLabel: "XP" };
 }
 
 function friendsPage(state: State): Page {
@@ -365,7 +371,12 @@ function friendsPage(state: State): Page {
 		podium,
 		pinned: meRow ? { ...tiles[place - 1], id: "pinned-me", title: `Você · #${place}`, subtitle: nameOf(meRow), action: act("Ver minha posição", "rankingMyPosition", [meRow.id], { variant: "primary", ok: "" }) } : tile("", ""),
 		stats: [stat(socialIcon("friends"), String(Math.max(0, sorted.length - 1)), "amigos"), ...(place ? [stat("Icons/trophy", `#${place}`, "entre os amigos")] : [])],
-		footer: [optOutButton()],
+		meter: meter("Amigos", place ? sorted.length - place + 1 : 0, Math.max(1, sorted.length), {
+			icon: socialIcon("friends"),
+			tone: "gold",
+			text: place ? `Você é #${place} de ${sorted.length} entre os amigos` : "Seus amigos",
+			buttons: [optOutButton()],
+		}),
 		empty: "",
 	}, { tabs: columns });
 }
@@ -421,7 +432,7 @@ export function leagueCardView(state: State): LeagueCardView | null {
 		}
 		const row = seen.find((entry) => entry.place === place);
 		names.push(row ? nameOf(row) : "");
-		avatars.push(row ? avatarIcon(row.avatar) : "");
+		avatars.push(row ? faceOf(row.avatar) : "");
 	}
 	return {
 		key: card0.id,

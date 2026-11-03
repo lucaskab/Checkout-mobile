@@ -180,7 +180,7 @@ test("Aparecer no ranking: off hides me from the boards (rank null), on brings m
 	const hidden = await open("mundo");
 	expect(hidden.board.pinned.title).toBe("Você");
 	expect(ranking.rankingsStore.world.data.me.rank).toBe(null);
-	expect(hidden.board.footer[0].label).toBe("Aparecer no ranking: não");
+	expect(hidden.board.meter.buttons[0].label).toBe("No ranking: não");
 	// opted out: no points go to the league
 	game().claimSocialHelperReward("help");
 	expect((await ranking.sendLeaguePoints("test", true)).sent).toBe(false);

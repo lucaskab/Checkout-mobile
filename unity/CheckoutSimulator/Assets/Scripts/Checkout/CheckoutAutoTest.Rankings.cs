@@ -57,6 +57,8 @@ namespace Checkout {
    var langBefore=CheckoutI18n.Language;
 
    // 1. From the HUD: the corner menu has "Ranking" next to "Amigos"; a tap opens the full-screen window.
+   // (any page open first is only closed, nothing on it is chosen)
+   Route("");yield return new WaitForSecondsRealtime(1.2f);yield return Tips();
    var setQuick=typeof(CheckoutDesktopHUD).GetMethod("SetQuickOpen",F);
    setQuick?.Invoke(hud,new object[]{true});yield return new WaitForSecondsRealtime(.8f);
    yield return Shot("rank_hud_menu");

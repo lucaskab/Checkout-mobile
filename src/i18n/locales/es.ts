@@ -4290,6 +4290,9 @@ const catalog: Catalog = {
 	"Fim da liga: +{5} diamantes": "Fin de la liga: +{5} diamantes",
 	"Fim da liga: um baú de +{1} moedas": "Fin de la liga: un cofre de +{1} monedas",
 	"fim da liga: +{5} diamantes": "fin de la liga: +{5} diamantes",
+	"No ranking: não": "En el ranking: no",
+	"No ranking: sim": "En el ranking: sí",
+	"Você é #{0} de {1} entre os amigos": "Eres el #{0} de {1} entre amigos",
 };
 
 export default catalog;

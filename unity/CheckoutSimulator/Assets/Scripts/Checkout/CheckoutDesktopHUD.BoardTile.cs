@@ -254,6 +254,8 @@ namespace Checkout {
     if(line){barRect.gameObject.SetActive(false);pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);ribbon.gameObject.SetActive(false);badge.gameObject.SetActive(false);button.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);hasButton=false;}
     if(t.frame=="portrait"&&hasRibbon)ribbon.color=PortraitGold;
     bool rank=mode=="rank";
+    // (pooled tiles: a row of the ranking leaves its one-line title behind)
+    if(!rank)title.textWrappingMode=TextWrappingModes.Normal;
     rankDisc.gameObject.SetActive(false);flagEdge.gameObject.SetActive(false);valueText.gameObject.SetActive(false);valueLabelText.gameObject.SetActive(false);
     if(rank){selected=isSelected;alt.gameObject.SetActive(false);PlaceRank(t,hasButton,hasRibbon);return;}
     // (a present and a prize: big art on a soft plate, no inset)
@@ -305,9 +307,16 @@ namespace Checkout {
      right+=w+14;
     }
     var flag=K.Icon(t.flag);flagEdge.gameObject.SetActive(flag);
-    if(flag){flagImage.sprite=flag;Place(flagEdge.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,0),new Vector2(44,34));right+=44+14;}
+    // (a narrow window, an iPad: a smaller flag, so the name keeps its room)
+    float fw=hud.BoardNarrow?34:44,fh=hud.BoardNarrow?26:34;
+    if(flag){flagImage.sprite=flag;Place(flagEdge.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,0),new Vector2(fw,fh));right+=fw+(hud.BoardNarrow?8:14);}
     // the name on top; the level ribbon and the stage under it
-    Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(x,-9),new Vector2(-x-right,30));title.alignment=TextAlignmentOptions.MidlineLeft;
+    // (one line, shrinking before any "…"; alone in the middle when nothing goes under it: the "how to earn" rows)
+    title.textWrappingMode=TextWrappingModes.NoWrap;title.overflowMode=TextOverflowModes.Ellipsis;
+    bool under0=hasRibbon||!string.IsNullOrEmpty(t.subtitle);
+    if(under0)Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(x,-9),new Vector2(-x-right,30));
+    else Place(titleRect,new Vector2(0,.5f),new Vector2(1,.5f),new Vector2(0,.5f),new Vector2(x,0),new Vector2(-x-right,34));
+    title.alignment=TextAlignmentOptions.MidlineLeft;
     float under=x;
     if(hasRibbon){
      ribbon.color=t.tone=="gold"?K.C("C98A12"):PortraitNavy;ribbonRect.localRotation=Quaternion.identity;

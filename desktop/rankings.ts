@@ -63,6 +63,8 @@ export const rankingsStore = {
 	lastSendCheck: 0,
 	/** The window is open (boards are read only then). */
 	open: false,
+	/** Signed in when the boards were last read (signing in or out reloads every tab). */
+	lastOnline: null as boolean | null,
 };
 
 let send: (message: unknown) => void = () => {};
@@ -87,6 +89,7 @@ export function resetRankings() {
 		sending: false,
 		lastSendCheck: 0,
 		open: false,
+		lastOnline: null,
 	});
 }
 
@@ -177,6 +180,10 @@ const slot = (tab: RankingTab) => (tab === "mundo" ? rankingsStore.world : tab =
 export async function loadRankingTab(tab: RankingTab, force = false) {
 	const open = tab === "mundo" || tab === "pais";
 	const online = rankingsOnline();
+	if (rankingsStore.lastOnline !== online) {
+		for (const each of RANKING_TABS) slot(each).loadedAt = 0;
+		rankingsStore.lastOnline = online;
+	}
 	if (!online && !open) return false;
 	const loaded = slot(tab);
 	if (rankingsStore.loading.has(tab) || (!force && loaded.loadedAt && Date.now() - loaded.loadedAt < RANKING_TAB_REFRESH_MS)) return false;
