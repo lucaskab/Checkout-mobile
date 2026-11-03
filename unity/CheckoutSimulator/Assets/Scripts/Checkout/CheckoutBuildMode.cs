@@ -142,7 +142,7 @@ namespace Checkout
 
         void Leave()
         {
-            Open = false; Interior.editing = false; dragging = null; rotating = twisting = false; GameHud(true); CheckoutGridOverlay.Hide();
+            Open = false; Interior.editing = false; dragging = null; rotating = twisting = gesture = pinching = false; GameHud(true); CheckoutGridOverlay.Hide();
             SeeAll(); CloseSheet(); placeAfterBuy = null;
             simulation.cameraLocked = false; simulation.pinchLocked = false;
             hud.gameObject.SetActive(false); buildButton.SetActive(true); Select(null);
@@ -288,6 +288,10 @@ namespace Checkout
             return Mathf.Abs(Mathf.DeltaAngle(a, right)) < 6 ? Mathf.Repeat(right, 360) : Mathf.Repeat(Mathf.Round(a / 5) * 5, 360);
         }
 
+        // A two-finger gesture on a selected piece: undecided until the fingers turn (twist) or spread / close (pinch).
+        const float TwistStart = 10f, PinchStart = 40f;
+        bool gesture, pinching; float gestureAngle, gestureSpread;
+
         void BeginRotate() { rotating = true; rotStart = selected.rot; rotAccum = 0; rotStartPosition = selected.root.position; simulation.cameraLocked = true; }
 
         void ApplyRotate()
@@ -349,17 +353,32 @@ namespace Checkout
             if (Input.GetKeyDown(KeyCode.Escape)) { if (sheetFor != null) CloseSheet(); else Cancel(); return; }
             PlaceBought();
 
-            // Two fingers on a selected piece turn it (the camera does not zoom meanwhile).
+            // Two fingers on a selected piece turn it. A pinch is not a twist: the piece only starts turning once the
+            // fingers have turned TwistStart degrees; fingers that spread or close first zoom the camera instead.
+            // (Furniture "torta", 03/11: a pinch to zoom out with a piece selected turned it by the few degrees the fingers
+            // drifted, 5° or 10° after the snapping, and the ±45° arrows then kept that offset: 10 → 55 → 100…)
             if (Input.touchCount == 2 && selected != null)
             {
                 if (dragging != null) Drop();
                 var a = Input.GetTouch(0).position; var b = Input.GetTouch(1).position;
-                float angle = Mathf.Atan2(b.y - a.y, b.x - a.x) * Mathf.Rad2Deg;
-                if (!twisting) { BeginRotate(); twisting = true; lastTwist = angle; }
-                else { rotAccum -= Mathf.DeltaAngle(lastTwist, angle); lastTwist = angle; ApplyRotate(); }
+                float angle = Mathf.Atan2(b.y - a.y, b.x - a.x) * Mathf.Rad2Deg, spread = (b - a).magnitude;
+                if (!gesture) { gesture = true; gestureAngle = lastTwist = angle; gestureSpread = spread; pinching = false; }
+                if (twisting) { rotAccum -= Mathf.DeltaAngle(lastTwist, angle); lastTwist = angle; ApplyRotate(); }
+                else if (!pinching)
+                {
+                    float turned = Mathf.DeltaAngle(gestureAngle, angle);
+                    if (Mathf.Abs(turned) >= TwistStart) { BeginRotate(); twisting = true; rotAccum = -turned; lastTwist = angle; ApplyRotate(); }
+                    else if (Mathf.Abs(spread - gestureSpread) >= Mathf.Max(PinchStart, gestureSpread * .15f)) { pinching = true; simulation.pinchLocked = false; }
+                }
                 return;
             }
-            if (twisting && Input.touchCount < 2) { EndRotate(); pressOnItem = false; return; }
+            if (gesture && Input.touchCount < 2)
+            {
+                gesture = false;
+                if (pinching) { pinching = false; simulation.pinchLocked = Open && selected != null; }
+                if (twisting) EndRotate();
+                pressOnItem = false; return;
+            }
 
             // Ctrl + mouse movement turns the selected piece.
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.LeftCommand);
