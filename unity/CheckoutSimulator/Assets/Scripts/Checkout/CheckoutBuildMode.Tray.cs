@@ -181,8 +181,8 @@ namespace Checkout
             selectedIcon = N.Image(floatBar, "Picture", Color.white, 0); selectedIcon.preserveAspect = true; var pl = selectedIcon.gameObject.AddComponent<LayoutElement>(); pl.preferredWidth = pl.preferredHeight = h;
             floatName = N.Text(floatBar, "Name", K.Label, Phone ? 17 : 19, Color.white); floatName.textWrappingMode = TextWrappingModes.NoWrap; floatName.overflowMode = TextOverflowModes.Ellipsis; floatName.alignment = TextAlignmentOptions.MidlineLeft;
             var nl = floatName.gameObject.AddComponent<LayoutElement>(); nl.preferredWidth = Phone ? 170 : 200; nl.preferredHeight = h;
-            rotateLeft = U.Button(floatBar, "", "primary", () => Rotate(-1), h, 16); rotateLeft.SetWidth(h + 6);
-            rotateRight = U.Button(floatBar, "", "primary", () => Rotate(1), h, 16); rotateRight.SetWidth(h + 6);
+            rotateLeft = U.Button(floatBar, "", "primary", () => Rotate(-45), h, 16); rotateLeft.SetWidth(h + 6);
+            rotateRight = U.Button(floatBar, "", "primary", () => Rotate(45), h, 16); rotateRight.SetWidth(h + 6);
             storeButton = U.Button(floatBar, "Guardar", "danger", Store, h, Phone ? 16 : 17); storeButton.Apply(Data("Guardar", "danger", true, "Icons/package")); storeButton.SetWidth(Phone ? 136 : 150);
             rotateLeft.SetIconSprite(CheckoutGlyph.Get("turn-left")); rotateRight.SetIconSprite(CheckoutGlyph.Get("turn-right"));
             BigIcon(rotateLeft, h * .78f); BigIcon(rotateRight, h * .78f);

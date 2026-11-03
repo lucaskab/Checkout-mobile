@@ -352,7 +352,7 @@ namespace Checkout
             foreach (var it in fresh.OrderBy(i => i.type == "checkout" || i.type == "kiosk" ? 0 : i.type == "sector" ? 1 : 2))
             {
                 var d = DefaultFor(it.id, out var startScale);
-                it.x = d.x; it.z = d.z; it.rot = SnapTurn(d.y, it.outside); it.scale = startScale; it.placed = true;
+                it.x = d.x; it.z = d.z; it.rot = d.y; it.scale = startScale; it.placed = true;
                 Place(it);
                 Settle(it);
                 it.ghost = false;
@@ -361,8 +361,7 @@ namespace Checkout
             // free spot, and the new arrangement is saved so it sticks.
             if (!editing && !designMode)
             {
-                // Pieces saved askew (the old 5° twist, the 45° arrows) turn to a right angle first (CheckoutInterior.Align).
-                bool moved = SquareUp();
+                bool moved = false;
                 // Also pieces that ended up under furniture the map design added.
                 var fixedPieces = items.Values.Where(i => i.root && i.design && !i.outside).Select(i => FootprintOf(i, -.012f)).ToList();
                 // Shelves leave the checkout strip first, so the checkouts find it free.
@@ -1109,7 +1108,7 @@ namespace Checkout
         {
             if (!waiting.TryGetValue(id, out var w) || items.ContainsKey(id) || !TemplateObject(w.template)) return null;
             var it = new Item { id = id, type = w.type, template = w.template, desired = w.template, functional = true, placed = true };
-            var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : SnapTurn(d.y, false);
+            var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : d.y;
             Build(it); if (!it.root) return null;
             items[id] = it;
             MoveTo(it, near);
