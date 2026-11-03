@@ -26,7 +26,7 @@ namespace Checkout {
   readonly List<SocialConfetto> rankConfetti=new List<SocialConfetto>();
 
   void BuildRankBoard(){
-   // (two lines of chips in a narrow window, an iPad: the three podium prizes, then the rest)
+   // (two lines of chips in a narrow window, an iPad: the four diamond prizes, then the chest and last week)
    rankStrip=N.Node("Rank strip",boardContent);N.Column(rankStrip.gameObject,8,new RectOffset(4,4,2,6));
    for(int r=0;r<2;r++){var line=N.Node("Line "+r,rankStrip);var row=N.Row(line.gameObject,10);row.childAlignment=TextAnchor.MiddleCenter;row.childForceExpandWidth=true;line.gameObject.AddComponent<LayoutElement>().preferredHeight=60;rankStripLines[r]=line;}
    rankStrip.gameObject.AddComponent<LayoutElement>().preferredHeight=Phone?62:66;rankStrip.gameObject.SetActive(false);
@@ -63,9 +63,9 @@ namespace Checkout {
    bool twoLines=BoardNarrow&&strip.Length>4;
    for(int i=0;i<rankStripChips.Count;i++){
     bool on=i<strip.Length;var chip=rankStripChips[i];chip.gameObject.SetActive(on);if(!on)continue;
-    var line=rankStripLines[twoLines&&i>=3?1:0];if(chip.transform.parent!=line)chip.transform.SetParent(line,false);
-    chip.transform.SetSiblingIndex(twoLines&&i>=3?i-3:i);chip.Apply(strip[i]);
-    // (two lines: three chips of one width each; one line: each as wide as it needs)
+    var line=rankStripLines[twoLines&&i>=4?1:0];if(chip.transform.parent!=line)chip.transform.SetParent(line,false);
+    chip.transform.SetSiblingIndex(twoLines&&i>=4?i-4:i);chip.Apply(strip[i]);
+    // (two lines: the chips of a line share it evenly; one line: each as wide as it needs)
     var le=chip.GetComponent<LayoutElement>();le.preferredWidth=twoLines?10:-1;le.flexibleWidth=twoLines?1:-1;
    }
    rankStripLines[1].gameObject.SetActive(twoLines);

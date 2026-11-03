@@ -133,7 +133,6 @@ function playerTile(id: string, row: { marketName: string | null; code: string; 
 	const facts: BoardStat[] = [
 		stat(stageIcon(row.era ?? "mesinha"), String(row.level), "nível"),
 		...(look.value ? [stat("Icons/trophy", look.value, look.valueLabel === "XP" ? "experiência" : look.valueLabel)] : []),
-		...(row.country ? [stat(flagIcon(row.country), row.country, countryName(row.country))] : []),
 	];
 	return tile(id, look.you ? `${name} (você)` : name, {
 		group: look.group ?? "",
@@ -147,7 +146,9 @@ function playerTile(id: string, row: { marketName: string | null; code: string; 
 		flag: row.country ? flagIcon(row.country) : "",
 		value: look.value,
 		valueLabel: look.valueLabel,
-		// (the side panel fits without a scroll: the country is its flag chip, the place is the row's disc)
+		// (the side panel fits without a scroll, even under Amigos' column tabs: the country is a line under the
+		// stage, two facts, the place is the row's disc)
+		detail: row.country ? countryName(row.country) : "",
 		facts,
 		actions: look.actions ?? [],
 	});
