@@ -425,10 +425,11 @@ function friendsPage(state: State): Page {
 			? {
 					meIcon: faceOf(meRow.avatar),
 					meName: "Você",
-					meValue: friendValue(meRow, column).value,
+					// (Nível: the levels the sentence talks about, not XP)
+					meValue: column === "nivel" ? `NV ${meRow.level}` : friendValue(meRow, column).value,
 					otherIcon: faceOf(other.avatar),
 					otherName: nameOf(other),
-					otherValue: friendValue(other, column).value,
+					otherValue: column === "nivel" ? `NV ${other.level}` : friendValue(other, column).value,
 					text: rivalText(meRow, other, column, place === 1),
 					lead: place === 1,
 					icon: columnIcons[column],

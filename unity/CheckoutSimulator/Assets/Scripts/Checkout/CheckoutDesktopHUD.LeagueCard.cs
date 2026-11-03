@@ -17,7 +17,11 @@ namespace Checkout {
  // with coins); a stats row (points, place of N, players passed). "Pegar prêmios" flies the diamonds and coins to the
  // counters, which tick up, then the card closes. Confetti and sparkles live in a layer BEHIND every label.
  public partial class CheckoutDesktopHUD {
-  const float LeagueW=960,LeagueH=640;
+  // (QA 03/11 spacing pass: a little wider, one vertical plan on the 4/8/12/16/24 scale, bottom up: 20 · the button 60 ·
+  // 16 · the stats 52 · 20 · the podium | the rewards · 16 · the "moved" line · the stamp · 12 · the new badge; the title
+  // block on top, the confetti kept under it)
+  const float LeagueW=1040,LeagueH=640;
+  const float CardButtonY=20,CardButtonH=60,CardStatsY=96,CardStatsH=52,CardFloorY=168,CardTop=158;
   RectTransform leagueRoot,leaguePanel,leagueStage,leagueFx,leagueFlyLayer,leagueRibbon,leaguePodiumBox,leagueMeBox,leagueDivision,leagueChevrons,leagueStamp,leagueRewards,leagueDiamondBox,leagueChestBox,leagueChestLid,leagueStatsRow;
   Image leagueDim,leagueRays,leagueFrom,leagueTo,leagueToGlow,leagueMeFace,leagueStampFrame,leagueChestGlow;readonly List<Image> leagueSpots=new List<Image>();readonly List<Image> leagueChevronParts=new List<Image>();
   TextMeshProUGUI leagueHeadline,leagueTitle,leagueSubtitle,leagueMoved,leagueDiamonds,leagueCoins,leaguePlaceText,leagueMeName,leagueStampText;
@@ -49,29 +53,30 @@ namespace Checkout {
     leagueSpots.Add(spot);
    }
    var vignette=N.Image(leagueStage,"Vignette",new Color(0,0,0,.35f),0);vignette.sprite=U.Vignette();Stretch(vignette.rectTransform,Vector2.zero,Vector2.zero);
-   leagueFx=N.Node("Fx",leagueStage);Stretch(leagueFx,Vector2.zero,Vector2.zero);
+   // (the confetti layer stops under the subtitle: nothing ever flies through the title)
+   leagueFx=N.Node("Fx",leagueStage);Stretch(leagueFx,Vector2.zero,new Vector2(0,-150));leagueFx.gameObject.AddComponent<RectMask2D>();
    // texts
    leagueTitle=N.Text(leagueStage,"Title",K.Headline,42,Color.white);leagueTitle.alignment=TextAlignmentOptions.Center;leagueTitle.textWrappingMode=TextWrappingModes.NoWrap;leagueTitle.enableAutoSizing=true;leagueTitle.fontSizeMin=22;leagueTitle.fontSizeMax=42;
    leagueTitle.outlineWidth=.12f;leagueTitle.outlineColor=new Color32(12,20,45,255);
-   U.Stretch(leagueTitle.rectTransform,new Vector2(0,1),Vector2.one,new Vector2(40,-136),new Vector2(-40,-84));
-   leagueSubtitle=N.Text(leagueStage,"Subtitle",K.Body,19,RankCream);leagueSubtitle.alignment=TextAlignmentOptions.Center;U.Stretch(leagueSubtitle.rectTransform,new Vector2(0,1),Vector2.one,new Vector2(40,-164),new Vector2(-40,-136));
+   U.Stretch(leagueTitle.rectTransform,new Vector2(0,1),Vector2.one,new Vector2(40,-114),new Vector2(-40,-64));
+   leagueSubtitle=N.Text(leagueStage,"Subtitle",K.Body,19,RankCream);leagueSubtitle.alignment=TextAlignmentOptions.Center;U.Stretch(leagueSubtitle.rectTransform,new Vector2(0,1),Vector2.one,new Vector2(40,-142),new Vector2(-40,-116));
    BuildLeaguePodium();
    BuildLeagueDivision();
    BuildLeagueRewards();
    // the stats row
-   leagueStatsRow=N.Node("Stats",leagueStage);leagueStatsRow.anchorMin=new Vector2(0,0);leagueStatsRow.anchorMax=new Vector2(1,0);leagueStatsRow.pivot=new Vector2(.5f,0);leagueStatsRow.offsetMin=new Vector2(40,84);leagueStatsRow.offsetMax=new Vector2(-40,136);
-   var srow=N.Row(leagueStatsRow.gameObject,14);srow.childAlignment=TextAnchor.MiddleCenter;srow.childForceExpandWidth=true;srow.childControlHeight=true;srow.childForceExpandHeight=true;
+   leagueStatsRow=N.Node("Stats",leagueStage);leagueStatsRow.anchorMin=new Vector2(0,0);leagueStatsRow.anchorMax=new Vector2(1,0);leagueStatsRow.pivot=new Vector2(.5f,0);leagueStatsRow.offsetMin=new Vector2(40,CardStatsY);leagueStatsRow.offsetMax=new Vector2(-40,CardStatsY+CardStatsH);
+   var srow=N.Row(leagueStatsRow.gameObject,(int)Sp4);srow.childAlignment=TextAnchor.MiddleCenter;srow.childForceExpandWidth=true;srow.childControlHeight=true;srow.childForceExpandHeight=true;
    for(int i=0;i<3;i++){
     var chipEdge=N.Image(leagueStatsRow,"Stat",new Color(.95f,.78f,.3f,.55f),18);
     var chipFace=N.Image(chipEdge.transform,"Face",K.C("2A3D6B"),16);Stretch(chipFace.rectTransform,new Vector2(2,2),new Vector2(-2,-2));
-    var icon=N.Image(chipFace.transform,"Icon",Color.white,0);icon.preserveAspect=true;U.At(icon.rectTransform,new Vector2(0,.5f),new Vector2(34,34),new Vector2(28,0));
-    var value=U.Label(chipFace.transform,"Value",K.Number,22,"FFFFFF",TextAlignmentOptions.MidlineLeft);U.Stretch(value.rectTransform,new Vector2(0,.42f),Vector2.one,new Vector2(54,0),new Vector2(-8,2));
+    var icon=N.Image(chipFace.transform,"Icon",Color.white,0);icon.preserveAspect=true;U.At(icon.rectTransform,new Vector2(0,.5f),new Vector2(32,32),new Vector2(Sp4+16,0));
+    var value=U.Label(chipFace.transform,"Value",K.Number,22,"FFFFFF",TextAlignmentOptions.MidlineLeft);U.Stretch(value.rectTransform,new Vector2(0,.42f),Vector2.one,new Vector2(Sp4+32+Sp3,0),new Vector2(-Sp3,0));
     value.overflowMode=TextOverflowModes.Overflow;value.enableAutoSizing=true;value.fontSizeMin=13;value.fontSizeMax=22;
-    var label=U.Label(chipFace.transform,"Label",K.Label,12,"F7E8C8",TextAlignmentOptions.MidlineLeft);label.enableAutoSizing=true;label.fontSizeMin=9;label.fontSizeMax=12;label.overflowMode=TextOverflowModes.Overflow;U.Stretch(label.rectTransform,new Vector2(0,0),new Vector2(1,.44f),new Vector2(54,3),new Vector2(-8,0));
+    var label=U.Label(chipFace.transform,"Label",K.Label,12,"F7E8C8",TextAlignmentOptions.MidlineLeft);label.enableAutoSizing=true;label.fontSizeMin=9;label.fontSizeMax=12;label.overflowMode=TextOverflowModes.Overflow;U.Stretch(label.rectTransform,new Vector2(0,0),new Vector2(1,.44f),new Vector2(Sp4+32+Sp3,4),new Vector2(-Sp3,0));
     leagueStats.Add((chipEdge.rectTransform,icon,value,label));
    }
    leagueButton=CheckoutDesktopButton.Create(leagueStage,64,24,18);var br=(RectTransform)leagueButton.transform;Destroy(leagueButton.GetComponent<LayoutElement>());
-   br.anchorMin=br.anchorMax=br.pivot=new Vector2(.5f,0);br.sizeDelta=new Vector2(360,64);br.anchoredPosition=new Vector2(0,16);
+   br.anchorMin=br.anchorMax=br.pivot=new Vector2(.5f,0);br.sizeDelta=new Vector2(360,CardButtonH);br.anchoredPosition=new Vector2(0,CardButtonY);
    leagueButton.Clicked=_=>CloseLeagueCard();
    // the ribbon banner on top of the frame (half out of it): drawn by the UI, the words a label
    leagueRibbon=N.Node("Ribbon",leaguePanel);U.At(leagueRibbon,new Vector2(.5f,1),new Vector2(500,74),new Vector2(0,-12));
@@ -92,24 +97,27 @@ namespace Checkout {
   }
 
   void BuildLeaguePodium(){
-   leaguePodiumBox=N.Node("Podium",leagueStage);leaguePodiumBox.anchorMin=new Vector2(0,0);leaguePodiumBox.anchorMax=new Vector2(.52f,0);leaguePodiumBox.pivot=new Vector2(.5f,0);
-   leaguePodiumBox.offsetMin=new Vector2(30,154);leaguePodiumBox.offsetMax=new Vector2(0,462);
+   leaguePodiumBox=N.Node("Podium",leagueStage);leaguePodiumBox.anchorMin=new Vector2(0,0);leaguePodiumBox.anchorMax=new Vector2(.5f,0);leaguePodiumBox.pivot=new Vector2(.5f,0);
+   SetLeaguePodiumBox(true);
    var floor=N.Image(leaguePodiumBox,"Floor",new Color(0,0,0,.4f),0);floor.sprite=U.Glow();U.Stretch(floor.rectTransform,new Vector2(.02f,0),new Vector2(.98f,0),new Vector2(0,-16),new Vector2(0,22));
    for(int place=1;place<=3;place++){
-    int i=place-1;float x=place==1?.5f:place==2?.17f:.83f,plinthH=place==1?112:place==2?88:76,size=place==1?100:84;
+    // plinth · 8 · name (22) · 8 · face (the "VOCÊ" tag 6 over the ring, or over the crown on #1); each place 12 apart
+    int i=place-1;float x=place==1?.5f:place==2?.17f:.83f,plinthH=place==1?108:place==2?90:78,size=place==1?92:78;
     var p=new LeaguePlace();
-    var col=N.Node("Place "+place,leaguePodiumBox);col.anchorMin=new Vector2(x,0);col.anchorMax=new Vector2(x,1);col.pivot=new Vector2(.5f,0);col.sizeDelta=new Vector2(156,0);col.anchoredPosition=Vector2.zero;p.col=col;
+    var col=N.Node("Place "+place,leaguePodiumBox);col.anchorMin=new Vector2(x,0);col.anchorMax=new Vector2(x,1);col.pivot=new Vector2(.5f,0);col.sizeDelta=new Vector2(144,0);col.anchoredPosition=Vector2.zero;p.col=col;
     // the chunky plinth: dark edge, marble face, gold trim, a big painted numeral with its shadow
     var plinth=N.Image(col,"Plinth",PlinthEdge[i],14);U.Stretch(plinth.rectTransform,new Vector2(0,0),new Vector2(1,0),Vector2.zero,new Vector2(0,plinthH));
     var pf=N.Image(plinth.transform,"Face",PlinthFace[i],0);pf.sprite=CheckoutRankArt.Plinth();pf.type=Image.Type.Sliced;Stretch(pf.rectTransform,new Vector2(5,7),new Vector2(-5,-9));
     var trim=N.Image(plinth.transform,"Trim",RankGoldTrim,3);U.Stretch(trim.rectTransform,new Vector2(0,1),Vector2.one,new Vector2(2,-9),new Vector2(-2,-1));
     var trimShine=N.Image(trim.transform,"Shine",new Color(1,1,1,.55f),2);U.Stretch(trimShine.rectTransform,new Vector2(0,.55f),Vector2.one,new Vector2(3,0),new Vector2(-3,-1));
-    var shadowNum=N.Text(pf.transform,"NumberShadow",K.Headline,place==1?66:place==2?54:46,new Color(.3f,.18f,.06f,.35f));shadowNum.text=place.ToString();shadowNum.alignment=TextAlignmentOptions.Center;U.Stretch(shadowNum.rectTransform,new Vector2(0,.32f),Vector2.one,new Vector2(3,-4),new Vector2(3,-4));
-    var num=N.Text(pf.transform,"Number",K.Headline,place==1?66:place==2?54:46,Color.white);num.text=place.ToString();num.alignment=TextAlignmentOptions.Center;num.outlineWidth=.24f;num.outlineColor=new Color32(110,66,22,230);U.Stretch(num.rectTransform,new Vector2(0,.32f),Vector2.one);
-    p.points=U.Label(pf.transform,"Points",K.Number,15,"4A3624");U.Stretch(p.points.rectTransform,Vector2.zero,new Vector2(1,.34f),new Vector2(4,1),new Vector2(-4,2));
+    float numSize=place==1?64:place==2?56:50;
+    var shadowNum=N.Text(pf.transform,"NumberShadow",K.Headline,numSize,new Color(.3f,.18f,.06f,.35f));shadowNum.text=place.ToString();shadowNum.alignment=TextAlignmentOptions.Center;U.Stretch(shadowNum.rectTransform,new Vector2(0,.3f),Vector2.one,new Vector2(3,-4),new Vector2(3,-4));
+    var num=N.Text(pf.transform,"Number",K.Headline,numSize,Color.white);num.text=place.ToString();num.alignment=TextAlignmentOptions.Center;num.outlineWidth=.24f;num.outlineColor=new Color32(110,66,22,230);U.Stretch(num.rectTransform,new Vector2(0,.3f),Vector2.one);
+    foreach(var n in new[]{num,shadowNum}){n.enableAutoSizing=true;n.fontSizeMin=24;n.fontSizeMax=numSize;n.overflowMode=TextOverflowModes.Overflow;}
+    p.points=U.Label(pf.transform,"Points",K.Number,15,"4A3624");U.Stretch(p.points.rectTransform,Vector2.zero,new Vector2(1,.3f),new Vector2(Sp2,2),new Vector2(-Sp2,0));
     p.points.overflowMode=TextOverflowModes.Overflow;p.points.enableAutoSizing=true;p.points.fontSizeMin=10;p.points.fontSizeMax=15;
     // the face (glow ring for me, a crown on #1), then the name over the plinth
-    var holder=N.Node("Face",col);holder.anchorMin=holder.anchorMax=new Vector2(.5f,0);holder.pivot=new Vector2(.5f,0);holder.sizeDelta=new Vector2(size,size);holder.anchoredPosition=new Vector2(0,plinthH+30);p.holder=holder;
+    var holder=N.Node("Face",col);holder.anchorMin=holder.anchorMax=new Vector2(.5f,0);holder.pivot=new Vector2(.5f,0);holder.sizeDelta=new Vector2(size,size);holder.anchoredPosition=new Vector2(0,plinthH+Sp2+22+Sp2+6);p.holder=holder;
     p.glow=N.Image(holder,"Glow",new Color(1f,.85f,.35f,0),0);p.glow.sprite=U.Glow();U.At(p.glow.rectTransform,new Vector2(.5f,.5f),new Vector2(size*1.9f,size*1.9f));
     p.ring=N.Image(holder,"Ring",PlinthEdge[i],0);p.ring.sprite=K.Disc();Stretch(p.ring.rectTransform,new Vector2(-6,-6),new Vector2(6,6));
     var plate=N.Image(holder,"Plate",K.C("2A3D6B"),0);plate.sprite=K.Disc();Stretch(plate.rectTransform,Vector2.zero,Vector2.zero);
@@ -117,64 +125,72 @@ namespace Checkout {
     p.face=N.Image(clip.transform,"Icon",Color.white,0);p.face.preserveAspect=true;Stretch(p.face.rectTransform,Vector2.zero,Vector2.zero);
     p.rim=N.Image(holder,"Rim",PlinthFace[i],0);K.FitRim(p.rim,size,5);
     var medal=N.Image(holder,"Medal",place==1?Color.white:place==2?K.C("D7DEE6"):K.C("E9A46A"),0);medal.sprite=K.Icon("Icons/medal");medal.preserveAspect=true;U.At(medal.rectTransform,new Vector2(.1f,.1f),new Vector2(size*.36f,size*.36f));
-    if(place==1){var crown=N.Image(holder,"Crown",Color.white,0);crown.sprite=K.Icon("Icons/crown");crown.preserveAspect=true;U.At(crown.rectTransform,new Vector2(.5f,1),new Vector2(58,58),new Vector2(0,12));crown.rectTransform.localRotation=Quaternion.Euler(0,0,-8);}
+    if(place==1){var crown=N.Image(holder,"Crown",Color.white,0);crown.sprite=K.Icon("Icons/crown");crown.preserveAspect=true;U.At(crown.rectTransform,new Vector2(.5f,1),new Vector2(54,54),new Vector2(0,-2));crown.rectTransform.localRotation=Quaternion.Euler(0,0,-8);}
     // "VOCÊ" on my face: an orange tag with a gold edge
-    var tagEdge=N.Image(holder,"Tag",RankGoldTrim,12);p.tag=tagEdge.rectTransform;U.At(p.tag,new Vector2(.5f,1),new Vector2(78,26),new Vector2(0,place==1?36:8));
+    var tagEdge=N.Image(holder,"Tag",RankGoldTrim,12);p.tag=tagEdge.rectTransform;U.At(p.tag,new Vector2(.5f,1),new Vector2(78,26),new Vector2(0,place==1?25+Sp2+13:6+Sp2+13));
     var tagFace=N.Image(tagEdge.transform,"Face",RankOrange,10);Stretch(tagFace.rectTransform,new Vector2(2,2),new Vector2(-2,-2));
     var tagText=U.Label(tagFace.transform,"Text",K.Headline,15,"FFFFFF");Stretch(tagText.rectTransform,Vector2.zero,Vector2.zero);tagText.characterSpacing=2;tagText.text="VOCÊ";
-    p.name=U.Label(col,"Name",K.Label,15,"F7E8C8");U.Stretch(p.name.rectTransform,new Vector2(0,0),new Vector2(1,0),new Vector2(-2,plinthH+4),new Vector2(2,plinthH+26));
-    p.name.enableAutoSizing=true;p.name.fontSizeMin=10;p.name.fontSizeMax=15;
+    // (the name stays inside its own place: shrinks, then "…", never over the neighbour's)
+    p.name=U.Label(col,"Name",K.Label,15,"F7E8C8");U.Stretch(p.name.rectTransform,new Vector2(0,0),new Vector2(1,0),new Vector2(6,plinthH+Sp2),new Vector2(-6,plinthH+Sp2+22));
+    p.name.enableAutoSizing=true;p.name.fontSizeMin=11;p.name.fontSizeMax=15;p.name.textWrappingMode=TextWrappingModes.NoWrap;p.name.overflowMode=TextOverflowModes.Ellipsis;
     leaguePodium.Add(p);
    }
    // my place when it is not on the podium: a highlighted card with my face, "#12" and my name
-   leagueMeBox=N.Node("Me",leagueStage);leagueMeBox.anchorMin=leagueMeBox.anchorMax=new Vector2(.27f,0);leagueMeBox.pivot=new Vector2(.5f,0);leagueMeBox.sizeDelta=new Vector2(360,58);leagueMeBox.anchoredPosition=new Vector2(10,154);
+   leagueMeBox=N.Node("Me",leagueStage);leagueMeBox.anchorMin=leagueMeBox.anchorMax=new Vector2(0,0);leagueMeBox.pivot=new Vector2(.5f,0);leagueMeBox.sizeDelta=new Vector2(380,58);leagueMeBox.anchoredPosition=new Vector2(30+(LeagueW*.5f-6-30-12)*.5f,CardFloorY);
    var meEdge=N.Image(leagueMeBox,"Edge",RankGoldTrim,26);Stretch(meEdge.rectTransform,Vector2.zero,Vector2.zero);
    var meBack=N.Image(meEdge.transform,"Back",K.C("FFF4D6"),24);Stretch(meBack.rectTransform,new Vector2(3,3),new Vector2(-3,-3));
-   var meRing=N.Image(leagueMeBox,"Ring",RankOrange,0);meRing.sprite=K.Disc();U.At(meRing.rectTransform,new Vector2(0,.5f),new Vector2(52,52),new Vector2(34,0));
+   var meRing=N.Image(leagueMeBox,"Ring",RankOrange,0);meRing.sprite=K.Disc();U.At(meRing.rectTransform,new Vector2(0,.5f),new Vector2(46,46),new Vector2(Sp3+23,0));
    var meClip=K.RoundClip(meRing.transform,"Clip");K.SetRound(meClip,true);var mcr=meClip.rectTransform;mcr.offsetMin=new Vector2(3,3);mcr.offsetMax=new Vector2(-3,-3);
    var mePlate=N.Image(meClip.transform,"Plate",K.C("2A3D6B"),0);mePlate.sprite=K.Disc();Stretch(mePlate.rectTransform,Vector2.zero,Vector2.zero);
    leagueMeFace=N.Image(meClip.transform,"Icon",Color.white,0);leagueMeFace.preserveAspect=true;Stretch(leagueMeFace.rectTransform,Vector2.zero,Vector2.zero);
-   var meRim=N.Image(meRing.transform,"Rim",RankOrange,0);K.FitRim(meRim,46,3);
-   leaguePlaceText=U.Label(leagueMeBox,"Place",K.Headline,30,"1D2B4F",TextAlignmentOptions.MidlineLeft);U.Stretch(leaguePlaceText.rectTransform,Vector2.zero,new Vector2(0,1),new Vector2(68,0),new Vector2(150,0));
-   leagueMeName=U.Label(leagueMeBox,"Name",K.Label,15,"4A3624",TextAlignmentOptions.MidlineLeft);U.Stretch(leagueMeName.rectTransform,Vector2.zero,Vector2.one,new Vector2(150,0),new Vector2(-14,0));
+   var meRim=N.Image(meRing.transform,"Rim",RankOrange,0);K.FitRim(meRim,40,3);
+   leaguePlaceText=U.Label(leagueMeBox,"Place",K.Headline,30,"1D2B4F",TextAlignmentOptions.MidlineLeft);U.Stretch(leaguePlaceText.rectTransform,Vector2.zero,new Vector2(0,1),new Vector2(Sp3+46+Sp3,0),new Vector2(Sp3+46+Sp3+76,0));
+   leagueMeName=U.Label(leagueMeBox,"Name",K.Label,15,"4A3624",TextAlignmentOptions.MidlineLeft);U.Stretch(leagueMeName.rectTransform,Vector2.zero,Vector2.one,new Vector2(Sp3+46+Sp3+76+Sp3,0),new Vector2(-Sp4,0));leagueMeName.overflowMode=TextOverflowModes.Ellipsis;
+  }
+
+  /// <summary>The podium's box: on the floor over the stats (my place on it or none), or lifted over my own card (off it).</summary>
+  void SetLeaguePodiumBox(bool full){
+   float bottom=full?CardFloorY:CardFloorY+58+Sp4;
+   leaguePodiumBox.offsetMin=new Vector2(30,bottom);leaguePodiumBox.offsetMax=new Vector2(-Sp3,bottom+(LeagueH-6-CardTop-CardFloorY));
   }
 
   void BuildLeagueDivision(){
-   leagueDivision=N.Node("Division",leagueStage);leagueDivision.anchorMin=new Vector2(.52f,0);leagueDivision.anchorMax=new Vector2(1,1);leagueDivision.offsetMin=new Vector2(0,292);leagueDivision.offsetMax=new Vector2(-30,-170);
-   leagueFrom=N.Image(leagueDivision,"From",Color.white,0);leagueFrom.preserveAspect=true;U.At(leagueFrom.rectTransform,new Vector2(.17f,.6f),new Vector2(104,104));
+   // (bottom up inside it: the "moved" line 24 · the stamp, 6+ clear of both · the new badge 120 from 92 up)
+   leagueDivision=N.Node("Division",leagueStage);leagueDivision.anchorMin=new Vector2(.5f,0);leagueDivision.anchorMax=new Vector2(1,1);leagueDivision.offsetMin=new Vector2(Sp3,264);leagueDivision.offsetMax=new Vector2(-30,-CardTop);
+   leagueFrom=N.Image(leagueDivision,"From",Color.white,0);leagueFrom.preserveAspect=true;U.At(leagueFrom.rectTransform,new Vector2(.17f,0),new Vector2(92,92),new Vector2(0,152));
    // three chevrons running from the old badge to the new one
-   leagueChevrons=N.Node("Chevrons",leagueDivision);U.At(leagueChevrons,new Vector2(.42f,.6f),new Vector2(96,40));
+   leagueChevrons=N.Node("Chevrons",leagueDivision);U.At(leagueChevrons,new Vector2(.44f,0),new Vector2(96,40),new Vector2(0,152));
    for(int k=0;k<3;k++){var ch=N.Image(leagueChevrons,"Chevron",LeagueUp,0);ch.sprite=CheckoutRankArt.Chevron();U.At(ch.rectTransform,new Vector2(.5f,.5f),new Vector2(32,36),new Vector2(-28+k*28,0));leagueChevronParts.Add(ch);}
-   leagueToGlow=N.Image(leagueDivision,"Glow",new Color(1f,.9f,.5f,0),0);leagueToGlow.sprite=U.Glow();U.At(leagueToGlow.rectTransform,new Vector2(.72f,.6f),new Vector2(280,280));
-   leagueTo=N.Image(leagueDivision,"To",Color.white,0);leagueTo.preserveAspect=true;U.At(leagueTo.rectTransform,new Vector2(.72f,.6f),new Vector2(150,150));
+   leagueToGlow=N.Image(leagueDivision,"Glow",new Color(1f,.9f,.5f,0),0);leagueToGlow.sprite=U.Glow();U.At(leagueToGlow.rectTransform,new Vector2(.72f,0),new Vector2(250,250),new Vector2(0,152));
+   leagueTo=N.Image(leagueDivision,"To",Color.white,0);leagueTo.preserveAspect=true;U.At(leagueTo.rectTransform,new Vector2(.72f,0),new Vector2(120,120),new Vector2(0,152));
    // the stamp over the new badge: a rotated frame with the word as a label
-   leagueStamp=N.Node("Stamp",leagueDivision);U.At(leagueStamp,new Vector2(.72f,.28f),new Vector2(170,46));leagueStamp.localRotation=Quaternion.Euler(0,0,-8);
+   leagueStamp=N.Node("Stamp",leagueDivision);U.At(leagueStamp,new Vector2(.72f,0),new Vector2(150,34),new Vector2(0,56));leagueStamp.localRotation=Quaternion.Euler(0,0,-6);
    var stampBack=N.Image(leagueStamp,"Back",new Color(.11f,.17f,.31f,.85f),12);Stretch(stampBack.rectTransform,new Vector2(4,4),new Vector2(-4,-4));
    leagueStampFrame=N.Image(leagueStamp,"Frame",LeagueUp,0);leagueStampFrame.sprite=CheckoutRankArt.Stamp();leagueStampFrame.type=Image.Type.Sliced;Stretch(leagueStampFrame.rectTransform,Vector2.zero,Vector2.zero);
-   leagueStampText=U.Label(leagueStamp,"Text",K.Headline,26,"FFFFFF");Stretch(leagueStampText.rectTransform,new Vector2(8,2),new Vector2(-8,-2));leagueStampText.characterSpacing=3;leagueStampText.enableAutoSizing=true;leagueStampText.fontSizeMin=14;leagueStampText.fontSizeMax=26;
+   leagueStampText=U.Label(leagueStamp,"Text",K.Headline,26,"FFFFFF");Stretch(leagueStampText.rectTransform,new Vector2(Sp3,2),new Vector2(-Sp3,-2));leagueStampText.characterSpacing=3;leagueStampText.enableAutoSizing=true;leagueStampText.fontSizeMin=14;leagueStampText.fontSizeMax=22;
    leagueMoved=N.Text(leagueDivision,"Moved",K.Headline,21,Color.white);leagueMoved.alignment=TextAlignmentOptions.Center;leagueMoved.textWrappingMode=TextWrappingModes.NoWrap;leagueMoved.enableAutoSizing=true;leagueMoved.fontSizeMin=13;leagueMoved.fontSizeMax=21;
-   U.Stretch(leagueMoved.rectTransform,new Vector2(0,0),new Vector2(1,0),new Vector2(0,-26),new Vector2(0,2));
+   U.Stretch(leagueMoved.rectTransform,new Vector2(0,0),new Vector2(1,0),new Vector2(0,0),new Vector2(0,24));
   }
 
   void BuildLeagueRewards(){
-   leagueRewards=N.Node("Rewards",leagueStage);leagueRewards.anchorMin=new Vector2(.52f,0);leagueRewards.anchorMax=new Vector2(1,0);leagueRewards.pivot=new Vector2(.5f,0);leagueRewards.offsetMin=new Vector2(0,140);leagueRewards.offsetMax=new Vector2(-30,222);
+   leagueRewards=N.Node("Rewards",leagueStage);leagueRewards.anchorMin=new Vector2(.5f,0);leagueRewards.anchorMax=new Vector2(1,0);leagueRewards.pivot=new Vector2(.5f,0);leagueRewards.offsetMin=new Vector2(Sp3,160);leagueRewards.offsetMax=new Vector2(-30,232);
    // diamonds: the painted diamond big, a glow behind it, the number counting up
    leagueDiamondBox=N.Node("Diamonds",leagueRewards);leagueDiamondBox.anchorMin=new Vector2(0,0);leagueDiamondBox.anchorMax=new Vector2(.5f,1);leagueDiamondBox.offsetMin=leagueDiamondBox.offsetMax=Vector2.zero;
    var dGlow=N.Image(leagueDiamondBox,"Glow",new Color(.5f,.8f,1f,.35f),0);dGlow.sprite=U.Glow();U.At(dGlow.rectTransform,new Vector2(.3f,.5f),new Vector2(150,150));
-   var dIcon=N.Image(leagueDiamondBox,"Icon",Color.white,0);dIcon.sprite=K.Icon("Icons/diamond");dIcon.preserveAspect=true;U.At(dIcon.rectTransform,new Vector2(.3f,.5f),new Vector2(70,70));
-   leagueDiamonds=U.Label(leagueDiamondBox,"Value",K.Number,36,"FFFFFF",TextAlignmentOptions.MidlineLeft);U.Stretch(leagueDiamonds.rectTransform,new Vector2(.3f,0),Vector2.one,new Vector2(46,0),Vector2.zero);
+   var dIcon=N.Image(leagueDiamondBox,"Icon",Color.white,0);dIcon.sprite=K.Icon("Icons/diamond");dIcon.preserveAspect=true;U.At(dIcon.rectTransform,new Vector2(.3f,.5f),new Vector2(64,64));
+   leagueDiamonds=U.Label(leagueDiamondBox,"Value",K.Number,36,"FFFFFF",TextAlignmentOptions.MidlineLeft);U.Stretch(leagueDiamonds.rectTransform,new Vector2(.3f,0),Vector2.one,new Vector2(32+Sp4,0),Vector2.zero);
    leagueDiamonds.outlineWidth=.12f;leagueDiamonds.outlineColor=new Color32(12,20,45,255);
    // the chest (PLACEHOLDER parts drawn in code): it shakes, the lid flies open and coins burst out
    leagueChestBox=N.Node("Chest",leagueRewards);leagueChestBox.anchorMin=new Vector2(.5f,0);leagueChestBox.anchorMax=new Vector2(1,1);leagueChestBox.offsetMin=leagueChestBox.offsetMax=Vector2.zero;
    leagueChestGlow=N.Image(leagueChestBox,"Glow",new Color(1f,.82f,.35f,0),0);leagueChestGlow.sprite=U.Glow();U.At(leagueChestGlow.rectTransform,new Vector2(.3f,.55f),new Vector2(170,170));
-   var chest=N.Node("Box",leagueChestBox);U.At(chest,new Vector2(.3f,.38f),new Vector2(92,64));
+   var chest=N.Node("Box",leagueChestBox);U.At(chest,new Vector2(.3f,.36f),new Vector2(80,56));
    var body=N.Image(chest,"Body",K.C("A86A37"),0);body.sprite=CheckoutRankArt.ChestBody();Stretch(body.rectTransform,Vector2.zero,Vector2.zero);
-   leagueChestLid=N.Node("Lid",chest);leagueChestLid.anchorMin=leagueChestLid.anchorMax=new Vector2(.5f,1);leagueChestLid.pivot=new Vector2(.05f,0);leagueChestLid.sizeDelta=new Vector2(96,40);leagueChestLid.anchoredPosition=new Vector2(-44,-4);
+   leagueChestLid=N.Node("Lid",chest);leagueChestLid.anchorMin=leagueChestLid.anchorMax=new Vector2(.5f,1);leagueChestLid.pivot=new Vector2(.05f,0);leagueChestLid.sizeDelta=new Vector2(84,34);leagueChestLid.anchoredPosition=new Vector2(-38,-4);
    var lid=N.Image(leagueChestLid,"Lid",K.C("94592B"),0);lid.sprite=CheckoutRankArt.ChestLid();Stretch(lid.rectTransform,Vector2.zero,Vector2.zero);
-   var lock_=N.Image(chest,"Lock",RankGoldTrim,4);U.At(lock_.rectTransform,new Vector2(.5f,.72f),new Vector2(16,18));
-   leagueCoins=U.Label(leagueChestBox,"Value",K.Number,36,"FFFFFF",TextAlignmentOptions.MidlineLeft);U.Stretch(leagueCoins.rectTransform,new Vector2(.3f,0),Vector2.one,new Vector2(52,0),Vector2.zero);
+   var lock_=N.Image(chest,"Lock",RankGoldTrim,4);U.At(lock_.rectTransform,new Vector2(.5f,.72f),new Vector2(14,16));
+   leagueCoins=U.Label(leagueChestBox,"Value",K.Number,36,"FFFFFF",TextAlignmentOptions.MidlineLeft);U.Stretch(leagueCoins.rectTransform,new Vector2(.3f,0),Vector2.one,new Vector2(40+Sp4,0),Vector2.zero);
    leagueCoins.outlineWidth=.12f;leagueCoins.outlineColor=new Color32(12,20,45,255);
-   var coinMini=N.Image(leagueChestBox,"Coin",Color.white,0);coinMini.sprite=K.Icon("Icons/coin");coinMini.preserveAspect=true;U.At(coinMini.rectTransform,new Vector2(.3f,.5f),new Vector2(30,30),new Vector2(36,-26));
+   var coinMini=N.Image(leagueChestBox,"Coin",Color.white,0);coinMini.sprite=K.Icon("Icons/coin");coinMini.preserveAspect=true;U.At(coinMini.rectTransform,new Vector2(.3f,.5f),new Vector2(26,26),new Vector2(30,-20));
   }
 
   void ApplyLeagueCard(DesktopView v){
@@ -227,9 +243,9 @@ namespace Checkout {
    bool moved=card.moved!="same";leagueFrom.gameObject.SetActive(moved);leagueChevrons.gameObject.SetActive(moved);
    foreach(var ch in leagueChevronParts){ch.color=new Color(moveColor.r,moveColor.g,moveColor.b,0);}
    leagueChevrons.localRotation=Quaternion.Euler(0,0,card.moved=="down"?0:0);
-   var to=leagueTo.rectTransform;to.anchorMin=to.anchorMax=new Vector2(moved?.72f:.5f,.6f);
+   var to=leagueTo.rectTransform;to.anchorMin=to.anchorMax=new Vector2(moved?.72f:.5f,0);
    var tg=leagueToGlow.rectTransform;tg.anchorMin=tg.anchorMax=to.anchorMin;leagueToGlow.color=new Color(tint.r,tint.g,tint.b,0);
-   var st=leagueStamp;st.anchorMin=st.anchorMax=new Vector2(moved?.72f:.5f,.28f);
+   var st=leagueStamp;st.anchorMin=st.anchorMax=new Vector2(moved?.72f:.5f,0);
    leagueStampText.text=K.Clean(card.stamp);leagueStampFrame.color=moveColor;leagueStampText.color=card.moved=="same"?LeagueSame:Color.white;
    leagueStamp.localScale=Vector3.zero;
    // the podium: the real top three of the group (a medal on the plate for a place nobody knows)
@@ -248,8 +264,8 @@ namespace Checkout {
     p.col.localScale=new Vector3(1,0,1);
    }
    // off the podium: the podium a little smaller, my place on a card under it
-   leaguePodiumBox.localScale=Vector3.one*(onPodium||card.place<=0?1f:.86f);
-   leaguePodiumBox.offsetMin=new Vector2(30,onPodium||card.place<=0?154:218);leaguePodiumBox.offsetMax=new Vector2(0,onPodium||card.place<=0?462:518);
+   leaguePodiumBox.localScale=Vector3.one*(onPodium||card.place<=0?1f:.78f);
+   SetLeaguePodiumBox(onPodium||card.place<=0);
    leagueMeBox.gameObject.SetActive(!onPodium&&card.place>0);leagueMeBox.localScale=Vector3.zero;
    leagueMeFace.sprite=K.Icon(card.avatar);leaguePlaceText.text="#"+card.place;leagueMeName.text=K.Clean(card.meName);
    // rewards
@@ -266,7 +282,8 @@ namespace Checkout {
     icon.sprite=K.Icon(stats[i].icon);icon.enabled=icon.sprite;value.text=K.Clean(stats[i].value);label.text=K.Clean(stats[i].label).ToUpperInvariant();r.localScale=Vector3.zero;
    }
    leagueStatsRow.gameObject.SetActive(stats.Length>0);
-   leagueButton.Apply(new DesktopButton{label=card.button,icon="Icons/diamond",variant="coin",enabled=true,action="",args="[]",route="",after="",ok="",fail="",badge=""});
+   // (no prize, after a drop: "Vamos lá!" without the diamond)
+   leagueButton.Apply(new DesktopButton{label=card.button,icon=card.diamonds>0||card.coins>0?"Icons/diamond":"",variant="coin",enabled=true,action="",args="[]",route="",after="",ok="",fail="",badge=""});
    leagueButton.transform.localScale=Vector3.zero;
    // ---- the show ----
    leagueDim.color=new Color(.04f,.06f,.13f,0);StartCoroutine(U.Fade(leagueDim,.84f,.3f));
@@ -303,7 +320,7 @@ namespace Checkout {
     yield return U.Scale(leagueChestBox,Vector3.one,.3f,true);
     var box=(RectTransform)leagueChestLid.parent;
     yield return U.Shake(box,.45f,7);
-    StartCoroutine(U.Rotate(leagueChestLid,16,.22f));StartCoroutine(U.Fade(leagueChestGlow,.85f,.25f));Sound("success",1.2f);
+    StartCoroutine(U.Rotate(leagueChestLid,11,.22f));StartCoroutine(U.Fade(leagueChestGlow,.85f,.25f));Sound("success",1.2f);
     ChestCoins(U.PointIn(leagueFx,box),14);
     StartCoroutine(CountPrize(leagueCoins,card.coins,.8f));
    }

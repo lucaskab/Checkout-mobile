@@ -313,8 +313,8 @@ namespace Checkout {
      bool up=t.trend>0;trendIcon.color=up?K.C("4FA83D"):K.C("D98A5E");
      trendIcon.rectTransform.localRotation=Quaternion.Euler(0,0,up?0:180);
      trendText.text=Mathf.Abs(t.trend).ToString();trendText.color=trendIcon.color;
-     Place(trendIcon.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(47,-17),new Vector2(14,14));
-     Place(trendText.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(55,-17),new Vector2(22,16));
+     Place(trendIcon.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(48,-18),new Vector2(13,13));
+     Place(trendText.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(57,-18),new Vector2(20,16));
     }
     trendText.gameObject.SetActive(trend);
     Place(circle,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10+lead+3,0),new Vector2(face,face));
@@ -327,29 +327,31 @@ namespace Checkout {
      icon.rectTransform.offsetMin=new Vector2(4,4);icon.rectTransform.offsetMax=new Vector2(-4,-4);
     }
     inviteDots.gameObject.SetActive(invite);
-    float x=10+lead+face+18;
+    // (the spacing scale of the ranking window: 16 between the blocks of a row, 8 from an icon to its number)
+    const float gap=Sp4,near=Sp2;
+    float x=10+lead+face+gap;
     // the right end: the button, then the value block, then the flag. A narrow row (an iPad's pinned row with its
     // button) keeps room for the name: the flag goes first, then the value (the subtitle and the bar say it too),
     // then the button narrows.
     bool hasValue=!string.IsNullOrEmpty(t.value),label=hasValue&&!string.IsNullOrEmpty(t.valueLabel);
     var flag=K.Icon(t.flag);
     var vIcon=hasValue?K.Icon(t.valueIcon):null;
-    float fw=hud.BoardNarrow?34:44,fh=hud.BoardNarrow?26:34,flagRoom=fw+(hud.BoardNarrow?8:14);
+    float fw=hud.BoardNarrow?34:44,fh=hud.BoardNarrow?26:34,flagRoom=fw+(hud.BoardNarrow?Sp3:gap);
     // (a friend's small "Visitar")
     bool small=hasButton&&t.action!=null&&t.action.action=="socialVisit";
-    float btnW=hasButton?(small?(Phone?124:134):(Phone?180:200)):0,valueW=0,iconW=vIcon?28:0;
+    float btnW=hasButton?(small?(Phone?124:134):(Phone?180:200)):0,valueW=0,iconW=vIcon?24+near:0;
     if(hasValue){
      valueText.text=K.Clean(t.value);valueLabelText.text=label?K.Clean(t.valueLabel).ToUpperInvariant():"";
      valueW=Mathf.Clamp(Mathf.Max(valueText.GetPreferredValues(valueText.text).x,label?valueLabelText.GetPreferredValues(valueLabelText.text).x:0)+6,70,170);
     }
     float width=rect.rect.width,nameMin=160;
-    float Need()=>x+12+(hasButton?btnW+12:0)+(hasValue?valueW+iconW+14:0)+(flag?flagRoom:0);
+    float Need()=>x+gap+(hasButton?btnW+gap:0)+(hasValue?valueW+iconW+gap:0)+(flag?flagRoom:0);
     if(width>0&&width-Need()<nameMin&&flag)flag=null;
     if(width>0&&width-Need()<nameMin&&vIcon){vIcon=null;iconW=0;}
     if(width>0&&width-Need()<nameMin&&hasValue&&hasButton)hasValue=false;
     if(width>0&&width-Need()<nameMin&&hasButton)btnW=Mathf.Max(small?104:132,btnW-(nameMin-(width-Need())));
-    float right=12;
-    if(hasButton){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(btnW,small?(Phone?40:44):(Phone?46:50)));button.Fit(true);right+=btnW+12;}
+    float right=gap;
+    if(hasButton){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-gap,-2),new Vector2(btnW,small?(Phone?40:44):(Phone?44:50)));button.Fit(true);right+=btnW+gap;}
     valueText.gameObject.SetActive(hasValue);valueLabelText.gameObject.SetActive(hasValue&&label);valueIconImage.gameObject.SetActive(hasValue&&vIcon);
     if(hasValue){
      Place(valueText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,label?8:0),new Vector2(valueW,28));
@@ -360,10 +362,10 @@ namespace Checkout {
       // (the icon sits just left of the number; the star of Nota in gold)
       valueIconImage.sprite=vIcon;valueIconImage.color=Color.white;
       float numW=Mathf.Min(valueW,valueText.GetPreferredValues(valueText.text).x+2);
-      Place(valueIconImage.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-(right0+numW+4),label?8:0),new Vector2(24,24));
-      right=Mathf.Max(right,right0+numW+4+24);
+      Place(valueIconImage.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-(right0+numW+near),label?8:0),new Vector2(24,24));
+      right=Mathf.Max(right,right0+numW+near+24);
      }
-     right+=10;
+     right+=gap;
     }
     flagEdge.gameObject.SetActive(flag);
     // (a narrow window, an iPad: a smaller flag, so the name keeps its room)
@@ -372,23 +374,24 @@ namespace Checkout {
     // (one line, shrinking before any "…"; alone in the middle when nothing goes under it: the "how to earn" rows)
     title.textWrappingMode=invite?TextWrappingModes.Normal:TextWrappingModes.NoWrap;title.overflowMode=TextOverflowModes.Ellipsis;
     bool under0=hasRibbon||!string.IsNullOrEmpty(t.subtitle);
-    float top=bar?-5:-6,second=bar?-31:-32;
-    if(under0)Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(x,top),new Vector2(-x-right,26));
+    // (name 24 high, 4 of air, then the level ribbon and the line, 20 high; the bar 8 over the row's foot)
+    float top=-5,second=top-24-Sp1;
+    if(under0)Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(x,top),new Vector2(-x-right,24));
     else Place(titleRect,new Vector2(0,.5f),new Vector2(1,.5f),new Vector2(0,.5f),new Vector2(x,0),new Vector2(-x-right,34));
     title.alignment=TextAlignmentOptions.MidlineLeft;
     float under=x;
     if(hasRibbon){
      ribbon.color=t.tone=="gold"?K.C("C98A12"):PortraitNavy;ribbonRect.localRotation=Quaternion.identity;
      float rw=PillWidth(ribbonText,ribbonText.text,54);
-     Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(x,second),new Vector2(rw,22));under+=rw+8;
+     Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(x,second),new Vector2(rw,20));under+=rw+near;
     }
-    Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(under,second),new Vector2(-under-right,22));subtitle.alignment=TextAlignmentOptions.MidlineLeft;
+    Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(under,second),new Vector2(-under-right,20));subtitle.alignment=TextAlignmentOptions.MidlineLeft;
     subtitle.textWrappingMode=invite?TextWrappingModes.Normal:TextWrappingModes.NoWrap;
     if(invite){subtitleRect.sizeDelta=new Vector2(-under-right,30);subtitle.enableAutoSizing=true;subtitle.fontSizeMin=10;subtitle.fontSizeMax=12;}else subtitle.enableAutoSizing=false;
     if(bar){
      fillTarget=Mathf.Clamp01(t.fill);if(fillShown<0)fillShown=fillTarget;barText.text="";
      barFill.color=t.tone=="gold"?K.C("E8A33C"):K.C("3BA3B8");
-     Place(barRect,new Vector2(0,0),new Vector2(1,0),new Vector2(0,0),new Vector2(x,6),new Vector2(-x-right,7));
+     Place(barRect,new Vector2(0,0),new Vector2(1,0),new Vector2(0,0),new Vector2(x,Sp2),new Vector2(-x-right,7));
     }
     Select(selected);if(invite&&!selected)edge.color=K.C("8CC063");
    }

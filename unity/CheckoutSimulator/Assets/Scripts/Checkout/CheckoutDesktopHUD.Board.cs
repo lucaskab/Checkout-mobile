@@ -30,7 +30,7 @@ namespace Checkout {
   RectTransform boardHeroes;readonly List<CheckoutDesktopCard> boardHeroCards=new List<CheckoutDesktopCard>();
   // Social v1 (_v3): the bar as a player strip (my face on a navy plate that opens the profile, my code, big buttons at
   // its end, the meter in blocks), and the "more below" chevron when whole rows wait under the fold.
-  Image boardMeterPlate,boardMeterRing,boardMeterClip,boardMeterRim;RectTransform boardMeterButtons,boardMore;string boardMeterRoute;int boardMeterSegments;
+  Image boardMeterPlate,boardMeterRing,boardMeterClip,boardMeterRim;RectTransform boardMeterButtons,boardMore;float boardMoreDrop=2;string boardMeterRoute;int boardMeterSegments;
   readonly List<CheckoutDesktopButton> boardMeterButtonList=new List<CheckoutDesktopButton>();
   readonly List<Image> boardSegBacks=new List<Image>(),boardSegFills=new List<Image>();
   /// <summary>Chip rows of this board's tiles (0 = none): every card of the board is cut to the same height.</summary>
@@ -155,8 +155,10 @@ namespace Checkout {
    bool hasMeter=b.meter!=null&&b.meter.max>0;boardMeter.gameObject.SetActive(hasMeter);
    // Everything below the header moves up when there are no tabs or no meter.
    float top=BoardHeaderH+(hasTabs?58:0),meterH=62;
-   boardMeter.offsetMin=new Vector2(16,-top-6-meterH);boardMeter.offsetMax=new Vector2(-16,-top-6);
-   boardBody.offsetMax=new Vector2(0,-(top+(hasMeter?meterH+12:4)));
+   // (the ranking window breathes a little more: 10 over the meter / rival card and 10 under it; QA 03/11)
+   float gap=b.style=="rank"?10:6;
+   boardMeter.offsetMin=new Vector2(16,-top-gap-meterH);boardMeter.offsetMax=new Vector2(-16,-top-gap);
+   boardBody.offsetMax=new Vector2(0,-(top+(hasMeter?meterH+gap+(b.style=="rank"?gap:6):4)));
    if(hasMeter)ApplyBoardMeter(b.meter,fresh);
    // Delivery lanes take the whole width: no side panel.
    bool road=b.style=="road";
@@ -280,7 +282,7 @@ namespace Checkout {
    boardFaces=faces&&chipRows==0;
    float cellH=chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
    // (ranking rows with a bar under the name, Amigos: a little taller)
-   if(rank){bool anyBar=false;foreach(var x in tiles)if(x.fill>=0&&x.look!="invite")anyBar=true;RankCellH=RankRowH+(anyBar?10:0);}
+   if(rank){bool anyBar=false;foreach(var x in tiles)if(x.fill>=0&&x.look!="invite")anyBar=true;RankCellH=RankRowH+(anyBar?16:0);}
    var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
    var slimCell=new Vector2(Mathf.Floor((width-14)/2),64);boardCellWidth=rows?0:cell.x;
    // Sections: a title each time the group changes.
@@ -435,7 +437,7 @@ namespace Checkout {
    var vp=boardScroll.viewport?boardScroll.viewport:(RectTransform)boardScroll.transform;
    bool more=boardContent.rect.height>vp.rect.height+20&&boardScroll.verticalNormalizedPosition>.97f;
    if(boardMore.gameObject.activeSelf!=more)boardMore.gameObject.SetActive(more);
-   if(more)boardMore.anchoredPosition=new Vector2(0,((RectTransform)boardScroll.transform).offsetMin.y-2+Mathf.Abs(Mathf.Sin(t*3))*5);
+   if(more)boardMore.anchoredPosition=new Vector2(0,((RectTransform)boardScroll.transform).offsetMin.y-boardMoreDrop+Mathf.Abs(Mathf.Sin(t*3))*(boardMoreDrop>2?2:5));
   }
 
   public static string Clock(double ms){
@@ -457,6 +459,12 @@ namespace Checkout {
     chip.value=N.Text(texts,"Value",K.Number,header?22:19,header?Color.white:K.Ink);chip.value.textWrappingMode=TextWrappingModes.NoWrap;
     chip.label=N.Text(texts,"Label",K.Label,header&&Phone?11:12,header?new Color(1,1,1,.82f):K.Muted);chip.label.textWrappingMode=TextWrappingModes.NoWrap;
     return chip;
+   }
+   /// <summary>Rankings: a header chip with room inside (16 / 12 around, 12 from the icon to the number).</summary>
+   public void Roomy(bool on){
+    if(!header)return;var row=GetComponent<HorizontalLayoutGroup>();if(!row)return;
+    row.spacing=on?12:8;row.padding=on?new RectOffset(16,18,4,4):Phone?new RectOffset(10,12,2,2):new RectOffset(10,12,6,6);
+    GetComponent<LayoutElement>().minWidth=on?132:118;
    }
    public void Apply(DesktopStat s){
     var sprite=K.Icon(s.icon);icon.sprite=sprite;icon.gameObject.SetActive(sprite);

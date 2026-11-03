@@ -17,6 +17,9 @@ namespace Checkout {
  // round: a navy disc that clips the picture, a ring drawn over its edge (never square corners). The end-of-week card
  // is CheckoutDesktopHUD.LeagueCard.cs.
  public partial class CheckoutDesktopHUD {
+  // One spacing scale for the ranking window and the end-of-league card (QA 03/11, Lucas: "mt coisa super colada"):
+  // 4 / 8 / 12 / 16 / 24 canvas units (an iPhone's reference), used instead of per-element nudges.
+  const float Sp1=4,Sp2=8,Sp3=12,Sp4=16,Sp5=24;
   static float RankRowH=>Phone?68:80;
   /// <summary>Height of this board's ranking rows (taller with the bar under the name, Amigos).</summary>
   float RankCellH=68;
@@ -71,7 +74,7 @@ namespace Checkout {
   void LayoutBunting(){
    float w=rankPodium.rect.width,h=rankPodium.rect.height;if(w<100||Mathf.Abs(w-buntingWidth)<1&&buntingFlags.Count>0)return;buntingWidth=w;
    Color[] palette={RankTeal,RankCream,RankOrange,RankNavy,K.C("F0B43C")};
-   float flagW=Phone?22:28,flagH=Phone?28:36,sag=Phone?20:26;int perSwag=Phone?7:8;
+   float flagW=Phone?20:28,flagH=Phone?24:36,sag=Phone?14:26;int perSwag=Phone?7:8;
    int flag=0,line=0;
    for(int side=0;side<2;side++){
     float x0=side==0?w*.02f:w*.66f,x1=side==0?w*.34f:w*.98f;
@@ -143,8 +146,12 @@ namespace Checkout {
     float h=RankCellH;rankPinnedRect.anchorMin=new Vector2(0,0);rankPinnedRect.anchorMax=new Vector2(1,0);rankPinnedRect.pivot=new Vector2(.5f,0);
     rankPinnedRect.offsetMin=new Vector2(14,boardScrollBottom+2);rankPinnedRect.offsetMax=new Vector2(-14,boardScrollBottom+2+h);
     rankPinned.Apply(b.pinned,true,b.pinned.id==boardSelected);
-    boardScrollBottom+=h+12;((RectTransform)boardScroll.transform).offsetMin=new Vector2(10,boardScrollBottom);
+    boardScrollBottom+=h+20;((RectTransform)boardScroll.transform).offsetMin=new Vector2(10,boardScrollBottom);
    }
+   // the "more below" chevron: smaller, in the gap over my pinned row (never on its border)
+   boardMore.sizeDelta=pinned?new Vector2(36,18):new Vector2(54,28);boardMoreDrop=pinned?10:2;
+   // the header's numbers (4 AMIGOS, #5 ENTRE OS AMIGOS) with room inside their chips
+   foreach(var chip in boardStatChips)chip.Roomy(rank);
    ApplyRival(rank?b.rival:null,b.meter);
   }
 
@@ -256,7 +263,8 @@ namespace Checkout {
     float x=place==1?.5f:place==2?.2f:.8f;root.anchorMin=root.anchorMax=new Vector2(x,0);root.pivot=new Vector2(.5f,0);root.sizeDelta=new Vector2(230*s,PodiumHeight);root.anchoredPosition=new Vector2(0,6);
     var hit=root.gameObject.AddComponent<Image>();hit.color=new Color(0,0,0,0);
     // (a phone's plinths keep room for the place and its value)
-    float plinthH=Mathf.Max(place==1?76:place==2?62:56,(place==1?96:place==2?72:54)*s),face=(place==1?124:100)*s;
+    // (taller 2nd/3rd plinths: the numeral stays big above the value)
+    float plinthH=Mathf.Max(place==1?76:place==2?66:60,(place==1?96:place==2?76:62)*s),face=(place==1?106:88)*s;
     int i=place-1;
     // the plinth: a darker edge, the marble face with a gold trim on top, a shadowed big numeral, the value under it
     c.plinth=N.Image(root,"Plinth",PlinthEdge[i],14);U.Stretch(c.plinth.rectTransform,new Vector2(.06f,0),new Vector2(.94f,0),Vector2.zero,new Vector2(0,plinthH));
@@ -267,17 +275,19 @@ namespace Checkout {
     var band=N.Image(c.plinthFace.transform,"Shine",new Color(1,1,1,.22f),8);U.Stretch(band.rectTransform,new Vector2(0,.66f),Vector2.one,new Vector2(5,0),new Vector2(-5,-3));
     // (the winner's shimmer: a slanted light band sweeping across, clipped to the plinth)
     if(place==1){var sh=N.Image(c.plinthFace.transform,"Shimmer",new Color(1,1,1,.5f),0);sh.sprite=U.Glow();c.shine=sh.rectTransform;c.shine.anchorMin=new Vector2(0,0);c.shine.anchorMax=new Vector2(0,1);c.shine.pivot=new Vector2(.5f,.5f);c.shine.sizeDelta=new Vector2(36,40);c.shine.localRotation=Quaternion.Euler(0,0,-20);c.shine.anchoredPosition=new Vector2(-60,0);}
-    float numSize=(place==1?60:48)*s;
-    c.numberShadow=N.Text(c.plinthFace.transform,"NumberShadow",K.Headline,numSize,new Color(.3f,.18f,.06f,.35f));c.numberShadow.alignment=TextAlignmentOptions.Center;c.numberShadow.text=place.ToString();U.Stretch(c.numberShadow.rectTransform,new Vector2(0,.34f),Vector2.one,new Vector2(2,-3),new Vector2(2,-3));
+    float numSize=(place==1?60:50)*s;
+    c.numberShadow=N.Text(c.plinthFace.transform,"NumberShadow",K.Headline,numSize,new Color(.3f,.18f,.06f,.35f));c.numberShadow.alignment=TextAlignmentOptions.Center;c.numberShadow.text=place.ToString();U.Stretch(c.numberShadow.rectTransform,new Vector2(0,.3f),Vector2.one,new Vector2(2,-3),new Vector2(2,-3));
     c.number=N.Text(c.plinthFace.transform,"Number",K.Headline,numSize,Color.white);c.number.alignment=TextAlignmentOptions.Center;c.number.text=place.ToString();
-    c.number.outlineWidth=.24f;c.number.outlineColor=new Color32(110,66,22,230);U.Stretch(c.number.rectTransform,new Vector2(0,.34f),Vector2.one);
+    c.number.outlineWidth=.24f;c.number.outlineColor=new Color32(110,66,22,230);U.Stretch(c.number.rectTransform,new Vector2(0,.3f),Vector2.one);
     // (the numeral fits above the value on the shortest plinth: it never runs into the points)
     foreach(var n in new[]{c.number,c.numberShadow}){n.enableAutoSizing=true;n.fontSizeMin=16;n.fontSizeMax=numSize;n.overflowMode=TextOverflowModes.Overflow;}
     c.value=N.Text(c.plinthFace.transform,"Value",K.Number,13*Mathf.Max(.85f,s),new Color(.25f,.16f,.06f,.9f));c.value.alignment=TextAlignmentOptions.Center;c.value.textWrappingMode=TextWrappingModes.NoWrap;
-    c.value.enableAutoSizing=true;c.value.fontSizeMin=9;c.value.fontSizeMax=14;U.Stretch(c.value.rectTransform,new Vector2(0,0),new Vector2(1,.34f),new Vector2(6,2),new Vector2(-6,0));
+    c.value.enableAutoSizing=true;c.value.fontSizeMin=9;c.value.fontSizeMax=14;U.Stretch(c.value.rectTransform,new Vector2(0,0),new Vector2(1,.32f),new Vector2(Sp2,2),new Vector2(-Sp2,0));
     // the face first (rays, glow and crown with it), so the name and the ribbon are always drawn over any effect
-    float y=plinthH+6;
-    float yName=y+26*s+2,yFace=yName+28*Mathf.Max(.82f,s)+2;
+    // plinth · 8 · level ribbon + flag · 6 · name · 8 · face (the crown sits low on the face, inside the stage)
+    float infoH=24*s,nameH=26*Mathf.Max(.82f,s);
+    float y=plinthH+Sp2;
+    float yName=y+infoH+6,yFace=yName+nameH+Sp2;
     var holder=N.Node("Face",root);holder.anchorMin=holder.anchorMax=new Vector2(.5f,0);holder.pivot=new Vector2(.5f,0);holder.sizeDelta=new Vector2(face,face);holder.anchoredPosition=new Vector2(0,yFace);c.portrait=holder;
     if(place==1){
      c.rays=N.Image(holder,"Rays",new Color(1f,.9f,.5f,.5f),0);c.rays.sprite=LevelRaysSprite();U.At(c.rays.rectTransform,new Vector2(.5f,.5f),new Vector2(face*2.1f,face*2.1f));
@@ -291,10 +301,10 @@ namespace Checkout {
     c.stage=N.Image(holder,"Stage",Color.white,0);c.stage.preserveAspect=true;U.At(c.stage.rectTransform,new Vector2(.86f,.12f),new Vector2(face*.34f,face*.34f));
     // gold / silver / bronze medal on the face's other corner
     c.medal=N.Image(holder,"Medal",place==1?Color.white:place==2?K.C("D7DEE6"):K.C("E9A46A"),0);c.medal.sprite=K.Icon("Icons/medal");c.medal.preserveAspect=true;U.At(c.medal.rectTransform,new Vector2(.12f,.1f),new Vector2(face*.36f,face*.36f));
-    if(place==1){c.crown=N.Image(holder,"Crown",Color.white,0);c.crown.sprite=K.Icon("Icons/crown");c.crown.preserveAspect=true;U.At(c.crown.rectTransform,new Vector2(.5f,1),new Vector2(face*.56f,face*.56f),new Vector2(0,face*.04f));c.crown.rectTransform.localRotation=Quaternion.Euler(0,0,-8);}
+    if(place==1){c.crown=N.Image(holder,"Crown",Color.white,0);c.crown.sprite=K.Icon("Icons/crown");c.crown.preserveAspect=true;U.At(c.crown.rectTransform,new Vector2(.5f,1),new Vector2(face*.56f,face*.56f),new Vector2(0,-face*.06f));c.crown.rectTransform.localRotation=Quaternion.Euler(0,0,-8);}
     // level ribbon + flag, then the name, above the plinth
-    var info=N.Node("Info",root);info.anchorMin=new Vector2(0,0);info.anchorMax=new Vector2(1,0);info.pivot=new Vector2(.5f,0);info.offsetMin=new Vector2(0,y);info.offsetMax=new Vector2(0,y+24*s);
-    var ir=N.Row(info.gameObject,6);ir.childAlignment=TextAnchor.MiddleCenter;
+    var info=N.Node("Info",root);info.anchorMin=new Vector2(0,0);info.anchorMax=new Vector2(1,0);info.pivot=new Vector2(.5f,0);info.offsetMin=new Vector2(0,y);info.offsetMax=new Vector2(0,y+infoH);
+    var ir=N.Row(info.gameObject,(int)Sp2);ir.childAlignment=TextAnchor.MiddleCenter;
     c.ribbon=Pill(info,"Ribbon",PortraitNavy,out c.ribbonText,12,K.Label);c.ribbonText.characterSpacing=1;var rl=c.ribbon.gameObject.AddComponent<LayoutElement>();rl.preferredHeight=22*s;rl.preferredWidth=60;
     var flagEdge=N.Image(info,"FlagEdge",Color.white,3);var fl=flagEdge.gameObject.AddComponent<LayoutElement>();fl.preferredWidth=30*Mathf.Max(.85f,s);fl.preferredHeight=23*Mathf.Max(.85f,s);
     c.flag=N.Image(flagEdge.transform,"Flag",Color.white,0);c.flag.preserveAspect=true;Stretch(c.flag.rectTransform,new Vector2(2,2),new Vector2(-2,-2));
@@ -304,7 +314,7 @@ namespace Checkout {
     c.trendText.outlineWidth=.25f;c.trendText.outlineColor=new Color32(255,250,240,255);
     c.name=N.Text(root,"Name",K.Headline,(place==1?19:17)*Mathf.Max(.82f,s),K.Ink);c.name.alignment=TextAlignmentOptions.Center;c.name.textWrappingMode=TextWrappingModes.NoWrap;c.name.overflowMode=TextOverflowModes.Ellipsis;
     c.name.outlineWidth=.18f;c.name.outlineColor=new Color32(255,246,226,255);c.name.enableAutoSizing=true;c.name.fontSizeMin=11;c.name.fontSizeMax=(place==1?19:17)*Mathf.Max(.82f,s);
-    var nr=c.name.rectTransform;nr.anchorMin=new Vector2(0,0);nr.anchorMax=new Vector2(1,0);nr.pivot=new Vector2(.5f,0);nr.offsetMin=new Vector2(-6,yName);nr.offsetMax=new Vector2(6,yName+26*Mathf.Max(.82f,s));
+    var nr=c.name.rectTransform;nr.anchorMin=new Vector2(0,0);nr.anchorMax=new Vector2(1,0);nr.pivot=new Vector2(.5f,0);nr.offsetMin=new Vector2(Sp1,yName);nr.offsetMax=new Vector2(-Sp1,yName+nameH); // (inside its own place: never over the neighbour's)
     return c;
    }
    public void Apply(DesktopTile t,bool picked){
@@ -325,7 +335,7 @@ namespace Checkout {
    public void Tick(float t){
     if(rays)rays.transform.localRotation=Quaternion.Euler(0,0,-t*14);
     if(glow){var c=glow.color;c.a=.5f+.18f*Mathf.Sin(t*2.4f);glow.color=c;}
-    if(crown)crown.rectTransform.anchoredPosition=new Vector2(0,portrait.sizeDelta.y*.04f+Mathf.Abs(Mathf.Sin(t*2.2f))*4);
+    if(crown)crown.rectTransform.anchoredPosition=new Vector2(0,-portrait.sizeDelta.y*.06f+Mathf.Abs(Mathf.Sin(t*2.2f))*4);
     if(shine){
      // a sweep every 3.5 s
      float w=((RectTransform)shine.parent).rect.width;float k=(t%3.5f)/.9f;
@@ -377,7 +387,7 @@ namespace Checkout {
    if(!on)return;
    boardMeter.gameObject.SetActive(false);
    rivalRoot.offsetMin=boardMeter.offsetMin;rivalRoot.offsetMax=boardMeter.offsetMax;
-   float H=Mathf.Abs(boardMeter.offsetMax.y-boardMeter.offsetMin.y),face=Mathf.Min(46,H-16);
+   float H=Mathf.Abs(boardMeter.offsetMax.y-boardMeter.offsetMin.y),face=Mathf.Min(44,H-Sp4);
    rivalMeFace.sprite=K.Icon(r.meIcon);rivalOtherFace.sprite=K.Icon(r.otherIcon);
    rivalCrown.gameObject.SetActive(r.lead);
    var colIcon=K.Icon(r.icon);Color iconTint=Color.white;
@@ -390,23 +400,27 @@ namespace Checkout {
    bool narrow=BoardNarrow;
    rivalMeName.gameObject.SetActive(!narrow);rivalMeValue.gameObject.SetActive(!narrow);rivalMeIcon.gameObject.SetActive(!narrow&&colIcon);
    rivalOtherName.gameObject.SetActive(!narrow);rivalOtherValue.gameObject.SetActive(!narrow);rivalOtherIcon.gameObject.SetActive(!narrow&&colIcon);
-   float x=14;
-   var mf=(RectTransform)rivalMeFace.transform.parent.parent;mf.sizeDelta=new Vector2(face,face);mf.anchoredPosition=new Vector2(x,0);x+=face+10;
-   float valW=Mathf.Clamp(Mathf.Max(rivalMeValue.GetPreferredValues(rivalMeValue.text).x,rivalMeName.GetPreferredValues(rivalMeName.text).x)+4,40,140);
-   PlaceLeft(rivalMeName.rectTransform,x,12,valW+22,20);PlaceLeft(rivalMeIcon.rectTransform,x,-10,20,20);PlaceLeft(rivalMeValue.rectTransform,x+22,-10,valW,28);if(!narrow)x+=Mathf.Max(valW,22+rivalMeValue.GetPreferredValues(rivalMeValue.text).x)+12;
-   rivalVs.anchorMin=rivalVs.anchorMax=new Vector2(0,.5f);rivalVs.pivot=new Vector2(0,.5f);rivalVs.sizeDelta=new Vector2(face+2,face+2);rivalVs.anchoredPosition=new Vector2(x,0);x+=face+14;
-   var of=(RectTransform)rivalOtherFace.transform.parent.parent;of.sizeDelta=new Vector2(face,face);of.anchoredPosition=new Vector2(x,0);x+=face+10;
-   float nameW=Mathf.Clamp(Mathf.Max(rivalOtherName.GetPreferredValues(rivalOtherName.text).x,rivalOtherValue.GetPreferredValues(rivalOtherValue.text).x+22)+4,60,Phone?190:220);
-   PlaceLeft(rivalOtherName.rectTransform,x,12,nameW,20);PlaceLeft(rivalOtherIcon.rectTransform,x,-10,20,20);PlaceLeft(rivalOtherValue.rectTransform,x+22,-10,nameW-22,28);x+=narrow?6:nameW+18;
+   // (the spacing scale: 16 from the edge, 12 from a face to its words, 8 from an icon to its number, 16 around the VS,
+   // 24 before the sentence and before the button)
+   float x=Sp4;
+   var mf=(RectTransform)rivalMeFace.transform.parent.parent;mf.sizeDelta=new Vector2(face,face);mf.anchoredPosition=new Vector2(x,0);x+=face+Sp3;
+   float meNum=rivalMeValue.GetPreferredValues(rivalMeValue.text).x,iconRoom=colIcon?20+Sp2:0;
+   float valW=Mathf.Clamp(Mathf.Max(iconRoom+meNum,rivalMeName.GetPreferredValues(rivalMeName.text).x)+4,40,150);
+   PlaceLeft(rivalMeName.rectTransform,x,12,valW,20);PlaceLeft(rivalMeIcon.rectTransform,x,-10,20,20);PlaceLeft(rivalMeValue.rectTransform,x+iconRoom,-10,Mathf.Max(20,valW-iconRoom),28);if(!narrow)x+=valW+Sp4;
+   rivalVs.anchorMin=rivalVs.anchorMax=new Vector2(0,.5f);rivalVs.pivot=new Vector2(0,.5f);rivalVs.sizeDelta=new Vector2(face+2,face+2);rivalVs.anchoredPosition=new Vector2(x,0);x+=face+2+Sp4;
+   var of=(RectTransform)rivalOtherFace.transform.parent.parent;of.sizeDelta=new Vector2(face,face);of.anchoredPosition=new Vector2(x,0);x+=face+Sp3;
+   float otherNum=rivalOtherValue.GetPreferredValues(rivalOtherValue.text).x;
+   float nameW=Mathf.Clamp(Mathf.Max(rivalOtherName.GetPreferredValues(rivalOtherName.text).x,iconRoom+otherNum)+4,60,Phone?190:220);
+   PlaceLeft(rivalOtherName.rectTransform,x,12,nameW,20);PlaceLeft(rivalOtherIcon.rectTransform,x,-10,20,20);PlaceLeft(rivalOtherValue.rectTransform,x+iconRoom,-10,Mathf.Max(20,nameW-iconRoom),28);x+=narrow?Sp3:nameW+Sp5;
    // the button at the right end
    bool hasButton=r.button!=null&&!string.IsNullOrEmpty(r.button.label);rivalButton.gameObject.SetActive(hasButton);
-   float right=12;
+   float right=Sp4;
    if(hasButton){
     rivalButton.Apply(r.button);var label=rivalButton.GetComponentInChildren<TextMeshProUGUI>(true);
     float w=Mathf.Max(Phone?92:84,(label?label.GetPreferredValues(K.Clean(r.button.label)).x*1.15f:60)+(string.IsNullOrEmpty(r.button.icon)?0:30)+34);
-    var br=(RectTransform)rivalButton.transform;br.anchorMin=br.anchorMax=br.pivot=new Vector2(1,.5f);br.sizeDelta=new Vector2(w,Mathf.Min(48,H-12));br.anchoredPosition=new Vector2(-right,0);right+=w+14;
+    var br=(RectTransform)rivalButton.transform;br.anchorMin=br.anchorMax=br.pivot=new Vector2(1,.5f);br.sizeDelta=new Vector2(w,Mathf.Min(46,H-Sp3));br.anchoredPosition=new Vector2(-right,0);right+=w+Sp5;
    }
-   var tr=rivalText.rectTransform;tr.anchorMin=new Vector2(0,0);tr.anchorMax=new Vector2(1,1);tr.pivot=new Vector2(0,.5f);tr.offsetMin=new Vector2(x,4);tr.offsetMax=new Vector2(-right,-4);
+   var tr=rivalText.rectTransform;tr.anchorMin=new Vector2(0,0);tr.anchorMax=new Vector2(1,1);tr.pivot=new Vector2(0,.5f);tr.offsetMin=new Vector2(x,Sp1);tr.offsetMax=new Vector2(-right,-Sp1);
   }
   static void PlaceLeft(RectTransform r,float x,float y,float w,float h){r.anchorMin=r.anchorMax=new Vector2(0,.5f);r.pivot=new Vector2(0,.5f);r.sizeDelta=new Vector2(w,h);r.anchoredPosition=new Vector2(x,y);}
  }

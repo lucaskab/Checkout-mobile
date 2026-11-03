@@ -90,6 +90,7 @@ export function createMockRankings(links: RankingsMockLinks, size = 400) {
 	const rand = random(4521);
 	const pick = <T,>(list: readonly T[]) => list[Math.floor(rand() * list.length)];
 	const players = new Map<string, Player>();
+	const takenNames = new Set<string>();
 	const total = COUNTRIES.reduce((sum, c) => sum + c.weight, 0);
 	const start = links.now();
 	for (let i = 0; i < size; i++) {
@@ -101,7 +102,11 @@ export function createMockRankings(links: RankingsMockLinks, size = 400) {
 		const code = Array.from({ length: 8 }, () => pick(CODE.split(""))).join("");
 		const name = pick(country.names);
 		// Some names hidden (reported) or never chosen: the game shows "Mercado #<code>".
-		const marketName = rand() < 0.06 ? null : `${country.word} ${name}${rand() < 0.3 ? ` ${1 + Math.floor(rand() * 99)}` : ""}`;
+		const drawn = rand() < 0.06 ? null : `${country.word} ${name}${rand() < 0.3 ? ` ${1 + Math.floor(rand() * 99)}` : ""}`;
+		// (no two markets of the made-up world share a name: a repeat gets the next free number; the draws stay the same)
+		let marketName = drawn;
+		for (let n = 2; marketName !== null && takenNames.has(marketName); n++) marketName = `${drawn} ${n}`;
+		if (marketName !== null) takenNames.add(marketName);
 		players.set(id, {
 			id,
 			code,
