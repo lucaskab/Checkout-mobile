@@ -36,8 +36,9 @@ export const gameIconAssets = {
 	like: require("../../assets/game-art/icons/like.png"),
 	share: require("../../assets/game-art/icons/share.png"),
 	invite: require("../../assets/game-art/icons/invite.png"),
-	// Rankings v1 (02/11/2026): the 7 league divisions and the globe (Mundo). PLACEHOLDERS for now (the medal recoloured,
-	// a drawn globe: scripts/rankings/placeholder_badges.py); the painted icons replace these files under the same names.
+	// Rankings v1 (02/11/2026): the 7 league divisions (PLACEHOLDERS for now: the medal recoloured,
+	// scripts/rankings/placeholder_badges.py; the painted badges replace these files under the same names) and the globe of
+	// Mundo (the game's own painted desk globe, also the Idioma tab's icon in Unity).
 	leagueBronze: require("../../assets/game-art/icons/league-bronze.png"),
 	leagueSilver: require("../../assets/game-art/icons/league-silver.png"),
 	leagueGold: require("../../assets/game-art/icons/league-gold.png"),
