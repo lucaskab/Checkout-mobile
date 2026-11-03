@@ -112,7 +112,7 @@ namespace Checkout
         void Enter(CheckoutInterior.Item picked)
         {
             if (Open || bridge.State == null || CheckoutMapEditor.Open) return;
-            Open = true; Interior.editing = true; GameHud(false);
+            Open = true; Interior.editing = true; CheckoutInterior.GridOn = true; GameHud(false);
             backup = Interior.Export();
             waitingBefore = new Dictionary<string, (string type, string template)>(Interior.waiting);
             tabChosen = false; folded = false; tray.sizeDelta = new Vector2(tray.sizeDelta.x, TrayH); placeAfterBuy = null;
@@ -142,7 +142,7 @@ namespace Checkout
 
         void Leave()
         {
-            Open = false; Interior.editing = false; dragging = null; rotating = twisting = false; GameHud(true); CheckoutGridOverlay.Hide();
+            Open = false; Interior.editing = false; dragging = null; rotating = twisting = qaHands = false; GameHud(true); CheckoutGridOverlay.Hide();
             SeeAll(); CloseSheet(); placeAfterBuy = null;
             simulation.cameraLocked = false; simulation.pinchLocked = false;
             hud.gameObject.SetActive(false); buildButton.SetActive(true); Select(null);
@@ -206,14 +206,15 @@ namespace Checkout
         }
 
         // Turning is always allowed: the footprint turns red where the turned piece does not fit (or blocks a
-        // passage), and "Concluir" waits until every piece is green again.
-        void Rotate(float delta)
+        // passage), and "Concluir" waits until every piece is green again. The arrows turn a quarter inside the shop
+        // (an eighth on the block outside), always landing on a step (CheckoutInterior.Align).
+        void Rotate(int direction)
         {
             if (selected == null) { Say("Selecione um móvel primeiro.", true); return; }
-            float next = Mathf.Repeat(selected.rot + delta, 360);
+            float next = CheckoutInterior.SnapTurn(CheckoutInterior.SnapTurn(selected.rot, selected.outside) + direction * TurnStep, selected.outside);
             var from = selected.root.position;
             selected.rot = next; Interior.MoveTo(selected, Interior.Snap(selected, from, next, from));
-            ShowFootprint(); map.FurnitureChanged(false);
+            Pop(selected); ShowFootprint(); map.FurnitureChanged(false);
         }
 
         void Store()
@@ -281,20 +282,29 @@ namespace Checkout
         }
 
         // ------------------------------------------------------------------ rotation (Ctrl + mouse, two-finger twist)
-        static float SnapAngle(float a)
-        {
-            a = Mathf.Repeat(a, 360);
-            float right = Mathf.Round(a / 45) * 45;
-            return Mathf.Abs(Mathf.DeltaAngle(a, right)) < 6 ? Mathf.Repeat(right, 360) : Mathf.Repeat(Mathf.Round(a / 5) * 5, 360);
-        }
+        // Right angles only inside the shop, eighths on the block (CheckoutInterior.Align). The piece itself (and its
+        // green/red footprint) is always at an allowed step; while the fingers twist, the model leans a little toward
+        // them (at most TwistLean degrees) and clicks over to the next quarter, with a small pop, once the twist passes
+        // half a step. Letting go leaves it straight on that step.
+        const float TwistGain = 1.5f, TwistLean = 9f, PopTime = .16f;
+        float TurnStep => CheckoutInterior.TurnStep(selected != null && selected.outside);
+        CheckoutInterior.Item popItem; float popLeft;
 
-        void BeginRotate() { rotating = true; rotStart = selected.rot; rotAccum = 0; rotStartPosition = selected.root.position; simulation.cameraLocked = true; }
+        void BeginRotate() { rotating = true; rotStart = CheckoutInterior.SnapTurn(selected.rot, selected.outside); rotAccum = 0; rotStartPosition = selected.root.position; simulation.cameraLocked = true; }
+
+        /// <summary>The allowed step a free twist of `free` degrees lands on.</summary>
+        public static float TwistTarget(float free, bool outside) => CheckoutInterior.SnapTurn(free, outside);
 
         void ApplyRotate()
         {
-            selected.rot = SnapAngle(rotStart + rotAccum);
+            float free = rotStart + rotAccum;
+            float next = TwistTarget(free, selected.outside);
+            if (!Mathf.Approximately(Mathf.DeltaAngle(next, selected.rot), 0)) { selected.rot = next; Pop(selected); }
             var p = Interior.Snap(selected, rotStartPosition, selected.rot, rotStartPosition);
             Interior.MoveTo(selected, p);
+            // The model leans toward the fingers (preview only; the footprint and the saved turn stay on the step).
+            float lean = Mathf.Clamp(Mathf.DeltaAngle(selected.rot, free) * .3f, -TwistLean, TwistLean);
+            selected.root.rotation = Quaternion.Euler(0, selected.rot + lean, 0);
             ShowFootprint();
         }
 
@@ -302,8 +312,22 @@ namespace Checkout
         {
             rotating = false; twisting = false; simulation.cameraLocked = false;
             if (selected == null) return;
-            // The turn stays; a red footprint shows it does not fit there yet.
+            // Straight on its step again; a red footprint shows it does not fit there yet.
+            selected.rot = CheckoutInterior.SnapTurn(selected.rot, selected.outside);
+            if (selected.root) Interior.Place(selected);
             ShowFootprint(); map.FurnitureChanged(false);
+        }
+
+        // A short scale pop when the piece clicks onto a new step (the "snap" feel).
+        void Pop(CheckoutInterior.Item it) { if (popItem != null && popItem != it && popItem.root) Interior.Place(popItem); popItem = it; popLeft = PopTime; }
+        void UpdatePop()
+        {
+            if (popItem == null) return;
+            if (!popItem.root) { popItem = null; return; }
+            popLeft -= Time.unscaledDeltaTime;
+            float k = popLeft > 0 ? 1 + .07f * Mathf.Sin(Mathf.PI * (1 - popLeft / PopTime)) : 1;
+            popItem.root.localScale = popItem.baseScale * (popItem.scale > 0 ? popItem.scale : 1) * k;
+            if (popLeft <= 0) popItem = null;
         }
 
         // ------------------------------------------------------------------ pointer
@@ -347,6 +371,7 @@ namespace Checkout
             if (Input.GetKeyDown(KeyCode.Delete)) Store();
             if (Input.GetKeyDown(KeyCode.Escape)) { if (sheetFor != null) CloseSheet(); else Cancel(); return; }
             PlaceBought();
+            if (qaHands) return;   // an autotest is twisting the piece (no real fingers on the screen)
 
             // Two fingers on a selected piece turn it (the camera does not zoom meanwhile).
             if (Input.touchCount == 2 && selected != null)
@@ -355,7 +380,7 @@ namespace Checkout
                 var a = Input.GetTouch(0).position; var b = Input.GetTouch(1).position;
                 float angle = Mathf.Atan2(b.y - a.y, b.x - a.x) * Mathf.Rad2Deg;
                 if (!twisting) { BeginRotate(); twisting = true; lastTwist = angle; }
-                else { rotAccum -= Mathf.DeltaAngle(lastTwist, angle); lastTwist = angle; ApplyRotate(); }
+                else { rotAccum -= Mathf.DeltaAngle(lastTwist, angle) * TwistGain; lastTwist = angle; ApplyRotate(); }
                 return;
             }
             if (twisting && Input.touchCount < 2) { EndRotate(); pressOnItem = false; return; }
@@ -410,7 +435,7 @@ namespace Checkout
 
         void ShowGrid()
         {
-            if (!CheckoutInterior.GridOn) { CheckoutGridOverlay.Hide(); return; }
+            if (!GridShown) { CheckoutGridOverlay.Hide(); return; }
             if (shopZone == "inside") CheckoutGridOverlay.Show(Interior.FloorRect, CheckoutInterior.FloorHere + .012f, CheckoutInterior.GridSize, new Color(1, 1, 1, .42f));
             else CheckoutGridOverlay.Show(CheckoutInterior.BlockRect, CheckoutInterior.Ground + .03f, CheckoutInterior.GridSize * 2, new Color(1, 1, 1, .18f));
         }
@@ -463,7 +488,7 @@ namespace Checkout
         }
 
         // The selection bar follows its piece (after this frame's drag and camera moves).
-        void LateUpdate() { if (Open) PlaceFloatBar(); }
+        void LateUpdate() { if (Open) PlaceFloatBar(); UpdatePop(); }
 
         void OnDestroy() { Open = false; }
 
@@ -478,5 +503,27 @@ namespace Checkout
             return Open;
         }
         public static void QaClose() { if (instance && Open) instance.Cancel(); }
+        // QA (autotest "eventsalign"): select a piece, twist it as two fingers would (one frame per call), let go, press
+        // the turn arrows, read the footprint colour.
+        public static bool QaSelect(string id)
+        {
+            if (!instance) return false;
+            if (!Open) instance.Enter();
+            var it = instance.Interior ? instance.Interior.Get(id) : null;
+            instance.Select(it); return it != null;
+        }
+        public static CheckoutInterior.Item QaSelected => instance ? instance.selected : null;
+        public static void QaTwist(float fingerDegrees)
+        {
+            if (!instance || instance.selected == null) return;
+            qaHands = true;
+            if (!instance.twisting) { instance.BeginRotate(); instance.twisting = true; }
+            instance.rotAccum += fingerDegrees * TwistGain; instance.ApplyRotate();
+        }
+        public static void QaTwistEnd() { qaHands = false; if (instance && instance.twisting) instance.EndRotate(); }
+        static bool qaHands;
+        public static void QaTurn(int direction) { if (instance) instance.Rotate(direction); }
+        public static void QaShowFootprint() { if (instance) instance.ShowFootprint(); }
+        public static bool QaFootprintGreen => instance && instance.footprint && instance.footprint.gameObject.activeSelf && instance.footprint.GetComponent<Renderer>().sharedMaterial == instance.okMaterial;
     }
 }

@@ -111,7 +111,7 @@ namespace Checkout
         {
             if (!TemplateObject(template) || items.ContainsKey(id)) return null;
             var it = new Item { id = id, type = type, template = template, functional = true, placed = true };
-            var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : d.y;
+            var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : SnapTurn(d.y, false);
             Build(it); if (!it.root) return null;
             it.root.gameObject.SetActive(false);   // never drawn, never picked
             items[id] = it;

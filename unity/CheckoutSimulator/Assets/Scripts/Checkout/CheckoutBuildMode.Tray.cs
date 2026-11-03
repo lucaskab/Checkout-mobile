@@ -114,7 +114,7 @@ namespace Checkout
             Tab(head, "decoracao", "Decoração", "Icons/plant");
             Tab(head, "melhorias", "Melhorias", "Icons/lightning");
             var spacer = Node(head, "Spacer"); spacer.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
-            // The floor grid: on, pieces snap to its squares (G on a keyboard does the same).
+            // The floor grid lines: shown or hidden (G on a keyboard does the same); pieces always snap to the squares.
             // "Cores do mercado": the picker over the live market (the build mode closes first, keeping what was placed).
             var paintButton = U.Button(head, "Cores", "secondary", OpenPaint, TrayHeadH - 10, Phone ? 16 : 18); paintButton.SetWidth(Phone ? 130 : 150);
             paintButton.Apply(Data("Cores", "secondary", true, "Icons/paint"));
@@ -181,8 +181,8 @@ namespace Checkout
             selectedIcon = N.Image(floatBar, "Picture", Color.white, 0); selectedIcon.preserveAspect = true; var pl = selectedIcon.gameObject.AddComponent<LayoutElement>(); pl.preferredWidth = pl.preferredHeight = h;
             floatName = N.Text(floatBar, "Name", K.Label, Phone ? 17 : 19, Color.white); floatName.textWrappingMode = TextWrappingModes.NoWrap; floatName.overflowMode = TextOverflowModes.Ellipsis; floatName.alignment = TextAlignmentOptions.MidlineLeft;
             var nl = floatName.gameObject.AddComponent<LayoutElement>(); nl.preferredWidth = Phone ? 170 : 200; nl.preferredHeight = h;
-            rotateLeft = U.Button(floatBar, "", "primary", () => Rotate(-45), h, 16); rotateLeft.SetWidth(h + 6);
-            rotateRight = U.Button(floatBar, "", "primary", () => Rotate(45), h, 16); rotateRight.SetWidth(h + 6);
+            rotateLeft = U.Button(floatBar, "", "primary", () => Rotate(-1), h, 16); rotateLeft.SetWidth(h + 6);
+            rotateRight = U.Button(floatBar, "", "primary", () => Rotate(1), h, 16); rotateRight.SetWidth(h + 6);
             storeButton = U.Button(floatBar, "Guardar", "danger", Store, h, Phone ? 16 : 17); storeButton.Apply(Data("Guardar", "danger", true, "Icons/package")); storeButton.SetWidth(Phone ? 136 : 150);
             rotateLeft.SetIconSprite(CheckoutGlyph.Get("turn-left")); rotateRight.SetIconSprite(CheckoutGlyph.Get("turn-right"));
             BigIcon(rotateLeft, h * .78f); BigIcon(rotateRight, h * .78f);
@@ -287,7 +287,7 @@ namespace Checkout
             zoneInside.Apply(Data("Dentro", "secondary", true, "Icons/shelf", shopZone == "inside"));
             zoneOutside.Apply(Data("Fora", "secondary", true, "Icons/garden", shopZone == "outside"));
             foldButton.Apply(Data("", "primary", true)); foldButton.SetIconSprite(CheckoutGlyph.Get(folded ? "up" : "down"));
-            gridButton.Apply(Data("Grade", "secondary", true, "", CheckoutInterior.GridOn)); gridButton.SetIconSprite(CheckoutGlyph.Get("grid")); TintIcon(gridButton, K.Ink);
+            gridButton.Apply(Data("Grade", "secondary", true, "", GridShown)); gridButton.SetIconSprite(CheckoutGlyph.Get("grid")); TintIcon(gridButton, K.Ink);
         }
 
         void SetTabCount(string key, int n)

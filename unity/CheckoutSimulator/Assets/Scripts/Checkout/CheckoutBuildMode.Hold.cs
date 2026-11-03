@@ -61,10 +61,14 @@ namespace Checkout
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(root, holdAt, null, out var local)) holdTrack.rectTransform.anchoredPosition = local + new Vector2(0, 70); // above the fingertip
         }
 
+        // The "Grade" button used to turn the snapping off ("movimento livre"): a tap on it and the furniture stopped lining
+        // up (Lucas 03/11: "não ficam alinhados de jeito nenhum"). Now it only shows or hides the lines on the floor; the
+        // pieces always snap to the squares, flush with the walls and each other. (The map editor keeps its free mode.)
+        static bool GridShown = true;
         void ToggleGrid()
         {
-            CheckoutInterior.GridOn = !CheckoutInterior.GridOn;
-            Say(CheckoutInterior.GridOn ? "Grade ligada: as peças encaixam nos quadrados." : "Grade desligada: movimento livre (ainda encosta nas paredes e nos móveis).");
+            GridShown = !GridShown; CheckoutInterior.GridOn = true;
+            Say(GridShown ? "Grade visível: as peças encaixam nos quadrados." : "Grade escondida: as peças continuam encaixando nos quadrados.");
             RefreshTray();
         }
     }

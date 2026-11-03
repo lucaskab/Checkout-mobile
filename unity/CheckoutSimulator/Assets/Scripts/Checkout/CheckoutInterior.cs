@@ -352,7 +352,7 @@ namespace Checkout
             foreach (var it in fresh.OrderBy(i => i.type == "checkout" || i.type == "kiosk" ? 0 : i.type == "sector" ? 1 : 2))
             {
                 var d = DefaultFor(it.id, out var startScale);
-                it.x = d.x; it.z = d.z; it.rot = d.y; it.scale = startScale; it.placed = true;
+                it.x = d.x; it.z = d.z; it.rot = SnapTurn(d.y, it.outside); it.scale = startScale; it.placed = true;
                 Place(it);
                 Settle(it);
                 it.ghost = false;
@@ -361,7 +361,8 @@ namespace Checkout
             // free spot, and the new arrangement is saved so it sticks.
             if (!editing && !designMode)
             {
-                bool moved = false;
+                // Pieces saved askew (the old 5° twist, the 45° arrows) turn to a right angle first (CheckoutInterior.Align).
+                bool moved = SquareUp();
                 // Also pieces that ended up under furniture the map design added.
                 var fixedPieces = items.Values.Where(i => i.root && i.design && !i.outside).Select(i => FootprintOf(i, -.012f)).ToList();
                 // Shelves leave the checkout strip first, so the checkouts find it free.
@@ -801,11 +802,16 @@ namespace Checkout
         }
 
         // Nearest place (and turn) around the current spot where the piece fits.
-        public bool Settle(Item it)
+        // grid: a piece just put in (from the inventory, the shop) lines up with the grid even where it already fits.
+        public bool Settle(Item it, bool grid = false)
         {
             if (!it.root) return false;
             var start = it.root.position;
-            if (Fits(it, start, it.rot, out _)) return true;
+            if (Fits(it, start, it.rot, out _))
+            {
+                if (grid) { var g = Snap(it, start, it.rot, start); if (Fits(it, g, it.rot, out _)) MoveTo(it, g); }
+                return true;
+            }
             if (IsCounter(it) && !designMode && !it.design && SettleCounter(it)) return true;
             // Slide first (keeping the way it faces), turn only when there is no room at all.
             float[] turns = { it.rot, it.rot + 90, it.rot + 270, it.rot + 180 };
@@ -817,7 +823,12 @@ namespace Checkout
                     {
                         float a = k * Mathf.PI * 2 / steps;
                         var p = start + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * r;
-                        if (Fits(it, p, Mathf.Repeat(t, 360), out _)) { it.rot = Mathf.Repeat(t, 360); MoveTo(it, p); return true; }
+                        if (!Fits(it, p, Mathf.Repeat(t, 360), out _)) continue;
+                        // The search walks circles (off the grid): the spot found lines up with the grid and its
+                        // neighbours when it still fits there.
+                        var g = Snap(it, p, Mathf.Repeat(t, 360), p);
+                        if (Fits(it, g, Mathf.Repeat(t, 360), out _)) p = g;
+                        it.rot = Mathf.Repeat(t, 360); MoveTo(it, p); return true;
                     }
                 }
             Debug.LogWarning("CHECKOUT_INTERIOR no room for " + it.id);
@@ -1089,7 +1100,7 @@ namespace Checkout
             Build(it); if (!it.root) return null;
             items[it.id] = it;
             MoveTo(it, near);
-            if (!Settle(it)) { Destroy(it.root.gameObject); items.Remove(it.id); return null; }
+            if (!Settle(it, true)) { Destroy(it.root.gameObject); items.Remove(it.id); return null; }
             return it;
         }
 
@@ -1098,13 +1109,13 @@ namespace Checkout
         {
             if (!waiting.TryGetValue(id, out var w) || items.ContainsKey(id) || !TemplateObject(w.template)) return null;
             var it = new Item { id = id, type = w.type, template = w.template, desired = w.template, functional = true, placed = true };
-            var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : d.y;
+            var d = DefaultFor(id, out _); it.rot = IsCounter(it) ? 90 : SnapTurn(d.y, false);
             Build(it); if (!it.root) return null;
             items[id] = it;
             MoveTo(it, near);
             // Checkouts go flush against the east wall, at the free spot nearest where the player is looking.
             bool settled = IsCounter(it) && !designMode && SettleCounter(it, near.z);
-            if (!settled && !Settle(it)) { Destroy(it.root.gameObject); items.Remove(id); return null; }
+            if (!settled && !Settle(it, true)) { Destroy(it.root.gameObject); items.Remove(id); return null; }
             waiting.Remove(id);
             return it;
         }
