@@ -147,9 +147,8 @@ function playerTile(id: string, row: { marketName: string | null; code: string; 
 		flag: row.country ? flagIcon(row.country) : "",
 		value: look.value,
 		valueLabel: look.valueLabel,
-		detail: row.country ? countryName(row.country) : "",
+		// (the side panel fits without a scroll: the country is its flag chip, the place is the row's disc)
 		facts,
-		lines: rank && rank > 0 ? [`Posição #${fmt(rank)}`] : [],
 		actions: look.actions ?? [],
 	});
 }

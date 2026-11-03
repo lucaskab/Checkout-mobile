@@ -65,6 +65,8 @@ namespace Checkout {
     bool on=i<strip.Length;var chip=rankStripChips[i];chip.gameObject.SetActive(on);if(!on)continue;
     var line=rankStripLines[twoLines&&i>=3?1:0];if(chip.transform.parent!=line)chip.transform.SetParent(line,false);
     chip.transform.SetSiblingIndex(twoLines&&i>=3?i-3:i);chip.Apply(strip[i]);
+    // (two lines: three chips of one width each; one line: each as wide as it needs)
+    var le=chip.GetComponent<LayoutElement>();le.preferredWidth=twoLines?10:-1;le.flexibleWidth=twoLines?1:-1;
    }
    rankStripLines[1].gameObject.SetActive(twoLines);
    rankStrip.GetComponent<LayoutElement>().preferredHeight=(Phone?62:66)+(twoLines?68:0);
