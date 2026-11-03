@@ -231,7 +231,9 @@ test("signed out: Mundo and País stay readable with a sign-in card; Amigos and 
 	ranking.rankingsStore.world.loadedAt = 0;
 	const world = await open("mundo");
 	expect(world.cards[0].title).toBe("Entre para aparecer no ranking");
-	expect(world.board.podium).toHaveLength(3);
+	// (the top three as rows under the card: the podium would not fit with it)
+	expect(world.board.podium).toHaveLength(0);
+	expect(world.board.tiles.slice(0, 3).map((tile) => tile.rank)).toEqual(["1", "2", "3"]);
 	expect(world.board.pinned.id).toBe("");
 	const league = await open("liga");
 	expect(league.cards[0].title).toBe("Entre para aparecer no ranking");

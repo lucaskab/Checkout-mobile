@@ -165,9 +165,8 @@ namespace Checkout {
 
    // 7. Signed out: Mundo stays readable with the sign-in card.
    Mock("signed-out");Act("rankingRefresh","[]");yield return new WaitForSecondsRealtime(2f);yield return Tab("mundo");yield return Quiet();
-   Result("signed out: boards read-only with the sign-in card",PodiumOn()&&PinnedTitle()=="",$"podium {PodiumOn()} pinned '{PinnedTitle()}'");
+   Result("signed out: boards read-only with the sign-in card (the top three as rows under it)",!PodiumOn()&&PinnedTitle()==""&&Rows()>=3,$"podium {PodiumOn()} rows {Rows()} pinned '{PinnedTitle()}'");
    yield return Shot2("rank_signedout_pt");
-   Note("rankings: signed-out podium probe: "+PodiumProbe());
    yield return Tab("liga");yield return Shot2("rank_signedout_liga_pt");
    Mock("signed-out","off");Act("rankingRefresh","[]");yield return new WaitForSecondsRealtime(1.5f);
 

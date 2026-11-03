@@ -212,8 +212,11 @@ function levelPage(state: State, tab: "mundo" | "pais"): Page {
 				buttons: online ? [optOutButton()] : [],
 				text: ranked ? `Você é #${fmt(me!.rank!)} de ${fmt(data.total)} no seu país` : `Top ${RANKING_TOP} de ${fmt(data.total)} jogadores do país`,
 			});
-	return rankPage(state, tab, cards, view.tiles, {
-		podium: view.podium,
+	// (signed out, the sign-in card stands at the top: the podium would not fit under it on a phone, and the whole-rows
+	// rule would keep it behind a scroll with an empty band in its place, so the top three come as rows with their medals)
+	const compact = cards.length > 0;
+	return rankPage(state, tab, cards, compact ? [...view.podium, ...view.tiles] : view.tiles, {
+		podium: compact ? [] : view.podium,
 		pinned: view.pinned,
 		meter: strip,
 		focus: ranked && view.pinned.action.action ? me!.id : "",
