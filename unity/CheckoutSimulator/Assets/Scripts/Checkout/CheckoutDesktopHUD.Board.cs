@@ -125,6 +125,7 @@ namespace Checkout {
    var dEdge=N.Image(detail.transform,"Edge",K.Border,22);Stretch(dEdge.rectTransform,new Vector2(0,-4),Vector2.zero);dEdge.transform.SetAsFirstSibling();
    boardDetailScroll=Scroll(detail.transform,"Content",true,out boardDetail);Stretch((RectTransform)boardDetailScroll.transform,new Vector2(10,10),new Vector2(-6,-10));
    boardDetailUi=BoardDetailUi.Create(this,boardDetail);
+   BuildRankBoard();
    boardWin.SetActive(false);
   }
 
@@ -165,8 +166,10 @@ namespace Checkout {
    ApplyBoardTiles(b);
    ApplyBoardHeroes(p.cards??new DesktopCard[0]);
    ApplyBoardFooter(b);
+   ApplyRankBoard(b,fresh);
    if(fresh){Canvas.ForceUpdateCanvases();boardScroll.verticalNormalizedPosition=1;}
    SnapBoardRows();
+   RankScrollIfAsked(b);
    ShopOpen=true;
   }
 
@@ -262,7 +265,7 @@ namespace Checkout {
   float boardMeterTarget;
 
   void ApplyBoardTiles(DesktopBoard b){
-   var tiles=b.tiles;bool road=b.style=="road";bool rows=b.style=="row"||road;
+   var tiles=b.tiles;bool road=b.style=="road";bool rank=b.style=="rank";bool rows=b.style=="row"||road||rank;
    int columns=Mathf.Max(1,b.columns);if(Phone)columns=Mathf.Min(columns,4); // phones: wider cards, ribbons clear of the badges
    // The window has a fixed size on the 1600×1000 canvas: before its first layout use that width.
    float width=boardGridArea.rect.width>100?boardGridArea.rect.width-40:(road?1440:1020);
@@ -276,7 +279,7 @@ namespace Checkout {
    bool faces=tiles.Length>0;foreach(var x in tiles)if(x.frame!="portrait"&&x.frame!="line"){faces=false;break;}
    boardFaces=faces&&chipRows==0;
    float cellH=chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
-   var cell=road?new Vector2(width-10,LaneHeight):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
+   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankRowH):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
    var slimCell=new Vector2(Mathf.Floor((width-14)/2),64);boardCellWidth=rows?0:cell.x;
    // Sections: a title each time the group changes.
    int section=-1;string group=null;
@@ -312,11 +315,11 @@ namespace Checkout {
    // Nothing to pick (no friends yet): no empty side panel, the cards take the width.
    boardDetailPanel.SetActive(tiles.Length>0);
    if(tiles.Length==0){boardGridArea.offsetMax=new Vector2(-16,0);return;}
-   var picked=FindTile(tiles,SelectedId(tiles));
+   var picked=FindTile(tiles,SelectedId(tiles))??RankFind(b,SelectedId(tiles));
    boardDetailUi.gameObject.SetActive(picked!=null);if(picked!=null)boardDetailUi.Apply(picked,rows);
   }
   string SelectedId(DesktopTile[] tiles){
-   if(!string.IsNullOrEmpty(boardSelected)&&FindTile(tiles,boardSelected)!=null)return boardSelected;
+   if(!string.IsNullOrEmpty(boardSelected)&&(FindTile(tiles,boardSelected)!=null||RankFind(boardData,boardSelected)!=null))return boardSelected;
    return tiles.Length>0?tiles[0].id:null;
   }
   static DesktopTile FindTile(DesktopTile[] tiles,string id){if(id==null)return null;foreach(var t in tiles)if(t.id==id)return t;return null;}
@@ -357,6 +360,9 @@ namespace Checkout {
    (float top,float bottom) Span(RectTransform r){r.GetWorldCorners(corners);var a=boardContent.InverseTransformPoint(corners[1]);var z=boardContent.InverseTransformPoint(corners[0]);return (-a.y-scrolled,-z.y-scrolled);}
    var rows=new List<(float top,float bottom)>();
    if(boardHeroes.gameObject.activeSelf)rows.Add(Span(boardHeroes));
+   // (rankings: the prizes strip and the podium are rows of their own)
+   if(rankStrip&&rankStrip.gameObject.activeSelf)rows.Add(Span(rankStrip));
+   if(rankPodium&&rankPodium.gameObject.activeSelf)rows.Add(Span(rankPodium));
    foreach(var section in boardSections){
     if(!section.gameObject.activeSelf)continue;
     float? head=section.HeaderShown?Span((RectTransform)section.HeaderRect).top:(float?)null;
@@ -380,7 +386,7 @@ namespace Checkout {
    if(boardData==null||id==boardSelected)return;
    boardSelected=id;Sound("tap");
    foreach(var t in boardTiles)if(t.gameObject.activeSelf)t.Select(t.Id==id);
-   var picked=FindTile(boardData.tiles,id);
+   var picked=FindTile(boardData.tiles,id)??RankFind(boardData,id);
    if(picked!=null){boardDetailUi.gameObject.SetActive(true);boardDetailUi.Apply(picked,boardData.style=="row");boardDetailScroll.verticalNormalizedPosition=1;StartCoroutine(U.Pop(boardDetailUi.transform,1.03f,.2f));}
   }
   public void BoardPress(CheckoutDesktopButton button){
@@ -415,6 +421,7 @@ namespace Checkout {
    foreach(var lane in boardLanes)if(lane.gameObject.activeInHierarchy)lane.Tick(now,t);
    boardDetailUi.Tick(now,t);
    foreach(var mark in boardMarks)if(mark.gameObject.activeSelf)mark.Tick(t);
+   UpdateRankBoard(t);
    if(boardMeter.gameObject.activeSelf){
     boardMeterShown=Mathf.MoveTowards(boardMeterShown,boardMeterTarget,Time.unscaledDeltaTime*.8f);
     boardMeterFill.rectTransform.anchorMax=new Vector2(Mathf.Max(.015f,boardMeterShown),1);

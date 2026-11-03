@@ -23,7 +23,7 @@ namespace Checkout {
    CheckoutScreen.Fit(canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>());
    canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
    root=CheckoutScreen.SafeArea(canvasGo.transform);
-   BuildTop();BuildBoosts();BuildToolbar();BuildQuick();BuildDrawer();BuildShop();BuildShelf();BuildBoard();BuildKitchen();BuildOverlay();BuildLevelUp();BuildConquest();BuildCoach();BuildSocial();
+   BuildTop();BuildBoosts();BuildToolbar();BuildQuick();BuildDrawer();BuildShop();BuildShelf();BuildBoard();BuildKitchen();BuildOverlay();BuildLevelUp();BuildConquest();BuildCoach();BuildSocial();BuildLeagueCard();
    Offline("Carregando o jogo…");
   }
 
@@ -44,7 +44,7 @@ namespace Checkout {
   public void Apply(string json){
    DesktopView next;try {next=JsonUtility.FromJson<DesktopView>(json);}catch(System.Exception ex){Debug.LogError("CHECKOUT_DESKTOP bad view: "+ex.Message);return;}
    if(next==null||next.kind!="view")return;
-   view=next;ApplyTop(next);ApplyBoosts(next);ApplyToolbar(next);ApplyQuick(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyBoard(next);ApplyKitchen(next);ApplyOverlay(next);ApplyConquest(next);ApplyLevelUp(next);ApplyCoach(next);ApplySocial(next);
+   view=next;ApplyTop(next);ApplyBoosts(next);ApplyToolbar(next);ApplyQuick(next);ApplyDrawer(next);ApplyShop(next);ApplyShelf(next);ApplyBoard(next);ApplyKitchen(next);ApplyOverlay(next);ApplyConquest(next);ApplyLevelUp(next);ApplyCoach(next);ApplySocial(next);ApplyLeagueCard(next);
    // A window opened: the lot balloon (its own canvas, above the windows) closes.
    if(next.hasPage)CheckoutLotPopup.Hide();
   }
@@ -81,10 +81,10 @@ namespace Checkout {
   }
   void Update(){
    // Esc closes the level-up celebration first (UpdateLevelUp), the page only when nothing is over it.
-   bool celebrating=LevelUpOpen||ConquestOpen;
+   bool celebrating=LevelUpOpen||ConquestOpen||LeagueCardOpen;
    // The Opções window (CheckoutSettings) takes Esc for itself while it is open.
    if(Input.GetKeyDown(KeyCode.Escape)&&!celebrating&&!CheckoutSettings.Open&&view!=null&&view.hasPage)host.Route(view.canBack?"back":"");
-   UpdateToast();UpdateBoosts();UpdateBoard();UpdateLevelUp();UpdateConquest();UpdateCoach();UpdateSocial();
+   UpdateToast();UpdateBoosts();UpdateBoard();UpdateLevelUp();UpdateConquest();UpdateCoach();UpdateSocial();UpdateLeagueCard();
   }
  }
 }

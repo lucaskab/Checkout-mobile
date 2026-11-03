@@ -36,10 +36,15 @@ namespace Checkout {
   // Social v1: chips under the title (likes, builds to help, a request), a framed portrait, a corner badge (stage)
   // and a second big button (Presente next to Visitar).
   public DesktopStat[] chips;public string frame,corner;public DesktopButton alt;
+  // Rankings v1 (frame "rank"): the place, the player's flag ("Flags/br") and the number at the row's end with its label.
+  public string rank,flag,value,valueLabel;
  }
  [Serializable] public class DesktopBoard {
   public string tint,backdrop,tip,style,empty,focus;public int columns;public double now;
   public DesktopStat[] stats;public DesktopMeter meter;public DesktopTile[] tiles;public DesktopButton[] footer;
+  // Rankings v1 (style "rank"): the top three on a podium, my row pinned under the rows (id "" = none), a strip of chips
+  // over the rows (the league's prizes) and a tile to scroll to ("<id>#<count>").
+  public DesktopTile[] podium;public DesktopTile pinned;public DesktopStat[] strip;public string scroll;
  }
  // The hand-made production game (layout "kitchen"): mirrors KitchenView / KitchenStep / KitchenItem of desktop/view-kit.ts.
  [Serializable] public class DesktopKitchenItem {public string icon,label;}
@@ -80,6 +85,12 @@ namespace Checkout {
   public DesktopCoach coach;public DesktopGoal goal;
   // null (an empty object in JsonUtility) = at home; active = the player is visiting a friend.
   public DesktopVisit visit;
+  // Rankings v1: the end-of-week card waiting to be seen (desktop/pages/ranking.ts leagueCardView); key "" = none.
+  public DesktopLeagueCard leagueCard;
+ }
+ [Serializable] public class DesktopLeagueCard {
+  public string key,headline,title,subtitle,division,movedTo,moved,movedText,badgeFrom,badgeTo,avatar,button,tint;
+  public int place,diamonds,coins;public string[] podiumNames,podiumAvatars;
  }
  // Dona Neide's tutorial / tip card (src/services/onboarding.ts CoachView); key "" = nothing on screen.
  [Serializable] public class DesktopCoach {

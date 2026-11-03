@@ -32,7 +32,9 @@ namespace Checkout {
 
   [Serializable] class Status{public string kind="social";public bool signedIn;public bool mock;public string platform;public bool canShare;public int avatars;}
   [Serializable] class Tick{public string kind="social-tick";public string reason;}
-  [Serializable] class CallMessage{public string id,method,path,body;}
+  // (open: a public rankings board, Mundo / País, that a signed-out player may read: sent without the session)
+  [Serializable] class CallMessage{public string id,method,path,body;public bool open;}
+  [Serializable] class Pause{public string kind="rankings-pause";public string reason;}
   [Serializable] class Reply{public string kind="social-reply";public string id;public long code;public string body;public bool network;}
   [Serializable] class Flushed{public string kind="social-flushed";public string id;}
   [Serializable] class Link{public string kind="social-link";public string code;public string source;}
@@ -62,6 +64,9 @@ namespace Checkout {
    Send(new Tick{reason="start"});nextTick=Time.unscaledTime+TickEvery;
    if(lastSignedIn)MaybeReferrer();
   }
+  // Rankings v1: the app goes to the background or closes: the host sends the week's league points now (best effort).
+  void OnApplicationPause(bool paused){if(paused&&statusSent)Send(new Pause{reason="pause"});}
+  void OnApplicationQuit(){if(statusSent)Send(new Pause{reason="quit"});}
   void OnDestroy(){Application.deepLinkActivated-=OnDeepLink;CheckoutCloud.Changed-=OnCloud;if(Active==this){Active=null;Visiting=false;}}
   void Update(){if(statusSent&&Time.unscaledTime>=nextTick){nextTick=Time.unscaledTime+TickEvery;Send(new Tick{reason="sync"});}}
   // Signed in or out (Google / Apple): the host learns it; a login fetches the inbox at once (and offers an invite code).
@@ -93,11 +98,12 @@ namespace Checkout {
   }
 
   IEnumerator Run(CallMessage call){
-   if(!SignedIn){Send(new Reply{id=call.id,code=401,body="{\"error\":\"signed-out\"}"});yield break;}
+   bool open=call.open&&(call.method??"GET")=="GET"&&(call.path??"").StartsWith("/v1/rankings/",StringComparison.Ordinal);
+   if(!SignedIn&&!open){Send(new Reply{id=call.id,code=401,body="{\"error\":\"signed-out\"}"});yield break;}
    using var request=new UnityWebRequest(CheckoutCloud.ServerUrl+call.path,string.IsNullOrEmpty(call.method)?"GET":call.method);
    if(!string.IsNullOrEmpty(call.body)){request.uploadHandler=new UploadHandlerRaw(Encoding.UTF8.GetBytes(call.body));request.SetRequestHeader("Content-Type","application/json");}
    request.downloadHandler=new DownloadHandlerBuffer();
-   request.SetRequestHeader("Authorization","Bearer "+CheckoutCloud.Active.SessionToken);
+   if(SignedIn)request.SetRequestHeader("Authorization","Bearer "+CheckoutCloud.Active.SessionToken);
    request.timeout=40;
    yield return request.SendWebRequest();
    bool network=request.result==UnityWebRequest.Result.ConnectionError||request.responseCode==0;

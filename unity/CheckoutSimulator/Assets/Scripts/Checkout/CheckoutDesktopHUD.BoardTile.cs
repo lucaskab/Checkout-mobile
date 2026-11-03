@@ -68,6 +68,8 @@ namespace Checkout {
    BoardPips pips;CheckoutDesktopButton button;bool selected;float fillShown=-1,fillTarget;string layoutMode;
    Image ring,cornerBack,cornerIcon;RectTransform chipsBox;readonly List<TileChip> chips=new List<TileChip>();CheckoutDesktopButton alt;
    string frame;float wobblePhase;Image clip,rim;bool isFace;
+   // Rankings v1 rows (frame "rank"): the place on a medal disc, the flag and the number at the row's end.
+   Image rankDisc,flagImage,flagEdge;TextMeshProUGUI rankText,valueText,valueLabelText;
 
    public static BoardTileUi Create(CheckoutDesktopHUD hud,Transform parent){
     var root=N.Node("Tile",parent);var ui=root.gameObject.AddComponent<BoardTileUi>();ui.hud=hud;ui.rect=root;
@@ -102,6 +104,16 @@ namespace Checkout {
     ui.cornerBack.gameObject.SetActive(false);
     ui.ribbon=Pill(root,"Ribbon",K.C("E15533"),out ui.ribbonText,13,K.Label);ui.ribbonText.characterSpacing=2;ui.ribbonRect=ui.ribbon.rectTransform;
     ui.badge=Pill(root,"Badge",new Color(.29f,.21f,.14f,.92f),out ui.badgeText,15,K.Number);ui.badgeRect=ui.badge.rectTransform;
+    // (rankings: the place disc, the flag on a white edge, the value and its label; off unless the row is a "rank")
+    ui.rankDisc=N.Image(f,"Rank",K.C("EADBC4"),0);ui.rankDisc.sprite=K.Disc();
+    ui.rankText=N.Text(ui.rankDisc.transform,"Text",K.Headline,22,K.Ink);ui.rankText.alignment=TextAlignmentOptions.Center;ui.rankText.textWrappingMode=TextWrappingModes.NoWrap;
+    ui.rankText.enableAutoSizing=true;ui.rankText.fontSizeMin=11;ui.rankText.fontSizeMax=24;Stretch(ui.rankText.rectTransform,new Vector2(4,2),new Vector2(-4,-2));
+    ui.flagEdge=N.Image(f,"FlagEdge",Color.white,4);
+    ui.flagImage=N.Image(ui.flagEdge.transform,"Flag",Color.white,0);ui.flagImage.preserveAspect=true;Stretch(ui.flagImage.rectTransform,new Vector2(2,2),new Vector2(-2,-2));
+    ui.valueText=N.Text(f,"Value",K.Number,20,K.Ink);ui.valueText.alignment=TextAlignmentOptions.MidlineRight;ui.valueText.textWrappingMode=TextWrappingModes.NoWrap;
+    ui.valueText.enableAutoSizing=true;ui.valueText.fontSizeMin=12;ui.valueText.fontSizeMax=21;
+    ui.valueLabelText=N.Text(f,"ValueLabel",K.Label,11,K.Muted);ui.valueLabelText.alignment=TextAlignmentOptions.MidlineRight;ui.valueLabelText.textWrappingMode=TextWrappingModes.NoWrap;ui.valueLabelText.characterSpacing=2;
+    ui.rankDisc.gameObject.SetActive(false);ui.flagEdge.gameObject.SetActive(false);ui.valueText.gameObject.SetActive(false);ui.valueLabelText.gameObject.SetActive(false);
     return ui;
    }
 
@@ -129,6 +141,9 @@ namespace Checkout {
       Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(86,-26),new Vector2(36,36));
       Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-64),new Vector2(-430,ChipH));
       title.fontSizeMax=20;break;
+     case "rank":
+      // (placed per row in PlaceRank: the place, the button and the ribbon move things)
+      title.fontSizeMax=19;ribbonRect.localRotation=Quaternion.identity;break;
      case "line":
       Place(circle,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10,0),new Vector2(42,42));
       Place(ring.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(7,0),new Vector2(48,48));
@@ -203,7 +218,7 @@ namespace Checkout {
    public void Apply(DesktopTile t,bool asRows,bool isSelected){
     bool changed=data==null||data.id!=t.id;data=t;Id=t.id;rows=asRows;frame=t.frame??"";
     int chipRows=hud.boardChipRows;
-    string mode=asRows?"row":frame=="line"?"line":frame=="showcase"?"showcase":frame=="gift"?"gift":chipRows>0?"compact":frame=="portrait"&&hud.boardFaces?"face":"card";
+    string mode=asRows&&frame=="rank"?"rank":asRows?"row":frame=="line"?"line":frame=="showcase"?"showcase":frame=="gift"?"gift":chipRows>0?"compact":frame=="portrait"&&hud.boardFaces?"face":"card";
     Layout(mode,chipRows);if(changed)wobblePhase=(t.id??"").GetHashCode()%100*.07f;
     bool locked=t.state=="locked",done=t.state=="done";
     face.color=ToneFace(t.tone);circleImage.color=locked?K.C("D8CDBB"):Color.Lerp(Color.white,ToneFace(t.tone),.6f);
@@ -238,6 +253,9 @@ namespace Checkout {
     // A slim row: the face, who and what; no buttons, bars or ribbons.
     if(line){barRect.gameObject.SetActive(false);pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);ribbon.gameObject.SetActive(false);badge.gameObject.SetActive(false);button.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);hasButton=false;}
     if(t.frame=="portrait"&&hasRibbon)ribbon.color=PortraitGold;
+    bool rank=mode=="rank";
+    rankDisc.gameObject.SetActive(false);flagEdge.gameObject.SetActive(false);valueText.gameObject.SetActive(false);valueLabelText.gameObject.SetActive(false);
+    if(rank){selected=isSelected;alt.gameObject.SetActive(false);PlaceRank(t,hasButton,hasRibbon);return;}
     // (a present and a prize: big art on a soft plate, no inset)
     if((frame=="gift"||frame=="showcase")&&!portrait){icon.rectTransform.offsetMin=new Vector2(frame=="gift"?2:8,frame=="gift"?2:8);icon.rectTransform.offsetMax=new Vector2(frame=="gift"?-2:-8,frame=="gift"?-2:-8);}
     if(frame=="gift"&&!portrait)circleImage.color=new Color(1,1,1,.55f);
@@ -253,6 +271,51 @@ namespace Checkout {
     } else if(asRows)Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(200,52));
     else Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,4),new Vector2(-14,mode=="card"?40:44));
     Select(isSelected);
+   }
+   // A ranking row: [place] [round face + stage badge] name / level ribbon + stage … [flag] [value] [button]. Medal colours
+   // for the top three; the face is round, clipped inside its ring (no square corners).
+   void PlaceRank(DesktopTile t,bool hasButton,bool hasRibbon){
+    string place=t.rank??"";bool hasPlace=place.Length>0;
+    barRect.gameObject.SetActive(false);pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);badge.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);
+    float lead=hasPlace?66:0,face=Phone?56:60;
+    rankDisc.gameObject.SetActive(hasPlace);
+    if(hasPlace){
+     Place(rankDisc.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10,0),new Vector2(50,50));
+     rankText.text=K.Clean(place);
+     Color disc=place=="1"?K.C("E3B54A"):place=="2"?K.C("AEB8C4"):place=="3"?K.C("C98146"):place=="-"?K.C("D8CDBB"):K.C("F3E6CC");
+     rankDisc.color=disc;rankText.color=place=="1"||place=="2"||place=="3"?Color.white:K.Ink;
+     rankText.outlineWidth=place=="1"||place=="2"||place=="3"?.2f:0;rankText.outlineColor=new Color32(80,50,20,200);
+    }
+    Place(circle,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10+lead+3,0),new Vector2(face,face));
+    Place(ring.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10+lead,0),new Vector2(face+6,face+6));
+    if(isFace){float border=3;K.FitRim(rim,face,border);}
+    Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(10+lead+face-2,-face*.36f),new Vector2(26,26));
+    float x=10+lead+face+18;
+    // the right end: the button, then the value block, then the flag
+    float right=12;
+    if(hasButton){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(Phone?180:200,Phone?46:50));button.Fit(true);right+=(Phone?180:200)+12;}
+    bool hasValue=!string.IsNullOrEmpty(t.value);
+    if(hasValue){
+     valueText.gameObject.SetActive(true);valueText.text=K.Clean(t.value);
+     bool label=!string.IsNullOrEmpty(t.valueLabel);valueLabelText.gameObject.SetActive(label);valueLabelText.text=K.Clean(t.valueLabel).ToUpperInvariant();
+     float w=Mathf.Clamp(Mathf.Max(valueText.GetPreferredValues(valueText.text).x,label?valueLabelText.GetPreferredValues(valueLabelText.text).x:0)+6,70,170);
+     Place(valueText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,label?8:0),new Vector2(w,28));
+     Place(valueLabelText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,-15),new Vector2(w,16));
+     valueText.color=t.tone=="gold"?K.C("9A6A10"):K.Ink;
+     right+=w+14;
+    }
+    var flag=K.Icon(t.flag);flagEdge.gameObject.SetActive(flag);
+    if(flag){flagImage.sprite=flag;Place(flagEdge.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,0),new Vector2(44,34));right+=44+14;}
+    // the name on top; the level ribbon and the stage under it
+    Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(x,-9),new Vector2(-x-right,30));title.alignment=TextAlignmentOptions.MidlineLeft;
+    float under=x;
+    if(hasRibbon){
+     ribbon.color=t.tone=="gold"?K.C("C98A12"):PortraitNavy;ribbonRect.localRotation=Quaternion.identity;
+     float rw=PillWidth(ribbonText,ribbonText.text,54);
+     Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(x,-42),new Vector2(rw,22));under+=rw+8;
+    }
+    Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(under,-42),new Vector2(-under-right,22));subtitle.alignment=TextAlignmentOptions.MidlineLeft;
+    Select(selected);
    }
    public void Select(bool on){selected=on;edge.color=on?K.C("F2B03D"):ToneEdge(data!=null?data.tone:"");rect.localScale=on?Vector3.one*1.0f:Vector3.one;}
 
