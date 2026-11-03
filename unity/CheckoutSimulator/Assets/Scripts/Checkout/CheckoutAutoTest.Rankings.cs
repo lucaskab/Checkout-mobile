@@ -55,6 +55,8 @@ namespace Checkout {
    Act("skipOnboarding","[]");Act("claimDayResult","[]");yield return new WaitForSecondsRealtime(1.5f);
    yield return Tips();
    var langBefore=CheckoutI18n.Language;
+   // (a week this QA copy never got a reward for: the save remembers the weeks it was paid, once each)
+   string NewWeek(){return $"20{Random.Range(40,99)}-W{Random.Range(10,52):00}";}
 
    // 1. From the HUD: the corner menu has "Ranking" next to "Amigos"; a tap opens the full-screen window.
    // (any page open first is only closed, nothing on it is chosen)
@@ -109,7 +111,7 @@ namespace Checkout {
 
    // 5. The end of the week: a league_reward whose ack is lost (the app "died") pays once; the card shows.
    double gems=bridge.State.diamonds;
-   Mock("league-reward");Mock("fail","/v1/social/inbox/ack");yield return new WaitForSecondsRealtime(.5f);
+   Mock("league-reward",NewWeek());Mock("fail","/v1/social/inbox/ack");yield return new WaitForSecondsRealtime(.5f);
    Tick();yield return new WaitForSecondsRealtime(1.2f);
    Note("rankings: card "+(hud.LeagueCardOpen?"open":"closed"));
    yield return new WaitForSecondsRealtime(.4f);yield return Shot("rank_reward_anim_pt");
@@ -139,14 +141,14 @@ namespace Checkout {
    // 8. English (Lucas plays in English: no Portuguese may leak), and the card in English.
    Lang("en");yield return new WaitForSecondsRealtime(1.5f);
    foreach(var tab in new[]{"mundo","pais","amigos","liga"}){yield return Tab(tab);yield return Quiet();yield return Shot2("rank_"+tab+"_en");}
-   Mock("league-reward","2026-W40");Tick();yield return new WaitForSecondsRealtime(5f);yield return Shot("rank_reward_card_en");
+   Mock("league-reward",NewWeek());Tick();yield return new WaitForSecondsRealtime(5f);yield return Shot("rank_reward_card_en");
    cont=Field<CheckoutDesktopButton>("leagueButton");if(cont&&hud.LeagueCardOpen)cont.Clicked?.Invoke(cont);yield return new WaitForSecondsRealtime(1.5f);
    Lang(langBefore);yield return new WaitForSecondsRealtime(1f);
 
    // 9. iPad (4:3): Mundo, Liga and the card lay out.
    Note("rankings: "+CheckoutQaGameView.Set(2048,1536));yield return new WaitForSecondsRealtime(2.5f);
    foreach(var tab in new[]{"mundo","liga"}){yield return Tab(tab,2.5f);yield return Quiet();yield return Shot2("rank_"+tab+"_ipad");}
-   Mock("league-reward","2026-W39");Tick();yield return new WaitForSecondsRealtime(5f);yield return Shot("rank_reward_card_ipad");
+   Mock("league-reward",NewWeek());Tick();yield return new WaitForSecondsRealtime(5f);yield return Shot("rank_reward_card_ipad");
    cont=Field<CheckoutDesktopButton>("leagueButton");if(cont&&hud.LeagueCardOpen)cont.Clicked?.Invoke(cont);yield return new WaitForSecondsRealtime(1.5f);
    Note("rankings: "+CheckoutQaGameView.Set(2778,1284));yield return new WaitForSecondsRealtime(2f);
    Route("");yield return new WaitForSecondsRealtime(1f);

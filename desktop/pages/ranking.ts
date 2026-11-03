@@ -245,8 +245,15 @@ function rewardsStrip(league: LeagueBoard | null, division: LeagueDivision): Boa
 		stat("Icons/medal", `+${at(2)}`, "#2", "info"),
 		stat("Icons/medal", `+${at(3)}`, "#3", "warning"),
 		stat("Icons/diamond", `+${at(4)}`, "#4 – #10", ""),
-		stat("Icons/gift", "Baú de moedas", `Top ${league?.promote ?? 5}`, "success"),
+		stat("Icons/gift", `Top ${league?.promote ?? 5}`, "Baú de moedas", "success"),
 	];
+}
+
+// Last week on a chip: a short value ("#2 · subiu!") over its label, like the prizes beside it.
+function lastChip(last: { place: number; division: LeagueDivision; movedTo: LeagueDivision }): string {
+	const moved = rankOf(last.movedTo) - rankOf(last.division);
+	if (last.place > 0) return moved > 0 ? `#${last.place} · subiu!` : moved < 0 ? `#${last.place} · desceu` : `#${last.place}`;
+	return moved > 0 ? "Subiu!" : moved < 0 ? "Desceu" : "Ficou";
 }
 
 function leaguePage(state: State): Page {
@@ -302,7 +309,7 @@ function leaguePage(state: State): Page {
 	return rankPage(state, "liga", [], tiles, {
 		tint: LEAGUE_DIVISION_TINTS[division],
 		meter: bar(me.points, Math.max(me.points, fifth, 1), words),
-		strip: lastText ? [...strip, stat(divisionIcon(last!.movedTo), lastText, "", "")] : strip,
+		strip: last ? [...strip, stat(divisionIcon(last.movedTo), lastChip(last), "Semana passada", "")] : strip,
 		pinned: { ...leagueTile(me, true, ""), id: "pinned-me", title: `Você · #${me.place}`, subtitle: `${fmt(me.points)} pontos`, action: act("Ver minha posição", "rankingMyPosition", [me.id], { variant: "primary", ok: "" }) },
 		focus: me.id,
 		stats: [stat(divisionIcon(division), `#${me.place}`, "na liga"), stat("Icons/trophy", fmt(me.points), "pontos")],

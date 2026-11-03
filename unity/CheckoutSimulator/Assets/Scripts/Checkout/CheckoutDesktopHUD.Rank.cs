@@ -21,7 +21,7 @@ namespace Checkout {
   static readonly Color[] PlinthFace={K.C("F2C552"),K.C("CBD3DC"),K.C("DE9A5E")};
   RectTransform rankStrip,rankPodium,rankFx;readonly List<BoardChip> rankStripChips=new List<BoardChip>();
   PodiumColumn[] podiumColumns;BoardTileUi rankPinned;RectTransform rankPinnedRect;
-  string rankPodiumKey,rankScrollShown;float rankSparkleAt;
+  string rankPodiumKey,rankScrollShown;float rankSparkleAt,rankPodiumGrow;RectTransform rankPodiumFloor;
   readonly List<SocialConfetto> rankConfetti=new List<SocialConfetto>();
 
   void BuildRankBoard(){
@@ -29,7 +29,7 @@ namespace Checkout {
    rankStrip.gameObject.AddComponent<LayoutElement>().preferredHeight=Phone?62:66;rankStrip.gameObject.SetActive(false);
    rankPodium=N.Node("Podium",boardContent);rankPodium.gameObject.AddComponent<LayoutElement>().preferredHeight=PodiumHeight;
    // (a soft floor under the plinths)
-   var floor=N.Image(rankPodium,"Floor",new Color(.55f,.36f,.16f,.22f),0);floor.sprite=U.Glow();U.Stretch(floor.rectTransform,new Vector2(.08f,0),new Vector2(.92f,0),new Vector2(0,-14),new Vector2(0,26));
+   var floor=N.Image(rankPodium,"Floor",new Color(.55f,.36f,.16f,.22f),0);floor.sprite=U.Glow();U.Stretch(floor.rectTransform,new Vector2(.08f,0),new Vector2(.92f,0),new Vector2(0,-14),new Vector2(0,26));rankPodiumFloor=floor.rectTransform;
    podiumColumns=new PodiumColumn[3];
    for(int i=0;i<3;i++)podiumColumns[i]=PodiumColumn.Create(this,rankPodium,i+1);
    rankPodium.gameObject.SetActive(false);
@@ -57,7 +57,7 @@ namespace Checkout {
    var podium=rank&&b.podium!=null&&b.podium.Length>=3?b.podium:null;
    rankPodium.gameObject.SetActive(podium!=null);
    if(podium!=null){
-    rankPodium.GetComponent<LayoutElement>().preferredHeight=PodiumHeight;
+    SetPodiumGrow();
     for(int i=0;i<3;i++)podiumColumns[i].Apply(podium[i],podium[i].id==boardSelected);
     string key=(boardRouteShown??"")+"|"+podium[0].id+"|"+podium[1].id+"|"+podium[2].id;
     if(key!=rankPodiumKey){rankPodiumKey=key;StartCoroutine(PodiumEntrance());}
@@ -73,6 +73,30 @@ namespace Checkout {
     rankPinned.Apply(b.pinned,true,b.pinned.id==boardSelected);
     boardScrollBottom+=h+12;((RectTransform)boardScroll.transform).offsetMin=new Vector2(10,boardScrollBottom);
    }
+  }
+
+  // The podium fills the fold (QA 03/11): with whole rows only on the first view, the first row that would stand half
+  // under the pinned row waits for a scroll, and the room it leaves goes to the podium (centred in it) instead of an
+  // empty band. Measured on the content at the top of the list, so the same every refresh; true when it changed.
+  bool RankFillFold(float height){
+   var c=new Vector3[4];
+   rankPodium.GetWorldCorners(c);float podiumBottom=-boardContent.InverseTransformPoint(c[0]).y;
+   float first=float.MaxValue;
+   foreach(var t in boardTiles){
+    if(!t.gameObject.activeSelf)continue;((RectTransform)t.transform).GetWorldCorners(c);
+    float top=-boardContent.InverseTransformPoint(c[1]).y,bottom=-boardContent.InverseTransformPoint(c[0]).y;
+    if(top>=podiumBottom-1&&bottom>height+.5f&&top<first)first=top;
+   }
+   float grow=0;
+   if(first<float.MaxValue){float g=height-(first-rankPodiumGrow);if(g>0&&g<=(Phone?150:200))grow=g;}
+   if(Mathf.Abs(grow-rankPodiumGrow)<1)return false;
+   rankPodiumGrow=grow;SetPodiumGrow();return true;
+  }
+  void SetPodiumGrow(){
+   rankPodium.GetComponent<LayoutElement>().preferredHeight=PodiumHeight+rankPodiumGrow;
+   float lift=rankPodiumGrow*.5f;
+   foreach(var col in podiumColumns)((RectTransform)col.transform).anchoredPosition=new Vector2(0,6+lift);
+   rankPodiumFloor.offsetMin=new Vector2(0,-14+lift);rankPodiumFloor.offsetMax=new Vector2(0,26+lift);
   }
 
   // "Ver minha posição": the row of that id comes into the middle of the list and is picked.
@@ -305,12 +329,15 @@ namespace Checkout {
    if(leagueRun!=null){StopCoroutine(leagueRun);leagueRun=null;}
    foreach(var p in rankConfetti)if(p.rect&&p.rect.parent==leagueFx)Destroy(p.rect.gameObject);
    if(leagueRoot)leagueRoot.gameObject.SetActive(false);
+   // the toasts held while it was open come now
+   if(socialToastBox&&!socialToastBox.gameObject.activeSelf)NextSocialToast();
   }
   /// <summary>QA: the card's diamonds and coins and whether it is on screen.</summary>
   public string LeagueCardQa=>LeagueCardOpen?leagueShownKey:"";
 
   IEnumerator PlayLeagueCard(DesktopLeagueCard card){
    leagueRoot.gameObject.SetActive(true);leagueRoot.SetAsLastSibling();
+   if(socialToastBox)socialToastBox.gameObject.SetActive(false);
    // fit the panel on any screen (an iPhone's 680-unit height, an iPad's 4:3): never cut
    var area=root.rect;float k=Mathf.Min(1f,(area.width-32)/920f,(area.height-24)/620f);leaguePanel.localScale=Vector3.one*k;
    leagueHeadline.text=K.Clean(card.headline);leagueTitle.text=K.Clean(card.title);leagueSubtitle.text=K.Clean(card.subtitle);

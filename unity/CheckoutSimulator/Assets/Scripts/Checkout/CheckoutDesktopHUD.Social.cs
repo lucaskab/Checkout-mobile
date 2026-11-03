@@ -106,7 +106,7 @@ namespace Checkout {
   }
 
   /// <summary>QA: a social toast is on screen or waiting (the shots wait for them to fade).</summary>
-  public bool SocialToastShowing=>socialToastBox&&(socialToastBox.gameObject.activeSelf||socialToasts.Count>0);
+  public bool SocialToastShowing=>socialToastBox&&(socialToastBox.gameObject.activeSelf||socialToasts.Count>0&&!LeagueCardOpen);
   /// <summary>Queues a social toast (CheckoutSocial: inbox results, answers of the friends' server).</summary>
   public void SocialToast(string text,string icon,bool ok){
    if(string.IsNullOrEmpty(text))return;
@@ -114,6 +114,8 @@ namespace Checkout {
    if(!socialToastBox.gameObject.activeSelf)NextSocialToast();
   }
   void NextSocialToast(){
+   // (the end-of-week card holds the toasts: they wait in the queue until it closes)
+   if(LeagueCardOpen){socialToastBox.gameObject.SetActive(false);return;}
    if(socialToasts.Count==0){socialToastBox.gameObject.SetActive(false);return;}
    var (text,icon,ok)=socialToasts.Dequeue();
    socialToastText.text=K.Clean(text);

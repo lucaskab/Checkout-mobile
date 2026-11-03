@@ -355,6 +355,7 @@ namespace Checkout {
    Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(boardContent);
    var viewport=boardScroll.viewport?boardScroll.viewport:view;float height=viewport.rect.height;
    if(height<100)return;
+   if(rankPodium&&rankPodium.gameObject.activeSelf&&RankFillFold(height)){Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(boardContent);}
    float scrolled=boardContent.anchoredPosition.y;
    var corners=new Vector3[4];
    (float top,float bottom) Span(RectTransform r){r.GetWorldCorners(corners);var a=boardContent.InverseTransformPoint(corners[1]);var z=boardContent.InverseTransformPoint(corners[0]);return (-a.y-scrolled,-z.y-scrolled);}
