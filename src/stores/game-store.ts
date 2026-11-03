@@ -259,6 +259,15 @@ import { albumCollections, getCollectionProgress } from "@/data/product-album";
 import { ERA_LOTS, getMarketLot, migrateDepotLot } from "@/data/market-lots";
 import { applyInboxItems, createSocialState, normalizeSocialState, openMailPatch, sendProductPatch, utcDay } from "@/services/social";
 import { getSocialRewards } from "@/data/social";
+import { LEAGUE_POINTS } from "@/data/rankings";
+import {
+	addLeaguePoints,
+	applyWrongWeek,
+	createRankingsState,
+	dayLeaguePoints,
+	markPointsSent,
+	normalizeRankingsState,
+} from "@/services/rankings";
 import {
 	checkBuyLot,
 	checkClearLot,
@@ -544,6 +553,7 @@ const initialGameState: GameState = {
 	onboarding: createOnboardingState(),
 	marketPaint: createMarketPaintState(),
 	social: createSocialState(),
+	rankings: createRankingsState(),
 };
 
 function getInitialGameState(): GameState {
@@ -637,6 +647,7 @@ function getInitialGameState(): GameState {
 		onboarding: createOnboardingState(),
 		marketPaint: createMarketPaintState(),
 		social: createSocialState(),
+		rankings: createRankingsState(),
 	};
 }
 
@@ -1012,6 +1023,8 @@ function migrateGameState(persistedState: unknown): GameState {
 		marketPaint: normalizeMarketPaintState(state.marketPaint),
 		// 50: social v1. Older saves (no field) start with an empty slice; nothing else changes.
 		social: normalizeSocialState(state.social),
+		// Rankings v1 (no version bump): older saves (no field) start this week with no league points.
+		rankings: normalizeRankingsState(state.rankings),
 	};
 }
 
@@ -1022,7 +1035,13 @@ export const useGameStore = create<GameStore>()(
 			// HUD: the levels since the player last closed it (dismissLevelUp).
 			const set = ((partial: unknown, replace?: boolean) => {
 				const before = get().market.level;
+				const phaseBefore = get().day?.phase;
 				(rawSet as (partial: unknown, replace?: boolean) => void)(partial, replace);
+				// Rankings v1: a day that just ended (closed by the clock or the button) gives its league points once:
+				// the contract kept and the day's rating stars (docs/rankings-api.md).
+				const ended = get().day;
+				if (!replace && phaseBefore === "open" && ended?.phase === "results" && ended.result)
+					rawSet({ rankings: addLeaguePoints(get().rankings, dayLeaguePoints(ended.result), Date.now()) });
 				const market = get().market;
 				if (!replace && market.level > before)
 					rawSet({
@@ -1508,6 +1527,7 @@ export const useGameStore = create<GameStore>()(
 				set({
 					era: next,
 					celebrations: pushCelebration(get().celebrations, "era", next.id),
+					rankings: addLeaguePoints(get().rankings, LEAGUE_POINTS.build, Date.now()),
 					// From the minimercado on the checkout the player places is already the register (T2).
 					shop: { ...get().shop, ownedItemIds: withCheckoutRegister(get().shop.ownedItemIds, next.id) },
 					// The new expansion brings its own products.
@@ -1565,7 +1585,11 @@ export const useGameStore = create<GameStore>()(
 				const lot = getMarketLot(lots.clearing.lotId);
 				const next = finishLotClearing(lots, now === Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : now);
 				if (next === lots) return false;
-				set({ lots: next, celebrations: pushCelebration(get().celebrations, "lot", lots.clearing.lotId) });
+				set({
+					lots: next,
+					celebrations: pushCelebration(get().celebrations, "lot", lots.clearing.lotId),
+					rankings: addLeaguePoints(get().rankings, LEAGUE_POINTS.build, Date.now()),
+				});
 				// The crew sells the scrap: the cleared lot pays some experience.
 				if (lot) {
 					const xp = getLotClearExperience(lot);
@@ -1895,6 +1919,8 @@ export const useGameStore = create<GameStore>()(
 						kind === "help"
 							? { ...social, totals: { ...social.totals, helpsGiven: social.totals.helpsGiven + 1 }, daily: { day: today, helps: daily.helps + 1 } }
 							: social,
+					// Rankings v1: a help counted by the friends' server is a few league points.
+					...(kind === "help" ? { rankings: addLeaguePoints(state.rankings, LEAGUE_POINTS.help, Date.now()) } : {}),
 				});
 				return reward;
 			},
@@ -1928,6 +1954,34 @@ export const useGameStore = create<GameStore>()(
 				const next = normalizeSocialState({ ...social, requests }).requests;
 				if (JSON.stringify(next) === JSON.stringify(social.requests)) return false;
 				set({ social: { ...social, requests: next } });
+				return true;
+			},
+			setRankingOptOut: (optOut) => {
+				const rankings = normalizeRankingsState(get().rankings);
+				if (rankings.optOut === optOut) return false;
+				set({ rankings: { ...rankings, optOut } });
+				return true;
+			},
+			markLeaguePointsSent: (week, points, now = Date.now()) => {
+				set({ rankings: markPointsSent(get().rankings, week, points, now) });
+				return true;
+			},
+			applyLeagueWrongWeek: (week, now = Date.now()) => {
+				set({ rankings: applyWrongWeek(get().rankings, week, now) });
+				return true;
+			},
+			rolloverLeagueWeek: (now = Date.now()) => {
+				const before = normalizeRankingsState(get().rankings);
+				const next = addLeaguePoints(before, 0, now);
+				if (next.week === before.week && get().rankings) return false;
+				set({ rankings: next });
+				return true;
+			},
+			dismissLeagueCard: (id) => {
+				const rankings = normalizeRankingsState(get().rankings);
+				const cards = id === "all" ? [] : rankings.cards.filter((card) => card.id !== id);
+				if (cards.length === rankings.cards.length) return false;
+				set({ rankings: { ...rankings, cards } });
 				return true;
 			},
 			dismissDiamondShortfall: () => {
@@ -4306,6 +4360,7 @@ export const useGameStore = create<GameStore>()(
 					builtSectorIds,
 					shop: { ...state.shop, ownedItemIds },
 					celebrations,
+					rankings: addLeaguePoints(state.rankings, LEAGUE_POINTS.build * done.length, Date.now()),
 				});
 				return true;
 			},
@@ -4669,6 +4724,7 @@ export const useGameStore = create<GameStore>()(
 					shelfSlotCounts: rewards.shelfSlotCounts,
 					unlockedShelfSlots: rewards.unlockedShelfSlots,
 					market: { ...state.market, unlockedProductIds: rewards.unlockedProductIds },
+					rankings: addLeaguePoints(state.rankings, LEAGUE_POINTS.build * done.length, Date.now()),
 					// The next evolution in the queue starts right away.
 					evolutions: scheduleEvolutions(
 						state.evolutions.filter((item) => item.endsAt > now),
@@ -4787,6 +4843,7 @@ export const useGameStore = create<GameStore>()(
 				onboarding,
 				marketPaint,
 				social,
+				rankings,
 			}) => ({
 				era,
 				checkout,
@@ -4835,6 +4892,7 @@ export const useGameStore = create<GameStore>()(
 				onboarding,
 				marketPaint,
 				social,
+				rankings,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
 			// A save that fails to load or migrate is kept on disk untouched (src/storage/save-guard.ts).
@@ -5370,6 +5428,8 @@ function applyCheckoutPayment(
 	return {
 		checkout: payment.state,
 		coins: state.coins + revenue + tip,
+		// Rankings v1: each customer who bought is a league point.
+		rankings: addLeaguePoints(state.rankings, LEAGUE_POINTS.customer, now),
 		daily,
 		day: recordDaySale(state.day, {
 			categories: checkout.categories,

@@ -46,6 +46,7 @@ import {
 	visitActions,
 	visitSnapshot,
 } from "./social.ts";
+import { initRankings, onRankingRoute, rankingActions, rankingTick, requestRankingAction, sendLeaguePoints } from "./rankings.ts";
 import { type AdPlacement, adPlacements, type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
@@ -213,6 +214,7 @@ function navigate(route: string) {
 	// visit: the player's save stays as it was.
 	if (!isVisiting()) useGameStore.getState().processOnboarding(routes.at(-1) ?? "");
 	onSocialRoute(routes.at(-1) ?? "");
+	onRankingRoute(routes.at(-1) ?? "");
 	view();
 }
 
@@ -235,6 +237,14 @@ initSocial({
 		routes.length = 0;
 		snapshot();
 		view();
+	},
+});
+
+// Rankings v1 (desktop/rankings.ts): the boards and the week's league points go through the same pipe.
+initRankings({
+	send,
+	refresh: () => {
+		viewDirty = true;
 	},
 });
 
@@ -296,6 +306,13 @@ function runHudAction(message: {
 		const request = requestSocialAction(message.action, Array.isArray(message.args) ? message.args : []);
 		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "quiet" : request.reason ? t(request.reason) : "quiet" });
 		if (request.ok && message.after === "back") routes.pop();
+		view();
+		return;
+	}
+	// The Ranking window's own buttons (desktop/rankings.ts): answered at once, quietly.
+	if (typeof message.action === "string" && rankingActions.includes(message.action)) {
+		const request = requestRankingAction(message.action, Array.isArray(message.args) ? message.args : []);
+		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "quiet" : request.reason ? t(request.reason) : "quiet" });
 		view();
 		return;
 	}
@@ -446,6 +463,9 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 		view();
 	} else if (message.kind === "social-tick") {
 		void runInboxCycle(typeof message.reason === "string" ? message.reason : "tick");
+	} else if (message.kind === "rankings-pause") {
+		// The app goes to the background or closes: the week's league points go out now (best effort).
+		void sendLeaguePoints(typeof message.reason === "string" ? message.reason : "pause", true);
 	} else if (message.kind === "social-reply") {
 		applySocialReply(message);
 	} else if (message.kind === "social-flushed") {
@@ -538,6 +558,12 @@ setInterval(live(() => {
 	// Evolutions end on the evolution crew's clock (it kept running while the game was closed).
 	store().processFixtureEvolutions();
 }), 1_000);
+// Rankings v1: the week's league points at most every 10 minutes (sendLeaguePoints checks), the open Ranking tab
+// refreshed at most every 60 s.
+setInterval(() => {
+	void sendLeaguePoints("timer");
+	rankingTick();
+}, 60_000);
 // When a day ends (timer or button) its results open on their own, like the app's sheet.
 let dayPhase = store().day.phase;
 setInterval(() => {
@@ -547,7 +573,11 @@ setInterval(() => {
 	}
 	openStoreOnShortfall();
 	const phase = store().day.phase;
-	if (phase !== dayPhase && phase === "results") navigate("!day-result");
+	if (phase !== dayPhase && phase === "results") {
+		navigate("!day-result");
+		// The end of a day: its league points (contract, stars) go out at once.
+		setTimeout(() => void sendLeaguePoints("day", true), 500);
+	}
 	dayPhase = phase;
 	if (dirty) snapshot();
 	// Pages, the day clock and the event badge carry live timers, so they refresh every second even when idle.

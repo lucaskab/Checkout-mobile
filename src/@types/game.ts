@@ -164,6 +164,7 @@ import type { ShelfUpgradeCurrency } from "./shelf-capacity";
 import type { GameShopState, ShopCurrency } from "./shop";
 import type { ReceivingState } from "./receiving";
 import type { SocialInboxOutcome, SocialRequestMirror, SocialState } from "./social";
+import type { RankingsState } from "./rankings";
 import type { StoreIncidentKind, StoreIncidentsState } from "./store-incident";
 import type { SupplierOrderSlotCurrency } from "./supplier-capacity";
 
@@ -249,6 +250,8 @@ export type GameState = {
 	marketPaint: MarketPaintState;
 	/** Social v1 (docs/social-api.md): inbox items applied, gifts opened today, profile cache, requests, invite rewards. */
 	social: SocialState;
+	/** Rankings v1 (docs/rankings-api.md): this week's league points, the opt-out, end-of-week cards to show. */
+	rankings: RankingsState;
 };
 
 /** Condition 0–100 of each physical fixture (shelf or sector counter). */
@@ -269,6 +272,16 @@ export type GameActions = {
 	/** The profile and the open requests as the server last answered (cache for the pages). */
 	rememberSocialProfile: (profile: { code?: string; marketName?: string | null; avatar?: string }) => boolean;
 	rememberSocialRequests: (requests: SocialRequestMirror[]) => boolean;
+	/** "Aparecer no ranking" (the server was told first): the save keeps the choice. */
+	setRankingOptOut: (optOut: boolean) => boolean;
+	/** The server stored the week total `points` for `week` (rankings v1). */
+	markLeaguePointsSent: (week: string, points: number, now?: number) => boolean;
+	/** 409 wrong-week: the server's week wins (its week, if the answer said it). */
+	applyLeagueWrongWeek: (week: unknown, now?: number) => boolean;
+	/** A new ISO week by the device clock: the league counter starts over (false = same week). */
+	rolloverLeagueWeek: (now?: number) => boolean;
+	/** The end-of-week card was seen ("all" = every one waiting). */
+	dismissLeagueCard: (id: string) => boolean;
 	activateLogisticsBoost: () => boolean;
 	claimDailyGoal: () => boolean;
 	claimDayResult: () => boolean;

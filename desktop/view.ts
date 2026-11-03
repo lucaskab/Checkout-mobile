@@ -26,6 +26,8 @@ import { getStoredInteriorBuilds } from "@/services/interior-construction";
 import { type CoachView, type GoalView, getCoachView, getNextGoal } from "@/services/onboarding";
 import { type LevelUpView, levelUpView } from "./level-up";
 import { type CelebrationView, celebrationView } from "./celebration";
+import { type LeagueCardView, leagueCardView } from "./pages/ranking";
+import { viewRankings } from "./rankings";
 import { pages } from "./pages";
 import { groupOf, groupRoute, type ToolGroup, toolGroups } from "./sections";
 import {
@@ -95,6 +97,8 @@ export type DesktopView = {
 	page: Page;
 	/** Visiting a friend's market (desktop/social.ts): Unity swaps the HUD for the visit bar. null = at home. */
 	visit: VisitView | null;
+	/** Rankings v1: the end-of-week card waiting to be seen (desktop/pages/ranking.ts); null = none. */
+	leagueCard: LeagueCardView | null;
 };
 
 export type BoostView = {
@@ -165,6 +169,9 @@ function quickButtons(state: State, now: number): Button[] {
 	if (cloudStore.status !== "unavailable" || socialStore.mock) {
 		const news = socialBadge();
 		quick.push(button("Amigos", { icon: socialIcon("friends"), route: "!amigos", variant: news > 0 ? "success" : "secondary", badge: news > 0 ? String(news) : "" }));
+		// Ranking (rankings v1), next to Amigos: a count of end-of-week cards waiting.
+		const cards = viewRankings(now).cards.length;
+		quick.push(button("Ranking", { icon: gameIcon("trophy"), route: cards ? "!ranking:liga" : "!ranking", variant: cards ? "success" : "secondary", badge: cards ? String(cards) : "" }));
 	}
 	if (!signedIn && cloudStore.status !== "unavailable")
 		quick.push(button("Salvar", { icon: gameIcon("smartphone"), route: "!conta", variant: "primary", badge: "!" }));
@@ -433,6 +440,7 @@ export function createDesktopView(
 		canBack: stack.length > 1,
 		page: current,
 		visit,
+		leagueCard: home ? leagueCardView(state) : null,
 		...(home
 			? {}
 			: {

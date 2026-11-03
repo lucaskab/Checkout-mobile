@@ -5,6 +5,7 @@ import { ERA_LOTS } from "@/data/market-lots";
 import { withCheckoutRegister } from "@/data/fixture-tiers";
 import { ERA_BUILDING_EXPANSIONS } from "@/services/market-era";
 import { useGameStore } from "@/stores/game-store";
+import { createMockRankings } from "./rankings-mock";
 
 // A stand-in for the social routes of docs/social-api.md, in this process, for the Editor's QA (the Worker is not
 // deployed yet). Unity says "mock" in its `social` status message (Editor only) and desktop/social.ts then answers its
@@ -225,6 +226,14 @@ export function createMockSocialServer(start = Date.now()) {
 	push(me.id, "like", bruno.id);
 	push(me.id, "friend_request", duda.id);
 
+	// Rankings v1 (desktop/rankings-mock.ts): the boards and the league answer here too, with these friends in them.
+	const rankings = createMockRankings({
+		me: () => me,
+		friendIds: () => [...people.values()].filter((p) => p.id !== me.id && areFriends(me.id, p.id)).map((p) => p.id),
+		person: (id) => people.get(id),
+		push: (to, kind, from, payload) => push(to, kind, from, payload),
+		now: () => now,
+	});
 	const short = (p: Person) => ({ id: p.id, code: p.code, marketName: p.marketName, avatar: p.avatar || null });
 	const brief = (p: Person) => ({ ...short(p), level: p.level, era: p.era });
 	const open = (row: RequestRow) => row.status === "open" && row.expiresAt > now;
@@ -417,6 +426,7 @@ export function createMockSocialServer(start = Date.now()) {
 
 	return {
 		me,
+		rankings,
 		log,
 		inbox,
 		requests,
@@ -428,6 +438,7 @@ export function createMockSocialServer(start = Date.now()) {
 				return { code: 0, body: null, network: true };
 			}
 			const parsed = typeof body === "string" && body ? JSON.parse(body) : ((body as Record<string, unknown>) ?? {});
+			if (path.startsWith("/v1/rankings")) return rankings.call(method, path, parsed);
 			return route(method.toUpperCase(), path.split("?")[0], parsed);
 		},
 		/** QA controls (dev page / Unity autotests): what friends do while the player plays. */
@@ -482,7 +493,7 @@ export function createMockSocialServer(start = Date.now()) {
 				friendRequests.add(`${duda.id}|${me.id}`);
 				return Boolean(push(me.id, "friend_request", duda.id));
 			}
-			return false;
+			return rankings.control(command, arg);
 		},
 		set clock(value: number) {
 			now = value;

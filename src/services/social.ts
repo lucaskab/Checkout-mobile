@@ -28,6 +28,8 @@ import {
 	SOCIAL_REQUEST_MAX,
 	SOCIAL_REQUEST_MIN,
 } from "@/data/social";
+import { isLeagueDivision, LEAGUE_CHEST_GIFTS, LEAGUE_REWARD_DIAMONDS_MAX, RANKING_CARDS_KEEP, RANKING_WEEKS_KEEP } from "@/data/rankings";
+import { normalizeRankingsState } from "@/services/rankings";
 import { appendInventoryLots, createInventoryLots, reconcileInventoryLots, takeInventoryLots } from "@/services/inventory-lots";
 
 // Social v1 on the player's own save (docs/social-api.md). Everything here is pure: the store applies the patches.
@@ -247,7 +249,8 @@ export function senderName(item: Pick<SocialInboxItem, "from">) {
 type InboxState = Pick<
 	GameState,
 	"social" | "coins" | "logistics" | "era" | "inventory" | "inventoryLots" | "interior" | "interiorConstructions" | "evolutions" | "lots"
->;
+> &
+	Partial<Pick<GameState, "rankings">>;
 
 /**
  * Applies the inbox items to the save, oldest first, each one exactly once. Returns the patch for the store, what each
@@ -270,6 +273,8 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 	const totals = { ...social.totals };
 	let invites = social.invites;
 	let requests = social.requests;
+	let rankings = normalizeRankingsState(state.rankings, now);
+	let rankingsChanged = false;
 	let changed = false;
 	const log: SocialLogEntry[] = [];
 
@@ -378,6 +383,38 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 			case "friend_added":
 				result = outcome(id, kind, { applied: true, name, icon: "customers", text: name ? "Agora você e {0} são amigos" : "Você tem um amigo novo" });
 				break;
+			case "league_reward": {
+				// Rankings v1: the end of a league week. Diamonds, the promotion chest (coins worth 3 of the player's gift
+				// boxes) and the card with the podium. Once per item (appliedInbox) and once per week (rewardedWeeks).
+				const week = str(payload.week);
+				if (!/^\d{4}-W\d{2}$/.test(week) || rankings.rewardedWeeks.includes(week)) {
+					result = outcome(id, kind, { name });
+					break;
+				}
+				const amount = Math.max(0, Math.min(LEAGUE_REWARD_DIAMONDS_MAX, Math.floor(num(payload.diamonds))));
+				const chest = payload.chest === true ? LEAGUE_CHEST_GIFTS * rewards.gift : 0;
+				const division = isLeagueDivision(payload.division) ? payload.division : "bronze";
+				const place = Math.max(0, Math.floor(num(payload.place)));
+				diamonds += amount;
+				coins += chest;
+				rankings = {
+					...rankings,
+					rewardedWeeks: [...rankings.rewardedWeeks, week].slice(-RANKING_WEEKS_KEEP),
+					cards: [
+						...rankings.cards,
+						{ id, week, division, place, diamonds: amount, coins: chest, movedTo: isLeagueDivision(payload.movedTo) ? payload.movedTo : division, at: now },
+					].slice(-RANKING_CARDS_KEEP),
+				};
+				rankingsChanged = true;
+				result = outcome(id, kind, {
+					applied: true,
+					coins: chest,
+					diamonds: amount,
+					icon: "trophy",
+					text: amount > 0 && chest > 0 ? "Fim da liga: +{5} diamantes e um baú de +{1} moedas" : amount > 0 ? "Fim da liga: +{5} diamantes" : chest > 0 ? "Fim da liga: um baú de +{1} moedas" : "A liga da semana terminou",
+				});
+				break;
+			}
 			case "request_fulfilled": {
 				const requestId = num(payload.requestId, NaN);
 				requests = requests.filter((request) => request.id !== requestId);
@@ -415,6 +452,7 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 				evolutions: builds.evolutions,
 				era: builds.era,
 				lots: builds.lots,
+				...(rankingsChanged ? { rankings } : {}),
 			}
 		: {};
 	return { patch, outcomes, ack: outcomes.filter((entry) => entry.ack).map((entry) => entry.id) };

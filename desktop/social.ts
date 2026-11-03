@@ -138,12 +138,13 @@ export function resetSocial() {
 
 // ------------------------------------------------------------------------------------------------------------ transport
 
-function call(method: string, path: string, body?: unknown): Promise<Reply> {
+function call(method: string, path: string, body?: unknown, open = false): Promise<Reply> {
 	if (socialStore.mock) {
 		const answer = socialMock().call(method, path, body === undefined ? undefined : JSON.stringify(body));
 		return Promise.resolve(answer as Reply);
 	}
-	if (!socialStore.signedIn) return Promise.resolve({ code: 401, body: null, network: false });
+	// (`open`: a public route — the rankings' Mundo / País — that Unity calls without the session when signed out)
+	if (!socialStore.signedIn && !open) return Promise.resolve({ code: 401, body: null, network: false });
 	const id = `social-${++sequence}`;
 	return new Promise((resolve) => {
 		const timer = setTimeout(() => {
@@ -154,9 +155,15 @@ function call(method: string, path: string, body?: unknown): Promise<Reply> {
 			clearTimeout(timer);
 			resolve(reply);
 		});
-		send({ kind: "social-call", id, method, path, body: body === undefined ? "" : JSON.stringify(body) });
+		send({ kind: "social-call", id, method, path, body: body === undefined ? "" : JSON.stringify(body), open });
 	});
 }
+
+/** Rankings v1 (desktop/rankings.ts) talks to the same server through the same pipe (Unity holds the session). */
+export const socialCall = (method: string, path: string, body?: unknown, open = false) => call(method, path, body, open);
+export type SocialReply = Reply;
+/** Makes sure the player has a social profile (the first /v1/social call creates it): opening Ranking counts. */
+export const ensureSocialProfile = () => (socialStore.me ? Promise.resolve(true) : loadProfile());
 
 /** Writes the save to the phone's disk now (Unity: CheckoutDesktopHost.Flush) before the server may forget items. */
 function flush(): Promise<void> {
@@ -214,7 +221,7 @@ export type SocialIconId = GameIconId | "friends" | "like" | "share" | "invite";
 const iconFallbacks: Record<string, GameIconId> = { friends: "customers", like: "success", share: "smartphone", invite: "ticket" };
 export const socialIcon = (id: SocialIconId) => gameIcon((id in gameIconAssets ? id : (iconFallbacks[id] ?? "handshake")) as GameIconId);
 /** What each inbox result shows: gift, like, help (a hand), a delivery (the box of a product request), diamonds, friends. */
-const iconOf: Record<string, SocialIconId> = { gift: "gift", heart: "like", construction: "handshake", truck: "package", diamond: "diamond", customers: "friends" };
+const iconOf: Record<string, SocialIconId> = { gift: "gift", heart: "like", construction: "handshake", truck: "package", diamond: "diamond", customers: "friends", trophy: "trophy" };
 export const outcomeIcon = (icon: string): SocialIconId => iconOf[icon] ?? "friends";
 const parse = (body: unknown) => {
 	if (typeof body !== "string") return body;

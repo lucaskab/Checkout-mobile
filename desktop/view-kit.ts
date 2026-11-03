@@ -219,6 +219,12 @@ export type BoardTile = {
 	corner: string;
 	/** A second big button beside the main one (label "" = none): Presente next to Visitar. */
 	alt: Button;
+	/** Rankings v1 (frame "rank"): the place ("1", "48213"; "" = none, "-" = not ranked), the player's flag
+	 * ("Flags/br") and the number at the row's end with its label ("1.240" "pontos"). */
+	rank: string;
+	flag: string;
+	value: string;
+	valueLabel: string;
 };
 /** A game window built from tiles (layout "board"): stock, deposit, deliveries, production, missions, trophies. */
 export type BoardView = {
@@ -241,6 +247,13 @@ export type BoardView = {
 	empty: string;
 	/** Tile picked when the board opens (id); "" = the first one. */
 	focus: string;
+	/** Rankings v1 (style "rank"): the top three on a podium over the rows (none = empty), my row pinned under them
+	 * (id "" = none), a strip of chips over the rows (the league's prizes) and a tile to scroll to ("<id>#<count>":
+	 * a new count scrolls again). */
+	podium: BoardTile[];
+	pinned: BoardTile;
+	strip: BoardStat[];
+	scroll: string;
 };
 export type Page = {
 	route: string;
@@ -428,6 +441,10 @@ export function tile(id: string, title: string, options: Partial<BoardTile> = {}
 		frame: "",
 		corner: "",
 		alt: noButton(),
+		rank: "",
+		flag: "",
+		value: "",
+		valueLabel: "",
 		...options,
 	};
 }
@@ -449,6 +466,10 @@ export function board(tiles: BoardTile[], options: Partial<BoardView> = {}): Boa
 		now: Date.now(),
 		empty: "Nada por aqui ainda.",
 		focus: "",
+		podium: [],
+		pinned: tile("", ""),
+		strip: [],
+		scroll: "",
 		...options,
 	};
 }

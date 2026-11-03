@@ -16,6 +16,7 @@ import { routes as upgrades } from "./upgrades";
 import { routes as guide } from "./guide";
 import { routes as account } from "./account";
 import { routes as amigos } from "./amigos";
+import { routes as ranking } from "./ranking";
 
 export type Routes = Record<string, (state: State, args: string[]) => Page>;
 
@@ -40,6 +41,8 @@ const all: Routes = {
 	...account,
 	// Amigos (social v1) and the friend's product requests during a visit.
 	...amigos,
+	// Ranking (rankings v1): Amigos · Liga · Mundo · País.
+	...ranking,
 	// Everything that is bought lives in the shop now: the old pages open their shop category.
 	team: (state) => shopPage(state, ["equipe"]),
 	shop: (state, [category]) => shopPage(state, ["melhorias", category ?? ""]),

@@ -83,6 +83,8 @@ const viewIdKeys = new Set([
 	"incidentId", "incidentKind", "ruin", "shift", "phase", "coins", "diamonds", "productCategory", "box", "key",
 	// social v1: what the player typed, the QR modules, avatars, friend codes and names (never translated)
 	"value", "qr", "avatar", "code", "friendId", "buildId", "friendName", "max", "frame", "corner",
+	// rankings v1: places, flags, the tile to scroll to, divisions (ids) and the badges' pictures
+	"rank", "flag", "scroll", "division", "movedTo", "badgeFrom", "badgeTo", "week", "moved",
 ]);
 /** Snapshot keys Unity shows as text (names, labels); everything else in a snapshot is data. */
 const snapshotTextKeys = new Set([

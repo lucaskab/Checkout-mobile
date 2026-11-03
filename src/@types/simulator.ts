@@ -26,6 +26,9 @@ export type SimulatorAction = Exclude<
 	| `process${string}`
 	// Social v1: applied by the host from the server's answers only, never a command from the map.
 	| `${string}Social${string}`
+	// Rankings v1: the same (the host books the server's answers and the window's switches).
+	| `${string}League${string}`
+	| `${string}Ranking${string}`
 	| "resetGame"
 	| "grantCurrencyPurchase"
 	| "grantCurrencyPack"

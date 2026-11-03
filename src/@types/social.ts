@@ -15,7 +15,8 @@ export type SocialInboxKind =
 	| "friend_request"
 	| "friend_added"
 	| "invite_reward"
-	| "request_fulfilled";
+	| "request_fulfilled"
+	| "league_reward";
 
 /** One unacked inbox item as `GET /v1/social/inbox` returns it. */
 export type SocialInboxItem = {

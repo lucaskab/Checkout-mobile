@@ -84,7 +84,8 @@ test("first time on Amigos: the profile asks for a market name and a face", asyn
 	expect(social.socialTouched()).toBe(true);
 	const main = pages(game(), "amigos");
 	expect(main.layout).toBe("board");
-	expect(main.sections.map((s) => s.label)).toEqual(["Amigos", "Pedidos", "Convidar", "Correio"]);
+	// (rankings v1: the way into the Ranking window from Amigos)
+	expect(main.sections.map((s) => s.label)).toEqual(["Amigos", "Pedidos", "Convidar", "Correio", "Ranking"]);
 	expect(main.sections[0].active).toBe(true);
 	// My strip across the top (the board's bar): my face opens the profile, my code, Copiar / Convidar, the helps.
 	expect(main.cards).toHaveLength(0);

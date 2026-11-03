@@ -41,6 +41,7 @@ import {
 	card,
 	decorIcon,
 	fmt,
+	gameIcon,
 	go,
 	meter,
 	page,
@@ -79,9 +80,13 @@ function sections(state: State, active: Tab): Button[] {
 		{ id: "convidar", label: "Convidar", icon: socialIcon("invite"), route: "!amigos-convidar", badge: socialStore.offeredCode ? 1 : 0 },
 		{ id: "correio", label: "Correio", icon: socialIcon("gift"), route: "!amigos-correio", badge: mine.mailbox.length },
 	];
-	return tabs.map((tab) =>
-		button(tab.label, { icon: tab.icon, route: tab.route, variant: tab.id === active ? "coin" : "secondary", active: tab.id === active, badge: tab.badge > 0 ? String(tab.badge) : "" }),
-	);
+	return [
+		...tabs.map((tab) =>
+			button(tab.label, { icon: tab.icon, route: tab.route, variant: tab.id === active ? "coin" : "secondary", active: tab.id === active, badge: tab.badge > 0 ? String(tab.badge) : "" }),
+		),
+		// Rankings v1: the way into the Ranking window from Amigos (its friends board first).
+		button("Ranking", { icon: gameIcon("trophy"), route: "!ranking:amigos", variant: "secondary" }),
+	];
 }
 
 /** One full-screen social window: navy header, the four tabs, big cards over the tiles. */
@@ -620,7 +625,7 @@ function convidarPage(state: State, codeField: boolean): Page {
 
 // ------------------------------------------------------------------------------------------------------------ correio
 
-const historyIcon: Record<string, string> = { gift: "gift", like: "like", help: "handshake", delivery: "package", friend_request: "friends", friend_added: "friends", invite_reward: "diamond", request_fulfilled: "package" };
+const historyIcon: Record<string, string> = { gift: "gift", like: "like", help: "handshake", delivery: "package", friend_request: "friends", friend_added: "friends", invite_reward: "diamond", request_fulfilled: "package", league_reward: "trophy" };
 const historyLine: Record<string, string> = {
 	gift: "mandou um presente",
 	like: "curtiu seu mercado",
@@ -630,6 +635,7 @@ const historyLine: Record<string, string> = {
 	friend_added: "virou seu amigo",
 	invite_reward: "convite premiado: +{5} diamantes",
 	request_fulfilled: "atendeu o seu pedido",
+	league_reward: "fim da liga: +{5} diamantes",
 };
 
 /** One line of the history: the friend's face, who, what and when, as a slim row (two per line). */
@@ -637,7 +643,7 @@ function historyTile(entry: SocialLogEntry, index: number, now: number): BoardTi
 	const values = { name: entry.name, coins: entry.coins, minutes: entry.minutes, qty: entry.qty, product: productName(entry.productId), diamonds: entry.diamonds };
 	const line = toastText(historyLine[entry.kind] ?? entry.text, values);
 	const icon = socialIcon((historyIcon[entry.kind] ?? "friends") as never);
-	return tile(`log-${index}`, entry.name || "Um amigo", {
+	return tile(`log-${index}`, entry.name || (entry.kind === "league_reward" ? "Liga da semana" : "Um amigo"), {
 		group: "Histórico",
 		icon: entry.avatar ? avatarIcon(entry.avatar) : icon,
 		frame: "line",
