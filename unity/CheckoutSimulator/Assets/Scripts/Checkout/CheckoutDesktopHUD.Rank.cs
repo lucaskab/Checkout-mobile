@@ -154,28 +154,21 @@ namespace Checkout {
   bool RankFillFold(float height){
    var c=new Vector3[4];
    rankPodium.GetWorldCorners(c);float podiumBottom=-boardContent.InverseTransformPoint(c[0]).y;
-   float first=float.MaxValue,firstH=0;
+   float first=float.MaxValue;
    foreach(var t in boardTiles){
     if(!t.gameObject.activeSelf)continue;((RectTransform)t.transform).GetWorldCorners(c);
     float top=-boardContent.InverseTransformPoint(c[1]).y,bottom=-boardContent.InverseTransformPoint(c[0]).y;
-    if(top>=podiumBottom-1&&bottom>height+.5f&&top<first){first=top;firstH=bottom-top;}
+    if(top>=podiumBottom-1&&bottom>height+.5f&&top<first)first=top;
    }
    float grow=0;
-   if(first<float.MaxValue){
-    float g=height-(first-rankPodiumGrow);
-    // (a row that misses by a little comes in whole instead: the podium gives up to ~40 of its top's free room,
-    // where only the bunting hangs; more than that and the podium grows into the room as before)
-    float shrink=firstH-g+2;
-    if(shrink>0&&shrink<=(Phone?34:44))grow=-shrink;
-    else if(g>0&&g<=(Phone?150:200))grow=g;
-   }
+   if(first<float.MaxValue){float g=height-(first-rankPodiumGrow);if(g>0&&g<=(Phone?150:200))grow=g;}
    if(Mathf.Abs(grow-rankPodiumGrow)<1)return false;
    rankPodiumGrow=grow;SetPodiumGrow();return true;
   }
   void SetPodiumGrow(){
    rankPodium.GetComponent<LayoutElement>().preferredHeight=PodiumHeight+rankPodiumGrow;
-   float lift=Mathf.Max(0,rankPodiumGrow)*.5f; // (a shrink keeps the plinths on the floor: the columns' free top just hangs closer to the bunting)
-   foreach(var col in podiumColumns){var r=(RectTransform)col.transform;r.anchoredPosition=new Vector2(0,6+lift);r.sizeDelta=new Vector2(r.sizeDelta.x,PodiumHeight+Mathf.Min(0,rankPodiumGrow));}
+   float lift=rankPodiumGrow*.5f;
+   foreach(var col in podiumColumns)((RectTransform)col.transform).anchoredPosition=new Vector2(0,6+lift);
    rankPodiumFloor.offsetMin=new Vector2(0,-14+lift);rankPodiumFloor.offsetMax=new Vector2(0,26+lift);
    podiumSpot.rectTransform.sizeDelta=new Vector2(PodiumHeight*.95f,PodiumHeight+rankPodiumGrow);
    buntingWidth=-1;

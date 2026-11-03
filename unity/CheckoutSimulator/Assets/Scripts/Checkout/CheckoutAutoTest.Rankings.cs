@@ -44,6 +44,16 @@ namespace Checkout {
     return bad;
    }
    bool PodiumOn(){var p=Field<RectTransform>("rankPodium");return p&&p.gameObject.activeInHierarchy;}
+   // where the podium stands (size, top/bottom in the scroll's viewport, the columns' scale, the fill-the-fold growth, its siblings)
+   string PodiumProbe(){
+    var p=Field<RectTransform>("rankPodium");var scroll=Field<UnityEngine.UI.ScrollRect>("boardScroll");if(!p||!scroll)return "?";
+    var vp=scroll.viewport?scroll.viewport:(RectTransform)scroll.transform;var c=new Vector3[4];p.GetWorldCorners(c);
+    float top=vp.InverseTransformPoint(c[1]).y,bottom=vp.InverseTransformPoint(c[0]).y;
+    var cols=Field<System.Array>("podiumColumns");string sc="";if(cols!=null)foreach(var o in cols)if(o is Component k)sc+=k.transform.localScale.y.ToString("0.00")+" ";
+    string sib="";for(int i=0;i<p.parent.childCount;i++){var ch=p.parent.GetChild(i);if(i>5)break;sib+=$"{ch.name}:{(ch.gameObject.activeSelf?((RectTransform)ch).rect.height.ToString("0"):"off")} ";}
+    var grow=typeof(CheckoutDesktopHUD).GetField("rankPodiumGrow",F)?.GetValue(hud);
+    return $"podium {p.rect.width:0}x{p.rect.height:0} top {top:0} bottom {bottom:0} (viewport {vp.rect.yMin:0}..{vp.rect.yMax:0}) cols {sc}grow {grow} scroll {scroll.verticalNormalizedPosition:0.00} siblings {sib}";
+   }
    string PinnedTitle(){var pinned=Field<Component>("rankPinned");if(!pinned||!pinned.gameObject.activeInHierarchy)return "";var t=pinned.GetComponentsInChildren<TMPro.TextMeshProUGUI>(false).FirstOrDefault(x=>x.name=="Title");return t?t.text:"";}
    int Rows(){var tiles=Field<System.Collections.IEnumerable>("boardTiles");int n=0;if(tiles!=null)foreach(var o in tiles)if(o is Component c&&c.gameObject.activeInHierarchy)n++;return n;}
    bool RivalOn(){var r=Field<RectTransform>("rivalRoot");return r&&r.gameObject.activeInHierarchy;}
@@ -87,6 +97,7 @@ namespace Checkout {
    Result("Mundo: podium, rows and my pinned row",PodiumOn()&&Rows()>=90&&PinnedTitle().StartsWith("Você"),$"rows {Rows()} pinned '{PinnedTitle()}'");
    Result("round faces only (Mundo)",SquareFaces()==0,$"square {SquareFaces()}");
    yield return Shot2("rank_mundo_pt");
+   Note("rankings: mundo podium probe: "+PodiumProbe());
    // "Ver minha posição" when I am in my country's top 100
    yield return Tab("pais");yield return Quiet();
    Result("País: podium and pinned row",PodiumOn()&&Rows()>0&&PinnedTitle().StartsWith("Você"),$"rows {Rows()} pinned '{PinnedTitle()}'");
@@ -156,6 +167,7 @@ namespace Checkout {
    Mock("signed-out");Act("rankingRefresh","[]");yield return new WaitForSecondsRealtime(2f);yield return Tab("mundo");yield return Quiet();
    Result("signed out: boards read-only with the sign-in card",PodiumOn()&&PinnedTitle()=="",$"podium {PodiumOn()} pinned '{PinnedTitle()}'");
    yield return Shot2("rank_signedout_pt");
+   Note("rankings: signed-out podium probe: "+PodiumProbe());
    yield return Tab("liga");yield return Shot2("rank_signedout_liga_pt");
    Mock("signed-out","off");Act("rankingRefresh","[]");yield return new WaitForSecondsRealtime(1.5f);
 
