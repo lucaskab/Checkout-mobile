@@ -225,6 +225,30 @@ export type BoardTile = {
 	flag: string;
 	value: string;
 	valueLabel: string;
+	/** Icon before the value (the Amigos column: medal, flame, heart; "shape:star" = a star drawn by Unity). */
+	valueIcon: string;
+	/** Places gained (> 0) or lost (< 0) since the board was last opened (▲/▼ drawn by Unity); 0 = none. */
+	trend: number;
+	/** "invite" = the illustrated invite card closing a ranking; "" = a ranked row. */
+	look: string;
+};
+/** The friendly rivalry card over the Amigos board (Unity draws it in the meter's place): me VS the friend just above
+ * me (or the one just below when I lead) in the chosen column, with the gap in words. */
+export type RivalView = {
+	meIcon: string;
+	meName: string;
+	meValue: string;
+	otherIcon: string;
+	otherName: string;
+	otherValue: string;
+	/** "Faltam 3 níveis para passar a Banca do Bruno" / "Você lidera! Ana está a 2 níveis". */
+	text: string;
+	/** I lead the board (the other is #2). */
+	lead: boolean;
+	/** The column's icon (medal, flame, heart, "shape:star"). */
+	icon: string;
+	/** "Aparecer no ranking" (the meter's button). */
+	button: Button;
 };
 /** A game window built from tiles (layout "board"): stock, deposit, deliveries, production, missions, trophies. */
 export type BoardView = {
@@ -254,6 +278,8 @@ export type BoardView = {
 	pinned: BoardTile;
 	strip: BoardStat[];
 	scroll: string;
+	/** The Amigos rivalry card (null = none: the meter shows). */
+	rival: RivalView | null;
 };
 export type Page = {
 	route: string;
@@ -445,6 +471,9 @@ export function tile(id: string, title: string, options: Partial<BoardTile> = {}
 		flag: "",
 		value: "",
 		valueLabel: "",
+		valueIcon: "",
+		trend: 0,
+		look: "",
 		...options,
 	};
 }
@@ -470,6 +499,7 @@ export function board(tiles: BoardTile[], options: Partial<BoardView> = {}): Boa
 		pinned: tile("", ""),
 		strip: [],
 		scroll: "",
+		rival: null,
 		...options,
 	};
 }

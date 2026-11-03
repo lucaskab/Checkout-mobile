@@ -76,3 +76,5 @@ export const LEAGUE_SEND_EVERY_MS = 10 * 60_000;
 /** End-of-week cards kept waiting, weeks remembered as rewarded. */
 export const RANKING_CARDS_KEEP = 4;
 export const RANKING_WEEKS_KEEP = 12;
+/** Friends kept per column for the ▲/▼ of the Amigos board (a friends list is capped well under this). */
+export const RANKING_SEEN_KEEP = 200;

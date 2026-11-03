@@ -279,7 +279,9 @@ namespace Checkout {
    bool faces=tiles.Length>0;foreach(var x in tiles)if(x.frame!="portrait"&&x.frame!="line"){faces=false;break;}
    boardFaces=faces&&chipRows==0;
    float cellH=chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
-   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankRowH):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
+   // (ranking rows with a bar under the name, Amigos: a little taller)
+   if(rank){bool anyBar=false;foreach(var x in tiles)if(x.fill>=0&&x.look!="invite")anyBar=true;RankCellH=RankRowH+(anyBar?10:0);}
+   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
    var slimCell=new Vector2(Mathf.Floor((width-14)/2),64);boardCellWidth=rows?0:cell.x;
    // Sections: a title each time the group changes.
    int section=-1;string group=null;

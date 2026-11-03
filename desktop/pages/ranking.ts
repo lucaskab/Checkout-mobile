@@ -11,7 +11,7 @@ import {
 	RANKING_TOP,
 } from "@/data/rankings";
 import { getLanguage } from "@/i18n";
-import { type FriendsColumn, sortFriendsBoard, timeLeftText, weekEndsAt } from "@/services/rankings";
+import { type FriendsColumn, rankTrend, sortFriendsBoard, timeLeftText, weekEndsAt } from "@/services/rankings";
 import { cloudStore } from "../cloud";
 import {
 	type FriendRank,
@@ -20,6 +20,7 @@ import {
 	type LevelBoard,
 	type RankingTab,
 	type RankRow,
+	friendsRows,
 	rankingsOnline,
 	rankingsStore,
 	viewRankings,
@@ -340,30 +341,69 @@ function friendValue(row: FriendRank, column: FriendsColumn) {
 	return { value: fmt(row.xp), valueLabel: "XP" };
 }
 
+/** The column's icon on the tabs, the rows' values and the rivalry card. */
+const columnIcons: Record<FriendsColumn, string> = { nivel: "Icons/medal", semana: "Icons/flame", curtidas: "Icons/like", nota: "shape:star" };
+/** The number a column ranks by, for the rows' bars (relative to the leader). */
+function columnNumber(row: FriendRank, column: FriendsColumn) {
+	if (column === "semana") return row.weekPoints;
+	if (column === "curtidas") return row.likes;
+	if (column === "nota") return row.marketRating ?? 0;
+	return row.xp;
+}
+
+/** "Faltam 3 níveis para passar a Banca do Bruno" (or "Você lidera! Ana está a 2 níveis") in the chosen column. */
+function rivalText(me: FriendRank, other: FriendRank, column: FriendsColumn, lead: boolean): string {
+	const name = nameOf(other);
+	const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+	if (column === "nivel") {
+		const levels = Math.abs(other.level - me.level);
+		const xp = Math.abs(other.xp - me.xp);
+		if (lead) return levels > 0 ? `Você lidera! ${name} está a ${levels} ${plural(levels, "nível", "níveis")}` : `Você lidera! ${name} está a ${fmt(xp)} XP`;
+		return levels > 0 ? `${plural(levels, "Falta", "Faltam")} ${levels} ${plural(levels, "nível", "níveis")} para passar ${name}` : `Faltam ${fmt(xp + 1)} XP para passar ${name}`;
+	}
+	if (column === "semana") {
+		const gap = Math.abs(other.weekPoints - me.weekPoints);
+		return lead ? `Você lidera! ${name} está a ${fmt(gap)} ${plural(gap, "ponto", "pontos")}` : `Faltam ${fmt(gap + 1)} pontos para passar ${name}`;
+	}
+	if (column === "curtidas") {
+		const gap = Math.abs(other.likes - me.likes);
+		return lead ? `Você lidera! ${name} está a ${gap} ${plural(gap, "curtida", "curtidas")}` : `${plural(gap + 1, "Falta", "Faltam")} ${gap + 1} ${plural(gap + 1, "curtida", "curtidas")} para passar ${name}`;
+	}
+	const gap = Math.abs((other.marketRating ?? 0) - (me.marketRating ?? 0));
+	const words = gap.toFixed(1).replace(".", ",");
+	if (gap < 0.05) return lead ? `Você lidera! ${name} está colado em você` : `Empatados na nota com ${name}`;
+	return lead ? `Você lidera! ${name} está a ${words} de nota` : `Falta ${words} de nota para passar ${name}`;
+}
+
 function friendsPage(state: State): Page {
 	const column = rankingsStore.column;
 	const columns = (Object.keys(columnLabels) as FriendsColumn[]).map((id) =>
-		act(columnLabels[id], "rankingColumn", [id], { variant: id === column ? "coin" : "secondary", active: id === column, ok: "" }),
+		act(columnLabels[id], "rankingColumn", [id], { icon: columnIcons[id], variant: id === column ? "coin" : "secondary", active: id === column, ok: "" }),
 	);
 	if (!rankingsOnline()) return rankPage(state, "amigos", [signInCard()], [], { empty: "Entre na sua conta para ver os amigos." });
 	const loaded = rankingsStore.friends;
 	if (!loaded.data) return rankPage(state, "amigos", [loaded.error ? troubleCard(loaded.error) : card("Carregando os amigos…", { icon: socialIcon("friends") })], [], { empty: "" });
 	const id = myId();
-	const week = viewRankings();
-	// My own week points as this phone counts them (the server may not have them all yet).
-	const rows = loaded.data.map((row) => (row.id === id ? { ...row, weekPoints: Math.max(row.weekPoints, week.points) } : row));
-	const sorted = sortFriendsBoard(rows, column);
-	const tiles = sorted.map((row, index) =>
-		playerTile(row.id, row, index + 1, {
+	const sorted = sortFriendsBoard(friendsRows(), column);
+	const leader = Math.max(0.0001, ...sorted.map((row) => columnNumber(row, column)));
+	const before = rankingsStore.friendsBefore?.[column];
+	const tiles = sorted.map((row, index) => ({
+		...playerTile(row.id, row, index + 1, {
 			...friendValue(row, column),
 			you: row.id === id,
 			actions: row.id === id ? [] : [act("Visitar", "socialVisit", [row.id], { icon: socialIcon("market"), variant: "primary", ok: "" })],
 		}),
-	);
+		// a small "Visitar" on each friend's row, the value's icon, a bar against the leader and ▲/▼ since last time
+		action: row.id === id ? button("", { enabled: false }) : act("Visitar", "socialVisit", [row.id], { icon: socialIcon("market"), variant: "primary", ok: "" }),
+		valueIcon: columnIcons[column],
+		fill: Math.max(0.04, Math.min(1, columnNumber(row, column) / leader)),
+		trend: rankTrend(before, row.id, index + 1),
+	}));
 	const invite = tile("invite", "Chame amigos para disputar", {
 		group: "",
-		icon: socialIcon("invite"),
+		icon: socialIcon("friends"),
 		frame: "rank",
+		look: "invite",
 		subtitle: "Quem entrar pelo seu convite e chegar ao Späti ganha 30 diamantes, e você também.",
 		rank: "",
 		action: act("Convidar", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" }),
@@ -374,9 +414,26 @@ function friendsPage(state: State): Page {
 	const place = meRow ? sorted.indexOf(meRow) + 1 : 0;
 	const cards: Card[] = sorted.length <= 1 ? [card("Jogue junto com os amigos!", { icon: socialIcon("friends"), eyebrow: "NENHUM AMIGO AINDA", tone: "gold", lines: ["Adicione amigos em Amigos e vejam quem vai mais longe."], buttons: [act("Convidar amigos", "socialShare", [], { icon: socialIcon("share"), variant: "success", ok: "" })] })] : [];
 	const podium = sorted.length >= 3 ? tiles.slice(0, 3) : [];
+	// the rival: the friend just above me, or the one just below when I lead
+	const other = meRow && sorted.length > 1 ? sorted[place === 1 ? 1 : place - 2] : null;
+	const rival =
+		meRow && other
+			? {
+					meIcon: faceOf(meRow.avatar),
+					meName: "Você",
+					meValue: friendValue(meRow, column).value,
+					otherIcon: faceOf(other.avatar),
+					otherName: nameOf(other),
+					otherValue: friendValue(other, column).value,
+					text: rivalText(meRow, other, column, place === 1),
+					lead: place === 1,
+					icon: columnIcons[column],
+					button: optOutButton(),
+				}
+			: null;
 	return rankPage(state, "amigos", cards, [...(podium.length ? tiles.slice(3) : tiles), invite], {
 		podium,
-		pinned: meRow ? { ...tiles[place - 1], id: "pinned-me", title: `Você · #${place}`, subtitle: nameOf(meRow), action: act("Ver minha posição", "rankingMyPosition", [meRow.id], { variant: "primary", ok: "" }) } : tile("", ""),
+		pinned: meRow ? { ...tiles[place - 1], id: "pinned-me", title: `Você · #${place}`, subtitle: nameOf(meRow), trend: 0, action: act("Ver minha posição", "rankingMyPosition", [meRow.id], { variant: "primary", ok: "" }) } : tile("", ""),
 		stats: [stat(socialIcon("friends"), String(Math.max(0, sorted.length - 1)), "amigos"), ...(place ? [stat("Icons/trophy", `#${place}`, "entre os amigos")] : [])],
 		meter: meter("Amigos", place ? sorted.length - place + 1 : 0, Math.max(1, sorted.length), {
 			icon: socialIcon("friends"),
@@ -384,6 +441,7 @@ function friendsPage(state: State): Page {
 			text: place ? `Você é #${place} de ${sorted.length} entre os amigos` : "Seus amigos",
 			buttons: [optOutButton()],
 		}),
+		rival,
 		empty: "",
 	}, { tabs: columns });
 }
@@ -410,15 +468,25 @@ export type LeagueCardView = {
 	/** "up" | "down" | "same" */
 	moved: string;
 	movedText: string;
+	/** The stamp over the new badge: "SUBIU!" | "CAIU" | "MANTEVE". */
+	stamp: string;
 	badgeFrom: string;
 	badgeTo: string;
 	diamonds: number;
 	coins: number;
 	avatar: string;
-	/** The podium of that week's group (names and faces, 1st to 3rd) when this phone saw it; me on mine. */
+	/** My name and the tag over my face when I am on the podium. */
+	meName: string;
+	meTag: string;
+	/** The podium of that week's group (names, faces and points, 1st to 3rd): from the item's `top`, else what this
+	 * phone saw in the Liga tab; me on mine. An unknown place: "" (Unity shows the division medal). */
 	podiumNames: string[];
 	podiumAvatars: string[];
+	podiumPoints: string[];
+	/** The stats row: "#2 de 30 jogadores", "1.452 pontos na semana", "28 jogadores que você passou". */
+	stats: BoardStat[];
 	button: string;
+	/** The new division's colour (confetti, glow). */
 	tint: string;
 };
 
@@ -428,19 +496,33 @@ export function leagueCardView(state: State): LeagueCardView | null {
 	if (!card0) return null;
 	const moved = rankOf(card0.movedTo) > rankOf(card0.division) ? "up" : rankOf(card0.movedTo) < rankOf(card0.division) ? "down" : "same";
 	const me = socialStore.me;
+	const myFace = avatarIcon(me?.avatar ?? state.social?.profile?.avatar ?? null);
+	const myName = me?.marketName?.trim() || (me?.code ? `Mercado #${formatCode(me.code)}` : "Você");
 	const seen = rankingsStore.podiums.get(card0.week) ?? [];
 	const names: string[] = [];
 	const avatars: string[] = [];
+	const points: string[] = [];
 	for (let place = 1; place <= 3; place++) {
-		if (place === card0.place) {
-			names.push(me?.marketName || "Você");
-			avatars.push(avatarIcon(me?.avatar ?? state.social?.profile?.avatar ?? null));
-			continue;
-		}
+		const top = card0.top[place - 1];
 		const row = seen.find((entry) => entry.place === place);
-		names.push(row ? nameOf(row) : "");
-		avatars.push(row ? faceOf(row.avatar) : "");
+		if (place === card0.place) {
+			names.push(myName);
+			avatars.push(myFace);
+			points.push(top ? fmt(top.points) : card0.points ? fmt(card0.points) : "");
+		} else if (top) {
+			names.push(nameOf(top));
+			avatars.push(faceOf(top.avatar));
+			points.push(fmt(top.points));
+		} else {
+			names.push(row ? nameOf(row) : "");
+			avatars.push(row ? faceOf(row.avatar) : "");
+			points.push(row ? fmt(row.points) : "");
+		}
 	}
+	const stats: BoardStat[] = [];
+	if (card0.place > 0 && card0.size > 0) stats.push(stat("Icons/trophy", `#${card0.place}`, `de ${card0.size} jogadores`));
+	if (card0.points > 0) stats.push(stat("Icons/flame", fmt(card0.points), "pontos na semana"));
+	if (card0.place > 0 && card0.size > 0) stats.push(stat("Icons/friends", fmt(Math.max(0, card0.size - card0.place)), "jogadores que você passou"));
 	return {
 		key: card0.id,
 		headline: "FIM DA LIGA",
@@ -450,14 +532,24 @@ export function leagueCardView(state: State): LeagueCardView | null {
 		division: card0.division,
 		movedTo: card0.movedTo,
 		moved,
-		movedText: moved === "up" ? `Subiu para a ${divisionName(card0.movedTo)}!` : moved === "down" ? `Desceu para a ${divisionName(card0.movedTo)}` : `Continua na ${divisionName(card0.movedTo)}`,
+		movedText:
+			moved === "up"
+				? `Subiu para a ${divisionName(card0.movedTo)}!`
+				: moved === "down"
+					? `${divisionName(card0.movedTo)} na próxima semana: bora voltar!`
+					: `Continua na ${divisionName(card0.movedTo)}`,
+		stamp: moved === "up" ? "SUBIU!" : moved === "down" ? "CAIU" : "MANTEVE",
 		badgeFrom: divisionIcon(card0.division),
 		badgeTo: divisionIcon(card0.movedTo),
 		diamonds: card0.diamonds,
 		coins: card0.coins,
-		avatar: avatarIcon(me?.avatar ?? state.social?.profile?.avatar ?? null),
+		avatar: myFace,
+		meName: myName,
+		meTag: "VOCÊ",
 		podiumNames: names,
 		podiumAvatars: avatars,
+		podiumPoints: points,
+		stats,
 		button: "Pegar prêmios",
 		tint: LEAGUE_DIVISION_TINTS[card0.movedTo],
 	};

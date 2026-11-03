@@ -19,7 +19,18 @@ export type LeagueRewardCard = {
 	coins: number;
 	movedTo: LeagueDivision;
 	at: number;
+	/** The group's podium that week (places 1–3, best first; from the item's `top`, 03/11). Empty = unknown. */
+	top: LeagueTopRow[];
+	/** My points that week and how many players were placed in the group (0 = unknown). */
+	points: number;
+	size: number;
 };
+
+/** One place of a league group's podium (the `league_reward` item's `top`). */
+export type LeagueTopRow = { id: string; code: string; marketName: string | null; avatar: string | null; points: number };
+
+/** Friends board columns (Amigos tab). */
+export type FriendsRankColumn = "nivel" | "semana" | "curtidas" | "nota";
 
 export type RankingsState = {
 	/** ISO week of `points` ("2026-W45"): by the device clock, unless the server said otherwise (`skew`). */
@@ -42,4 +53,9 @@ export type RankingsState = {
 	rewardedWeeks: string[];
 	/** End-of-week cards not seen yet (oldest first; the diamonds and coins are already in the save). */
 	cards: LeagueRewardCard[];
+	/**
+	 * The friends board as the player last opened it, per column: friend id → place. The rows show ▲/▼ against it
+	 * (written once each time the Amigos tab opens with data; at most RANKING_SEEN_KEEP friends a column).
+	 */
+	seenRanks: Partial<Record<FriendsRankColumn, Record<string, number>>>;
 };

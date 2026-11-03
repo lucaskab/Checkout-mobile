@@ -1,6 +1,6 @@
 import type { DayResult } from "@/@types/market-day";
-import type { LeagueRewardCard, RankingsState } from "@/@types/rankings";
-import { isLeagueDivision, LEAGUE_POINTS, LEAGUE_SEND_EVERY_MS, RANKING_CARDS_KEEP, RANKING_WEEKS_KEEP } from "@/data/rankings";
+import type { FriendsRankColumn, LeagueRewardCard, LeagueTopRow, RankingsState } from "@/@types/rankings";
+import { isLeagueDivision, LEAGUE_POINTS, LEAGUE_SEND_EVERY_MS, RANKING_CARDS_KEEP, RANKING_SEEN_KEEP, RANKING_WEEKS_KEEP } from "@/data/rankings";
 
 // Rankings v1 on the player's own save (docs/rankings-api.md). Pure functions: the store applies what they return.
 // League points live in the save for the current ISO week (Monday 00:00 UTC → next Monday, by the device clock) and the
@@ -10,7 +10,7 @@ const DAY = 86_400_000;
 const WEEK = 7 * DAY;
 
 export function createRankingsState(now = Date.now()): RankingsState {
-	return { week: isoWeek(now), points: 0, pointsAt: 0, lastSent: 0, sentPoints: 0, optOut: false, skew: null, rewardedWeeks: [], cards: [] };
+	return { week: isoWeek(now), points: 0, pointsAt: 0, lastSent: 0, sentPoints: 0, optOut: false, skew: null, rewardedWeeks: [], cards: [], seenRanks: {} };
 }
 
 const num = (value: unknown, fallback = 0) => (typeof value === "number" && Number.isFinite(value) ? value : fallback);
@@ -29,6 +29,9 @@ function normalizeCard(value: unknown): LeagueRewardCard | null {
 		coins: Math.max(0, Math.floor(num(card.coins))),
 		movedTo: isLeagueDivision(card.movedTo) ? card.movedTo : isLeagueDivision(card.division) ? card.division : "bronze",
 		at: num(card.at),
+		top: normalizeLeagueTop(card.top),
+		points: Math.max(0, Math.floor(num(card.points))),
+		size: Math.max(0, Math.floor(num(card.size))),
 	};
 }
 
@@ -48,7 +51,40 @@ export function normalizeRankingsState(value: unknown, now = Date.now()): Rankin
 		skew,
 		rewardedWeeks: Array.isArray(state.rewardedWeeks) ? state.rewardedWeeks.filter((week) => WEEK_ID.test(str(week))).slice(-RANKING_WEEKS_KEEP) : [],
 		cards: Array.isArray(state.cards) ? state.cards.map(normalizeCard).filter((card): card is LeagueRewardCard => !!card).slice(-RANKING_CARDS_KEEP) : [],
+		seenRanks: normalizeSeenRanks(state.seenRanks),
 	};
+}
+
+function normalizeSeenRanks(value: unknown): RankingsState["seenRanks"] {
+	const out: RankingsState["seenRanks"] = {};
+	if (!value || typeof value !== "object") return out;
+	for (const column of FRIENDS_COLUMNS) {
+		const map = (value as Record<string, unknown>)[column];
+		if (!map || typeof map !== "object") continue;
+		const clean: Record<string, number> = {};
+		for (const [id, rank] of Object.entries(map as Record<string, unknown>).slice(0, RANKING_SEEN_KEEP)) if (id && typeof rank === "number" && rank >= 1) clean[id] = Math.floor(rank);
+		out[column] = clean;
+	}
+	return out;
+}
+
+/** A league `top` list from an inbox payload or a saved card: at most 3 well-formed rows. */
+export function normalizeLeagueTop(value: unknown): LeagueTopRow[] {
+	if (!Array.isArray(value)) return [];
+	return value
+		.slice(0, 3)
+		.map((row) => {
+			const r = row as Record<string, unknown> | null;
+			if (!r || typeof r !== "object" || !str(r.id)) return null;
+			return { id: str(r.id), code: str(r.code), marketName: str(r.marketName) || null, avatar: str(r.avatar) || null, points: Math.max(0, Math.floor(num(r.points))) };
+		})
+		.filter((row): row is LeagueTopRow => !!row);
+}
+
+/** ▲/▼ of a friend since the board was last opened: places gained (> 0), lost (< 0), 0 = same or new. */
+export function rankTrend(seen: Record<string, number> | undefined, id: string, place: number): number {
+	const before = seen?.[id];
+	return before ? before - place : 0;
 }
 
 // ------------------------------------------------------------------------------------------------------------ weeks
@@ -153,7 +189,7 @@ export function timeLeftText(endsAt: number, now: number) {
 
 // ------------------------------------------------------------------------------------------------------------ boards
 
-export type FriendsColumn = "nivel" | "semana" | "curtidas" | "nota";
+export type FriendsColumn = FriendsRankColumn;
 export const FRIENDS_COLUMNS: FriendsColumn[] = ["nivel", "semana", "curtidas", "nota"];
 export type FriendRankRow = { id: string; level: number; xp: number; weekPoints: number; likes: number; marketRating: number | null };
 

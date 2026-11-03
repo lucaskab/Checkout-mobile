@@ -118,6 +118,8 @@ namespace Checkout {
    if(string.IsNullOrEmpty(path))return null;
    // Social v1: "avatar:shopper-3" = a portrait of one of the game's own shoppers (drawn once by CheckoutSocial).
    if(path.StartsWith("avatar:",System.StringComparison.Ordinal))return CheckoutSocial.Avatar(path.Substring(7));
+   // Rankings v1: "shape:star" = a shape drawn in code (CheckoutRankArt), white, painted by the Image's colour.
+   if(path.StartsWith("shape:",System.StringComparison.Ordinal))return CheckoutRankArt.Shape(path.Substring(6));
    if(icons.TryGetValue(path,out var cached))return cached;
    // Misses are retried after a moment: a texture that was still importing loads next time.
    if(misses.TryGetValue(path,out var missedAt)&&Time.realtimeSinceStartup-missedAt<2)return null;

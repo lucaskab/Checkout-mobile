@@ -70,6 +70,8 @@ namespace Checkout {
    string frame;float wobblePhase;Image clip,rim;bool isFace;
    // Rankings v1 rows (frame "rank"): the place on a medal disc, the flag and the number at the row's end.
    Image rankDisc,flagImage,flagEdge;TextMeshProUGUI rankText,valueText,valueLabelText;
+   // (03/11) the medal of the top three, ▲/▼ and its number, the value's icon, the invite card's confetti dots
+   Image rankMedal,trendIcon,valueIconImage,inviteDots;TextMeshProUGUI trendText;
 
    public static BoardTileUi Create(CheckoutDesktopHUD hud,Transform parent){
     var root=N.Node("Tile",parent);var ui=root.gameObject.AddComponent<BoardTileUi>();ui.hud=hud;ui.rect=root;
@@ -105,6 +107,8 @@ namespace Checkout {
     ui.ribbon=Pill(root,"Ribbon",K.C("E15533"),out ui.ribbonText,13,K.Label);ui.ribbonText.characterSpacing=2;ui.ribbonRect=ui.ribbon.rectTransform;
     ui.badge=Pill(root,"Badge",new Color(.29f,.21f,.14f,.92f),out ui.badgeText,15,K.Number);ui.badgeRect=ui.badge.rectTransform;
     // (rankings: the place disc, the flag on a white edge, the value and its label; off unless the row is a "rank")
+    ui.inviteDots=N.Image(f,"Dots",new Color(.55f,.75f,.35f,.22f),0);ui.inviteDots.sprite=CheckoutRankArt.Dots();ui.inviteDots.type=Image.Type.Tiled;Stretch(ui.inviteDots.rectTransform,new Vector2(2,2),new Vector2(-2,-2));ui.inviteDots.transform.SetAsFirstSibling();ui.inviteDots.gameObject.SetActive(false);
+    ui.rankMedal=N.Image(f,"Medal",Color.white,0);ui.rankMedal.sprite=K.Icon("Icons/medal");ui.rankMedal.preserveAspect=true;ui.rankMedal.gameObject.SetActive(false);
     ui.rankDisc=N.Image(f,"Rank",K.C("EADBC4"),0);ui.rankDisc.sprite=K.Disc();
     ui.rankText=N.Text(ui.rankDisc.transform,"Text",K.Headline,22,K.Ink);ui.rankText.alignment=TextAlignmentOptions.Center;ui.rankText.textWrappingMode=TextWrappingModes.NoWrap;
     ui.rankText.enableAutoSizing=true;ui.rankText.fontSizeMin=11;ui.rankText.fontSizeMax=24;Stretch(ui.rankText.rectTransform,new Vector2(4,2),new Vector2(-4,-2));
@@ -113,7 +117,12 @@ namespace Checkout {
     ui.valueText=N.Text(f,"Value",K.Number,20,K.Ink);ui.valueText.alignment=TextAlignmentOptions.MidlineRight;ui.valueText.textWrappingMode=TextWrappingModes.NoWrap;
     ui.valueText.enableAutoSizing=true;ui.valueText.fontSizeMin=12;ui.valueText.fontSizeMax=21;
     ui.valueLabelText=N.Text(f,"ValueLabel",K.Label,11,K.Muted);ui.valueLabelText.alignment=TextAlignmentOptions.MidlineRight;ui.valueLabelText.textWrappingMode=TextWrappingModes.NoWrap;ui.valueLabelText.characterSpacing=2;
+    ui.valueIconImage=N.Image(f,"ValueIcon",Color.white,0);ui.valueIconImage.preserveAspect=true;
+    ui.trendIcon=N.Image(f,"Trend",Color.white,0);ui.trendIcon.sprite=CheckoutRankArt.Triangle();
+    ui.trendText=N.Text(f,"TrendText",K.Number,13,Color.white);ui.trendText.alignment=TextAlignmentOptions.MidlineLeft;ui.trendText.textWrappingMode=TextWrappingModes.NoWrap;
+    ui.trendText.outlineWidth=.25f;ui.trendText.outlineColor=new Color32(255,250,240,255);
     ui.rankDisc.gameObject.SetActive(false);ui.flagEdge.gameObject.SetActive(false);ui.valueText.gameObject.SetActive(false);ui.valueLabelText.gameObject.SetActive(false);
+    ui.valueIconImage.gameObject.SetActive(false);ui.trendIcon.gameObject.SetActive(false);ui.trendText.gameObject.SetActive(false);
     return ui;
    }
 
@@ -257,6 +266,8 @@ namespace Checkout {
     // (pooled tiles: a row of the ranking leaves its one-line title behind)
     if(!rank)title.textWrappingMode=TextWrappingModes.Normal;
     rankDisc.gameObject.SetActive(false);flagEdge.gameObject.SetActive(false);valueText.gameObject.SetActive(false);valueLabelText.gameObject.SetActive(false);
+    rankMedal.gameObject.SetActive(false);trendIcon.gameObject.SetActive(false);trendText.gameObject.SetActive(false);valueIconImage.gameObject.SetActive(false);inviteDots.gameObject.SetActive(false);
+    if(!rank){subtitle.enableAutoSizing=false;}
     if(rank){selected=isSelected;alt.gameObject.SetActive(false);PlaceRank(t,hasButton,hasRibbon);return;}
     // (a present and a prize: big art on a soft plate, no inset)
     if((frame=="gift"||frame=="showcase")&&!portrait){icon.rectTransform.offsetMin=new Vector2(frame=="gift"?2:8,frame=="gift"?2:8);icon.rectTransform.offsetMax=new Vector2(frame=="gift"?-2:-8,frame=="gift"?-2:-8);}
@@ -274,68 +285,112 @@ namespace Checkout {
     else Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,4),new Vector2(-14,mode=="card"?40:44));
     Select(isSelected);
    }
-   // A ranking row: [place] [round face + stage badge] name / level ribbon + stage … [flag] [value] [button]. Medal colours
-   // for the top three; the face is round, clipped inside its ring (no square corners).
+   // A ranking row: [place] [round face + stage badge] name / level ribbon + stage … [flag] [icon value] [button]. The
+   // top three wear a medal for their place; ▲/▼ with the places gained or lost since the board was last opened sit on
+   // the place; a slim bar under the name measures the row against the leader (Amigos). The face is round, clipped
+   // inside its ring (no square corners). The invite card at the end of Amigos ("invite" look) is greener and festive.
    void PlaceRank(DesktopTile t,bool hasButton,bool hasRibbon){
-    string place=t.rank??"";bool hasPlace=place.Length>0;
-    barRect.gameObject.SetActive(false);pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);badge.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);
-    float lead=hasPlace?66:0,face=Phone?56:60;
+    string place=t.rank??"";bool hasPlace=place.Length>0;bool invite=t.look=="invite";
+    pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);badge.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);
+    bool bar=t.fill>=0&&!invite;barRect.gameObject.SetActive(bar);
+    float faceH=Mathf.Max(40,(rect.rect.height>1?rect.rect.height:hud.RankCellH)-10);
+    float lead=hasPlace?66:0,face=invite?Mathf.Min(faceH-6,Phone?58:64):Mathf.Min(faceH-10,Phone?50:58);
     rankDisc.gameObject.SetActive(hasPlace);
+    bool medal=place=="1"||place=="2"||place=="3";rankMedal.gameObject.SetActive(hasPlace&&medal);
     if(hasPlace){
-     Place(rankDisc.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10,0),new Vector2(50,50));
+     Place(rankDisc.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(medal?11:10,0),new Vector2(medal?40:50,medal?40:50));
      rankText.text=K.Clean(place);
-     Color disc=place=="1"?K.C("E3B54A"):place=="2"?K.C("AEB8C4"):place=="3"?K.C("C98146"):place=="-"?K.C("D8CDBB"):K.C("F3E6CC");
-     rankDisc.color=disc;rankText.color=place=="1"||place=="2"||place=="3"?Color.white:K.Ink;
-     rankText.outlineWidth=place=="1"||place=="2"||place=="3"?.2f:0;rankText.outlineColor=new Color32(80,50,20,200);
+     // (1–3: the painted medal in gold / silver / bronze with the place on it; the rest a cream chip)
+     rankDisc.color=medal?new Color(0,0,0,0):place=="-"?K.C("D8CDBB"):K.C("F3E6CC");
+     rankText.color=medal?Color.white:K.Ink;
+     rankText.outlineWidth=medal?.28f:0;rankText.outlineColor=new Color32(80,50,20,230);
+     if(medal){Place(rankMedal.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(4,-6),new Vector2(54,54));
+      rankMedal.color=place=="1"?Color.white:place=="2"?K.C("D7DEE6"):K.C("E9A46A");}
     }
+    // ▲/▼ since the board was last opened (Amigos): a triangle and the number of places, on the place's corner
+    bool trend=t.trend!=0&&hasPlace;trendIcon.gameObject.SetActive(trend);
+    if(trend){
+     bool up=t.trend>0;trendIcon.color=up?K.C("4FA83D"):K.C("D98A5E");
+     trendIcon.rectTransform.localRotation=Quaternion.Euler(0,0,up?0:180);
+     trendText.text=Mathf.Abs(t.trend).ToString();trendText.color=trendIcon.color;
+     Place(trendIcon.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(47,-17),new Vector2(14,14));
+     Place(trendText.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(55,-17),new Vector2(22,16));
+    }
+    trendText.gameObject.SetActive(trend);
     Place(circle,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10+lead+3,0),new Vector2(face,face));
     Place(ring.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(10+lead,0),new Vector2(face+6,face+6));
     if(isFace){float border=3;K.FitRim(rim,face,border);}
     Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(10+lead+face-2,-face*.36f),new Vector2(26,26));
+    if(invite){
+     // the invite card: a mint face with a sunny plate and confetti dots, the friends painted big
+     this.face.color=K.C("E8F5DC");edge.color=K.C("8CC063");circleImage.color=K.C("FFF4D6");
+     icon.rectTransform.offsetMin=new Vector2(4,4);icon.rectTransform.offsetMax=new Vector2(-4,-4);
+    }
+    inviteDots.gameObject.SetActive(invite);
     float x=10+lead+face+18;
     // the right end: the button, then the value block, then the flag. A narrow row (an iPad's pinned row with its
     // button) keeps room for the name: the flag goes first, then the value (the subtitle and the bar say it too),
     // then the button narrows.
     bool hasValue=!string.IsNullOrEmpty(t.value),label=hasValue&&!string.IsNullOrEmpty(t.valueLabel);
     var flag=K.Icon(t.flag);
+    var vIcon=hasValue?K.Icon(t.valueIcon):null;
     float fw=hud.BoardNarrow?34:44,fh=hud.BoardNarrow?26:34,flagRoom=fw+(hud.BoardNarrow?8:14);
-    float btnW=hasButton?(Phone?180:200):0,valueW=0;
+    // (a friend's small "Visitar")
+    bool small=hasButton&&t.action!=null&&t.action.action=="socialVisit";
+    float btnW=hasButton?(small?(Phone?124:134):(Phone?180:200)):0,valueW=0,iconW=vIcon?28:0;
     if(hasValue){
      valueText.text=K.Clean(t.value);valueLabelText.text=label?K.Clean(t.valueLabel).ToUpperInvariant():"";
      valueW=Mathf.Clamp(Mathf.Max(valueText.GetPreferredValues(valueText.text).x,label?valueLabelText.GetPreferredValues(valueLabelText.text).x:0)+6,70,170);
     }
     float width=rect.rect.width,nameMin=160;
-    float Need()=>x+12+(hasButton?btnW+12:0)+(hasValue?valueW+14:0)+(flag?flagRoom:0);
+    float Need()=>x+12+(hasButton?btnW+12:0)+(hasValue?valueW+iconW+14:0)+(flag?flagRoom:0);
     if(width>0&&width-Need()<nameMin&&flag)flag=null;
+    if(width>0&&width-Need()<nameMin&&vIcon){vIcon=null;iconW=0;}
     if(width>0&&width-Need()<nameMin&&hasValue&&hasButton)hasValue=false;
-    if(width>0&&width-Need()<nameMin&&hasButton)btnW=Mathf.Max(132,btnW-(nameMin-(width-Need())));
+    if(width>0&&width-Need()<nameMin&&hasButton)btnW=Mathf.Max(small?104:132,btnW-(nameMin-(width-Need())));
     float right=12;
-    if(hasButton){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(btnW,Phone?46:50));button.Fit(true);right+=btnW+12;}
-    valueText.gameObject.SetActive(hasValue);valueLabelText.gameObject.SetActive(hasValue&&label);
+    if(hasButton){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(btnW,small?(Phone?40:44):(Phone?46:50)));button.Fit(true);right+=btnW+12;}
+    valueText.gameObject.SetActive(hasValue);valueLabelText.gameObject.SetActive(hasValue&&label);valueIconImage.gameObject.SetActive(hasValue&&vIcon);
     if(hasValue){
      Place(valueText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,label?8:0),new Vector2(valueW,28));
      Place(valueLabelText.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,-15),new Vector2(valueW,16));
      valueText.color=t.tone=="gold"?K.C("9A6A10"):K.Ink;
-     right+=valueW+14;
+     float right0=right;right+=valueW;
+     if(vIcon){
+      // (the icon sits just left of the number; the star of Nota in gold)
+      valueIconImage.sprite=vIcon;valueIconImage.color=t.valueIcon=="shape:star"?K.C("F0B43C"):Color.white;
+      float numW=Mathf.Min(valueW,valueText.GetPreferredValues(valueText.text).x+2);
+      Place(valueIconImage.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-(right0+numW+4),label?8:0),new Vector2(24,24));
+      right=Mathf.Max(right,right0+numW+4+24);
+     }
+     right+=10;
     }
     flagEdge.gameObject.SetActive(flag);
     // (a narrow window, an iPad: a smaller flag, so the name keeps its room)
     if(flag){flagImage.sprite=flag;Place(flagEdge.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-right,0),new Vector2(fw,fh));right+=flagRoom;}
-    // the name on top; the level ribbon and the stage under it
+    // the name on top; the level ribbon and the stage under it; the bar under them
     // (one line, shrinking before any "…"; alone in the middle when nothing goes under it: the "how to earn" rows)
-    title.textWrappingMode=TextWrappingModes.NoWrap;title.overflowMode=TextOverflowModes.Ellipsis;
+    title.textWrappingMode=invite?TextWrappingModes.Normal:TextWrappingModes.NoWrap;title.overflowMode=TextOverflowModes.Ellipsis;
     bool under0=hasRibbon||!string.IsNullOrEmpty(t.subtitle);
-    if(under0)Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(x,-9),new Vector2(-x-right,30));
+    float top=bar?-5:-6,second=bar?-31:-32;
+    if(under0)Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(x,top),new Vector2(-x-right,26));
     else Place(titleRect,new Vector2(0,.5f),new Vector2(1,.5f),new Vector2(0,.5f),new Vector2(x,0),new Vector2(-x-right,34));
     title.alignment=TextAlignmentOptions.MidlineLeft;
     float under=x;
     if(hasRibbon){
      ribbon.color=t.tone=="gold"?K.C("C98A12"):PortraitNavy;ribbonRect.localRotation=Quaternion.identity;
      float rw=PillWidth(ribbonText,ribbonText.text,54);
-     Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(x,-42),new Vector2(rw,22));under+=rw+8;
+     Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(x,second),new Vector2(rw,22));under+=rw+8;
     }
-    Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(under,-42),new Vector2(-under-right,22));subtitle.alignment=TextAlignmentOptions.MidlineLeft;
-    Select(selected);
+    Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(under,second),new Vector2(-under-right,22));subtitle.alignment=TextAlignmentOptions.MidlineLeft;
+    subtitle.textWrappingMode=invite?TextWrappingModes.Normal:TextWrappingModes.NoWrap;
+    if(invite){subtitleRect.sizeDelta=new Vector2(-under-right,30);subtitle.enableAutoSizing=true;subtitle.fontSizeMin=10;subtitle.fontSizeMax=12;}else subtitle.enableAutoSizing=false;
+    if(bar){
+     fillTarget=Mathf.Clamp01(t.fill);if(fillShown<0)fillShown=fillTarget;barText.text="";
+     barFill.color=t.tone=="gold"?K.C("E8A33C"):K.C("3BA3B8");
+     Place(barRect,new Vector2(0,0),new Vector2(1,0),new Vector2(0,0),new Vector2(x,6),new Vector2(-x-right,7));
+    }
+    Select(selected);if(invite&&!selected)edge.color=K.C("8CC063");
    }
    public void Select(bool on){selected=on;edge.color=on?K.C("F2B03D"):ToneEdge(data!=null?data.tone:"");rect.localScale=on?Vector3.one*1.0f:Vector3.one;}
 

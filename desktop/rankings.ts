@@ -1,7 +1,8 @@
 import type { LeagueDivision } from "@/@types/rankings";
 import { isLeagueDivision, LEAGUE_DEMOTE, LEAGUE_PROMOTE, RANKING_TAB_REFRESH_MS, RANKING_TOP } from "@/data/rankings";
 import { t } from "@/i18n";
-import { type FriendsColumn, FRIENDS_COLUMNS, isoWeek, rolloverWeek, shouldSendPoints } from "@/services/rankings";
+import { type FriendsColumn, FRIENDS_COLUMNS, isoWeek, rolloverWeek, shouldSendPoints, sortFriendsBoard } from "@/services/rankings";
+import type { RankingsState } from "@/@types/rankings";
 import { normalizeRankingsState } from "@/services/rankings";
 import { useGameStore } from "@/stores/game-store";
 import { ensureSocialProfile, isVisiting, socialCall, socialIcon, socialMock, socialStore, socialTouched, type SocialReply } from "./social";
@@ -65,6 +66,8 @@ export const rankingsStore = {
 	open: false,
 	/** Signed in when the boards were last read (signing in or out reloads every tab). */
 	lastOnline: null as boolean | null,
+	/** The Amigos board as the player had last opened it (the save's seenRanks when this opening began): the ▲/▼. */
+	friendsBefore: null as RankingsState["seenRanks"] | null,
 };
 
 let send: (message: unknown) => void = () => {};
@@ -90,6 +93,7 @@ export function resetRankings() {
 		lastSendCheck: 0,
 		open: false,
 		lastOnline: null,
+		friendsBefore: null,
 	});
 }
 
@@ -201,7 +205,10 @@ export async function loadRankingTab(tab: RankingTab, force = false) {
 		loaded.error = "";
 		if (tab === "mundo") rankingsStore.world.data = boardOf(reply.body);
 		else if (tab === "pais") rankingsStore.country.data = boardOf(reply.body);
-		else if (tab === "amigos") rankingsStore.friends.data = Array.isArray(reply.body.rows) ? reply.body.rows.map((raw: any) => ({ ...rowOf(raw), weekPoints: Math.max(0, num(raw?.weekPoints)), likes: Math.max(0, num(raw?.likes)), marketRating: typeof raw?.marketRating === "number" ? Math.max(0, Math.min(5, raw.marketRating)) : null })) : [];
+		else if (tab === "amigos") {
+			rankingsStore.friends.data = Array.isArray(reply.body.rows) ? reply.body.rows.map((raw: any) => ({ ...rowOf(raw), weekPoints: Math.max(0, num(raw?.weekPoints)), likes: Math.max(0, num(raw?.likes)), marketRating: typeof raw?.marketRating === "number" ? Math.max(0, Math.min(5, raw.marketRating)) : null })) : [];
+			noteFriendsSeen();
+		}
 		else {
 			const league = leagueOf(reply.body);
 			rankingsStore.league.data = league;
@@ -218,10 +225,35 @@ export async function loadRankingTab(tab: RankingTab, force = false) {
 export function onRankingRoute(route: string) {
 	const [name, arg] = route.split(":");
 	rankingsStore.open = name === "ranking";
-	if (!rankingsStore.open) return;
+	// (closing the window ends this opening: the next one shows ▲/▼ against what was seen now)
+	if (!rankingsStore.open) {
+		rankingsStore.friendsBefore = null;
+		return;
+	}
 	const tab = RANKING_TABS.includes(arg as RankingTab) ? (arg as RankingTab) : rankingsStore.tab;
 	rankingsStore.tab = tab;
 	void loadRankingTab(tab, false);
+}
+
+/** The friends board rows as the Amigos tab sorts them (my own week points as this phone counts them). */
+export function friendsRows(): FriendRank[] {
+	const id = socialStore.me?.id ?? "";
+	const points = useGameStore.getState().rankings?.points ?? 0;
+	return (rankingsStore.friends.data ?? []).map((row) => (row.id === id ? { ...row, weekPoints: Math.max(row.weekPoints, points) } : row));
+}
+
+/**
+ * The Amigos board was just read: the first time in this opening of the window, what the save remembers becomes the
+ * baseline of the ▲/▼, and the places of now (every column) are remembered for the next opening.
+ */
+function noteFriendsSeen() {
+	const rows = friendsRows();
+	if (!rows.length) return;
+	const store = useGameStore.getState();
+	if (!rankingsStore.friendsBefore) rankingsStore.friendsBefore = normalizeRankingsState(store.rankings).seenRanks;
+	const seen: RankingsState["seenRanks"] = {};
+	for (const column of FRIENDS_COLUMNS) seen[column] = Object.fromEntries(sortFriendsBoard(rows, column).map((row, i) => [row.id, i + 1]));
+	store.setRankingSeenRanks(seen);
 }
 
 /** While the window is open the shown tab refreshes on its own (each tab at most every 60 s). */

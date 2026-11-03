@@ -38,6 +38,12 @@ namespace Checkout {
   public DesktopStat[] chips;public string frame,corner;public DesktopButton alt;
   // Rankings v1 (frame "rank"): the place, the player's flag ("Flags/br") and the number at the row's end with its label.
   public string rank,flag,value,valueLabel;
+  // (03/11) the value's icon ("shape:star" too), places gained/lost since the board was last opened, "invite" look.
+  public string valueIcon,look;public int trend;
+ }
+ // The Amigos rivalry card (desktop/view-kit.ts RivalView): me VS the friend just above me (or below when I lead).
+ [Serializable] public class DesktopRival {
+  public string meIcon,meName,meValue,otherIcon,otherName,otherValue,text,icon;public bool lead;public DesktopButton button;
  }
  [Serializable] public class DesktopBoard {
   public string tint,backdrop,tip,style,empty,focus;public int columns;public double now;
@@ -45,6 +51,7 @@ namespace Checkout {
   // Rankings v1 (style "rank"): the top three on a podium, my row pinned under the rows (id "" = none), a strip of chips
   // over the rows (the league's prizes) and a tile to scroll to ("<id>#<count>").
   public DesktopTile[] podium;public DesktopTile pinned;public DesktopStat[] strip;public string scroll;
+  public DesktopRival rival;
  }
  // The hand-made production game (layout "kitchen"): mirrors KitchenView / KitchenStep / KitchenItem of desktop/view-kit.ts.
  [Serializable] public class DesktopKitchenItem {public string icon,label;}
@@ -90,7 +97,8 @@ namespace Checkout {
  }
  [Serializable] public class DesktopLeagueCard {
   public string key,headline,title,subtitle,division,movedTo,moved,movedText,badgeFrom,badgeTo,avatar,button,tint;
-  public int place,diamonds,coins;public string[] podiumNames,podiumAvatars;
+  public int place,diamonds,coins;public string[] podiumNames,podiumAvatars,podiumPoints;
+  public string stamp,meName,meTag;public DesktopStat[] stats;
  }
  // Dona Neide's tutorial / tip card (src/services/onboarding.ts CoachView); key "" = nothing on screen.
  [Serializable] public class DesktopCoach {

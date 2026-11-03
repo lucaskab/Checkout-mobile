@@ -61,6 +61,22 @@ const COUNTRIES: { code: string; weight: number; names: string[]; word: string }
 	{ code: "NL", weight: 2, word: "Winkel", names: ["Sanne", "Daan", "Fleur", "Bram"] },
 ];
 
+/** A face for a made-up player: shopper-1…12 spread by a hash of the id (FNV-1a + a murmur finish; salt 3 keeps the
+ * world's and Brazil's top four apart even when Unity has only 8 shoppers to draw). */
+export function faceFor(id: string): string {
+	let x = (2166136261 ^ 3) >>> 0;
+	for (const ch of id) {
+		x ^= ch.charCodeAt(0);
+		x = Math.imul(x, 16777619) >>> 0;
+	}
+	x ^= x >>> 16;
+	x = Math.imul(x, 0x85ebca6b) >>> 0;
+	x ^= x >>> 13;
+	x = Math.imul(x, 0xc2b2ae35) >>> 0;
+	x ^= x >>> 16;
+	return `shopper-${1 + ((x >>> 0) % 12)}`;
+}
+
 /** A small seeded random (the same world every run). */
 function random(seed: number) {
 	let state = seed >>> 0 || 1;
@@ -90,7 +106,8 @@ export function createMockRankings(links: RankingsMockLinks, size = 400) {
 			id,
 			code,
 			marketName,
-			avatar: `shopper-${1 + Math.floor(rand() * 12)}`,
+			// (the draw is kept so the world stays the same; the face comes from the id: varied, stable people)
+			avatar: (rand(), faceFor(id)),
 			level,
 			xp: Math.floor(level * level * 120 + rand() * level * 200),
 			levelAt: start - Math.floor(rand() * 40 * 86_400_000),
@@ -184,6 +201,35 @@ export function createMockRankings(links: RankingsMockLinks, size = 400) {
 				return { place: i + 1, ...short(p!), level: p!.level, points: m.points, isFriend: links.friendIds().includes(m.id) };
 			});
 	};
+	const topRow = (row: { id: string; code: string; marketName: string | null; avatar: string | null; points: number }) => ({ id: row.id, code: row.code, marketName: row.marketName, avatar: row.avatar, points: row.points });
+	/** A made-up last week for the QA's end-of-week card: "up" (2nd in bronze → silver, the default), "down" (27th in
+	 * silver → bronze), "same" (8th, stays in silver), "off" (4th, up but off the podium). The podium is real people of
+	 * the group with me on my plinth. */
+	function lastWeekReward(week: string, variant: string) {
+		const me = links.me().id;
+		const v = ({
+			up: { division: "bronze", place: 2, movedTo: "silver", chest: true },
+			down: { division: "silver", place: 27, movedTo: "bronze", chest: false },
+			same: { division: "silver", place: 8, movedTo: "silver", chest: false },
+			off: { division: "bronze", place: 4, movedTo: "silver", chest: true },
+		} as const)[variant as "up"] ?? { division: "bronze", place: 2, movedTo: "silver", chest: true };
+		const others = standings().filter((row) => row.id !== me);
+		const mine = { ...standings().find((row) => row.id === me), ...short(meRow()), points: 0 };
+		const order = [...others.slice(0, v.place - 1), mine, ...others.slice(v.place - 1)].slice(0, 30);
+		const pointsAt = (place: number) => Math.max(0, Math.round(1500 - (place - 1) * 48));
+		const top = order.slice(0, 3).map((row, i) => topRow({ ...row, avatar: row.avatar ?? null, points: pointsAt(i + 1) }));
+		return {
+			week,
+			division: v.division,
+			place: v.place,
+			diamonds: leagueRewardDiamonds(v.place, v.division),
+			chest: v.chest,
+			movedTo: v.movedTo,
+			points: pointsAt(v.place),
+			size: 30,
+			top,
+		};
+	}
 	const rewardsTable = () => LEAGUE_PLACE_DIAMONDS.map((row) => ({ place: row.place, diamonds: leagueRewardDiamonds(row.place, league.division) }));
 
 	function route(method: string, path: string, query: URLSearchParams, body: Record<string, unknown>): RankReply {
@@ -266,7 +312,17 @@ export function createMockRankings(links: RankingsMockLinks, size = 400) {
 			const demoted = row.place > group.length - zone || row.points <= 0;
 			const index = LEAGUE_DIVISIONS.indexOf(league.division);
 			const movedTo = promoted ? LEAGUE_DIVISIONS[Math.min(index + 1, LEAGUE_DIVISIONS.length - 1)] : demoted ? LEAGUE_DIVISIONS[Math.max(0, index - 1)] : league.division;
-			links.push(me, "league_reward", null, { week: league.week, division: league.division, place: row.place, diamonds: row.points > 0 ? leagueRewardDiamonds(row.place, league.division) : 0, chest: promoted, movedTo });
+			links.push(me, "league_reward", null, {
+				week: league.week,
+				division: league.division,
+				place: row.place,
+				diamonds: row.points > 0 ? leagueRewardDiamonds(row.place, league.division) : 0,
+				chest: promoted,
+				movedTo,
+				points: row.points,
+				size: group.length,
+				top: group.slice(0, 3).map(topRow),
+			});
 			league.lastWeek = { division: league.division, place: row.place, movedTo };
 			league.division = movedTo;
 		}
@@ -283,9 +339,19 @@ export function createMockRankings(links: RankingsMockLinks, size = 400) {
 		/** QA controls (forwarded by the social mock's `control`). */
 		control(command: string, arg = ""): boolean {
 			if (command === "league-reward") {
-				// last week ended: 2nd place in bronze, promoted to silver (diamonds + the coin chest)
-				const week = arg || isoWeek(links.now() - 7 * 86_400_000);
-				links.push(links.me().id, "league_reward", null, { week, division: "bronze", place: 2, diamonds: leagueRewardDiamonds(2, "bronze"), chest: true, movedTo: "silver" });
+				// last week ended ("<week>[:up|down|same|off]"; default: 2nd in bronze, promoted to silver with the chest)
+				const [week0, variant = "up"] = arg.split(":");
+				const week = week0 || isoWeek(links.now() - 7 * 86_400_000);
+				links.push(links.me().id, "league_reward", null, lastWeekReward(week, variant));
+				return true;
+			}
+			if (command === "friend-up") {
+				// the last friend by level climbs past every friend (and the most likes): the Amigos ▲/▼ of the QA
+				const friends = links.friendIds().map((id) => players.get(id)).filter((p): p is Player => !!p).sort(compareLevelRows);
+				const top = friends[0];
+				const last = friends.at(-1);
+				if (!top || !last || top === last) return false;
+				Object.assign(last, { level: top.level + 1, xp: top.xp + 5000, likes: Math.max(...friends.map((p) => p.likes)) + 5, era: eraOf(top.level + 1) });
 				return true;
 			}
 			if (command === "signed-out") {

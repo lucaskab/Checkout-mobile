@@ -1956,6 +1956,13 @@ export const useGameStore = create<GameStore>()(
 				set({ social: { ...social, requests: next } });
 				return true;
 			},
+			setRankingSeenRanks: (seen) => {
+				const rankings = normalizeRankingsState(get().rankings);
+				const next = normalizeRankingsState({ ...rankings, seenRanks: seen }).seenRanks;
+				if (JSON.stringify(next) === JSON.stringify(rankings.seenRanks)) return false;
+				set({ rankings: { ...rankings, seenRanks: next } });
+				return true;
+			},
 			setRankingOptOut: (optOut) => {
 				const rankings = normalizeRankingsState(get().rankings);
 				if (rankings.optOut === optOut) return false;

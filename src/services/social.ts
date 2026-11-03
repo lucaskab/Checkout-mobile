@@ -29,7 +29,7 @@ import {
 	SOCIAL_REQUEST_MIN,
 } from "@/data/social";
 import { isLeagueDivision, LEAGUE_CHEST_GIFTS, LEAGUE_REWARD_DIAMONDS_MAX, RANKING_CARDS_KEEP, RANKING_WEEKS_KEEP } from "@/data/rankings";
-import { normalizeRankingsState } from "@/services/rankings";
+import { normalizeLeagueTop, normalizeRankingsState } from "@/services/rankings";
 import { appendInventoryLots, createInventoryLots, reconcileInventoryLots, takeInventoryLots } from "@/services/inventory-lots";
 
 // Social v1 on the player's own save (docs/social-api.md). Everything here is pure: the store applies the patches.
@@ -402,7 +402,19 @@ export function applyInboxItems(state: InboxState, items: readonly unknown[], no
 					rewardedWeeks: [...rankings.rewardedWeeks, week].slice(-RANKING_WEEKS_KEEP),
 					cards: [
 						...rankings.cards,
-						{ id, week, division, place, diamonds: amount, coins: chest, movedTo: isLeagueDivision(payload.movedTo) ? payload.movedTo : division, at: now },
+						{
+							id,
+							week,
+							division,
+							place,
+							diamonds: amount,
+							coins: chest,
+							movedTo: isLeagueDivision(payload.movedTo) ? payload.movedTo : division,
+							at: now,
+							top: normalizeLeagueTop(payload.top),
+							points: Math.max(0, Math.floor(num(payload.points))),
+							size: Math.max(0, Math.floor(num(payload.size))),
+						},
 					].slice(-RANKING_CARDS_KEEP),
 				};
 				rankingsChanged = true;

@@ -274,6 +274,8 @@ export type GameActions = {
 	rememberSocialRequests: (requests: SocialRequestMirror[]) => boolean;
 	/** "Aparecer no ranking" (the server was told first): the save keeps the choice. */
 	setRankingOptOut: (optOut: boolean) => boolean;
+	/** The Amigos board as just opened (per column: friend id → place), for the ▲/▼ of the next opening. */
+	setRankingSeenRanks: (seen: RankingsState["seenRanks"]) => boolean;
 	/** The server stored the week total `points` for `week` (rankings v1). */
 	markLeaguePointsSent: (week: string, points: number, now?: number) => boolean;
 	/** 409 wrong-week: the server's week wins (its week, if the answer said it). */

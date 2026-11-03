@@ -99,12 +99,21 @@ test("País: the player's flag and the country's name from the ISO code, in ever
 	}
 });
 
-test("viewing the boards never changes the save", async () => {
+// The save without the Amigos board's last-seen places (the one thing opening it remembers, for the ▲/▼).
+const saveSansSeen = () => {
+	let saved = JSON.parse(storedSave());
+	if (typeof saved === "string") saved = JSON.parse(saved);
+	delete saved.state.rankings.seenRanks;
+	return JSON.stringify(saved);
+};
+
+test("viewing the boards changes nothing in the save but the Amigos places it remembers for the ▲/▼", async () => {
 	await settle();
-	const before = storedSave();
+	const before = saveSansSeen();
 	for (const tab of ["mundo", "pais", "amigos", "liga"]) await open(tab);
 	createDesktopView(game(), 1, ["ranking:liga"]);
-	expect(storedSave()).toBe(before);
+	expect(saveSansSeen()).toBe(before);
+	expect(Object.keys(game().rankings.seenRanks.nivel ?? {}).length).toBeGreaterThanOrEqual(3);
 });
 
 test("Liga: before joining, how to earn points; points earned and sent join the league", async () => {
@@ -154,11 +163,38 @@ test("the league reward is applied once (diamonds up exactly once across a lost 
 	expect(game().logistics.premiumCurrency).toBe(diamonds + 15);
 	expect(social.socialMock().inbox.filter((row) => row.kind === "league_reward" && !row.acked)).toHaveLength(0);
 	const view = createDesktopView(game(), 1, []);
-	expect(view.leagueCard).toMatchObject({ place: 2, division: "bronze", movedTo: "silver", moved: "up", diamonds: 15 });
+	expect(view.leagueCard).toMatchObject({ place: 2, division: "bronze", movedTo: "silver", moved: "up", diamonds: 15, stamp: "SUBIU!" });
+	// the real podium of that week's group (from the item's top): faces and names, me on my plinth
+	expect(view.leagueCard.podiumNames.every((name) => name.length > 0)).toBe(true);
+	expect(view.leagueCard.podiumAvatars.every((icon) => icon.startsWith("avatar:"))).toBe(true);
+	expect(view.leagueCard.podiumNames[1]).toBe(view.leagueCard.meName);
+	expect(view.leagueCard.stats.map((s) => s.label)).toEqual(["de 30 jogadores", "pontos na semana", "jogadores que você passou"]);
 	expect(view.leagueCard.coins).toBeGreaterThan(0);
 	expect(view.quick.find((b) => b.label === "Ranking").badge).toBe("1");
 	expect(ranking.requestRankingAction("rankingDismissCard", [view.leagueCard.key]).ok).toBe(true);
 	expect(createDesktopView(game(), 2, []).leagueCard).toBe(null);
+});
+
+test("Amigos: a rival card (me VS the friend above), bars against the leader, ▲/▼ since the board was last opened", async () => {
+	ranking.requestRankingAction("rankingColumn", ["nivel"]);
+	const first = await open("amigos");
+	expect(first.board.rival.text).toMatch(/^(Faltam?|Você lidera!)/);
+	expect(first.board.rival.meName).toBe("Você");
+	expect(first.board.rival.button.label).toMatch(/^No ranking/);
+	expect([...first.board.podium, ...first.board.tiles.filter((t) => t.id !== "invite")].every((t) => t.fill > 0 && t.fill <= 1 && t.valueIcon === "Icons/medal")).toBe(true);
+	expect(first.board.tiles.at(-1).look).toBe("invite");
+	// close the window, a friend climbs past the others, open again: ▲ for them, ▼ for who they passed
+	ranking.onRankingRoute("home");
+	social.socialMock().control("friend-up");
+	ranking.rankingsStore.friends.loadedAt = 0;
+	const again = await open("amigos");
+	const all = [...again.board.podium, ...again.board.tiles];
+	expect(all.some((t) => t.trend > 0)).toBe(true);
+	expect(all.some((t) => t.trend < 0)).toBe(true);
+	// staying in the window keeps the arrows (the baseline is this opening's)
+	ranking.rankingsStore.friends.loadedAt = 0;
+	const still = await open("amigos");
+	expect([...still.board.podium, ...still.board.tiles].some((t) => t.trend > 0)).toBe(true);
 });
 
 test("Amigos: the column switch sorts the friends, an invite row closes the list", async () => {
