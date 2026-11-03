@@ -391,7 +391,8 @@ function friendsPage(state: State): Page {
 		...playerTile(row.id, row, index + 1, {
 			...friendValue(row, column),
 			you: row.id === id,
-			actions: row.id === id ? [] : [act("Visitar", "socialVisit", [row.id], { icon: socialIcon("market"), variant: "primary", ok: "" })],
+			// (the row has its own "Visitar": the side panel stays short enough to never scroll)
+			actions: [],
 		}),
 		// a small "Visitar" on each friend's row, the value's icon, a bar against the leader and ▲/▼ since last time
 		action: row.id === id ? button("", { enabled: false }) : act("Visitar", "socialVisit", [row.id], { icon: socialIcon("market"), variant: "primary", ok: "" }),
