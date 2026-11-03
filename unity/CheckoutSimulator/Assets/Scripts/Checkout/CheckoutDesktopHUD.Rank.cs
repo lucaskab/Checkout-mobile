@@ -93,6 +93,8 @@ namespace Checkout {
      flag++;
     }
    }
+   // (a narrow stage, an iPad: the places slimmer, so names never run into the neighbour's)
+   foreach(var col in podiumColumns){var cr=(RectTransform)col.transform;cr.sizeDelta=new Vector2(Mathf.Min(230*PodiumScale,w*.3f),cr.sizeDelta.y);}
    for(int i=0;i<buntingFlags.Count;i++)buntingFlags[i].gameObject.SetActive(i<flag);
    for(int i=0;i<buntingStrings.Count;i++)buntingStrings[i].gameObject.SetActive(i<line);
   }
@@ -299,7 +301,7 @@ namespace Checkout {
     c.trendText=N.Text(info,"TrendText",K.Number,13,Color.white);c.trendText.textWrappingMode=TextWrappingModes.NoWrap;var ttl=c.trendText.gameObject.AddComponent<LayoutElement>();ttl.preferredWidth=18;ttl.preferredHeight=16;
     c.trendText.outlineWidth=.25f;c.trendText.outlineColor=new Color32(255,250,240,255);
     c.name=N.Text(root,"Name",K.Headline,(place==1?19:17)*Mathf.Max(.82f,s),K.Ink);c.name.alignment=TextAlignmentOptions.Center;c.name.textWrappingMode=TextWrappingModes.NoWrap;c.name.overflowMode=TextOverflowModes.Ellipsis;
-    c.name.outlineWidth=.18f;c.name.outlineColor=new Color32(255,246,226,255);
+    c.name.outlineWidth=.18f;c.name.outlineColor=new Color32(255,246,226,255);c.name.enableAutoSizing=true;c.name.fontSizeMin=11;c.name.fontSizeMax=(place==1?19:17)*Mathf.Max(.82f,s);
     var nr=c.name.rectTransform;nr.anchorMin=new Vector2(0,0);nr.anchorMax=new Vector2(1,0);nr.pivot=new Vector2(.5f,0);nr.offsetMin=new Vector2(-6,yName);nr.offsetMax=new Vector2(6,yName+26*Mathf.Max(.82f,s));
     return c;
    }
@@ -341,8 +343,8 @@ namespace Checkout {
    var b=back.transform;
    rivalMeFace=RivalFace(b,"Me",12,RankGoldTrim);
    rivalCrown=N.Image(rivalMeFace.transform.parent.parent,"Crown",Color.white,0);rivalCrown.sprite=K.Icon("Icons/crown");rivalCrown.preserveAspect=true;U.At(rivalCrown.rectTransform,new Vector2(.5f,1),new Vector2(28,28),new Vector2(0,6));rivalCrown.rectTransform.localRotation=Quaternion.Euler(0,0,-10);
-   rivalMeName=U.Label(b,"MeName",K.Label,12,"F3C64E",TextAlignmentOptions.MidlineLeft);rivalMeName.characterSpacing=1;
-   rivalMeValue=U.Label(b,"MeValue",K.Number,19,"FFFFFF",TextAlignmentOptions.MidlineLeft);
+   rivalMeName=U.Label(b,"MeName",K.Label,12,"F3C64E",TextAlignmentOptions.MidlineLeft);rivalMeName.characterSpacing=1;rivalMeName.overflowMode=TextOverflowModes.Overflow;
+   rivalMeValue=U.Label(b,"MeValue",K.Number,19,"FFFFFF",TextAlignmentOptions.MidlineLeft);rivalMeValue.overflowMode=TextOverflowModes.Overflow;
    rivalMeIcon=N.Image(b,"MeIcon",Color.white,0);rivalMeIcon.preserveAspect=true;
    // the VS emblem: an orange burst with a gold rim, the letters a label
    rivalVs=N.Node("VS",b);
@@ -350,10 +352,10 @@ namespace Checkout {
    var burst=N.Image(rivalVs,"Burst",RankOrange,0);burst.sprite=CheckoutRankArt.Burst();U.Stretch(burst.rectTransform,Vector2.zero,Vector2.one);
    var vs=U.Label(rivalVs,"Text",K.Headline,20,"FFFFFF");U.Stretch(vs.rectTransform,Vector2.zero,Vector2.one);vs.text="VS";vs.outlineWidth=.25f;vs.outlineColor=new Color32(120,40,10,255);
    rivalOtherFace=RivalFace(b,"Other",0,K.C("C9D2DD"));
-   rivalOtherName=U.Label(b,"OtherName",K.Label,12,"C9D2DD",TextAlignmentOptions.MidlineLeft);rivalOtherName.characterSpacing=1;
-   rivalOtherValue=U.Label(b,"OtherValue",K.Number,19,"FFFFFF",TextAlignmentOptions.MidlineLeft);
+   rivalOtherName=U.Label(b,"OtherName",K.Label,12,"C9D2DD",TextAlignmentOptions.MidlineLeft);rivalOtherName.characterSpacing=1;rivalOtherName.enableAutoSizing=true;rivalOtherName.fontSizeMin=9;rivalOtherName.fontSizeMax=12;
+   rivalOtherValue=U.Label(b,"OtherValue",K.Number,19,"FFFFFF",TextAlignmentOptions.MidlineLeft);rivalOtherValue.overflowMode=TextOverflowModes.Overflow;
    rivalOtherIcon=N.Image(b,"OtherIcon",Color.white,0);rivalOtherIcon.preserveAspect=true;
-   rivalText=U.Label(b,"Text",K.Headline,22,"F7E8C8",TextAlignmentOptions.MidlineLeft);rivalText.enableAutoSizing=true;rivalText.fontSizeMin=13;rivalText.fontSizeMax=22;
+   rivalText=U.Label(b,"Text",K.Headline,22,"F7E8C8",TextAlignmentOptions.MidlineLeft);rivalText.enableAutoSizing=true;rivalText.fontSizeMin=12;rivalText.fontSizeMax=22;rivalText.textWrappingMode=TextWrappingModes.Normal;
    rivalButton=CheckoutDesktopButton.Create(b,46,17,14);rivalButton.Clicked=BoardPress;Destroy(rivalButton.GetComponent<LayoutElement>());
    rivalRoot.gameObject.SetActive(false);
   }
@@ -376,20 +378,24 @@ namespace Checkout {
    float H=Mathf.Abs(boardMeter.offsetMax.y-boardMeter.offsetMin.y),face=Mathf.Min(46,H-16);
    rivalMeFace.sprite=K.Icon(r.meIcon);rivalOtherFace.sprite=K.Icon(r.otherIcon);
    rivalCrown.gameObject.SetActive(r.lead);
-   var colIcon=K.Icon(r.icon);Color iconTint=r.icon=="shape:star"?K.C("F0B43C"):Color.white;
+   var colIcon=K.Icon(r.icon);Color iconTint=Color.white;
    rivalMeIcon.sprite=colIcon;rivalOtherIcon.sprite=colIcon;rivalMeIcon.color=rivalOtherIcon.color=iconTint;rivalMeIcon.enabled=rivalOtherIcon.enabled=colIcon;
    rivalMeName.text=K.Clean(r.meName).ToUpperInvariant();rivalMeValue.text=K.Clean(r.meValue);
    rivalOtherName.text=K.Clean(r.otherName).ToUpperInvariant();rivalOtherValue.text=K.Clean(r.otherValue);
    rivalText.text=K.Clean(r.text);
-   // [me] value | VS | [friend] name + value | the gap in words | the opt-out button
+   // [me] value | VS | [friend] name + value | the gap in words | the opt-out button (a narrow window, an iPad: the
+   // faces, the VS and the words; the values are in the rows)
+   bool narrow=BoardNarrow;
+   rivalMeName.gameObject.SetActive(!narrow);rivalMeValue.gameObject.SetActive(!narrow);rivalMeIcon.gameObject.SetActive(!narrow&&colIcon);
+   rivalOtherName.gameObject.SetActive(!narrow);rivalOtherValue.gameObject.SetActive(!narrow);rivalOtherIcon.gameObject.SetActive(!narrow&&colIcon);
    float x=14;
    var mf=(RectTransform)rivalMeFace.transform.parent.parent;mf.sizeDelta=new Vector2(face,face);mf.anchoredPosition=new Vector2(x,0);x+=face+10;
    float valW=Mathf.Clamp(Mathf.Max(rivalMeValue.GetPreferredValues(rivalMeValue.text).x,rivalMeName.GetPreferredValues(rivalMeName.text).x)+4,40,140);
-   PlaceLeft(rivalMeName.rectTransform,x,11,valW,16);PlaceLeft(rivalMeIcon.rectTransform,x,-9,20,20);PlaceLeft(rivalMeValue.rectTransform,x+22,-9,valW,24);x+=Mathf.Max(valW,valW*0+22+rivalMeValue.GetPreferredValues(rivalMeValue.text).x)+12;
+   PlaceLeft(rivalMeName.rectTransform,x,12,valW+22,20);PlaceLeft(rivalMeIcon.rectTransform,x,-10,20,20);PlaceLeft(rivalMeValue.rectTransform,x+22,-10,valW,28);if(!narrow)x+=Mathf.Max(valW,22+rivalMeValue.GetPreferredValues(rivalMeValue.text).x)+12;
    rivalVs.anchorMin=rivalVs.anchorMax=new Vector2(0,.5f);rivalVs.pivot=new Vector2(0,.5f);rivalVs.sizeDelta=new Vector2(face+2,face+2);rivalVs.anchoredPosition=new Vector2(x,0);x+=face+14;
    var of=(RectTransform)rivalOtherFace.transform.parent.parent;of.sizeDelta=new Vector2(face,face);of.anchoredPosition=new Vector2(x,0);x+=face+10;
    float nameW=Mathf.Clamp(Mathf.Max(rivalOtherName.GetPreferredValues(rivalOtherName.text).x,rivalOtherValue.GetPreferredValues(rivalOtherValue.text).x+22)+4,60,Phone?190:220);
-   PlaceLeft(rivalOtherName.rectTransform,x,11,nameW,16);PlaceLeft(rivalOtherIcon.rectTransform,x,-9,20,20);PlaceLeft(rivalOtherValue.rectTransform,x+22,-9,nameW-22,24);x+=nameW+18;
+   PlaceLeft(rivalOtherName.rectTransform,x,12,nameW,20);PlaceLeft(rivalOtherIcon.rectTransform,x,-10,20,20);PlaceLeft(rivalOtherValue.rectTransform,x+22,-10,nameW-22,28);x+=narrow?6:nameW+18;
    // the button at the right end
    bool hasButton=r.button!=null&&!string.IsNullOrEmpty(r.button.label);rivalButton.gameObject.SetActive(hasButton);
    float right=12;

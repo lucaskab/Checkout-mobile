@@ -65,8 +65,9 @@ namespace Checkout {
     var chipEdge=N.Image(leagueStatsRow,"Stat",new Color(.95f,.78f,.3f,.55f),18);
     var chipFace=N.Image(chipEdge.transform,"Face",K.C("2A3D6B"),16);Stretch(chipFace.rectTransform,new Vector2(2,2),new Vector2(-2,-2));
     var icon=N.Image(chipFace.transform,"Icon",Color.white,0);icon.preserveAspect=true;U.At(icon.rectTransform,new Vector2(0,.5f),new Vector2(34,34),new Vector2(28,0));
-    var value=U.Label(chipFace.transform,"Value",K.Number,22,"FFFFFF",TextAlignmentOptions.MidlineLeft);U.Stretch(value.rectTransform,new Vector2(0,.45f),Vector2.one,new Vector2(54,0),new Vector2(-8,-2));
-    var label=U.Label(chipFace.transform,"Label",K.Label,12,"F7E8C8",TextAlignmentOptions.MidlineLeft);label.enableAutoSizing=true;label.fontSizeMin=9;label.fontSizeMax=12;U.Stretch(label.rectTransform,new Vector2(0,0),new Vector2(1,.48f),new Vector2(54,4),new Vector2(-8,0));
+    var value=U.Label(chipFace.transform,"Value",K.Number,22,"FFFFFF",TextAlignmentOptions.MidlineLeft);U.Stretch(value.rectTransform,new Vector2(0,.42f),Vector2.one,new Vector2(54,0),new Vector2(-8,2));
+    value.overflowMode=TextOverflowModes.Overflow;value.enableAutoSizing=true;value.fontSizeMin=13;value.fontSizeMax=22;
+    var label=U.Label(chipFace.transform,"Label",K.Label,12,"F7E8C8",TextAlignmentOptions.MidlineLeft);label.enableAutoSizing=true;label.fontSizeMin=9;label.fontSizeMax=12;label.overflowMode=TextOverflowModes.Overflow;U.Stretch(label.rectTransform,new Vector2(0,0),new Vector2(1,.44f),new Vector2(54,3),new Vector2(-8,0));
     leagueStats.Add((chipEdge.rectTransform,icon,value,label));
    }
    leagueButton=CheckoutDesktopButton.Create(leagueStage,64,24,18);var br=(RectTransform)leagueButton.transform;Destroy(leagueButton.GetComponent<LayoutElement>());
@@ -105,7 +106,8 @@ namespace Checkout {
     var trimShine=N.Image(trim.transform,"Shine",new Color(1,1,1,.55f),2);U.Stretch(trimShine.rectTransform,new Vector2(0,.55f),Vector2.one,new Vector2(3,0),new Vector2(-3,-1));
     var shadowNum=N.Text(pf.transform,"NumberShadow",K.Headline,place==1?66:54,new Color(.3f,.18f,.06f,.35f));shadowNum.text=place.ToString();shadowNum.alignment=TextAlignmentOptions.Center;U.Stretch(shadowNum.rectTransform,new Vector2(0,.28f),Vector2.one,new Vector2(3,-4),new Vector2(3,-4));
     var num=N.Text(pf.transform,"Number",K.Headline,place==1?66:54,Color.white);num.text=place.ToString();num.alignment=TextAlignmentOptions.Center;num.outlineWidth=.24f;num.outlineColor=new Color32(110,66,22,230);U.Stretch(num.rectTransform,new Vector2(0,.28f),Vector2.one);
-    p.points=U.Label(pf.transform,"Points",K.Number,15,"4A3624");U.Stretch(p.points.rectTransform,Vector2.zero,new Vector2(1,.32f),new Vector2(4,2),new Vector2(-4,0));
+    p.points=U.Label(pf.transform,"Points",K.Number,15,"4A3624");U.Stretch(p.points.rectTransform,Vector2.zero,new Vector2(1,.34f),new Vector2(4,1),new Vector2(-4,2));
+    p.points.overflowMode=TextOverflowModes.Overflow;p.points.enableAutoSizing=true;p.points.fontSizeMin=10;p.points.fontSizeMax=15;
     // the face (glow ring for me, a crown on #1), then the name over the plinth
     var holder=N.Node("Face",col);holder.anchorMin=holder.anchorMax=new Vector2(.5f,0);holder.pivot=new Vector2(.5f,0);holder.sizeDelta=new Vector2(size,size);holder.anchoredPosition=new Vector2(0,plinthH+30);p.holder=holder;
     p.glow=N.Image(holder,"Glow",new Color(1f,.85f,.35f,0),0);p.glow.sprite=U.Glow();U.At(p.glow.rectTransform,new Vector2(.5f,.5f),new Vector2(size*1.9f,size*1.9f));
@@ -117,10 +119,11 @@ namespace Checkout {
     var medal=N.Image(holder,"Medal",place==1?Color.white:place==2?K.C("D7DEE6"):K.C("E9A46A"),0);medal.sprite=K.Icon("Icons/medal");medal.preserveAspect=true;U.At(medal.rectTransform,new Vector2(.1f,.1f),new Vector2(size*.36f,size*.36f));
     if(place==1){var crown=N.Image(holder,"Crown",Color.white,0);crown.sprite=K.Icon("Icons/crown");crown.preserveAspect=true;U.At(crown.rectTransform,new Vector2(.5f,1),new Vector2(58,58),new Vector2(0,12));crown.rectTransform.localRotation=Quaternion.Euler(0,0,-8);}
     // "VOCÊ" on my face: an orange tag with a gold edge
-    var tagEdge=N.Image(holder,"Tag",RankGoldTrim,12);p.tag=tagEdge.rectTransform;U.At(p.tag,new Vector2(.5f,0),new Vector2(78,26),new Vector2(0,-4));
+    var tagEdge=N.Image(holder,"Tag",RankGoldTrim,12);p.tag=tagEdge.rectTransform;U.At(p.tag,new Vector2(.5f,1),new Vector2(78,26),new Vector2(0,place==1?36:8));
     var tagFace=N.Image(tagEdge.transform,"Face",RankOrange,10);Stretch(tagFace.rectTransform,new Vector2(2,2),new Vector2(-2,-2));
     var tagText=U.Label(tagFace.transform,"Text",K.Headline,15,"FFFFFF");Stretch(tagText.rectTransform,Vector2.zero,Vector2.zero);tagText.characterSpacing=2;tagText.text="VOCÊ";
-    p.name=U.Label(col,"Name",K.Label,15,"F7E8C8");U.Stretch(p.name.rectTransform,new Vector2(0,0),new Vector2(1,0),new Vector2(-10,plinthH+4),new Vector2(10,plinthH+26));
+    p.name=U.Label(col,"Name",K.Label,15,"F7E8C8");U.Stretch(p.name.rectTransform,new Vector2(0,0),new Vector2(1,0),new Vector2(-2,plinthH+4),new Vector2(2,plinthH+26));
+    p.name.enableAutoSizing=true;p.name.fontSizeMin=10;p.name.fontSizeMax=15;
     leaguePodium.Add(p);
    }
    // my place when it is not on the podium: a highlighted card with my face, "#12" and my name
@@ -137,15 +140,15 @@ namespace Checkout {
   }
 
   void BuildLeagueDivision(){
-   leagueDivision=N.Node("Division",leagueStage);leagueDivision.anchorMin=new Vector2(.52f,0);leagueDivision.anchorMax=new Vector2(1,1);leagueDivision.offsetMin=new Vector2(0,250);leagueDivision.offsetMax=new Vector2(-30,-176);
-   leagueFrom=N.Image(leagueDivision,"From",Color.white,0);leagueFrom.preserveAspect=true;U.At(leagueFrom.rectTransform,new Vector2(.17f,.58f),new Vector2(112,112));
+   leagueDivision=N.Node("Division",leagueStage);leagueDivision.anchorMin=new Vector2(.52f,0);leagueDivision.anchorMax=new Vector2(1,1);leagueDivision.offsetMin=new Vector2(0,268);leagueDivision.offsetMax=new Vector2(-30,-170);
+   leagueFrom=N.Image(leagueDivision,"From",Color.white,0);leagueFrom.preserveAspect=true;U.At(leagueFrom.rectTransform,new Vector2(.17f,.6f),new Vector2(104,104));
    // three chevrons running from the old badge to the new one
-   leagueChevrons=N.Node("Chevrons",leagueDivision);U.At(leagueChevrons,new Vector2(.42f,.58f),new Vector2(96,40));
+   leagueChevrons=N.Node("Chevrons",leagueDivision);U.At(leagueChevrons,new Vector2(.42f,.6f),new Vector2(96,40));
    for(int k=0;k<3;k++){var ch=N.Image(leagueChevrons,"Chevron",LeagueUp,0);ch.sprite=CheckoutRankArt.Chevron();U.At(ch.rectTransform,new Vector2(.5f,.5f),new Vector2(32,36),new Vector2(-28+k*28,0));leagueChevronParts.Add(ch);}
-   leagueToGlow=N.Image(leagueDivision,"Glow",new Color(1f,.9f,.5f,0),0);leagueToGlow.sprite=U.Glow();U.At(leagueToGlow.rectTransform,new Vector2(.72f,.58f),new Vector2(300,300));
-   leagueTo=N.Image(leagueDivision,"To",Color.white,0);leagueTo.preserveAspect=true;U.At(leagueTo.rectTransform,new Vector2(.72f,.58f),new Vector2(168,168));
+   leagueToGlow=N.Image(leagueDivision,"Glow",new Color(1f,.9f,.5f,0),0);leagueToGlow.sprite=U.Glow();U.At(leagueToGlow.rectTransform,new Vector2(.72f,.6f),new Vector2(280,280));
+   leagueTo=N.Image(leagueDivision,"To",Color.white,0);leagueTo.preserveAspect=true;U.At(leagueTo.rectTransform,new Vector2(.72f,.6f),new Vector2(150,150));
    // the stamp over the new badge: a rotated frame with the word as a label
-   leagueStamp=N.Node("Stamp",leagueDivision);U.At(leagueStamp,new Vector2(.72f,.12f),new Vector2(176,50));leagueStamp.localRotation=Quaternion.Euler(0,0,-8);
+   leagueStamp=N.Node("Stamp",leagueDivision);U.At(leagueStamp,new Vector2(.72f,.28f),new Vector2(170,46));leagueStamp.localRotation=Quaternion.Euler(0,0,-8);
    var stampBack=N.Image(leagueStamp,"Back",new Color(.11f,.17f,.31f,.85f),12);Stretch(stampBack.rectTransform,new Vector2(4,4),new Vector2(-4,-4));
    leagueStampFrame=N.Image(leagueStamp,"Frame",LeagueUp,0);leagueStampFrame.sprite=CheckoutRankArt.Stamp();leagueStampFrame.type=Image.Type.Sliced;Stretch(leagueStampFrame.rectTransform,Vector2.zero,Vector2.zero);
    leagueStampText=U.Label(leagueStamp,"Text",K.Headline,26,"FFFFFF");Stretch(leagueStampText.rectTransform,new Vector2(8,2),new Vector2(-8,-2));leagueStampText.characterSpacing=3;leagueStampText.enableAutoSizing=true;leagueStampText.fontSizeMin=14;leagueStampText.fontSizeMax=26;
@@ -154,7 +157,7 @@ namespace Checkout {
   }
 
   void BuildLeagueRewards(){
-   leagueRewards=N.Node("Rewards",leagueStage);leagueRewards.anchorMin=new Vector2(.52f,0);leagueRewards.anchorMax=new Vector2(1,0);leagueRewards.pivot=new Vector2(.5f,0);leagueRewards.offsetMin=new Vector2(0,142);leagueRewards.offsetMax=new Vector2(-30,222);
+   leagueRewards=N.Node("Rewards",leagueStage);leagueRewards.anchorMin=new Vector2(.52f,0);leagueRewards.anchorMax=new Vector2(1,0);leagueRewards.pivot=new Vector2(.5f,0);leagueRewards.offsetMin=new Vector2(0,146);leagueRewards.offsetMax=new Vector2(-30,236);
    // diamonds: the painted diamond big, a glow behind it, the number counting up
    leagueDiamondBox=N.Node("Diamonds",leagueRewards);leagueDiamondBox.anchorMin=new Vector2(0,0);leagueDiamondBox.anchorMax=new Vector2(.5f,1);leagueDiamondBox.offsetMin=leagueDiamondBox.offsetMax=Vector2.zero;
    var dGlow=N.Image(leagueDiamondBox,"Glow",new Color(.5f,.8f,1f,.35f),0);dGlow.sprite=U.Glow();U.At(dGlow.rectTransform,new Vector2(.3f,.5f),new Vector2(150,150));
@@ -224,9 +227,9 @@ namespace Checkout {
    bool moved=card.moved!="same";leagueFrom.gameObject.SetActive(moved);leagueChevrons.gameObject.SetActive(moved);
    foreach(var ch in leagueChevronParts){ch.color=new Color(moveColor.r,moveColor.g,moveColor.b,0);}
    leagueChevrons.localRotation=Quaternion.Euler(0,0,card.moved=="down"?0:0);
-   var to=leagueTo.rectTransform;to.anchorMin=to.anchorMax=new Vector2(moved?.72f:.5f,.58f);
+   var to=leagueTo.rectTransform;to.anchorMin=to.anchorMax=new Vector2(moved?.72f:.5f,.6f);
    var tg=leagueToGlow.rectTransform;tg.anchorMin=tg.anchorMax=to.anchorMin;leagueToGlow.color=new Color(tint.r,tint.g,tint.b,0);
-   var st=leagueStamp;st.anchorMin=st.anchorMax=new Vector2(moved?.72f:.5f,.12f);
+   var st=leagueStamp;st.anchorMin=st.anchorMax=new Vector2(moved?.72f:.5f,.28f);
    leagueStampText.text=K.Clean(card.stamp);leagueStampFrame.color=moveColor;leagueStampText.color=card.moved=="same"?LeagueSame:Color.white;
    leagueStamp.localScale=Vector3.zero;
    // the podium: the real top three of the group (a medal on the plate for a place nobody knows)
@@ -300,7 +303,7 @@ namespace Checkout {
     yield return U.Scale(leagueChestBox,Vector3.one,.3f,true);
     var box=(RectTransform)leagueChestLid.parent;
     yield return U.Shake(box,.45f,7);
-    StartCoroutine(U.Rotate(leagueChestLid,34,.22f));StartCoroutine(U.Fade(leagueChestGlow,.85f,.25f));Sound("success",1.2f);
+    StartCoroutine(U.Rotate(leagueChestLid,26,.22f));StartCoroutine(U.Fade(leagueChestGlow,.85f,.25f));Sound("success",1.2f);
     ChestCoins(U.PointIn(leagueFx,box),14);
     StartCoroutine(CountPrize(leagueCoins,card.coins,.8f));
    }

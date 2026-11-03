@@ -32,7 +32,7 @@ namespace Checkout {
 
   delegate float Coverage(float x,float y);
   /// <summary>A white sprite whose alpha is <paramref name="cover"/> (0–1) over [0,1]² with 3×3 supersampling.</summary>
-  static Sprite Make(string key,int w,int h,Coverage cover,System.Func<float,float,float> shade=null,Vector4 border=default){
+  static Sprite Make(string key,int w,int h,Coverage cover,System.Func<float,float,float> shade=null,Vector4 border=default,Color? tint=null){
    if(cache.TryGetValue(key,out var cached)&&cached)return cached;
    var t=new Texture2D(w,h,TextureFormat.RGBA32,false){wrapMode=TextureWrapMode.Clamp,filterMode=FilterMode.Bilinear};
    var px=new Color32[w*h];
@@ -41,8 +41,8 @@ namespace Checkout {
     for(int sy=0;sy<3;sy++)for(int sx=0;sx<3;sx++)a+=Mathf.Clamp01(cover((x+(sx+.5f)/3f)/w,(y+(sy+.5f)/3f)/h));
     a/=9f;
     float v=shade==null?1:Mathf.Clamp01(shade((x+.5f)/w,(y+.5f)/h));
-    byte c=(byte)(v*255);
-    px[y*w+x]=new Color32(c,c,c,(byte)(a*255));
+    var col=tint??Color.white;
+    px[y*w+x]=new Color32((byte)(col.r*v*255),(byte)(col.g*v*255),(byte)(col.b*v*255),(byte)(a*255));
    }
    t.SetPixels32(px);t.Apply();
    var s=border==default?Sprite.Create(t,new Rect(0,0,w,h),new Vector2(.5f,.5f)):Sprite.Create(t,new Rect(0,0,w,h),new Vector2(.5f,.5f),100,0,SpriteMeshType.FullRect,border);
@@ -59,9 +59,10 @@ namespace Checkout {
 
   /// <summary>A five-point star, a touch lighter in the middle (the Nota column).</summary>
   public static Sprite Star(){
-   var pts=new Vector2[10];
-   for(int i=0;i<10;i++){float r=i%2==0?.48f:.2f;float a=Mathf.PI/2+i*Mathf.PI/5;pts[i]=new Vector2(.5f+Mathf.Cos(a)*r,.47f+Mathf.Sin(a)*r);}
-   return Make("star",96,96,(x,y)=>InPolygon(new Vector2(x,y),pts)?1:0,(x,y)=>1-.18f*Vector2.Distance(new Vector2(x,y),new Vector2(.5f,.6f)));
+   // (painted gold, a darker rim: it reads on cream and on navy alike)
+   var outer=new Vector2[10];var inner=new Vector2[10];
+   for(int i=0;i<10;i++){float a=Mathf.PI/2+i*Mathf.PI/5;float r=i%2==0?.48f:.2f;float r2=i%2==0?.4f:.165f;outer[i]=new Vector2(.5f+Mathf.Cos(a)*r,.47f+Mathf.Sin(a)*r);inner[i]=new Vector2(.5f+Mathf.Cos(a)*r2,.47f+Mathf.Sin(a)*r2);}
+   return Make("star",96,96,(x,y)=>InPolygon(new Vector2(x,y),outer)?1:0,(x,y)=>InPolygon(new Vector2(x,y),inner)?1-.16f*Vector2.Distance(new Vector2(x,y),new Vector2(.5f,.62f)):.68f,default,new Color(.98f,.74f,.22f));
   }
   /// <summary>An upward triangle with rounded feel (▲; rotated 180° for ▼).</summary>
   public static Sprite Triangle(){
@@ -98,14 +99,16 @@ namespace Checkout {
   }
   /// <summary>A plinth face: light at the top, a little darker at the base, faint marble veins (tinted per place).</summary>
   public static Sprite Plinth(){
-   return Make("plinth",128,128,(x,y)=>1,(x,y)=>{
-    float v=.8f+.2f*y;
-    float vein=Mathf.Abs(Mathf.Sin(x*9.3f+y*4.1f+Mathf.Sin(y*13f)*.8f));
-    v-=vein>.97f?.07f:0;
-    v-=Mathf.Abs(Mathf.Sin(x*21f-y*7f+Mathf.Sin(x*5f)*1.4f))>.985f?.05f:0;
+   // a soft marble: light at the top, a gentle diagonal sheen, two faint wandering veins
+   return Make("plinth2",128,128,(x,y)=>1,(x,y)=>{
+    float v=.84f+.16f*y;
+    v+=.035f*Mathf.Sin((x*1.4f+y*.9f)*Mathf.PI);
+    float vein1=Mathf.Abs(y-(.35f+.18f*Mathf.Sin(x*3.1f+.6f)));float vein2=Mathf.Abs(y-(.72f+.12f*Mathf.Sin(x*2.3f+2.1f)));
+    v-=.05f*Mathf.Clamp01(1-vein1/.018f)+.04f*Mathf.Clamp01(1-vein2/.014f);
     return v;
    },new Vector4(10,10,10,10));
   }
+
   /// <summary>Faint dots for the podium's backdrop (tiled; alpha is low on purpose).</summary>
   public static Sprite Dots(){
    return Make("dots",64,64,(x,y)=>{

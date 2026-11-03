@@ -162,7 +162,7 @@ namespace Checkout {
    // 8. English (Lucas plays in English: no Portuguese may leak), and the card in English.
    Lang("en");yield return new WaitForSecondsRealtime(1.5f);
    foreach(var tab in new[]{"mundo","pais","amigos","liga"}){yield return Tab(tab);yield return Quiet();yield return Shot2("rank_"+tab+"_en");}
-   Act("rankingColumn","[\"nota\"]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot2("rank_amigos_nota_en");Act("rankingColumn","[\"nivel\"]");
+   yield return Tab("amigos");Act("rankingColumn","[\"nota\"]");yield return new WaitForSecondsRealtime(1.2f);yield return Shot2("rank_amigos_nota_en");Act("rankingColumn","[\"nivel\"]");
    Mock("league-reward",NewWeek());Tick();yield return new WaitForSecondsRealtime(6f);yield return Shot("rank_reward_card_en");
    cont=Field<CheckoutDesktopButton>("leagueButton");if(cont&&hud.LeagueCardOpen)cont.Clicked?.Invoke(cont);yield return new WaitForSecondsRealtime(1.5f);
    Lang(langBefore);yield return new WaitForSecondsRealtime(1f);

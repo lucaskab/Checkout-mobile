@@ -358,7 +358,7 @@ namespace Checkout {
      float right0=right;right+=valueW;
      if(vIcon){
       // (the icon sits just left of the number; the star of Nota in gold)
-      valueIconImage.sprite=vIcon;valueIconImage.color=t.valueIcon=="shape:star"?K.C("F0B43C"):Color.white;
+      valueIconImage.sprite=vIcon;valueIconImage.color=Color.white;
       float numW=Mathf.Min(valueW,valueText.GetPreferredValues(valueText.text).x+2);
       Place(valueIconImage.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-(right0+numW+4),label?8:0),new Vector2(24,24));
       right=Mathf.Max(right,right0+numW+4+24);
@@ -471,7 +471,8 @@ namespace Checkout {
     if(hasRibbon){var label=K.Clean(t.sticker);ribbonText.text=label;ribbon.color=ToneStrong(string.IsNullOrEmpty(t.tone)?"danger":t.tone);ribbonRect.sizeDelta=new Vector2(PillWidth(ribbonText,label,70),30);}
     title.text=K.Clean(t.title);subtitle.text=K.Clean(t.subtitle);subtitle.gameObject.SetActive(!string.IsNullOrEmpty(t.subtitle));
     pips.Apply(t.stars,t.maxStars);
-    bool bar=t.fill>=0;barRect.gameObject.SetActive(bar);
+    // (a ranking row's bar against the leader stays on the row: the side panel keeps its room)
+    bool bar=t.fill>=0&&t.frame!="rank";barRect.gameObject.SetActive(bar);
     if(bar){fillTarget=Mathf.Clamp01(t.fill);if(changed||fillShown<0)fillShown=fillTarget;barText.text=K.Clean(t.fillText);
      barFill.color=t.tone=="danger"||t.tone=="warning"||t.tone=="info"||t.tone=="gold"||t.tone=="locked"?ToneStrong(t.tone):fillTarget<.34f?ToneStrong("warning"):ToneStrong("success");}
     timerRow.SetActive(t.timerEnd>0);
