@@ -67,7 +67,7 @@ namespace Checkout {
     Result($"{era}: the layout has room for {string.Join(", ",ids)}",ids.All(id=>inside!=null&&inside.LayoutState.sectorIds!=null&&inside.LayoutState.sectorIds.Contains(id))&&ids.All(id=>!(inside.RoomSent??"").Contains("sector:"+id)),$"blocked {inside?.RoomSent}");
     // The Produção page as the player sees it now (the new sectors on sale).
     Route("!sectors");yield return new WaitForSecondsRealtime(2f);yield return Tips();
-    yield return Shot("ps_"+era+"_setores");
+    yield return ShotJpg("ps_"+era+"_setores");
     Route("");yield return new WaitForSecondsRealtime(1f);
     // Buy each (it waits in the build-mode inventory), then place it where the build mode settles it.
     foreach(var id in ids){Act("buildSector","[\""+id+"\",\"coins\"]");yield return new WaitForSecondsRealtime(1.2f);}
@@ -92,14 +92,14 @@ namespace Checkout {
     var building=bridge.State.sectors?.Where(x=>x!=null&&ids.Contains(x.id)).Select(x=>x.id+(x.building?":building":x.unlocked?":built":":-")).ToArray()??new string[0];
     Note($"sectors {era}: after placing [{string.Join(",",building)}], builds [{string.Join(",",(bridge.State.builds??new BuildEntry[0]).Select(b=>b.kind+":"+b.targetId+(b.pending?"(pending)":"")+" "+((b.endsAt-b.startedAt)/60000)+"min"))}]");
     var home=FindAnyObjectByType<MarketDay.MarketSimulation>();if(home)home.HomeCamera();yield return new WaitForSecondsRealtime(1.2f);
-    CapturePng("ps_"+era+"_obras",floor);yield return Shot("ps_"+era+"_obras_hud");
+    CaptureJpg("ps_"+era+"_obras",floor);yield return ShotJpg("ps_"+era+"_obras_hud");
     Act("devFinishInteriorConstructions","[]");yield return new WaitForSecondsRealtime(3.5f);
     var built=ids.Where(id=>bridge.State.sectors?.FirstOrDefault(x=>x?.id==id)?.unlocked==true).ToArray();
     Result($"{era}: built ({string.Join(", ",ids)})",built.Length==ids.Length,$"built [{string.Join(",",built)}]");
     inside=CheckoutInterior.Active;bool reach2=inside.Reachable(out var blocked2);
     Result($"{era}: built, the shop still walkable",reach2,reach2?"":"blocked by "+blocked2?.id);
     yield return new WaitForSecondsRealtime(1.5f);
-    CapturePng("ps_"+era+"_prontos",inside.FloorRect);
+    CaptureJpg("ps_"+era+"_prontos",inside.FloorRect);
     // the sectors already built from the expansions before stand there too (nothing is lost on the way up)
     Note($"sectors {era}: standing [{string.Join(",",inside.items.Values.Where(i=>i.root&&i.type=="sector").Select(i=>i.id))}] (expected at least {string.Join(",",all)})");
    }
@@ -107,8 +107,16 @@ namespace Checkout {
    Route("");yield return new WaitForSecondsRealtime(1f);
   }
 
-  // A view of the shop floor from the game's camera angle, at the iPhone's landscape size (2778 x 1284), as PNG.
-  void CapturePng(string name,Rect floor){
+  // The screen as the player sees it (HUD included) at the game view's size, as JPG (the Mac's disk is nearly full: a
+  // PNG of this size is ~4 MB, the JPG ~0.5 MB; the QA converts it to PNG off the Mac).
+  IEnumerator ShotJpg(string name){
+   yield return new WaitForEndOfFrame();
+   var tex=ScreenCapture.CaptureScreenshotAsTexture();
+   try{File.WriteAllBytes("Logs/at_"+name+".jpg",tex.EncodeToJPG(90));Note("shot "+name);}finally{Destroy(tex);}
+   yield return new WaitForSecondsRealtime(.3f);
+  }
+  // A view of the shop floor from the game's camera angle, at the iPhone's landscape size (2778 x 1284), as JPG.
+  void CaptureJpg(string name,Rect floor){
    var main=Camera.main;if(!main){Note("no camera");return;}
    const int w=2778,h=1284;
    var go=new GameObject("QA sectors camera");var cam=go.AddComponent<Camera>();cam.CopyFrom(main);
@@ -123,7 +131,7 @@ namespace Checkout {
    try{
     var rt=new RenderTexture(w,h,24){antiAliasing=4};cam.targetTexture=rt;cam.Render();var active=RenderTexture.active;RenderTexture.active=rt;
     var image=new Texture2D(w,h,TextureFormat.RGB24,false);image.ReadPixels(new Rect(0,0,w,h),0,0);image.Apply();RenderTexture.active=active;
-    File.WriteAllBytes("Logs/at_"+name+".png",image.EncodeToPNG());Destroy(image);cam.targetTexture=null;rt.Release();Destroy(rt);
+    File.WriteAllBytes("Logs/at_"+name+".jpg",image.EncodeToJPG(90));Destroy(image);cam.targetTexture=null;rt.Release();Destroy(rt);
     Note("shot "+name);
    }finally{Destroy(go);foreach(var g in hidden)if(g)g.SetActive(true);}
   }
