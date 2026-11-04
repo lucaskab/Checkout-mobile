@@ -231,12 +231,36 @@ jogador da liga (lugar, divisão, item da caixa de entrada) uma vez por semana.
 3. Publicar o Worker. Se for publicado antes da migração, saves, social e exclusão de conta seguem normais; só as
    rotas `/v1/rankings/*` dão erro 500 até a migração rodar.
 
+## Fotos dos amigos (`docs/social-api.md` › Fotos)
+No login com Google o Worker guarda a foto do perfil Google que vem no token (`picture`, só endereços https de
+`lh3…lh6.googleusercontent.com`) em `players.photo_url`, atualizada a cada login com Google (um login sem foto mantém
+a anterior). Contas Apple não têm foto (a Apple não manda). A foto só vai para amigos aceitos (lista de amigos,
+visita, placar Amigos) e para o próprio jogador (`GET /v1/social/me`: `photo`, `showPhoto`); pedidos de amizade,
+caixa de entrada, Mundo, País e Liga continuam só com o avatar. O jogador desliga em "Mostrar minha foto do Google
+para amigos" (`PUT /v1/social/me {showPhoto:false}` → `players.photo_hidden = 1`): os amigos voltam a ver o avatar.
+
+### Antes de publicar esta versão
+1. **Migração (uma vez só):** Cloudflare › Storage & Databases › D1 › checkout-saves › Console. Conferir antes:
+   `SELECT name FROM pragma_table_info('players') WHERE name = 'photo_hidden';` — sem linhas = ainda não rodou.
+   Colar o conteúdo inteiro de `worker/migrations/0004_photos.sql` e executar (se o console reclamar dos comentários
+   `--`, apague-os). **Não rode duas vezes:** a segunda vez para no primeiro `ALTER` com "duplicate column name:
+   photo_url". Se parar no meio, rode só a linha que falta. Conferir depois:
+   `SELECT name FROM pragma_table_info('players') WHERE name LIKE 'photo_%';` deve listar `photo_url` e `photo_hidden`.
+   Com wrangler: `npx wrangler d1 execute checkout-saves --remote --file=migrations/0004_photos.sql`.
+2. Publicar o Worker. Se for publicado antes da migração, tudo segue normal sem fotos (o Worker percebe que as colunas
+   não existem e manda `photo: null`); a foto de cada jogador aparece a partir do primeiro login com Google depois da
+   migração.
+3. Política de privacidade (texto para o Lucas aprovar): "Se você entrar com o Google, a foto do seu perfil Google é
+   mostrada aos seus amigos no jogo. Você pode desligar isso no seu perfil."
+
 ## Testes
 `npm test` — roda o código do Worker no Node 22 com substitutos de D1 (SQLite do Node, com o `schema.sql` de
 verdade), R2 (memória) e sockets (node:net/tls). Os testes do Render (`server/test/api.test.ts`) estão portados.
 Com `OLD_TEST_DATABASE_URL` (um Postgres com senha SCRAM e TLS), roda também a cópia de ponta a ponta contra as
 migrações do Prisma do Render (`test/migrate.test.ts`). `test/social.test.ts` cobre todas as rotas sociais e limites
 (com o relógio injetável `now`), a migração rodando duas vezes sobre o banco de hoje e a exclusão de conta.
+`test/photos.test.ts` cobre a foto do Google: guardada do token, só para amigos e o próprio jogador, o interruptor
+desligado, conta Apple sem foto e o Worker antes da migração 0004.
 
 ## Publicar
 `npm run build` (bun) gera `dist/index.js`. Com o wrangler logado: `npx wrangler deploy` (usa `wrangler.jsonc`).

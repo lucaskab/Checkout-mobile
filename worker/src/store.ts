@@ -54,8 +54,13 @@ export type Profile = {
 	hasSave: boolean;
 };
 
-/** A friend as the friend list and the visit see them (public_json stays raw text: spliced into the answer). */
-export type FriendRow = Profile & { lastSeen: number; giftedToday: boolean; likedToday: boolean };
+/** A friend as the friend list and the visit see them (public_json stays raw text: spliced into the answer).
+ * `photo`: their Google profile photo, null when they have none (Apple, before migrations/0004_photos.sql) or turned
+ * "Mostrar minha foto do Google para amigos" off. */
+export type FriendRow = Profile & { lastSeen: number; giftedToday: boolean; likedToday: boolean; photo: string | null };
+
+/** My own Google photo (null: none) and whether friends see it (the profile switch, on by default). */
+export type OwnPhoto = { url: string | null; shown: boolean };
 
 export type RequestRow = { id: number; owner: string; productId: string; qty: number; createdAt: number; expiresAt: number };
 
@@ -110,23 +115,69 @@ export class Store {
 
 	/**
 	 * Finds or creates the player of that Google or Apple account, and reads their save (one round trip). A missing
-	 * e-mail or name keeps the one saved (Apple sends the name only on the very first login).
+	 * e-mail or name keeps the one saved (Apple sends the name only on the very first login). `photo` (Google only,
+	 * already checked by photoUrlOf): the profile photo of this login replaces the stored one; a login without one
+	 * keeps it. Apple logins never touch it (Apple gives no photo).
 	 */
-	async signIn(provider: Provider, sub: string, email: string | null, name: string | null) {
+	async signIn(provider: Provider, sub: string, email: string | null, name: string | null, photo: string | null = null): Promise<{ player: PlayerRecord; save: SaveMeta | null }> {
 		const column = provider === "apple" ? "apple_sub" : "google_sub";
 		const now = this.clock();
-		const [player, save] = await this.db.batch([
-			this.db
-				.prepare(
-					`INSERT INTO players (id, ${column}, email, name, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?)
-					 ON CONFLICT(${column}) DO UPDATE SET email = COALESCE(excluded.email, players.email),
-					   name = COALESCE(excluded.name, players.name), last_seen = excluded.last_seen
-					 RETURNING *`,
-				)
-				.bind(crypto.randomUUID(), sub, email, name, now, now),
-			this.db.prepare(`SELECT * FROM cloud_saves WHERE player_id = (SELECT id FROM players WHERE ${column} = ?)`).bind(sub),
-		]);
+		const withPhoto = provider === "google" && this.photoColumns();
+		const upsert = withPhoto
+			? this.db
+					.prepare(
+						`INSERT INTO players (id, ${column}, email, name, created_at, last_seen, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)
+						 ON CONFLICT(${column}) DO UPDATE SET email = COALESCE(excluded.email, players.email),
+						   name = COALESCE(excluded.name, players.name), last_seen = excluded.last_seen,
+						   photo_url = COALESCE(excluded.photo_url, players.photo_url)
+						 RETURNING *`,
+					)
+					.bind(crypto.randomUUID(), sub, email, name, now, now, photo)
+			: this.db
+					.prepare(
+						`INSERT INTO players (id, ${column}, email, name, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?)
+						 ON CONFLICT(${column}) DO UPDATE SET email = COALESCE(excluded.email, players.email),
+						   name = COALESCE(excluded.name, players.name), last_seen = excluded.last_seen
+						 RETURNING *`,
+					)
+					.bind(crypto.randomUUID(), sub, email, name, now, now);
+		let results: D1Result[];
+		try {
+			results = await this.db.batch([upsert, this.db.prepare(`SELECT * FROM cloud_saves WHERE player_id = (SELECT id FROM players WHERE ${column} = ?)`).bind(sub)]);
+		} catch (error) {
+			if (withPhoto && this.missingPhotos(error)) return this.signIn(provider, sub, email, name, photo);
+			throw error;
+		}
+		const [player, save] = results;
 		return { player: toPlayer(player.results[0]), save: save.results[0] ? toSave(save.results[0]) : null };
+	}
+
+	/**
+	 * Photos (docs/social-api.md › Photos): until migrations/0004_photos.sql has run, players has no photo columns. A
+	 * "no such column" about them turns photos off for a minute: logins, friends and rankings work as before, without
+	 * photos (everyone shows their avatar).
+	 */
+	photosOffUntil = 0;
+	photoColumns() {
+		return this.clock() >= this.photosOffUntil;
+	}
+	missingPhotos(error: unknown) {
+		if (!/(no such column|has no column named):? *(\w+\.)?photo_(url|hidden)\b/i.test(String((error as Error)?.message ?? error))) return false;
+		this.photosOffUntil = this.clock() + 60_000;
+		this.log("photo columns missing: run worker/migrations/0004_photos.sql in the D1 console");
+		return true;
+	}
+
+	/** The profile switch "Mostrar minha foto do Google para amigos". False when the photo columns are missing. */
+	async setPhotoShown(playerId: string, shown: boolean) {
+		if (!this.photoColumns()) return false;
+		try {
+			await this.db.prepare("UPDATE players SET photo_hidden = ? WHERE id = ?").bind(shown ? 0 : 1, playerId).run();
+			return true;
+		} catch (error) {
+			if (this.missingPhotos(error)) return false;
+			throw error;
+		}
 	}
 
 	async setAppleRefresh(playerId: string, token: string | null) {
@@ -316,28 +367,38 @@ export class Store {
 		playerId: string,
 		counts = false,
 		country: string | null = null,
-	): Promise<{ profile: Profile; accountCreatedAt: number; friends: number; inviterCode: string | null } | null> {
+	): Promise<{ profile: Profile; accountCreatedAt: number; friends: number; inviterCode: string | null; photo: OwnPhoto } | null> {
 		const extra = counts
 			? ", (SELECT COUNT(*) FROM friends WHERE player_id = pl.id) AS friend_count, (SELECT code FROM profiles WHERE player_id = pr.invited_by) AS inviter_code"
 			: "";
-		for (let attempt = 0; attempt < 4; attempt++) {
+		for (let attempt = 0; attempt < 6; attempt++) {
 			const withRankings = this.rankingColumns();
+			const withPhotos = this.photoColumns();
 			const ensure = this.ensureProfile(playerId, country, withRankings);
+			const photo = withPhotos ? ", pl.photo_url AS own_photo_url, pl.photo_hidden AS own_photo_hidden" : "";
 			let results: D1Result[];
 			try {
 				results = await this.db.batch([
 					...ensure,
-					this.db.prepare(`SELECT pl.created_at AS account_created_at, pr.*${extra} FROM players pl LEFT JOIN profiles pr ON pr.player_id = pl.id WHERE pl.id = ?`).bind(playerId),
+					this.db
+						.prepare(`SELECT pl.created_at AS account_created_at${photo}, pr.*${extra} FROM players pl LEFT JOIN profiles pr ON pr.player_id = pl.id WHERE pl.id = ?`)
+						.bind(playerId),
 				]);
 			} catch (error) {
-				if (withRankings && this.missingRankings(error)) continue;
+				if ((withRankings && this.missingRankings(error)) || (withPhotos && this.missingPhotos(error))) continue;
 				throw error;
 			}
 			const row = results[ensure.length].results[0];
 			if (!row) return null;
 			// No profile yet means the random code was someone else's: draw another.
 			if (row.player_id)
-				return { profile: toProfile(row), accountCreatedAt: Number(row.account_created_at), friends: Number(row.friend_count ?? 0), inviterCode: str(row.inviter_code) };
+				return {
+					profile: toProfile(row),
+					accountCreatedAt: Number(row.account_created_at),
+					friends: Number(row.friend_count ?? 0),
+					inviterCode: str(row.inviter_code),
+					photo: { url: str(row.own_photo_url), shown: !flag(row.own_photo_hidden) },
+				};
 		}
 		throw new Error("no free invite code");
 	}
@@ -444,19 +505,27 @@ export class Store {
 	}
 
 	/** The friend list (most recently seen first), their open product requests, and friend requests both ways. */
-	async friendsOf(playerId: string) {
+	async friendsOf(playerId: string): Promise<{ friends: FriendRow[]; requests: RequestRow[]; incoming: Profile[]; outgoing: Profile[] }> {
 		const now = this.clock();
-		const [friends, requests, incoming, outgoing] = await this.db.batch([
-			this.db.prepare(`${FRIEND_SELECT} WHERE f.player_id = ? ORDER BY last_seen DESC`).bind(dayOf(now), dayOf(now), playerId),
-			this.db
-				.prepare(
-					`SELECT r.* FROM friends f JOIN product_requests r ON r.player_id = f.friend_id AND r.status = 'open' AND r.expires_at > ?
-					 WHERE f.player_id = ? ORDER BY r.id`,
-				)
-				.bind(now, playerId),
-			this.db.prepare("SELECT pr.* FROM friend_requests q JOIN profiles pr ON pr.player_id = q.from_id WHERE q.to_id = ? ORDER BY q.created_at").bind(playerId),
-			this.db.prepare("SELECT pr.* FROM friend_requests q JOIN profiles pr ON pr.player_id = q.to_id WHERE q.from_id = ? ORDER BY q.created_at").bind(playerId),
-		]);
+		const withPhotos = this.photoColumns();
+		let results: D1Result[];
+		try {
+			results = await this.db.batch([
+				this.db.prepare(`${friendSelect(withPhotos)} WHERE f.player_id = ? ORDER BY last_seen DESC`).bind(dayOf(now), dayOf(now), playerId),
+				this.db
+					.prepare(
+						`SELECT r.* FROM friends f JOIN product_requests r ON r.player_id = f.friend_id AND r.status = 'open' AND r.expires_at > ?
+						 WHERE f.player_id = ? ORDER BY r.id`,
+					)
+					.bind(now, playerId),
+				this.db.prepare("SELECT pr.* FROM friend_requests q JOIN profiles pr ON pr.player_id = q.from_id WHERE q.to_id = ? ORDER BY q.created_at").bind(playerId),
+				this.db.prepare("SELECT pr.* FROM friend_requests q JOIN profiles pr ON pr.player_id = q.to_id WHERE q.from_id = ? ORDER BY q.created_at").bind(playerId),
+			]);
+		} catch (error) {
+			if (withPhotos && this.missingPhotos(error)) return this.friendsOf(playerId);
+			throw error;
+		}
+		const [friends, requests, incoming, outgoing] = results;
 		return {
 			friends: friends.results.map(toFriend),
 			requests: requests.results.map(toRequest),
@@ -466,13 +535,21 @@ export class Store {
 	}
 
 	/** A friend's profile, open requests and save description, for a visit. Null when they are not friends. */
-	async friendMarket(playerId: string, friendId: string) {
+	async friendMarket(playerId: string, friendId: string): Promise<{ friend: FriendRow; requests: RequestRow[]; save: SaveMeta | null } | null> {
 		const now = this.clock();
-		const [friend, requests, save] = await this.db.batch([
-			this.db.prepare(`${FRIEND_SELECT} WHERE f.player_id = ? AND f.friend_id = ?`).bind(dayOf(now), dayOf(now), playerId, friendId),
-			this.db.prepare("SELECT * FROM product_requests WHERE player_id = ? AND status = 'open' AND expires_at > ? ORDER BY id").bind(friendId, now),
-			this.db.prepare("SELECT * FROM cloud_saves WHERE player_id = ? AND EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?)").bind(friendId, playerId, friendId),
-		]);
+		const withPhotos = this.photoColumns();
+		let results: D1Result[];
+		try {
+			results = await this.db.batch([
+				this.db.prepare(`${friendSelect(withPhotos)} WHERE f.player_id = ? AND f.friend_id = ?`).bind(dayOf(now), dayOf(now), playerId, friendId),
+				this.db.prepare("SELECT * FROM product_requests WHERE player_id = ? AND status = 'open' AND expires_at > ? ORDER BY id").bind(friendId, now),
+				this.db.prepare("SELECT * FROM cloud_saves WHERE player_id = ? AND EXISTS (SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ?)").bind(friendId, playerId, friendId),
+			]);
+		} catch (error) {
+			if (withPhotos && this.missingPhotos(error)) return this.friendMarket(playerId, friendId);
+			throw error;
+		}
+		const [friend, requests, save] = results;
 		if (!friend.results[0]) return null;
 		return { friend: toFriend(friend.results[0]), requests: requests.results.map(toRequest), save: save.results[0] ? toSave(save.results[0]) : null };
 	}
@@ -789,10 +866,17 @@ export function pruneHistory(db: D1Database, playerId: string) {
 
 // ── Social statements shared by several store methods ───────────────────────────────────────────────────────
 
-/** A friend as seen by f.player_id: profile, last seen (last upload or login), gifted/liked today. Binds: day, day. */
-const FRIEND_SELECT = `SELECT pr.*, MAX(COALESCE(s.updated_at, 0), COALESCE(pl.last_seen, 0)) AS last_seen,
+/** The photo a friend (or the player themself) is shown, from `players pl`: the Google photo unless the switch is off. */
+export const SHOWN_PHOTO = "CASE WHEN pl.photo_hidden = 0 THEN pl.photo_url END";
+
+/**
+ * A friend as seen by f.player_id: profile, last seen (last upload or login), gifted/liked today and, with the photo
+ * columns, the photo they let friends see. Binds: day, day. Only ever read through `friends f` (accepted friends).
+ */
+const friendSelect = (withPhotos: boolean) => `SELECT pr.*, MAX(COALESCE(s.updated_at, 0), COALESCE(pl.last_seen, 0)) AS last_seen,
 	  EXISTS (SELECT 1 FROM daily_actions d WHERE d.player_id = f.player_id AND d.day = ? AND d.kind = 'gift' AND d.target = f.friend_id) AS gifted,
-	  EXISTS (SELECT 1 FROM daily_actions d WHERE d.player_id = f.player_id AND d.day = ? AND d.kind = 'like' AND d.target = f.friend_id) AS liked
+	  EXISTS (SELECT 1 FROM daily_actions d WHERE d.player_id = f.player_id AND d.day = ? AND d.kind = 'like' AND d.target = f.friend_id) AS liked${withPhotos ? `,
+	  ${SHOWN_PHOTO} AS photo` : ""}
 	FROM friends f JOIN profiles pr ON pr.player_id = f.friend_id LEFT JOIN players pl ON pl.id = f.friend_id LEFT JOIN cloud_saves s ON s.player_id = f.friend_id`;
 
 /**
@@ -932,7 +1016,7 @@ export function toProfile(row: Row): Profile {
 }
 
 export function toFriend(row: Row): FriendRow {
-	return { ...toProfile(row), lastSeen: Number(row.last_seen ?? 0), giftedToday: flag(row.gifted), likedToday: flag(row.liked) };
+	return { ...toProfile(row), lastSeen: Number(row.last_seen ?? 0), giftedToday: flag(row.gifted), likedToday: flag(row.liked), photo: str(row.photo) };
 }
 
 export function toRequest(row: Row): RequestRow {

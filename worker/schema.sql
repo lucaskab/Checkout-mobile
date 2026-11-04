@@ -183,3 +183,12 @@ CREATE TABLE IF NOT EXISTS league_members (
 );
 CREATE INDEX IF NOT EXISTS league_members_group ON league_members (group_id, points DESC, points_at);
 CREATE INDEX IF NOT EXISTS league_members_player ON league_members (player_id);
+
+-- ── Photos (docs/social-api.md › Photos) ── the same statements as migrations/0004_photos.sql (the live database gets
+-- them from there). The ALTERs run once: this file is for a NEW database, run it a single time.
+
+-- The Google profile photo of the player's latest Google login (the ID token's "picture", https on
+-- lh3…lh6.googleusercontent.com; null for Apple accounts and logins without one), and the profile switch
+-- "Mostrar minha foto do Google para amigos" (0 = friends see it, the default; 1 = they see the avatar).
+ALTER TABLE players ADD COLUMN photo_url TEXT;
+ALTER TABLE players ADD COLUMN photo_hidden INTEGER NOT NULL DEFAULT 0;

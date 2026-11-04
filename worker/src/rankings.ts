@@ -173,11 +173,20 @@ export function rankingRoutes(options: RankingOptions) {
 
 				case "GET friends": {
 					const id = await sessionOf(req);
-					const [found] = await withProfile(id, requestCountry, () => [rankings.friends(id, weekOf(now()))]);
+					const withPhotos = store.photoColumns();
+					let found: import("./cf.ts").D1Result;
+					try {
+						[found] = await withProfile(id, requestCountry, () => [rankings.friends(id, weekOf(now()), withPhotos)]);
+					} catch (error) {
+						if (!withPhotos || !store.missingPhotos(error)) throw error;
+						[found] = await withProfile(id, requestCountry, () => [rankings.friends(id, weekOf(now()), false)]);
+					}
 					const rows = found.results.map((row) => {
 						const rating = Number(row.market_rating);
 						return {
 							...boardRow(row, null, row.player_id === id),
+							// Friends board only: the Google photo each one lets friends see (null: the avatar).
+							photo: typeof row.photo === "string" ? row.photo : null,
 							weekPoints: Number(row.ranking_hidden) ? 0 : Number(row.week_points ?? 0),
 							likes: Number(row.likes_total ?? 0),
 							marketRating: row.market_rating == null || !Number.isFinite(rating) ? null : rating,

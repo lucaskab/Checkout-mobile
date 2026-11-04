@@ -64,7 +64,9 @@ export async function readSession(token: string | undefined, secret: string, now
 	}
 }
 
-export type GoogleIdentity = { sub: string; email?: string; name?: string };
+/** `picture`: the Google profile photo's address (the token's "picture" claim, sent when the login asked for the
+ * "profile" scope; every client of the game does), already checked by photoUrlOf (https, Google's image hosts). */
+export type GoogleIdentity = { sub: string; email?: string; name?: string; picture?: string };
 export type GoogleVerifier = (idToken: string) => Promise<GoogleIdentity | null>;
 /** Apple's identity token carries no name (the phone sends it once, on the first login). `nonce`: the SHA-256 (hex)
  * of the login's one-time nonce, when the phone asked for one (builds from 29/10 on). */
@@ -133,12 +135,31 @@ function idTokenChecker(issuers: string[], audiences: string[], fetchKeys: KeyFe
 
 const text = (value: unknown) => (typeof value === "string" ? value : undefined);
 
+/**
+ * A Google profile photo address the game may show to friends, or null: https on one of Google's image hosts
+ * (lh3…lh6.googleusercontent.com, where the ID token's "picture" points), no user/port, at most 1024 characters.
+ * Anything else is dropped (never stored, never sent to other players). Apple's token carries no photo at all.
+ */
+export function photoUrlOf(value: unknown): string | null {
+	if (typeof value !== "string" || !value || value.length > 1024) return null;
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		return null;
+	}
+	if (url.protocol !== "https:" || url.username || url.password || url.port || !/^lh[3-6]\.googleusercontent\.com$/.test(url.hostname)) return null;
+	return url.href.length <= 1024 ? url.href : null;
+}
+
 /** "Sign in with Google": signed by Google, issued by Google, for one of the game's OAuth clients, not expired. */
 export function googleVerifier(clientIds: string[], fetchKeys: KeyFetcher = fetchGoogleKeys, clock = () => Date.now()): GoogleVerifier {
 	const check = idTokenChecker(["accounts.google.com", "https://accounts.google.com"], clientIds, fetchKeys, clock);
 	return async (idToken) => {
 		const claims = await check(idToken);
-		return claims ? { sub: claims.sub as string, email: text(claims.email), name: text(claims.name) } : null;
+		if (!claims) return null;
+		const picture = photoUrlOf(claims.picture);
+		return { sub: claims.sub as string, email: text(claims.email), name: text(claims.name), ...(picture ? { picture } : {}) };
 	};
 }
 

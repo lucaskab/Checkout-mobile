@@ -158,7 +158,7 @@ describe("profile", () => {
 		assert.match(me.code, /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{8}$/);
 		assert.deepEqual(
 			{ ...me, code: "x" },
-			{ id: login.player.id, code: "x", marketName: null, avatar: null, level: 6, era: "lojinha", likes: 0, friends: 0, invitedBy: null, invites: { rewarded: 0, milestones: [1, 3, 5] }, nameHidden: false },
+			{ id: login.player.id, code: "x", marketName: null, avatar: null, level: 6, era: "lojinha", likes: 0, friends: 0, invitedBy: null, invites: { rewarded: 0, milestones: [1, 3, 5] }, nameHidden: false, photo: null, showPhoto: true },
 		);
 		assert.equal((await w.call("GET", "/v1/social/me", undefined, login.token)).body.code, me.code);
 	});
@@ -212,7 +212,7 @@ describe("friends", () => {
 		assert.deepEqual((await add(ana, bia.code)).body, { error: "already-friends" });
 		const anaLists = (await w.call("GET", "/v1/social/friends", undefined, ana.token)).body;
 		assert.deepEqual([anaLists.friends.length, anaLists.incoming.length, anaLists.outgoing.length], [1, 0, 0]);
-		assert.deepEqual(Object.keys(anaLists.friends[0]).sort(), ["avatar", "code", "era", "giftedToday", "id", "level", "likedToday", "likes", "lastSeen", "marketName", "openRequests", "public"].sort());
+		assert.deepEqual(Object.keys(anaLists.friends[0]).sort(), ["avatar", "code", "era", "giftedToday", "id", "level", "likedToday", "likes", "lastSeen", "marketName", "openRequests", "photo", "public"].sort());
 		assert.equal((await w.call("GET", "/v1/social/me", undefined, ana.token)).body.friends, 1);
 		// Both adding each other's code: the second add accepts.
 		assert.deepEqual((await add(cris, ana.code)).body, { status: "requested" });

@@ -3,7 +3,7 @@ import { readCode } from "./codes.ts";
 import { invitePage, pageResponse, pickLanguage } from "./landing.ts";
 import { SOCIAL } from "./limits.ts";
 import { cleanName, isNameAllowed, sameName } from "./names.ts";
-import type { FriendRow, InboxRow, Profile, RequestRow, Store } from "./store.ts";
+import type { FriendRow, InboxRow, OwnPhoto, Profile, RequestRow, Store } from "./store.ts";
 
 /**
  * Social v1 routes (docs/social-api.md — the contract with the game). All under /v1/social/ with the game's session
@@ -64,10 +64,13 @@ const request = (r: RequestRow) => ({ id: r.id, productId: r.productId, qty: r.q
 
 const card = (p: Profile) => ({ id: p.id, code: p.code, marketName: shownName(p), avatar: p.avatar, level: p.level, era: p.era });
 
-/** Friend = {id, code, marketName, avatar, level, era, likes, lastSeen, giftedToday, likedToday, openRequests, public}. */
+/** Friend = {id, code, marketName, avatar, photo, level, era, likes, lastSeen, giftedToday, likedToday, openRequests,
+ * public}. `photo`: the friend's Google photo (null: none, or they turned it off). Only friends get it: strangers
+ * (friend requests, the inbox, Mundo / País / Liga) see the avatar only. */
 function friendJson(f: FriendRow, requests: RequestRow[]) {
 	const head = JSON.stringify({
 		...card(f),
+		photo: f.photo,
 		likes: f.likes,
 		lastSeen: f.lastSeen,
 		giftedToday: f.giftedToday,
@@ -82,7 +85,7 @@ function inboxJson(item: InboxRow) {
 	return `${head.slice(0, -1)},"payload":${item.payload}}`;
 }
 
-const meJson = (me: { profile: Profile; friends: number; inviterCode: string | null }) => ({
+const meJson = (me: { profile: Profile; friends: number; inviterCode: string | null; photo: OwnPhoto }) => ({
 	id: me.profile.id,
 	code: me.profile.code,
 	// The owner always sees their own name; nameHidden tells the game to ask for a new one.
@@ -95,6 +98,10 @@ const meJson = (me: { profile: Profile; friends: number; inviterCode: string | n
 	invitedBy: me.inviterCode,
 	invites: { rewarded: me.profile.invitesRewarded, milestones: SOCIAL.inviteMilestones },
 	nameHidden: me.profile.nameHidden,
+	// My own Google photo (null: none, Apple, or before migrations/0004_photos.sql) even when I hide it from friends,
+	// and the switch "Mostrar minha foto do Google para amigos".
+	photo: me.photo.url,
+	showPhoto: me.photo.shown,
 });
 
 /** The build ids in a stored public block (validated as an object with ≤ 12 builds when it was stored). */
@@ -160,7 +167,9 @@ export function socialRoutes(options: SocialOptions) {
 					if (body.avatar !== null && (typeof body.avatar !== "string" || !AVATAR.test(body.avatar))) fail(400, "bad-avatar");
 					changes.avatar = body.avatar as string | null;
 				}
+				if (body.showPhoto !== undefined && typeof body.showPhoto !== "boolean") fail(400, "bad-request");
 				if (Object.keys(changes).length) await store.updateProfile(profile.id, changes);
+				if (typeof body.showPhoto === "boolean") await store.setPhotoShown(profile.id, body.showPhoto);
 				return json(200, meJson(await me(true)));
 			}
 

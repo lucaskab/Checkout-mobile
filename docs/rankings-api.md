@@ -97,7 +97,7 @@ Mundo/País show the **top 100** plus **my own row pinned** (my position even wh
 |---|---|
 | `GET /v1/rankings/world?limit=100` (auth optional) | → `{top:[Row], me: Row\|null, total, updatedAt}` |
 | `GET /v1/rankings/country?country=BR&limit=100` (auth optional; `country` defaults to mine, then to the request's) | → `{country, top:[Row], me: Row\|null, total, updatedAt}` |
-| `GET /v1/rankings/friends` | → `{rows:[Row & {weekPoints, likes, marketRating}]}` — me + friends, unsorted (the game sorts by the chosen column) |
+| `GET /v1/rankings/friends` | → `{rows:[Row & {photo, weekPoints, likes, marketRating}]}` — me + friends, unsorted (the game sorts by the chosen column); `photo` = the Google photo each lets friends see, null = avatar (social-api.md › Photos; only this board) |
 | `GET /v1/rankings/league` | → `{week, endsAt, division, group:[LeagueRow], me: LeagueRow\|null, promote: 5, demote: 5, rewards:[{place, diamonds}], lastWeek: {division, place, movedTo}\|null}` — `me: null` and `group: []` until I send points this week |
 | `POST /v1/rankings/league/points` | `{week, points}` → `{points, place, groupSize}` (stored value after the cap) \| 409 `wrong-week` (the game's clock is in another week: it resets its counter and sends again) \| 400 `bad-request` |
 | `PUT /v1/rankings/settings` | `{optOut: bool}` → 204 |

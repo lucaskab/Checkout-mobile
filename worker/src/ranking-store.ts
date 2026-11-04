@@ -1,6 +1,6 @@
 import type { D1PreparedStatement, Row } from "./cf.ts";
 import { DIVISION_MULTIPLIER, DIVISIONS, PLACE_DIAMONDS, RANKINGS, weekOf, weekStartOf } from "./limits.ts";
-import type { Store } from "./store.ts";
+import { SHOWN_PHOTO, type Store } from "./store.ts";
 
 /**
  * Rankings v1 storage (docs/rankings-api.md): the level boards over `profiles` and the weekly league
@@ -64,12 +64,16 @@ export class RankingStore {
 			.bind(playerId);
 	}
 
-	/** Me and my friends (hidden friends are off every board) with this week's league points and the market rating. */
-	friends(playerId: string, week: string): D1PreparedStatement {
+	/**
+	 * Me and my friends (hidden friends are off every board) with this week's league points and the market rating and,
+	 * with the photo columns (`withPhotos`), the Google photo each lets friends see (only this board: its rows are
+	 * friends or me).
+	 */
+	friends(playerId: string, week: string, withPhotos = false): D1PreparedStatement {
 		return this.db
 			.prepare(
-				`SELECT pr.*, COALESCE(m.points, 0) AS week_points, json_extract(pr.public_json, '$.marketRating') AS market_rating
-				 FROM profiles pr LEFT JOIN league_members m ON m.week = ?1 AND m.player_id = pr.player_id
+				`SELECT pr.*, COALESCE(m.points, 0) AS week_points, json_extract(pr.public_json, '$.marketRating') AS market_rating${withPhotos ? `, ${SHOWN_PHOTO} AS photo` : ""}
+				 FROM profiles pr LEFT JOIN league_members m ON m.week = ?1 AND m.player_id = pr.player_id${withPhotos ? " LEFT JOIN players pl ON pl.id = pr.player_id" : ""}
 				 WHERE pr.player_id = ?2 OR (pr.ranking_hidden = 0 AND pr.player_id IN (SELECT friend_id FROM friends WHERE player_id = ?2))`,
 			)
 			.bind(week, playerId);

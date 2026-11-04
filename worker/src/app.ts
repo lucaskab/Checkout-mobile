@@ -4,7 +4,7 @@ import { BadRequest, canReplace, MAX_SAVE_BYTES, readUpload, type SaveMeta } fro
 import { type BoardCache, countryOf, rankingRoutes } from "./rankings.ts";
 import { socialRoutes } from "./social.ts";
 import type { PlayerRecord, SocialSnapshot, Store } from "./store.ts";
-import { type AppleTokens, type AppleVerifier, type GoogleVerifier, readSession, sha256Hex, signSession } from "./tokens.ts";
+import { type AppleTokens, type AppleVerifier, type GoogleVerifier, photoUrlOf, readSession, sha256Hex, signSession } from "./tokens.ts";
 
 /**
  * The game's API — the same routes, bodies and status codes as the Render server (server/src/app.ts), so the game
@@ -219,7 +219,8 @@ export function createApp(options: AppOptions) {
 				log(`login refused (${path})`);
 				throw new HttpError(401, { error: "google-refused" });
 			}
-			const { player, save } = await store.signIn("google", identity.sub, identity.email ?? null, identity.name ?? null);
+			// The Google profile photo of this login (checked: https on Google's image hosts) replaces the stored one.
+			const { player, save } = await store.signIn("google", identity.sub, identity.email ?? null, identity.name ?? null, photoUrlOf(identity.picture));
 			return json(200, await welcome(player, save));
 		}
 

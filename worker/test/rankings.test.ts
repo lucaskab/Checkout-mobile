@@ -327,7 +327,7 @@ describe("rankings: friends board", () => {
 		assert.deepEqual(got.map((r: any) => r.id).sort(), [ana.id, bia.id, cris.id].sort());
 		assert.equal(got[0].id, ana.id);
 		const b = got.find((r: any) => r.id === bia.id);
-		assert.deepEqual({ ...b, code: "x" }, { rank: null, id: bia.id, code: "x", marketName: null, avatar: null, level: 7, xp: 0, era: "mesinha", country: null, weekPoints: 120, likes: 1, marketRating: 4.5 });
+		assert.deepEqual({ ...b, code: "x" }, { rank: null, id: bia.id, code: "x", marketName: null, avatar: null, level: 7, xp: 0, era: "mesinha", country: null, photo: null, weekPoints: 120, likes: 1, marketRating: 4.5 });
 		assert.equal(got.find((r: any) => r.id === cris.id).marketRating, null);
 		w.db.sqlite.prepare("UPDATE profiles SET ranking_hidden = 1 WHERE player_id = ?").run(cris.id);
 		assert.deepEqual((await w.call("GET", "/v1/rankings/friends", undefined, ana.token)).body.rows.map((r: any) => r.id).sort(), [ana.id, bia.id].sort());

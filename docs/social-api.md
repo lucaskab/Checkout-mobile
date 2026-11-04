@@ -91,7 +91,8 @@ Only builds that are running or queued. The server stores it as-is (validated: o
 | `POST /v1/social/invite/redeem` | `{code}` → `{status:"friends"\|"invited"}` ("invited": the invite counts but a friend list is full) \| 409 `already-invited`\|`too-late`\|`self` (also: the code of a player I invited) \| 404 `not-found` |
 | `GET /i/{code}` (no auth) | HTML landing page: the inviter's market name, store buttons (Play link with `&referrer=invite%3D<code>`, App Store link), "Copiar código", "Abrir no jogo" (`checkout://add/<code>`). Unknown code → same page without the name. A malformed code → no code box, plain store links. |
 
-`Friend = {id, code, marketName, avatar, level, era, likes, lastSeen, giftedToday, likedToday, public, openRequests:[Request]}`
+`Friend = {id, code, marketName, avatar, photo, level, era, likes, lastSeen, giftedToday, likedToday, public, openRequests:[Request]}`
+(`photo`: see Photos below)
 `Request = {id, productId, qty, createdAt, expiresAt}`
 
 ### Details settled while building the server (02/11/2026)
@@ -120,6 +121,35 @@ Only builds that are running or queued. The server stores it as-is (validated: o
 - **Social bodies** are at most 16 KB (413 `too-large`). Every social route answers 401 `signed-out` without a
   valid session and 429 `slow-down` past the rate limit, like the save routes.
 - `GET /v1/social/friends`: friends most recently seen first; `incoming` / `outgoing` oldest first.
+
+### Photos — friends see the Google profile photo (settled 04/11/2026, branch `next-photos-sectors`)
+Lucas: friends show the photo of their social login. Server: `worker/migrations/0004_photos.sql`; tests
+`worker/test/photos.test.ts`.
+- **Where it comes from:** the Google ID token's `picture` claim (sent when the login asks for the `profile` scope:
+  the iPhone and PC/Editor logins ask for `openid email profile`; Android's Credential Manager "Sign in with Google"
+  returns the same Google Identity Services ID token, whose consent covers name, e-mail and profile picture — to
+  confirm on the first Android login after the deploy: `SELECT photo_url FROM players WHERE google_sub = …`). Stored as `players.photo_url` on every Google login (a login without
+  one keeps the stored one). Only `https://lh3…lh6.googleusercontent.com/…` addresses (≤ 1024 chars) are kept;
+  anything else is dropped.
+- **Apple:** Sign in with Apple gives no photo — its credential has only `user`, `fullName`, `email` (scopes `.fullName`
+  and `.email`) and the identity token none either. Apple accounts (and Google accounts without a picture) keep their
+  chosen avatar (`shopper-1…12`).
+- **Who gets it:** `Friend.photo` (friend list, `GET …/market` profile) and `GET /v1/rankings/friends` rows' `photo`:
+  only accepted friends and myself. Friend requests (`incoming` / `outgoing`), inbox `from`, Mundo / País / Liga
+  never carry it (strangers see the avatar: privacy).
+- **The switch** "Mostrar minha foto do Google para amigos" (default on): `PUT /v1/social/me {showPhoto: boolean}`
+  (400 `bad-request` when not a boolean) → `players.photo_hidden`. Off: friends get `photo: null` (they see the
+  avatar), and so does my own row on the friends board. `GET/PUT /v1/social/me` answer `photo` (my own stored URL even
+  when hidden, for the profile preview; null for Apple) and `showPhoto`.
+- **The game** shows `photo` when it is not null, else the avatar; my own face in the friend screens shows my photo
+  when `showPhoto && photo`. It asks Google for a small square (`=s128-c`, Google's image-sizing parameters: `=s<n>`
+  size of the longer side, `-c` square crop; the token's `=s96-c` suffix is replaced), downloads it only from
+  `https://lh3…lh6.googleusercontent.com`, caches it in memory and on disk (size cap), draws it round inside the gold
+  ring and keeps the avatar while it loads or when it fails.
+- **Before the migration** the Worker answers as before with `photo: null` / `showPhoto: true` (a "no such column"
+  turns photos off for a minute and logs "run worker/migrations/0004_photos.sql").
+- **Privacy policy (text for Lucas to approve):** "Se você entrar com o Google, a foto do seu perfil Google é mostrada
+  aos seus amigos no jogo. Você pode desligar isso no seu perfil."
 
 ### Inbox kinds and payloads
 | kind | payload | The receiving game does |

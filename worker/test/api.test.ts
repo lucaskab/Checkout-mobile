@@ -106,6 +106,14 @@ describe("Google ID tokens", () => {
 		assert.equal(fetches, 1, "keys are cached");
 	});
 
+	test("passes the profile photo (\"picture\", profile scope) only when it is https on Google's image hosts", async () => {
+		const picture = "https://lh3.googleusercontent.com/a/ACg8ocJ-photo=s96-c";
+		assert.deepEqual(await verify(make({ ...good, name: "Ana", picture })), { sub: "g-123", email: "a@b.c", name: "Ana", picture });
+		assert.equal((await verify(make({ ...good, picture: "http://lh3.googleusercontent.com/a/x=s96-c" })))?.picture, undefined);
+		assert.equal((await verify(make({ ...good, picture: "https://evil.example/a.png" })))?.picture, undefined);
+		assert.equal((await verify(make({ ...good, picture: 42 })))?.sub, "g-123");
+	});
+
 	test("refuses other apps, other issuers, expired, unknown keys and forged signatures", async () => {
 		assert.equal(await verify(make({ ...good, aud: "someone-else" })), null);
 		assert.equal(await verify(make({ ...good, iss: "https://evil.example" })), null);
