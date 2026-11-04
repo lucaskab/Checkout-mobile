@@ -20,7 +20,8 @@ namespace Checkout {
    void Route(string r)=>CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\""+r+"\"}");
    void Result(string name,bool ok,string detail="")=>Note($"RESULT sectors {name}: {(ok?"PASS":"FAIL")} {detail}");
    var hud=FindAnyObjectByType<CheckoutDesktopHUD>();
-   IEnumerator Tips(){for(int i=0;i<4&&hud&&hud.CoachQa().isTip;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.5f);}}
+   // (the level-up card of the jump to level 40 and the one-off tips would cover the shots: closed on the copy)
+   IEnumerator Tips(){Act("dismissLevelUp","[]");for(int i=0;i<4&&hud&&hud.CoachQa().isTip;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.5f);}yield return new WaitForSecondsRealtime(.6f);}
    const BindingFlags F=BindingFlags.NonPublic|BindingFlags.Instance;
 
    Note("sectors: "+CheckoutQaGameView.Set(2778,1284)+" handheld="+CheckoutScreen.Handheld);
@@ -41,6 +42,26 @@ namespace Checkout {
     // wait for the room check of this floor (every 1.5 s)
     yield return new WaitForSecondsRealtime(3.5f);
     var all=ids.Concat(plan.TakeWhile(p=>p.era!=era).SelectMany(p=>p.ids)).ToArray();
+    // Furnished like a player's shop of this expansion first: every shelf it sells and the second checkout, placed
+    // where the build mode settles them and built. The sectors must still find room after that.
+    for(int k=0;k<9;k++){Act("unlockNextShelf","[]");yield return new WaitForSecondsRealtime(.7f);}
+    Act("purchaseShopItem","[\"extra-checkout\",\"coins\"]");yield return new WaitForSecondsRealtime(2f);
+    inside=CheckoutInterior.Active;
+    {
+     var fl=inside.FloorRect;int put=0;var missing=new List<string>();
+     foreach(var key in inside.waiting.Keys.Where(k=>!k.StartsWith("sector:")).OrderBy(k=>k.StartsWith("checkout")?0:1).ThenBy(k=>k).ToList()){
+      CheckoutInterior.Item it=null;
+      for(float pz=fl.yMin+1.2f;it==null&&pz<fl.yMax-.6f;pz+=.8f)
+       for(float px=fl.xMin+.8f;it==null&&px<fl.xMax-.6f;px+=.8f)
+        it=inside.PlaceWaiting(key,new Vector3(px,0,pz));
+      if(it!=null&&inside.Reachable(out _))put++;else{if(it!=null){inside.waiting[key]=(it.type,it.template);Destroy(it.root.gameObject);inside.items.Remove(key);}missing.Add(key);}
+     }
+     inside.MarkPending();FindAnyObjectByType<CheckoutMap>().SaveInterior();yield return new WaitForSecondsRealtime(2.5f);
+     Act("devFinishInteriorConstructions","[]");yield return new WaitForSecondsRealtime(3f);
+     Note($"sectors {era}: furnished with {put} pieces placed [{string.Join(",",CheckoutInterior.Active.items.Values.Where(i=>i.root&&!i.outside&&i.type!="sector").Select(i=>i.id))}]; not placed [{string.Join(",",missing)}]");
+     yield return new WaitForSecondsRealtime(3.5f);
+    }
+    inside=CheckoutInterior.Active;
     var offered=bridge.State.sectors?.Where(x=>x!=null&&ids.Contains(x.id)).ToList()??new List<Sector>();
     Note($"sectors {era}: stage {inside?.LayoutState?.stage} floor {inside?.FloorRect} small {CheckoutStall.Small}; room blocked {inside?.RoomSent}; layout sectors [{string.Join(",",inside?.LayoutState?.sectorIds??new string[0])}]");
     Result($"{era}: the layout has room for {string.Join(", ",ids)}",ids.All(id=>inside!=null&&inside.LayoutState.sectorIds!=null&&inside.LayoutState.sectorIds.Contains(id))&&ids.All(id=>!(inside.RoomSent??"").Contains("sector:"+id)),$"blocked {inside?.RoomSent}");

@@ -94,7 +94,7 @@ test("my profile: my photo on the card, the switch hides it from friends (and br
 	const profile = () => pages(game(), "amigos:perfil");
 	let hero = profile().cards[0];
 	expect(hero.icon).toBe(face("shopper-4", MOCK_PHOTOS.me));
-	expect(hero.lines).toContain("Mostrar minha foto do Google para amigos");
+	expect(hero.lines.some((line) => line.startsWith("Mostrar minha foto do Google para amigos"))).toBe(true);
 	const toggle = () => profile().cards[0].buttons.find((b) => b.action === "socialShowPhoto");
 	expect(toggle().label).toBe("Foto do Google: sim");
 	await act("socialShowPhoto", false);

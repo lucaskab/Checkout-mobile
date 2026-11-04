@@ -4437,10 +4437,9 @@ const catalog: Catalog = {
 	"Foto do Google: sim": "Google photo: yes",
 	"Foto do Google: não": "Google photo: no",
 	"Mostrar minha foto do Google para amigos": "Show my Google photo to friends",
-	"Seus amigos veem a sua foto do Google. Quem não é seu amigo vê o rosto escolhido aqui.": "Your friends see your Google photo. Everyone else sees the face you pick here.",
-	"Seus amigos veem o rosto escolhido aqui.": "Your friends see the face you pick here.",
 	"Seus amigos veem a sua foto do Google.": "Your friends see your Google photo.",
 	"Seus amigos veem o seu rosto do jogo.": "Your friends see your in-game face.",
+	"Mostrar minha foto do Google para amigos (quem não é seu amigo vê o rosto escolhido aqui).": "Show my Google photo to friends (everyone else sees the face you pick here).",
 };
 
 export default catalog;

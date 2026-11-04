@@ -198,8 +198,8 @@ function profilePage(state: State, required: boolean): Page {
 					? "O nome do seu mercado foi denunciado e está escondido. Os amigos veem só o código até você escolher outro."
 					: "",
 			"De 3 a 20 letras ou números. Nada de palavrões: nomes denunciados ficam escondidos.",
-			photo ? "Mostrar minha foto do Google para amigos" : "",
-			photo ? (showPhoto ? "Seus amigos veem a sua foto do Google. Quem não é seu amigo vê o rosto escolhido aqui." : "Seus amigos veem o rosto escolhido aqui.") : "",
+			// (one line: the 12 faces stay above the fold on a phone; the button says on/off)
+			photo ? "Mostrar minha foto do Google para amigos (quem não é seu amigo vê o rosto escolhido aqui)." : "",
 		].filter(Boolean),
 		input: { id: "name", placeholder: "Nome do mercado", value: hidden ? "" : (me.marketName ?? ""), max: 20, kind: "name" },
 		buttons: [
