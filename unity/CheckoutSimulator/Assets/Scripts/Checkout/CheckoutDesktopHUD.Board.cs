@@ -437,7 +437,7 @@ namespace Checkout {
    var vp=boardScroll.viewport?boardScroll.viewport:(RectTransform)boardScroll.transform;
    bool more=boardContent.rect.height>vp.rect.height+20&&boardScroll.verticalNormalizedPosition>.97f;
    if(boardMore.gameObject.activeSelf!=more)boardMore.gameObject.SetActive(more);
-   if(more)boardMore.anchoredPosition=new Vector2(0,((RectTransform)boardScroll.transform).offsetMin.y-boardMoreDrop+Mathf.Abs(Mathf.Sin(t*3))*(boardMoreDrop>2?2:5));
+   if(more)boardMore.anchoredPosition=new Vector2(0,((RectTransform)boardScroll.transform).offsetMin.y-boardMoreDrop+Mathf.Abs(Mathf.Sin(t*3))*(boardMoreDrop>2?1.5f:5));
   }
 
   public static string Clock(double ms){

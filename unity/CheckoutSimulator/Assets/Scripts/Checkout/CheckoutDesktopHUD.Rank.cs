@@ -149,7 +149,7 @@ namespace Checkout {
     boardScrollBottom+=h+20;((RectTransform)boardScroll.transform).offsetMin=new Vector2(10,boardScrollBottom);
    }
    // the "more below" chevron: smaller, in the gap over my pinned row (never on its border)
-   boardMore.sizeDelta=pinned?new Vector2(36,18):new Vector2(54,28);boardMoreDrop=pinned?10:2;
+   boardMore.sizeDelta=pinned?new Vector2(30,12):new Vector2(54,28);boardMoreDrop=pinned?11:2; // (12 high, centred in the 20 gap: 4 clear of my row)
    // the header's numbers (4 AMIGOS, #5 ENTRE OS AMIGOS) with room inside their chips
    foreach(var chip in boardStatChips)chip.Roomy(rank);
    ApplyRival(rank?b.rival:null,b.meter);
@@ -264,7 +264,7 @@ namespace Checkout {
     var hit=root.gameObject.AddComponent<Image>();hit.color=new Color(0,0,0,0);
     // (a phone's plinths keep room for the place and its value)
     // (taller 2nd/3rd plinths: the numeral stays big above the value)
-    float plinthH=Mathf.Max(place==1?76:place==2?66:60,(place==1?96:place==2?76:62)*s),face=(place==1?106:88)*s;
+    float plinthH=Mathf.Max(place==1?76:place==2?72:66,(place==1?96:place==2?80:70)*s),face=(place==1?106:88)*s;
     int i=place-1;
     // the plinth: a darker edge, the marble face with a gold trim on top, a shadowed big numeral, the value under it
     c.plinth=N.Image(root,"Plinth",PlinthEdge[i],14);U.Stretch(c.plinth.rectTransform,new Vector2(.06f,0),new Vector2(.94f,0),Vector2.zero,new Vector2(0,plinthH));
