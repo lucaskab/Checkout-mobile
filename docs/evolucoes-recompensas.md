@@ -57,6 +57,11 @@ Os preços **continuam os de hoje**.
 | **Receita nova exclusiva** | – | 1 | 1 |
 | Tempo da evolução | – | 30 min | 2 h |
 
+**04/11 (Lucas: cada setor abre uma expansão antes):** a evolução segue a faixa de tempo da expansão em que o setor
+abre — padaria (Minimercado) T2 30 min, T3 1 h 15; queijaria, açougue e bebidas (Mercadinho) T2 1 h, T3 2 h 30;
+peixaria, sorvetes e adega (Supermercado) T2 1 h 30, T3 3 h (`src/data/fixture-evolution.ts`). O preço do T2/T3 no
+Minimercado é 10.000 / 30.000 (`getSectorTierPrice`).
+
 ### 2.3 Caixa, caixa eletrônico e máquinas
 Os efeitos continuam os de hoje, porque já dão recompensa. Eles também passam a ter **tempo e a animação de evolução**:
 - caixa: T2 5 min, T3 20 min, T4 1 h;

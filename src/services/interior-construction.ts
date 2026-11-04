@@ -107,7 +107,7 @@ export function getSectorBuildStatus(
 		return { status: "locked", reason: `Chega com: ${getMarketEra(sector.eraId).name}`, ...base, ...works(null, now) };
 	if (state.market.level < sector.requiredLevel)
 		return { status: "locked", reason: `Nível ${sector.requiredLevel}`, ...base, ...works(null, now) };
-	if (!getSimulatorLayout(state.unlockedMarketExpansionIds).sectorIds.includes(sector.id))
+	if (!getSimulatorLayout(state.unlockedMarketExpansionIds, state.era?.id).sectorIds.includes(sector.id))
 		return { status: "locked", reason: "Precisa de uma expansão", ...base, ...works(null, now) };
 	if (!hasInteriorRoom(`sector:${sector.id}`))
 		return { status: "locked", reason: NO_ROOM_REASON, noRoom: true, ...base, ...works(null, now) };

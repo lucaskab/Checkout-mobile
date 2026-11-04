@@ -10,8 +10,14 @@ const LAST_LADDER_LEVEL = 52;
 const content = ["product", "recipe", "sector", "shelf", "employee", "shop", "decor"];
 const productLevel = (id) => itemCatalog.find((product) => product.id === id).unlockLevel;
 
+// The special sectors open one expansion earlier (Lucas 04/11): the ice cream and wine counters left levels 36 and 38,
+// and nothing may open later than before (players past a level keep what it opened). New content for these two levels
+// is Lucas's call (scripts/economy/catalog.py).
+const OPEN_LEVELS = [36, 38];
+
 test("every level up to the end of the ladder opens something new", () => {
 	for (let level = 2; level <= LAST_LADDER_LEVEL; level++) {
+		if (OPEN_LEVELS.includes(level)) continue;
 		const opened = getLevelUnlocks(level - 1, level, "rede").filter((unlock) => content.includes(unlock.kind));
 		expect({ level, opened: opened.length > 0 }).toEqual({ level, opened: true });
 	}

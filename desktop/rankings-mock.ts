@@ -30,6 +30,8 @@ export type RankingsMockLinks = {
 	me: () => { id: string; code: string; marketName: string | null; avatar: string; likes: number };
 	friendIds: () => string[];
 	person: (id: string) => { id: string; code: string; marketName: string | null; avatar: string; level: number; era: string; likes: number } | undefined;
+	/** The Google photo a player lets friends see (friends board only); absent = none. */
+	photo?: (id: string) => string | null;
 	push: (to: string, kind: string, from: string | null, payload: Record<string, unknown>) => unknown;
 	now: () => number;
 };
@@ -256,7 +258,7 @@ export function createMockRankings(links: RankingsMockLinks, size = 400) {
 				rows: ids
 					.map((id) => (id === links.me().id ? meRow() : friendRow(id)))
 					.filter((p): p is Player => !!p)
-					.map((p) => ({ ...levelRow(p, null), weekPoints: league.members.get(p.id)?.points ?? 0, likes: p.likes, marketRating: p.marketRating })),
+					.map((p) => ({ ...levelRow(p, null), photo: links.photo?.(p.id) ?? null, weekPoints: league.members.get(p.id)?.points ?? 0, likes: p.likes, marketRating: p.marketRating })),
 			});
 		}
 		if (method === "GET" && head === "league") {

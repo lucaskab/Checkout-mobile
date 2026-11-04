@@ -398,7 +398,7 @@ export const missions: MissionDefinition[] = [
 		goal: 20,
 		id: "flour-stock-20",
 		metric: "inventoryProduct",
-		requiredLevel: 16,
+		requiredLevel: 14,
 		reward: { coins: 350, items: [{ productId: 5, quantity: 3 }] },
 		targetProductId: 43,
 		title: "Reserva da padaria",

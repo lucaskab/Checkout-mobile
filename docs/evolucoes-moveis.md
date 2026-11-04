@@ -57,7 +57,7 @@ Hoje nenhuma das duas muda o visual do móvel.
 | Congelados `pizza` | idem | Freezer de congelados (Quitanda); 12.000 | `shelf-freezer` 1,9 × 0,96 m |
 | Casa e higiene `home` | idem | Gôndola (Minimercado); 20.000 | gôndola |
 | Sorvetes `icecream` | idem | Freezer horizontal (Supermercado); 40.000 | `shelf-freezer` |
-| 7 setores (padaria, queijaria, açougue, sucos, peixaria, sorvetes, adega) | `production-sectors.ts`, `sectorCounters` | Abrem do Mercadinho ao Hiper; 2–3 vagas de produção | balcões 3,96 × 3,36 m (os de atendente), 3,3 × 2,4 m nos outros |
+| 7 setores (padaria, queijaria, açougue, sucos, peixaria, sorvetes, adega) | `production-sectors.ts`, `sectorCounters` | Abrem do Minimercado ao Supermercado (04/11: uma expansão antes); 2–3 vagas de produção | balcões 3,96 × 3,36 m (os de atendente), 3,3 × 2,4 m nos outros |
 | Caixa `checkout:main` / `checkout:extra` | `CheckoutInteriorKitBuilder.CheckoutCounter` | Upgrades separados na Loja: Caixa Extra 8k, Esteira 12k (×1,25), Leitor 30k (×1,25), Caixa Dourado 120 💎 (×1,5) | 2,5 × 1,7 m (com o lugar do operador); **o modelo tem a palavra "CAIXA" escrita** (`KLetters`) |
 | Autoatendimento `kiosk:1/2` | Loja: 70k + 300k | 2 totens | 1,57 × 0,68 m |
 | Caixa eletrônico `atm` | `interior-decor.ts` | 15k, clientes gastam +15% | 0,74 × 0,84 m |

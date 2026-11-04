@@ -5,7 +5,7 @@ import { type FriendsColumn, FRIENDS_COLUMNS, isoWeek, rolloverWeek, shouldSendP
 import type { RankingsState } from "@/@types/rankings";
 import { normalizeRankingsState } from "@/services/rankings";
 import { useGameStore } from "@/stores/game-store";
-import { ensureSocialProfile, isVisiting, socialCall, socialIcon, socialMock, socialStore, socialTouched, type SocialReply } from "./social";
+import { ensureSocialProfile, isVisiting, photoOf, socialCall, socialIcon, socialMock, socialStore, socialTouched, type SocialReply } from "./social";
 
 // Rankings v1 on the host (docs/rankings-api.md): the four boards of the "Ranking" window (Amigos · Liga · Mundo ·
 // País), read only while the window is open (each tab at most every 60 s), the week's league points sent to the server
@@ -28,7 +28,8 @@ export type RankRow = {
 	era: string;
 	country: string | null;
 };
-export type FriendRank = RankRow & { weekPoints: number; likes: number; marketRating: number | null };
+/** `photo`: the Google photo the friend (or I) let friends see — only this board carries it (docs/social-api.md › Photos). */
+export type FriendRank = RankRow & { photo: string | null; weekPoints: number; likes: number; marketRating: number | null };
 export type LeagueRow = { place: number; id: string; code: string; marketName: string | null; avatar: string | null; level: number; points: number; isFriend: boolean };
 export type LevelBoard = { top: RankRow[]; me: RankRow | null; total: number; updatedAt: number; country?: string };
 export type LeagueBoard = {
@@ -206,7 +207,7 @@ export async function loadRankingTab(tab: RankingTab, force = false) {
 		if (tab === "mundo") rankingsStore.world.data = boardOf(reply.body);
 		else if (tab === "pais") rankingsStore.country.data = boardOf(reply.body);
 		else if (tab === "amigos") {
-			rankingsStore.friends.data = Array.isArray(reply.body.rows) ? reply.body.rows.map((raw: any) => ({ ...rowOf(raw), weekPoints: Math.max(0, num(raw?.weekPoints)), likes: Math.max(0, num(raw?.likes)), marketRating: typeof raw?.marketRating === "number" ? Math.max(0, Math.min(5, raw.marketRating)) : null })) : [];
+			rankingsStore.friends.data = Array.isArray(reply.body.rows) ? reply.body.rows.map((raw: any) => ({ ...rowOf(raw), photo: photoOf(raw?.photo), weekPoints: Math.max(0, num(raw?.weekPoints)), likes: Math.max(0, num(raw?.likes)), marketRating: typeof raw?.marketRating === "number" ? Math.max(0, Math.min(5, raw.marketRating)) : null })) : [];
 			noteFriendsSeen();
 		}
 		else {

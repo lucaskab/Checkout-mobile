@@ -1,7 +1,8 @@
 import type { GameState } from "@/@types/game";
 import type { OnboardingMarks, OnboardingReward, OnboardingState } from "@/@types/onboarding";
-import { getNextMarketEra } from "@/data/economy";
+import { getMarketEra, getNextMarketEra } from "@/data/economy";
 import { getMarketLot } from "@/data/market-lots";
+import { productionSectors } from "@/data/production-sectors";
 import {
 	ONBOARDING_GUIDE,
 	ONBOARDING_GUIDE_ART,
@@ -177,8 +178,11 @@ function tipWanted(id: string, state: GameState, route: OnboardingRoute, now: nu
 			return checkEraEvolution(state.era, state.coins, state.lots).ok && route === "";
 		case "equipe":
 			return state.market.level >= 9 && state.era.id !== "mesinha" && state.era.id !== "tenda" && state.era.id !== "banca" && route === "";
-		case "producao":
-			return state.market.level >= 18 && route === "";
+		// The first special sector (the bakery, since 04/11 in the minimercado) can be built: its level and expansion.
+		case "producao": {
+			const first = productionSectors.reduce((a, b) => (b.requiredLevel < a.requiredLevel ? b : a));
+			return state.market.level >= first.requiredLevel && getMarketEra(state.era.id).index >= getMarketEra(first.eraId).index && route === "";
+		}
 		// Customers planned more than their basket or cart holds ("Evoluções dos móveis", 30/10).
 		case "falta-carrinho":
 			return (state.market.cartShortfall ?? 0) >= 5 && route === "";

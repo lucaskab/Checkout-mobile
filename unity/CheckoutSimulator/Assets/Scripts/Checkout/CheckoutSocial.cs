@@ -280,8 +280,12 @@ namespace Checkout {
    return null;
   }
   public static int AvatarCount(){try{return Mathf.Clamp(Faces().Count,0,12);}catch{return 0;}}
-  /// <summary>The face for an avatar id; a stand-in icon until it is drawn (it is drawn once, then kept).</summary>
+  /// <summary>The face for an avatar id; a stand-in icon until it is drawn (it is drawn once, then kept). A friend's
+  /// Google photo rides after a "|" ("shopper-3|https://lh3…", docs/social-api.md › Photos): the photo once it is
+  /// downloaded (CheckoutPhotos), the shopper's portrait meanwhile or when it fails.</summary>
   public static Sprite Avatar(string id){
+   int bar=id?.IndexOf('|')??-1;
+   if(bar>=0){var photo=CheckoutPhotos.Get(id.Substring(bar+1));if(photo)return photo;id=id.Substring(0,bar);}
    if(string.IsNullOrEmpty(id))id="shopper-1";
    if(avatars.TryGetValue(id,out var sprite)&&sprite)return sprite;
    wanted.Add(id);

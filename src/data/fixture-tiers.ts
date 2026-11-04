@@ -405,12 +405,15 @@ export function getSectorBatchOutput(outputQuantity: number, tier: number) {
 	return Math.ceil(outputQuantity * getSectorTierDefinition(tier).outputMultiplier - 1e-9);
 }
 
-/** Price of T2 / T3 by shop size (~2 h of sales where it opens); the diamond price is the same everywhere. */
+/** Price of T2 / T3 by shop size (~2 h of sales where it opens); the diamond price is the same everywhere. The
+ * minimercado (where the bakery opens since 04/11) has its own, smaller price. */
 export function getSectorTierPrice(tier: number, eraId: MarketEraId): SectorTierPrice | null {
 	if (tier < 2 || tier > SECTOR_MAX_TIER) return null;
 	const big = eraIndex(eraId) >= eraIndex("hipermercado");
 	const mid = eraIndex(eraId) >= eraIndex("supermercado");
-	const coins = tier === 2 ? (big ? 70_000 : mid ? 30_000 : 18_000) : big ? 200_000 : mid ? 90_000 : 55_000;
+	const small = eraIndex(eraId) < eraIndex("mercadinho");
+	const coins =
+		tier === 2 ? (big ? 70_000 : mid ? 30_000 : small ? 10_000 : 18_000) : big ? 200_000 : mid ? 90_000 : small ? 30_000 : 55_000;
 	return { coins, diamonds: tier === 2 ? 30 : 80 };
 }
 

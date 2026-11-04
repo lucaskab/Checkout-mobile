@@ -200,7 +200,7 @@ export function createSimulatorSnapshot(
 	revision: number,
 	now = Date.now(),
 ): SimulatorSnapshot {
-	const layout = getSimulatorLayout(state.unlockedMarketExpansionIds);
+	const layout = getSimulatorLayout(state.unlockedMarketExpansionIds, state.era.id);
 	const shelfSlotCounts = resolveShelfSlotCounts(
 		state.shelfSlotCounts,
 		state.unlockedShelfSlots,
@@ -467,10 +467,10 @@ export function createSimulatorSnapshot(
 					skipCost: getMarketExpansionSkipCost(
 						state.marketExpansionConstruction.endsAt - Date.now(),
 					),
-					targetLayout: getSimulatorLayout([
-						...state.unlockedMarketExpansionIds,
-						state.marketExpansionConstruction.expansionId,
-					]),
+					targetLayout: getSimulatorLayout(
+						[...state.unlockedMarketExpansionIds, state.marketExpansionConstruction.expansionId],
+						state.era.id,
+					),
 				}
 			: null,
 		interior: {

@@ -224,8 +224,9 @@ def rarity(sell):
     return 'comum' if sell<=10 else 'incomum' if sell<=25 else 'raro' if sell<=60 else 'epico' if sell<=130 else 'lendario'
 def xp(sell): return max(1,round(0.5+0.5*math.sqrt(sell)))
 rows=[]
-SECTOR_ERA={'padaria':'mercadinho','queijaria':'supermercado','acougue':'supermercado','bebidas':'supermercado','peixaria':'hipermercado','sorvetes':'hipermercado','adega':'hipermercado'}
-SECTOR_LEVEL_X={'padaria':18,'queijaria':24,'acougue':25,'bebidas':26,'peixaria':33,'sorvetes':36,'adega':38}
+SECTOR_ERA={'padaria':'minimercado','queijaria':'mercadinho','acougue':'mercadinho','bebidas':'mercadinho','peixaria':'supermercado','sorvetes':'supermercado','adega':'supermercado'}
+# One expansion earlier than at first (Lucas 04/11): the same levels as SECTOR_LEVEL below.
+SECTOR_LEVEL_X={'padaria':14,'queijaria':18,'acougue':19,'bebidas':20,'peixaria':25,'sorvetes':28,'adega':30}
 def lvl(tier,k):
     base=BASE[tier]; top=BASE[tier+1]-1 if tier+1<len(BASE) else base+4
     return min(max(base,top), base+k//4)
@@ -257,32 +258,25 @@ SCHEDULE={
 25:('conteiner',10),6:('banca',10),51:('spati',10),
 52:('spati',11),60:('spati',11),
 55:('spati',12),17:('quitanda',12),
-26:('spati',13),20:('quitanda',13),
-53:('spati',14),18:('quitanda',14),
-54:('spati',15),40:('quitanda',15),34:('minimercado',15),
-43:('spati',16),35:('minimercado',16),10:('tenda',16),
+26:('spati',13),20:('quitanda',13),43:('spati',13),
+53:('spati',14),18:('quitanda',14),101:('minimercado',14),
+54:('spati',15),40:('quitanda',15),34:('minimercado',15),102:('minimercado',15),
+35:('minimercado',16),10:('tenda',16),103:('minimercado',16),24:('conteiner',16),
 58:('minimercado',17),28:('banca',17),
-59:('minimercado',18),16:('spati',18),101:('mercadinho',18),
-36:('minimercado',19),24:('conteiner',19),102:('mercadinho',19),
-37:('minimercado',20),15:('spati',20),103:('mercadinho',20),
-38:('minimercado',21),29:('mesinha',21),
-39:('minimercado',22),19:('quitanda',22),
-30:('spati',23),32:('conteiner',23),
-41:('conteiner',24),31:('mercadinho',24),104:('supermercado',24),
-57:('supermercado',25),27:('supermercado',25),
-113:('supermercado',26),
-61:('supermercado',27),105:('supermercado',27),
-107:('supermercado',28),
-114:('supermercado',29),
-115:('supermercado',30),
-108:('supermercado',31),
-109:('supermercado',32),
-44:('hipermercado',33),
-45:('hipermercado',34),110:('hipermercado',34),
-111:('hipermercado',35),
-116:('hipermercado',36),
+59:('minimercado',18),16:('spati',18),104:('mercadinho',18),
+36:('minimercado',19),57:('mercadinho',19),27:('mercadinho',19),
+37:('minimercado',20),15:('spati',20),113:('mercadinho',20),
+38:('minimercado',21),29:('mesinha',21),105:('mercadinho',21),
+39:('minimercado',22),19:('quitanda',22),107:('mercadinho',22),
+30:('spati',23),32:('conteiner',23),114:('mercadinho',23),
+41:('conteiner',24),31:('mercadinho',24),115:('mercadinho',24),
+44:('supermercado',25),108:('mercadinho',25),
+110:('supermercado',26),109:('mercadinho',26),
+61:('supermercado',27),111:('supermercado',27),
+116:('supermercado',28),
+119:('supermercado',30),
+45:('hipermercado',33),
 117:('hipermercado',37),
-119:('hipermercado',38),
 106:('hipermercado',39),
 118:('hipermercado',40),
 120:('hipermercado',42),
@@ -290,8 +284,16 @@ SCHEDULE={
 33:('rede',46),
 121:('hipermercado',47),
 }
+# Sectors one expansion earlier (Lucas 04/11): the bakery and its recipes -4 levels (minimercado), cheese, butcher's
+# and juices -6 (mercadinho), fish, ice cream and wine open -8 (supermarket) with the fresh fish and their first
+# recipes; flour (13) and premium chocolate (16) a bit earlier for the bakery's recipes. Nothing opens later than
+# before (a player past a level keeps what it opened); the late showcase recipes (sundae 37, tábua 39, pote 40,
+# sangria 42, barco 44, kit 47) stay late goals. Levels 36 and 38 (where the ice cream and wine counters opened)
+# open nothing now: filling them needs new content (or something moved later, which would take it from players
+# already past it); src/data/level-ladder.test.mjs lists them.
 # Level of each production sector (it opens with its first recipe).
-SECTOR_LEVEL={'padaria':18,'queijaria':24,'acougue':25,'bebidas':26,'peixaria':33,'sorvetes':36,'adega':38}
+# One expansion earlier than at first (Lucas 04/11, "de cada setor, você diminui uma expansão").
+SECTOR_LEVEL={'padaria':14,'queijaria':18,'acougue':19,'bebidas':20,'peixaria':25,'sorvetes':28,'adega':30}
 for r in rows:
     r['era']=r.get('era_fixed') or E[r['tier']]
     if r['id'] in SCHEDULE: r['era'],r['level']=SCHEDULE[r['id']]

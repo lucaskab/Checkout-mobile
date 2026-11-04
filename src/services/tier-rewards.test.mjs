@@ -139,7 +139,8 @@ test("sectors: lines, faster, bigger batches, the counter's places and units, th
 	expect(job.outputQuantity).toBe(Math.ceil(exclusive.outputQuantity * 1.25));
 	expect(job.endsAt - job.startedAt).toBeLessThanOrEqual(Math.round(exclusive.durationMs * 0.85) + 5);
 	expect(store().upgradeSectorTier("padaria")).toBe(true);
-	expect(store().evolutions[0].durationMs).toBe(2 * 60 * 60_000);
+	// (the bakery opens in the minimercado since 04/11: its T3 takes 1 h 15, in that expansion's band)
+	expect(store().evolutions[0].durationMs).toBe(75 * 60_000);
 	finish();
 	expect(store().shelfSlotCounts[counter]).toBe(6);
 	expect(rewards.getSlotCapacity(store(), counter)).toBe(capacity + 10);

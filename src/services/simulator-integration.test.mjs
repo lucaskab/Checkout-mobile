@@ -121,7 +121,7 @@ test("simulator receives the same level roadmap and reward status as System", ()
 	// Shelves come with the expansions (not levels); the bakery sector with the mercadinho.
 	expect(view.shelves.find((s) => s.id === "bakery").requiredLevel).toBe(1);
 	expect(view.shelves.find((s) => s.id === "bakery").unlocked).toBe(false);
-	expect(view.sectors.find((s) => s.id === "padaria").requiredLevel).toBe(18);
+	expect(view.sectors.find((s) => s.id === "padaria").requiredLevel).toBe(14);
 	expect(view.expansionStates.find((e) => e.id === "fresh-wing")).toEqual(
 		expect.objectContaining({ requiredLevel: 4, unlocked: false }),
 	);
@@ -311,12 +311,11 @@ test("cold sector production and customer destinations stay shared between Syste
 			recipeId: "pote-sorvete-familia",
 		}),
 	).toBe(true);
-	expect(snapshot().layout.sectorIds).not.toContain("bebidas");
+	// The hypermarket has a place for every sector: since 04/11 each opens with an expansion, not with a wing.
+	expect(snapshot().layout.sectorIds).toEqual(["padaria", "queijaria", "acougue", "peixaria", "bebidas", "sorvetes", "adega"]);
 	expect(build("service-wing")).toBe(
 		true,
 	);
-	expect(snapshot().layout.sectorIds).toContain("bebidas");
-	expect(snapshot().layout.sectorIds).not.toContain("sorvetes");
 	expect(build("premium-hall")).toBe(
 		true,
 	);
@@ -342,7 +341,7 @@ test("cold sector production and customer destinations stay shared between Syste
 test("unbuilt production counters keep customers at their authoritative shelf", () => {
 	const state = useGameStore.getState();
 	useGameStore.setState({
-		coins: 10_000,
+		coins: 100_000,
 		market: {
 			...state.market,
 			level: 25,
@@ -358,12 +357,10 @@ test("unbuilt production counters keep customers at their authoritative shelf", 
 		},
 	});
 	expect(snapshot().customers[0].purchases[0].shelfId).toBe("produce");
-	// The cheese counter comes with the supermarket (here without its wings yet).
-	useGameStore.setState({ era: { ...useGameStore.getState().era, id: "supermercado" } });
-	expect(build("fresh-wing")).toBe(
-		true,
-	);
-	// The wing makes room for the cheese counter; it still has to be built.
+	// The cheese counter comes with the mercadinho (Lucas 04/11: one expansion earlier, no wing needed).
+	useGameStore.setState({ era: { ...useGameStore.getState().era, id: "mercadinho" } });
+	expect(snapshot().layout.sectorIds).toContain("queijaria");
+	// There is room for it; it still has to be built.
 	expect(snapshot().customers[0].purchases[0].shelfId).toBe("produce");
 	expect(useGameStore.getState().buildSector("queijaria", "coins")).toBe(true);
 	useGameStore.getState().saveInteriorLayout([

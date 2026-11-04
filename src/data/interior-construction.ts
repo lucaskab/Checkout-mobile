@@ -15,18 +15,26 @@ const HOUR = 60 * MINUTE;
 /** Builders working inside the market at the same time: placed works wait in a queue. */
 export const MAX_INTERIOR_CONSTRUCTIONS = 1;
 
-/** Price and building time of each production sector (the level only makes it available). */
+/**
+ * Price and building time of each production sector (the level only makes it available). Lucas 04/11: the sectors
+ * open one expansion earlier, and each takes about as long as the other builds of the expansion it opens in (lots,
+ * the expansion itself, shelves, shop fixtures, evolutions), later sectors of the same expansion a bit longer; the
+ * price is that of the expansion's builds of a similar length.
+ *   minimercado (builds there 10 min … 1.4 h, median ~21 min): padaria 20 min
+ *   mercadinho (30 min … 3.1 h, median 2 h): queijaria 1 h 30, açougue 1 h 45, bebidas 2 h
+ *   supermercado (15 min … 10.4 h; its shelf and cold room 2 h): peixaria 2 h, sorvetes 2 h 30, adega 3 h
+ */
 export const sectorBuildPlans: Record<
 	ProductionSectorId,
 	{ coinCost: number; durationMs: number }
 > = {
-	padaria: { coinCost: 1_500, durationMs: 2 * MINUTE },
-	queijaria: { coinCost: 6_000, durationMs: 10 * MINUTE },
-	acougue: { coinCost: 15_000, durationMs: 30 * MINUTE },
-	bebidas: { coinCost: 22_000, durationMs: 45 * MINUTE },
-	peixaria: { coinCost: 40_000, durationMs: 90 * MINUTE },
-	adega: { coinCost: 80_000, durationMs: 3 * HOUR },
-	sorvetes: { coinCost: 120_000, durationMs: 4 * HOUR },
+	padaria: { coinCost: 8_000, durationMs: 20 * MINUTE },
+	queijaria: { coinCost: 25_000, durationMs: 90 * MINUTE },
+	acougue: { coinCost: 30_000, durationMs: 105 * MINUTE },
+	bebidas: { coinCost: 35_000, durationMs: 2 * HOUR },
+	peixaria: { coinCost: 45_000, durationMs: 2 * HOUR },
+	sorvetes: { coinCost: 55_000, durationMs: 150 * MINUTE },
+	adega: { coinCost: 65_000, durationMs: 3 * HOUR },
 };
 
 /** Building time of the n-th shelf (index in `shelves`; the first one comes with the shop). */
@@ -144,15 +152,27 @@ export function normalizeInteriorConstructions(
 
 const sectorIds = productionSectors.map((sector) => sector.id);
 
+/** The levels the sectors opened at when sectors did not have to be built yet (before the 04/11 move one expansion
+ * earlier): what those saves' counters were working by. */
+const LEGACY_SECTOR_LEVELS: Record<ProductionSectorId, number> = {
+	padaria: 18,
+	queijaria: 24,
+	acougue: 25,
+	bebidas: 26,
+	peixaria: 33,
+	sorvetes: 36,
+	adega: 38,
+};
+
 /** Built sectors. Saves from before sectors had to be built keep every sector their level had
- * already opened, so nobody loses a working counter. */
+ * already opened (by the levels of that time), so nobody loses a working counter. */
 export function normalizeBuiltSectorIds(
 	value: unknown,
 	level: number,
 ): ProductionSectorId[] {
 	if (!Array.isArray(value))
 		return productionSectors
-			.filter((sector) => level >= sector.requiredLevel)
+			.filter((sector) => level >= LEGACY_SECTOR_LEVELS[sector.id])
 			.map((sector) => sector.id);
 	return Array.from(
 		new Set(

@@ -25,6 +25,8 @@ import { act, type Button, button, fmt, gameIcon } from "./view-kit";
 export type SocialPerson = { id: string; code: string; marketName: string | null; avatar: string | null; level: number; era: string };
 export type SocialRequestView = { id: number; productId: number; qty: number; createdAt: number; expiresAt: number; owner?: string };
 export type SocialFriend = SocialPerson & {
+	/** The friend's Google profile photo (docs/social-api.md › Photos), checked by photoOf; null = their avatar. */
+	photo: string | null;
 	likes: number;
 	lastSeen: number;
 	giftedToday: boolean;
@@ -45,6 +47,10 @@ export type SocialMe = {
 	friends: number;
 	invitedBy: string | null;
 	invites: { rewarded: number; milestones: number[] };
+	/** My Google profile photo (null: none, Apple, or an older server) and the switch "Mostrar minha foto do Google para
+	 * amigos" (absent = on). */
+	photo?: string | null;
+	showPhoto?: boolean;
 };
 type Reply = { code: number; body: any; network: boolean };
 type Visit = {
@@ -197,7 +203,27 @@ export const stageName = (era: string) => {
 		return "";
 	}
 };
-export const avatarIcon = (avatar: string | null | undefined) => (avatar ? `avatar:${avatar}` : "avatar:shopper-1");
+/**
+ * A Google profile photo the game may draw (docs/social-api.md › Photos): https on lh3…lh6.googleusercontent.com, at
+ * most 1024 characters, no "|" (the icon's separator). Anything else = no photo (the avatar shows).
+ */
+export function photoOf(value: unknown): string | null {
+	if (typeof value !== "string" || value.length > 1024 || value.includes("|") || /\s/.test(value)) return null;
+	return /^https:\/\/lh[3-6]\.googleusercontent\.com\/[^?#]*/.test(value) ? value : null;
+}
+/**
+ * A player's face for Unity: "avatar:shopper-3" (a portrait of one of the game's shoppers) or, with a photo,
+ * "avatar:shopper-3|https://lh3…" — Unity draws the photo round in the gold ring once it is downloaded and the avatar
+ * meanwhile (or when it fails). Photos only for friends and myself in the friend screens (the server sends them only
+ * there).
+ */
+export const avatarIcon = (avatar: string | null | undefined, photo?: string | null) => {
+	const face = avatar ? `avatar:${avatar}` : "avatar:shopper-1";
+	const shown = photoOf(photo);
+	return shown ? `${face}|${shown}` : face;
+};
+/** My own photo as my friends see it: the Google photo when I have one and the switch is on (else null = avatar). */
+export const myPhoto = () => (socialStore.me && socialStore.me.showPhoto !== false ? photoOf(socialStore.me.photo) : null);
 /** The badge of a stage on a friend's portrait (the game's own 2D icons). */
 const stageIcons: Record<string, GameIconId> = {
 	mesinha: "priceTag",
@@ -241,7 +267,7 @@ const requestOf = (raw: any): SocialRequestView => ({
 	...(raw?.owner ? { owner: String(raw.owner) } : {}),
 });
 const requestsOf = (list: unknown) => (Array.isArray(list) ? list.map(requestOf).filter((item) => Number.isFinite(item.productId)) : []);
-const friendOf = (raw: any): SocialFriend => ({ ...raw, openRequests: requestsOf(raw?.openRequests) });
+const friendOf = (raw: any): SocialFriend => ({ ...raw, photo: photoOf(raw?.photo), openRequests: requestsOf(raw?.openRequests) });
 const errorOf = (reply: Reply) => (reply.body && typeof reply.body === "object" ? String((reply.body as { error?: unknown }).error ?? "") : "");
 
 /** What went wrong, in words for the player. */
@@ -555,6 +581,7 @@ export const socialActions = [
 	"socialOpenMail",
 	"socialPickAvatar",
 	"socialSaveProfile",
+	"socialShowPhoto",
 	"socialAddFriend",
 	"socialAccept",
 	"socialDecline",
@@ -633,6 +660,8 @@ export function requestSocialAction(action: string, args: unknown[]): Result {
 	switch (action) {
 		case "socialSaveProfile":
 			return run("profile", () => saveProfile(String(a ?? ""), String(b ?? socialStore.draft.avatar)));
+		case "socialShowPhoto":
+			return run("photo", () => saveShowPhoto(a === true || a === "true"));
 		case "socialAddFriend":
 			return run("add", () => addFriend(String(a ?? "")));
 		case "socialAccept":
@@ -716,6 +745,18 @@ async function saveProfile(name: string, avatar: string) {
 	if (!socialStore.visit)
 		useGameStore.getState().rememberSocialProfile({ code: socialStore.me.code, marketName: socialStore.me.marketName, avatar: socialStore.me.avatar ?? "" });
 	toast(t("Perfil salvo!"), "success");
+	return true;
+}
+
+/** "Mostrar minha foto do Google para amigos" (PUT /v1/social/me {showPhoto}). */
+async function saveShowPhoto(show: boolean) {
+	const reply = await call("PUT", "/v1/social/me", { showPhoto: show });
+	if (reply.code !== 200 || !reply.body) {
+		toast(t(trouble(reply)), "warning", false);
+		return false;
+	}
+	socialStore.me = reply.body as SocialMe;
+	toast(t(show ? "Seus amigos veem a sua foto do Google." : "Seus amigos veem o seu rosto do jogo."), "success");
 	return true;
 }
 
@@ -1004,7 +1045,7 @@ export function visitView(now = Date.now()): VisitView | null {
 		active: true,
 		friendId: friend.id,
 		friendName: marketName(friend),
-		avatar: avatarIcon(friend.avatar),
+		avatar: avatarIcon(friend.avatar, friend.photo),
 		subtitle: [t(`Nível ${friend.level ?? ""}`), t(stageName(friend.era ?? visit.state.era.id)), likesText(friend.likes ?? 0)].filter(Boolean).join(" · "),
 		note: builds.length ? "Toque em Ajudar nas obras do seu amigo: cada ajuda tira 5 minutos." : "Passeie pelo mercado do seu amigo.",
 		buttons: [

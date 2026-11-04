@@ -142,13 +142,14 @@ namespace Checkout
             stage = Mathf.Clamp(stage, 0, Stages - 1);
             float[,] sizes = { { 1.18f, .65f }, { 1.18f, .98f }, { 1.18f, 1.3f }, { 1.48f, 1.3f }, { 1.78f, 1.3f } };
             var ids = new[] { "fresh-wing", "service-wing", "stock-annex", "premium-hall" }.Take(stage).ToList();
-            var sectors = new List<string> { "padaria" };
-            if (ids.Contains("fresh-wing")) sectors.Add("queijaria");
-            if (ids.Contains("service-wing")) sectors.Add("acougue");
-            if (ids.Contains("stock-annex")) sectors.Add("peixaria");
-            if (ids.Contains("service-wing")) sectors.Add("bebidas");
-            if (ids.Contains("premium-hall")) sectors.Add("sorvetes");
-            if (warehouse) sectors.Add("adega");
+            // Since 04/11 each sector opens one expansion earlier than its wing (src/services/simulator-layout.ts): the
+            // mercadinho (stage 0) has the cheese, butcher's and juice counters, the supermarket (stage 2) fish, ice
+            // cream and wine too.
+            var sectors = new List<string> { "padaria", "queijaria", "acougue" };
+            if (stage >= 2 || ids.Contains("stock-annex")) sectors.Add("peixaria");
+            sectors.Add("bebidas");
+            if (stage >= 2 || ids.Contains("premium-hall")) sectors.Add("sorvetes");
+            if (stage >= 2 || warehouse) sectors.Add("adega");
             return new MarketLayout
             {
                 stage = stage, widthScale = sizes[stage, 0], depthScale = sizes[stage, 1],

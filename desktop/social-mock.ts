@@ -27,7 +27,22 @@ type Person = {
 	invitesRewarded: number;
 	public: SocialPublicBlock | null;
 	save: string;
+	/** The Google profile photo (docs/social-api.md › Photos; null = none, e.g. Apple) and the switch. */
+	photo: string | null;
+	showPhoto: boolean;
 };
+
+/**
+ * QA photos (control "photos"): Unity's photo scenario puts a local picture in its photo cache for the `cached`
+ * addresses (the Editor cannot count on reaching Google); `unreachable` is never cached, so it shows the avatar.
+ */
+export const MOCK_PHOTOS = {
+	me: "https://lh3.googleusercontent.com/a/qa-photo-me=s96-c",
+	ana: "https://lh3.googleusercontent.com/a/qa-photo-ana=s96-c",
+	gabi: "https://lh3.googleusercontent.com/a/qa-photo-unreachable=s96-c",
+	bruno: "https://lh3.googleusercontent.com/a/qa-photo-bruno-hidden=s96-c",
+	duda: "https://lh3.googleusercontent.com/a/qa-photo-stranger=s96-c",
+} as const;
 type InboxRow = { id: number; to: string; kind: string; from: string | null; payload: Record<string, unknown>; createdAt: number; acked: boolean };
 type RequestRow = { id: number; owner: string; productId: string; qty: number; status: "open" | "fulfilled" | "cancelled" | "expired"; createdAt: number; expiresAt: number };
 
@@ -132,7 +147,7 @@ export function createMockSocialServer(start = Date.now()) {
 	let failNext: { path: string; times: number } | null = null;
 
 	const person = (id: string, code: string, marketName: string | null, avatar: string, era: MarketEraId, level: number, save = "") => {
-		const value: Person = { id, code, marketName, avatar, level, era, likes: 0, lastSeen: now - HOUR, createdAt: now - 30 * DAY, invitedBy: null, invitesRewarded: 0, public: null, save };
+		const value: Person = { id, code, marketName, avatar, level, era, likes: 0, lastSeen: now - HOUR, createdAt: now - 30 * DAY, invitedBy: null, invitesRewarded: 0, public: null, save, photo: null, showPhoto: true };
 		if (save) value.public = publicOf(save, era);
 		people.set(id, value);
 		return value;
@@ -234,6 +249,11 @@ export function createMockSocialServer(start = Date.now()) {
 		me: () => me,
 		friendIds: () => [...people.values()].filter((p) => p.id !== me.id && areFriends(me.id, p.id)).map((p) => p.id),
 		person: (id) => people.get(id),
+		// (the friends board only: the photo each one lets friends see)
+		photo: (id) => {
+			const p = people.get(id);
+			return p?.showPhoto ? p.photo : null;
+		},
 		push: (to, kind, from, payload) => push(to, kind, from, payload),
 		now: () => now,
 	});
@@ -249,6 +269,7 @@ export function createMockSocialServer(start = Date.now()) {
 		lastSeen: p.lastSeen,
 		giftedToday: daily.has(`${me.id}|${utcDay(now)}|gift|${p.id}`),
 		likedToday: daily.has(`${me.id}|${utcDay(now)}|like|${p.id}`),
+		photo: p.showPhoto ? p.photo : null,
 		public: p.public,
 		openRequests: requests.filter((row) => row.owner === p.id && open(row)).map(requestView),
 	});
@@ -265,6 +286,8 @@ export function createMockSocialServer(start = Date.now()) {
 		friends: [...friends].filter((pair) => pair.startsWith(`${me.id}|`)).length,
 		invitedBy: me.invitedBy ? (people.get(me.invitedBy)?.code ?? null) : null,
 		invites: { rewarded: me.invitesRewarded, milestones: [1, 3, 5] },
+		photo: me.photo,
+		showPhoto: me.showPhoto,
 	});
 	const byCode = (code: unknown) => [...people.values()].find((p) => p.code === String(code ?? "").toUpperCase().replace(/[^0-9A-Z]/g, ""));
 	const once = (kind: string, target: string) => {
@@ -292,6 +315,10 @@ export function createMockSocialServer(start = Date.now()) {
 			if (body.avatar !== undefined) {
 				if (body.avatar !== null && !/^[A-Za-z0-9_-]{1,32}$/.test(String(body.avatar))) return fail(400, "bad-avatar");
 				me.avatar = body.avatar ?? "";
+			}
+			if (body.showPhoto !== undefined) {
+				if (typeof body.showPhoto !== "boolean") return fail(400, "bad-request");
+				me.showPhoto = body.showPhoto;
 			}
 			return reply(200, profile());
 		}
@@ -473,6 +500,17 @@ export function createMockSocialServer(start = Date.now()) {
 				me.invitesRewarded++;
 				const milestone = [1, 3, 5].includes(me.invitesRewarded) ? me.invitesRewarded : undefined;
 				return Boolean(push(me.id, "invite_reward", "u-eva", { diamonds: 30, role: "inviter", ...(milestone ? { milestone } : {}) }));
+			}
+			if (command === "photos") {
+				// Google accounts with photos: me and Ana (cached by Unity's QA), Gabi (unreachable: the avatar stays),
+				// Bruno (switch off: friends see his avatar), Duda (a stranger's request: never sent); Carla is on Apple.
+				me.photo = MOCK_PHOTOS.me;
+				ana.photo = MOCK_PHOTOS.ana;
+				gabi.photo = MOCK_PHOTOS.gabi;
+				bruno.photo = MOCK_PHOTOS.bruno;
+				bruno.showPhoto = false;
+				duda.photo = MOCK_PHOTOS.duda;
+				return true;
 			}
 			if (command === "hide-name") {
 				nameHidden = true;

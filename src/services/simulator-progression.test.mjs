@@ -9,10 +9,10 @@ test("shows what the next level brings", () => {
 	expect(unlocks.some((unlock) => unlock.panel === "products")).toBe(true);
 });
 
-test("the sectors come later in the roadmap, with the market building", () => {
-	const unlocks = getNextSimulatorUnlocks(17, 7);
+test("the sectors come later in the roadmap: the bakery with the minimercado (level 14, Lucas 04/11)", () => {
+	const unlocks = getNextSimulatorUnlocks(13, 7);
 
-	expect(unlocks.every((unlock) => unlock.requiredLevel === 18)).toBe(true);
+	expect(unlocks.every((unlock) => unlock.requiredLevel === 14)).toBe(true);
 	expect(unlocks[0]).toMatchObject({ label: "Padaria", panel: "sectors" });
 });
 

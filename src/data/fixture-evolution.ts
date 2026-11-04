@@ -1,5 +1,7 @@
 import type { EvolutionKind, FixtureEvolution } from "@/@types/fixture-evolution";
+import type { MarketEraId } from "@/@types/economy";
 import { getSkipDiamondCost } from "./diamond-skip";
+import { productionSectors } from "./production-sectors";
 
 // How long each evolution takes (claude/evolucoes-recompensas.md 2.1–2.3, Lucas 01/11) and the evolution crew's
 // queue: one evolution at a time, the others wait; the crew is not the interior builders, so evolving never holds up
@@ -10,8 +12,21 @@ const HOUR = 60 * MINUTE;
 
 /** Product fixtures: to T2 2 min, T3 10 min, T4 30 min, ★ 1 h. */
 export const shelfEvolutionMs: Record<number, number> = { 2: 2 * MINUTE, 3: 10 * MINUTE, 4: 30 * MINUTE, 5: HOUR };
-/** Special sectors: T2 30 min, T3 2 h. */
+/** Special sectors, by the expansion each opens in (Lucas 04/11: in the band of that expansion's builds):
+ * the minimercado's (padaria) T2 30 min, T3 1 h 15; the mercadinho's (queijaria, açougue, bebidas) T2 1 h, T3 2 h 30;
+ * the supermarket's (peixaria, sorvetes, adega) T2 1 h 30, T3 3 h. Evolutions already running keep their clock. */
+export const sectorEvolutionMsByEra: Partial<Record<MarketEraId, Record<number, number>>> = {
+	minimercado: { 2: 30 * MINUTE, 3: 75 * MINUTE },
+	mercadinho: { 2: HOUR, 3: 150 * MINUTE },
+	supermercado: { 2: 90 * MINUTE, 3: 3 * HOUR },
+};
+/** A sector of an expansion not listed above (none today): T2 30 min, T3 2 h. */
 export const sectorEvolutionMs: Record<number, number> = { 2: 30 * MINUTE, 3: 2 * HOUR };
+
+export function getSectorEvolutionMs(sectorId: string, toTier: number) {
+	const era = productionSectors.find((sector) => sector.id === sectorId)?.eraId;
+	return (era ? sectorEvolutionMsByEra[era]?.[toTier] : undefined) ?? sectorEvolutionMs[toTier] ?? 0;
+}
 /** The checkout: T2 5 min, T3 20 min, T4 1 h. */
 export const checkoutEvolutionMs: Record<number, number> = { 2: 5 * MINUTE, 3: 20 * MINUTE, 4: HOUR };
 /** Machines: ATM and claw 15 min / 1 h, gumball 10 min. */
@@ -26,7 +41,7 @@ export const MAX_RUNNING_EVOLUTIONS = 1;
 
 export function getEvolutionDurationMs(kind: EvolutionKind, targetId: string, toTier: number) {
 	if (kind === "shelf") return shelfEvolutionMs[toTier] ?? 0;
-	if (kind === "sector") return sectorEvolutionMs[toTier] ?? 0;
+	if (kind === "sector") return getSectorEvolutionMs(targetId, toTier);
 	if (kind === "checkout") return checkoutEvolutionMs[toTier] ?? 0;
 	return decorEvolutionMs[targetId]?.[toTier] ?? 0;
 }

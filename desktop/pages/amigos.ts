@@ -15,6 +15,8 @@ import { cloudStore, formatAgo } from "../cloud";
 import { qrText } from "../qr";
 import {
 	avatarIcon,
+	myPhoto,
+	photoOf,
 	formatCode,
 	helpableBuilds,
 	inviteUrl,
@@ -174,8 +176,17 @@ function profilePage(state: State, required: boolean): Page {
 			actions: [act("Escolher este rosto", "socialPickAvatar", [id], { variant: "success", ok: "" })],
 		}),
 	);
+	// Google accounts with a photo: friends see the photo (switch on) instead of the face chosen here.
+	const photo = photoOf(me.photo);
+	const showPhoto = me.showPhoto !== false;
+	const photoButton = act(showPhoto ? "Foto do Google: sim" : "Foto do Google: não", "socialShowPhoto", [!showPhoto], {
+		icon: showPhoto ? socialIcon("success") : socialIcon("lock"),
+		variant: showPhoto ? "success" : "secondary",
+		enabled: !busy("photo"),
+		ok: "",
+	});
 	const hero = card(first ? "Dê um nome ao seu mercado" : hidden ? "Escolha outro nome" : marketName(me), {
-		icon: avatarIcon(chosen),
+		icon: avatarIcon(chosen, photo && showPhoto ? photo : null),
 		eyebrow: first ? "PRIMEIRA VEZ AQUI" : "SEU PERFIL",
 		tone: hidden ? "warning" : "",
 		// (not the big hero title: on a phone the faces stay above the fold under the card)
@@ -187,6 +198,8 @@ function profilePage(state: State, required: boolean): Page {
 					? "O nome do seu mercado foi denunciado e está escondido. Os amigos veem só o código até você escolher outro."
 					: "",
 			"De 3 a 20 letras ou números. Nada de palavrões: nomes denunciados ficam escondidos.",
+			photo ? "Mostrar minha foto do Google para amigos" : "",
+			photo ? (showPhoto ? "Seus amigos veem a sua foto do Google. Quem não é seu amigo vê o rosto escolhido aqui." : "Seus amigos veem o rosto escolhido aqui.") : "",
 		].filter(Boolean),
 		input: { id: "name", placeholder: "Nome do mercado", value: hidden ? "" : (me.marketName ?? ""), max: 20, kind: "name" },
 		buttons: [
@@ -198,6 +211,7 @@ function profilePage(state: State, required: boolean): Page {
 				ok: "",
 				after: required ? "" : "back",
 			}),
+			...(photo ? [photoButton] : []),
 		],
 	});
 	return boardPage(state, "amigos:perfil", required ? "Seu perfil" : "Perfil", required ? null : "amigos", [hero], tiles, {
@@ -245,7 +259,7 @@ function friendTile(friend: SocialFriend, now: number): BoardTile {
 	const confirming = socialStore.confirmRemove === friend.id;
 	return tile(friend.id, marketName(friend), {
 		group: "Seus amigos",
-		icon: avatarIcon(friend.avatar),
+		icon: avatarIcon(friend.avatar, friend.photo),
 		frame: "portrait",
 		corner: stageIcon(friend.era),
 		subtitle: friend.lastSeen ? `Visto ${formatAgo(friend.lastSeen, now)}` : stageName(friend.era),
@@ -310,7 +324,8 @@ function personTile(person: SocialPerson, incoming: boolean): BoardTile {
 function myStrip(helps: number) {
 	const me = socialStore.me!;
 	return meter(formatCode(me.code), helps, SOCIAL_HELPS_PER_DAY, {
-		icon: avatarIcon(me.avatar),
+		// my face as my friends see it (the Google photo when the switch is on)
+		icon: avatarIcon(me.avatar, myPhoto()),
 		frame: "portrait",
 		route: "amigos:perfil",
 		tone: "gold",

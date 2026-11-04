@@ -4433,6 +4433,14 @@ const catalog: Catalog = {
 	"No ranking: não": "In the ranking: no",
 	"No ranking: sim": "In the ranking: yes",
 	"Você é #{0} de {1} entre os amigos": "You are #{0} of {1} among friends",
+	// Photos: friends see the Google profile photo (docs/social-api.md › Photos)
+	"Foto do Google: sim": "Google photo: yes",
+	"Foto do Google: não": "Google photo: no",
+	"Mostrar minha foto do Google para amigos": "Show my Google photo to friends",
+	"Seus amigos veem a sua foto do Google. Quem não é seu amigo vê o rosto escolhido aqui.": "Your friends see your Google photo. Everyone else sees the face you pick here.",
+	"Seus amigos veem o rosto escolhido aqui.": "Your friends see the face you pick here.",
+	"Seus amigos veem a sua foto do Google.": "Your friends see your Google photo.",
+	"Seus amigos veem o seu rosto do jogo.": "Your friends see your in-game face.",
 };
 
 export default catalog;

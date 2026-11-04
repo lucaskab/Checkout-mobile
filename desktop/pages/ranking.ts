@@ -44,11 +44,12 @@ export const divisionIcon = (division: LeagueDivision) => `Icons/${leagueBadgeFi
 export const divisionName = (division: LeagueDivision) => `Liga ${LEAGUE_DIVISION_NAMES[division]}`;
 const nameOf = (row: { marketName: string | null; code: string }) => row.marketName?.trim() || `Mercado #${formatCode(row.code)}`;
 const myId = () => socialStore.me?.id ?? "";
-/** A face id this phone can draw: "shopper-N" past the shoppers Unity has (fewer looks on some builds) wraps around. */
-export function faceOf(avatar: string | null | undefined) {
+/** A face id this phone can draw: "shopper-N" past the shoppers Unity has (fewer looks on some builds) wraps around.
+ * `photo`: the Google photo (Amigos board only: the server sends it only to friends). */
+export function faceOf(avatar: string | null | undefined, photo?: string | null) {
 	const match = /^shopper-(\d+)$/.exec(avatar ?? "");
 	const count = Math.max(1, socialStore.avatars || 12);
-	return avatarIcon(match ? `shopper-${((Number(match[1]) - 1) % count) + 1}` : avatar);
+	return avatarIcon(match ? `shopper-${((Number(match[1]) - 1) % count) + 1}` : avatar, photo);
 }
 const busy = (key: string) => rankingsStore.busy.has(key);
 
@@ -129,7 +130,12 @@ function optOutButton(): Button {
 
 type RowLook = { value: string; valueLabel: string; tone?: string; group?: string; you?: boolean; sticker?: string; actions?: Button[] };
 
-function playerTile(id: string, row: { marketName: string | null; code: string; avatar: string | null; level: number; era?: string; country?: string | null }, rank: number | null, look: RowLook): BoardTile {
+function playerTile(
+	id: string,
+	row: { marketName: string | null; code: string; avatar: string | null; photo?: string | null; level: number; era?: string; country?: string | null },
+	rank: number | null,
+	look: RowLook,
+): BoardTile {
 	const name = nameOf(row);
 	const facts: BoardStat[] = [
 		stat(stageIcon(row.era ?? "mesinha"), String(row.level), "nível"),
@@ -137,7 +143,7 @@ function playerTile(id: string, row: { marketName: string | null; code: string; 
 	];
 	return tile(id, look.you ? `${name} (você)` : name, {
 		group: look.group ?? "",
-		icon: faceOf(row.avatar),
+		icon: faceOf(row.avatar, row.photo),
 		frame: "rank",
 		corner: row.era ? stageIcon(row.era) : "",
 		subtitle: row.era ? stageName(row.era) : "",
@@ -423,11 +429,11 @@ function friendsPage(state: State): Page {
 	const rival =
 		meRow && other
 			? {
-					meIcon: faceOf(meRow.avatar),
+					meIcon: faceOf(meRow.avatar, meRow.photo),
 					meName: "Você",
 					// (Nível: the levels the sentence talks about, not XP)
 					meValue: column === "nivel" ? `NV ${meRow.level}` : friendValue(meRow, column).value,
-					otherIcon: faceOf(other.avatar),
+					otherIcon: faceOf(other.avatar, other.photo),
 					otherName: nameOf(other),
 					otherValue: column === "nivel" ? `NV ${other.level}` : friendValue(other, column).value,
 					text: rivalText(meRow, other, column, place === 1),

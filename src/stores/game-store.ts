@@ -4297,7 +4297,7 @@ export const useGameStore = create<GameStore>()(
 				const sector = getProductionSector(sectorId);
 				if (!sector) return false;
 				const plan = sectorBuildPlans[sector.id];
-				const layout = getSimulatorLayout(state.unlockedMarketExpansionIds);
+				const layout = getSimulatorLayout(state.unlockedMarketExpansionIds, state.era.id);
 				const diamondCost = Math.max(1, Math.ceil(plan.coinCost / 1_500));
 				if (
 					state.builtSectorIds.includes(sector.id) ||
