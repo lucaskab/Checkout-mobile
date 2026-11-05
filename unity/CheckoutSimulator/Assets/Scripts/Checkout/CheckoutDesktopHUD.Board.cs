@@ -294,7 +294,8 @@ namespace Checkout {
    boardMapPins.gameObject.SetActive(true);
    var tiles=b.tiles??new DesktopTile[0];
    while(boardTiles.Count<tiles.Length)boardTiles.Add(BoardTileUi.Create(this,boardMapPins));
-   var cell=new Vector2(Phone?200:214,Phone?246:262);
+   // (full-size cards, drawn smaller: five of them fit on the map of a phone without covering each other)
+   var cell=new Vector2(214,262);float k=Phone?.66f:.8f;
    string selected=SelectedId(tiles);
    for(int i=0;i<boardTiles.Count;i++){
     var ui=boardTiles[i];bool on=i<tiles.Length;ui.gameObject.SetActive(on);if(!on)continue;
@@ -304,8 +305,8 @@ namespace Checkout {
     if(look.StartsWith("pin:")){var xy=look.Substring(4).Split(',');
      if(xy.Length==2&&float.TryParse(xy[0],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var x)&&float.TryParse(xy[1],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var y))at=new Vector2(x,1-y);}
     // (a pin never hangs out of the visible area: the map is clipped by the area)
-    var r=(RectTransform)ui.transform;r.anchorMin=r.anchorMax=at;r.pivot=new Vector2(.5f,.5f);r.sizeDelta=cell;
-    float vx=(at.x-.5f)*w,vy=(at.y-.5f)*h,mx=Mathf.Max(0,aw/2-cell.x/2-6),my=Mathf.Max(0,ah/2-cell.y/2-6);
+    var r=(RectTransform)ui.transform;r.anchorMin=r.anchorMax=at;r.pivot=new Vector2(.5f,.5f);r.sizeDelta=cell;r.localScale=Vector3.one*k;
+    float vx=(at.x-.5f)*w,vy=(at.y-.5f)*h,mx=Mathf.Max(0,aw/2-cell.x*k/2-6),my=Mathf.Max(0,ah/2-cell.y*k/2-6);
     r.anchoredPosition=new Vector2(Mathf.Clamp(vx,-mx,mx)-vx,Mathf.Clamp(vy,-my,my)-vy);
     ui.Apply(t,false,t.id==selected);
    }
@@ -353,7 +354,7 @@ namespace Checkout {
      bool slim=!rows&&t.frame=="line";
      var s=boardSections[section];s.gameObject.SetActive(true);s.transform.SetSiblingIndex(section);s.Apply(g,slim?slimCell:cell,rows,slim?2:columns);}
     Component ui=road?(Component)boardLanes[i]:boardTiles[i];ui.gameObject.SetActive(true);
-    if(ui.transform.parent!=boardSections[section].grid)ui.transform.SetParent(boardSections[section].grid,false);
+    if(ui.transform.parent!=boardSections[section].grid){ui.transform.SetParent(boardSections[section].grid,false);ui.transform.localScale=Vector3.one;}
     ui.transform.SetAsLastSibling();
     if(road){
      var laneUi=boardLanes[i];laneUi.Apply(t);
