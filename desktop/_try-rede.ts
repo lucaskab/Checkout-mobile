@@ -1,0 +1,12 @@
+import "./require-shim";
+import { useGameStore } from "@/stores/game-store";
+import { pages } from "./pages";
+console.log = console.info = console.warn = console.error;
+const g = () => useGameStore.getState();
+g().setMarketLevel(55); g().devSetMarketEra("rede"); useGameStore.setState({ coins: 3_000_000 });
+g().processChain();
+const show = (r: string) => { const p = pages(g(), r); process.stdout.write(`== ${r}: ${p.title} | cards=${p.cards.length} tiles=${p.board?.tiles.length} sections=${p.sections.map(s=>s.label).join(",")}\n`); for (const c of p.cards) process.stdout.write(`  card ${c.title} :: ${c.lines.join(" / ")} :: ${c.buttons.map(b=>b.label).join(" | ")}\n`); for (const t of p.board?.tiles ?? []) process.stdout.write(`  tile [${t.group}] ${t.title} — ${t.subtitle} ${t.badge} ${t.sticker} act=${t.action.label}${t.action.enabled?"":"(off)"}\n`); };
+show("rede");
+g().nameChain("Super Bom", "coroa");
+g().buyChainBranch("centro"); g().finishChainBranchNow("centro");
+for (const r of ["rede", "rede:marca", "rede:cd", "rede:contratos"]) show(r);
