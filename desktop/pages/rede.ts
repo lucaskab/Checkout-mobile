@@ -120,10 +120,22 @@ function lockedPage(state: State) {
 }
 
 // ------------------------------------------------------------------------------------------------ Marca
+// The logo picked on the Marca tab before saving (a tap on a logo tile picks it, like the faces of Amigos).
+let pickedEmblem: string | null = null;
+export const redeActions = ["chainPickEmblem"];
+export function requestRedeAction(action: string, args: unknown[]): { ok: boolean; reason?: string } {
+	if (action === "chainPickEmblem" && chainEmblems.includes(args[0] as never)) {
+		pickedEmblem = args[0] as string;
+		return { ok: true };
+	}
+	return { ok: false };
+}
+
 function brandPage(state: State, pickedArg?: string): ReturnType<typeof page> {
 	const brand = state.chain.brand;
 	const first = brand.namedAt === null;
-	const picked = chainEmblems.includes(pickedArg as never) ? (pickedArg as string) : brand.emblem;
+	const choice = pickedArg ?? pickedEmblem;
+	const picked = chainEmblems.includes(choice as never) ? (choice as string) : brand.emblem;
 	const hero = card(first ? "Dê um nome à sua rede" : brand.name, {
 		icon: emblemIcon(picked),
 		eyebrow: first ? "VOCÊ AGORA É UMA REDE!" : "SUA MARCA",
@@ -148,7 +160,7 @@ function brandPage(state: State, pickedArg?: string): ReturnType<typeof page> {
 		tile(id, "", {
 			icon: emblemIcon(id),
 			state: id === picked ? "done" : "",
-			action: button(id === picked ? "Escolhido" : "Escolher", { route: `~rede:marca:${id}`, variant: id === picked ? "coin" : "secondary" }),
+			action: act(id === picked ? "Escolhido" : "Escolher", "chainPickEmblem", [id], { variant: id === picked ? "coin" : "secondary", ok: "" }),
 		}),
 	);
 	return redePage(state, "marca", first ? "Batize a sua rede" : "Marca da rede", [hero], emblems, {

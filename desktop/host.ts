@@ -47,6 +47,7 @@ import {
 	visitSnapshot,
 } from "./social.ts";
 import { isChainUnlocked } from "@/services/chain";
+import { redeActions, requestRedeAction } from "./pages/rede.ts";
 import { initRankings, onRankingRoute, rankingActions, rankingTick, requestRankingAction, sendLeaguePoints } from "./rankings.ts";
 import { type AdPlacement, adPlacements, type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
@@ -332,6 +333,13 @@ function runHudAction(message: {
 		const request = requestSocialAction(message.action, Array.isArray(message.args) ? message.args : []);
 		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "quiet" : request.reason ? t(request.reason) : "quiet" });
 		if (request.ok && message.after === "back") routes.pop();
+		view();
+		return;
+	}
+	// The Rede window's own picks (desktop/pages/rede.ts): the logo chosen before saving.
+	if (typeof message.action === "string" && redeActions.includes(message.action)) {
+		const request = requestRedeAction(message.action, Array.isArray(message.args) ? message.args : []);
+		send({ kind: "result", id, action: message.action, ok: request.ok, reason: "quiet" });
 		view();
 		return;
 	}

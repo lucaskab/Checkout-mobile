@@ -31,10 +31,10 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3f);
    Act("skipOnboarding","[]");Act("claimDayResult","[]");yield return new WaitForSecondsRealtime(1f);
    for(int i=0;i<3&&hud.CoachQa().isTip;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.5f);}
-   Act("setMarketLevel","[55]");Act("devAdjustCoins","[9000000]");Act("devAdjustDiamonds","[500]");
+   Act("setMarketLevel","[55]");yield return new WaitForSecondsRealtime(1f);Act("dismissLevelUp","[]");Act("devAdjustCoins","[9000000]");Act("devAdjustDiamonds","[500]");
    Act("resetMarketPaint","[]");
    Act("devSetMarketEra","[\"rede\"]");
-   Route("");yield return new WaitForSecondsRealtime(4f);
+   Route("");yield return new WaitForSecondsRealtime(2f);Act("dismissLevelUp","[]");hud.QaReleaseCelebrations();yield return new WaitForSecondsRealtime(2f);
    Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(2f);
    if(sim)sim.HomeCamera();
    string Top()=>hud.QaPageCard?.title??"";
@@ -48,7 +48,7 @@ namespace Checkout {
     yield return Frames(1.2f);yield return Shot("1_batizar");
     var tile=hud.GetComponentsInChildren<MonoBehaviour>(false).FirstOrDefault(m=>m.GetType().Name=="BoardTileUi"&&(m.GetType().GetField("Id")?.GetValue(m) as string)=="coroa");
     if(tile)ExecuteEvents.Execute(tile.gameObject,new PointerEventData(EventSystem.current){button=PointerEventData.InputButton.Left},ExecuteEvents.pointerClickHandler);
-    else Route("~rede:marca:coroa");
+    else Act("chainPickEmblem","[\"coroa\"]");
     yield return Frames(1f);
     var field=hud.GetComponentsInChildren<TMPro.TMP_InputField>(false).FirstOrDefault();
     if(field){field.text="";foreach(var ch in "Bom Preço"){field.text+=ch;yield return Frames(.06f);}}
