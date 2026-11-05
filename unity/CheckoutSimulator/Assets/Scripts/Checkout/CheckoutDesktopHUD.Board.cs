@@ -273,7 +273,51 @@ namespace Checkout {
   }
   float boardMeterTarget;
 
+  // Rede · Filiais (board style "map"): the city map fills the tiles area, keeping its shape (the area clips it), and
+  // every tile stands on its lot as a pin card (tile.look = "pin:x,y", the lot's centre in 0..1 of the map, y from the
+  // top). The side panel shows the picked tile as on any board.
+  RectTransform boardMapPins;
+  bool ApplyBoardMap(DesktopBoard b){
+   var br=boardBackdrop.rectTransform;
+   if(b.style!="map"){
+    if(boardMapPins&&boardMapPins.gameObject.activeSelf){boardMapPins.gameObject.SetActive(false);boardBackdrop.color=new Color(1,1,1,.22f);Stretch(br,new Vector2(4,4),new Vector2(-4,-4));boardScroll.gameObject.SetActive(true);}
+    return false;
+   }
+   boardScroll.gameObject.SetActive(false);
+   boardBackdrop.color=Color.white;
+   var area=boardGridArea.rect;float aw=area.width>100?area.width-8:1100,ah=area.height>100?area.height-8:560;
+   var sp=boardBackdrop.sprite;float aspect=sp?sp.rect.width/Mathf.Max(1,sp.rect.height):1.33f;
+   float w=aw,h=w/aspect;if(h<ah){h=ah;w=h*aspect;}
+   br.anchorMin=br.anchorMax=new Vector2(.5f,.5f);br.pivot=new Vector2(.5f,.5f);br.sizeDelta=new Vector2(w,h);br.anchoredPosition=Vector2.zero;
+   if(!boardGridArea.GetComponent<RectMask2D>())boardGridArea.gameObject.AddComponent<RectMask2D>();
+   if(!boardMapPins)boardMapPins=Stretch(N.Node("Map pins",boardBackdrop.transform),Vector2.zero,Vector2.zero);
+   boardMapPins.gameObject.SetActive(true);
+   var tiles=b.tiles??new DesktopTile[0];
+   while(boardTiles.Count<tiles.Length)boardTiles.Add(BoardTileUi.Create(this,boardMapPins));
+   var cell=new Vector2(Phone?200:214,Phone?246:262);
+   string selected=SelectedId(tiles);
+   for(int i=0;i<boardTiles.Count;i++){
+    var ui=boardTiles[i];bool on=i<tiles.Length;ui.gameObject.SetActive(on);if(!on)continue;
+    if(ui.transform.parent!=boardMapPins)ui.transform.SetParent(boardMapPins,false);
+    var t=tiles[i];var at=new Vector2(.5f,.5f);
+    var look=t.look??"";
+    if(look.StartsWith("pin:")){var xy=look.Substring(4).Split(',');
+     if(xy.Length==2&&float.TryParse(xy[0],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var x)&&float.TryParse(xy[1],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var y))at=new Vector2(x,1-y);}
+    // (a pin never hangs out of the visible area: the map is clipped by the area)
+    var r=(RectTransform)ui.transform;r.anchorMin=r.anchorMax=at;r.pivot=new Vector2(.5f,.5f);r.sizeDelta=cell;
+    float vx=(at.x-.5f)*w,vy=(at.y-.5f)*h,mx=Mathf.Max(0,aw/2-cell.x/2-6),my=Mathf.Max(0,ah/2-cell.y/2-6);
+    r.anchoredPosition=new Vector2(Mathf.Clamp(vx,-mx,mx)-vx,Mathf.Clamp(vy,-my,my)-vy);
+    ui.Apply(t,false,t.id==selected);
+   }
+   foreach(var sec in boardSections)sec.gameObject.SetActive(false);
+   boardEmpty.gameObject.SetActive(false);
+   boardDetailPanel.SetActive(tiles.Length>0);
+   var picked=FindTile(tiles,selected);boardDetailUi.gameObject.SetActive(picked!=null);if(picked!=null)boardDetailUi.Apply(picked,false);
+   return true;
+  }
+
   void ApplyBoardTiles(DesktopBoard b){
+   if(ApplyBoardMap(b))return;
    var tiles=b.tiles;bool road=b.style=="road";bool rank=b.style=="rank";bool rows=b.style=="row"||road||rank;
    bool picker=b.style=="faces"&&!QaLegacySnap;boardPicker=picker;
    // (faces without chips, the profile's twelve, a friend request alone: a short card)

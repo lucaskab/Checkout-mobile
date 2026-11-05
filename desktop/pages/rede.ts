@@ -52,6 +52,15 @@ import {
 // branch stores on the city map. Four tabs of one window, like Produtos / Missões.
 
 const NAVY = "1D2B4F";
+/** Where each branch's lot is on the city map (Rede/mapa-cidade, 0..1, y from the top): the pin cards stand there. */
+const LOTS: Record<ChainBranchId, [number, number]> = {
+	universitario: [0.175, 0.25],
+	nobre: [0.79, 0.235],
+	centro: [0.535, 0.49],
+	vila: [0.21, 0.85],
+	praia: [0.74, 0.69],
+};
+const pin = (id: ChainBranchId) => `pin:${LOTS[id][0]},${LOTS[id][1]}`;
 const MIN = 60_000;
 type Tab = "marca" | "cd" | "contratos" | "filiais";
 const tabs: { id: Tab; label: string; icon: string }[] = [
@@ -347,6 +356,10 @@ function contractsPage(state: State) {
 
 // ------------------------------------------------------------------------------------------------ Filiais
 function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
+	return { ...branchTileBody(state, id, now), look: pin(id) };
+}
+
+function branchTileBody(state: State, id: ChainBranchId, now: number): BoardTile {
 	const def = getBranchDefinition(id);
 	const b = updateBranch(state.chain.branches[id], now);
 	const next = getBranchNextStep(b);
@@ -429,7 +442,7 @@ function branchesPage(state: State) {
 		}
 	}
 	return redePage(state, "filiais", "Filiais pela cidade", [], tiles, {
-		style: "card",
+		style: "map",
 		columns: 5,
 		backdrop: redeIcon("mapa-cidade"),
 		meter: meter("Abastecimento da rede", owned ? supply : 0, Math.max(1, owned), {
