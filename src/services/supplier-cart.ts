@@ -8,6 +8,8 @@ import { getBoxCount, getCaseSize } from "@/data/case-sizes";
 import { getMaxBoxesPerOrder } from "@/data/supplier-capacity";
 import { itemCatalog } from "@/data/market-products";
 import { getActiveGameEventEffects } from "./game-events";
+import { DC_MAX_BOXES, DC_PRICE_FACTOR, DC_TIME_FACTOR } from "@/data/chain";
+import { getTripFactor, isChainUnlocked, isColdCategory, pickTruck } from "./chain";
 import {
 	getSupplierDeliveryDuration,
 	getSupplierOrderStatus,
@@ -66,6 +68,11 @@ export function getActiveSupplierOrders(state: Pick<GameState, "logistics">, now
 	return state.logistics.orders.filter((order) => getSupplierOrderStatus(order, now) !== "entregue");
 }
 
+/** The suppliers' trucks on the road (the chain's own fleet does not take a supplier slot). */
+function getSupplierSlotsInUse(state: Pick<GameState, "logistics">, now: number) {
+	return getActiveSupplierOrders(state, now).filter((order) => !order.fleetTruckId).length;
+}
+
 /** What `units` of a product cost the player from the supplier now (events and shop items included). */
 export function getSupplierCost(state: GameState, productId: number, units: number, now = Date.now()) {
 	const event = getActiveGameEventEffects(state.events, now);
@@ -117,6 +124,8 @@ export type SupplierCartQuote = {
 	maxBoxes: number;
 	/** Why the cart cannot be placed now, or null when it can. */
 	reason: string | null;
+	/** Rede: the fleet truck that would take it (orders from the distribution centre). */
+	fleetTruckId?: string;
 };
 
 /**
@@ -129,7 +138,8 @@ export function getSupplierCartQuote(
 	input: PlaceSupplierCartInput,
 	now = Date.now(),
 ): SupplierCartQuote {
-	const maxBoxes = getMaxBoxesPerOrder(state.logistics.supplierOrderSlots);
+	const fleet = input?.via === "frota";
+	const maxBoxes = fleet ? DC_MAX_BOXES : getMaxBoxesPerOrder(state.logistics.supplierOrderSlots);
 	const empty = { lines: [], boxes: 0, units: 0, subtotal: 0, total: 0, couponUsed: false, deliveryDurationMs: 0, maxBoxes };
 	const fail = (reason: string): SupplierCartQuote => ({ ...empty, reason });
 
@@ -152,6 +162,8 @@ export function getSupplierCartQuote(
 			!state.market.unlockedProductIds.includes(productId)
 		)
 			return fail("Este produto não está disponível para pedido.");
+		// The chain's own products only come from its distribution centre.
+		if (product.privateLabel && !fleet) return fail("Os produtos da marca própria vêm do centro de distribuição.");
 		const caseSize = getCaseSize(product);
 		const units = boxes * caseSize;
 		const incoming = getSupplierIncoming(state, productId, now);
@@ -167,11 +179,14 @@ export function getSupplierCartQuote(
 					? `Sem espaço no depósito para 1 caixa de ${product.name}.`
 					: `Sem espaço no depósito para ${boxes} caixas de ${product.name}.`,
 			);
-		const cost = getSupplierCost(state, productId, units, now);
+		const cost = fleet
+			? Math.max(1, Math.ceil(getSupplierCost(state, productId, units, now) * DC_PRICE_FACTOR))
+			: getSupplierCost(state, productId, units, now);
 		if (cost <= 0) return fail(`${product.name} não tem preço de fornecedor.`);
 		lines.push({ productId, boxes, caseSize, quantity: units, cost });
 		deliveryDurationMs = Math.max(deliveryDurationMs, getSupplierDurationMs(state, product.supplierTime, now));
 	}
+	if (fleet && state.chain) deliveryDurationMs = Math.max(60_000, Math.round(deliveryDurationMs * DC_TIME_FACTOR * getTripFactor(state.chain)));
 
 	const boxes = lines.reduce((total, line) => total + line.boxes, 0);
 	const units = lines.reduce((total, line) => total + line.quantity, 0);
@@ -182,7 +197,19 @@ export function getSupplierCartQuote(
 
 	if (boxes > maxBoxes)
 		return { ...quote, reason: `O caminhão leva no máximo ${maxBoxes} caixas. Tire algum produto do pedido.` };
-	if (getActiveSupplierOrders(state, now).length >= state.logistics.supplierOrderSlots)
+	if (fleet) {
+		if (!state.chain || !isChainUnlocked(state.era?.id)) return { ...quote, reason: "O centro de distribuição abre com a rede de supermercados." };
+		const cold = lines.some((line) => isColdCategory(itemCatalog.find((item) => item.id === line.productId)?.category ?? ""));
+		const truck = pickTruck(state.chain, cold, now);
+		if (!truck)
+			return {
+				...quote,
+				reason: cold ? "Nenhum caminhão refrigerado livre no centro de distribuição." : "Todos os caminhões da frota estão na rua.",
+			};
+		if (total > state.coins) return { ...quote, fleetTruckId: truck.id, reason: "Moedas insuficientes para este pedido." };
+		return { ...quote, fleetTruckId: truck.id, reason: null };
+	}
+	if (getSupplierSlotsInUse(state, now) >= state.logistics.supplierOrderSlots)
 		return { ...quote, reason: "Todos os caminhões estão na estrada. Espere um chegar ou libere mais um." };
 	if (total > state.coins) return { ...quote, reason: "Moedas insuficientes para este pedido." };
 	return { ...quote, reason: null };

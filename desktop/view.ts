@@ -30,6 +30,7 @@ import { type LeagueCardView, leagueCardView } from "./pages/ranking";
 import { viewRankings } from "./rankings";
 import { pages } from "./pages";
 import { groupOf, groupRoute, type ToolGroup, toolGroups } from "./sections";
+import { isChainUnlocked } from "@/services/chain";
 import {
 	act,
 	type Button,
@@ -189,7 +190,7 @@ export function quickMainButton(quick: Button[]): Button {
 }
 
 export const tools: {
-	id: SimulatorPanel | "dev" | "loja" | ToolGroup["id"];
+	id: SimulatorPanel | "dev" | "loja" | "rede" | ToolGroup["id"];
 	label: string;
 	icon: GameIconId;
 	requiredLevel: number;
@@ -201,6 +202,8 @@ export const tools: {
 	{ id: "sectors", label: "Produção", icon: "conveyor", requiredLevel: 18 },
 	// Missões = Missões · Conquistas.
 	{ id: "missoes", label: "Missões", icon: "trophy", requiredLevel: 1 },
+	// Rede de supermercados: only once the last expansion is built (desktop/pages/rede.ts).
+	{ id: "rede", label: "Rede", icon: "rede", requiredLevel: 1 },
 	{ id: "dev", label: "Dev", icon: "toolbox", requiredLevel: 1 },
 ];
 
@@ -395,6 +398,7 @@ export function createDesktopView(
 		// Release builds (scripts/release/build-host.ts) hide the Dev tab.
 		// App Store screenshots (CHECKOUT_HIDE_DEV, Unity "Store screenshots") hide it too, while the dev actions keep working.
 		tools: tools
+			.filter((tool) => tool.id !== "rede" || isChainUnlocked(state.era.id))
 			.filter((tool) => tool.id !== "dev" || (__DEV__ && !(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.CHECKOUT_HIDE_DEV))
 			.map((tool) => {
 			const locked = state.market.level < tool.requiredLevel;

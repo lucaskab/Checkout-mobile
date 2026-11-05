@@ -38,7 +38,7 @@ test("ISO weeks: Monday 00:00 UTC starts a week; the year edges follow ISO 8601"
 
 test("old saves (no rankings field) load with defaults and nothing else changes (no version bump)", async () => {
 	const options = useGameStore.persist.getOptions();
-	expect(options.version).toBe(50);
+	expect(options.version).toBe(51);
 	const old = JSON.parse(initial);
 	delete old.rankings;
 	const migrated = await options.migrate(old, 49);

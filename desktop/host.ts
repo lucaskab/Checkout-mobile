@@ -46,6 +46,7 @@ import {
 	visitActions,
 	visitSnapshot,
 } from "./social.ts";
+import { isChainUnlocked } from "@/services/chain";
 import { initRankings, onRankingRoute, rankingActions, rankingTick, requestRankingAction, sendLeaguePoints } from "./rankings.ts";
 import { type AdPlacement, adPlacements, type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
@@ -160,6 +161,17 @@ const hudActions: (keyof GameActions)[] = [
 	"upgradeInventoryCapacity",
 	"upgradeShelfCapacity",
 	"upgradeSupplierOrderSlots",
+	// Rede de supermercados (desktop/pages/rede.ts)
+	"nameChain",
+	"setChainAutoOrder",
+	"buyFleetTruck",
+	"upgradeFleetSpeed",
+	"orderFromDistributionCenter",
+	"acceptChainContract",
+	"buyChainBranch",
+	"finishChainBranchNow",
+	"sendChainBranchCargo",
+	"collectChainBranches",
 ];
 
 // Release builds (the testers' build and the iPhone) refuse the dev cheats even if a page still asked for one.
@@ -273,6 +285,18 @@ function openStoreOnShortfall() {
 	else routes.push(route);
 	view();
 	return true;
+}
+
+// The rede's works just ended (or a save already in the rede opened): the card to name the chain opens once, on the
+// main screen (never over another window, the tutorial or a celebration still to show).
+let chainNamingShown = false;
+function openChainNaming() {
+	if (chainNamingShown || isVisiting() || routes.length > 0) return;
+	const state = useGameStore.getState();
+	if (state.chain.brand.namedAt !== null || !isChainUnlocked(state.era.id)) return;
+	if (state.onboarding.status === "active" || (state.celebrations?.length ?? 0) > 0) return;
+	chainNamingShown = true;
+	navigate("!rede:marca");
 }
 
 // Why opening the shop / starting a day was refused, in words the player can act on.
@@ -559,6 +583,9 @@ setInterval(live(() => {
 	store().processInteriorConstructions();
 	// Evolutions end on the evolution crew's clock (it kept running while the game was closed).
 	store().processFixtureEvolutions();
+	// Rede: fleet trucks, city contracts, branches and the automatic restock.
+	store().processChain();
+	openChainNaming();
 }), 1_000);
 // Rankings v1: the week's league points at most every 10 minutes (sendLeaguePoints checks), the open Ranking tab
 // refreshed at most every 60 s.

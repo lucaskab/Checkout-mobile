@@ -165,6 +165,7 @@ import type { GameShopState, ShopCurrency } from "./shop";
 import type { ReceivingState } from "./receiving";
 import type { SocialInboxOutcome, SocialRequestMirror, SocialState } from "./social";
 import type { RankingsState } from "./rankings";
+import type { ChainBranchId, ChainEmblemId, ChainState, FleetTruckKind } from "./chain";
 import type { StoreIncidentKind, StoreIncidentsState } from "./store-incident";
 import type { SupplierOrderSlotCurrency } from "./supplier-capacity";
 
@@ -252,6 +253,8 @@ export type GameState = {
 	social: SocialState;
 	/** Rankings v1 (docs/rankings-api.md): this week's league points, the opt-out, end-of-week cards to show. */
 	rankings: RankingsState;
+	/** Rede de supermercados (src/services/chain.ts): brand, distribution centre fleet, contracts and branches. */
+	chain: ChainState;
 };
 
 /** Condition 0–100 of each physical fixture (shelf or sector counter). */
@@ -381,7 +384,20 @@ export type GameActions = {
 	/** The shop's cart: one truck (one slot) carrying several products, each in boxes (src/services/supplier-cart.ts). */
 	placeSupplierCart: (input: PlaceSupplierCartInput) => boolean;
 	/** One truck with every product that is running out (as many boxes as the truck, room and coins allow). */
-	orderLowStock: () => boolean;
+	/** One truck with the products running low; "frota" = from the chain's distribution centre (Rede). */
+	orderLowStock: (via?: "frota") => boolean;
+	// Rede de supermercados (src/services/chain.ts)
+	nameChain: (name: string, emblem: ChainEmblemId) => boolean;
+	setChainAutoOrder: (enabled: boolean) => boolean;
+	buyFleetTruck: (kind: FleetTruckKind) => boolean;
+	upgradeFleetSpeed: () => boolean;
+	orderFromDistributionCenter: (lines: PlaceSupplierCartInput["lines"]) => boolean;
+	acceptChainContract: (contractId: string) => boolean;
+	buyChainBranch: (branchId: ChainBranchId) => boolean;
+	finishChainBranchNow: (branchId: ChainBranchId) => boolean;
+	sendChainBranchCargo: (branchId: ChainBranchId) => boolean;
+	collectChainBranches: () => boolean;
+	processChain: (now?: number) => boolean;
 	processGameEvents: () => boolean;
 	processCheckoutCounter: () => boolean;
 	processMarketDay: () => boolean;

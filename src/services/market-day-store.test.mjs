@@ -340,7 +340,7 @@ test("a v45 save with special requests migrates to v46 keeping the progress (Luc
 		requests: [{ id: "r1", customerId: "c-1", customerName: "Ana", status: "served", expiresAt: 1, tip: 3 }],
 		stats: { ...old.day.stats, customers: 5, requestsServed: 2, requestsExpired: 1, loyaltyChange: 5, reputationChange: 2, tips: 3 },
 	};
-	expect(useGameStore.persist.getOptions().version).toBe(50); // 50: social v1 (src/services/social.ts)
+	expect(useGameStore.persist.getOptions().version).toBe(51); // 51: Rede de supermercados (src/services/chain.ts)
 	const next = await useGameStore.persist.getOptions().migrate(old, 45);
 	expect(next.coins).toBe(4321);
 	expect(next.market.level).toBe(7);

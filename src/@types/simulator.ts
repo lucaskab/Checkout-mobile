@@ -128,6 +128,8 @@ export type SimulatorSnapshot = {
 	delivery: SimulatorDelivery;
 	/** "Cores do mercado" (src/data/market-paint.ts): the market's two colours, the palettes and the prices. */
 	paint: MarketPaintSnapshot;
+	/** Rede de supermercados: brand and fleet (src/services/chain.ts createChainSnapshot). */
+	chain: import("./chain").ChainSnapshot;
 	customers: GameState["market"]["recentCustomers"];
 	expansions: string[];
 	era: {

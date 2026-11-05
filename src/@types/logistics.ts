@@ -31,6 +31,8 @@ export type SupplierOrder = {
 	status: SupplierOrderStatus;
 	/** What was charged for the whole truck. */
 	totalCost: number;
+	/** Rede: brought by the chain's own fleet from its distribution centre (that truck), not by a supplier. */
+	fleetTruckId?: string;
 };
 
 export type LogisticsState = {
@@ -55,4 +57,6 @@ export type PlaceSupplierOrderInput = {
 export type PlaceSupplierCartInput = {
 	lines: { productId: number; boxes: number }[];
 	useFreightCoupon?: boolean;
+	/** Rede: order from the chain's distribution centre (own fleet, wholesale price, faster) instead of a supplier. */
+	via?: "frota";
 };

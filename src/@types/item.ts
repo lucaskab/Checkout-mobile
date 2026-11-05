@@ -45,4 +45,6 @@ export type ItemDefinition = {
 	/** An evolution's exclusive product (claude/evolucoes-recompensas.md): it opens when that fixture (a shelf type id) or
 	 * sector (a production sector id) reaches `tier`, and only that fixture sells it. */
 	exclusive?: { fixture: string; tier: number };
+	/** Rede: one of the chain's own products ("marca própria", src/data/chain.ts), ordered from its distribution centre. */
+	privateLabel?: boolean;
 };

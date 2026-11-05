@@ -390,6 +390,36 @@ import {
 	settleDelivery,
 	trimDeliveryOrders,
 } from "@/services/delivery";
+import type { ChainBranchId, FleetTruckKind } from "@/@types/chain";
+import {
+	addTruck,
+	checkChainName,
+	chooseBranchCargo,
+	createChainState,
+	getBranchNextStep,
+	getBranchTripMs,
+	getContractShortfall,
+	getNextSpeedPrice,
+	getNextTruckPrice,
+	getTripFactor,
+	isChainEmblem,
+	isChainUnlocked,
+	normalizeChainState,
+	pickTruck,
+	refreshContracts,
+	releaseTrucks,
+	updateBranch,
+	updateBranches,
+	withTruckJob,
+} from "@/services/chain";
+import {
+	AUTO_ORDER_EVERY_MS,
+	AUTO_ORDER_RESERVE,
+	CHAIN_RENAME_DIAMONDS,
+	DC_MAX_BOXES,
+	FLEET_RETURN_SHARE,
+	privateLabelProducts,
+} from "@/data/chain";
 
 // A new game: a few crates of what the sidewalk table sells (tomato, lettuce, banana, water, soda).
 const initialInventory: GameInventory = {
@@ -554,6 +584,7 @@ const initialGameState: GameState = {
 	marketPaint: createMarketPaintState(),
 	social: createSocialState(),
 	rankings: createRankingsState(),
+	chain: createChainState(),
 };
 
 function getInitialGameState(): GameState {
@@ -648,6 +679,7 @@ function getInitialGameState(): GameState {
 		marketPaint: createMarketPaintState(),
 		social: createSocialState(),
 		rankings: createRankingsState(),
+		chain: createChainState(),
 	};
 }
 
@@ -1025,6 +1057,9 @@ function migrateGameState(persistedState: unknown): GameState {
 		social: normalizeSocialState(state.social),
 		// Rankings v1 (no version bump): older saves (no field) start this week with no league points.
 		rankings: normalizeRankingsState(state.rankings),
+		// 51: Rede de supermercados (brand, distribution centre, fleet, contracts, branches). Older saves (no field)
+		// get a fresh chain; a save already in the rede is asked to name it the next time the game opens.
+		chain: normalizeChainState(state.chain),
 	};
 }
 
@@ -2079,9 +2114,21 @@ export const useGameStore = create<GameStore>()(
 					lines: quote.lines,
 					status: "em-producao",
 					totalCost: quote.total,
+					...(quote.fleetTruckId ? { fleetTruckId: quote.fleetTruckId } : {}),
 				};
+				// Rede: the fleet truck is out until it unloads at the market and drives back to the centre.
+				const chain = quote.fleetTruckId
+					? withTruckJob(get().chain, quote.fleetTruckId, {
+							kind: "abastecer",
+							refId: order.id,
+							departAt: now,
+							arriveAt: now + quote.deliveryDurationMs,
+							returnAt: now + Math.round(quote.deliveryDurationMs * (1 + FLEET_RETURN_SHARE)),
+						})
+					: get().chain;
 
 				set({
+					chain,
 					coins: coins - quote.total,
 					logistics: {
 						...logistics,
@@ -2699,14 +2746,16 @@ export const useGameStore = create<GameStore>()(
 				});
 				return true;
 			},
-			orderLowStock: () => {
+			orderLowStock: (via) => {
 				// Emptiest first, so the products about to run out get the trucks.
+				const fleet = via === "frota";
 				const state = get();
 				const now = Date.now();
 				const low = itemCatalog
 					.filter(
 						(product) =>
 							product.acquisition === "supplier" &&
+							(fleet || !product.privateLabel) &&
 							state.market.unlockedProductIds.includes(product.id),
 					)
 					.map((product) => ({
@@ -2718,14 +2767,17 @@ export const useGameStore = create<GameStore>()(
 					.filter((item) => item.share < LOW_STOCK_SHARE)
 					.sort((a, b) => a.share - b.share);
 				// One truck: every low product gets the most boxes that still fit the truck, the racks and the coins.
-				const maxBoxes = getMaxBoxesPerOrder(state.logistics.supplierOrderSlots);
+				const maxBoxes = fleet ? DC_MAX_BOXES : getMaxBoxesPerOrder(state.logistics.supplierOrderSlots);
 				const lines: PlaceSupplierCartInput["lines"] = [];
 				let boxes = 0;
 				for (const { product } of low) {
 					if (boxes >= maxBoxes) break;
 					const fits = (count: number) =>
-						getSupplierCartQuote(state, { lines: [...lines, { productId: product.id, boxes: count }] }, now)
-							.reason === null;
+						getSupplierCartQuote(
+							state,
+							{ lines: [...lines, { productId: product.id, boxes: count }], ...(fleet ? { via: "frota" as const } : {}) },
+							now,
+						).reason === null;
 					const free = getFreeBoxPlaces(
 						product,
 						state.inventory[product.id] ?? 0,
@@ -2745,7 +2797,7 @@ export const useGameStore = create<GameStore>()(
 						boxes += most;
 					}
 				}
-				return lines.length > 0 && get().placeSupplierCart({ lines });
+				return lines.length > 0 && get().placeSupplierCart({ lines, ...(fleet ? { via: "frota" as const } : {}) });
 			},
 			unloadAllDeliveries: () => {
 				let moved = false;
@@ -4580,6 +4632,274 @@ export const useGameStore = create<GameStore>()(
 				set({ marketPaint: withAppliedPaint(marketPaint, CLASSIC_PRIMARY, CLASSIC_ACCENT, false) });
 				return true;
 			},
+			// ---------------------------------------------------------------- Rede de supermercados (src/services/chain.ts)
+			// Naming the chain: free the first time (the card that opens with the rede), diamonds to rename later.
+			nameChain: (name, emblem) => {
+				const { chain, era, logistics } = get();
+				if (!isChainUnlocked(era.id)) return false;
+				const check = checkChainName(name);
+				if (!check.ok || !isChainEmblem(emblem)) return false;
+				const first = chain.brand.namedAt === null;
+				if (!first && check.name === chain.brand.name && emblem === chain.brand.emblem) return false;
+				// changing only the emblem is free; a new name after the first costs diamonds
+				const pays = !first && check.name !== chain.brand.name;
+				if (pays && !enoughDiamonds(CHAIN_RENAME_DIAMONDS)) return false;
+				set({
+					logistics: pays ? { ...logistics, premiumCurrency: logistics.premiumCurrency - CHAIN_RENAME_DIAMONDS } : logistics,
+					chain: {
+						...chain,
+						brand: {
+							name: check.name,
+							emblem,
+							namedAt: chain.brand.namedAt ?? Date.now(),
+							renames: chain.brand.renames + (pays ? 1 : 0),
+						},
+					},
+				});
+				return true;
+			},
+			setChainAutoOrder: (enabled) => {
+				const { chain, era } = get();
+				if (!isChainUnlocked(era.id) || chain.autoOrder.enabled === !!enabled) return false;
+				set({ chain: { ...chain, autoOrder: { enabled: !!enabled, lastAt: 0 } } });
+				return true;
+			},
+			buyFleetTruck: (kind) => {
+				const { chain, coins, era } = get();
+				if (!isChainUnlocked(era.id) || (kind !== "seco" && kind !== "refrigerado")) return false;
+				const price = getNextTruckPrice(chain, kind as FleetTruckKind);
+				if (price === null || coins < price) return false;
+				set({ coins: coins - price, chain: addTruck(chain, kind as FleetTruckKind) });
+				return true;
+			},
+			upgradeFleetSpeed: () => {
+				const { chain, coins, era } = get();
+				const price = getNextSpeedPrice(chain);
+				if (!isChainUnlocked(era.id) || price === null || coins < price) return false;
+				set({ coins: coins - price, chain: { ...chain, fleet: { ...chain.fleet, speedLevel: chain.fleet.speedLevel + 1 } } });
+				return true;
+			},
+			// Restock through the distribution centre: the same cart as a supplier's, carried by a fleet truck.
+			orderFromDistributionCenter: (lines) => get().placeSupplierCart({ lines, via: "frota" }),
+			acceptChainContract: (contractId) => {
+				const now = Date.now();
+				const state = get();
+				if (!isChainUnlocked(state.era.id)) return false;
+				const chain = releaseTrucks(state.chain, now);
+				const contract = chain.contracts.offers.find((offer) => offer.id === contractId && offer.acceptedAt === null);
+				if (!contract || contract.expiresAt <= now) return false;
+				if (getContractShortfall(contract, state.inventory).length > 0) return false;
+				const truck = pickTruck(chain, contract.cold, now);
+				if (!truck) return false;
+				const inventory = { ...state.inventory };
+				const inventoryLots = { ...state.inventoryLots };
+				for (const line of contract.lines) {
+					inventory[line.productId] = (inventory[line.productId] ?? 0) - line.units;
+					inventoryLots[line.productId] = takeInventoryLots(inventoryLots[line.productId], line.units).remainingLots;
+				}
+				const trip = Math.round(contract.tripMs * getTripFactor(chain));
+				const withJob = withTruckJob(chain, truck.id, {
+					kind: "contrato",
+					refId: contract.id,
+					departAt: now,
+					arriveAt: now + trip,
+					returnAt: now + trip * 2,
+				});
+				set({
+					inventory,
+					inventoryLots,
+					chain: {
+						...withJob,
+						contracts: {
+							...withJob.contracts,
+							offers: withJob.contracts.offers.map((offer) =>
+								offer.id === contract.id ? { ...offer, acceptedAt: now, truckId: truck.id } : offer,
+							),
+						},
+					},
+				});
+				return true;
+			},
+			// Buys a branch (level 1) or upgrades it; both are works on a clock.
+			buyChainBranch: (branchId) => {
+				const now = Date.now();
+				const { chain, coins, era } = get();
+				const branch = chain.branches[branchId as ChainBranchId];
+				if (!isChainUnlocked(era.id) || !branch) return false;
+				const current = updateBranch(branch, now);
+				const next = getBranchNextStep(current);
+				if (!next || coins < next.price) return false;
+				set({
+					coins: coins - next.price,
+					chain: {
+						...chain,
+						branches: {
+							...chain.branches,
+							[branchId]: { ...current, works: { level: next.level, endsAt: now + next.buildMs }, supplyAt: now },
+						},
+					},
+				});
+				return true;
+			},
+			finishChainBranchNow: (branchId) => {
+				const now = Date.now();
+				const { chain, logistics } = get();
+				const branch = chain.branches[branchId as ChainBranchId];
+				if (!branch?.works) return false;
+				const cost = getSkipDiamondCost(branch.works.endsAt - now);
+				if (!enoughDiamonds(cost)) return false;
+				const updated = updateBranch({ ...branch, works: { ...branch.works, endsAt: now } }, now);
+				set({
+					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - cost },
+					chain: { ...chain, branches: { ...chain.branches, [branchId]: updated } },
+				});
+				return true;
+			},
+			// A truck takes a cargo from the market's stockroom to the branch: its shelves fill when it arrives.
+			sendChainBranchCargo: (branchId) => {
+				const now = Date.now();
+				const state = get();
+				const chain0 = releaseTrucks(state.chain, now);
+				const branch = chain0.branches[branchId as ChainBranchId];
+				if (!isChainUnlocked(state.era.id) || !branch || branch.level < 1 || branch.cargo) return false;
+				const cargo = chooseBranchCargo(
+					branch.id,
+					branch.level,
+					state.inventory,
+					itemCatalog,
+					state.market.unlockedProductIds,
+				);
+				if (!cargo.enough) return false;
+				const truck = pickTruck(chain0, cargo.cold, now) ?? (cargo.cold ? null : pickTruck(chain0, false, now));
+				if (!truck) return false;
+				const inventory = { ...state.inventory };
+				const inventoryLots = { ...state.inventoryLots };
+				for (const line of cargo.lines) {
+					inventory[line.productId] = (inventory[line.productId] ?? 0) - line.units;
+					inventoryLots[line.productId] = takeInventoryLots(inventoryLots[line.productId], line.units).remainingLots;
+				}
+				const trip = getBranchTripMs(chain0);
+				const updated = updateBranch(branch, now);
+				const chain = withTruckJob(chain0, truck.id, {
+					kind: "filial",
+					refId: branch.id,
+					departAt: now,
+					arriveAt: now + trip,
+					returnAt: now + trip * 2,
+				});
+				set({
+					inventory,
+					inventoryLots,
+					chain: {
+						...chain,
+						branches: {
+							...chain.branches,
+							[branch.id]: { ...updated, cargo: { truckId: truck.id, arriveAt: now + trip, supply: cargo.supply } },
+						},
+					},
+				});
+				return true;
+			},
+			collectChainBranches: () => {
+				const now = Date.now();
+				const { chain, coins } = get();
+				const updated = updateBranches(chain, now);
+				let got = 0;
+				const branches = { ...updated.branches };
+				for (const id of Object.keys(branches) as ChainBranchId[]) {
+					const amount = Math.floor(branches[id].pending);
+					if (amount <= 0) continue;
+					got += amount;
+					branches[id] = { ...branches[id], pending: branches[id].pending - amount, earned: branches[id].earned + amount };
+				}
+				if (got <= 0) return false;
+				set({ coins: coins + got, chain: { ...updated, branches } });
+				return true;
+			},
+			// Every second (desktop/host.ts): trucks come back, contracts pay, branches earn, offers refresh and the
+			// automatic restock sends a truck when something runs low.
+			processChain: (now = Date.now()) => {
+				const state = get();
+				if (!isChainUnlocked(state.era.id)) return false;
+				let chain = state.chain;
+				let coins = state.coins;
+				let diamonds = state.logistics.premiumCurrency;
+				let xp = 0;
+				let changed = false;
+				// the chain's own products open with the rede (saves already there get them now)
+				const missing = privateLabelProducts.filter((p) => !state.market.unlockedProductIds.includes(p.id)).map((p) => p.id);
+				// contracts whose truck reached the client are paid
+				const paid = chain.contracts.offers.filter((offer) => {
+					if (offer.acceptedAt === null || !offer.truckId) return false;
+					const truck = chain.fleet.trucks.find((t) => t.id === offer.truckId);
+					const arrive = truck?.job?.refId === offer.id ? truck.job.arriveAt : offer.acceptedAt + offer.tripMs;
+					return now >= arrive;
+				});
+				if (paid.length) {
+					changed = true;
+					for (const offer of paid) {
+						coins += offer.reward;
+						diamonds += offer.diamonds;
+						xp += offer.xp;
+					}
+					chain = {
+						...chain,
+						contracts: {
+							...chain.contracts,
+							offers: chain.contracts.offers.filter((offer) => !paid.includes(offer)),
+							completed: chain.contracts.completed + paid.length,
+							earned: chain.contracts.earned + paid.reduce((sum, offer) => sum + offer.reward, 0),
+						},
+					};
+				}
+				const released = releaseTrucks(chain, now);
+				if (released !== chain) changed = true;
+				chain = released;
+				// branches: works ending and cargos arriving change what the player sees; the income itself is applied
+				// lazily (collect / page view) so the save is not rewritten every second
+				for (const branch of Object.values(chain.branches)) {
+					if ((branch.works && now >= branch.works.endsAt) || (branch.cargo && now >= branch.cargo.arriveAt)) {
+						chain = { ...chain, branches: { ...chain.branches, [branch.id]: updateBranch(branch, now) } };
+						changed = true;
+					}
+				}
+				const refreshed = refreshContracts(chain, {
+					catalog: itemCatalog,
+					unlockedProductIds: state.market.unlockedProductIds,
+					eraIndex: getEraOrder(state.era.id),
+					now,
+				});
+				if (refreshed !== chain) changed = true;
+				chain = refreshed;
+				if (changed || missing.length || xp > 0) {
+					const market = get().market;
+					const progression = xp > 0 ? applyExperience(market.level, market.experience, xp) : null;
+					set({
+						coins,
+						logistics: { ...get().logistics, premiumCurrency: diamonds },
+						chain,
+						market: {
+							...market,
+							...(progression
+								? {
+										experience: progression.experience,
+										level: progression.level,
+										lastExperienceGain: xp,
+										totalExperience: market.totalExperience + xp,
+									}
+								: {}),
+							unlockedProductIds: Array.from(new Set([...market.unlockedProductIds, ...missing])),
+						},
+					});
+				}
+				// automatic restock through the distribution centre (a dry or cold truck, whatever runs low)
+				const auto = get().chain.autoOrder;
+				if (auto.enabled && now - auto.lastAt >= AUTO_ORDER_EVERY_MS) {
+					set({ chain: { ...get().chain, autoOrder: { ...auto, lastAt: now } } });
+					if (get().coins > AUTO_ORDER_RESERVE) get().orderLowStock("frota");
+				}
+				return changed;
+			},
 			finishMarketExpansionNow: () => {
 				const { logistics, marketExpansionConstruction } = get();
 				if (!marketExpansionConstruction) {
@@ -4851,6 +5171,7 @@ export const useGameStore = create<GameStore>()(
 				marketPaint,
 				social,
 				rankings,
+				chain,
 			}) => ({
 				era,
 				checkout,
@@ -4900,6 +5221,7 @@ export const useGameStore = create<GameStore>()(
 				marketPaint,
 				social,
 				rankings,
+				chain,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
 			// A save that fails to load or migrate is kept on disk untouched (src/storage/save-guard.ts).
@@ -4925,7 +5247,9 @@ export const useGameStore = create<GameStore>()(
 			// exclusive products of the tiers they have (withMigratedTierRewards).
 			// 50: social v1 (social: inbox ids applied, gifts today, profile cache, requests, invite rewards). Old saves get
 			// an empty slice (migrateGameState); nothing else changes.
-			version: 50,
+			// 51: Rede de supermercados (chain: brand, fleet, contracts, branches). Old saves get a fresh slice; nothing else
+			// changes (the chain's own products open with the rede through processChain).
+			version: 51,
 		},
 	),
 );

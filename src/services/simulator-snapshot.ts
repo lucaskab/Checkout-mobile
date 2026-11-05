@@ -1,3 +1,4 @@
+import { createChainSnapshot, createChainState } from "@/services/chain";
 import { getMarketEra, getNextMarketEra, marketEras } from "@/data/economy";
 import { ERA_LOTS, LOT_GRID, MARKET_LOTS, PLAZA_LOTS } from "@/data/market-lots";
 import type { GameState } from "@/@types/game";
@@ -318,6 +319,8 @@ export function createSimulatorSnapshot(
 		jobs: state.production.jobs,
 		delivery: createDeliverySnapshot(state),
 		paint: createMarketPaintSnapshot(state.marketPaint, state.era.id),
+		// Rede: the chain's name and logo (facade, totem, trucks, bags) and where each fleet truck is.
+		chain: createChainSnapshot(state.chain ?? createChainState(), state.era.id, Date.now()),
 		customers: state.market.recentCustomers.map((customer) => ({
 			...customer,
 			purchases: customer.purchases?.map((purchase) => {

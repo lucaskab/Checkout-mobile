@@ -19,6 +19,7 @@ export const gameIconAssets = {
 	controller: require("../../assets/game-art/icons/controller.png"),
 	customers: require("../../assets/game-art/icons/customers.png"),
 	deliveryTruck: require("../../assets/game-art/icons/delivery-truck.png"),
+	rede: require("../../assets/game-art/icons/rede.png"),
 	diamond: require("../../assets/game-art/icons/diamond.png"),
 	distributionCenter: require("../../assets/game-art/icons/distribution-center.png"),
 	drone: require("../../assets/game-art/icons/drone.png"),
