@@ -21,9 +21,9 @@ namespace Checkout {
    void Act(string action,string args)=>CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-rede-"+(++seq)+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
    void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
    void Result(string name,bool ok,string detail="")=>Note($"RESULT rede {name}: {(ok?"PASS":"FAIL")} {detail}");
-   IEnumerator Shot(string name){for(int i=0;i<4&&hud.CoachQa().isTip;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.4f);}yield return new WaitForEndOfFrame();System.IO.File.WriteAllBytes("Logs/ff_rede_"+name+".jpg",RecJpg(4000,86));Note($"still ff_rede_{name}.jpg at {RecAt:0.0}s");}
    var hud=FindAnyObjectByType<CheckoutDesktopHUD>();
    if(!hud){Note("rede: no HUD");yield break;}
+   IEnumerator Shot(string name){for(int i=0;i<4&&hud.CoachQa().isTip;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.4f);}yield return new WaitForEndOfFrame();System.IO.File.WriteAllBytes("Logs/ff_rede_"+name+".jpg",RecJpg(4000,86));Note($"still ff_rede_{name}.jpg at {RecAt:0.0}s");}
    if(request.EndsWith("-phone"))Note("rede: "+CheckoutQaGameView.Set(2778,1284));
    if(!CheckoutStartMenu.QaMode){Note("rede: not on the QA copy, stopping");yield break;}
    var langBefore=CheckoutI18n.Language;Lang(request.Contains("-en")?"en":"pt");
