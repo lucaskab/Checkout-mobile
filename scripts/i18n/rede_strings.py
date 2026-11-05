@@ -211,3 +211,8 @@ S2 = [
   "Transporte tout ce qui n'a pas besoin de froid. Les produits frais vont dans le frigorifique. Par le centre de distribution, les cartons coûtent 10 % de moins et arrivent deux fois plus vite.",
   "Fährt alles, was keine Kühlung braucht. Gekühlte Ware fährt im Kühl-Lkw. Über das Verteilzentrum kosten Kartons 10 % weniger und kommen in der halben Zeit."),
 ]
+S3 = [
+ ("O nome e o logo vão para a fachada, os produtos da marca própria e as filiais, nas cores do mercado.", "The name and the logo go on the facade, the own-brand products and the branches, in the market's colours.", "El nombre y el logo van a la fachada, los productos de marca propia y las sucursales, con los colores del mercado.", "Le nom et le logo vont sur la façade, les produits de marque propre et les succursales, aux couleurs du marché.", "Name und Logo kommen an die Fassade, auf die Eigenmarken-Produkte und an die Filialen, in den Farben des Marktes."),
+ ("Mais um na sua frota", "One more for your fleet", "Uno más para tu flota", "Un de plus dans votre flotte", "Einer mehr für deine Flotte"),
+ ("Entregue do seu estoque e receba {0} moedas. Viagem: {1}.", "Deliver from your stock and get {0} coins. Trip: {1}.", "Entrega de tu inventario y recibe {0} monedas. Viaje: {1}.", "Livrez depuis votre stock et recevez {0} pièces. Trajet : {1}.", "Liefere aus deinem Lager und erhalte {0} Münzen. Fahrt: {1}."),
+]

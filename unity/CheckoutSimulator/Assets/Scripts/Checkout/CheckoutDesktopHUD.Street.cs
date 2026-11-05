@@ -30,11 +30,13 @@ namespace Checkout {
    var area=boardGridArea.rect;float aw=area.width>100?area.width:1500,ah=area.height>100?area.height:600;
    int n=Mathf.Max(1,tiles.Length);
    float cw=Mathf.Floor((aw-2*StreetPad-(n-1)*StreetGap)/n),ch=ah-2*StreetPad;
+   // Every shop's panel has the same height: what the busiest card leaves (the words never run into the buttons).
+   float sceneH=cw*.95f;foreach(var t in tiles)sceneH=Mathf.Min(sceneH,ch-StreetCard.Needs(t));sceneH=Mathf.Max(110,sceneH);
    for(int i=0;i<streetCards.Count;i++){
     var c=streetCards[i];bool on=i<tiles.Length;c.gameObject.SetActive(on);if(!on)continue;
     var r=(RectTransform)c.transform;r.anchorMin=r.anchorMax=r.pivot=new Vector2(0,1);r.sizeDelta=new Vector2(cw,ch);
     r.anchoredPosition=new Vector2(StreetPad+i*(cw+StreetGap),-StreetPad);
-    c.Apply(tiles[i],cw,ch);
+    c.Apply(tiles[i],cw,sceneH);
    }
    foreach(var sec in boardSections)sec.gameObject.SetActive(false);
    boardEmpty.gameObject.SetActive(false);boardMore.gameObject.SetActive(false);
@@ -68,7 +70,7 @@ namespace Checkout {
     c.ribbonImage=Pill(c.scene,"Ribbon",K.C("8A5A2B"),out c.ribbonText,15,K.Label);c.ribbon=c.ribbonImage.rectTransform;c.ribbonText.characterSpacing=2;
     c.ribbon.anchorMin=c.ribbon.anchorMax=c.ribbon.pivot=new Vector2(0,1);c.ribbon.anchoredPosition=new Vector2(12,-12);
     // Coins waiting: a gold pill with a coin, top right.
-    var coin=N.Image(c.scene,"Coins",K.C("F2B03D"),16);c.coins=coin.rectTransform;c.coins.anchorMin=c.coins.anchorMax=c.coins.pivot=Vector2.one;c.coins.anchoredPosition=new Vector2(-12,-12);
+    var coin=N.Image(c.scene,"Coins",K.C("F2B03D"),16);c.coins=coin.rectTransform;c.coins.anchorMin=c.coins.anchorMax=c.coins.pivot=new Vector2(1,0);c.coins.anchoredPosition=new Vector2(-12,12);
     var ci=N.Image(coin.transform,"Coin",Color.white,0);ci.sprite=K.Icon("Icons/coin");ci.preserveAspect=true;var cir=ci.rectTransform;cir.anchorMin=cir.anchorMax=cir.pivot=new Vector2(0,.5f);cir.sizeDelta=new Vector2(24,24);cir.anchoredPosition=new Vector2(8,0);
     c.coinsText=N.Text(coin.transform,"Text",K.Number,18,K.Ink);c.coinsText.textWrappingMode=TextWrappingModes.NoWrap;c.coinsText.alignment=TextAlignmentOptions.MidlineLeft;Stretch(c.coinsText.rectTransform,new Vector2(38,0),new Vector2(-10,0));
     // The timer of a works or of a cargo on the road, at the foot of the scene.
@@ -76,7 +78,7 @@ namespace Checkout {
     c.timerText=N.Text(tm.transform,"Text",K.Number,18,Color.white);c.timerText.alignment=TextAlignmentOptions.Center;c.timerText.textWrappingMode=TextWrappingModes.NoWrap;Stretch(c.timerText.rectTransform,new Vector2(10,0),new Vector2(-10,0));
     c.title=N.Text(root,"Title",K.Headline,24,K.Ink);c.title.alignment=TextAlignmentOptions.Center;c.title.textWrappingMode=TextWrappingModes.NoWrap;c.title.enableAutoSizing=true;c.title.fontSizeMin=16;c.title.fontSizeMax=24;
     c.subtitle=N.Text(root,"Line",K.Body,17,K.Muted);c.subtitle.alignment=TextAlignmentOptions.Top;c.subtitle.enableAutoSizing=true;c.subtitle.fontSizeMin=13;c.subtitle.fontSizeMax=17;
-    c.likes=N.Text(root,"Likes",K.Body,14,K.C("A0805E"));c.likes.alignment=TextAlignmentOptions.Top;c.likes.enableAutoSizing=true;c.likes.fontSizeMin=11;c.likes.fontSizeMax=14;
+    c.likes=N.Text(root,"Likes",K.Body,15,K.C("A0805E"));c.likes.alignment=TextAlignmentOptions.Top;c.likes.enableAutoSizing=true;c.likes.fontSizeMin=12;c.likes.fontSizeMax=15;
     c.pips=new BoardPips(root,15);
     var track=N.Image(root,"Shelves",K.C("EADBC4"),13);c.bar=track.rectTransform;
     var fill=N.Image(track.transform,"Fill",K.C("4F9A2E"),13);c.barFill=fill.rectTransform;c.barFill.anchorMin=Vector2.zero;c.barFill.anchorMax=new Vector2(0,1);c.barFill.offsetMin=c.barFill.offsetMax=Vector2.zero;
@@ -92,29 +94,33 @@ namespace Checkout {
     return K.C("E6EEF4");
    }
 
-   public void Apply(DesktopTile t,float cw,float ch){
+   const float ButtonH=50,ButtonGap=10,TitleH=30,LineH=44,LikesH=36,BarH=26;
+   static DesktopButton[] Actions(DesktopTile t)=>t.actions!=null&&t.actions.Length>0?t.actions:t.action!=null&&!string.IsNullOrEmpty(t.action.label)?new[]{t.action}:new DesktopButton[0];
+   static bool HasLikes(DesktopTile t)=>t.lines!=null&&t.lines.Length>0&&!string.IsNullOrEmpty(t.lines[0]);
+   /// <summary>The card's height without its scene: margins, the words, the shelves and the buttons.</summary>
+   public static float Needs(DesktopTile t){
+    int n=Actions(t).Length;
+    return 12+14+TitleH+6+LineH+(HasLikes(t)?6+LikesH:0)+12+(t.fill>=0?BarH+14:0)+n*ButtonH+Mathf.Max(0,n-1)*ButtonGap+StreetPad;
+   }
+
+   public void Apply(DesktopTile t,float cw,float sceneH){
     bool changed=data==null||data.id!=t.id;data=t;
-    var actions=t.actions!=null&&t.actions.Length>0?t.actions:t.action!=null&&!string.IsNullOrEmpty(t.action.label)?new[]{t.action}:new DesktopButton[0];
-    const float bh=52,bgap=10;
-    float buttonsH=actions.Length*bh+Mathf.Max(0,actions.Length-1)*bgap;
-    bool hasBar=t.fill>=0,hasPips=t.maxStars>0,hasLikes=t.lines!=null&&t.lines.Length>0&&!string.IsNullOrEmpty(t.lines[0]);
-    // From the foot up: buttons, the shelves, the level; from the top down: the scene, the name, the line, the likes.
+    var actions=Actions(t);
+    float buttonsH=actions.Length*ButtonH+Mathf.Max(0,actions.Length-1)*ButtonGap;
+    bool hasBar=t.fill>=0,hasLikes=HasLikes(t);
+    // From the foot up: the buttons and the shelves; from the top down: the scene, the name, the line, the likes.
     float y=StreetPad;
     Place(buttons,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,y),new Vector2(-2*StreetPad,buttonsH));y+=buttonsH+(actions.Length>0?14:0);
     bar.gameObject.SetActive(hasBar);
-    if(hasBar){Place(bar,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,y),new Vector2(-2*StreetPad-4,26));y+=26+12;}
-    pips.gameObject.SetActive(hasPips);
-    if(hasPips){Place(pips.Rect,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,y+2),new Vector2(120,18));y+=18+10;}
-    float foot=y;
-    // The words: name 30, line two rows of 22, likes one row of 18.
-    float words=30+6+44+(hasLikes?4+20:0);
-    float sceneH=Mathf.Clamp(ch-foot-words-12-14-10,110,cw*.95f);
+    if(hasBar)Place(bar,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,y),new Vector2(-2*StreetPad-4,BarH));
+    // (the level is the ribbon's NÍVEL n: no diamonds under the name, they ran into the words)
+    pips.gameObject.SetActive(false);
     Place(scene,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-12),new Vector2(-24,sceneH));
     sceneImage.color=Scene(t.look);
     float top=-12-sceneH-14;
-    Place((RectTransform)title.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,30));top-=36;
-    Place((RectTransform)subtitle.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,44));top-=48;
-    Place((RectTransform)likes.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,20));
+    Place((RectTransform)title.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,TitleH));top-=TitleH+6;
+    Place((RectTransform)subtitle.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,LineH));top-=LineH+6;
+    Place((RectTransform)likes.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,LikesH));
     // The scene's pieces scale with it: pavement a third, the store as big as it fits over it.
     float sw=cw-24;
     Place(ground,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),Vector2.zero,new Vector2(0,sceneH*.3f));
@@ -125,16 +131,17 @@ namespace Checkout {
     var sprite=K.Icon(t.icon);art.GetComponent<Image>().sprite=sprite;art.gameObject.SetActive(sprite);
     title.text=K.Clean(t.title);subtitle.text=K.Clean(t.subtitle);subtitle.gameObject.SetActive(!string.IsNullOrEmpty(t.subtitle));
     likes.gameObject.SetActive(hasLikes);if(hasLikes)likes.text=K.Clean(t.lines[0]);
-    pips.Apply(t.stars,t.maxStars);
     bool hasRibbon=!string.IsNullOrEmpty(t.sticker);ribbon.gameObject.SetActive(hasRibbon);
     if(hasRibbon){var label=K.Clean(t.sticker);ribbonText.text=label;ribbonImage.color=ToneStrong(string.IsNullOrEmpty(t.tone)?"":t.tone);ribbon.sizeDelta=new Vector2(PillWidth(ribbonText,label,70)+8,32);}
     bool hasCoins=!string.IsNullOrEmpty(t.badge);coins.gameObject.SetActive(hasCoins);
     if(hasCoins){var label=K.Clean(t.badge);coinsText.text=label;coins.sizeDelta=new Vector2(coinsText.GetPreferredValues(label).x+52,36);}
     timer.gameObject.SetActive(t.timerEnd>0);
+    // (the timer at the foot's middle; with coins waiting on the right it moves to the left corner)
+    if(hasCoins){timer.anchorMin=timer.anchorMax=timer.pivot=Vector2.zero;timer.anchoredPosition=new Vector2(12,12);}else{timer.anchorMin=timer.anchorMax=timer.pivot=new Vector2(.5f,0);timer.anchoredPosition=new Vector2(0,12);}
     if(hasBar){fillTarget=Mathf.Clamp01(t.fill);if(changed||fillShown<0)fillShown=fillTarget;barText.text=K.Clean(t.fillText);
      barFill.GetComponent<Image>().color=fillTarget<.25f?ToneStrong("danger"):fillTarget<.5f?ToneStrong("warning"):ToneStrong("success");}
     face.color=t.tone=="danger"?K.C("FFF1EB"):K.C("FFF9EE");edge.color=t.tone=="danger"?K.C("E9A48F"):K.Border;
-    while(list.Count<actions.Length){var x=CheckoutDesktopButton.Create(buttons,bh,19,14);x.Clicked=hud.BoardPress;list.Add(x);}
+    while(list.Count<actions.Length){var x=CheckoutDesktopButton.Create(buttons,ButtonH,19,14);x.Clicked=hud.BoardPress;list.Add(x);}
     for(int i=0;i<list.Count;i++){bool on=i<actions.Length;list[i].gameObject.SetActive(on);if(on){list[i].Apply(actions[i]);list[i].Shrink(13);}}
     art.GetComponent<Image>().color=locked?new Color(1,1,1,.6f):Color.white;
    }
@@ -144,7 +151,7 @@ namespace Checkout {
     if(data.timerEnd>0){double left=data.timerEnd-now;var text=left>0?Clock(left):"Pronto!";timerText.text=text;timer.sizeDelta=new Vector2(Mathf.Max(92,timerText.GetPreferredValues(text).x+28),32);}
     if(fillShown>=0){fillShown=Mathf.MoveTowards(fillShown,fillTarget,Time.unscaledDeltaTime*.9f);barFill.anchorMax=new Vector2(Mathf.Max(fillShown>0?.05f:0,fillShown),1);}
     // coins waiting bob a little, so the eye goes to them
-    if(coins.gameObject.activeSelf)coins.anchoredPosition=new Vector2(-12,-12-Mathf.Abs(Mathf.Sin(t*3f+transform.GetSiblingIndex()))*3);
+    if(coins.gameObject.activeSelf)coins.anchoredPosition=new Vector2(-12,12+Mathf.Abs(Mathf.Sin(t*3f+transform.GetSiblingIndex()))*3);
    }
   }
  }

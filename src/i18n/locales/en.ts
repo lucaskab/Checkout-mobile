@@ -4607,6 +4607,9 @@ const catalog: Catalog = {
 	"{0} de {1} caminhões no pátio": "{0} of {1} trucks in the yard",
 	"Leva de tudo, inclusive carnes, peixes, laticínios, congelados e sorvetes. Pelo centro de distribuição as caixas saem 10% mais baratas e chegam na metade do tempo.": "Carries everything, meat, fish, dairy, frozen food and ice cream included. Through the distribution centre boxes cost 10% less and arrive in half the time.",
 	"Leva tudo o que não precisa de frio. Os produtos gelados vão no refrigerado. Pelo centro de distribuição as caixas saem 10% mais baratas e chegam na metade do tempo.": "Carries everything that needs no cold. Chilled products go in the refrigerated truck. Through the distribution centre boxes cost 10% less and arrive in half the time.",
+	"O nome e o logo vão para a fachada, os produtos da marca própria e as filiais, nas cores do mercado.": "The name and the logo go on the facade, the own-brand products and the branches, in the market's colours.",
+	"Mais um na sua frota": "One more for your fleet",
+	"Entregue do seu estoque e receba {0} moedas. Viagem: {1}.": "Deliver from your stock and get {0} coins. Trip: {1}.",
 };
 
 export default catalog;

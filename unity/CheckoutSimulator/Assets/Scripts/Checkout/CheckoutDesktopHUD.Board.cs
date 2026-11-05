@@ -344,12 +344,12 @@ namespace Checkout {
    foreach(var x in tiles){if(x.chips!=null)chipRows=Mathf.Max(chipRows,Mathf.Min(ChipRows,x.chips.Length));if(x.fill>=0&&x.frame!="line")barred=true;if(x.frame=="showcase")showcase=true;}
    boardChipRows=chipRows;
    // (a narrow window keeps cards wide enough for two buttons: fewer columns)
-   if(!rows){float least=picker?96:chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+TileGap)/(least+TileGap))));}
+   if(!rows){float pgap=picker?14:TileGap;float least=picker?96:chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+pgap)/(least+pgap))));}
    boardFaces=faces&&chipRows==0;
-   float cellH=picker?142:chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+74:showcase?316:faces?214:276;
+   float cellH=picker?128:chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+74:showcase?316:faces?214:276;
    // (ranking rows with a bar under the name, Amigos: a little taller)
    if(rank){bool anyBar=false;foreach(var x in tiles)if(x.fill>=0&&x.look!="invite")anyBar=true;RankCellH=RankRowH+(anyBar?16:0);}
-   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,116):new Vector2(Mathf.Floor((width-(columns-1)*TileGap)/columns),cellH);
+   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,116):new Vector2(Mathf.Floor((width-(columns-1)*(picker?14:TileGap))/columns),cellH);
    var slimCell=new Vector2(Mathf.Floor((width-TileGap)/2),64);boardCellWidth=rows?0:cell.x;
    // Sections: a title each time the group changes.
    int section=-1;string group=null;
@@ -361,7 +361,7 @@ namespace Checkout {
      if(boardSections.Count<=section)boardSections.Add(BoardSection.Create(boardContent));
      // (the Correio's history: slim rows, two per line)
      bool slim=!rows&&t.frame=="line";
-     var s=boardSections[section];s.gameObject.SetActive(true);s.transform.SetSiblingIndex(section);s.Apply(g,slim?slimCell:cell,rows,slim?2:columns);}
+     var s=boardSections[section];s.gameObject.SetActive(true);s.transform.SetSiblingIndex(section);s.Apply(g,slim?slimCell:cell,rows,slim?2:columns,picker?14:TileGap);}
     Component ui=road?(Component)boardLanes[i]:boardTiles[i];ui.gameObject.SetActive(true);
     if(ui.transform.parent!=boardSections[section].grid)ui.transform.SetParent(boardSections[section].grid,false);
     ui.transform.SetAsLastSibling();
@@ -613,9 +613,9 @@ namespace Checkout {
     s.layout.startCorner=GridLayoutGroup.Corner.UpperLeft;s.layout.childAlignment=TextAnchor.UpperLeft;s.layout.constraint=GridLayoutGroup.Constraint.FixedColumnCount;
     return s;
    }
-   public void Apply(string group,Vector2 cell,bool rows,int columns){
+   public void Apply(string group,Vector2 cell,bool rows,int columns,float gap){
     header.SetActive(!string.IsNullOrEmpty(group));title.text=K.Clean(group);
-    layout.cellSize=cell;layout.spacing=new Vector2(TileGap,rows?14:TileGap);layout.constraintCount=rows?1:columns;
+    layout.cellSize=cell;layout.spacing=new Vector2(gap,rows?14:gap);layout.constraintCount=rows?1:columns;
    }
   }
  }

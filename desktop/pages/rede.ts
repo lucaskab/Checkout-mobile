@@ -156,9 +156,8 @@ function brandPage(state: State, pickedArg?: string): ReturnType<typeof page> {
 		hero: !first,
 		lines: [
 			first
-				? "O nome e o logo vão para a fachada do mercado, os produtos da marca própria e as filiais."
+				? "O nome e o logo vão para a fachada, os produtos da marca própria e as filiais, nas cores do mercado."
 				: `Trocar só o logo é grátis. Um nome novo custa ${CHAIN_RENAME_DIAMONDS} diamantes.`,
-			"As cores do logo são as cores do mercado (Loja → Cores do mercado).",
 		],
 		input: { id: "rede-nome", placeholder: "Nome da rede", value: brand.name, max: CHAIN_NAME_MAX, kind: "name" },
 		buttons: [
@@ -246,7 +245,7 @@ function fleetPage(state: State) {
 				icon: redeIcon(kind === "seco" ? "ui-frota" : "ui-refrigerado"),
 				tone: state.coins >= price ? "gold" : "",
 				badge: fmt(price),
-				subtitle: "Mais um caminhão com a sua marca",
+				subtitle: "Mais um na sua frota",
 				action: act(fmt(price), "buyFleetTruck", [kind], { variant: "coin", icon: gameIcon("coin"), enabled: state.coins >= price, ok: "Caminhão novo no pátio!", fail: "Moedas insuficientes" }),
 			}),
 		);
@@ -322,7 +321,7 @@ function contractTile(state: State, offer: ChainContract, now: number): BoardTil
 		state: taken ? "busy" : "",
 		detail: taken
 			? "O cliente paga quando o caminhão chegar."
-			: `Entregue do seu estoque e receba ${fmt(offer.reward)} moedas (o cliente paga mais que o preço da prateleira). Viagem: ${minutes(Math.round(offer.tripMs * getTripFactor(state.chain)))}.`,
+			: `Entregue do seu estoque e receba ${fmt(offer.reward)} moedas. Viagem: ${minutes(Math.round(offer.tripMs * getTripFactor(state.chain)))}.`,
 		lines: short.map((line) => `Falta no estoque: ${fmt(line.missing)}× ${productName(line.productId)}`),
 		action: taken
 			? button("A caminho", { variant: "secondary", enabled: false })

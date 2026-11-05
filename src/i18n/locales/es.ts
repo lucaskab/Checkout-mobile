@@ -4498,6 +4498,9 @@ const catalog: Catalog = {
 	"{0} de {1} caminhões no pátio": "{0} de {1} camiones en el patio",
 	"Leva de tudo, inclusive carnes, peixes, laticínios, congelados e sorvetes. Pelo centro de distribuição as caixas saem 10% mais baratas e chegam na metade do tempo.": "Lleva de todo, incluso carnes, pescados, lácteos, congelados y helados. Por el centro de distribución las cajas salen un 10% más baratas y llegan en la mitad del tiempo.",
 	"Leva tudo o que não precisa de frio. Os produtos gelados vão no refrigerado. Pelo centro de distribuição as caixas saem 10% mais baratas e chegam na metade do tempo.": "Lleva todo lo que no necesita frío. Los productos fríos van en el refrigerado. Por el centro de distribución las cajas salen un 10% más baratas y llegan en la mitad del tiempo.",
+	"O nome e o logo vão para a fachada, os produtos da marca própria e as filiais, nas cores do mercado.": "El nombre y el logo van a la fachada, los productos de marca propia y las sucursales, con los colores del mercado.",
+	"Mais um na sua frota": "Uno más para tu flota",
+	"Entregue do seu estoque e receba {0} moedas. Viagem: {1}.": "Entrega de tu inventario y recibe {0} monedas. Viaje: {1}.",
 };
 
 export default catalog;
