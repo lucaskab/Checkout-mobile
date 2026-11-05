@@ -1,6 +1,6 @@
 using System;
 namespace Checkout {
- [Serializable] public class Snapshot { public MarketLayout layout; public string kind,session;public int protocol,revision,level,served,experience,experienceToNextLevel,claimableMissions;public double sentAt,coins,diamonds,dailyRevenue,dailyGoal;public bool isOpen,dailyClaimable;public float satisfaction;public Shelf[] shelves;public Sector[] sectors;public Employee[] employees;public Order[] orders;public Job[] jobs;public Customer[] customers;public string[] expansions,ownedItems,boosts;public float[] boostSeconds;public BuildEntry[] builds;public Expansion[] expansionStates;public Construction construction;public InteriorState interior;public DecorEntry[] decorCatalog;public DecorPlay[] decorPlays;public MarketEvent @event;public DayState day;public CheckoutEntry[] checkouts;public IncidentEntry[] incidents;public DockEntry[] dock;public StockroomEntry[] stockroom;public RestockSlot[] restockSlots;public CheckoutResult[] checkoutResults;public StaffTask[] staffTasks;public EraState era; public SupplierProduct[] supplierCatalog; public SupplierInfo supplierInfo; public DeliveryState delivery; public PaintState paint; public FixtureTiers fixtureTiers; public Evolution[] evolutions; public RevealEntry[] reveals; }
+ [Serializable] public class Snapshot { public MarketLayout layout; public string kind,session;public int protocol,revision,level,served,experience,experienceToNextLevel,claimableMissions;public double sentAt,coins,diamonds,dailyRevenue,dailyGoal;public bool isOpen,dailyClaimable;public float satisfaction;public Shelf[] shelves;public Sector[] sectors;public Employee[] employees;public Order[] orders;public Job[] jobs;public Customer[] customers;public string[] expansions,ownedItems,boosts;public float[] boostSeconds;public BuildEntry[] builds;public Expansion[] expansionStates;public Construction construction;public InteriorState interior;public DecorEntry[] decorCatalog;public DecorPlay[] decorPlays;public MarketEvent @event;public DayState day;public CheckoutEntry[] checkouts;public IncidentEntry[] incidents;public DockEntry[] dock;public StockroomEntry[] stockroom;public RestockSlot[] restockSlots;public CheckoutResult[] checkoutResults;public StaffTask[] staffTasks;public EraState era; public SupplierProduct[] supplierCatalog; public SupplierInfo supplierInfo; public DeliveryState delivery; public PaintState paint; public ChainState chain; public FixtureTiers fixtureTiers; public Evolution[] evolutions; public RevealEntry[] reveals; }
  [Serializable] public class Shelf { public string id,name,productName,category,tierTemplate;public int productId,stock,reserve,capacity,requiredLevel,tier;public double price,expiresAt;public bool unlocked,building,premium; }
  // "Evoluções dos móveis" (src/services/simulator-snapshot.ts fixtureTiers): the checkouts' step and the cold room.
  [Serializable] public class FixtureTiers { public int checkout,coldRoom;public string checkoutTemplate,coldRoomTemplate,coldRoomBuilding;public bool scanner;public double coldRoomEndsAt; }
@@ -16,7 +16,7 @@ namespace Checkout {
  // Paid expansion still being built (it takes real time; diamonds finish it early). Empty id = no works.
  [Serializable] public class Construction {public string expansionId;public double startedAt,endsAt;public int skipCost;public MarketLayout targetLayout;}
  [Serializable] public class Employee {public string id,name,role;public bool isWorking;public int level;public float efficiency;}
- [Serializable] public class Order {public string id,status,productCategory;public int productId,quantity,boxes;public double createdAt,deliveryDurationMs;public OrderLine[] lines;}
+ [Serializable] public class Order {public string id,status,productCategory,fleetTruckId;public int productId,quantity,boxes;public double createdAt,deliveryDurationMs;public OrderLine[] lines;}
  [Serializable] public class OrderLine {public int productId,boxes;public string productName;}
  [Serializable] public class Job {public string id,sectorId;public double startedAt,endsAt;}
  // origin: the event that brought the customer ("quinto-dia-util"…): their walk starts in the event's scene (the ATM
@@ -55,6 +55,10 @@ namespace Checkout {
  // Delivery app (src/services/delivery.ts). Times are epoch ms; 0 = not set.
  // "Cores do mercado" (src/data/market-paint.ts): the player's two colours, the curated palettes, the last ones applied
  // and the prices at the current expansion (CheckoutMarketPaint paints the market, CheckoutMarketPaintPanel picks).
+ // Rede de supermercados (src/services/chain.ts createChainSnapshot): the chain's brand and where each fleet truck is.
+ [Serializable] public class ChainState {public bool unlocked,named;public string brand,emblem;public FleetTruckState[] trucks;public BranchState[] branches;}
+ [Serializable] public class FleetTruckState {public string id,kind,job,phase;public double departAt,arriveAt,returnAt;}
+ [Serializable] public class BranchState {public string id;public int level;public bool building;}
  [Serializable] public class PaintState {public string primary,accent,palette;public int coinPrice,diamondPrice;public PaintPalette[] palettes,recent;}
  [Serializable] public class PaintPalette {public string id,name,primary,accent;}
  [Serializable] public class DeliveryState {public bool unlocked;public string unlockEraName;public int slots,active,streak,bestStreak,delivered;public float rating;public DeliveryOrder[] orders;}

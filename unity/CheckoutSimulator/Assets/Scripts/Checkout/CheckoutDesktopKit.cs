@@ -120,6 +120,8 @@ namespace Checkout {
    if(path.StartsWith("avatar:",System.StringComparison.Ordinal))return CheckoutSocial.Avatar(path.Substring(7));
    // Rankings v1: "shape:star" = a shape drawn in code (CheckoutRankArt), white, painted by the Image's colour.
    if(path.StartsWith("shape:",System.StringComparison.Ordinal))return CheckoutRankArt.Shape(path.Substring(6));
+   // Rede: the emblems, the chain's own products and the branch stores in the market's colours with the player's logo.
+   if(CheckoutBrand.Handles(path))return CheckoutBrand.Icon(path);
    if(icons.TryGetValue(path,out var cached))return cached;
    // Misses are retried after a moment: a texture that was still importing loads next time.
    if(misses.TryGetValue(path,out var missedAt)&&Time.realtimeSinceStartup-missedAt<2)return null;

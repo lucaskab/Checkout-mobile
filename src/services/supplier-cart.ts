@@ -138,7 +138,12 @@ export function getSupplierCartQuote(
 	input: PlaceSupplierCartInput,
 	now = Date.now(),
 ): SupplierCartQuote {
-	const fleet = input?.via === "frota";
+	// The chain's own products only travel on its fleet: a cart of only those goes by the distribution centre.
+	const onlyOwn =
+		Array.isArray(input?.lines) &&
+		input.lines.length > 0 &&
+		input.lines.every((line) => itemCatalog.find((item) => item.id === line?.productId)?.privateLabel === true);
+	const fleet = input?.via === "frota" || onlyOwn;
 	const maxBoxes = fleet ? DC_MAX_BOXES : getMaxBoxesPerOrder(state.logistics.supplierOrderSlots);
 	const empty = { lines: [], boxes: 0, units: 0, subtotal: 0, total: 0, couponUsed: false, deliveryDurationMs: 0, maxBoxes };
 	const fail = (reason: string): SupplierCartQuote => ({ ...empty, reason });

@@ -63,7 +63,7 @@ test("naming: free the first time, emblem changes free, a new name costs diamond
 	expect(game().logistics.premiumCurrency).toBe(100 - data.CHAIN_RENAME_DIAMONDS);
 	expect(game().chain.brand.renames).toBe(1);
 	const snap = createSimulatorSnapshot(game(), "t", 1).chain;
-	expect(snap).toMatchObject({ unlocked: true, named: true, name: "Mega Bom", emblem: "sol" });
+	expect(snap).toMatchObject({ unlocked: true, named: true, brand: "Mega Bom", emblem: "sol" });
 });
 
 test("the chain's own products open with the rede, cost less, earn more and come only from the centre", () => {
@@ -76,8 +76,13 @@ test("the chain's own products open with the rede, cost less, earn more and come
 		expect(item.purchasePrice).toBeLessThan(base.purchasePrice);
 		expect(item.sellingPrice - item.purchasePrice).toBeGreaterThanOrEqual(base.sellingPrice - base.purchasePrice);
 	}
-	const supplier = getSupplierCartQuote(game(), { lines: [{ productId: 172, boxes: 1 }] });
-	expect(supplier.reason).toContain("centro de distribuição");
+	// a cart of own products goes by the fleet by itself (the usual order pages work for them)
+	const own = getSupplierCartQuote(game(), { lines: [{ productId: 172, boxes: 1 }] });
+	expect(own.reason).toBeNull();
+	expect(own.fleetTruckId).toBeTruthy();
+	// mixed with a supplier's product it cannot go
+	const mixed = getSupplierCartQuote(game(), { lines: [{ productId: 172, boxes: 1 }, { productId: 51, boxes: 1 }] });
+	expect(mixed.reason).toContain("centro de distribuição");
 	const fleet = getSupplierCartQuote(game(), { lines: [{ productId: 172, boxes: 1 }], via: "frota" });
 	expect(fleet.reason).toBeNull();
 	// a save that reached the rede before this version gets them on the next tick

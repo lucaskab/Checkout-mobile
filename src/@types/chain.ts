@@ -119,7 +119,8 @@ export type ChainState = {
 export type ChainSnapshot = {
 	unlocked: boolean;
 	named: boolean;
-	name: string;
+	/** The chain's name (not translated). */
+	brand: string;
 	emblem: ChainEmblemId;
 	trucks: { id: string; kind: FleetTruckKind; job: FleetJobKind | null; phase: "patio" | "indo" | "voltando"; departAt: number; arriveAt: number; returnAt: number }[];
 	branches: { id: ChainBranchId; level: number; building: boolean }[];

@@ -158,6 +158,9 @@ namespace Checkout {
    // The cold room by the depot / central warehouse (after the stall: it leans on the shop that stands now).
    if(Furnished)CheckoutColdRoom.Apply(next,world,layout);
    Paint.Apply(next.paint);
+   // Rede: the chain's brand (name, logo in the market's colours) on the facade, signs and fleet.
+   CheckoutBrand.Apply(next.chain,next.paint);
+   CheckoutBrandWorld.Ensure(world);
   }
   // Stock clerks and cleaners work in front of the shelves wherever those stand.
   // Build mode moved furniture: staff follow at once; `navigation` also rebuilds the walkable floor.

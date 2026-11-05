@@ -420,7 +420,8 @@ export function createChainSnapshot(chain: ChainState, eraId: MarketEraId | unde
 	return {
 		unlocked,
 		named: chain.brand.namedAt !== null,
-		name: chain.brand.name,
+		// ("brand", not "name": snapshot names are translated, the chain's name is the player's own text)
+		brand: chain.brand.name,
 		emblem: chain.brand.emblem,
 		trucks: unlocked
 			? chain.fleet.trucks.map((truck) => {

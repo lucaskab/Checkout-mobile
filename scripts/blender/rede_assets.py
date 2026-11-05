@@ -292,8 +292,10 @@ def box(acc, root, reefer=False):
         rframe(acc, pw + .1, ph + .1, .02, .05, (x + s * .004, cy + .05, cz + .12), C(GOLD), .16, rot=(0, 0, 90))
         side = "R" if s > 0 else "L"
         # read from outside: the plate's "right" runs towards the cab on the right side, towards the back on the left
-        anchor(f"Brand_Logo_{side}", (x + s * .01, cy + .05 + s * (-pw / 2 + .62) * -1, cz + .12), (0, 0, s * 90), .35, root)
-        anchor(f"Brand_Name_{side}", (x + s * .01, cy + .05 + s * .55 * -1, cz + .12), (0, 0, s * 90), .35, root)
+        # logo at the reader's left end of the plate, the name to its right (the reader's right is +Y on the right
+        # side of the truck and -Y on the left side)
+        anchor(f"Brand_Logo_{side}", (x + s * .01, cy + .05 + s * (-pw / 2 + .62), cz + .12), (0, 0, s * 90), .35, root)
+        anchor(f"Brand_Name_{side}", (x + s * .01, cy + .05 + s * .42, cz + .12), (0, 0, s * 90), .35, root)
         # side marker lights along the bottom rail
         for k in range(4):
             rpanel(acc, .07, .04, .02, (s * (BOX_W / 2 + .03), BOX_Y0 + .5 + k * (L - 1) / 3, BOX_Z0 + .06), AMBER_L, .015, rot=(0, 0, 90))
@@ -758,3 +760,130 @@ def build_dc():
     f = fuel_island("RedeFuelIsland", (2.5, 0, 0))
     g = gatehouse("RedeGatehouse", (7, 0, 0))
     return w, f, g
+
+
+# --------------------------------------------------------------------------------------------- preview of the brand
+LOGO_SIZE = {"Door": .26, "Back": .44, "Bag": .16}
+
+
+def _logo_material(path):
+    m = bpy.data.materials.get("PREVIEW_Logo") or bpy.data.materials.new("PREVIEW_Logo")
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get("Principled BSDF")
+    t = next((n for n in nt.nodes if n.type == "TEX_IMAGE"), None) or nt.nodes.new("ShaderNodeTexImage")
+    t.image = bpy.data.images.load(path, check_existing=True)
+    nt.links.new(t.outputs["Color"], b.inputs["Base Color"])
+    nt.links.new(t.outputs["Alpha"], b.inputs["Alpha"])
+    b.inputs["Roughness"].default_value = .45
+    try:
+        m.surface_render_method = "DITHERED"
+    except Exception:
+        m.blend_method = "HASHED"
+    return m
+
+
+def _text_material(hexcol, name):
+    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    m.use_nodes = True
+    m.node_tree.nodes.get("Principled BSDF").inputs["Base Color"].default_value = srgb(hexcol) + (1,)
+    return m
+
+
+def brand_preview(logo_png, name="Bom Preço"):
+    """Preview only (never exported): puts a logo picture and the chain's name on every Brand_* empty, the way the
+    game will draw them, so Lucas sees the finished look."""
+    for o in [o for o in bpy.data.objects if o.name.startswith("PREVIEW_")]:
+        bpy.data.objects.remove(o, do_unlink=True)
+    lm = _logo_material(logo_png)
+    font = bpy.data.fonts.get("Fredoka_700Bold") or bpy.data.fonts.load(rk_core.FONT)
+    navy_t = _text_material(NAVY, "PREVIEW_TextNavy")
+    gold_t = _text_material("F0C75A", "PREVIEW_TextGold")
+    made = 0
+    for e in [o for o in bpy.context.scene.objects if o.type == "EMPTY" and o.name.startswith("Brand_")]:
+        root = e.parent
+        rname = root.name if root else ""
+        if e.name.startswith("Brand_Logo"):
+            if "Door" in e.name:
+                size = LOGO_SIZE["Door"]
+            elif "Back" in e.name and "Truck" in rname:
+                size = LOGO_SIZE["Back"]
+            elif "Bag" in rname:
+                size = LOGO_SIZE["Bag"]
+            elif "Truck" in rname:
+                size = .95
+            elif "Totem" in rname:
+                size = 1.45
+            elif "Medallion" in rname:
+                size = 1.25
+            elif "WaterTower" in rname:
+                size = .8
+            elif "Gatehouse" in rname:
+                size = .26
+            elif "Fuel" in rname:
+                size = .28
+            else:
+                size = .5
+            bpy.ops.mesh.primitive_plane_add(size=size)
+            p = bpy.context.active_object
+            p.name = "PREVIEW_" + e.name
+            p.data.materials.append(lm)
+            # plane lies in XY facing +Z: stand it up facing -Y
+            p.data.transform(Matrix.Rotation(math.radians(90), 4, "X"))
+            p.matrix_world = e.matrix_world @ Matrix.Translation((0, -.004, 0))
+            made += 1
+        else:
+            cu = bpy.data.curves.new("PREVIEW_txt", "FONT")
+            cu.body = name.upper() if "Truck" in rname or "Board" in rname else name
+            cu.font = font
+            cu.align_x = "CENTER"
+            cu.align_y = "CENTER"
+            cu.extrude = .004
+            big = "Board" in rname
+            cu.size = .62 if big else .36 if "Truck" in rname else .26
+            ob = bpy.data.objects.new("PREVIEW_" + e.name, cu)
+            bpy.context.scene.collection.objects.link(ob)
+            ob.data.materials.append(gold_t if big else navy_t)
+            ob.matrix_world = e.matrix_world @ Matrix.Translation((0, -.006, 0)) @ Matrix.Rotation(math.radians(90), 4, "X")
+            made += 1
+    return made
+
+
+def build_showcase(logo_png, name="Bom Preço"):
+    """Every asset of round 1 in one scene with a sample brand on it (preview images for Lucas)."""
+    rk_core.clear("Rede Showcase")
+    rk_core.studio((1800, 1100), bg=(.86, .84, .8))
+    preview_setup()
+    fl = bpy.data.objects.get("RK_Floor")
+    if fl:
+        fl.data.materials[0].node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (.55, .55, .56, 1)
+    truck("FleetTruck_Dry", (-3.2, 0, 0))
+    truck("FleetTruck_Reefer", (0.3, 0, 0), reefer=True)
+    totem("RedeTotem", (4.4, -1.5, 0))
+    gatehouse("RedeGatehouse", (8.2, 1.2, 0))
+    fuel_island("RedeFuelIsland", (-8.0, 1.0, 0))
+    # a navy wall with the name board and the medallion, the water tower on its roof
+    acc = Acc("Mock_Wall")
+    rbox(acc, (16, .4, 4.4), (0, 9.0, 2.2), C(NAVY), .05, 2)
+    rbox(acc, (16.1, .45, .12), (0, 9.0, 4.45), C(GOLD), .03, 2)
+    rbox(acc, (16, 8, .3), (0, 13, 4.5), C("B8BEC4"), .05, 2)
+    for o in acc.realize():
+        o.name = "Mock_Wall"
+    name_board("RedeNameBoard", (1.4, 8.68, 2.6), L=7.0)
+    wall_medallion("RedeMedallion", (-4.2, 8.55, 2.6))
+    water_tower("RedeWaterTower", (4.5, 12.5, 4.65))
+    shopping_bag("RedeBag", (2.6, -2.6, 0))
+    m = mannequin((2.2, -2.7, 0)) if "mannequin" in globals() else None
+    brand_preview(logo_png, name)
+    return m
+
+
+def shoot_showcase(prefix="rede_r1"):
+    shots = []
+    shots.append(rk_core.shoot(prefix + "_overview", (0, 3.5, 1.5), (-.55, -1, .75), 26, 32, (1800, 1100)))
+    shots.append(rk_core.shoot(prefix + "_trucks", (-1.4, 0, 1.4), (-.9, -1, .45), 11.5, 36, (1800, 1100)))
+    shots.append(rk_core.shoot(prefix + "_trucks_back", (-1.4, 0, 1.4), (.85, 1, .4), 11.5, 36, (1800, 1100)))
+    shots.append(rk_core.shoot(prefix + "_totem_bag", (3.6, -2.0, 2.6), (-.25, -1, .25), 9.5, 36, (1400, 1100)))
+    shots.append(rk_core.shoot(prefix + "_dc", (3.0, 6.0, 2.5), (.55, -1, .5), 16, 34, (1800, 1100)))
+    shots.append(rk_core.shoot(prefix + "_gamecam", (0, 3, 1), (-.62, -.62, .95), 34, 30, (1800, 1100)))
+    return shots
