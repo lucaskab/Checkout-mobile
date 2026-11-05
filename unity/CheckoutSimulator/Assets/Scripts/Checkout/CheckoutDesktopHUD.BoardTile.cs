@@ -173,6 +173,20 @@ namespace Checkout {
       Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,below),new Vector2(-24,14));
       Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,below),new Vector2(120,14));
       break;}
+     case "pick":
+      // a face picker's tile: the face in its ring and the name; a tap picks it (no button)
+      Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-10),new Vector2(74,74));
+      Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-6),new Vector2(82,82));
+      Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(32,-70),new Vector2(30,30));
+      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-84),new Vector2(80,22));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-88),new Vector2(-10,24));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-112),new Vector2(-10,16));
+      Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-112),new Vector2(100,12));
+      Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-112),new Vector2(-20,12));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-112),new Vector2(-10,ChipH));
+      // (the "ESCOLHIDO" ribbon on the foot of the card, under the name)
+      Place(ribbonRect,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,1),new Vector2(100,22));ribbonRect.localRotation=Quaternion.identity;
+      title.fontSizeMax=15;break;
      case "face":
       // a face on a short card (the profile's faces, a friend request): ring, name, a line, the buttons
       Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-8),new Vector2(90,90));
@@ -227,7 +241,7 @@ namespace Checkout {
    public void Apply(DesktopTile t,bool asRows,bool isSelected){
     bool changed=data==null||data.id!=t.id;data=t;Id=t.id;rows=asRows;frame=t.frame??"";
     int chipRows=hud.boardChipRows;
-    string mode=asRows&&frame=="rank"?"rank":asRows?"row":frame=="line"?"line":frame=="showcase"?"showcase":frame=="gift"?"gift":chipRows>0?"compact":frame=="portrait"&&hud.boardFaces?"face":"card";
+    string mode=asRows&&frame=="rank"?"rank":asRows?"row":hud.boardPicker?"pick":frame=="line"?"line":frame=="showcase"?"showcase":frame=="gift"?"gift":chipRows>0?"compact":frame=="portrait"&&hud.boardFaces?"face":"card";
     Layout(mode,chipRows);if(changed)wobblePhase=(t.id??"").GetHashCode()%100*.07f;
     bool locked=t.state=="locked",done=t.state=="done";
     face.color=ToneFace(t.tone);circleImage.color=locked?K.C("D8CDBB"):Color.Lerp(Color.white,ToneFace(t.tone),.6f);
@@ -259,6 +273,8 @@ namespace Checkout {
     for(int i=0;i<chips.Count;i++){bool on=i<cs.Length;chips[i].rect.gameObject.SetActive(on);if(on)chips[i].Apply(cs[i]);}
     chipsBox.gameObject.SetActive(cs.Length>0);
     bool line=mode=="line";
+    // (a face picker's tile: no button, no line under the name; a tap on the card picks)
+    if(mode=="pick"){button.gameObject.SetActive(false);alt.gameObject.SetActive(false);subtitle.gameObject.SetActive(false);}
     // A slim row: the face, who and what; no buttons, bars or ribbons.
     if(line){barRect.gameObject.SetActive(false);pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);ribbon.gameObject.SetActive(false);badge.gameObject.SetActive(false);button.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);hasButton=false;}
     if(t.frame=="portrait"&&hasRibbon)ribbon.color=PortraitGold;
@@ -414,7 +430,7 @@ namespace Checkout {
     else if(icon.rectTransform.localRotation!=Quaternion.identity)icon.rectTransform.localRotation=Quaternion.identity;
    }
 
-   public void OnPointerClick(PointerEventData e){if(e.button!=PointerEventData.InputButton.Left||data==null)return;hud.BoardSelect(data.id);StartCoroutine(U.Pop(transform,1.05f,.18f));}
+   public void OnPointerClick(PointerEventData e){if(e.button!=PointerEventData.InputButton.Left||data==null)return;hud.BoardSelect(data.id);StartCoroutine(U.Pop(transform,1.05f,.18f));if(hud.boardPicker)hud.PressTileAction(rect,data.action);}
   }
 
   // The side panel: the picked tile up close with every action.

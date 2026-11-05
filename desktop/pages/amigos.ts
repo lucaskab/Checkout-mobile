@@ -220,8 +220,11 @@ function profilePage(state: State, required: boolean): Page {
 			...(photo ? [photoButton] : []),
 		],
 	});
+	// The faces as a picker (board style "faces", Unity: small tiles, a tap picks, no side panel): the twelve stand in one
+	// row under the name card, all above the fold on a phone (TestFlight 1.0 (11): three rows, most of them under it).
 	return boardPage(state, "amigos:perfil", required ? "Seu perfil" : "Perfil", required ? null : "amigos", [hero], tiles, {
-		columns: 6,
+		columns: 12,
+		style: "faces",
 		focus: chosen,
 		empty: "",
 		stats: [stat(socialIcon("like"), fmt(me.likes), "curtidas"), stat(socialIcon("friends"), fmt(socialStore.friends.length), "amigos")],

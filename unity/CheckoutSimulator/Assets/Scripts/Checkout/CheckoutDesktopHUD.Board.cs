@@ -35,6 +35,8 @@ namespace Checkout {
   readonly List<Image> boardSegBacks=new List<Image>(),boardSegFills=new List<Image>();
   /// <summary>Chip rows of this board's tiles (0 = none): every card of the board is cut to the same height.</summary>
   int boardChipRows;float boardScrollBottom,boardCellWidth;bool boardFaces;
+  /// <summary>A face picker (board style "faces", the profile's twelve faces): small tiles, a tap picks, no side panel.</summary>
+  bool boardPicker;
   /// <summary>A narrow window (an iPad's 4:3): a slimmer side panel and the header tabs as icons.</summary>
   bool BoardNarrow=>boardWin&&((RectTransform)boardWin.transform).rect.width>100&&((RectTransform)boardWin.transform).rect.width<1100;
   float BoardDetailWidth=>BoardNarrow?290:BoardDetailW;
@@ -165,8 +167,10 @@ namespace Checkout {
    if(hasMeter)ApplyBoardMeter(b.meter,fresh);
    // Delivery lanes take the whole width: no side panel.
    bool road=b.style=="road";
+   // (the face picker has nothing for a side panel: the faces take the whole width)
+   bool picker=b.style=="faces"&&!QaLegacySnap;
    float detailW=BoardDetailWidth;
-   boardGridArea.offsetMax=new Vector2(road?-16:-detailW-12,0);
+   boardGridArea.offsetMax=new Vector2(road||picker?-16:-detailW-12,0);
    var dr=(RectTransform)boardDetailPanel.transform;dr.offsetMin=new Vector2(-detailW,14);
    ApplyBoardTiles(b);
    ApplyBoardHeroes(p.cards??new DesktopCard[0]);
@@ -271,6 +275,7 @@ namespace Checkout {
 
   void ApplyBoardTiles(DesktopBoard b){
    var tiles=b.tiles;bool road=b.style=="road";bool rank=b.style=="rank";bool rows=b.style=="row"||road||rank;
+   bool picker=b.style=="faces"&&!QaLegacySnap;boardPicker=picker;
    // (faces without chips, the profile's twelve, a friend request alone: a short card)
    bool faces=tiles.Length>0;foreach(var x in tiles)if(x.frame!="portrait"&&x.frame!="line"){faces=false;break;}
    bool bareFaces=faces;foreach(var x in tiles)if(x.chips!=null&&x.chips.Length>0)bareFaces=false;
@@ -284,9 +289,9 @@ namespace Checkout {
    foreach(var x in tiles){if(x.chips!=null)chipRows=Mathf.Max(chipRows,Mathf.Min(ChipRows,x.chips.Length));if(x.fill>=0&&x.frame!="line")barred=true;if(x.frame=="showcase")showcase=true;}
    boardChipRows=chipRows;
    // (a narrow window keeps cards wide enough for two buttons: fewer columns)
-   if(!rows){float least=chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+14)/(least+14))));}
+   if(!rows){float least=picker?96:chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+14)/(least+14))));}
    boardFaces=faces&&chipRows==0;
-   float cellH=chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
+   float cellH=picker?142:chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
    // (ranking rows with a bar under the name, Amigos: a little taller)
    if(rank){bool anyBar=false;foreach(var x in tiles)if(x.fill>=0&&x.look!="invite")anyBar=true;RankCellH=RankRowH+(anyBar?16:0);}
    var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
@@ -321,7 +326,7 @@ namespace Checkout {
    for(int i=road?0:tiles.Length;i<boardTiles.Count;i++)boardTiles[i].gameObject.SetActive(false);
    for(int i=road?tiles.Length:0;i<boardLanes.Count;i++)boardLanes[i].gameObject.SetActive(false);
    boardEmpty.gameObject.SetActive(tiles.Length==0);boardEmpty.text=K.Clean(b.empty);
-   if(road){boardDetailPanel.SetActive(false);return;}
+   if(road||picker){boardDetailPanel.SetActive(false);return;}
    // Nothing to pick (no friends yet): no empty side panel, the cards take the width.
    boardDetailPanel.SetActive(tiles.Length>0);
    if(tiles.Length==0){boardGridArea.offsetMax=new Vector2(-16,0);return;}
@@ -523,6 +528,12 @@ namespace Checkout {
     if(data.state=="ready"&&!string.IsNullOrEmpty(data.action.action))hud.PressMark(this,data.action);
     else if(!string.IsNullOrEmpty(data.label))hud.Toast(K.Clean(data.label),data.state!="locked");
    }
+  }
+  /// <summary>A face picker's tile was tapped: its own action (pick this face) runs, no button needed.</summary>
+  void PressTileAction(RectTransform tile,DesktopButton action){
+   if(action==null||string.IsNullOrEmpty(action.action)||!action.enabled)return;
+   boardPressed=tile;boardPressedVariant=action.variant;
+   pending[host.Action(action.action,action.args,action.after)]=action;
   }
   void PressMark(BoardMarkUi mark,DesktopButton action){
    boardPressed=(RectTransform)mark.transform;boardPressedVariant="success";Sound("tap");

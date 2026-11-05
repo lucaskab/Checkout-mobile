@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace Checkout {
  // The TestFlight 1.0 (11) fixes (Lucas 05/11), on the QA copy of the save against the host's fake server
@@ -68,12 +69,13 @@ namespace Checkout {
    if(!hud){Note("friends: no HUD");yield break;}
    // What the Amigos window shows, from its first card.
    string Phase(){
+    // (JsonUtility fills absent fields: an "empty" input has no id, "no buttons" is an empty list)
     var c=hud.QaPageCard;if(c==null)return CheckoutDesktopHUD.BoardOpen?"content":"none";
     if(c.input!=null&&c.input.id=="name")return "profile";
-    var actions=(c.buttons??new DesktopButton[0]).Select(b=>b.action).ToArray();
-    if(actions.Contains("cloudSignIn"))return "signed-out";
-    if(actions.Contains("socialRefresh"))return "error";
-    return (c.buttons==null||c.buttons.Length==0)&&c.input==null?"loading":"content";
+    var buttons=(c.buttons??new DesktopButton[0]).Where(b=>b!=null&&!string.IsNullOrEmpty(b.label)).ToArray();
+    if(buttons.Any(b=>b.action=="cloudSignIn"))return "signed-out";
+    if(buttons.Any(b=>b.action=="socialRefresh"))return "error";
+    return buttons.Length==0&&string.IsNullOrEmpty(c.input?.id)?"loading":"content";
    }
 
    Note("friends: "+CheckoutQaGameView.Set(2778,1284)+" handheld="+CheckoutScreen.Handheld+" qa="+CheckoutStartMenu.QaMode);
@@ -88,7 +90,7 @@ namespace Checkout {
    Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(3f);
    for(int i=0;i<3&&hud.CoachQa().isTip;i++){Act("dismissOnboardingTip","[]");yield return new WaitForSecondsRealtime(.5f);}
    // Signed out, with Apple and Google offered; the fake server answers 1.5 s late (a phone network).
-   Cloud("signed-out");Mock("signed-out");Mock("latency","1500");
+   Cloud("signed-out");Mock("signed-out");Mock("latency","2600");
    Route("");yield return new WaitForSecondsRealtime(2f);
 
    RecStart("Logs/ff_demo.mjpg");
@@ -114,7 +116,8 @@ namespace Checkout {
     yield return Frames(1.5f);
     yield return Still("3_first_time_setup");
     string fold=Fold();Note("friends: profile fold "+fold);
-    Result("the 12 faces sit above the fold on the phone",fold.StartsWith("whole 12,"),fold);
+    // (every face Unity can draw: CheckoutSocial.AvatarCount, 8 shopper portraits in this project today, at most 12)
+    Result("every face of the picker sits whole above the fold on the phone",fold.Contains("cut 0, below 0")&&!fold.StartsWith("whole 0"),fold+$", faces {CheckoutSocial.AvatarCount()}");
 
     // b. the face list scrolled (if it scrolls at all) with views arriving: no cut while scrolled
     var (cut0,_)=hud.QaBoardCut();Note($"friends: profile view cut at the top {cut0:0}");
@@ -124,18 +127,30 @@ namespace Checkout {
     yield return Frames(.5f);
     hud.QaBoardScroll(0);yield return Frames(.8f);
     Note($"friends: profile scroll frames {seen} scrolled, worst cut {worst:0}");
-    // Pick a face and save: the Amigos window proper.
-    Mark("pick a face, save the name");
-    Act("socialPickAvatar","[\"shopper-4\"]");yield return Frames(1f);
-    Act("socialSaveProfile","[\"Mercadinho do Lucas\",\"shopper-4\"]");yield return Frames(2.4f);
+    // Pick a face with a tap on its tile (a face picker: the tap picks), type the name, Salvar: the Amigos window proper.
+    Mark("tap a face, type the name, Salvar");
+    var faceTile=hud.GetComponentsInChildren<MonoBehaviour>(false).FirstOrDefault(m=>m.GetType().Name=="BoardTileUi"&&(m.GetType().GetField("Id")?.GetValue(m) as string)=="shopper-4");
+    if(faceTile)ExecuteEvents.Execute(faceTile.gameObject,new PointerEventData(EventSystem.current){button=PointerEventData.InputButton.Left},ExecuteEvents.pointerClickHandler);
+    else Act("socialPickAvatar","[\"shopper-4\"]");
+    yield return Frames(1.2f);
+    Note($"friends: face tile tapped {(bool)faceTile}");
+    var field=hud.GetComponentsInChildren<TMPro.TMP_InputField>(false).FirstOrDefault();
+    if(field){foreach(var ch in "Mercadinho do Lucas"){field.text+=ch;yield return Frames(.05f);}}
+    yield return Frames(.6f);
+    yield return Still("3b_face_picked_name_typed");
+    var save=hud.GetComponentsInChildren<CheckoutDesktopButton>(false).FirstOrDefault(b=>b.Data!=null&&b.Data.action=="socialSaveProfile");
+    if(save&&field)save.Clicked?.Invoke(save);else Act("socialSaveProfile","[\"Mercadinho do Lucas\",\"shopper-4\"]");
+    yield return Frames(2.4f);
     Result("profile saved, Amigos shows the friends",Phase()=="content",Phase());
 
     // c. windows over the world with no dark backdrop
     Mark("Loja");Route("!loja");yield return Frames(2.4f);yield return Still("4_loja");
-    // a long board scrolled with views arriving (the band could show on any board): no cut while scrolled
-    {float w2=0;int s2=0;for(int i=0;i<=50;i++){hud.QaBoardScroll(Mathf.Sin(i/50f*Mathf.PI)*.8f);yield return null;var (c,s)=hud.QaBoardCut();if(s>1){s2++;w2=Mathf.Max(w2,c);}}
+    // a long board (Missões) scrolled with views arriving (the band could show on any board): no cut while scrolled
+    Mark("Missões, scrolled");Route("!missions");yield return Frames(1.6f);
+    {var (c0,_)=hud.QaBoardCut();Note($"friends: missions view cut at the top {c0:0}");
+     float w2=0;int s2=0;for(int i=0;i<=75;i++){hud.QaBoardScroll(Mathf.Sin(i/75f*Mathf.PI)*.85f);yield return null;var (c,s)=hud.QaBoardCut();if(s>1){s2++;w2=Mathf.Max(w2,c);}if(i==37)yield return Still("4b_missions_scrolled");}
      hud.QaBoardScroll(0);yield return Frames(.6f);
-     worst=Mathf.Max(worst,w2);seen+=s2;Note($"friends: loja scroll frames {s2} scrolled, worst cut {w2:0}");}
+     worst=Mathf.Max(worst,w2);seen+=s2;Note($"friends: missions scroll frames {s2} scrolled, worst cut {w2:0}");}
     Result("no band while a board is scrolled (the tile view keeps its full height)",seen>0&&worst<.5f,$"{seen} scrolled frames, worst cut {worst:0}");
     Mark("Amigos");Route("!amigos");yield return Frames(2.4f);yield return Still("5_amigos");
     Mark("Ranking");Route("!ranking");yield return Frames(2.6f);yield return Still("6_ranking");
@@ -189,6 +204,7 @@ namespace Checkout {
    Note("spot: "+CheckoutQaGameView.Set(2778,1284)+" fresh="+CheckoutStartMenu.QaFresh);
    if(!CheckoutStartMenu.QaFresh||!hud){Note("spot: not on a fresh QA save, stopping");yield break;}
    void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
+   void Result(string name,bool ok,string detail="")=>Note($"RESULT spot {name}: {(ok?"PASS":"FAIL")} {detail}");
    var langBefore=CheckoutI18n.Language;Lang("pt");
    var home=FindAnyObjectByType<MarketDay.MarketSimulation>();if(home)home.HomeCamera();
    // until the guide points at something (a hole in the dim)
