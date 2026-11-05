@@ -6,7 +6,6 @@ import {
 	chainBranches,
 	chainClients,
 	chainEmblems,
-	DC_MAX_BOXES,
 	FLEET_SPEED_FACTORS,
 	privateLabelProducts,
 } from "@/data/chain";
@@ -52,15 +51,6 @@ import {
 // branch stores on the city map. Four tabs of one window, like Produtos / Missões.
 
 const NAVY = "1D2B4F";
-/** Where each branch's lot is on the city map (Rede/mapa-cidade, 0..1, y from the top): the pin cards stand there. */
-const LOTS: Record<ChainBranchId, [number, number]> = {
-	universitario: [0.175, 0.25],
-	nobre: [0.79, 0.235],
-	centro: [0.535, 0.49],
-	vila: [0.21, 0.85],
-	praia: [0.74, 0.69],
-};
-const pin = (id: ChainBranchId) => `pin:${LOTS[id][0]},${LOTS[id][1]}`;
 const MIN = 60_000;
 type Tab = "marca" | "cd" | "contratos" | "filiais";
 const tabs: { id: Tab; label: string; icon: string }[] = [
@@ -73,6 +63,21 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
 /** Art of the Rede window (Resources/CheckoutDesktop/Rede/...). Emblems are tinted with the market's colours by Unity. */
 export const redeIcon = (name: string) => `Rede/${name}`;
 export const emblemIcon = (id: string) => `Rede/Emblems/${id}`;
+/** The logos' names, under each one on the Marca tab. */
+const emblemNames: Record<string, string> = {
+	cesta: "Cesta",
+	carrinho: "Carrinho",
+	folha: "Folha",
+	estrela: "Estrela",
+	coroa: "Coroa",
+	sol: "Sol",
+	coracao: "Coração",
+	sacola: "Sacola",
+	maca: "Maçã",
+	trigo: "Trigo",
+	toldo: "Toldo",
+	diamante: "Diamante",
+};
 const productName = (id: number) => itemCatalog.find((item) => item.id === id)?.name ?? `#${id}`;
 const minutes = (ms: number) => formatBuildDuration(Math.max(MIN, ms));
 const categoryLabel = (id: string) => (itemCategories.find((category) => category.id === id)?.label ?? id).toLocaleLowerCase("pt-BR");
@@ -151,7 +156,7 @@ function brandPage(state: State, pickedArg?: string): ReturnType<typeof page> {
 		hero: !first,
 		lines: [
 			first
-				? "O nome e o logo vão para a fachada, o totem, os caminhões, as sacolas, o centro de distribuição e o seu cartão de amigos."
+				? "O nome e o logo vão para a fachada do mercado, os produtos da marca própria e as filiais."
 				: `Trocar só o logo é grátis. Um nome novo custa ${CHAIN_RENAME_DIAMONDS} diamantes.`,
 			"As cores do logo são as cores do mercado (Loja → Cores do mercado).",
 		],
@@ -166,7 +171,7 @@ function brandPage(state: State, pickedArg?: string): ReturnType<typeof page> {
 		],
 	});
 	const emblems = chainEmblems.map((id) =>
-		tile(id, "", {
+		tile(id, emblemNames[id] ?? "", {
 			icon: emblemIcon(id),
 			state: id === picked ? "done" : "",
 			action: act(id === picked ? "Escolhido" : "Escolher", "chainPickEmblem", [id], { variant: id === picked ? "coin" : "secondary", ok: "" }),
@@ -188,13 +193,13 @@ function privateLabelTiles(state: State): BoardTile[] {
 		const item = itemCatalog.find((product) => product.id === id);
 		const base = itemCatalog.find((product) => product.id === baseId);
 		const stock = state.inventory[id] ?? 0;
-		return tile(`pl-${id}`, productName(id), {
+		return tile(`pl-${id}`, base?.name ?? productName(id), {
 			group: "MARCA PRÓPRIA",
 			icon: productIcon(id),
 			badge: stock > 0 ? fmt(stock) : "",
-			subtitle: item && base ? `Lucro ${fmt(item.sellingPrice - item.purchasePrice)} (normal ${fmt(base.sellingPrice - base.purchasePrice)})` : "",
+			subtitle: item && base ? `Lucro ${fmt(item.sellingPrice - item.purchasePrice)} · comum ${fmt(base.sellingPrice - base.purchasePrice)}` : "",
 			detail: "Produto da sua rede: vem do centro de distribuição, custa quase metade e dá mais lucro por unidade. Clientes econômicos e famílias adoram.",
-			action: act("Pedir 1 caixa no CD", "orderFromDistributionCenter", [[{ productId: id, boxes: 1 }]], {
+			action: act("Pedir 1 caixa", "orderFromDistributionCenter", [[{ productId: id, boxes: 1 }]], {
 				icon: redeIcon("ui-cd"),
 				variant: "primary",
 				ok: "O caminhão da rede saiu do centro de distribuição!",
@@ -212,7 +217,7 @@ function truckTile(state: State, truck: FleetTruck, index: number, now: number):
 	const cold = truck.kind === "refrigerado";
 	const going = job && now < job.arriveAt;
 	return tile(truck.id, `${cold ? "Refrigerado" : "Caminhão"} ${index + 1}`, {
-		group: "FROTA",
+		group: "SUA FROTA",
 		icon: redeIcon(cold ? "ui-refrigerado" : "ui-frota"),
 		tone: free ? "success" : "info",
 		sticker: free ? "NO PÁTIO" : going ? "NA ESTRADA" : "VOLTANDO",
@@ -221,9 +226,7 @@ function truckTile(state: State, truck: FleetTruck, index: number, now: number):
 		timerTotal: free || !job ? 0 : going ? job.arriveAt - job.departAt : job.returnAt - job.arriveAt,
 		state: free ? "" : "busy",
 		chips: [stat(gameIcon("deliveryTruck"), fmt(truck.trips), "viagens")],
-		detail: cold
-			? "Leva de tudo, inclusive carnes, peixes, laticínios, congelados e sorvetes."
-			: "Leva tudo o que não precisa de frio. Os produtos gelados vão no refrigerado.",
+		detail: `${cold ? "Leva de tudo, inclusive carnes, peixes, laticínios, congelados e sorvetes." : "Leva tudo o que não precisa de frio. Os produtos gelados vão no refrigerado."} Pelo centro de distribuição as caixas saem 10% mais baratas e chegam na metade do tempo.`,
 	});
 	void state;
 }
@@ -239,7 +242,7 @@ function fleetPage(state: State) {
 		if (price === null) continue;
 		tiles.push(
 			tile(`buy-${kind}`, kind === "seco" ? "Novo caminhão" : "Novo refrigerado", {
-				group: "COMPRAR",
+				group: "SUA FROTA",
 				icon: redeIcon(kind === "seco" ? "ui-frota" : "ui-refrigerado"),
 				tone: state.coins >= price ? "gold" : "",
 				badge: fmt(price),
@@ -252,7 +255,7 @@ function fleetPage(state: State) {
 	const level = chain.fleet.speedLevel;
 	tiles.push(
 		tile("speed", "Motor turbinado", {
-			group: "COMPRAR",
+			group: "SUA FROTA",
 			icon: gameIcon("deliveryTruck"),
 			stars: level,
 			maxStars: FLEET_SPEED_FACTORS.length - 1,
@@ -270,29 +273,25 @@ function fleetPage(state: State) {
 	);
 	tiles.push(...privateLabelTiles(state));
 	const auto = chain.autoOrder.enabled;
-	const restock = card("Centro de distribuição", {
-		icon: redeIcon("ui-cd"),
-		eyebrow: "ABASTECER O MERCADO",
-		lines: [`Pelo CD as caixas saem 10% mais baratas e chegam na metade do tempo. Até ${DC_MAX_BOXES} caixas por caminhão.`],
-		buttons: [
-			act("Pedir o que está acabando", "orderLowStock", ["frota"], {
-				icon: redeIcon("ui-pedido-automatico"),
-				variant: "primary",
-				enabled: free > 0,
-				ok: "O caminhão da rede saiu do CD!",
-				fail: free > 0 ? "Nada acabando ou sem espaço no estoque." : "Todos os caminhões estão na rua.",
-			}),
-			act(auto ? "Automático: ligado" : "Automático: desligado", "setChainAutoOrder", [!auto], {
-				icon: redeIcon("ui-pedido-automatico"),
-				variant: auto ? "success" : "secondary",
-				ok: auto ? "Pedido automático desligado" : "Pedido automático ligado",
-			}),
-		],
-	});
-	return redePage(state, "cd", "Centro de distribuição", [restock], tiles, {
+	// (the two orders sit on the yard's bar: the trucks show up on the first view instead of under a big card, Lucas 05/11)
+	const orders = [
+		act("Pedir o que está acabando", "orderLowStock", ["frota"], {
+			icon: redeIcon("ui-pedido-automatico"),
+			variant: "primary",
+			enabled: free > 0,
+			ok: "O caminhão da rede saiu do CD!",
+			fail: free > 0 ? "Nada acabando ou sem espaço no estoque." : "Todos os caminhões estão na rua.",
+		}),
+		act(auto ? "Automático: ligado" : "Automático: desligado", "setChainAutoOrder", [!auto], {
+			icon: redeIcon("ui-pedido-automatico"),
+			variant: auto ? "success" : "secondary",
+			ok: auto ? "Pedido automático desligado" : "Pedido automático ligado",
+		}),
+	];
+	return redePage(state, "cd", "Centro de distribuição", [], tiles, {
 		style: "card",
 		columns: 4,
-		meter: meter("Caminhões no pátio", free, trucks.length, { icon: redeIcon("ui-frota"), text: `${free} de ${trucks.length} livres`, tone: free > 0 ? "success" : "warning" }),
+		meter: meter("Centro de distribuição", free, trucks.length, { icon: redeIcon("ui-cd"), text: `${free} de ${trucks.length} caminhões no pátio`, tone: free > 0 ? "success" : "warning", buttons: orders }),
 		stats: [stat(redeIcon("ui-frota"), fmt(trucks.length), "caminhões"), stat(gameIcon("deliveryTruck"), `${chain.fleet.speedLevel}/${FLEET_SPEED_FACTORS.length - 1}`, "motor")],
 		tip:
 			free === 0
@@ -355,50 +354,61 @@ function contractsPage(state: State) {
 }
 
 // ------------------------------------------------------------------------------------------------ Filiais
-function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
-	return { ...branchTileBody(state, id, now), look: pin(id) };
-}
+// Board style "street" (Unity CheckoutDesktopHUD.Street.cs): the five branches side by side as big shop cards, each on a
+// panel in its neighbourhood's colour. Lucas 05/11: the pin cards on the city map were ugly and cramped.
+const SCENES: Record<ChainBranchId, string> = {
+	centro: "CFE0F2",
+	praia: "C4EDEA",
+	universitario: "D6EDC8",
+	vila: "F7DEC2",
+	nobre: "E6DAF3",
+};
 
-function branchTileBody(state: State, id: ChainBranchId, now: number): BoardTile {
+function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
 	const def = getBranchDefinition(id);
 	const b = updateBranch(state.chain.branches[id], now);
 	const next = getBranchNextStep(b);
-	const perHour = getBranchIncomePerMin(id, Math.max(1, b.level)) * 60;
 	const art = redeIcon(`filial-${id}`);
+	const look = `scene:${SCENES[id]}`;
+	const likes = [`Gosta de ${favoritesText(def.favorites)}`];
 	if (b.works) {
 		const cost = getSkipDiamondCost(b.works.endsAt - now);
 		return tile(id, def.name, {
 			icon: art,
-			frame: "showcase",
+			look,
 			tone: "warning",
-			sticker: b.level === 0 ? "EM OBRA" : `NÍVEL ${b.works.level}`,
+			sticker: b.level === 0 ? "EM OBRA" : `OBRA DO NÍVEL ${b.works.level}`,
 			timerEnd: b.works.endsAt,
 			timerTotal: b.level === 0 ? def.buildMs : (getBranchNextStep({ ...b, works: null })?.buildMs ?? def.buildMs),
 			state: "busy",
-			subtitle: "A obra está andando",
+			stars: b.level,
+			maxStars: b.level > 0 ? 3 : 0,
+			subtitle: b.level === 0 ? "A loja está sendo construída" : "A loja está crescendo",
+			lines: likes,
 			action: act(`Acelerar · ${cost}`, "finishChainBranchNow", [id], { variant: "gem", icon: gameIcon("diamond"), ok: `Filial ${def.name} pronta!`, fail: "Diamantes insuficientes" }),
 		});
 	}
 	if (b.level === 0) {
 		const price = next?.price ?? def.price;
+		const perHour = getBranchIncomePerMin(id, 1) * 60;
 		return tile(id, def.name, {
 			icon: art,
-			frame: "showcase",
+			look,
 			tone: state.coins >= price ? "gold" : "locked",
 			sticker: "À VENDA",
-			badge: fmt(price),
 			subtitle: `Rende até ${fmt(perHour)} moedas por hora`,
-			detail: `O bairro gosta de: ${favoritesText(def.favorites)}. Obra: ${formatBuildDuration(def.buildMs)}.`,
+			lines: likes,
 			action: act(fmt(price), "buyChainBranch", [id], { variant: "coin", icon: gameIcon("coin"), enabled: state.coins >= price, ok: `A obra da filial ${def.name} começou!`, fail: "Moedas insuficientes" }),
 		});
 	}
 	const cargo = chooseBranchCargo(id, b.level, state.inventory, itemCatalog, state.market.unlockedProductIds);
 	const truck = pickTruck(state.chain, cargo.cold, now);
 	const pending = Math.floor(b.pending);
+	const empty = b.supply < 0.25;
 	const actions: Button[] = [
 		act(b.cargo ? "Carga a caminho" : "Mandar carga", "sendChainBranchCargo", [id], {
 			icon: redeIcon("ui-frota"),
-			variant: "primary",
+			variant: empty && !b.cargo ? "success" : "primary",
 			enabled: !b.cargo && cargo.enough && !!truck,
 			ok: `O caminhão saiu para a filial ${def.name}!`,
 			fail: b.cargo ? "Já tem uma carga a caminho." : !cargo.enough ? "Pouco estoque para uma carga." : "Todos os caminhões estão na rua.",
@@ -410,9 +420,9 @@ function branchTileBody(state: State, id: ChainBranchId, now: number): BoardTile
 		);
 	return tile(id, def.name, {
 		icon: art,
-		frame: "showcase",
-		tone: b.supply < 0.25 ? "danger" : pending > 0 ? "success" : "",
-		sticker: b.supply < 0.25 ? "PRATELEIRAS VAZIAS" : `NÍVEL ${b.level}`,
+		look,
+		tone: empty ? "danger" : "success",
+		sticker: empty ? "PRATELEIRAS VAZIAS" : b.cargo ? "CARGA A CAMINHO" : `NÍVEL ${b.level}`,
 		stars: b.level,
 		maxStars: 3,
 		badge: pending > 0 ? fmt(pending) : "",
@@ -420,8 +430,8 @@ function branchTileBody(state: State, id: ChainBranchId, now: number): BoardTile
 		fillText: `Prateleiras ${Math.round(b.supply * 100)}%`,
 		timerEnd: b.cargo ? b.cargo.arriveAt : 0,
 		timerTotal: b.cargo ? b.cargo.arriveAt - now : 0,
-		subtitle: `${fmt(getBranchIncomePerMin(id, b.level) * 60 * b.supply)} moedas por hora agora`,
-		detail: `Uma carga leva ${fmt(cargo.want)} unidades do seu estoque. Com pelo menos metade de ${favoritesText(def.favorites)}, as prateleiras enchem até o topo.`,
+		subtitle: `${fmt(getBranchIncomePerMin(id, b.level) * 60 * b.supply)} moedas por hora`,
+		lines: likes,
 		action: actions[0],
 		actions,
 	});
@@ -442,24 +452,22 @@ function branchesPage(state: State) {
 		}
 	}
 	return redePage(state, "filiais", "Filiais pela cidade", [], tiles, {
-		style: "map",
+		style: "street",
 		columns: 5,
-		backdrop: redeIcon("mapa-cidade"),
 		meter: meter("Abastecimento da rede", owned ? supply : 0, Math.max(1, owned), {
 			icon: redeIcon("ui-abastecimento"),
 			text: owned ? `${Math.round((supply / owned) * 100)}% das prateleiras cheias` : "Compre a primeira filial",
 			tone: owned && supply / owned < 0.3 ? "danger" : "success",
+			buttons: [
+				act(pending > 0 ? `Coletar ${fmt(pending)}` : "Nada para coletar", "collectChainBranches", [], {
+					icon: gameIcon("coin"),
+					variant: "coin",
+					enabled: pending > 0,
+					ok: `+${fmt(pending)} moedas das filiais!`,
+				}),
+			],
 		}),
-		footer: [
-			act(pending > 0 ? `Coletar ${fmt(pending)}` : "Nada para coletar", "collectChainBranches", [], {
-				icon: gameIcon("coin"),
-				variant: "coin",
-				enabled: pending > 0,
-				ok: `+${fmt(pending)} moedas das filiais!`,
-			}),
-		],
 		stats: [stat(redeIcon("ui-filiais"), `${owned}/${chainBranches.length}`, "filiais"), stat(gameIcon("coin"), fmt(pending), "para coletar")],
-		tip: owned === 0 ? "Cada filial vende sozinha, até com o jogo fechado. Mantenha as prateleiras cheias mandando cargas." : "",
 	});
 }
 

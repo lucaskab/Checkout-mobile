@@ -170,7 +170,9 @@ namespace Checkout {
    // (the face picker has nothing for a side panel: the faces take the whole width)
    bool picker=b.style=="faces"&&!QaLegacySnap;
    float detailW=BoardDetailWidth;
-   boardGridArea.offsetMax=new Vector2(road||picker?-16:-detailW-12,0);
+   // (the Filiais street: the shops take the whole width too)
+   bool street=b.style=="street";
+   boardGridArea.offsetMax=new Vector2(road||picker||street?-16:-detailW-12,0);
    var dr=(RectTransform)boardDetailPanel.transform;dr.offsetMin=new Vector2(-detailW,14);
    ApplyBoardTiles(b);
    ApplyBoardHeroes(p.cards??new DesktopCard[0]);
@@ -277,6 +279,8 @@ namespace Checkout {
   // every tile stands on its lot as a pin card (tile.look = "pin:x,y", the lot's centre in 0..1 of the map, y from the
   // top). The side panel shows the picked tile as on any board.
   RectTransform boardMapPins;readonly List<RectTransform> boardMapHolders=new List<RectTransform>();
+  // Room between the cards of a board (it was 14: cards and their buttons looked glued together, Lucas 05/11).
+  const float TileGap=20;
   bool ApplyBoardMap(DesktopBoard b){
    var br=boardBackdrop.rectTransform;
    if(b.style!="map"){
@@ -322,6 +326,7 @@ namespace Checkout {
   }
 
   void ApplyBoardTiles(DesktopBoard b){
+   if(ApplyBoardStreet(b))return;
    if(ApplyBoardMap(b))return;
    var tiles=b.tiles;bool road=b.style=="road";bool rank=b.style=="rank";bool rows=b.style=="row"||road||rank;
    bool picker=b.style=="faces"&&!QaLegacySnap;boardPicker=picker;
@@ -339,13 +344,13 @@ namespace Checkout {
    foreach(var x in tiles){if(x.chips!=null)chipRows=Mathf.Max(chipRows,Mathf.Min(ChipRows,x.chips.Length));if(x.fill>=0&&x.frame!="line")barred=true;if(x.frame=="showcase")showcase=true;}
    boardChipRows=chipRows;
    // (a narrow window keeps cards wide enough for two buttons: fewer columns)
-   if(!rows){float least=picker?96:chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+14)/(least+14))));}
+   if(!rows){float least=picker?96:chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+TileGap)/(least+TileGap))));}
    boardFaces=faces&&chipRows==0;
-   float cellH=picker?142:chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
+   float cellH=picker?142:chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+74:showcase?316:faces?214:276;
    // (ranking rows with a bar under the name, Amigos: a little taller)
    if(rank){bool anyBar=false;foreach(var x in tiles)if(x.fill>=0&&x.look!="invite")anyBar=true;RankCellH=RankRowH+(anyBar?16:0);}
-   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
-   var slimCell=new Vector2(Mathf.Floor((width-14)/2),64);boardCellWidth=rows?0:cell.x;
+   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,116):new Vector2(Mathf.Floor((width-(columns-1)*TileGap)/columns),cellH);
+   var slimCell=new Vector2(Mathf.Floor((width-TileGap)/2),64);boardCellWidth=rows?0:cell.x;
    // Sections: a title each time the group changes.
    int section=-1;string group=null;
    if(road)while(boardLanes.Count<tiles.Length)boardLanes.Add(BoardLaneUi.Create(this,boardContent));
@@ -504,6 +509,7 @@ namespace Checkout {
    foreach(var lane in boardLanes)if(lane.gameObject.activeInHierarchy)lane.Tick(now,t);
    boardDetailUi.Tick(now,t);
    foreach(var mark in boardMarks)if(mark.gameObject.activeSelf)mark.Tick(t);
+   TickStreet(now,t);
    UpdateRankBoard(t);
    if(boardMeter.gameObject.activeSelf){
     boardMeterShown=Mathf.MoveTowards(boardMeterShown,boardMeterTarget,Time.unscaledDeltaTime*.8f);
@@ -513,7 +519,8 @@ namespace Checkout {
    }
    // The chevron while rows wait below and the list is still at its top.
    var vp=boardScroll.viewport?boardScroll.viewport:(RectTransform)boardScroll.transform;
-   bool more=boardContent.rect.height>vp.rect.height+20&&boardScroll.verticalNormalizedPosition>.97f;
+   // (not over the Filiais map or street: there is no list there, the chevron sat over the cards)
+   bool more=boardScroll.gameObject.activeInHierarchy&&boardContent.rect.height>vp.rect.height+20&&boardScroll.verticalNormalizedPosition>.97f;
    if(boardMore.gameObject.activeSelf!=more)boardMore.gameObject.SetActive(more);
    if(more)boardMore.anchoredPosition=new Vector2(0,((RectTransform)boardScroll.transform).offsetMin.y-boardMoreDrop+Mathf.Abs(Mathf.Sin(t*3))*(boardMoreDrop>2?1.5f:5));
   }
@@ -608,7 +615,7 @@ namespace Checkout {
    }
    public void Apply(string group,Vector2 cell,bool rows,int columns){
     header.SetActive(!string.IsNullOrEmpty(group));title.text=K.Clean(group);
-    layout.cellSize=cell;layout.spacing=new Vector2(14,rows?10:14);layout.constraintCount=rows?1:columns;
+    layout.cellSize=cell;layout.spacing=new Vector2(TileGap,rows?14:TileGap);layout.constraintCount=rows?1:columns;
    }
   }
  }

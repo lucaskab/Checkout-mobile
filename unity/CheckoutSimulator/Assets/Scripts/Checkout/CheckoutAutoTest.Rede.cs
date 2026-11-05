@@ -61,7 +61,12 @@ namespace Checkout {
     Route("");yield return Frames(1f);
     var letters=GameObject.Find("S4 name");
     if(sim&&letters){sim.FocusCinematic(letters.transform.position+new Vector3(0,0,-6),14);}
-    yield return Frames(2.5f);
+    // The guide's tip card must stay put while its hand pulses (Lucas 05/11: "Contrate ajuda" went back and forth).
+    {Vector2 last=default;int jumps=0,samples=0;bool any=false;
+     for(float t0=Time.realtimeSinceStartup;Time.realtimeSinceStartup-t0<2.5f;){
+      var q=hud.CoachQa();if(q.card){var c=q.cardRect.center;if(any&&(c-last).magnitude>30)jumps++;last=c;any=true;samples++;}
+      yield return null;}
+     Result("the guide's tip card stays in one place",jumps==0,$"{jumps} jumps in {samples} frames{(any?"":" (no tip card shown)")}");}
     Result("the facade shows the chain's name and logo",CheckoutBrandWorld.Report.StartsWith("brand BOM PREÇO"),CheckoutBrandWorld.Report);
     yield return Shot("3_fachada");
     if(sim)sim.HomeCamera();yield return Frames(1.5f);yield return Shot("3b_mercado");
