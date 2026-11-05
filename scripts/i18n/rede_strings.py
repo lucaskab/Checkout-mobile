@@ -70,6 +70,7 @@ S = [
  ("Pedido automático desligado", "Automatic restock off", "Pedido automático desactivado", "Commande automatique désactivée", "Automatische Bestellung aus"),
  ("Caminhões no pátio", "Trucks in the yard", "Camiones en el patio", "Camions dans la cour", "Lkw im Hof"),
  ("{0} de {1} livres", "{0} of {1} free", "{0} de {1} libres", "{0} sur {1} libres", "{0} von {1} frei"),
+ ("motor", "engine", "motor", "moteur", "Motor"),
  ("tempo de viagem", "trip time", "tiempo de viaje", "durée du trajet", "Fahrzeit"),
  ("Toda a frota está na rua. Mais caminhões = mais entregas ao mesmo tempo.", "The whole fleet is out. More trucks = more deliveries at once.", "Toda la flota está en la calle. Más camiones = más entregas a la vez.", "Toute la flotte est sortie. Plus de camions = plus de livraisons en même temps.", "Die ganze Flotte ist unterwegs. Mehr Lkw = mehr Lieferungen gleichzeitig."),
  ("MARCA PRÓPRIA", "OWN BRAND", "MARCA PROPIA", "MARQUE PROPRE", "EIGENMARKE"),

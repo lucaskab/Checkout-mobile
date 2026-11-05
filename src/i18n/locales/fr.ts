@@ -4597,6 +4597,7 @@ const catalog: Catalog = {
 	"O nome precisa de pelo menos {0} letras.": "Le nom doit avoir au moins {0} lettres.",
 	"O nome pode ter no máximo {0} letras.": "Le nom peut avoir au plus {0} lettres.",
 	"Use só letras, números e espaços.": "Utilisez seulement des lettres, des chiffres et des espaces.",
+	"motor": "moteur",
 };
 
 export default catalog;

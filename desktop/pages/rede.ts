@@ -264,12 +264,7 @@ function fleetPage(state: State) {
 	const restock = card("Centro de distribuição", {
 		icon: redeIcon("ui-cd"),
 		eyebrow: "ABASTECER O MERCADO",
-		lines: [
-			`Pelo CD as caixas saem 10% mais baratas e chegam na metade do tempo. Até ${DC_MAX_BOXES} caixas por caminhão.`,
-			auto
-				? `Pedido automático ligado: quando algo acaba, um caminhão sai sozinho (mantendo pelo menos ${fmt(AUTO_ORDER_RESERVE)} moedas).`
-				: "Ligue o pedido automático e a frota repõe o estoque sozinha.",
-		],
+		lines: [`Pelo CD as caixas saem 10% mais baratas e chegam na metade do tempo. Até ${DC_MAX_BOXES} caixas por caminhão.`],
 		buttons: [
 			act("Pedir o que está acabando", "orderLowStock", ["frota"], {
 				icon: redeIcon("ui-pedido-automatico"),
@@ -289,8 +284,13 @@ function fleetPage(state: State) {
 		style: "card",
 		columns: 4,
 		meter: meter("Caminhões no pátio", free, trucks.length, { icon: redeIcon("ui-frota"), text: `${free} de ${trucks.length} livres`, tone: free > 0 ? "success" : "warning" }),
-		stats: [stat(redeIcon("ui-frota"), fmt(trucks.length), "caminhões"), stat(gameIcon("target"), `-${Math.round((1 - getTripFactor(chain)) * 100)}%`, "tempo de viagem")],
-		tip: free === 0 ? "Toda a frota está na rua. Mais caminhões = mais entregas ao mesmo tempo." : "",
+		stats: [stat(redeIcon("ui-frota"), fmt(trucks.length), "caminhões"), stat(gameIcon("deliveryTruck"), `${chain.fleet.speedLevel}/${FLEET_SPEED_FACTORS.length - 1}`, "motor")],
+		tip:
+			free === 0
+				? "Toda a frota está na rua. Mais caminhões = mais entregas ao mesmo tempo."
+				: auto
+					? `Pedido automático ligado: quando algo acaba, um caminhão sai sozinho (mantendo pelo menos ${fmt(AUTO_ORDER_RESERVE)} moedas).`
+					: "Ligue o pedido automático e a frota repõe o estoque sozinha.",
 	});
 }
 
@@ -300,7 +300,6 @@ function contractTile(state: State, offer: ChainContract, now: number): BoardTil
 	const taken = offer.acceptedAt !== null;
 	const short = getContractShortfall(offer, state.inventory);
 	const truck = pickTruck(state.chain, offer.cold, now);
-	const chips = offer.lines.map((line) => stat(productIcon(line.productId), `${fmt(line.units)}×`, productName(line.productId)));
 	const job = taken ? state.chain.fleet.trucks.find((t) => t.id === offer.truckId)?.job : null;
 	return tile(offer.id, client?.name ?? "Cliente", {
 		group: taken ? "NA ESTRADA" : "PEDIDOS DA CIDADE",
@@ -308,8 +307,8 @@ function contractTile(state: State, offer: ChainContract, now: number): BoardTil
 		tone: taken ? "info" : short.length === 0 && truck ? "success" : "",
 		sticker: taken ? "A CAMINHO" : offer.cold ? "REFRIGERADO" : "",
 		badge: fmt(offer.reward),
-		subtitle: taken ? "O caminhão está entregando" : `+${fmt(offer.xp)} XP${offer.diamonds ? ` · +${offer.diamonds} diamantes` : ""}`,
-		chips,
+		subtitle: offer.lines.map((line) => `${fmt(line.units)}× ${productName(line.productId)}`).join(" · "),
+		chips: [stat(gameIcon("success"), `+${fmt(offer.xp)} XP`, ""), ...(offer.diamonds ? [stat(gameIcon("diamond"), `+${offer.diamonds}`, "")] : [])],
 		timerEnd: taken && job ? job.arriveAt : offer.expiresAt,
 		timerTotal: taken && job ? job.arriveAt - job.departAt : offer.expiresAt - now,
 		state: taken ? "busy" : "",
@@ -461,7 +460,6 @@ export const routes: Routes = {
 				return fleetPage(state);
 			case "contratos":
 				return contractsPage(state);
-			case "filiais":
 			case "marca":
 				return brandPage(state, arg);
 			default:

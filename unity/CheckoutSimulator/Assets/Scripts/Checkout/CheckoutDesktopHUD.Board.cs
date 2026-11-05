@@ -281,7 +281,8 @@ namespace Checkout {
    bool bareFaces=faces;foreach(var x in tiles)if(x.chips!=null&&x.chips.Length>0)bareFaces=false;
    // phones: wider cards, ribbons clear of the badges. The profile's twelve faces keep their six columns: two rows sit
    // under the name card on a phone instead of three, the last one under the fold (QA 05/11).
-   int columns=Mathf.Max(1,b.columns);if(Phone&&(!bareFaces||QaLegacySnap))columns=Mathf.Min(columns,4);
+   // (a picker of small tiles, the Rede logos too, keeps its columns on a phone as well)
+   int columns=Mathf.Max(1,b.columns);if(Phone&&(!(bareFaces||picker)||QaLegacySnap))columns=Mathf.Min(columns,4);
    // The window has a fixed size on the 1600×1000 canvas: before its first layout use that width.
    float width=boardGridArea.rect.width>100?boardGridArea.rect.width-40:(road?1440:1020);
    // Every card of a board has the same height: as tall as its tallest content (chip rows, a bar, big art) and no more.
