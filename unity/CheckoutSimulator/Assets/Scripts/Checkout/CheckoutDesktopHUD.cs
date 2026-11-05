@@ -10,6 +10,8 @@ namespace Checkout {
   CheckoutDesktopHost host;RectTransform root;DesktopView view;
   /// <summary>The tutorial step or tip the coach shows now ("" = none), e.g. "conta" opens Opções on its Conta tab.</summary>
   public string CoachKey=>view?.coach?.key??"";
+  /// <summary>QA: the open page's first card (the Amigos window's sign-in / loading / error / profile card), or null.</summary>
+  public DesktopCard QaPageCard=>view!=null&&view.hasPage&&view.page?.cards!=null&&view.page.cards.Length>0?view.page.cards[0]:null;
   readonly Dictionary<string,DesktopButton> pending=new Dictionary<string,DesktopButton>();
   public readonly HashSet<string> Silent=new HashSet<string>();
   // Actions answered in code instead of a toast (CheckoutIap: a purchase is confirmed to the store on the answer).

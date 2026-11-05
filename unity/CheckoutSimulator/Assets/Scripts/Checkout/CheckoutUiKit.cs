@@ -33,12 +33,18 @@ namespace Checkout {
   public static CheckoutDesktopButton Button(Transform parent,string label,string variant,Action onClick,float height=56,float font=20){
    var b=CheckoutDesktopButton.Create(parent,height,font,14);b.Apply(new DesktopButton{label=label,variant=variant,enabled=true,icon="",action="",args="[]",route="",after="",ok="",fail=""});b.Clicked=_=>onClick();return b;
   }
-  // A dim layer lives in the safe area (its windows stay clear of the iPhone's island), but its shade is drawn past
-  // the edges of the screen so the whole screen darkens. The layer itself stays the click blocker.
-  public static void Bleed(Image back){var b=N.Image(back.transform,"Bleed",back.color,0);b.raycastTarget=false;b.transform.SetAsFirstSibling();Stretch(b.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900));back.color=new Color(0,0,0,0);}
+  /// <summary>
+  /// The layer behind a window, sheet or popup: fully transparent, it only catches taps (tap outside to close, no taps on
+  /// the world meanwhile). Lucas 05/11: "no menu needs the black backdrop; only the onboarding needs it, for the
+  /// highlight" — the tutorial's spotlight (CheckoutDesktopHUD.Coach) keeps its own dim.
+  /// </summary>
+  public static readonly Color TapCatcher=new Color(0,0,0,0);
+  // A window's layer lives in the safe area (its windows stay clear of the iPhone's island). It used to draw a dark shade
+  // past the screen's edges; now it is only the click blocker, see TapCatcher.
+  public static void Bleed(Image back){back.color=TapCatcher;}
   // Cream window with a darker edge filling most of the screen; returns the face.
   public static RectTransform Window(RectTransform root,out GameObject dim){
-   var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=new Color(.14f,.09f,.05f,.62f);back.raycastTarget=true;dim=back.gameObject;Bleed(back);
+   var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=TapCatcher;back.raycastTarget=true;dim=back.gameObject;Bleed(back);
    var edge=Box(back.transform,"Edge","D4B482",26,new Vector2(.05f,.07f),new Vector2(.95f,.93f));
    var face=Box(edge.transform,"Face","FFF7EC",24,Vector2.zero,Vector2.one);face.rectTransform.offsetMin=new Vector2(3,8);face.rectTransform.offsetMax=new Vector2(-3,-3);
    return face.rectTransform;
@@ -109,7 +115,7 @@ namespace Checkout {
 
   // Mini-game window in the HUD style: cream card with a wooden title plaque and a textured stage.
   public static RectTransform GameWindow(RectTransform root,string backdrop,out GameObject dim,out TextMeshProUGUI title,out Image backdropImage,Action onClose){
-   var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=new Color(.12f,.08f,.04f,.66f);back.raycastTarget=true;dim=back.gameObject;Bleed(back);
+   var back=Box(root,"Dim","000000",0,Vector2.zero,Vector2.one);back.color=TapCatcher;back.raycastTarget=true;dim=back.gameObject;Bleed(back);
    // Phones: the window takes the whole safe area and drops the wooden title plaque (it covered the top of the
    // stage: step bars, the register screen); the close button sits on the corner.
    bool phone=CheckoutScreen.Handheld;

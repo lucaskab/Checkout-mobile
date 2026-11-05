@@ -25,6 +25,8 @@ import {
 	sendableStock,
 	socialHelpsToday,
 	socialIcon,
+	socialOnline,
+	socialPhase,
 	socialStore,
 	stageIcon,
 	stageName,
@@ -65,7 +67,7 @@ const NAVY = "1D2B4F";
 const DAY_MS = 24 * 3_600_000;
 const productName = (id: number) => itemCatalog.find((item) => item.id === id)?.name ?? "";
 const hoursLeft = (request: SocialRequestView, now: number) => Math.max(1, Math.ceil((request.expiresAt - now) / 3_600_000));
-const online = () => socialStore.signedIn || socialStore.mock;
+const online = socialOnline;
 const busy = (key: string) => socialStore.busy.has(key);
 const social = (state: State) => normalizeSocialState(state.social);
 
@@ -125,12 +127,16 @@ function signedOutCard(): Card {
 	});
 }
 
-/** Signed out, loading, an error, or the first-time profile: what every tab shows before the real content. */
+/**
+ * Signed out, loading, an error, or the first-time profile: what every tab shows before the real content
+ * (desktop/social.ts socialPhase: "loading" only while a load is on its way; it ends in the content or the error card).
+ */
 function gate(state: State, route: string, active: Tab): Page | null {
-	if (!online()) return boardPage(state, route, "Amigos", null, [signedOutCard()], [], { empty: "Entre na sua conta para ver os amigos." });
+	const phase = socialPhase();
+	if (phase === "signed-out") return boardPage(state, route, "Amigos", null, [signedOutCard()], [], { empty: "Entre na sua conta para ver os amigos." });
 	const me = socialStore.me;
-	if (!me) {
-		const failed = Boolean(socialStore.error);
+	if (phase !== "ready" || !me) {
+		const failed = phase === "error";
 		return boardPage(
 			state,
 			route,

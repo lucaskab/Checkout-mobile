@@ -145,6 +145,9 @@ export function createMockSocialServer(start = Date.now()) {
 	/** Calls answered so far (tests count them) and what a test wants to fail next. */
 	const log: string[] = [];
 	let failNext: { path: string; times: number } | null = null;
+	/** QA: every answer comes this many ms later (a slow phone network), and calls that never come back at all. */
+	let latency = 0;
+	let hang: { path: string; times: number } | null = null;
 
 	const person = (id: string, code: string, marketName: string | null, avatar: string, era: MarketEraId, level: number, save = "") => {
 		const value: Person = { id, code, marketName, avatar, level, era, likes: 0, lastSeen: now - HOUR, createdAt: now - 30 * DAY, invitedBy: null, invitesRewarded: 0, public: null, save, photo: null, showPhoto: true };
@@ -460,9 +463,13 @@ export function createMockSocialServer(start = Date.now()) {
 		log,
 		inbox,
 		requests,
-		/** Answers one call of the game (path with its query). */
-		call(method: string, path: string, body?: unknown): MockReply {
+		/** Answers one call of the game (path with its query); null = this call never comes back (QA "hang"). */
+		call(method: string, path: string, body?: unknown): MockReply | null {
 			log.push(`${method} ${path}`);
+			if (hang && path.startsWith(hang.path) && hang.times > 0) {
+				hang.times--;
+				return null;
+			}
 			if (failNext && path.startsWith(failNext.path) && failNext.times > 0) {
 				failNext.times--;
 				return { code: 0, body: null, network: true };
@@ -479,6 +486,14 @@ export function createMockSocialServer(start = Date.now()) {
 			}
 			if (command === "fail") {
 				failNext = { path: arg, times: 1 };
+				return true;
+			}
+			if (command === "latency") {
+				latency = Math.max(0, Number(arg) || 0);
+				return true;
+			}
+			if (command === "hang") {
+				hang = { path: arg, times: 1 };
 				return true;
 			}
 			if (command === "gift") return Boolean(push(me.id, "gift", arg || ana.id));
@@ -535,6 +550,10 @@ export function createMockSocialServer(start = Date.now()) {
 				return Boolean(push(me.id, "friend_request", duda.id));
 			}
 			return rankings.control(command, arg);
+		},
+		/** QA: the delay of every answer in ms (control "latency"). */
+		get latency() {
+			return latency;
 		},
 		set clock(value: number) {
 			now = value;

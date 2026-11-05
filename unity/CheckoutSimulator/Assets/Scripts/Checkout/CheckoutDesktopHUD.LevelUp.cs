@@ -16,6 +16,7 @@ namespace Checkout {
  public partial class CheckoutDesktopHUD {
   RectTransform levelRoot,levelStage,levelMedal,levelRibbon,levelPanel,levelContent,levelConfetti,levelXpFill;
   Image levelDim,levelRays,levelRaysBack,levelGlow;
+  Image levelSubtitlePlate;CanvasGroup levelSubtitleGroup;
   TextMeshProUGUI levelNumber,levelSubtitle,levelCount,levelNext,levelXpText,levelEmpty,levelRibbonText;
   ScrollRect levelScroll;CheckoutDesktopButton levelContinue;CanvasGroup levelPanelGroup;
   // Its own speaker: the board one changes pitch for the pops, which would bend the fanfare.
@@ -36,7 +37,8 @@ namespace Checkout {
    levelRoot=CheckoutScreen.SafeArea(canvasGo.transform);
    levelAudio=gameObject.AddComponent<AudioSource>();levelAudio.playOnAwake=false;levelAudio.volume=.5f;levelAudio.pitch=1;
 
-   levelDim=N.Image(levelRoot,"Dim",new Color(.07f,.09f,.17f,.8f),0);levelDim.raycastTarget=true;U.Stretch(levelDim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900));
+   // (the layer only catches taps: no dark backdrop, U.TapCatcher; Lucas 05/11)
+   levelDim=N.Image(levelRoot,"Dim",U.TapCatcher,0);levelDim.raycastTarget=true;U.Stretch(levelDim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900));
    levelStage=N.Node("Stage",levelRoot);U.Stretch(levelStage,Vector2.zero,Vector2.one);
 
    // Rays and glow behind the medal.
@@ -71,7 +73,10 @@ namespace Checkout {
    levelRibbonText=U.Label(band.transform,"Text",K.Headline,40,"FFFFFF");U.Stretch(levelRibbonText.rectTransform,Vector2.zero,Vector2.one,new Vector2(10,4),new Vector2(-10,-2));
    levelRibbonText.overflowMode=TextOverflowModes.Overflow;levelRibbonText.text="SUBIU DE NÍVEL!";levelRibbonText.characterSpacing=2;levelRibbonText.outlineWidth=.15f;levelRibbonText.outlineColor=new Color32(140,36,14,255);
 
-   levelSubtitle=U.Label(levelStage,"Subtitle",K.Label,22,"FFF4DA");U.At(levelSubtitle.rectTransform,new Vector2(.5f,1),new Vector2(1000,34),new Vector2(0,-418));
+   // (without the dark backdrop the line stands on its own navy plate, sized to the words when it shows)
+   levelSubtitlePlate=N.Image(levelStage,"Subtitle plate",RankNavy,20);levelSubtitlePlate.raycastTarget=false;U.At(levelSubtitlePlate.rectTransform,new Vector2(.5f,1),new Vector2(600,46),new Vector2(0,-418));
+   levelSubtitleGroup=levelSubtitlePlate.gameObject.AddComponent<CanvasGroup>();levelSubtitleGroup.blocksRaycasts=false;
+   levelSubtitle=U.Label(levelSubtitlePlate.transform,"Subtitle",K.Label,22,"FFF4DA");U.Stretch(levelSubtitle.rectTransform,Vector2.zero,Vector2.one,new Vector2(24,2),new Vector2(-24,-2));
 
    // Panel with the list.
    levelPanel=N.Node("Panel",levelStage);U.Stretch(levelPanel,new Vector2(.5f,0),new Vector2(.5f,0));levelPanel.pivot=new Vector2(.5f,0);levelPanel.sizeDelta=new Vector2(1120,520);levelPanel.anchoredPosition=new Vector2(0,24);
@@ -112,6 +117,7 @@ namespace Checkout {
   }
 
   void ApplyLevelUp(DesktopView v){
+   if(qaCelebrationHold)return;
    var data=v.levelUp;
    bool has=data!=null&&!string.IsNullOrEmpty(data.key)&&data.key!=levelClosedKey;
    if(!has){if(LevelUpOpen&&(data==null||string.IsNullOrEmpty(data.key)))HideLevelUp();return;}
@@ -122,6 +128,16 @@ namespace Checkout {
    if(levelRun!=null)StopCoroutine(levelRun);
    levelRun=StartCoroutine(PlayLevelUp(data));
   }
+
+  /// <summary>QA ("eventsfriends"): shows a level-up and a conquest card made up by the test, held on screen against the
+  /// host's views until QaReleaseCelebrations (to look at both without the dark backdrop). Never outside a QA run.</summary>
+  bool qaCelebrationHold;
+  public void QaCelebrate(DesktopLevelUp level,DesktopCelebration conquest){
+   qaCelebrationHold=true;
+   if(level!=null){levelShownKey=level.key;if(levelRun!=null)StopCoroutine(levelRun);levelRun=StartCoroutine(PlayLevelUp(level));}
+   else if(conquest!=null){conquestShownKey=conquest.key;if(conquestRun!=null)StopCoroutine(conquestRun);conquestRun=StartCoroutine(PlayConquest(conquest,false));}
+  }
+  public void QaReleaseCelebrations(){HideLevelUp();if(ConquestOpen)HideConquest();qaCelebrationHold=false;}
 
   void CloseLevelUp(string route){
    if(string.IsNullOrEmpty(levelShownKey))return;
@@ -138,15 +154,16 @@ namespace Checkout {
   IEnumerator PlayLevelUp(DesktopLevelUp data){
    levelRoot.gameObject.SetActive(true);levelRoot.SetAsLastSibling();
    // Reset the stage.
-   levelDim.color=new Color(.07f,.09f,.17f,0);
+   levelDim.color=U.TapCatcher;
    levelMedal.localScale=Vector3.zero;levelRibbon.localScale=new Vector3(0,1,1);levelRays.transform.localScale=Vector3.zero;levelRaysBack.transform.localScale=Vector3.zero;levelGlow.transform.localScale=Vector3.zero;
-   levelSubtitle.text=K.Clean(data.subtitle);levelSubtitle.alpha=0;
+   levelSubtitle.text=K.Clean(data.subtitle);levelSubtitle.alpha=1;levelSubtitleGroup.alpha=0;
+   levelSubtitlePlate.gameObject.SetActive(!string.IsNullOrEmpty(levelSubtitle.text));
+   levelSubtitlePlate.rectTransform.sizeDelta=new Vector2(Mathf.Clamp(levelSubtitle.GetPreferredValues(levelSubtitle.text).x+52,220,1000),46);
    LevelFitPanel();
    levelPanel.anchoredPosition=new Vector2(0,-levelPanel.sizeDelta.y-40);levelPanelGroup.alpha=0;levelPanelGroup.interactable=false;
    levelNumber.text=Mathf.Max(1,data.from).ToString();
    FillLevelList(data);
 
-   StartCoroutine(U.Fade(levelDim,.8f,.3f));
    Sound("whoosh");
    StartCoroutine(U.Scale(levelRays.transform,Vector3.one,.5f,true));StartCoroutine(U.Scale(levelRaysBack.transform,Vector3.one,.6f,true));StartCoroutine(U.Scale(levelGlow.transform,Vector3.one,.5f));
    yield return U.Scale(levelMedal,Vector3.one,.45f,true);
@@ -167,7 +184,7 @@ namespace Checkout {
    LevelConfettiBurst(90);
    StartCoroutine(U.Scale(levelRibbon,Vector3.one,.35f,true));
    yield return CheckoutUiKit.Wait(.18f);
-   StartCoroutine(LevelFadeText(levelSubtitle,1,.3f));
+   StartCoroutine(LevelFadeGroup(levelSubtitleGroup,1,.3f));
    // The panel slides up, then its groups and cards pop one after the other.
    levelPanelGroup.interactable=true;
    StartCoroutine(LevelFadeGroup(levelPanelGroup,1,.3f));

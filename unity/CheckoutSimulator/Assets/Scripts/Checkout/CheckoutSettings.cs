@@ -61,7 +61,8 @@ namespace Checkout
             music = effects = null;
             page = N.Node("Page", canvas); U.Stretch(page, Vector2.zero, Vector2.one);
             // Dim layer: a click outside the window closes it (the window is its sibling, so its clicks stay inside).
-            var dim = U.Box(page, "Dim", "000000", 0, Vector2.zero, Vector2.one); dim.color = new Color(.14f, .09f, .05f, .62f); U.Bleed(dim); U.Tap(dim, Hide);
+            // (no dark backdrop: U.TapCatcher)
+            var dim = U.Box(page, "Dim", "000000", 0, Vector2.zero, Vector2.one); dim.color = U.TapCatcher; U.Bleed(dim); U.Tap(dim, Hide);
 
             var edge = U.Shape(page, "Window", "D4B482", 30, new Vector2(.5f, .5f), new Vector2(820, 640)); edge.raycastTarget = true;
             window = edge.rectTransform;

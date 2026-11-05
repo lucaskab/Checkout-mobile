@@ -52,7 +52,8 @@ namespace Checkout {
   // ------------------------------------------------------------------ build
   void BuildBoard(){
    var node=N.Node("Board window",root);boardWin=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
-   var dim=boardWin.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.58f);Clickable(boardWin,()=>host.Route(""));
+   // (a tap outside the window closes it; no dark backdrop, U.TapCatcher)
+   var dim=boardWin.AddComponent<Image>();dim.color=U.TapCatcher;Clickable(boardWin,()=>host.Route(""));
    var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(40,118),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-40,-16));
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("8A5A2B");
    window.gameObject.AddComponent<Button>().transition=Selectable.Transition.None;
@@ -106,6 +107,8 @@ namespace Checkout {
    var area=N.Image(boardBody,"Tiles area",K.C("F3E3C8"),22);boardGridArea=area.rectTransform;boardGridArea.anchorMin=Vector2.zero;boardGridArea.anchorMax=Vector2.one;boardGridArea.offsetMin=new Vector2(16,14);boardGridArea.offsetMax=new Vector2(-BoardDetailW-12,0);
    boardBackdrop=N.Image(area.transform,"Backdrop",new Color(1,1,1,.22f),0);boardBackdrop.preserveAspect=false;Stretch(boardBackdrop.rectTransform,new Vector2(4,4),new Vector2(-4,-4));
    boardScroll=Scroll(area.transform,"Tiles",true,out boardContent);Stretch((RectTransform)boardScroll.transform,new Vector2(10,124),new Vector2(-6,-8));
+   // Once the player scrolls, the whole-rows cut of the first view (SnapBoardRows) goes: the tiles use the full height.
+   boardScroll.onValueChanged.AddListener(_=>{if(!QaLegacySnap&&boardContent.anchoredPosition.y>1)UncutBoardRows();});
    var col=boardContent.GetComponent<VerticalLayoutGroup>();col.spacing=6;col.padding=new RectOffset(8,14,6,16);
    boardHeroes=N.Node("Heroes",boardContent);var hrow=N.Row(boardHeroes.gameObject,14,new RectOffset(2,2,2,8));hrow.childControlHeight=true;hrow.childForceExpandHeight=true;hrow.childForceExpandWidth=true;
    boardHeroes.gameObject.SetActive(false);
@@ -268,7 +271,12 @@ namespace Checkout {
 
   void ApplyBoardTiles(DesktopBoard b){
    var tiles=b.tiles;bool road=b.style=="road";bool rank=b.style=="rank";bool rows=b.style=="row"||road||rank;
-   int columns=Mathf.Max(1,b.columns);if(Phone)columns=Mathf.Min(columns,4); // phones: wider cards, ribbons clear of the badges
+   // (faces without chips, the profile's twelve, a friend request alone: a short card)
+   bool faces=tiles.Length>0;foreach(var x in tiles)if(x.frame!="portrait"&&x.frame!="line"){faces=false;break;}
+   bool bareFaces=faces;foreach(var x in tiles)if(x.chips!=null&&x.chips.Length>0)bareFaces=false;
+   // phones: wider cards, ribbons clear of the badges. The profile's twelve faces keep their six columns: two rows sit
+   // under the name card on a phone instead of three, the last one under the fold (QA 05/11).
+   int columns=Mathf.Max(1,b.columns);if(Phone&&(!bareFaces||QaLegacySnap))columns=Mathf.Min(columns,4);
    // The window has a fixed size on the 1600×1000 canvas: before its first layout use that width.
    float width=boardGridArea.rect.width>100?boardGridArea.rect.width-40:(road?1440:1020);
    // Every card of a board has the same height: as tall as its tallest content (chip rows, a bar, big art) and no more.
@@ -277,8 +285,6 @@ namespace Checkout {
    boardChipRows=chipRows;
    // (a narrow window keeps cards wide enough for two buttons: fewer columns)
    if(!rows){float least=chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+14)/(least+14))));}
-   // (faces without chips, the profile's twelve, a friend request alone: a short card)
-   bool faces=tiles.Length>0;foreach(var x in tiles)if(x.frame!="portrait"&&x.frame!="line"){faces=false;break;}
    boardFaces=faces&&chipRows==0;
    float cellH=chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
    // (ranking rows with a bar under the name, Amigos: a little taller)
@@ -354,8 +360,15 @@ namespace Checkout {
   // Whole rows on the first view (QA 02/11 "no card should ever be sliced by the footer"): when a row (a section's
   // title goes with its first row) would stand half under the footer, the tile view ends just above it. The rows below
   // wait for a scroll, with the chevron saying so.
+  //
+  // Only on the first view, with the list at its top. It used to run on every view message (several a second while the
+  // market runs) at whatever scroll position: with the list scrolled, the cut moved to another row each time and the
+  // tiles were clipped at a line well above the footer, leaving an empty band across them that came and went (the face
+  // picker of the first-time profile, TestFlight 1.0 (11), Lucas 05/11).
   void SnapBoardRows(){
-   var view=(RectTransform)boardScroll.transform;view.offsetMin=new Vector2(10,boardScrollBottom);
+   var view=(RectTransform)boardScroll.transform;
+   if(!QaLegacySnap&&boardContent.anchoredPosition.y>1){UncutBoardRows();return;}
+   view.offsetMin=new Vector2(10,boardScrollBottom);
    Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(boardContent);
    var viewport=boardScroll.viewport?boardScroll.viewport:view;float height=viewport.rect.height;
    if(height<100)return;
@@ -385,6 +398,16 @@ namespace Checkout {
     break;
    }
   }
+
+  /// <summary>The tile view back to its full height (the player scrolled: the first view's cut is not wanted).</summary>
+  void UncutBoardRows(){var view=(RectTransform)boardScroll.transform;if(Mathf.Abs(view.offsetMin.y-boardScrollBottom)>.5f)view.offsetMin=new Vector2(10,boardScrollBottom);}
+  /// <summary>QA ("eventsfriends"): the TestFlight 1.0 (11) behaviour (the cut at any scroll position, four columns of
+  /// faces on a phone), to photograph the band next to the fix. Never set outside a QA run.</summary>
+  internal static bool QaLegacySnap;
+  /// <summary>QA: how far the tile view ends above the footer's line (0 = full height), and the list's scroll offset.</summary>
+  public (float cut,float scrolled) QaBoardCut(){var view=(RectTransform)boardScroll.transform;return (view.offsetMin.y-boardScrollBottom,boardContent.anchoredPosition.y);}
+  /// <summary>QA: scrolls the board's tile list (0 = top, 1 = bottom), as a finger drag would.</summary>
+  public void QaBoardScroll(float to){Canvas.ForceUpdateCanvases();boardScroll.verticalNormalizedPosition=1-Mathf.Clamp01(to);}
 
   // ------------------------------------------------------------------ interaction
   public void BoardSelect(string id){

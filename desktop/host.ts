@@ -238,6 +238,8 @@ initSocial({
 		snapshot();
 		view();
 	},
+	// A Google / Apple login that lands while the Ranking window is open: its tab loads now (Amigos does it itself).
+	onOnline: () => onRankingRoute(routes.at(-1) ?? ""),
 });
 
 // Rankings v1 (desktop/rankings.ts): the boards and the week's league points go through the same pipe.

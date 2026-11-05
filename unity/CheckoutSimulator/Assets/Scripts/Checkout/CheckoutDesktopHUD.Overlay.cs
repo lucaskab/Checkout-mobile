@@ -19,11 +19,12 @@ namespace Checkout {
 
   void BuildOverlay(){
    // Offline earnings, shown over everything until collected (same as the app's modal).
-   var dim=Fill(root,"OfflineModal",new Color(.18f,.12f,.07f,.55f),true);modal=dim.gameObject;
+   // (its layer only catches taps: no dark backdrop, U.TapCatcher)
+   var dim=Fill(root,"OfflineModal",CheckoutUiKit.TapCatcher,true);modal=dim.gameObject;
    offlineCard=N.Create(Centered(dim,"Box",460));offlineCard.Clicked=Press;modal.SetActive(false);
 
    // Loading / host stopped screen.
-   var back=Fill(root,"Status",new Color(.18f,.12f,.07f,.7f),true);status=back.gameObject;
+   var back=Fill(root,"Status",CheckoutUiKit.TapCatcher,true);status=back.gameObject;
    var box=Centered(back,"Box",520);var face=Panel(box,"Panel",0,120,out _,out _,20);
    statusText=N.Text(face,"Text",K.Headline,24,K.Ink);statusText.alignment=TextAlignmentOptions.Center;
    var tr=statusText.rectTransform;tr.anchorMin=Vector2.zero;tr.anchorMax=Vector2.one;tr.offsetMin=new Vector2(20,10);tr.offsetMax=new Vector2(-20,-10);

@@ -87,6 +87,8 @@ export const socialStore = {
 	loadedAt: 0,
 	loading: false,
 	error: "",
+	/** An Amigos window is open now (a sign-in that lands meanwhile loads it at once). */
+	viewing: false,
 	/** Results of the inbox and friend requests not seen yet (the badge on Amigos) and the latest ones. */
 	unseen: 0,
 	news: [] as SocialNews[],
@@ -111,18 +113,40 @@ export const socialStore = {
 let send: (message: unknown) => void = () => {};
 let refresh: () => void = () => {};
 let onVisit: (active: boolean) => void = () => {};
+let onOnline: () => void = () => {};
 let mock: MockSocialServer | null = null;
+/**
+ * The Amigos load never shows "Carregando os amigos…" for longer than this: past it the window shows the error card
+ * with "Tentar de novo" (Lucas 05/11, TestFlight 1.0 (11): the friends stayed loading forever after an Apple login).
+ */
+export const SOCIAL_LOAD_TIMEOUT_MS = 20_000;
+let loadTimeout = SOCIAL_LOAD_TIMEOUT_MS;
+/** Each load has a number; an answer of an older load (the account changed meanwhile) is dropped. */
+let loadGeneration = 0;
+/** Online (signed in, or the Editor's fake server) as last seen: a change signs the Amigos data in or out. */
+let lastOnline = false;
 let sequence = 0;
 const waiting = new Map<string, (reply: Reply) => void>();
 const flushes = new Map<string, () => void>();
 /** Tests run without Unity: no flush to wait for. */
 let unity = true;
 
-export function initSocial(options: { send: (message: unknown) => void; refresh: () => void; onVisit?: (active: boolean) => void; unity?: boolean }) {
+export function initSocial(options: {
+	send: (message: unknown) => void;
+	refresh: () => void;
+	onVisit?: (active: boolean) => void;
+	/** The player just signed in (Google / Apple): the host reloads whatever window is open (Ranking). */
+	onOnline?: () => void;
+	unity?: boolean;
+	/** Tests: a shorter limit for the Amigos load. */
+	loadTimeoutMs?: number;
+}) {
 	send = options.send;
 	refresh = options.refresh;
 	onVisit = options.onVisit ?? (() => {});
+	onOnline = options.onOnline ?? (() => {});
 	unity = options.unity ?? true;
+	loadTimeout = options.loadTimeoutMs ?? SOCIAL_LOAD_TIMEOUT_MS;
 }
 
 /** The mock server of this session (QA controls, tests). */
@@ -133,20 +157,28 @@ export function socialMock() {
 export function resetSocial() {
 	Object.assign(socialStore, {
 		signedIn: false, mock: false, platform: "", canShare: false, avatars: 12, me: null, friends: [], incoming: [], outgoing: [],
-		requests: { mine: [], friends: [] }, loadedAt: 0, loading: false, error: "", unseen: 0, news: [], draft: { avatar: "", name: "" },
+		requests: { mine: [], friends: [] }, loadedAt: 0, loading: false, error: "", viewing: false, unseen: 0, news: [], draft: { avatar: "", name: "" },
 		offeredCode: "", busy: new Set(), confirmRemove: "", showQr: false, helped: new Set(), visit: null, tickWaiting: false,
 		inboxRunning: false, lastInboxAt: 0,
 	});
 	mock = null;
 	waiting.clear();
 	flushes.clear();
+	loadGeneration++;
+	lastOnline = false;
 }
 
 // ------------------------------------------------------------------------------------------------------------ transport
 
 function call(method: string, path: string, body?: unknown, open = false): Promise<Reply> {
 	if (socialStore.mock) {
-		const answer = socialMock().call(method, path, body === undefined ? undefined : JSON.stringify(body));
+		const server = socialMock();
+		// (QA "signed-out": the fake account is signed out, like Unity answering without a session)
+		if (!open && !path.startsWith("/v1/rankings") && server.rankings.signedOut) return Promise.resolve({ code: 401, body: { error: "signed-out" }, network: false });
+		const answer = server.call(method, path, body === undefined ? undefined : JSON.stringify(body));
+		// (QA "hang": a call that never comes back; whoever waits on it has its own time limit)
+		if (!answer) return new Promise(() => {});
+		if (server.latency > 0) return new Promise((resolve) => setTimeout(() => resolve(answer as Reply), server.latency));
 		return Promise.resolve(answer as Reply);
 	}
 	// (`open`: a public route — the rankings' Mundo / País — that Unity calls without the session when signed out)
@@ -296,17 +328,56 @@ const productName = (id: number) => itemCatalog.find((item) => item.id === id)?.
 
 // ------------------------------------------------------------------------------------------------------------ messages
 
+/** Signed in with Google / Apple (social needs an account), or the Editor's fake server unless QA plays "signed out". */
+export function socialOnline() {
+	if (socialStore.mock) return !socialMock().rankings.signedOut;
+	return socialStore.signedIn;
+}
+
 /** Unity's status (`social`): account, mock (Editor), platform, share sheet, avatars. */
 export function applySocialStatus(message: { signedIn?: unknown; mock?: unknown; platform?: unknown; canShare?: unknown; avatars?: unknown }) {
-	const before = socialStore.signedIn || socialStore.mock;
 	socialStore.signedIn = message.signedIn === true;
 	socialStore.mock = message.mock === true;
 	socialStore.platform = typeof message.platform === "string" ? message.platform : "";
 	socialStore.canShare = message.canShare === true;
 	if (typeof message.avatars === "number" && message.avatars > 0) socialStore.avatars = Math.min(12, Math.floor(message.avatars));
-	const now = socialStore.signedIn || socialStore.mock;
-	// Signed out: what belonged to the account goes away (the save keeps its own mirror).
-	if (before && !now) Object.assign(socialStore, { me: null, friends: [], incoming: [], outgoing: [], requests: { mine: [], friends: [] }, loadedAt: 0 });
+	return syncSocialOnline();
+}
+
+/**
+ * The account changed (Unity's status after a Google / Apple login or a sign-out; QA's "signed-out" on the fake server).
+ * Signed out: what belonged to the account goes away (the save keeps its own mirror) and a load on its way is dropped.
+ * Signed in: an Amigos window that is open (it was showing "Entre para jogar com amigos", or the login finished just
+ * before it opened) loads now, without being closed and opened again — the TestFlight 1.0 (11) bug, where nothing
+ * started the load and the window stayed on "Carregando os amigos…" until it was reopened.
+ */
+export function syncSocialOnline() {
+	const now = socialOnline();
+	if (now === lastOnline) return false;
+	lastOnline = now;
+	loadGeneration++;
+	if (!now) {
+		Object.assign(socialStore, { me: null, friends: [], incoming: [], outgoing: [], requests: { mine: [], friends: [] }, loadedAt: 0, loading: false, error: "" });
+		refresh();
+		return true;
+	}
+	Object.assign(socialStore, { loading: false, error: "", loadedAt: 0 });
+	if (socialStore.viewing) void loadSocial(true);
+	onOnline();
+	refresh();
+	return true;
+}
+
+/**
+ * What an Amigos window shows before its content: the sign-in card, the loading card, the error card with "Tentar de
+ * novo", or the content (the first-time profile included). "loading" only while a load is really on its way: every
+ * load ends in "ready" or "error" within SOCIAL_LOAD_TIMEOUT_MS.
+ */
+export type SocialPhase = "signed-out" | "loading" | "error" | "ready";
+export function socialPhase(): SocialPhase {
+	if (!socialOnline()) return "signed-out";
+	if (socialStore.me) return "ready";
+	return socialStore.error && !socialStore.loading ? "error" : "loading";
 }
 
 export function applySocialReply(message: { id?: unknown; code?: unknown; body?: unknown; network?: unknown }) {
@@ -337,7 +408,7 @@ export function applySocialLink(message: { code?: unknown; source?: unknown }) {
  * without paying twice (social.appliedInbox).
  */
 export async function runInboxCycle(reason = "tick") {
-	if (!(socialStore.signedIn || socialStore.mock) || socialStore.inboxRunning) return { applied: 0, acked: 0 };
+	if (!socialOnline() || socialStore.inboxRunning) return { applied: 0, acked: 0 };
 	// Players who never opened Amigos have no social profile on the server (and nothing in an inbox): no background calls.
 	if (!socialTouched()) return { applied: 0, acked: 0 };
 	if (socialStore.visit) {
@@ -412,16 +483,47 @@ async function loadProfile() {
 	return true;
 }
 
-/** The Amigos page opened: profile, friends and requests (user-triggered, at most every 20 s unless forced). */
+/** Resolves to null when the work takes longer than `ms`. */
+function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
+	return new Promise((resolve) => {
+		const timer = setTimeout(() => resolve(null), ms);
+		work.then(
+			(value) => {
+				clearTimeout(timer);
+				resolve(value);
+			},
+			() => {
+				clearTimeout(timer);
+				resolve(null);
+			},
+		);
+	});
+}
+
+/**
+ * The Amigos page opened: profile, friends and requests (user-triggered, at most every 20 s unless forced). The first
+ * `GET /v1/social/me` of an account creates its profile (the first-time setup follows: name + face). Always ends in the
+ * profile or an error (the time limit included), never in a loading card that nothing resolves.
+ */
 export async function loadSocial(force = false) {
-	if (!(socialStore.signedIn || socialStore.mock) || socialStore.loading) return false;
-	if (!force && Date.now() - socialStore.loadedAt < 20_000) return false;
+	if (!socialOnline() || socialStore.loading) return false;
+	if (!force && socialStore.me && Date.now() - socialStore.loadedAt < 20_000) return false;
+	const generation = ++loadGeneration;
 	socialStore.loading = true;
 	socialStore.error = "";
 	refresh();
 	try {
-		const [me, friends, requests] = await Promise.all([call("GET", "/v1/social/me"), call("GET", "/v1/social/friends"), call("GET", "/v1/social/requests")]);
-		if (me.code !== 200) {
+		const answers = await within(Promise.all([call("GET", "/v1/social/me"), call("GET", "/v1/social/friends"), call("GET", "/v1/social/requests")]), loadTimeout);
+		// The account changed while the calls were out (signed out, another login): a newer load or the sign-in card
+		// takes over.
+		if (generation !== loadGeneration) return false;
+		if (!answers) {
+			console.error(`CHECKOUT_SOCIAL load timed out after ${loadTimeout} ms`);
+			socialStore.error = "Sem conexão. Tente de novo daqui a pouco.";
+			return false;
+		}
+		const [me, friends, requests] = answers;
+		if (me.code !== 200 || !me.body || typeof me.body !== "object" || !(me.body as SocialMe).code) {
 			socialStore.error = trouble(me);
 			return false;
 		}
@@ -447,15 +549,18 @@ export async function loadSocial(force = false) {
 		if (!socialStore.draft.avatar) socialStore.draft.avatar = socialStore.me.avatar ?? "";
 		return true;
 	} finally {
-		socialStore.loading = false;
-		refresh();
+		if (generation === loadGeneration) {
+			socialStore.loading = false;
+			refresh();
+		}
 	}
 }
 
-/** Opening any Amigos page loads the data and clears the badge. */
+/** Opening any Amigos page loads the data and clears the badge; leaving them ends the window (no loads meanwhile). */
 export function onSocialRoute(route: string) {
 	const name = route.split(":")[0];
-	if (name !== "amigos" && !name.startsWith("amigos-")) return;
+	socialStore.viewing = name === "amigos" || name.startsWith("amigos-");
+	if (!socialStore.viewing) return;
 	socialStore.unseen = 0;
 	void loadSocial(false);
 }
@@ -611,7 +716,7 @@ const done = (ok: boolean, reason = ""): Result => ({ ok, reason });
 export function requestSocialAction(action: string, args: unknown[]): Result {
 	if (!socialActions.includes(action)) return done(false, "invalid-action");
 	if (socialStore.visit && !visitActions.includes(action)) return done(false, "Volte ao seu mercado primeiro.");
-	const online = socialStore.signedIn || socialStore.mock;
+	const online = socialOnline();
 	const [a, b, c, d] = args;
 	switch (action) {
 		case "socialRefresh":
@@ -653,6 +758,8 @@ export function requestSocialAction(action: string, args: unknown[]): Result {
 		case "socialMock": {
 			if (!socialStore.mock) return done(false, "invalid-action");
 			const ok = socialMock().control(String(a ?? ""), String(b ?? ""));
+			// ("signed-out" on / off: the fake account signs out / in, like Unity's status after a login)
+			syncSocialOnline();
 			return done(ok, ok ? "" : "game-rule-rejected");
 		}
 	}

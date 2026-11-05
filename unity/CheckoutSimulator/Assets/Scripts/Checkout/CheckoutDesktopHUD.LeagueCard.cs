@@ -36,7 +36,8 @@ namespace Checkout {
 
   void BuildLeagueCard(){
    leagueRoot=N.Node("League card",root);Stretch(leagueRoot,Vector2.zero,Vector2.zero);
-   leagueDim=leagueRoot.gameObject.AddComponent<Image>();leagueDim.color=new Color(.04f,.06f,.13f,.84f);
+   // (the card's own navy stage carries it: the layer behind only catches taps, no dark backdrop)
+   leagueDim=leagueRoot.gameObject.AddComponent<Image>();leagueDim.color=U.TapCatcher;
    leaguePanel=N.Node("Panel",leagueRoot);leaguePanel.anchorMin=leaguePanel.anchorMax=leaguePanel.pivot=new Vector2(.5f,.5f);leaguePanel.sizeDelta=new Vector2(LeagueW,LeagueH);
    leaguePanelGroup=leaguePanel.gameObject.AddComponent<CanvasGroup>();
    // the frame: a thin gold trim around the navy stage
@@ -286,7 +287,7 @@ namespace Checkout {
    leagueButton.Apply(new DesktopButton{label=card.button,icon=card.diamonds>0||card.coins>0?"Icons/diamond":"",variant="coin",enabled=true,action="",args="[]",route="",after="",ok="",fail="",badge=""});
    leagueButton.transform.localScale=Vector3.zero;
    // ---- the show ----
-   leagueDim.color=new Color(.04f,.06f,.13f,0);StartCoroutine(U.Fade(leagueDim,.84f,.3f));
+   leagueDim.color=U.TapCatcher;
    leagueRays.color=new Color(1f,.84f,.4f,0);foreach(var s in leagueSpots)s.color=new Color(1f,.95f,.78f,0);
    leagueRibbon.localScale=new Vector3(0,1,1);
    leaguePanel.localScale=Vector3.one*k*.6f;Sound("whoosh");

@@ -30,7 +30,7 @@ namespace Checkout {
   // ------------------------------------------------------------------ build
   void BuildShelf(){
    var node=N.Node("Shelf window",root);shelfWin=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
-   var dim=shelfWin.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.58f);Clickable(shelfWin,()=>host.Route(""));
+   var dim=shelfWin.AddComponent<Image>();dim.color=CheckoutUiKit.TapCatcher;Clickable(shelfWin,()=>host.Route("")); // (no dark backdrop: a tap outside closes)
    var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(64,118),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-64,-18));
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("8A5A2B");
    window.gameObject.AddComponent<Button>().transition=Selectable.Transition.None;

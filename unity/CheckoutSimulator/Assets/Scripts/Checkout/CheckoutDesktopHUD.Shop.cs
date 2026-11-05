@@ -27,7 +27,7 @@ namespace Checkout {
   void BuildShop(){
    var node=N.Node("Shop",root);shop=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
    // Dimmed world behind; clicking it closes the shop.
-   var dim=shop.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.58f);Clickable(shop,()=>host.Route(""));
+   var dim=shop.AddComponent<Image>();dim.color=CheckoutUiKit.TapCatcher;Clickable(shop,()=>host.Route("")); // (no dark backdrop: a tap outside closes)
    var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(64,118),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-64,-18)); // phones: over the toolbar, the whole safe area
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("B98642");
    window.gameObject.AddComponent<Button>().transition=Selectable.Transition.None; // clicks inside do not close it
