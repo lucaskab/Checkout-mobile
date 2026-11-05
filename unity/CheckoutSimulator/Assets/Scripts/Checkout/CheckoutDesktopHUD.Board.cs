@@ -276,7 +276,7 @@ namespace Checkout {
   // Rede · Filiais (board style "map"): the city map fills the tiles area, keeping its shape (the area clips it), and
   // every tile stands on its lot as a pin card (tile.look = "pin:x,y", the lot's centre in 0..1 of the map, y from the
   // top). The side panel shows the picked tile as on any board.
-  RectTransform boardMapPins;
+  RectTransform boardMapPins;readonly List<RectTransform> boardMapHolders=new List<RectTransform>();
   bool ApplyBoardMap(DesktopBoard b){
    var br=boardBackdrop.rectTransform;
    if(b.style!="map"){
@@ -295,19 +295,23 @@ namespace Checkout {
    var tiles=b.tiles??new DesktopTile[0];
    while(boardTiles.Count<tiles.Length)boardTiles.Add(BoardTileUi.Create(this,boardMapPins));
    // (full-size cards, drawn smaller: five of them fit on the map of a phone without covering each other)
-   var cell=new Vector2(214,262);float k=Phone?.66f:.8f;
+   var cell=new Vector2(214,262);const float k=.6f;
    string selected=SelectedId(tiles);
+   while(boardMapHolders.Count<tiles.Length)boardMapHolders.Add(N.Node("Pin",boardMapPins));
+   for(int i=0;i<boardMapHolders.Count;i++)boardMapHolders[i].gameObject.SetActive(i<tiles.Length);
    for(int i=0;i<boardTiles.Count;i++){
     var ui=boardTiles[i];bool on=i<tiles.Length;ui.gameObject.SetActive(on);if(!on)continue;
-    if(ui.transform.parent!=boardMapPins)ui.transform.SetParent(boardMapPins,false);
     var t=tiles[i];var at=new Vector2(.5f,.5f);
     var look=t.look??"";
     if(look.StartsWith("pin:")){var xy=look.Substring(4).Split(',');
      if(xy.Length==2&&float.TryParse(xy[0],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var x)&&float.TryParse(xy[1],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var y))at=new Vector2(x,1-y);}
-    // (a pin never hangs out of the visible area: the map is clipped by the area)
-    var r=(RectTransform)ui.transform;r.anchorMin=r.anchorMax=at;r.pivot=new Vector2(.5f,.5f);r.sizeDelta=cell;r.localScale=Vector3.one*k;
+    // a scaled holder on the lot (the tile itself keeps scale 1: its pop animation owns its scale); a pin never hangs
+    // out of the visible area (the map is clipped by the area)
+    var holder=boardMapHolders[i];holder.anchorMin=holder.anchorMax=at;holder.pivot=new Vector2(.5f,.5f);holder.sizeDelta=cell;holder.localScale=Vector3.one*k;
     float vx=(at.x-.5f)*w,vy=(at.y-.5f)*h,mx=Mathf.Max(0,aw/2-cell.x*k/2-6),my=Mathf.Max(0,ah/2-cell.y*k/2-6);
-    r.anchoredPosition=new Vector2(Mathf.Clamp(vx,-mx,mx)-vx,Mathf.Clamp(vy,-my,my)-vy);
+    holder.anchoredPosition=new Vector2(Mathf.Clamp(vx,-mx,mx)-vx,Mathf.Clamp(vy,-my,my)-vy);
+    if(ui.transform.parent!=holder)ui.transform.SetParent(holder,false);
+    var r=(RectTransform)ui.transform;r.anchorMin=Vector2.zero;r.anchorMax=Vector2.one;r.pivot=new Vector2(.5f,.5f);r.offsetMin=r.offsetMax=Vector2.zero;
     ui.Apply(t,false,t.id==selected);
    }
    foreach(var sec in boardSections)sec.gameObject.SetActive(false);
@@ -354,7 +358,7 @@ namespace Checkout {
      bool slim=!rows&&t.frame=="line";
      var s=boardSections[section];s.gameObject.SetActive(true);s.transform.SetSiblingIndex(section);s.Apply(g,slim?slimCell:cell,rows,slim?2:columns);}
     Component ui=road?(Component)boardLanes[i]:boardTiles[i];ui.gameObject.SetActive(true);
-    if(ui.transform.parent!=boardSections[section].grid){ui.transform.SetParent(boardSections[section].grid,false);ui.transform.localScale=Vector3.one;}
+    if(ui.transform.parent!=boardSections[section].grid)ui.transform.SetParent(boardSections[section].grid,false);
     ui.transform.SetAsLastSibling();
     if(road){
      var laneUi=boardLanes[i];laneUi.Apply(t);
