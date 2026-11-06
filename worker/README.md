@@ -253,12 +253,34 @@ para amigos" (`PUT /v1/social/me {showPhoto:false}` → `players.photo_hidden = 
 3. Política de privacidade (texto para o Lucas aprovar): "Se você entrar com o Google, a foto do seu perfil Google é
    mostrada aos seus amigos no jogo. Você pode desligar isso no seu perfil."
 
+## Push (notificações no celular, 06/11)
+`src/push.ts`. O jogo manda o token do Firebase Cloud Messaging do aparelho, o idioma e os tipos de aviso ligados em
+Opções › Avisos (`PUT /v1/push {token, platform, lang, categories}`; `DELETE /v1/push {token}`). O que cai na caixa
+social de um jogador (pedido de amizade, amizade aceita, presente, curtida, ajuda na obra, pedido atendido, prêmio de
+convite, resultado da liga) vira **um** aviso por jogador, logo depois da chamada social que escreveu, e depois do
+fechamento da liga (cron). Itens com mais de 1 hora ou já lidos no jogo nunca viram push. Token que o FCM esqueceu
+(app desinstalado) é apagado. Apagar a conta apaga os aparelhos.
+
+### Antes de publicar esta versão
+1. **Migração (uma vez só):** D1 › checkout-saves › Console. Conferir antes:
+   `SELECT name FROM pragma_table_info('inbox') WHERE name = 'pushed_at';` — sem linhas = ainda não rodou.
+   Colar `worker/migrations/0005_push.sql` (sem os comentários `--`, se o console reclamar) e executar.
+   Com wrangler: `npx wrangler d1 execute checkout-saves --remote --file=migrations/0005_push.sql`.
+2. **Secret `FCM_SERVICE_ACCOUNT`** (o Lucas cola): Google Cloud › projeto checkout-game › IAM › Contas de serviço ›
+   `checkout-push` › Chaves › Adicionar chave › JSON. Colar o arquivo **inteiro** como secret em Workers ›
+   checkout-server › Settings › Variables and Secrets e apagar o arquivo baixado. Sem o secret o Worker guarda os
+   aparelhos e não envia nada; `/health` mostra `FCM_SERVICE_ACCOUNT: true` quando está lá.
+3. iPhone: a chave APNs (.p8, Apple Developer › Keys › Apple Push Notifications service) em Firebase › Configurações
+   do projeto › Cloud Messaging › app iOS. Sem ela o FCM não entrega no iPhone (o Android funciona).
+4. Publicar o Worker. Antes da migração ele segue normal, sem push.
+
 ## Testes
 `npm test` — roda o código do Worker no Node 22 com substitutos de D1 (SQLite do Node, com o `schema.sql` de
 verdade), R2 (memória) e sockets (node:net/tls). Os testes do Render (`server/test/api.test.ts`) estão portados.
 Com `OLD_TEST_DATABASE_URL` (um Postgres com senha SCRAM e TLS), roda também a cópia de ponta a ponta contra as
 migrações do Prisma do Render (`test/migrate.test.ts`). `test/social.test.ts` cobre todas as rotas sociais e limites
 (com o relógio injetável `now`), a migração rodando duas vezes sobre o banco de hoje e a exclusão de conta.
+`test/push.test.ts` cobre o push (aparelhos, um aviso por jogador, categorias, tokens esquecidos, a chamada ao FCM).
 `test/photos.test.ts` cobre a foto do Google: guardada do token, só para amigos e o próprio jogador, o interruptor
 desligado, conta Apple sem foto e o Worker antes da migração 0004.
 

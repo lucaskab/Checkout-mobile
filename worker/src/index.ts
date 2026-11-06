@@ -2,6 +2,7 @@ import { connect } from "cloudflare:sockets";
 import { adminRoutes } from "./admin.ts";
 import { createApp } from "./app.ts";
 import type { Connect, Env } from "./cf.ts";
+import { fcmSender, flushPush, readServiceAccount } from "./push.ts";
 import { closeWeeks } from "./ranking-store.ts";
 import type { BoardCache } from "./rankings.ts";
 import { Store } from "./store.ts";
@@ -24,12 +25,13 @@ const SETTINGS = [
 	"APPLE_PRIVATE_KEY",
 	"OLD_DATABASE_URL",
 	"ADMIN_PUBLIC_KEY",
+	"FCM_SERVICE_ACCOUNT",
 ] as const;
 
 const log = (line: string) => console.log(line);
 const list = (value: string | undefined) => (value ?? "").split(",").map((id) => id.trim()).filter(Boolean);
 
-type Handler = (request: Request, address: string, country?: unknown) => Promise<Response>;
+type Handler = (request: Request, address: string, country?: unknown, waitUntil?: (work: Promise<unknown>) => void) => Promise<Response>;
 const apps = new WeakMap<Env, Handler>();
 
 function build(env: Env): Handler {
@@ -75,6 +77,7 @@ function appFor(env: Env, sessionSecret: string, clientIds: string[], health: ()
 		sessionSecret,
 		log,
 		health,
+		push: pushSender(env),
 		// The Workers Cache API (the top lists of the boards, 10 min). Absent outside Workers (tests, benchmarks).
 		cache: ((globalThis as { caches?: { default?: BoardCache } }).caches?.default as BoardCache | undefined) ?? null,
 		extra: env.ADMIN_PUBLIC_KEY
@@ -84,14 +87,25 @@ function appFor(env: Env, sessionSecret: string, clientIds: string[], health: ()
 	return app;
 }
 
+/** The FCM sender (push.ts), one per isolate, when the FCM_SERVICE_ACCOUNT secret holds a valid key. */
+const senders = new WeakMap<Env, ReturnType<typeof fcmSender> | null>();
+function pushSender(env: Env) {
+	if (!senders.has(env)) {
+		const account = readServiceAccount(env.FCM_SERVICE_ACCOUNT);
+		if (env.FCM_SERVICE_ACCOUNT && !account) log("push: FCM_SERVICE_ACCOUNT is not a service account key");
+		senders.set(env, account ? fcmSender(account, fetch, Date.now, log) : null);
+	}
+	return senders.get(env) ?? null;
+}
+
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
+	async fetch(request: Request, env: Env, ctx?: { waitUntil(promise: Promise<unknown>): void }): Promise<Response> {
 		let app = apps.get(env);
 		if (!app) {
 			app = build(env);
 			apps.set(env, app);
 		}
-		return app(request, request.headers.get("cf-connecting-ip") ?? "", (request as { cf?: { country?: unknown } }).cf?.country);
+		return app(request, request.headers.get("cf-connecting-ip") ?? "", (request as { cf?: { country?: unknown } }).cf?.country, ctx ? (work) => ctx.waitUntil(work) : undefined);
 	},
 
 	/** The cron trigger (Monday 00:05 UTC): closes last week's league groups and pays the rewards (ranking-store.ts). */
@@ -99,9 +113,15 @@ export default {
 		if (!env.DB) return;
 		const store = new Store(env.DB, env.SAVES, { log });
 		ctx.waitUntil(
-			closeWeeks(store, Date.now(), log).catch((error) => {
-				log(`league close failed: ${(error as Error)?.stack ?? error}`);
-			}),
+			closeWeeks(store, Date.now(), log)
+				.catch((error) => {
+					log(`league close failed: ${(error as Error)?.stack ?? error}`);
+				})
+				// The week's results are in the inbox now: the "liga fechou" pushes (a batch per flush, a few rounds).
+				.then(async () => {
+					for (let round = 0; round < 20; round++) if (!(await flushPush(env.DB, pushSender(env), Date.now(), log))) break;
+				})
+				.catch((error) => log(`league push failed: ${(error as Error)?.message ?? error}`)),
 		);
 	},
 };

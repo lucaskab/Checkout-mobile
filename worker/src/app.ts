@@ -2,6 +2,7 @@ import { HEADERS, HttpError, json } from "./http.ts";
 import { MAX_LEVEL, SOCIAL } from "./limits.ts";
 import { BadRequest, canReplace, MAX_SAVE_BYTES, readUpload, type SaveMeta } from "./save.ts";
 import { type BoardCache, countryOf, rankingRoutes } from "./rankings.ts";
+import { flushPush, readDevice, registerDevice, removeDevice, removePlayerDevices, type Sender } from "./push.ts";
 import { socialRoutes } from "./social.ts";
 import type { PlayerRecord, SocialSnapshot, Store } from "./store.ts";
 import { type AppleTokens, type AppleVerifier, type GoogleVerifier, photoUrlOf, readSession, sha256Hex, signSession } from "./tokens.ts";
@@ -40,6 +41,8 @@ export type AppOptions = {
 	health?: () => Record<string, unknown>;
 	/** Where the world/country top lists are kept for 10 minutes besides the isolate's memory (Workers: caches.default). */
 	cache?: BoardCache | null;
+	/** Push notifications through Firebase Cloud Messaging (push.ts); null/absent = no FCM key set: devices are still kept. */
+	push?: Sender | null;
 	/** Extra routes (the temporary /admin/* ones). Answers null when the path is not theirs. */
 	extra?: (request: Request, path: string, helpers: Helpers) => Promise<Response | null>;
 };
@@ -277,8 +280,23 @@ export function createApp(options: AppOptions) {
 			return helpers.putSave(request, player, save, social, country);
 		}
 
+		// Push: this device's FCM token, language and the push kinds left on in Opções › Avisos (push.ts).
+		if (path === "/v1/push" && (method === "PUT" || method === "DELETE")) {
+			const id = await sessionOf(request);
+			const body = await readJson(request);
+			if (method === "DELETE") {
+				if (typeof body.token === "string") await removeDevice(store.db, id, body.token);
+				return json(204, null);
+			}
+			const device = readDevice(body);
+			if (!device) throw new HttpError(400, { error: "bad-device" });
+			const saved = await registerDevice(store.db, id, device, now());
+			return json(200, { ok: saved, categories: device.categories });
+		}
+
 		if (path === "/v1/account" && method === "DELETE") {
 			const { player } = await playerOf(request);
+			await removePlayerDevices(store.db, player.id);
 			// Apple accounts: the game's access to the Apple ID ends too (App Store rule 5.1.1(v)). Best effort.
 			if (player.appleRefresh && options.apple) {
 				try {
@@ -293,7 +311,11 @@ export function createApp(options: AppOptions) {
 		}
 
 		const socialAnswer = await social(request, path, method, country);
-		if (socialAnswer) return socialAnswer;
+		if (socialAnswer) {
+			// A social call that may have written a friend's inbox (a gift, a request, a help...): the push goes out now.
+			if (method !== "GET" && socialAnswer.status < 400 && options.push) later(flushPush(store.db, options.push, now(), log));
+			return socialAnswer;
+		}
 		const rankingAnswer = await rankings(request, path, method, country);
 		if (rankingAnswer) return rankingAnswer;
 
@@ -302,8 +324,26 @@ export function createApp(options: AppOptions) {
 		throw new HttpError(404, { error: "not-found" });
 	}
 
-	/** `address`: the caller's IP (Cloudflare's CF-Connecting-IP); `country`: Cloudflare's request.cf.country. */
-	return async (request: Request, address: string, country?: unknown): Promise<Response> => {
+	// Work that may finish after the answer (the push flush): the Worker's waitUntil when given, else awaited.
+	let pending: Promise<unknown>[] = [];
+	const later = (work: Promise<unknown>) => {
+		pending.push(work.catch((error) => log(`push flush failed: ${(error as Error)?.message ?? error}`)));
+	};
+
+	/** `address`: the caller's IP (Cloudflare's CF-Connecting-IP); `country`: Cloudflare's request.cf.country.
+	 * `waitUntil`: the Worker's ctx.waitUntil (work after the answer); without it that work is awaited first. */
+	return async (request: Request, address: string, country?: unknown, waitUntil?: (work: Promise<unknown>) => void): Promise<Response> => {
+		const response = await answer(request, address, country);
+		if (pending.length) {
+			const work = Promise.all(pending);
+			pending = [];
+			if (waitUntil) waitUntil(work);
+			else await work;
+		}
+		return response;
+	};
+
+	async function answer(request: Request, address: string, country?: unknown): Promise<Response> {
 		try {
 			if (!allow(`ip:${address}`)) throw new HttpError(429, { error: "slow-down" });
 			return await route(request, countryOf(country));
@@ -312,5 +352,5 @@ export function createApp(options: AppOptions) {
 			log(`error ${(error as Error)?.stack ?? error}`);
 			return json(500, { error: "server" });
 		}
-	};
+	}
 }

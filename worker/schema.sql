@@ -192,3 +192,15 @@ CREATE INDEX IF NOT EXISTS league_members_player ON league_members (player_id);
 -- "Mostrar minha foto do Google para amigos" (0 = friends see it, the default; 1 = they see the avatar).
 ALTER TABLE players ADD COLUMN photo_url TEXT;
 ALTER TABLE players ADD COLUMN photo_hidden INTEGER NOT NULL DEFAULT 0;
+
+-- 0005 (push notifications, worker/src/push.ts): see migrations/0005_push.sql.
+CREATE TABLE IF NOT EXISTS push_devices (
+	token TEXT PRIMARY KEY,
+	player_id TEXT NOT NULL,
+	platform TEXT NOT NULL,
+	lang TEXT NOT NULL,
+	categories TEXT NOT NULL,
+	updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS push_devices_player ON push_devices (player_id);
+ALTER TABLE inbox ADD COLUMN pushed_at INTEGER;

@@ -175,8 +175,17 @@ namespace Checkout
         {
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
             if (!started || Permission == "denied") return;
+#if UNITY_ANDROID
+            // Android: the white cart as the small icon (Assets/Art/Notifications, CheckoutNotificationIcon) in the game's teal.
+            AndroidNotificationCenter.SendNotification(new AndroidNotification
+            {
+                Title = p.title, Text = p.text, IntentData = p.category, SmallIcon = "checkout_small",
+                Color = new Color32(0x2E, 0x8C, 0xAE, 0xFF), FireTime = DateTime.Now.AddMilliseconds(p.inMs), ShowTimestamp = true,
+            }, "checkout");
+#else
             NotificationCenter.ScheduleNotification(new Notification { Title = p.title, Text = p.text, Data = p.category },
                 new NotificationDateTimeSchedule(DateTime.Now.AddMilliseconds(p.inMs)));
+#endif
 #endif
         }
 

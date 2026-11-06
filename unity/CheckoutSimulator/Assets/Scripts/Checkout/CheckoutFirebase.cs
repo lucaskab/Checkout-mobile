@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
 using Firebase;
 using Firebase.Analytics;
@@ -68,6 +69,8 @@ namespace Checkout
             nextLook = Time.unscaledTime + 1f;
             // Messaging once the notification permission has been asked (never before: it would ask on its own).
             if (Ready && !messaging && PlayerPrefs.GetInt("notif.asked", 0) == 1) StartMessaging();
+            // Push: the server learns this phone's token, language and the push kinds left on (Opções › Avisos).
+            if (!registering) { var sig = PushSignature(); if (sig != null && sig != PlayerPrefs.GetString("push.sent", "")) StartCoroutine(Register(sig)); }
             // Tutorial: the coach card's key.
             if (!hud) hud = FindAnyObjectByType<CheckoutDesktopHUD>();
             var key = hud ? hud.CoachKey : "";
@@ -94,6 +97,42 @@ namespace Checkout
             FirebaseMessaging.MessageReceived += (_, e) => Debug.Log("CHECKOUT_FIREBASE message " + e.Message?.MessageId);
             FirebaseMessaging.GetTokenAsync().ContinueWithOnMainThread(t => { if (t.IsCompletedSuccessfully) SetToken(t.Result); });
 #endif
+        }
+
+        // ── Push registration (worker/src/push.ts: PUT /v1/push) ─────────────────────────────────────────────────────
+        bool registering; float retryAt;
+        [Serializable] class Device { public string token, platform, lang; public string[] categories; }
+
+        /// <summary>What the server should know now (null = nothing to send: no token, not signed in, Editor/PC).</summary>
+        static string PushSignature()
+        {
+            var cloud = CheckoutCloud.Active;
+            if (string.IsNullOrEmpty(Token) || !cloud || !cloud.HasSession) return null;
+            if (Application.platform != RuntimePlatform.Android && Application.platform != RuntimePlatform.IPhonePlayer) return null;
+            var cats = new List<string>();
+            foreach (var c in CheckoutNotifications.Categories) if (c.push && CheckoutNotifications.IsOn(c.id)) cats.Add(c.id);
+            return Token + "|" + CheckoutI18n.Language + "|" + string.Join(",", cats) + "|" + cloud.SessionToken.GetHashCode();
+        }
+
+        System.Collections.IEnumerator Register(string sig)
+        {
+            if (Time.unscaledTime < retryAt) yield break;
+            registering = true;
+            var cats = new List<string>();
+            foreach (var c in CheckoutNotifications.Categories) if (c.push && CheckoutNotifications.IsOn(c.id)) cats.Add(c.id);
+            var body = JsonUtility.ToJson(new Device { token = Token, platform = Application.platform == RuntimePlatform.IPhonePlayer ? "ios" : "android", lang = CheckoutI18n.Language, categories = cats.ToArray() });
+            using (var request = new UnityWebRequest(CheckoutCloud.ServerUrl + "/v1/push", "PUT"))
+            {
+                request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(body));
+                request.downloadHandler = new DownloadHandlerBuffer();
+                request.SetRequestHeader("Content-Type", "application/json");
+                request.SetRequestHeader("Authorization", "Bearer " + CheckoutCloud.Active.SessionToken);
+                request.timeout = 40;
+                yield return request.SendWebRequest();
+                if (request.responseCode == 200) { PlayerPrefs.SetString("push.sent", sig); PlayerPrefs.Save(); }
+                else { retryAt = Time.unscaledTime + 120f; Debug.Log("CHECKOUT_FIREBASE push registration -> " + request.responseCode); }
+            }
+            registering = false;
         }
 
         static void SetToken(string token)

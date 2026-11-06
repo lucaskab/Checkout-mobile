@@ -58,6 +58,8 @@ export type Env = {
 	GOOGLE_DESKTOP_CLIENT_SECRET?: string;
 	GOOGLE_IOS_CLIENT_ID?: string;
 	APPLE_BUNDLE_IDS?: string;
+	/** Firebase Cloud Messaging: the JSON key of a service account of the project checkout-game (push.ts). */
+	FCM_SERVICE_ACCOUNT?: string;
 	APPLE_TEAM_ID?: string;
 	APPLE_KEY_ID?: string;
 	APPLE_PRIVATE_KEY?: string;
