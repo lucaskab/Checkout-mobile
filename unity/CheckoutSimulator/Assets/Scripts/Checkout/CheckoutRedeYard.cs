@@ -25,7 +25,8 @@ namespace Checkout {
   // model space (rede_yard.py)
   static readonly float[] Bays={-15f,-11.7f,-8.4f,-5.1f,-1.8f,1.5f,4.8f};
   const float TruckY=4.4f,LaneIn=11.2f,LaneOut=-2.3f;
-  static readonly Vector2 PumpStop=new Vector2(9.9f,LaneIn),Pump=new Vector2(9.5f,13.9f);
+  // the truck at the pump stops with its side tank (behind the cab) by the pumps
+  static readonly Vector2 PumpStop=new Vector2(11.2f,LaneIn),Pump=new Vector2(9.5f,13.9f);
   // the east street (world x 22.4 southbound, 24.6 northbound: CheckoutNeighborhoodTraffic) in model space, and how
   // far north a truck comes from / goes to (world z 95.6: deep in the edge fog of the grown map)
   const float SouthLane=20.4f,NorthLane=22.6f,FarNorth=40f;
@@ -226,7 +227,7 @@ namespace Checkout {
    bool In(Vector3 q,float reach,float half){var d=q-p;d.y=0;float f=Vector3.Dot(d,heading);return f>.2f&&f<reach&&(d-heading*f).sqrMagnitude<half*half;}
    foreach(var o in trucks.Values){
     if(o==t||!o.model||!o.model.gameObject.activeSelf||o.mode==Mode.Parked||o.mode==Mode.Away)continue;
-    if(In(o.model.position,6.4f,1.7f))return true;
+    if(In(o.model.position,5.8f,1.7f))return true;
    }
    var traffic=Traffic;
    if(t.waited<8f&&traffic&&traffic.cars!=null)foreach(var c in traffic.cars)if(c!=null&&c.vehicle&&c.vehicle.gameObject.activeSelf&&In(c.vehicle.position,6f,1.8f))return true;
