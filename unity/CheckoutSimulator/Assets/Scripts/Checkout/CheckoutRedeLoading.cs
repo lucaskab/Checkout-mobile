@@ -15,6 +15,8 @@ namespace Checkout {
   }
   readonly List<Loader> loaders=new List<Loader>();
   public int Active{get{int n=0;foreach(var l in loaders)if(!l.done)n++;return n;}}
+  /// <summary>QA: each loader's dock, step, position and whether it is drawn.</summary>
+  public string Describe(){var b=new System.Text.StringBuilder();foreach(var l in loaders){if(!l.body){b.Append($"dock {l.dock}: no body | ");continue;}int drawn=0;foreach(var r in l.body.GetComponentsInChildren<Renderer>())if(r.enabled&&r.gameObject.activeInHierarchy)drawn++;b.Append($"dock {l.dock}: step {l.step} at ({l.body.position.x:0.00},{l.body.position.z:0.00}) active {l.body.gameObject.activeInHierarchy} renderers {drawn} scale {l.body.lossyScale.y:0.00} carrying {l.carrying} | ");}return b.ToString();}
 
   /// <summary>Starts loading the truck at dock `dock`: `tail` is the middle of its tail, `facing` points from the wall
   /// to the truck.</summary>
@@ -29,7 +31,8 @@ namespace Checkout {
    l.inside=tail-facing*(.8f+1.2f)+side*.7f;l.outside=tail-facing*.15f+side*1.25f;l.load=tail+side*.6f;
    l.inside.y=l.outside.y=.15f;
    if(template){
-    var go=Object.Instantiate(template.gameObject,template.transform.parent);
+    // At the scene's root, at the worker's world size: the worker's own parent may be hidden while no delivery runs.
+    var go=Object.Instantiate(template.gameObject);go.transform.localScale=template.transform.lossyScale;
     go.name="Worker_Loader "+dock;
     var w=go.GetComponent<MarketDay.MarketDeliveryWorker>();
     l.anim=w?w.animationPlayer:go.GetComponentInChildren<Animation>();l.cargo=w?w.cargo:null;l.left=w?w.leftHand:null;l.right=w?w.rightHand:null;

@@ -165,7 +165,7 @@ namespace Checkout {
      loadedSeen=true;
      if(!loadShot&&t>1){loadShot=true;loadStart=t;var m=yard.TruckModel(ids[0]);if(m)yield return From("yard_loading",m.position+new Vector3(-2.5f,1.2f,0),new Vector3(1f,.55f,-.85f),11,34);if(m)TierShot("yard_loading_gamecam",2048,1152,m.position,14);}
      // the loader on its trips (out with a box, at the tail's corner, back in): three game-camera close-ups
-     else if(loadShot&&loadShots<3&&t-loadStart>3+loadShots*5){var m=yard.TruckModel(ids[0]);if(m)TierShot("yard_loader_"+loadShots,2048,1152,m.position+new Vector3(-3f,0,-1f),9);loadShots++;}
+     else if(loadShot&&loadShots<3&&t-loadStart>3+loadShots*5){var m=yard.TruckModel(ids[0]);if(m)TierShot("yard_loader_"+loadShots,2048,1152,m.position+new Vector3(-3f,0,-1f),9);Note("yard: loaders "+yard.QaLoaderInfo);loadShots++;}
     }
     if(!cityShot&&yard.QaRoute(ids[0])=="to the city"){var m=yard.TruckModel(ids[0]);if(m&&m.position.z<0){cityShot=true;TierShot("yard_city",2048,1152,m.position,20);}}
     // the supply order: moved on until it is due, unloaded once its truck stands at a dock, then home

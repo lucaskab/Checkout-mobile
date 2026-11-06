@@ -377,6 +377,7 @@ namespace Checkout {
   /// <summary>QA: the yard's slab (world x/z), driveways excluded.</summary>
   public static Rect Slab=>Rect.MinMaxRect(Origin.x-17.5f,Origin.z-6.3f,Origin.x+14.6f,Origin.z+16.9f);
   public int QaLoaders=>loading.Active;
+  public string QaLoaderInfo=>loading.Describe();
 
   void OnDestroy(){if(Current==this)Current=null;loading.StopAll();}
  }
