@@ -3452,7 +3452,7 @@ const catalog: Catalog = {
 	"VÍDEO": "VIDEO",
 	"Assista um vídeo curto e ganhe diamantes · hoje: {0} de {1}": "Watch a short video and earn diamonds · today: {0} of {1}",
 	"Grátis": "Free",
-	"Você ganhou +{0} diamantes!": "You earned +{0} diamonds!",
+	"Você ganhou +{0} diamantes!": "You got +{0} diamonds!",
 	"O vídeo não carregou. Tente de novo.": "The video did not load. Try again.",
 	"Vídeo fechado antes do fim · sem prêmio": "Video closed before the end · no reward",
 	"Abrindo o vídeo…": "Opening the video…",
@@ -4674,6 +4674,18 @@ const catalog: Catalog = {
 	"Próximo lugar": "Next slot",
 	"Vem com a próxima evolução deste móvel, junto com:": "Comes with this fixture's next evolution, along with:",
 	"Com a evolução": "With the evolution",
+	"Como se você tivesse saído: a obra da expansão anda e o mercado aberto vende sozinho (até 12 h por vez).": "As if you'd been away: expansion construction progresses and the open market sells on its own (up to 12 h at a time).",
+	"Decoração grátis: já está na Loja › Decoração para colocar": "Free decoration: it's already in Shop › Decoration, ready to place",
+	"Novos vídeos à meia-noite": "New videos at midnight",
+	"PRÊMIO": "PRIZE",
+	"GRÁTIS": "FREE",
+	"Prêmio do nível": "Level prize",
+	"Prêmio do nível, já no seu caixa": "Level prize, already in your register",
+	"Todo nível traz um prêmio. Os níveis 5 e 10 de cada dezena dão diamantes, e alguns trazem decorações.": "Every level brings a prize. Levels ending in 5 and 0 give diamonds, and some bring decorations.",
+	"Você já ganhou os diamantes de vídeo de hoje. Volte amanhã!": "You've already earned today's video diamonds. Come back tomorrow!",
+	"Você já ganhou os diamantes de vídeo de hoje · volta em {0}": "You've already earned today's video diamonds · back in {0}",
+	"Use para acelerar obras e entregas": "Use them to speed up construction and deliveries",
+	"Assista um vídeo curto e ganhe +{0} diamantes · {1} hoje": "Watch a short video and get +{0} diamonds · {1} left today",
 };
 
 export default catalog;

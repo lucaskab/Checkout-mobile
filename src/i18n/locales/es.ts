@@ -4674,6 +4674,18 @@ const catalog: Catalog = {
 	"Próximo lugar": "Siguiente hueco",
 	"Vem com a próxima evolução deste móvel, junto com:": "Llega con la próxima evolución de este mueble, junto con:",
 	"Com a evolução": "Con la evolución",
+	"Como se você tivesse saído: a obra da expansão anda e o mercado aberto vende sozinho (até 12 h por vez).": "Como si te hubieras ido: la obra de la expansión avanza y el mercado abierto vende solo (hasta 12 h cada vez).",
+	"Decoração grátis: já está na Loja › Decoração para colocar": "Decoración gratis: ya está en Tienda › Decoración para colocarla",
+	"Novos vídeos à meia-noite": "Nuevos vídeos a medianoche",
+	"PRÊMIO": "PREMIO",
+	"GRÁTIS": "GRATIS",
+	"Prêmio do nível": "Premio del nivel",
+	"Prêmio do nível, já no seu caixa": "Premio del nivel, ya en tu caja",
+	"Todo nível traz um prêmio. Os níveis 5 e 10 de cada dezena dão diamantes, e alguns trazem decorações.": "Cada nivel trae un premio. Los niveles que terminan en 5 y 0 dan diamantes, y algunos traen decoraciones.",
+	"Você já ganhou os diamantes de vídeo de hoje. Volte amanhã!": "Ya ganaste los diamantes de vídeo de hoy. ¡Vuelve mañana!",
+	"Você já ganhou os diamantes de vídeo de hoje · volta em {0}": "Ya ganaste los diamantes de vídeo de hoy · vuelve en {0}",
+	"Use para acelerar obras e entregas": "Úsalos para acelerar obras y entregas",
+	"Assista um vídeo curto e ganhe +{0} diamantes · {1} hoje": "Mira un vídeo corto y gana +{0} diamantes · quedan {1} hoy",
 };
 
 export default catalog;

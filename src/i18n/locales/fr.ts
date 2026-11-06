@@ -3465,7 +3465,7 @@ const catalog: Catalog = {
 	"VÍDEO": "VIDÉO",
 	"Assista um vídeo curto e ganhe diamantes · hoje: {0} de {1}": "Regardez une courte vidéo et gagnez des diamants · aujourd'hui : {0} sur {1}",
 	"Grátis": "Gratuit",
-	"Você ganhou +{0} diamantes!": "Vous avez gagné +{0} diamants !",
+	"Você ganhou +{0} diamantes!": "Tu as gagné +{0} diamants !",
 	"O vídeo não carregou. Tente de novo.": "La vidéo ne s'est pas chargée. Réessayez.",
 	"Vídeo fechado antes do fim · sem prêmio": "Vidéo fermée avant la fin · pas de récompense",
 	"Abrindo o vídeo…": "Ouverture de la vidéo…",
@@ -4674,6 +4674,18 @@ const catalog: Catalog = {
 	"Próximo lugar": "Emplacement suivant",
 	"Vem com a próxima evolução deste móvel, junto com:": "Arrive avec la prochaine évolution de ce meuble, en même temps que :",
 	"Com a evolução": "Avec l'évolution",
+	"Como se você tivesse saído: a obra da expansão anda e o mercado aberto vende sozinho (até 12 h por vez).": "Comme si tu étais parti : le chantier de l'agrandissement avance et le magasin ouvert vend tout seul (jusqu'à 12 h à la fois).",
+	"Decoração grátis: já está na Loja › Decoração para colocar": "Décoration gratuite : elle est déjà dans Boutique › Décoration, prête à placer",
+	"Novos vídeos à meia-noite": "Nouvelles vidéos à minuit",
+	"PRÊMIO": "PRIX",
+	"GRÁTIS": "GRATUIT",
+	"Prêmio do nível": "Prix du niveau",
+	"Prêmio do nível, já no seu caixa": "Prix du niveau, déjà dans ta caisse",
+	"Todo nível traz um prêmio. Os níveis 5 e 10 de cada dezena dão diamantes, e alguns trazem decorações.": "Chaque niveau apporte un prix. Les niveaux qui finissent par 5 et 0 donnent des diamants, et certains apportent des décorations.",
+	"Você já ganhou os diamantes de vídeo de hoje. Volte amanhã!": "Tu as déjà gagné les diamants vidéo du jour. Reviens demain !",
+	"Você já ganhou os diamantes de vídeo de hoje · volta em {0}": "Tu as déjà gagné les diamants vidéo du jour · retour dans {0}",
+	"Use para acelerar obras e entregas": "Utilise-les pour accélérer les chantiers et les livraisons",
+	"Assista um vídeo curto e ganhe +{0} diamantes · {1} hoje": "Regarde une courte vidéo et gagne +{0} diamants · encore {1} aujourd'hui",
 };
 
 export default catalog;
