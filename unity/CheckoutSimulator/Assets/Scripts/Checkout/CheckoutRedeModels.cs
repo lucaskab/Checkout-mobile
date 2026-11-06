@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MarketDay;
 using TMPro;
+using K = Checkout.CheckoutDesktopKit;
 
 namespace Checkout {
  // Rede de supermercados (Lucas 06/11 "Aprovado"): the chain's Blender models (scripts/blender/rede_export.py →
