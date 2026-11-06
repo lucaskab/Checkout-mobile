@@ -120,6 +120,13 @@ namespace Checkout {
    return box;
   }
 
+  // The chain's trucks drive outside the market roots the paint watches: they follow the colours from here.
+  float nextPaint;
+  void Update(){
+   if(Time.unscaledTime<nextPaint)return;nextPaint=Time.unscaledTime+1f;
+   foreach(var s in skins.Values)if(s.model&&s.model.gameObject.activeInHierarchy)CheckoutMarketPaint.Touch(s.model.gameObject);
+  }
+
   void OnDestroy(){if(Current==this)Current=null;}
  }
 }

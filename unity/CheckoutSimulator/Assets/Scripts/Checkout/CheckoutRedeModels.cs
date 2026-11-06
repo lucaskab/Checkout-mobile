@@ -104,9 +104,15 @@ namespace Checkout {
    if(font)return;
    var dressing=GameObject.Find("Market Stage Dressing");
    var sample=dressing?dressing.GetComponentInChildren<TextMesh>(true):null;
-   if(sample&&sample.font){font=sample.font;fontMaterial=sample.GetComponent<MeshRenderer>()?.sharedMaterial;return;}
-   var stage=FindAnyObjectByType<CheckoutStageConstruction>(FindObjectsInactive.Include);
-   if(stage&&stage.titleFont){font=stage.titleFont;fontMaterial=stage.titleMaterial;}
+   Material source=null;
+   if(sample&&sample.font){font=sample.font;source=sample.GetComponent<MeshRenderer>()?.sharedMaterial;}
+   else{var stage=FindAnyObjectByType<CheckoutStageConstruction>(FindObjectsInactive.Include);if(stage&&stage.titleFont){font=stage.titleFont;source=stage.titleMaterial;}}
+   if(!font)return;
+   // The text shader draws over everything by default (GUI): the plates' letters are hidden behind walls and boxes
+   // like the rest of the model, and only from the front.
+   fontMaterial=new Material(source?source:font.material){name="Rede plate text"};
+   fontMaterial.SetInt("unity_GUIZTestMode",(int)UnityEngine.Rendering.CompareFunction.LessEqual);
+   if(fontMaterial.HasProperty("_Cull"))fontMaterial.SetInt("_Cull",(int)UnityEngine.Rendering.CullMode.Back);
   }
 
   void Update(){Refresh(false);}
