@@ -84,8 +84,8 @@ namespace Checkout {
      // shrinks a long name to the plate. Never translated: the chain's name is the player's own text.
      m.text=go.AddComponent<TextMeshPro>();
      m.text.font=K.Headline;m.text.alignment=TextAlignmentOptions.Center;m.text.textWrappingMode=TextWrappingModes.NoWrap;
-     m.text.rectTransform.sizeDelta=new Vector2(p.text*9f*.62f,p.text*1.35f);
-     m.text.enableAutoSizing=true;m.text.fontSizeMin=.05f;m.text.fontSizeMax=p.text*10f;
+     m.text.enableAutoSizing=false;m.text.overflowMode=TextOverflowModes.Overflow;
+     m.text.rectTransform.sizeDelta=new Vector2(p.text*12f,p.text*2f);m.text.fontSize=p.text*10f;
      var mr=go.GetComponent<MeshRenderer>();if(mr)mr.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
     }
     made.Add(m);
@@ -118,6 +118,10 @@ namespace Checkout {
      m.text.gameObject.SetActive(on);if(!on)continue;
      var name=m.plate.upper?CheckoutBrand.Name.ToUpperInvariant():CheckoutBrand.Name;
      m.text.text=name;
+     // the plate holds about 9 letters at the planned size: a longer name shrinks (TMP: font size 10 = 1 m em)
+     float planned=m.plate.text*9f*.62f,size=m.plate.text*10f;
+     m.text.fontSize=size;var pref=m.text.GetPreferredValues(name);
+     if(pref.x>planned&&pref.x>0)m.text.fontSize=size*planned/pref.x;
      m.text.color=m.plate.color=="F0C75A"?Color.Lerp(CheckoutBrand.Accent,Color.white,.2f):CheckoutBrand.Primary;
     }
    }
