@@ -101,7 +101,7 @@ namespace Checkout {
     float size=Mathf.Clamp((bn.head.position.y-w.position.y)/1.85f,.6f,1.2f);
     var facing=-w.forward;facing.y=0;if(facing.sqrMagnitude<.01f)continue;facing.Normalize();
     var across=bn.l.position-bn.r.position;across.y=0;
-    b.position=shoulders+Vector3.down*.17f*size+facing*.24f*size+across*.12f;
+    b.position=shoulders+Vector3.down*.1f*size+facing*.34f*size+across*.1f;
     b.rotation=Quaternion.LookRotation(-facing,Vector3.up);
     b.localScale=Vector3.one*.17f*size/Mathf.Max(.0001f,w.lossyScale.y);
    }
