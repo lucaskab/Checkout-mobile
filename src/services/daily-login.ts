@@ -15,9 +15,10 @@ export type DailyLoginState = {
 };
 
 export const LOGIN_STREAK_DAYS = 7;
-/** Coins of each day of the streak, in item-level prices of the current expansion. */
-const COIN_STEPS = [1, 1.5, 2, 2.5, 3, 4, 6];
-const DIAMONDS_ON_LAST_DAY = 5;
+/** Coins of each day of the streak, in item-level prices of the current expansion. The 7th day is worth more than
+ * the six before it together (Lucas 06/11, launch audit: the genre's habit, a reason to keep the streak). */
+const COIN_STEPS = [1, 1.5, 2, 2.5, 3, 4, 15];
+const DIAMONDS_ON_LAST_DAY = 15;
 
 export function createDailyLoginState(): DailyLoginState {
 	return { lastClaimDay: "", streak: 0 };

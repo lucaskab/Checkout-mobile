@@ -10,7 +10,7 @@ namespace Checkout {
  public sealed class CheckoutRedeLoading {
   sealed class Loader {
    public int dock;public Transform body,cargo,left,right;public Animation anim;
-   public Vector3 inside,outside,facing;public float until,clock,clock2,wait;public int step;public string clip;public bool carrying,leaving,done;
+   public Vector3 inside,outside,facing,load;public float until,clock,clock2,wait;public int step;public string clip;public bool carrying,leaving,done;
    public Vector3 cargoScale;public Transform cargoParent;
   }
   readonly List<Loader> loaders=new List<Loader>();
@@ -23,7 +23,10 @@ namespace Checkout {
    var template=Object.FindAnyObjectByType<MarketDay.MarketDeliveryWorker>(FindObjectsInactive.Include);
    var l=new Loader{dock=dock,facing=facing,until=seconds};
    // inside the dock's door (the dark loading bay) and just behind the truck's tail, in the gap to the wall
-   l.inside=tail-facing*(.8f+1.2f);l.outside=tail-facing*.42f;
+   // (the box goes in at the tail's corner on the camera's side, south: in the gap behind the tail the truck's body
+   // would hide the loader from the game camera)
+   var side=Vector3.Cross(Vector3.up,facing).normalized;if(side.z>0)side=-side;
+   l.inside=tail-facing*(.8f+1.2f)+side*.7f;l.outside=tail-facing*.15f+side*1.25f;l.load=tail+side*.6f;
    l.inside.y=l.outside.y=.15f;
    if(template){
     var go=Object.Instantiate(template.gameObject,template.transform.parent);
@@ -68,7 +71,7 @@ namespace Checkout {
       if(Walk(l,l.outside,dt,true)){l.step=1;l.clock2=0;Play(l,"PutDown");}
       break;
      case 1:   // into the truck
-      Face(l,l.facing,dt);l.clock2+=dt;
+      Face(l,l.load-l.body.position,dt);l.clock2+=dt;
       if(l.carrying&&l.clock2>=Length(l,"PutDown")*.65f)Drop(l);
       if(l.clock2>=Length(l,"PutDown")){l.step=2;}
       break;

@@ -2,6 +2,9 @@ import type { MarketEraId } from "@/@types/economy";
 import type { MissionDefinition } from "@/@types/mission";
 import { getMarketEra, getNextMarketEra } from "@/data/economy";
 
+// Diamonds for growing into the three long builds (Lucas 06/11: only a few missions give diamonds).
+const EXPANSION_DIAMONDS: Partial<Record<MarketEraId, number>> = { mercadinho: 10, supermercado: 15, hipermercado: 20 };
+
 export const missions: MissionDefinition[] = [
 	{
 		category: "progression",
@@ -33,7 +36,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-10",
 		metric: "level",
 		requiredLevel: 5,
-		reward: { coins: 2_500, items: [{ productId: 51, quantity: 3 }] },
+		reward: { diamonds: 5, coins: 2_500, items: [{ productId: 51, quantity: 3 }] },
 		title: "Dono do bairro",
 	},
 	{
@@ -55,7 +58,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-22",
 		metric: "level",
 		requiredLevel: 16,
-		reward: { coins: 20_000, items: [{ productId: 19, quantity: 3 }] },
+		reward: { diamonds: 10, coins: 20_000, items: [{ productId: 19, quantity: 3 }] },
 		title: "Império varejista",
 	},
 	{
@@ -110,7 +113,7 @@ export const missions: MissionDefinition[] = [
 		id: "customers-1000",
 		metric: "customersServed",
 		requiredLevel: 15,
-		reward: { coins: 12_000, items: [{ productId: 55, quantity: 4 }] },
+		reward: { diamonds: 5, coins: 12_000, items: [{ productId: 55, quantity: 4 }] },
 		title: "Mil clientes felizes",
 	},
 	{
@@ -242,7 +245,7 @@ export const missions: MissionDefinition[] = [
 		id: "revenue-100000",
 		metric: "revenue",
 		requiredLevel: 13,
-		reward: { coins: 10_000, items: [{ productId: 17, quantity: 3 }] },
+		reward: { diamonds: 5, coins: 10_000, items: [{ productId: 17, quantity: 3 }] },
 		title: "Seis dígitos",
 	},
 	{
@@ -344,7 +347,7 @@ export const missions: MissionDefinition[] = [
 		id: "crafted-200",
 		metric: "productionCrafted",
 		requiredLevel: 27,
-		reward: { coins: 7_500, items: [{ productId: 27, quantity: 5 }] },
+		reward: { diamonds: 5, coins: 7_500, items: [{ productId: 27, quantity: 5 }] },
 		title: "Turno industrial",
 	},
 	{
@@ -445,7 +448,7 @@ export const missions: MissionDefinition[] = [
 		id: "upgrades-12",
 		metric: "shelfUpgrades",
 		requiredLevel: 12,
-		reward: { coins: 6_000, items: [{ productId: 17, quantity: 3 }] },
+		reward: { diamonds: 5, coins: 6_000, items: [{ productId: 17, quantity: 3 }] },
 		title: "Estrutura premium",
 	},
 	...expansionMissions(),
@@ -495,7 +498,8 @@ function expansionMissions(): MissionDefinition[] {
 				metric: "expansion",
 				requiredLevel: 1,
 				requiredEra: era,
-				reward: { coins: reward },
+				// the three long builds (supermercado, hipermercado, rede) also give a few diamonds
+				reward: { coins: reward, ...(EXPANSION_DIAMONDS[era] ? { diamonds: EXPANSION_DIAMONDS[era] } : {}) },
 				title: `Próxima expansão: ${next.name}`,
 			});
 		return list;

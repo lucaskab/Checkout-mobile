@@ -201,6 +201,7 @@ import { createRewardedAdsState, creditPlacementAd, normalizeRewardedAdsState, r
 import { canClaimConsolation, rollConsolation } from "@/services/contract-pressure";
 import { getCurrencyPack, getCurrencyPackCoins } from "@/data/currency-packs";
 import { getMissionProgress, getMissionRewardPlan, getNewlyReachedMissionIds } from "@/services/missions";
+import { getLevelRewards } from "@/data/level-rewards";
 import { getProductionDiamondCost } from "@/services/production";
 import {
 	applyExperience,
@@ -1080,17 +1081,36 @@ export const useGameStore = create<GameStore>()(
 				if (!replace && phaseBefore === "open" && ended?.phase === "results" && ended.result)
 					rawSet({ rankings: addLeaguePoints(get().rankings, dayLeaguePoints(ended.result), Date.now()) });
 				const market = get().market;
-				if (!replace && market.level > before)
+				if (!replace && market.level > before) {
+					// A prize on every level (src/data/level-rewards.ts): coins, diamonds now and then, a decoration
+					// on the levels that unlock nothing else; added up in the celebration until it is closed.
+					const now = get();
+					const prizes = getLevelRewards(before, market.level, now.era.id, now.interior.owned);
+					const coins = prizes.reduce((sum, prize) => sum + prize.coins, 0);
+					const diamonds = prizes.reduce((sum, prize) => sum + prize.diamonds, 0);
+					const decorIds = prizes.flatMap((prize) => (prize.decorId ? [prize.decorId] : []));
+					const owned = { ...now.interior.owned };
+					for (const id of decorIds) owned[id] = (owned[id] ?? 0) + 1;
+					const earlier = market.levelUp?.rewards ?? { coins: 0, diamonds: 0, decorIds: [] };
 					rawSet({
+						coins: now.coins + coins,
+						logistics: { ...now.logistics, premiumCurrency: now.logistics.premiumCurrency + diamonds },
+						...(decorIds.length ? { interior: { ...now.interior, owned } } : {}),
 						market: {
 							...market,
 							levelUp: {
 								from: Math.min(market.levelUp?.from ?? before, before),
 								to: market.level,
 								at: Date.now(),
+								rewards: {
+									coins: earlier.coins + coins,
+									diamonds: earlier.diamonds + diamonds,
+									decorIds: [...earlier.decorIds, ...decorIds],
+								},
 							},
 						},
 					});
+				}
 			}) as typeof rawSet;
 			// Spending diamonds: when the player has too few, the HUD opens the diamond store (Lucas 12/10) — the
 			// shortfall is left here (not saved) for the host / app to react to (desktop/host.ts, use-simulator.ts).
@@ -1361,6 +1381,9 @@ export const useGameStore = create<GameStore>()(
 
 				set({
 					coins: state.coins + plan.coins,
+					...(plan.diamonds > 0
+						? { logistics: { ...state.logistics, premiumCurrency: state.logistics.premiumCurrency + plan.diamonds } }
+						: {}),
 					inventory,
 					inventoryLots,
 					missions: {

@@ -88,13 +88,13 @@ test("DEV jumps to any era and passing time finishes the obra", () => {
 	expect(store().era.id).toBe("spati");
 });
 
-test("time away is worth part of a turn, more in bigger eras, up to 8 hours", () => {
+test("time away is worth part of a turn, more in bigger eras, up to 12 hours", () => {
 	const mesinha = recordFinishedTurn(createInitialEraState("mesinha"), { profit: 1_000, customers: 20 });
 	const hiper = { ...mesinha, id: "hipermercado" };
-	const eightHours = getOfflineEraIncome(hiper, 8 * HOUR);
-	expect(eightHours.coins).toBe(Math.floor(8 * getOfflineTurnsPerHour(getMarketEra("hipermercado")) * 1_000));
-	expect(getOfflineEraIncome(hiper, 30 * HOUR).coins).toBe(eightHours.coins);
-	expect(getOfflineEraIncome(mesinha, 8 * HOUR).coins).toBeLessThan(eightHours.coins);
+	const twelveHours = getOfflineEraIncome(hiper, 12 * HOUR);
+	expect(twelveHours.coins).toBe(Math.floor(12 * getOfflineTurnsPerHour(getMarketEra("hipermercado")) * 1_000));
+	expect(getOfflineEraIncome(hiper, 30 * HOUR).coins).toBe(twelveHours.coins);
+	expect(getOfflineEraIncome(mesinha, 12 * HOUR).coins).toBeLessThan(twelveHours.coins);
 	// Averages follow the finished turns.
 	const next = recordFinishedTurn(mesinha, { profit: 2_000, customers: 30 });
 	expect(next.averageTurnProfit).toBe(1_300);

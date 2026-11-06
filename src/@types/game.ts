@@ -81,6 +81,8 @@ export type GameLevelUp = {
 	/** Level reached. */
 	to: number;
 	at: number;
+	/** The prizes these levels gave (src/data/level-rewards.ts), added up for the celebration. */
+	rewards?: { coins: number; diamonds: number; decorIds: string[] };
 };
 
 export type GameShiftState = {

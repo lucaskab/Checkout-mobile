@@ -1,27 +1,18 @@
 import { getDayKey } from "@/services/daily-login";
 
 /**
- * NO LIMIT (Lucas 14/10: "não coloque limite de quantas vezes a pessoa consegue assistir ad no dia… limitar a
- * quantidade de ad é basicamente limitar o quanto de dinheiro eu vou fazer"): any number of videos a day, one after
- * the other, each paying AD_REWARD_DIAMONDS. The daily cap and the gap between videos below are gone; the notes are
- * kept for the history of the sizing. (The ad network may still run out of videos to show for a while: then the
- * button says so — that is Google's fill, not a rule of the game.)
+ * Rewarded videos for diamonds (Lucas 06/11, launch audit): 2 diamonds a video, at most 14 diamonds a day (7 videos),
+ * so the free diamonds stay a taste of the speed-ups and the store keeps its reason to exist. The other placements
+ * (the missed contract's consolation, doubling the daily gift) have their own once-a-day rules and do not count here.
  *
- * Rewarded videos (Lucas 12/10): a player who does not pay can still speed up now and then by watching a video —
- * always by choice (no forced ads, no interstitials), a small reward each time that adds up until it buys what they
- * want.
- *
- * Sizing (research notes in the project doc diamantes-aceleracao-e-compras):
- * - A rewarded view earns the game about $0.01–0.03 in the US/Europe and well under a cent in Brazil; a diamond is
- *   worth ~2 cents in the store. Genre practice pays more than the ad earns, because the video is there to keep
- *   non-payers playing and to give them a taste of the speed-ups — players who use rewarded ads buy far more often.
- * - So each video gives 3 diamonds (4 % of the smallest pack, ~10–12 min of speed-up) and the fifth of the day 5:
- *   at most 17 diamonds a day. That is a 1-hour wait every day or a 1-day wait every 9 days — worth watching, but a
- *   long build still asks for money, and a player who wants it now still buys.
- * - At most 5 a day, at least 3 minutes apart (a cap protects the ads' value and the store; the gap spreads them over
- *   the session instead of five in a row).
+ * History: 12/10 3 diamonds and at most 5 a day; 14/10 no limit at all ("limitar a quantidade de ad é basicamente
+ * limitar o quanto de dinheiro eu vou fazer"); the audit showed a free player could cover every build with videos
+ * (~34 videos for a 10 h build, ~US$ 0.06 of ad revenue in Brazil) instead of the €1.99 pack.
+ * Research notes in the project doc diamantes-aceleracao-e-compras.
  */
-export const AD_REWARD_DIAMONDS = 3;
+export const AD_REWARD_DIAMONDS = 2;
+/** Diamonds the videos can give in one local day. */
+export const AD_DAILY_DIAMONDS = 14;
 
 export type RewardedAdsState = {
 	/** Local calendar day of the count below ("2026-10-12"). */
@@ -65,17 +56,28 @@ export type RewardedAdOffer = {
 	watchedToday: number;
 	/** Diamonds the next video gives. */
 	reward: number;
-	/** Always 0 now (no wait between videos); kept for the pages. */
+	/** Videos still paying today. */
+	leftToday: number;
+	/** Until the next local midnight when today's videos are used up, else 0. */
 	waitMs: number;
-	/** Always "" now (no daily cap, no gap). */
-	reason: "";
+	/** "limit" once today's videos are used up. */
+	reason: "" | "limit";
 };
 
-/** Every video can be watched right away; the count of the day is only for the pages and the stats. */
+function msToMidnight(now: number) {
+	const next = new Date(now);
+	next.setHours(24, 0, 0, 0);
+	return Math.max(0, next.getTime() - now);
+}
+
+/** The video of now: available until today's AD_DAILY_DIAMONDS are paid out. */
 export function getRewardedAdOffer(state: RewardedAdsState | undefined, now = Date.now()): RewardedAdOffer {
 	const ads = state ?? createRewardedAdsState();
 	const watchedToday = ads.day === getDayKey(now) ? ads.watched : 0;
-	return { available: true, watchedToday, reward: AD_REWARD_DIAMONDS, waitMs: 0, reason: "" };
+	const perDay = Math.floor(AD_DAILY_DIAMONDS / AD_REWARD_DIAMONDS);
+	const leftToday = Math.max(0, perDay - watchedToday);
+	const available = leftToday > 0;
+	return { available, watchedToday, leftToday, reward: AD_REWARD_DIAMONDS, waitMs: available ? 0 : msToMidnight(now), reason: available ? "" : "limit" };
 }
 
 /** The state after the video `adId` was watched to the end, and the diamonds it gives (0 = refused). */
@@ -98,7 +100,7 @@ export function rewardAd(state: RewardedAdsState | undefined, adId: string, now 
 
 /**
  * A video of another placement (the missed contract's consolation, doubling the daily gift): those have their own
- * once-a-day rules and do not use the five diamond videos of the day, but each video id still pays only once.
+ * once-a-day rules and do not use the diamond videos of the day, but each video id still pays only once.
  */
 export function creditPlacementAd(state: RewardedAdsState | undefined, adId: string, now = Date.now()) {
 	const ads = normalizeRewardedAdsState(state);

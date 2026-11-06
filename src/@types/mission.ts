@@ -31,6 +31,8 @@ export type MissionRewardItem = {
 export type MissionReward = {
 	coins: number;
 	items?: MissionRewardItem[];
+	/** A few milestone missions only (Lucas 06/11: "poucas deem diamante"): a taste of the premium currency. */
+	diamonds?: number;
 };
 
 export type MissionDefinition = {

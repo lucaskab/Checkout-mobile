@@ -133,7 +133,7 @@ export function devEraCards(state: State): Card[] {
 			eyebrow: "TEMPO",
 			icon: gameIcon("sleepy"),
 			subtitle:
-				"Como se você tivesse saído: a obra da expansão anda e o mercado aberto vende sozinho (até 8 h por vez).",
+				"Como se você tivesse saído: a obra da expansão anda e o mercado aberto vende sozinho (até 12 h por vez).",
 			lines: [
 				state.era.averageTurnProfit > 0
 					? `Um turno seu rende em média ${fmt(state.era.averageTurnProfit)} moedas.`

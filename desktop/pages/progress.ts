@@ -9,7 +9,7 @@ import {
 } from "@/data/currency-packs";
 import { getPackEvent, getPackPrice, iapStore, storePlatform } from "../iap";
 import { adsStore, getLastAdEvent, isAdOpening } from "../ads";
-import { getRewardedAdOffer } from "@/services/rewarded-ads";
+import { formatAdWait, getRewardedAdOffer } from "@/services/rewarded-ads";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
@@ -196,7 +196,7 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 	});
 }
 
-// "Diamantes grátis": watch a short video for a few diamonds, as many as the player wants (no daily limit).
+// "Diamantes grátis": watch a short video for a few diamonds, up to AD_DAILY_DIAMONDS a day (Lucas 06/11).
 function adCard(state: State, missing: number): Card {
 	const offer = getRewardedAdOffer(state.rewardedAds);
 	const last = getLastAdEvent();
@@ -213,11 +213,13 @@ function adCard(state: State, missing: number): Card {
 	const label = `Assistir · +${offer.reward}`;
 	return card("Diamantes grátis", {
 		eyebrow: "VÍDEO",
-		subtitle: `Assista um vídeo curto e ganhe +${offer.reward} diamantes · sem limite por dia${offer.watchedToday ? ` · hoje: ${offer.watchedToday}` : ""}`,
+		subtitle: offer.available
+			? `Assista um vídeo curto e ganhe +${offer.reward} diamantes · ${offer.leftToday} hoje`
+			: `Você já ganhou os diamantes de vídeo de hoje · volta em ${formatAdWait(offer.waitMs)}`,
 		icon: gameIcon("television"),
 		badge: missing > 0 && offer.available ? "Grátis" : "",
 		tone: last?.kind === "rewarded" ? "success" : last && last.kind !== "rewarded" ? "danger" : waiting ? "warning" : "info",
-		lines: status ? [status] : ["Quantos quiser: some os diamantes e acelere o que quiser"],
+		lines: status ? [status] : [offer.available ? "Some os diamantes e acelere o que quiser" : "Novos vídeos à meia-noite"],
 		buttons: [
 			act(waiting ? "Aguardando…" : label, "watchRewardedAd", [], {
 				variant: "gem",
