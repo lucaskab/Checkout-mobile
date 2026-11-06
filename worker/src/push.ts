@@ -19,8 +19,13 @@ const LANGS = ["pt", "en", "es", "fr", "de"] as const;
 type Lang = (typeof LANGS)[number];
 
 /** How many inbox rows one flush claims (and the age past which a row is never pushed: it was read in the game). */
-const FLUSH_ROWS = 50;
+// Workers Free: at most 50 outgoing fetches per invocation (the OAuth token + one per device), so one flush sends to
+// at most MAX_SENDS devices; what is left goes out with the next flush (the next social call, or the 10-min cron).
+const FLUSH_ROWS = 20;
+export const MAX_SENDS = 30;
 const MAX_AGE_MS = 60 * 60_000;
+/** The week's league result can wait longer (thousands land at once on Monday; the cron sends them in batches). */
+const LEAGUE_MAX_AGE_MS = 24 * 3600_000;
 const MAX_DEVICES_PER_PLAYER = 5;
 
 export type ServiceAccount = { projectId: string; clientEmail: string; privateKey: string };
@@ -250,7 +255,8 @@ export function pushText(rows: { kind: string; name: string | null }[], lang: st
 // ── Flush ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * Claims the inbox rows not pushed yet (at most FLUSH_ROWS, younger than an hour, not read in the game) and sends one
+ * Claims the inbox rows not pushed yet (at most FLUSH_ROWS, younger than an hour — a day for the league —, not read
+ * in the game, of players with a device) and sends one
  * notification per player to each of their devices that has the category on. Returns how many rows it claimed.
  */
 export async function flushPush(db: D1Database, send: Sender | null, now: number, log: (line: string) => void = () => {}) {
@@ -261,11 +267,11 @@ export async function flushPush(db: D1Database, send: Sender | null, now: number
 		const result = await db
 			.prepare(
 				`UPDATE inbox SET pushed_at = ?1 WHERE id IN (
-				   SELECT id FROM inbox WHERE pushed_at IS NULL AND acked_at IS NULL AND created_at > ?2 AND kind IN (${kinds})
+				   SELECT id FROM inbox WHERE pushed_at IS NULL AND acked_at IS NULL AND (created_at > ?2 OR (kind = 'league_reward' AND created_at > ?3)) AND kind IN (${kinds})
 				   AND player_id IN (SELECT player_id FROM push_devices) ORDER BY id LIMIT ${FLUSH_ROWS})
 				 RETURNING player_id, kind, (SELECT CASE WHEN p.name_hidden = 1 THEN NULL ELSE p.market_name END FROM profiles p WHERE p.player_id = inbox.from_id) AS name`,
 			)
-			.bind(now, now - MAX_AGE_MS)
+			.bind(now, now - MAX_AGE_MS, now - LEAGUE_MAX_AGE_MS)
 			.all<{ player_id: string; kind: string; name: string | null }>();
 		claimed = result.results;
 	} catch (error) {
@@ -286,7 +292,7 @@ export async function flushPush(db: D1Database, send: Sender | null, now: number
 	let sent = 0;
 	const gone: string[] = [];
 	await Promise.all(
-		devices.results.map(async (device) => {
+		devices.results.slice(0, MAX_SENDS).map(async (device) => {
 			const on = new Set(device.categories.split(","));
 			const rows = (byPlayer.get(device.player_id) ?? []).filter((r) => on.has(KIND_CATEGORY[r.kind]));
 			const message = pushText(rows, device.lang);

@@ -11,7 +11,7 @@ import { appleTokens, appleVerifier, googleCodeExchange, googleVerifier } from "
 /**
  * checkout-server on Cloudflare Workers (free plan): D1 "checkout-saves" (binding DB) + R2 "checkout-saves" (binding
  * SAVES). Settings: Workers › checkout-server › Settings › Variables and Secrets (see worker/README.md).
- * Cron trigger "5 0 * * 1" (Monday 00:05 UTC): the weekly league close (scheduled() below).
+ * Cron triggers: "5 0 * * 1" (Monday 00:05 UTC) the weekly league close, every 10 minutes the push flush (scheduled() below).
  */
 const SETTINGS = [
 	"SESSION_SECRET",
@@ -109,18 +109,21 @@ export default {
 	},
 
 	/** The cron trigger (Monday 00:05 UTC): closes last week's league groups and pays the rewards (ranking-store.ts). */
-	async scheduled(_controller: { cron?: string; scheduledTime?: number }, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+	async scheduled(controller: { cron?: string; scheduledTime?: number }, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
 		if (!env.DB) return;
+		// Every 10 minutes: the pushes a social call left behind (more than one flush's worth) and the league results.
+		if (controller.cron === "*/10 * * * *") {
+			ctx.waitUntil(flushPush(env.DB, pushSender(env), Date.now(), log).catch((error) => log(`push flush failed: ${(error as Error)?.message ?? error}`)));
+			return;
+		}
 		const store = new Store(env.DB, env.SAVES, { log });
 		ctx.waitUntil(
 			closeWeeks(store, Date.now(), log)
 				.catch((error) => {
 					log(`league close failed: ${(error as Error)?.stack ?? error}`);
 				})
-				// The week's results are in the inbox now: the "liga fechou" pushes (a batch per flush, a few rounds).
-				.then(async () => {
-					for (let round = 0; round < 20; round++) if (!(await flushPush(env.DB, pushSender(env), Date.now(), log))) break;
-				})
+				// The week's results are in the inbox now: the first "liga fechou" pushes (the 10-min cron sends the rest).
+				.then(() => flushPush(env.DB, pushSender(env), Date.now(), log))
 				.catch((error) => log(`league push failed: ${(error as Error)?.message ?? error}`)),
 		);
 	},

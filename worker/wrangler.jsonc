@@ -12,7 +12,9 @@
 	"r2_buckets": [{ "binding": "SAVES", "bucket_name": "checkout-saves" }],
 	// The weekly league close (src/ranking-store.ts closeWeeks), Monday 00:05 UTC. A dashboard/API upload does not carry
 	// this: add it in Workers › checkout-server › Settings › Triggers › Cron Triggers.
-	"triggers": { "crons": ["5 0 * * 1"] },
+	// Every 10 minutes: the push flush (src/push.ts; the Free plan allows 50 outgoing fetches per run, so big batches
+	// such as Monday's league results go out over several runs).
+	"triggers": { "crons": ["5 0 * * 1", "*/10 * * * *"] },
 	"vars": {
 		"GOOGLE_CLIENT_IDS": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com,663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
 		"GOOGLE_DESKTOP_CLIENT_ID": "663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
