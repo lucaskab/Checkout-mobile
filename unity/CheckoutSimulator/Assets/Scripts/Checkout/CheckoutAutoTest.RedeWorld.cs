@@ -82,6 +82,59 @@ namespace Checkout {
    if(sim)sim.HomeCamera();
   }
 
+  // "eventsyard": the fleet's yard (Lucas 06/11 "coloque no jogo"): the chain with 5 trucks, stills of the yard,
+  // one truck leaving (mid-way), one coming in → pump → backing into its bay; RESULT lines, stills Logs/yard_*.jpg,
+  // video Logs/yard_demo.mjpg.
+  IEnumerator RedeYard(string request){
+   int seq=0;
+   void Act(string action,string args)=>CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-yard-"+(++seq)+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
+   void Route(string r)=>CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\""+r+"\"}");
+   void Result(string name,bool ok,string detail="")=>Note($"RESULT yard {name}: {(ok?"PASS":"FAIL")} {detail}");
+   if(!CheckoutStartMenu.QaMode){Note("yard: not on the QA copy, stopping");yield break;}
+   var hud=FindAnyObjectByType<CheckoutDesktopHUD>();
+   var sim=FindAnyObjectByType<MarketDay.MarketSimulation>();
+   yield return new WaitForSecondsRealtime(3f);
+   Act("skipOnboarding","[]");Act("claimDayResult","[]");yield return new WaitForSecondsRealtime(1f);
+   Act("setMarketLevel","[55]");yield return new WaitForSecondsRealtime(1f);Act("dismissLevelUp","[]");Act("devAdjustCoins","[9000000]");
+   Act("resetMarketPaint","[]");Act("devSetMarketEra","[\"rede\"]");
+   Route("");yield return new WaitForSecondsRealtime(8f);Act("dismissLevelUp","[]");if(hud)hud.QaReleaseCelebrations();
+   Act("nameChain","[\"Bom Preço\",\"coroa\"]");yield return new WaitForSecondsRealtime(1f);
+   Act("buyFleetTruck","[\"seco\"]");Act("buyFleetTruck","[\"seco\"]");Act("buyFleetTruck","[\"refrigerado\"]");
+   yield return new WaitForSecondsRealtime(2.5f);Route("");
+   var yard=CheckoutRedeYard.Current;
+   Note("yard: "+CheckoutRedeYard.Report+" | "+(yard?yard.Describe():"no yard"));
+   var ids=bridge.State.chain?.trucks?.Where(t=>t!=null).Select(t=>t.id).ToArray()??new string[0];
+   Result("the yard stands with the fleet parked",yard&&ids.Length>=5&&ids.All(id=>yard.QaMode(id)=="Parked"),yard?yard.Describe():"-");
+   var o=CheckoutRedeYard.Origin;
+   if(sim)sim.HomeCamera();yield return new WaitForSecondsRealtime(.5f);
+   TierShot("yard_gamecam",2048,1152,o+new Vector3(-2,1,0),30);
+   yield return From("yard_se",o+new Vector3(-1,1,0),new Vector3(.75f,.8f,-1f),34,34);
+   yield return From("yard_pump_close",CheckoutRedeYard.PumpPosition+Vector3.up,new Vector3(.8f,.55f,-.9f),14,34);
+   TopDown(o,40,"yard_top");
+   // a round trip filmed: one truck leaves, another comes in to the pump and backs into its bay
+   if(sim)sim.FocusCinematic(o+new Vector3(3,0,-1),20);yield return new WaitForSecondsRealtime(.5f);
+   RecStart("Logs/yard_demo.mjpg");
+   bool left=ids.Length>1&&yard.QaLeave(ids[1]);
+   yield return Frames(2.2f);
+   if(left)yield return From("yard_leaving",o+new Vector3(4,1,-2),new Vector3(.6f,.7f,-1f),24,34);
+   bool back=yard.QaRoundTrip(ids[0]);
+   Transform m0=yard.TruckModel(ids[0]);
+   bool pumpShot=false,parked=false;
+   for(float t=0;t<60;t+=.25f){
+    yield return Frames(.25f);
+    var mode=yard.QaMode(ids[0]);
+    if(!pumpShot&&mode=="Refuelling"){pumpShot=true;yield return From("yard_refuel",CheckoutRedeYard.PumpPosition+Vector3.up,new Vector3(.8f,.55f,-.9f),15,34);}
+    if(mode=="Backing"&&m0&&t%2f<.26f)Note($"yard: backing at ({m0.position.x:0.0},{m0.position.z:0.0}) yaw {m0.eulerAngles.y:0}");
+    if(pumpShot&&mode=="Parked"){parked=true;break;}
+   }
+   yield return Frames(1.5f);RecStop();
+   Result("a truck comes in, refuels and backs into its bay",back&&pumpShot&&parked,m0?$"at ({m0.position.x:0.00},{m0.position.z:0.00}) yaw {m0.eulerAngles.y:0}":"-");
+   if(parked)yield return From("yard_parked_again",o+new Vector3(4,1,2),new Vector3(.3f,.8f,-1f),20,34);
+   Result("a truck leaves the yard to the street",left&&yard.QaMode(ids[1])=="Away",yard.QaMode(ids[1]));
+   yield return new WaitForSecondsRealtime(2f);
+   if(sim)sim.HomeCamera();
+  }
+
   // A still from `dir` (towards the camera) at `dist` metres, field of view `fov`, of `target`.
   IEnumerator From(string name,Vector3 target,Vector3 dir,float dist,float fov){
    yield return new WaitForEndOfFrame();

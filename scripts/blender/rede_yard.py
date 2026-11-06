@@ -7,8 +7,8 @@ Model space = Unity world minus YARD_ORIGIN (Blender (x, y) == Unity (x, z), see
 YARD_ORIGIN; CheckoutRedeWorld uses the same numbers (bays, pump stop, lanes):
   * asphalt slab x −17.5..14.6, y −6.3..6.4 (world x −15.5..16.6, z 49.3..62.0), top at z .17, kerbed all round but the
     driveway to the east street (y −4.0..−0.2, world z 51.6..55.4) that crosses the pavement to the road;
-  * six truck bays along the north kerb, x −14 / −10.4 / −6.8 / −3.2 / .4 / 4 (world −12 … 6), 3.6 m wide, trucks backed
-    in (nose to the aisle), wheel stops near the kerb;
+  * seven truck bays along the north kerb, x −15 … 4.8 every 3.3 m (world −13 … 6.8), trucks backed in (nose to the
+    aisle), wheel stops behind the rear wheels;
   * the diesel island (RedeFuelIsland, approved) stands at world (11.5, 50.9) turned 90°: its pad is painted here, the
     truck stops beside it in the lane y −2.1 (world z 53.5);
   * hedge boxes on the north kerb, light poles, bollards at the driveway, painted lane arrows and a hatched pump pad.
@@ -26,10 +26,11 @@ HEDGE, HEDGE_D = "C_5C9A45", "C_4A8238"
 SOIL = "C_7A5A3C"
 YELLOW = "C_F2B830"
 POLE = "C_2F3A4A"
-BAYS = (-14.0, -10.4, -6.8, -3.2, .4, 4.0)
+BAYS = (-15.0, -11.7, -8.4, -5.1, -1.8, 1.5, 4.8)   # seven: the whole fleet (2 + 3 dry + 2 reefer)
+BAY_W = 3.3
 BAY_Y0 = -.8                             # the bays' front line (the aisle side)
 TRUCK_Y = 2.4                            # a parked truck's origin (nose to the aisle: Blender trucks face −Y)
-PUMP_STOP = (9.5, -2.1)                  # a truck refuelling (heading west)
+PUMP_STOP = (9.9, -2.1)                  # a truck refuelling (heading west)
 X0, X1, Y0, Y1 = -17.5, 14.6, -6.3, 6.4
 DRIVE = (-4.0, -.2)                      # driveway across the east kerb (model y)
 TOP = .17
@@ -59,7 +60,7 @@ def fleet_yard(name="RedeFleetYard", loc=(0, 0, 0)):
     for yy in DRIVE:   # rounded kerb ends at the driveway
         lathe(acc, [(0, 0), (.16, 0), (.16, .16), (0, .18)], (X1 - k / 2, yy + (-.13 if yy == DRIVE[0] else .13), TOP - .03), KERB, 16, 1)
     # bays: side lines, back line, wheel stops
-    half = 1.8
+    half = BAY_W / 2
     edges = sorted({round(b - half, 2) for b in BAYS} | {round(b + half, 2) for b in BAYS})
     for x in edges:
         rbox(acc, (.12, 6.8, .012), (x, BAY_Y0 + 3.4, TOP + .006), LINE, .005, 1)
@@ -132,3 +133,11 @@ def yard_preview(dist=46):
         tgt = Vector((9.5, -3.0, 1.2)) if nm == "yard_pump" else Vector((-4.0 if nm == "yard_bays" else -1.5, 0, .5))
         out.append(rk_core.shoot(nm, tgt, d, ds, lens, (1600, 1000)))
     return out
+
+
+def export_yard():
+    """Resources/Rede/RedeFleetYard.fbx (+ _brand.json, empty: no plates)."""
+    rk_core.clear("Rede Export")
+    preview_setup()
+    r, _ = fleet_yard("RedeFleetYard", (0, 0, 0))
+    return export_model(r, "RedeFleetYard")

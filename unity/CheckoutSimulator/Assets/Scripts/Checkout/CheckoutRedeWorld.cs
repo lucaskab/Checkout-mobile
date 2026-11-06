@@ -32,9 +32,9 @@ namespace Checkout {
   void Apply(Snapshot s){
    var grand=world?world.Find(CheckoutMarketLayout.GrandWarehouse):null;
    bool want=s!=null&&s.chain!=null&&s.chain.unlocked&&s.layout!=null&&s.layout.storageLarge&&grand&&grand.gameObject.activeInHierarchy&&Resources.Load<GameObject>("Rede/RedeDC");
-   if(want==on)return;
-   on=want;
-   if(on)Show(grand);else Hide();
+   if(want!=on){on=want;if(on)Show(grand);else Hide();}
+   // the fleet's yard on the plaza north of the DC: parked trucks, refuelling, leaving and coming back
+   if(on)CheckoutRedeYard.Current?.Sync(s);
   }
 
   void Show(Transform grand){
@@ -56,7 +56,7 @@ namespace Checkout {
    dc.position=c;dc.rotation=Quaternion.identity;
    CheckoutDeliveryTrucks.GrandShift=c.x+DockFace+.1f-OldRearX;
    CheckoutDeliveryTrucks.Current?.Reconfigure();
-   ShowGate();Totem(true);
+   ShowGate();Totem(true);CheckoutRedeYard.Show(world);
    Report=$"dc on at ({c.x:0.00},{c.z:0.00}) old warehouse x[{oldBounds.min.x:0.0},{oldBounds.max.x:0.0}] z[{oldBounds.min.z:0.0},{oldBounds.max.z:0.0}] hid {hidden.Count} renderers, truck shift {CheckoutDeliveryTrucks.GrandShift:0.00}";
   }
 
@@ -65,7 +65,7 @@ namespace Checkout {
    hidden.Clear();
    if(dc)dc.gameObject.SetActive(false);
    if(gate)gate.gameObject.SetActive(false);
-   Totem(false);
+   Totem(false);CheckoutRedeYard.HideYard();
    CheckoutDeliveryTrucks.GrandShift=0;
    CheckoutDeliveryTrucks.Current?.Reconfigure();
    Report="dc off";
