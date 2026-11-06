@@ -49,7 +49,7 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("onboardingspot")?OnboardingSpot(s):s.StartsWith("eventsphotos")?Photos(s):s.StartsWith("eventssectors")?Sectors(s):s.StartsWith("onboarding")?Onboarding(s):s.StartsWith("rankings")?Rankings(s):s.StartsWith("walkturns")?WalkTurns(s):s.StartsWith("eventsstalls")?Stalls(s):s.StartsWith("eventscrowd")?Crowd(s):s.StartsWith("trafficturns")?TrafficTurns(s):s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsroom")?RoomAudit(s):s.StartsWith("eventscounter")?CounterCheck(s):s.StartsWith("eventsgrid")?GridCheck(s):s.StartsWith("eventskitchen")?KitchenShots(s):s.StartsWith("eventslook")?LookAround(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsfriends")?Friends(s):s.StartsWith("eventssocialcapture")?SocialCapture(s):s.StartsWith("eventssocial")?Social(s):s.StartsWith("eventspaint")?Paint(s):s.StartsWith("eventsrede")?Rede(s):s.StartsWith("eventsdc")?RedeWorld(s):s.StartsWith("eventsyard")?RedeYard(s):s.StartsWith("eventstiers")?Tiers(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s.StartsWith("trayplay")?TrayPlay(s):s.StartsWith("kitchenshot")?KitchenShots(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="account"?AccountShots():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("onboardingspot")?OnboardingSpot(s):s.StartsWith("eventsphotos")?Photos(s):s.StartsWith("eventssectors")?Sectors(s):s.StartsWith("onboarding")?Onboarding(s):s.StartsWith("rankings")?Rankings(s):s.StartsWith("walkturns")?WalkTurns(s):s.StartsWith("eventsstalls")?Stalls(s):s.StartsWith("eventscrowd")?Crowd(s):s.StartsWith("trafficturns")?TrafficTurns(s):s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsroom")?RoomAudit(s):s.StartsWith("eventscounter")?CounterCheck(s):s.StartsWith("eventsgrid")?GridCheck(s):s.StartsWith("eventskitchen")?KitchenShots(s):s.StartsWith("eventslook")?LookAround(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsfriends")?Friends(s):s.StartsWith("eventssocialcapture")?SocialCapture(s):s.StartsWith("eventssocial")?Social(s):s.StartsWith("eventspaint")?Paint(s):s.StartsWith("eventsrede")?Rede(s):s.StartsWith("eventsdc")?RedeWorld(s):s.StartsWith("eventsyard")?RedeYard(s):s.StartsWith("eventstiers")?Tiers(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s.StartsWith("trayplay")?TrayPlay(s):s.StartsWith("kitchenshot")?KitchenShots(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="account"?AccountShots():s=="notices"?NoticeShots():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
     // The tutorial's tips ("DICA", Dona Neide) pile up when a QA save jumps ahead and sat in front of every still and
     // video (Lucas 06/11): they are tapped away as they come, except in the scenarios that test the guide itself.
@@ -131,6 +131,23 @@ namespace Checkout {
    Route("!currency");yield return new WaitForSecondsRealtime(1.6f);yield return Shot("account_store");
    Route("!day");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("account_contracts");
    Route("");Lang(before);yield return new WaitForSecondsRealtime(1.5f);Note("account: language back to "+CheckoutI18n.Language);
+  }
+  // Opções › Avisos (Lucas 06/11, "notices"): the tab in Portuguese and English, one switch turned off and back on,
+  // and the notifications the game would schedule now if the app left (CheckoutNotifications.Plan, in the notes).
+  // Nothing is saved but the switch, which ends as it began. Shots Logs/at_notices_*.png.
+  IEnumerator NoticeShots(){
+   void Route(string r)=>CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\""+r+"\"}");
+   void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
+   var before=CheckoutI18n.Language;
+   Route("");yield return new WaitForSecondsRealtime(2f);
+   CheckoutSettings.Show("avisos");yield return new WaitForSecondsRealtime(1f);yield return Shot("notices_pt");
+   bool was=CheckoutNotifications.IsOn("mercado");CheckoutNotifications.Set("mercado",!was);yield return new WaitForSecondsRealtime(.6f);yield return Shot("notices_toggled");
+   CheckoutNotifications.Set("mercado",was);
+   Lang("en");yield return new WaitForSecondsRealtime(2.5f);CheckoutSettings.Show("avisos");yield return new WaitForSecondsRealtime(.8f);yield return Shot("notices_en");
+   var bridge=FindAnyObjectByType<CheckoutBridge>();
+   if(bridge&&bridge.State!=null)foreach(var p in CheckoutNotifications.Plan(bridge.State,System.DateTime.Now))Note($"notices: {p.category} in {p.inMs/60000d:0.#} min — {p.title} / {p.text}");
+   CheckoutSettings.Show("sons");yield return new WaitForSecondsRealtime(.6f);yield return Shot("notices_sons_tabs");
+   CheckoutSettings.Hide();Lang(before);yield return new WaitForSecondsRealtime(1.5f);Note("notices: language back to "+CheckoutI18n.Language);
   }
   // The tidier HUD (Lucas 19/10, "hudtidy"): the corner Bônus button and its menu, the Produtos and Missões windows with
   // their header tabs, the Opções window on both tabs, and the game switched to English and back from Opções › Idioma.
