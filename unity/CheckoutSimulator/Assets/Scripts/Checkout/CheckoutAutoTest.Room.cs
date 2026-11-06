@@ -15,17 +15,20 @@ namespace Checkout {
   static readonly Dictionary<string,int> SectorEra=new Dictionary<string,int>{{"padaria",7},{"queijaria",8},{"acougue",8},{"bebidas",8},{"peixaria",9},{"sorvetes",9},{"adega",9}};
   static readonly string[] EraIds={"mesinha","tenda","banca","conteiner","spati","quitanda","minimercado","mercadinho","supermercado","hipermercado","rede"};
   string summaryGate="";int roomEra=-1;bool roomExtras,roomKeepInterior;
+  // eventscrowd-<stage>.lanes: the checkouts and kiosks the host really owns stay (bought and built in the run).
+  bool roomLanes;
 
   void PatchRoom(Snapshot s){
    if(roomEra<0)return;
    if(s.shelves!=null)foreach(var x in s.shelves){x.unlocked=ShelfEra.TryGetValue(x.id,out var e)&&e<=roomEra;x.building=false;}
    if(s.sectors!=null)foreach(var x in s.sectors){x.unlocked=SectorEra.TryGetValue(x.id,out var e)&&e<=roomEra;x.building=false;}
    s.builds=System.Array.Empty<BuildEntry>();
-   var owned=(s.ownedItems??System.Array.Empty<string>()).Where(i=>i!=CheckoutLanes.ExtraItem&&i!=CheckoutLanes.SelfItem).ToList();
-   if(roomExtras){owned.Add(CheckoutLanes.ExtraItem);if(roomEra>=8)owned.Add(CheckoutLanes.SelfItem);}
+   var owned=(s.ownedItems??System.Array.Empty<string>()).Where(i=>roomLanes||i!=CheckoutLanes.ExtraItem&&i!=CheckoutLanes.SelfItem).ToList();
+   if(roomExtras&&!roomLanes){owned.Add(CheckoutLanes.ExtraItem);if(roomEra>=8)owned.Add(CheckoutLanes.SelfItem);}
    s.ownedItems=owned.ToArray();
    var ids=new List<string>{"checkout:main"};
-   if(roomExtras){ids.Add("checkout:extra");if(roomEra>=8){ids.Add("kiosk:1");ids.Add("kiosk:2");}}
+   if(roomLanes){foreach(var c in CheckoutLanes.Counters.Concat(CheckoutLanes.Kiosks))if(c.item!=null&&owned.Contains(c.item))ids.Add(c.piece);}
+   else if(roomExtras){ids.Add("checkout:extra");if(roomEra>=8){ids.Add("kiosk:1");ids.Add("kiosk:2");}}
    if(s.shelves!=null)ids.AddRange(s.shelves.Where(x=>x.unlocked).Select(x=>"shelf:"+x.id));
    if(s.sectors!=null)ids.AddRange(s.sectors.Where(x=>x.unlocked).Select(x=>"sector:"+x.id));
    // eventscrowd-<stage>.keep: the layout of an earlier run at its saved coordinates (a save from before a change).

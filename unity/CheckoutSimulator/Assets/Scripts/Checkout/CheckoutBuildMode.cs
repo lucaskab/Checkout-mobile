@@ -197,7 +197,7 @@ namespace Checkout
         string Name(CheckoutInterior.Item it)
         {
             if (it == null) return "";
-            if (it.type == "checkout") return it.id == "checkout:main" ? "Caixa" : "Caixa 2";
+            if (it.type == "checkout") return it.id == "checkout:main" ? "Caixa" : "Caixa " + CheckoutLanes.CounterNumber(it.id);
             if (it.type == "kiosk") return "Autoatendimento";
             if (it.type == "sector") { var s = bridge.State?.sectors?.FirstOrDefault(x => "sector:" + x.id == it.id); return s != null ? s.name : "Setor"; }
             if (it.type == "shelf") { var s = bridge.State?.shelves?.FirstOrDefault(x => "shelf:" + x.id == it.id); return s != null ? s.name : "Prateleira"; }
@@ -233,7 +233,7 @@ namespace Checkout
         // ------------------------------------------------------------------ furniture waiting to be placed
         string WaitingName(string id, string type)
         {
-            if (type == "checkout") return id == "checkout:main" ? "Caixa" : "Caixa 2";
+            if (type == "checkout") return id == "checkout:main" ? "Caixa" : "Caixa " + CheckoutLanes.CounterNumber(id);
             if (type == "kiosk") return "Autoatendimento";
             if (type == "sector") { var s = bridge.State?.sectors?.FirstOrDefault(x => "sector:" + x.id == id); return s != null ? s.name : "Setor"; }
             var shelf = bridge.State?.shelves?.FirstOrDefault(x => "shelf:" + x.id == id); return shelf != null ? shelf.name : "Prateleira";

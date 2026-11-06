@@ -62,6 +62,7 @@ export function normalizeCheckoutCounterState(
 		...value,
 		queue: Array.isArray(value.queue) ? value.queue : [],
 		recent: Array.isArray(value.recent) ? value.recent : [],
+		serving: Array.isArray(value.serving) ? value.serving.filter((x) => x && typeof x.id === "string" && Number.isFinite(x.doneAt)) : [],
 	};
 }
 
@@ -280,6 +281,44 @@ export function expireCheckouts(state: CheckoutCounterState, now: number) {
 			queue: state.queue.filter((checkout) => now < checkout.expiresAt),
 			recent,
 		},
+	};
+}
+
+// The staffed counters and the kiosks work side by side (Lucas 05/11: more checkouts as the market grows). Each server
+// takes the oldest ready customer nobody is serving and rings them up in its own time (`intervals[server]`, ms); the
+// ids finished by `now` come back to be paid. A server that went away (a cashier paused, fewer kiosks) gives its
+// customer back to the line; a customer paid by hand or gone frees their server.
+export function nextAutoCheckouts(
+	state: CheckoutCounterState,
+	now: number,
+	intervals: readonly number[],
+): { checkoutIds: string[]; state: CheckoutCounterState } {
+	const inQueue = new Set(state.queue.map((checkout) => checkout.id));
+	let serving = (state.serving ?? []).filter((x) => inQueue.has(x.id) && x.server < intervals.length);
+	const done = serving.filter((x) => x.doneAt <= now).sort((a, b) => a.doneAt - b.doneAt);
+	serving = serving.filter((x) => x.doneAt > now);
+	const doneIds = new Set(done.map((x) => x.id));
+	const busy = new Set(serving.map((x) => x.server));
+	const taken = new Set(serving.map((x) => x.id));
+	const waiting = getReadyCheckouts(state, now).filter((checkout) => !taken.has(checkout.id) && !doneIds.has(checkout.id));
+	// (the fastest free servers first: a trained cashier before a kiosk)
+	const free = intervals
+		.map((interval, server) => ({ interval, server }))
+		.filter((x) => !busy.has(x.server) && x.interval > 0 && Number.isFinite(x.interval))
+		.sort((a, b) => a.interval - b.interval);
+	for (const slot of free) {
+		const next = waiting.shift();
+		if (!next) break;
+		serving = [...serving, { id: next.id, server: slot.server, doneAt: now + slot.interval }];
+	}
+	const changed =
+		done.length > 0 ||
+		serving.length !== (state.serving ?? []).length ||
+		serving.some((x, i) => (state.serving ?? [])[i]?.id !== x.id) ||
+		state.nextAutoAt !== null;
+	return {
+		checkoutIds: done.map((x) => x.id),
+		state: changed ? { ...state, nextAutoAt: null, serving } : state,
 	};
 }
 

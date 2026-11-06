@@ -73,5 +73,7 @@ export type GameShopState = {
 	consumableAmounts: Record<string, number>;
 	/** Boosters running now: item id → when it ends (ms). */
 	activeBoosts: Record<string, number>;
+	/** Boosters waiting for the market to open (ms left each): they only run while it is open. */
+	pausedBoosts?: Record<string, number>;
 	ownedItemIds: string[];
 };

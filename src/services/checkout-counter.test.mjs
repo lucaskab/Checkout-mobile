@@ -97,3 +97,26 @@ test("a working cashier serves the line at a steady pace", () => {
 	expect(payment.outcome.status).toBe("auto");
 	expect(payment.tip).toBe(0);
 });
+
+// Parallel lanes (Lucas 05/11): every staffed checkout and kiosk rings up its own customer at the same time.
+test("cashiers and kiosks serve side by side", async () => {
+	const { createCheckoutCounterState, createPendingCheckout, enqueueCheckout, markCheckoutArrived, nextAutoCheckouts } = await import("./checkout-counter");
+	let state = createCheckoutCounterState();
+	const input = (n) => ({ archetype: "normal", categories: {}, customerId: `c${n}`, customerName: "Ana", experience: 1, items: [{ name: "Suco", productId: 1, quantity: 1, unitPrice: 10 }], mood: "calmo", profit: 5, satisfaction: 80, seed: n });
+	for (let n = 1; n <= 4; n++) {
+		state = enqueueCheckout(state, createPendingCheckout(input(n), 0));
+		state = markCheckoutArrived(state, `c${n}`, 1_000);
+	}
+	// two cashiers (3 s and 9 s) and one kiosk (12 s): three customers start at once
+	let step = nextAutoCheckouts(state, 1_000, [3_000, 9_000, 12_000]);
+	expect(step.checkoutIds).toEqual([]);
+	expect(step.state.serving.length).toBe(3);
+	// at 4 s the fast cashier is done and takes the fourth customer
+	step = nextAutoCheckouts(step.state, 4_000, [3_000, 9_000, 12_000]);
+	expect(step.checkoutIds.length).toBe(1);
+	state = { ...step.state, queue: step.state.queue.filter((c) => !step.checkoutIds.includes(c.id)) };
+	expect(state.serving.length).toBe(3);
+	// the paused cashier (server 1 gone) gives the customer back to the line
+	step = nextAutoCheckouts(state, 5_000, [3_000]);
+	expect(step.state.serving.every((x) => x.server === 0)).toBe(true);
+});

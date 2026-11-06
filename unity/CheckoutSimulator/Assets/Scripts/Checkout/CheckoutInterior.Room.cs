@@ -57,8 +57,15 @@ namespace Checkout
             if (!CheckoutStall.Small || CheckoutStall.PlacedCounter)
             {
                 var owned = s.ownedItems ?? System.Array.Empty<string>();
-                if (!owned.Contains(CheckoutLanes.ExtraItem) && !Known("checkout:extra")) list.Add(("checkout:extra", "checkout", CheckoutTierTemplate(s)));
-                if (!owned.Contains(CheckoutLanes.SelfItem) && !Known("kiosk:1")) { list.Add(("kiosk:1", "kiosk", "kiosk")); list.Add(("kiosk:2", "kiosk", "kiosk")); }
+                // the next checkout and the next kiosk pair not bought yet (they open one after the other)
+                var nextCounter = CheckoutLanes.Counters.FirstOrDefault(c => c.item != null && !owned.Contains(c.item));
+                if (nextCounter.item != null && !Known(nextCounter.piece)) list.Add((nextCounter.piece, "checkout", CheckoutTierTemplate(s)));
+                var nextPair = CheckoutLanes.Kiosks.FirstOrDefault(k => !owned.Contains(k.item));
+                if (nextPair.item != null)
+                {
+                    var pair = CheckoutLanes.PiecesOf(nextPair.item);
+                    if (pair.Length == 2 && !Known(pair[0])) { list.Add((pair[0], "kiosk", "kiosk")); list.Add((pair[1], "kiosk", "kiosk")); }
+                }
             }
             return list;
         }
@@ -91,14 +98,17 @@ namespace Checkout
                     if (it == null) { full = true; break; }
                     temps.Add(it);
                 }
-                Item kiosk = null;
+                // A kiosk pair (kiosk:1+2, 3+4, 5+6) fits only together: the odd one stays standing while the even one tries.
+                Item kiosk = null; string kioskId = null;
                 foreach (var c in candidates)
                 {
                     if (full) { blocked.Add(c.id); continue; }
-                    if (c.id == "kiosk:2" && kiosk == null) { blocked.Add(c.id); continue; }
+                    bool second = c.type == "kiosk" && kioskId != null && CheckoutLanes.ItemOf(c.id) == CheckoutLanes.ItemOf(kioskId);
+                    bool firstOfPair = c.type == "kiosk" && !second;
+                    if (second && kiosk == null) { blocked.Add(c.id); continue; }
                     var it = Probe(c.id, c.type, c.template);
-                    if (it == null) { blocked.Add(c.id); if (c.id == "kiosk:2") blocked.Add("kiosk:1"); continue; }
-                    if (c.id == "kiosk:1") { kiosk = it; temps.Add(it); continue; }
+                    if (it == null) { blocked.Add(c.id); if (second) blocked.Add(kioskId); if (firstOfPair) kioskId = c.id; continue; }
+                    if (firstOfPair) { kiosk = it; kioskId = c.id; temps.Add(it); continue; }
                     Drop(it);
                 }
             }

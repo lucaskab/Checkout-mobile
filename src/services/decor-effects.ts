@@ -19,6 +19,8 @@ export type DecorEffects = {
 	basketItems: number;
 	/** Customers' money multiplier. */
 	budgetMultiplier: number;
+	/** What customers spend is worth this much more (the ATM: they draw cash and spend it). */
+	spendMultiplier: number;
 	machines: DecorPlayMachine[];
 	/** Basket and cart stations standing in the market: what customers can take (src/data/fixture-tiers.ts). */
 	carriers: CartCarrier[];
@@ -51,7 +53,7 @@ export function getDecorEffects(interior: InteriorState | undefined): DecorEffec
 				coins: Math.round(effect.play.coins * (tier?.playCoins ?? 1) * 10) / 10,
 			});
 	}
-	return { basketItems, budgetMultiplier: 1 + budget, machines, carriers };
+	return { basketItems, budgetMultiplier: 1 + budget, spendMultiplier: 1 + budget, machines, carriers };
 }
 
 export type DecorPlay = { decorId: string; itemId: string; coins: number };

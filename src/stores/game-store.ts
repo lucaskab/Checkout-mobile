@@ -88,6 +88,7 @@ import {
 	shelfProductSlots,
 } from "@/data/shelf-slots";
 import { retiredShopItemIds, shopItems } from "@/data/shop-items";
+import { getCheckoutCount, getKioskCount, KIOSK_INTERVAL_MS } from "@/data/checkout-lanes";
 import {
 	getNextSupplierOrderSlotUpgrade,
 	initialSupplierOrderSlots,
@@ -111,7 +112,8 @@ import {
 	enqueueCheckout,
 	expireCheckouts,
 	markCheckoutArrived,
-	nextAutoCheckout,
+	nextAutoCheckouts,
+	AUTO_CASHIER_INTERVAL_MS,
 	normalizeCheckoutCounterState,
 } from "@/services/checkout-counter";
 import {
@@ -1898,6 +1900,8 @@ export const useGameStore = create<GameStore>()(
 				const sameRoleCount = employees.employees.filter(
 					(employee) => employee.role === role,
 				).length;
+				// One cashier per checkout (src/data/checkout-lanes.ts): a new cashier needs a counter to stand at.
+				if (role === "cashier" && sameRoleCount >= getCheckoutCount(get().shop.ownedItemIds)) return false;
 
 				set({
 					coins: coins - definition.hireCost,
@@ -2270,7 +2274,18 @@ export const useGameStore = create<GameStore>()(
 				if (!item?.isConsumable || !item.durationMs) return false;
 				if ((shop.consumableAmounts[item.id] ?? 0) <= 0) return false;
 				const now = Date.now();
-				// Using one more while it runs adds its time to what is left.
+				// Using one more while it runs adds its time to what is left. With the market closed it waits for the doors
+				// to open (it only runs while customers come in).
+				if (!get().market.isOpen) {
+					set({
+						shop: {
+							...shop,
+							pausedBoosts: { ...(shop.pausedBoosts ?? {}), [item.id]: (shop.pausedBoosts?.[item.id] ?? 0) + item.durationMs },
+							consumableAmounts: { ...shop.consumableAmounts, [item.id]: (shop.consumableAmounts[item.id] ?? 0) - 1 },
+						},
+					});
+					return true;
+				}
 				const endsAt = Math.max(now, shop.activeBoosts?.[item.id] ?? 0) + item.durationMs;
 				set({
 					shop: {
@@ -3334,7 +3349,9 @@ export const useGameStore = create<GameStore>()(
 					// Baskets and carts on the map: each customer takes the smallest that holds their plan.
 					carriers: decorEffects.carriers,
 					// Customers pay the shelf price: the era makes them richer (budget), never the goods dearer.
-					revenueMultiplier: shopEffects.revenueMultiplier * eventEffects.revenueMultiplier,
+					// (the ATM: customers who drew cash spend it — +15% on what they buy, +20/25% at its higher tiers; as a
+					// money ceiling alone it rarely changed anything, audit 05/11)
+					revenueMultiplier: shopEffects.revenueMultiplier * eventEffects.revenueMultiplier * decorEffects.spendMultiplier,
 					categoryRevenueBonuses: shopEffects.categoryRevenueBonuses,
 					seed: market.randomSeed,
 					storeReputation:
@@ -3548,32 +3565,24 @@ export const useGameStore = create<GameStore>()(
 					set(returnAbandonedCheckouts(get(), expired, now));
 					changed = true;
 				}
-				// A working cashier rings up the line without the player.
-				const cashierEfficiency = get()
-					.employees.employees.filter(
-						(employee) => employee.isWorking && employee.role === "cashier",
-					)
-					.reduce((total, employee) => total + employee.efficiency, 0);
-				// Shop upgrades: a second lane, a conveyor and a scanner speed the cashier up; self-checkout
-				// kiosks ring customers up on their own, with or without one.
+				// The staffed counters and the kiosks ring customers up side by side (src/data/checkout-lanes.ts): one
+				// server per working cashier, as many as there are built checkouts (the best cashiers first), plus every
+				// built kiosk. Without a cashier the main checkout is the player's.
 				const shopEffects = getShopEffects(get().shop, now);
-				const next = nextAutoCheckout(
-					get().checkout,
-					now,
-					cashierEfficiency *
-						getActiveGameEventEffects(get().events, now).staffSpeedMultiplier *
-						shopEffects.cashierSpeedMultiplier +
-						shopEffects.selfCheckoutRate,
-				);
+				const ownedItemIds = get().shop.ownedItemIds;
+				const staffSpeed =
+					getActiveGameEventEffects(get().events, now).staffSpeedMultiplier * shopEffects.cashierSpeedMultiplier;
+				const cashierIntervals = get()
+					.employees.employees.filter((employee) => employee.isWorking && employee.role === "cashier")
+					.map((employee) => employee.efficiency)
+					.sort((a, b) => b - a)
+					.slice(0, getCheckoutCount(ownedItemIds))
+					.map((efficiency) => AUTO_CASHIER_INTERVAL_MS / Math.max(0.1, efficiency * staffSpeed));
+				const kioskIntervals = Array.from({ length: getKioskCount(ownedItemIds) }, () => KIOSK_INTERVAL_MS);
+				const next = nextAutoCheckouts(get().checkout, now, [...cashierIntervals, ...kioskIntervals]);
 				if (next.state !== get().checkout) set({ checkout: next.state });
-				if (next.checkoutId) {
-					const payment = completeCheckoutRule(
-						get().checkout,
-						next.checkoutId,
-						now,
-						undefined,
-						true,
-					);
+				for (const checkoutId of next.checkoutIds) {
+					const payment = completeCheckoutRule(get().checkout, checkoutId, now, undefined, true);
 					if (payment) {
 						set(applyCheckoutPayment(get(), payment, now));
 						changed = true;
@@ -3970,6 +3979,23 @@ export const useGameStore = create<GameStore>()(
 				// The shop needs its furniture: nothing opens while owned pieces still wait to be placed.
 				if (isOpen && !get().market.isOpen && getPiecesToPlaceBeforeOpening(get()) > 0)
 					return false;
+				// Boosters only run while the market is open (audit 05/11: they ticked away between days, so a coffee
+				// used on the results screen was gone before anyone came in): closing pauses what is left, opening resumes it.
+				if (isOpen !== get().market.isOpen) {
+					const at = Date.now();
+					const shopNow = get().shop;
+					if (!isOpen) {
+						const paused = { ...(shopNow.pausedBoosts ?? {}) };
+						for (const [id, endsAt] of Object.entries(shopNow.activeBoosts ?? {}))
+							if (endsAt > at) paused[id] = (paused[id] ?? 0) + (endsAt - at);
+						set({ shop: { ...shopNow, activeBoosts: {}, pausedBoosts: paused } });
+					} else if (Object.keys(shopNow.pausedBoosts ?? {}).length > 0) {
+						const active = { ...(shopNow.activeBoosts ?? {}) };
+						for (const [id, left] of Object.entries(shopNow.pausedBoosts ?? {}))
+							active[id] = Math.max(at, active[id] ?? 0) + left;
+						set({ shop: { ...shopNow, activeBoosts: active, pausedBoosts: {} } });
+					}
+				}
 				// Closing time: the customers already in line are rung up before the doors lock.
 				if (!isOpen && get().market.isOpen)
 					for (const pending of [...get().checkout.queue]) {

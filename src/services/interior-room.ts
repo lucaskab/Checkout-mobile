@@ -1,3 +1,5 @@
+import { getCheckoutFixture } from "@/data/checkout-lanes";
+
 // Room on the shop floor for the pieces the player could buy next (Lucas 24/10: a player bought a freezer and had
 // nowhere to put it). Unity measures it on the real floor (CheckoutInterior.Room.cs): with the pieces already
 // standing and the ones still in the inventory put in first, it tries to fit each next piece (the next shelf, every
@@ -30,7 +32,6 @@ export function hasInteriorRoom(pieceId: string) {
 
 /** The piece a shop item puts on the floor (the builders install it), if any. */
 export function getShopItemPieceId(itemId: string) {
-	if (itemId === "extra-checkout") return "checkout:extra";
-	if (itemId === "self-checkout") return "kiosk:1";
-	return null;
+	// (a kiosk pair is measured by its first kiosk: Unity blocks both when the pair does not fit)
+	return getCheckoutFixture(itemId)?.pieceIds[0] ?? null;
 }

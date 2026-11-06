@@ -140,9 +140,13 @@ namespace Checkout {
    if(Lanes.Apply(next.ownedItems))navigationChanged=true;Lanes.Rebase(layout.State);
    // The register is the player's until a cashier is hired: the operator only stands there while one works
    // (the second checkout opens with the same cashier on staff: the Caixa Extra upgrade).
+   // One cashier per checkout (Lucas 05/11): the first built counters get the working cashiers, the rest stay closed.
    int cashiers=next.employees?.Count(e=>e.role=="cashier"&&e.isWorking)??0;
-   var mainCashier=world.Find("Worker_Cashier");if(mainCashier)mainCashier.gameObject.SetActive(next.isOpen&&cashiers>0);
-   var extraCashier=world.Find("Worker_Cashier 2");if(extraCashier)extraCashier.gameObject.SetActive(next.isOpen&&cashiers>0&&next.ownedItems!=null&&next.ownedItems.Contains(CheckoutLanes.ExtraItem));
+   if(Furnished){if(Lanes.Staff(cashiers,next.isOpen))navigationChanged=true;}
+   else{
+    var mainCashier=world.Find("Worker_Cashier");if(mainCashier)mainCashier.gameObject.SetActive(next.isOpen&&cashiers>0);
+    var extraCashier=world.Find("Worker_Cashier 2");if(extraCashier)extraCashier.gameObject.SetActive(next.isOpen&&cashiers>1&&next.ownedItems!=null&&next.ownedItems.Contains(CheckoutLanes.ExtraItem));
+   }
    if(Furnished&&(furnitureMoved||resized||newSession||staff.Count!=placedClerks))PlaceClerks();
    if(resized||navigationChanged||furnitureMoved){FindAnyObjectByType<MarketSimulation>().RebuildLayoutNavigation(layout.State);foreach(var walker in FindObjectsByType<CheckoutWalker>(FindObjectsInactive.Include)){walker.RebaseLayout(previousLayout,layout.State);if(furnitureMoved)walker.FurnitureMoved();}}
    events.Apply(next.@event);

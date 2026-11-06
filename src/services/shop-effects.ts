@@ -1,6 +1,9 @@
 import type { GameShopState, ShopItemEffect } from "@/@types/shop";
 import { shopItems } from "@/data/shop-items";
 
+/** Customers per reputation point (shop upgrades, the cleaner). */
+export const REPUTATION_CUSTOMERS = 0.01;
+
 export type ShopEffects = {
 	/** Customers come this many times as often (the shop's marketing and boosters). */
 	customerArrivalMultiplier: number;
@@ -46,7 +49,9 @@ export function createEmptyShopEffects(): ShopEffects {
 }
 
 function addEffect(effects: ShopEffects, effect: ShopItemEffect): ShopEffects {
-	const customers = effect.customers ?? 0;
+	// Reputation brings people in too: +1% customers per point (audit 05/11: on its own it only nudged the chance of
+	// buying by half a point, so "+3 de reputação" changed nothing anyone could see).
+	const customers = (effect.customers ?? 0) + (effect.reputation ?? 0) * REPUTATION_CUSTOMERS;
 	const categoryRevenueBonuses = { ...effects.categoryRevenueBonuses };
 	if (effect.categoryRevenue)
 		for (const category of effect.categoryRevenue.categories)

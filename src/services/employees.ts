@@ -15,8 +15,9 @@ export function getEmployeeEffects(employees: GameEmployeesState): EmployeeEffec
 	const cleanerEfficiency = getRoleEfficiency(activeEmployees, "cleaner");
 
 	return {
-		// The cashier rings customers up (processCheckoutCounter); it does not change how many come in.
-		customerArrivalMultiplier: 1,
+		// The cashier rings customers up (processCheckoutCounter); a clean store's reputation brings people in
+		// (+1% per reputation point, like the shop's: src/services/shop-effects.ts REPUTATION_CUSTOMERS).
+		customerArrivalMultiplier: 1 + cleanerEfficiency * 5 * 0.01,
 		restockAmount: stockEfficiency * 2,
 		storeReputationBonus: cleanerEfficiency * 5,
 	};

@@ -1,3 +1,4 @@
+import { getCheckoutFixture } from "@/data/checkout-lanes";
 import { describeFixtureProducts } from "@/data/fixture-products";
 import { getFixtureName, getShelfType } from "@/data/shelf-types";
 import { interiorDecor } from "@/data/interior-decor";
@@ -208,7 +209,7 @@ function checkoutCards(state: State) {
 		return [
 			buildCard(state, {
 				title: item.name,
-				icon: decorIcon(id === "self-checkout" ? "kiosk" : "checkout"),
+				icon: decorIcon(getCheckoutFixture(id)?.pieceIds[0].startsWith("kiosk") ? "kiosk" : "checkout"),
 				subtitle: item.description,
 				status: locked && status.status === "available" ? { ...status, status: "locked", reason: `Nível ${item.level}` } : status,
 				...(isDiamond

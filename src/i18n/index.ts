@@ -91,7 +91,7 @@ const viewIdKeys = new Set([
 /** Snapshot keys Unity shows as text (names, labels); everything else in a snapshot is data. */
 const snapshotTextKeys = new Set([
 	"name", "productName", "shelfName", "contractTitle", "contractLabel", "message", "description", "effectLabel",
-	"nextName", "label", "ruinName", "neededBy", "title", "text", "categoryLabel",
+	"nextName", "label", "ruinName", "neededBy", "title", "text", "categoryLabel", "lockedNote",
 ]);
 
 function localize<T>(value: T, translate: (key: string) => boolean): T {

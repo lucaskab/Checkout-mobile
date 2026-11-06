@@ -18,8 +18,11 @@ type Pattern = {
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const letters = (text: string) => (text.match(/\p{L}/gu) ?? []).length;
-const SEPARATORS = /(\s+·\s+|\s*\n\s*|\s+•\s+|\s+—\s+|\s+\|\s+|:\s+|;\s+|\s+›\s+|\s{2,})/;
-/** Sentences first: "Chega no nível 5. Vende por 18." */
+/** Blocks first: "Dentro da loja · Melhoria: os clientes…" keeps "Melhoria: os clientes…" whole for its own entry. */
+const BLOCKS = /(\s+·\s+|\s*\n\s*|\s+•\s+|\s+—\s+|\s+\|\s+)/;
+/** Inside a block: "Antes: Caixa 2", "a; b". */
+const SEPARATORS = /(:\s+|;\s+|\s+›\s+|\s{2,})/;
+/** Then sentences: "Chega no nível 5. Vende por 18." */
 const SENTENCES = /((?<=[.!?…])\s+)/;
 /** Last resort inside a piece: a list ("tomate, alface e banana"). */
 const LIST = /(,\s+|\s+e\s+)/;
@@ -126,7 +129,7 @@ export class Translator {
 			const inner = this.word(trimmed[2]);
 			if (inner !== undefined) return trimmed[1] + inner + trimmed[3];
 		}
-		if (depth > 3) return null;
+		if (depth > 5) return null;
 		for (const pattern of this.patterns) {
 			if (pattern.probe && !text.includes(pattern.probe)) continue;
 			const match = pattern.regex.exec(text);
@@ -134,7 +137,7 @@ export class Translator {
 			const values = match.slice(1).map((value) => this.find(value, depth + 1) ?? value);
 			return pattern.target.replace(/\{#(-?\d+)\}/g, (_, n) => values[Number(n)] ?? "");
 		}
-		for (const separators of [SENTENCES, SEPARATORS, LIST]) {
+		for (const separators of [BLOCKS, SENTENCES, SEPARATORS, LIST]) {
 			const pieces = text.split(separators);
 			if (pieces.length < 2) continue;
 			let changed = false;

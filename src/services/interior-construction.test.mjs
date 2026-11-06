@@ -127,11 +127,11 @@ test("a new shelf is built where the player places it and opens when the works e
 test("the second checkout waits in the inventory, then the builders install it", () => {
 	game().setMarketLevel(10);
 	useGameStore.setState({ coins: 100_000 });
-	// At the stalls there is no room for a second checkout: not on sale until the minimercado.
-	game().devSetMarketEra("tenda");
+	// The small shops send everyone to their one counter: the second checkout is on sale from the mercadinho.
+	game().devSetMarketEra("minimercado");
 	expect(getShopItemBuildStatus(game(), "extra-checkout").status).toBe("locked");
 	expect(game().purchaseShopItem("extra-checkout", "coins")).toBe(false);
-	game().devSetMarketEra("minimercado");
+	game().devSetMarketEra("mercadinho");
 	expect(game().purchaseShopItem("extra-checkout", "coins")).toBe(true);
 	expect(game().shop.ownedItemIds).not.toContain("extra-checkout");
 	expect(getShopItemBuildStatus(game(), "extra-checkout").status).toBe("stored");
@@ -157,4 +157,17 @@ test("old saves keep the sectors their level had already opened", async () => {
 	);
 	expect(next.builtSectorIds).not.toContain("peixaria");
 	expect(next.interiorConstructions).toEqual([]);
+});
+
+test("one cashier per checkout: the second needs Caixa 2 built", () => {
+	game().setMarketLevel(30);
+	game().devSetMarketEra("mercadinho");
+	useGameStore.setState({ coins: 200_000, employees: { ...game().employees, employees: [] } });
+	expect(game().hireEmployee("cashier")).toBe(true);
+	expect(game().hireEmployee("cashier")).toBe(false);
+	expect(game().purchaseShopItem("extra-checkout", "coins")).toBe(true);
+	place("checkout:extra");
+	finishAll();
+	expect(game().hireEmployee("cashier")).toBe(true);
+	expect(game().employees.employees.filter((e) => e.role === "cashier").length).toBe(2);
 });
