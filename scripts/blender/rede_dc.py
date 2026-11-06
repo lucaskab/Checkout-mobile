@@ -135,7 +135,7 @@ def dock(acc, root, yc, active=True):
     # shelter: side pads, head curtain, yellow guide stripes
     for s, yy in ((-1, a - .32), (1, b + .32)):
         rbox(acc, (.55, .36, DOCK_Z1 - DOCK_Z0 + .5), (x + .3, yy, (DOCK_Z0 + DOCK_Z1 + .5) / 2), RUBBER_D, .06, 3)
-        rbox(acc, (.02, .1, DOCK_Z1 - DOCK_Z0), (x + .585, yy - s * .06, (DOCK_Z0 + DOCK_Z1) / 2 + .1), C(YELLOW), .005, 1)
+        rbox(acc, (.02, .1, DOCK_Z1 - DOCK_Z0), (x + .585, yy - s * .06, (DOCK_Z0 + DOCK_Z1) / 2 + .1), YELLOW, .005, 1)
     rbox(acc, (.62, DOCK_W + 1.0, .65), (x + .32, yc, DOCK_Z1 + .45), RUBBER_D, .06, 3)
     for k in range(7):
         rbox(acc, (.03, .02, .5), (x + .64, a + .1 + k * (DOCK_W - .2) / 6, DOCK_Z1 + .38), RUBBER, .005, 1)
@@ -145,7 +145,7 @@ def dock(acc, root, yc, active=True):
         rbox(acc, (.06, .26, .06), (x + .19, yy, .9), C(STEEL), .01, 1)
     rbox(acc, (.32, 2.2, .04), (x + .12, yc, DOCK_Z0 - .02), C(STEEL), .01, 1)
     for k in range(10):
-        rbox(acc, (.03, .22, .12), (x + .02, a + .3 + k * .26, DOCK_Z0 - .1), C(YELLOW if k % 2 == 0 else BLACK), .004, 1)
+        rbox(acc, (.03, .22, .12), (x + .02, a + .3 + k * .26, DOCK_Z0 - .1), (YELLOW if k % 2 == 0 else BLACK), .004, 1)
     # dock light on a swing arm, traffic light
     ly = b + .75
     rbox(acc, (.08, .2, .3), (x + .04, ly, 3.4), C(NAVY), .02, 1)
@@ -158,8 +158,8 @@ def dock(acc, root, yc, active=True):
     lathe(acc, [(0, 0), (.06, 0), (.06, .02), (0, .02)], (x + .1, tl, 2.18), "E_5BE35B", 12, 0, rot=(0, 90, 0))
     # guide posts on the apron
     for yy in (a - .55, b + .55):
-        lathe(acc, [(0, 0), (.09, 0), (.09, 1.05), (.07, 1.12), (0, 1.14)], (x + 1.0, yy, 0), C(YELLOW), 12, 1)
-        lathe(acc, [(.092, .7), (.092, .85)], (x + 1.0, yy, 0), C(BLACK), 12, 0, cap_top=False, cap_bottom=False)
+        lathe(acc, [(0, 0), (.09, 0), (.09, 1.05), (.07, 1.12), (0, 1.14)], (x + 1.0, yy, 0), YELLOW, 12, 1)
+        lathe(acc, [(.092, .7), (.092, .85)], (x + 1.0, yy, 0), BLACK, 12, 0, cap_top=False, cap_bottom=False)
 
 
 # --------------------------------------------------------------------------------------------- the office block
@@ -236,7 +236,7 @@ def office(acc, root):
     # roof: HVAC box, skylight dome, railing
     rbox(acc, (1.8, 1.2, .9), (x0 + 2.2, y1 - 1.4, H - .5 + .45), C("C9D0D4"), .05, 3)
     for k in range(2):
-        lathe(acc, [(.32, 0), (.36, 0), (.36, .06), (.32, .06)], (x0 + 1.75 + k * .9, y1 - 1.4, H + .4), C(DASH), 20, 0, cap_top=False, cap_bottom=False)
+        lathe(acc, [(.32, 0), (.36, 0), (.36, .06), (.32, .06)], (x0 + 1.75 + k * .9, y1 - 1.4, H + .4), DASH, 20, 0, cap_top=False, cap_bottom=False)
         lathe(acc, [(0, 0), (.32, 0), (.32, .01), (0, .01)], (x0 + 1.75 + k * .9, y1 - 1.4, H + .38), C("4A525C"), 20, 0)
     rbox(acc, (1.6, 1.6, .25), (x0 + 4.6, y0 + 2.6, H - .5 + .12), C(STEEL), .04, 2)
     lathe(acc, [(0, 0), (.7, 0), (.6, .25), (.3, .4), (0, .44)], (x0 + 4.6, y0 + 2.6, H - .25), TRANSLUCENT, 20, 2)
@@ -263,9 +263,9 @@ def roof(acc, root):
     # HVAC units
     for (hx, hy) in ((-.9, -7.3), (-.9, 2.3), (7.2, -7.4)):
         rbox(acc, (2.2, 1.4, 1.0), (hx, hy, deck + .6), C("C9D0D4"), .06, 3)
-        rbox(acc, (2.24, 1.44, .08), (hx, hy, deck + .14), C(DASH), .02, 1)
+        rbox(acc, (2.24, 1.44, .08), (hx, hy, deck + .14), DASH, .02, 1)
         for s in (-1, 1):
-            lathe(acc, [(.38, 0), (.43, 0), (.43, .08), (.38, .08)], (hx + s * .52, hy, deck + 1.1), C(DASH), 22, 0, cap_top=False, cap_bottom=False)
+            lathe(acc, [(.38, 0), (.43, 0), (.43, .08), (.38, .08)], (hx + s * .52, hy, deck + 1.1), DASH, 22, 0, cap_top=False, cap_bottom=False)
             lathe(acc, [(0, 0), (.38, 0), (.38, .01), (0, .01)], (hx + s * .52, hy, deck + 1.1), C("4A525C"), 22, 0)
             for k in range(5):
                 rbox(acc, (.7, .03, .02), (hx + s * .52, hy - .3 + k * .15, deck + 1.13), C(STEEL), .005, 1)
@@ -328,7 +328,19 @@ def dc_building(name="RedeDC", loc=(0, 0, 0)):
     rbox(acc, (.03, .05, .3), (W2 + .03, pd + .32, 1.05), C(CHROME), .01, 1)
     rbox(acc, (1.0, 1.6, .12), (W2 + .5, pd, 2.65), C(NAVY), .03, 2)
     rbox(acc, (1.02, 1.62, .04), (W2 + .5, pd, 2.58), C(GOLD), .01, 1)
-    # emergency exit (south wall): door + green running-man-free plate (just a lit green panel)
+    # a ribbon of mezzanine windows on the south wall (offices and the staff room over the floor)
+    rx0, rx1, rz0, rz1 = 3.0, 8.4, 4.3, 5.5
+    rbox(acc, (rx1 - rx0 + .2, .2, rz1 - rz0 + .2), ((rx0 + rx1) / 2, -D2 - .08, (rz0 + rz1) / 2), C(NAVY), .03, 2)
+    rbox(acc, (rx1 - rx0, .2, rz1 - rz0), ((rx0 + rx1) / 2, -D2 - .12, (rz0 + rz1) / 2), WIN, .01, 1)
+    for k in range(7):
+        xx = rx0 + k * (rx1 - rx0) / 6
+        rbox(acc, (.06, .1, rz1 - rz0), (xx, -D2 - .23, (rz0 + rz1) / 2), C(STEEL), .01, 1)
+    rbox(acc, (rx1 - rx0, .1, .05), ((rx0 + rx1) / 2, -D2 - .23, rz0 + .55), C(STEEL), .01, 1)
+    rbox(acc, (rx1 - rx0 + .3, .35, .06), ((rx0 + rx1) / 2, -D2 - .2, rz0 - .12), C(GOLD), .02, 1)   # sill
+    for k in range(3):
+        xx = rx0 + (k + .5) * (rx1 - rx0) / 3
+        rbox(acc, (.12, .02, .8), (xx, -D2 - .23, rz0 + .65), WIN_HI, .005, 1, rot=(0, 25, 0))
+    # emergency exit (south wall): door + a lit green plate over it
     ex = (exit_door[0] + exit_door[1]) / 2
     rframe(acc, 1.3, 2.4, .1, .08, (ex, -D2 - .02, 1.2), C(STEEL), .02)
     rpanel(acc, 1.14, 2.26, .04, (ex, -D2 + .02, 1.13), C("C7372F"), .02)
@@ -370,11 +382,11 @@ def dc_building(name="RedeDC", loc=(0, 0, 0)):
         o.name = f"{name}_{o.name}"
     # brand: big name board over the office (south face of the north-west wing), the logo medallion on the high bay's
     # south wall, a name board over the dock canopy, the water tower on the roof
-    nb, _ = name_board(f"{name}_NameSouth", (0, 0, 0), L=6.2, H=1.5)
+    nb, _ = name_board(f"{name}_NameBoardSouth", (0, 0, 0), L=6.2, H=1.5)
     nb.parent = root; nb.location = Vector(((-W2 + OFF_X1) / 2, OFF_Y1 - .2, 9.15))
     md, _ = wall_medallion(f"{name}_Medallion", (0, 0, 0))
     md.parent = root; md.location = Vector((1.4, -D2 - .55, 7.6)); md.scale = (1.55, 1.55, 1.55)
-    ne, _ = name_board(f"{name}_NameEast", (0, 0, 0), L=7.4, H=1.4)
+    ne, _ = name_board(f"{name}_NameBoardEast", (0, 0, 0), L=7.4, H=1.4)
     ne.parent = root; ne.location = Vector((W2 + .2, (DOCKS[0] + DOCKS[-1]) / 2, 8.4)); ne.rotation_euler = (0, 0, math.radians(90))
     wt, _ = water_tower(f"{name}_WaterTower", (0, 0, 0))
     wt.parent = root; wt.location = Vector((6.4, 6.6, H_BAY - .4))
@@ -454,7 +466,7 @@ def garland(name="MarketBunting", L=4.0, sag=.32, loc=(0, 0, 0), n=8):
         bx = step * (k + 1)
         if k < n - 1:
             bz = cz(bx)
-            rbox(acc, (.03, .03, .05), (bx, 0, bz - .035), C(DASH), .008, 1)
+            rbox(acc, (.03, .03, .05), (bx, 0, bz - .035), DASH, .008, 1)
             lathe(acc, [(0, 0), (.035, .01), (.045, .05), (.03, .09), (0, .1)], (bx, 0, bz - .16), BULB, 10, 2)
     objs = acc.realize()
     for o in objs:
@@ -471,11 +483,14 @@ def pendant(name="MarketPendant", drop=1.1, loc=(0, 0, 0)):
     root.location = Vector(loc)
     acc = Acc(name)
     lathe(acc, [(0, 0), (.13, 0), (.13, -.03), (.09, -.07), (0, -.07)], (0, 0, 0), C(NAVY), 20, 1)
-    tube(acc, [(0, 0, -.07), (0, 0, -drop)], .01, C(DASH), seg=6)
+    tube(acc, [(0, 0, -.07), (0, 0, -drop)], .01, DASH, seg=6)
     lathe(acc, [(0, 0), (.025, 0), (.025, .1), (0, .1)], (0, 0, -drop - .02), C(GOLD), 10, 0)
     top = -drop - .02
     outer = [(0, top), (.07, top), (.12, top - .04), (.26, top - .2), (.4, top - .42), (.47, top - .56), (.48, top - .6)]
     lathe(acc, outer, (0, 0, 0), C(NAVY), 32, 2, cap_top=False, cap_bottom=False)
+    # a gold collar and a gold band round the dome: from the game's camera (above) the lamp reads as a lamp
+    lathe(acc, [(.06, top + .01), (.13, top - .03), (.15, top - .07), (.1, top - .06)], (0, 0, 0), C(GOLD), 24, 1, cap_top=False, cap_bottom=False)
+    lathe(acc, [(.3, top - .27), (.335, top - .3), (.355, top - .34), (.32, top - .32)], (0, 0, 0), C(GOLD), 32, 1, cap_top=False, cap_bottom=False)
     inner = [(.46, top - .6), (.45, top - .56), (.38, top - .43), (.25, top - .22), (.11, top - .06), (0, top - .03)]
     lathe(acc, inner, (0, 0, 0), "C_F7F4EC", 32, 2, cap_top=False, cap_bottom=False)
     lathe(acc, [(.455, top - .6), (.49, top - .6), (.5, top - .62), (.49, top - .65), (.455, top - .65)], (0, 0, 0), C(GOLD), 32, 1, cap_top=False, cap_bottom=False)
@@ -500,8 +515,8 @@ def build_dc_v2():
     # two fleet trucks at the bays and the yard pieces, for scale
     for yc, reefer in ((DOCKS[1], False), (DOCKS[3], True)):
         r, _ = truck("FleetTruck_" + ("Reefer" if reefer else "Dry"), (0, 0, 0), reefer=reefer)
-        r.location = Vector((W2 + 3.6, yc, 0)); r.rotation_euler = (0, 0, math.radians(-90))
-    fuel_island("RedeFuelIsland", (W2 + 9.5, -3.5, 0))
+        r.location = Vector((W2 + 3.75, yc, 0)); r.rotation_euler = (0, 0, math.radians(90))   # backed into the bay
+    fuel_island("RedeFuelIsland", (W2 + 13.0, -4.5, 0))
     gatehouse("RedeGatehouse", (W2 + 10.0, 6.5, 0))
     return dc
 
