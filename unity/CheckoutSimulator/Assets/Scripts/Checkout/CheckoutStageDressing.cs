@@ -44,7 +44,10 @@ namespace Checkout
         // Pieces taken out of the game: the clock towers on the corners of the bigger shops looked heavy and
         // out of scale with the grown facade.
         static readonly string[] Retired = { "S3 clock tower", "S4 tower east", "S4 tower west" };
-        public static bool IsRetired(CheckoutStageItem item) => System.Array.IndexOf(Retired, item.name) >= 0;
+        // The ceiling bunting lines and pendant lamps are gone too (Lucas 05/11: they read as stray marks from the
+        // camera, and the remade ones were not wanted either: "não quero as luzes nem as bandeirinhas").
+        public static bool IsRetired(CheckoutStageItem item) =>
+            System.Array.IndexOf(Retired, item.name) >= 0 || item.name.StartsWith("Bunting") || item.name.StartsWith("Pendant");
 
         // The entrance canopies (the mercadinho's striped awning, supermercado, hipermercado) are see-through, so the
         // door and the people going in and out stay visible under them.
@@ -130,8 +133,6 @@ namespace Checkout
                 item.gameObject.SetActive(visible && !hidden.Contains(item));
             }
             Stage = stage;
-            // the bunting lines and pendant lamps wear the Blender models (CheckoutCeilingDeco, Lucas 05/11)
-            CheckoutCeilingDeco.Dress(transform);
             return appeared;
         }
 
