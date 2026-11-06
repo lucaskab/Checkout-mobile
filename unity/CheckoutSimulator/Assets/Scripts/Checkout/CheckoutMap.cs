@@ -165,6 +165,7 @@ namespace Checkout {
    // Rede: the chain's brand (name, logo in the market's colours) on the facade, signs and fleet.
    CheckoutBrand.Apply(next.chain,next.paint);
    CheckoutBrandWorld.Ensure(world);
+   CheckoutRedeWorld.Ensure(world,next);
   }
   // Stock clerks and cleaners work in front of the shelves wherever those stand.
   // Build mode moved furniture: staff follow at once; `navigation` also rebuilds the walkable floor.
@@ -192,10 +193,19 @@ namespace Checkout {
    // The orders on their way or waiting at the dock, oldest first. A stable insertion sort: equal createdAt keep their order (as OrderBy did).
    dueOrders.Clear();
    foreach(var order in state.orders)if(order.status=="em-transporte"||DockedFor(dock,order.id)){int at=dueOrders.Count;dueOrders.Add(order);while(at>0&&dueOrders[at-1].createdAt>order.createdAt){dueOrders[at]=dueOrders[at-1];at--;}dueOrders[at]=order;}
+   var rede=CheckoutRedeWorld.Current;
    for(int n=0;n<dueOrders.Count;n++){var order=dueOrders[n];var truck=TruckFor(order,claimed);if(!truck)continue;claimed.Add(truck);
+    // Rede: a delivery through the distribution centre comes in one of the chain's own trucks.
+    if(rede)rede.Dress(truck,string.IsNullOrEmpty(order.fleetTruckId)?null:CheckoutRedeWorld.KindOf(state,order.fleetTruckId));
     bool atBay=Trucks.Arrive(truck);
     if(atBay&&dispatchedDeliveryOrders.Add(order.id))deliveryWorker?.QueueDelivery(truck,Trucks.Home(truck),order.createdAt+order.deliveryDurationMs);
     DockClick(truck,DockedFor(dock,order.id)&&atBay);
+   }
+   // Rede: a fleet truck leaving on a contract or a branch run backs onto a free dock, loads and drives off (its first 45 s).
+   if(rede&&state.chain?.trucks!=null&&layout.State!=null&&layout.State.storageLarge)foreach(var ft in state.chain.trucks){
+    if(ft==null||ft.phase!="indo"||(ft.job!="contrato"&&ft.job!="filial")||CheckoutBridge.Now-ft.departAt>45000)continue;
+    Transform free=null;foreach(var name in ft.kind=="refrigerado"?new[]{"Anim_Truck_11","Anim_Truck_8","Anim_Truck_5"}:new[]{"Anim_Truck_5","Anim_Truck_8","Anim_Truck_11"}){var t=world.Find(name);if(t&&!claimed.Contains(t)&&!(deliveryWorker&&deliveryWorker.HasDeliveryFor(t))){free=t;break;}}
+    if(!free)continue;claimed.Add(free);rede.Dress(free,ft.kind=="refrigerado"?"refrigerado":"seco");Trucks.Arrive(free);
    }
    foreach(var truck in Trucks.All){if(claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck)))continue;Trucks.Release(truck);}
   }

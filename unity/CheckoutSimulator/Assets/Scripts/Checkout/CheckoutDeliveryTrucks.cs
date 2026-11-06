@@ -124,9 +124,16 @@ namespace Checkout
 
         // ------------------------------------------------------------------ layout
         /// <summary>Called by CheckoutMarketLayout after every layout change.</summary>
+        // Rede (CheckoutRedeWorld): the distribution centre stands where the central warehouse was and its dock bumpers
+        // are further east: the grand yard's bays and the worker's path move by this many metres along +x.
+        public static float GrandShift;
+        CheckoutMarketLayout lastMarket;
+        /// <summary>The same layout again (the distribution centre came or went).</summary>
+        public void Reconfigure() { if (lastMarket && layout != null) Configure(lastMarket, layout); }
+
         public void Configure(CheckoutMarketLayout market, MarketLayout next)
         {
-            layout = next;
+            layout = next; lastMarket = market;
             var kind = next.storageLarge ? Yard.Grand : next.storage ? (next.stage <= 2 ? Yard.Depot : Yard.OldYard) : Yard.Curb;
             bool changed = kind != Kind; Kind = kind;
             var grandBays = world.Find(CheckoutMarketLayout.GrandYard + "/Bays");
@@ -139,7 +146,7 @@ namespace Checkout
                     {
                         var bay = grandBays ? grandBays.Find(tr.t.name) : null;
                         // The bay markers were saved with the pivot height doubled: keep the truck's own height.
-                        tr.home = bay ? new Vector3(bay.position.x + .2f, tr.y, bay.position.z) : tr.sceneHome;
+                        tr.home = bay ? new Vector3(bay.position.x + .2f + GrandShift, tr.y, bay.position.z) : tr.sceneHome;
                         tr.rotation = bay ? bay.rotation : tr.sceneRotation;
                         tr.spot = bay ? bay.GetSiblingIndex() : 0;
                         break;
@@ -181,7 +188,7 @@ namespace Checkout
                     if (path && path.childCount >= 2)
                     {
                         var points = new List<Vector3>();
-                        for (int i = 0; i < path.childCount; i++) points.Add(path.GetChild(i).position);
+                        for (int i = 0; i < path.childCount; i++) points.Add(path.GetChild(i).position + Vector3.right * GrandShift);
                         // Out of the dock door, onto the bay apron, then to the tail of whichever truck it is.
                         points.Add(points[points.Count - 1] + Vector3.right * .8f);
                         worker.approach = Approach;
