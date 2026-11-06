@@ -30,6 +30,12 @@ namespace Checkout {
     go.name="Worker_Loader "+dock;
     var w=go.GetComponent<MarketDay.MarketDeliveryWorker>();
     l.anim=w?w.animationPlayer:go.GetComponentInChildren<Animation>();l.cargo=w?w.cargo:null;l.left=w?w.leftHand:null;l.right=w?w.rightHand:null;
+    // The delivery worker's parcel lives outside its body between trips: the copy's reference would still point at the
+    // worker's own parcel (moving it, and destroying it with the copy). The loader carries a parcel of its own.
+    if(l.cargo&&!l.cargo.IsChildOf(go.transform)){var own=Object.Instantiate(l.cargo.gameObject,go.transform);own.name="Loader parcel";l.cargo=own.transform;}
+    if(l.left&&!l.left.IsChildOf(go.transform))l.left=null;
+    if(l.right&&!l.right.IsChildOf(go.transform))l.right=null;
+    if(!l.left||!l.right)foreach(var b in go.GetComponentsInChildren<Transform>(true)){if(b.name=="Hand_L")l.left=b;else if(b.name=="Hand_R")l.right=b;}
     foreach(var mb in go.GetComponentsInChildren<MonoBehaviour>(true))Object.DestroyImmediate(mb);
     foreach(var b in go.GetComponentsInChildren<UnityEngine.AI.NavMeshAgent>(true))b.enabled=false;
     foreach(var r in go.GetComponentsInChildren<Renderer>(true))if(!l.cargo||!r.transform.IsChildOf(l.cargo))r.enabled=true;
