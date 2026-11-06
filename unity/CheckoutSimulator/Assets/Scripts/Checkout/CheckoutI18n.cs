@@ -75,6 +75,8 @@ namespace Checkout
         static readonly Regex ListSeparators = new Regex(@"(,\s+|\s+e\s+)");
         static readonly Regex Around = new Regex(@"^([^\p{L}]*)([\s\S]*?\p{L})([^\p{L}]*)$");
         static readonly Regex Letter = new Regex(@"\p{L}");
+        // A pattern whose only word is one of these ("de {0}", "{0} e {1}") is too loose to use (same as translator.ts).
+        static readonly Regex Glue = new Regex(@"^[\s\p{P}]*(?:de|da|do|em|no|na|e|a|o|ou|um)?[\s\p{P}]*$", RegexOptions.IgnoreCase);
 
         /// <summary>The catalog of the current language, sent by the game host (keys are the Portuguese texts).</summary>
         public static void Load(string lang, string[] keys, string[] values)
@@ -121,7 +123,8 @@ namespace Checkout
                 if (Slot.IsMatch(source))
                 {
                     var literal = Slot.Replace(source, "");
-                    if (Letters(literal) < 3) continue;
+                    // Real words: three letters, or two that are not a joining word ("NV {0}", "🪙 {0} ou 💎 {1}").
+                    if (Letters(literal) < 3 && (Letters(literal) < 2 || Glue.IsMatch(literal))) continue;
                     var order = new List<int>(); var body = new System.Text.StringBuilder("^");
                     foreach (var piece in Regex.Split(source, @"(\{\d+\})"))
                     {
@@ -182,6 +185,25 @@ namespace Checkout
                 case "en": return text;
                 case "fr": return text.Replace(",", "\u202f");
                 default: return text.Replace(",", ".");
+            }
+        }
+
+        static System.Globalization.CultureInfo culture; static string cultureOf;
+        /// <summary>Formats numbers with decimals the player's way, with the same separators as Number: 4.8 and
+        /// 1,234.50 in English, 4,8 and 1 234,50 in French, 4,8 and 1.234,50 in Portuguese, Spanish and German.</summary>
+        public static System.Globalization.CultureInfo Culture
+        {
+            get
+            {
+                if (culture != null && cultureOf == Language) return culture;
+                var c = (System.Globalization.CultureInfo)System.Globalization.CultureInfo.InvariantCulture.Clone();
+                if (Language != "en")
+                {
+                    c.NumberFormat.NumberDecimalSeparator = ",";
+                    c.NumberFormat.NumberGroupSeparator = Language == "fr" ? " " : ".";
+                }
+                cultureOf = Language; culture = c;
+                return c;
             }
         }
 

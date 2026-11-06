@@ -4669,6 +4669,11 @@ const catalog: Catalog = {
 	"Cada caixa precisa do seu operador: contrate mais um para abrir esta fila.": "Jede Kasse braucht ihren Kassierer: stelle einen weiteren ein, um diese Schlange zu öffnen.",
 	"ESPERANDO O MERCADO ABRIR": "WARTET AUF DIE ÖFFNUNG",
 	"Começa quando o mercado abrir ({0})": "Startet, wenn der Markt öffnet ({0})",
+	"750 ml!": "750 ml!",
+	"UPGRADE  /  {0}": "UPGRADE  /  {0}",
+	"Próximo lugar": "Nächster Platz",
+	"Vem com a próxima evolução deste móvel, junto com:": "Kommt mit dem nächsten Ausbau dieses Möbelstücks, zusammen mit:",
+	"Com a evolução": "Mit dem Ausbau",
 };
 
 export default catalog;

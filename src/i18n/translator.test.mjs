@@ -20,6 +20,21 @@ test("exact texts, patterns and pieces", () => {
 	expect(tr.translate("Texto novo")).toBe("Texto novo");
 });
 
+test("short patterns: two letters that are not a joining word", () => {
+	const tr = new Translator({
+		Arroz: "Rice",
+		"Nv {0}": "Lv {0}",
+		"{0} cx {1}": "{0} x {1}",
+		"🪙 {0} ou 💎 {1}": "🪙 {0} or 💎 {1}",
+		"de {0}": "from {0}",
+	});
+	expect(tr.translate("Nv 12")).toBe("Lv 12");
+	expect(tr.translate("3 cx Arroz")).toBe("3 x Rice");
+	expect(tr.translate("🪙 1.500 ou 💎 30")).toBe("🪙 1.500 or 💎 30");
+	// "de {0}" would match almost anything
+	expect(tr.translate("de manhã")).toBe("de manhã");
+});
+
 test("pages keep their ids and routes", () => {
 	setLanguage("en");
 	expect(getLanguage()).toBe("en");

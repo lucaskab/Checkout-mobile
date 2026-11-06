@@ -309,7 +309,7 @@ function lockedTile(state: State, product: ItemDefinition): BoardTile {
 		detail: `${lock.detail} Vende por ${product.sellingPrice} e dá +${product.xpPerSale} XP por venda.`,
 		facts: [
 			stat(gameIcon("lock"), `Nv ${product.unlockLevel}`, "Libera no nível"),
-			...(lock.eraMissing ? [stat(gameIcon("market"), lock.eraMissing, "Precisa da expansão")] : []),
+			...(lock.eraMissing ? [stat(gameIcon("market"), t(lock.eraMissing), "Precisa da expansão")] : []),
 			stat(gameIcon("coin"), String(product.sellingPrice), "Preço de venda"),
 			stat(gameIcon("crown"), `+${product.xpPerSale}`, "XP por venda"),
 		],

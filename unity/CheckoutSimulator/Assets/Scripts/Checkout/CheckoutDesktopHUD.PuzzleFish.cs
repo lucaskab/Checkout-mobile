@@ -97,7 +97,7 @@ namespace Checkout {
    yield return PSolved(new Vector2(0,H/2-trayH/2),W*.35f);
   }
   int fishMoves;
-  static string Kg(int grams)=>grams>=1000?(grams/1000f).ToString("0.00",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))+" kg":grams+" g";
+  static string Kg(int grams)=>grams>=1000?(grams/1000f).ToString("0.00",CheckoutI18n.Culture)+" kg":grams+" g";
 
   void FishDrop(FishPiece p,List<FishPiece> all,List<RectTransform> trays){
    int target=-1;for(int t=0;t<trays.Count;t++)if(PInside(p.rect.anchoredPosition,trays[t],10)){target=t;break;}
