@@ -26,6 +26,7 @@ namespace Checkout {
    Act("resetMarketPaint","[]");Act("devSetMarketEra","[\"rede\"]");
    Route("");yield return new WaitForSecondsRealtime(8f);Act("dismissLevelUp","[]");if(hud)hud.QaReleaseCelebrations();
    Act("nameChain","[\"Bom Preço\",\"coroa\"]");yield return new WaitForSecondsRealtime(2f);Route("");
+   Act("hireEmployee","[\"cashier\"]");Act("hireEmployee","[\"stock_clerk\"]");
    Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(3f);
    Note("dc: "+CheckoutRedeWorld.Report);
    var grand=world?world.Find(CheckoutMarketLayout.GrandWarehouse):null;

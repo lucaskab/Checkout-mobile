@@ -47,7 +47,7 @@ namespace Checkout {
  // The logo on a cream badge on the chest of every member of staff ("Worker_*", not the suppliers' delivery man).
  public sealed class CheckoutRedeUniforms:MonoBehaviour {
   public static CheckoutRedeUniforms Current{get;private set;}
-  Transform world;float next;int version=-1;
+  Transform world,staffRoot;float next;int version=-1;readonly List<Transform> candidates=new List<Transform>();
   readonly Dictionary<Transform,Transform> badges=new Dictionary<Transform,Transform>();
   readonly Dictionary<Transform,(Transform l,Transform r,Transform head)> bones=new Dictionary<Transform,(Transform,Transform,Transform)>();
   static Material badgeMaterial;static Texture2D badge;static int badgeVersion=-1;
@@ -64,8 +64,12 @@ namespace Checkout {
    next=Time.unscaledTime+2f;version=CheckoutBrand.Version;
    bool on=CheckoutBrand.Named&&world;
    Shown=0;
-   if(world)foreach(Transform w in world){
-    if(!w.name.StartsWith("Worker_")||w.name.StartsWith("Worker_Delivery"))continue;
+   candidates.Clear();
+   if(world)foreach(Transform w in world)if(w.name.StartsWith("Worker_")&&!w.name.StartsWith("Worker_Delivery"))candidates.Add(w);
+   // the stock clerks and cleaners (CheckoutStaff's holder)
+   if(!staffRoot){var go=GameObject.Find("Market Staff");staffRoot=go?go.transform:null;}
+   if(staffRoot)foreach(Transform w in staffRoot)if(w.GetComponent<MarketDay.MarketCharacterAnimator>())candidates.Add(w);
+   foreach(var w in candidates){
     badges.TryGetValue(w,out var b);
     if(!on||!w.gameObject.activeInHierarchy){if(b)b.gameObject.SetActive(false);continue;}
     if(!b){b=Make(w);badges[w]=b;}
