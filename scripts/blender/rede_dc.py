@@ -1,6 +1,6 @@
 """Rede de supermercados, round 2 (Lucas 05/11): the distribution centre building (the hypermarket's "Armazém central"
-was simple and small) and the market's ceiling decorations (the bunting and pendant lamps read as stray marks from the
-game's camera: "minha irmã não entendeu o que era").
+was simple and small). (The remade ceiling bunting and pendant lamps were tried in the shop and dropped: Lucas did not
+want ceiling decorations at all.)
 
 Run after rede_assets.py in the same namespace (its helpers: rbox, rpanel, rframe, lathe, tube, prism, anchor, Acc,
 disc_sign, name_board, water_tower, blob...):
@@ -393,116 +393,6 @@ def dc_building(name="RedeDC", loc=(0, 0, 0)):
     return root
 
 
-# --------------------------------------------------------------------------------------------- ceiling decorations
-PENNANT_COLOURS = (C(NAVY), C(GOLD), "C_F4EBD8")
-CORD = "C_6B4A2E"
-
-
-def pennant_bm(w, h, curl=.03, t=.006):
-    """A fabric pennant hanging from its top edge: a triangle with a soft belly (it bulges a little as cloth does),
-    a thickness and rounded edges."""
-    bm = bmesh.new()
-    rows = 4
-    front, back = [], []
-    for side, store in ((-1, front), (1, back)):
-        for i in range(rows + 1):
-            f = i / rows
-            z = -h * f
-            half = w / 2 * (1 - f)
-            row = []
-            for j in range(3):
-                u = (-1 + j) * half
-                bulge = curl * math.sin(math.pi * (1 - f) * .9) * (1 - abs(u) / max(half, 1e-4) * .6) if half > 1e-4 else 0
-                row.append(bm.verts.new((u, side * t / 2 + bulge, z)))
-            store.append(row)
-    for store, flip in ((front, False), (back, True)):
-        for i in range(rows):
-            a, b = store[i], store[i + 1]
-            for j in range(2):
-                q = [a[j], a[j + 1], b[j + 1], b[j]]
-                if flip: q.reverse()
-                try: bm.faces.new(q)
-                except ValueError: pass
-    # rims (outer edges) joining the two sides
-    for i in range(rows):
-        for j in (0, 2):
-            q = [front[i][j], front[i + 1][j], back[i + 1][j], back[i][j]]
-            if j == 2: q.reverse()
-            try: bm.faces.new(q)
-            except ValueError: pass
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    uv_box(bm)
-    return bm
-
-
-def garland(name="MarketBunting", L=4.0, sag=.32, loc=(0, 0, 0), n=8):
-    """One span of the market's party bunting (the game repeats it along each line): a cord that sags between two
-    ceiling hooks, n fabric pennants in the market's two colours and cream, each folded over the cord with a hem,
-    and a warm string-light bulb between the pennants. Origin = the left hook; the span runs along +X."""
-    root = bpy.data.objects.new(name, None)
-    bpy.context.scene.collection.objects.link(root)
-    root.location = Vector(loc)
-    acc = Acc(name)
-    def cz(x):
-        f = (x / L) * 2 - 1
-        return -sag * (1 - f * f)
-    pts = [(L * k / 24, 0, cz(L * k / 24)) for k in range(25)]
-    tube(acc, pts, .012, CORD, seg=6, smooth_n=1)
-    for hx in (0, L):
-        lathe(acc, [(.045, -.012), (.06, 0), (.045, .012), (.03, 0)], (hx, 0, .04), C(STEEL), 12, 1, rot=(90, 0, 0), cap_top=False, cap_bottom=False)
-        lathe(acc, [(0, 0), (.07, 0), (.07, .03), (0, .03)], (hx, 0, .09), C(STEEL), 12, 0)
-        tube(acc, [(hx, 0, .09), (hx, 0, .02)], .012, C(STEEL), seg=6)
-    step = L / n
-    for k in range(n):
-        x = step * (k + .5)
-        z = cz(x)
-        slope = math.degrees(math.atan2(cz(x + .05) - cz(x - .05), .1))
-        bm = pennant_bm(.36, .46)
-        place(bm, (x, 0, z - .015), (0, -slope, 0))
-        acc.add(bm, PENNANT_COLOURS[k % 3], "Body")
-        rbox(acc, (.37, .03, .04), (x, 0, z), PENNANT_COLOURS[k % 3], .006, 1, rot=(0, -slope, 0))   # hem over the cord
-        # a bulb between this pennant and the next
-        bx = step * (k + 1)
-        if k < n - 1:
-            bz = cz(bx)
-            rbox(acc, (.03, .03, .05), (bx, 0, bz - .035), DASH, .008, 1)
-            lathe(acc, [(0, 0), (.035, .01), (.045, .05), (.03, .09), (0, .1)], (bx, 0, bz - .16), BULB, 8, 0)
-    objs = acc.realize()
-    for o in objs:
-        o.parent = root
-        o.name = f"{name}_{o.name}"
-    return root
-
-
-def pendant(name="MarketPendant", drop=1.1, loc=(0, 0, 0)):
-    """A supermarket pendant lamp: ceiling rose, steel cable with a grip, a big dome shade (navy outside with a gold
-    rim, white inside) and a glowing diffuser. Origin = the ceiling point."""
-    root = bpy.data.objects.new(name, None)
-    bpy.context.scene.collection.objects.link(root)
-    root.location = Vector(loc)
-    acc = Acc(name)
-    lathe(acc, [(0, 0), (.13, 0), (.13, -.03), (.09, -.07), (0, -.07)], (0, 0, 0), C(NAVY), 20, 1)
-    tube(acc, [(0, 0, -.07), (0, 0, -drop)], .01, DASH, seg=6)
-    lathe(acc, [(0, 0), (.025, 0), (.025, .1), (0, .1)], (0, 0, -drop - .02), C(GOLD), 10, 0)
-    top = -drop - .02
-    outer = [(0, top), (.07, top), (.12, top - .04), (.26, top - .2), (.4, top - .42), (.47, top - .56), (.48, top - .6)]
-    lathe(acc, outer, (0, 0, 0), C(NAVY), 20, 1, cap_top=False, cap_bottom=False)
-    # a gold collar and a gold band round the dome: from the game's camera (above) the lamp reads as a lamp
-    lathe(acc, [(.06, top + .01), (.13, top - .03), (.15, top - .07), (.1, top - .06)], (0, 0, 0), C(GOLD), 16, 1, cap_top=False, cap_bottom=False)
-    lathe(acc, [(.3, top - .27), (.335, top - .3), (.355, top - .34), (.32, top - .32)], (0, 0, 0), C(GOLD), 20, 1, cap_top=False, cap_bottom=False)
-    inner = [(.46, top - .6), (.45, top - .56), (.38, top - .43), (.25, top - .22), (.11, top - .06), (0, top - .03)]
-    lathe(acc, inner, (0, 0, 0), "C_F7F4EC", 20, 1, cap_top=False, cap_bottom=False)
-    lathe(acc, [(.455, top - .6), (.49, top - .6), (.5, top - .62), (.49, top - .65), (.455, top - .65)], (0, 0, 0), C(GOLD), 20, 1, cap_top=False, cap_bottom=False)
-    lathe(acc, [(0, top - .5), (.38, top - .5), (.38, top - .52), (0, top - .53)], (0, 0, 0), HEAD_L, 20, 0)
-    lathe(acc, [(0, top - .2), (.09, top - .24), (.11, top - .34), (.07, top - .44), (0, top - .46)], (0, 0, 0), BULB, 14, 2)
-    objs = acc.realize()
-    for o in objs:
-        o.parent = root
-        o.name = f"{name}_{o.name}"
-    return root
-
-
 # --------------------------------------------------------------------------------------------- previews
 def build_dc_v2():
     rk_core.clear("Rede DC v2")
@@ -519,34 +409,3 @@ def build_dc_v2():
     fuel_island("RedeFuelIsland", (W2 + 13.0, -4.5, 0))
     gatehouse("RedeGatehouse", (W2 + 10.0, 6.5, 0))
     return dc
-
-
-def build_ceiling_preview():
-    """The decorations over a mock market floor, seen like the game sees them, plus a close-up."""
-    rk_core.clear("Ceiling deco")
-    rk_core.studio((1800, 1100), bg=(.86, .84, .8))
-    preview_setup()
-    acc = Acc("Mock_Floor")
-    rbox(acc, (16, 11, .1), (0, 0, .05), C("EFE3CC"), .02, 1)
-    for i in range(16):
-        rbox(acc, (.02, 11, .005), (-8 + i, 0, .1), C("DCCDB0"), .002, 1)
-    for j in range(11):
-        rbox(acc, (16, .02, .005), (0, -5.5 + j, .1), C("DCCDB0"), .002, 1)
-    for s in (-1, 1):
-        rbox(acc, (16, .35, 3.6), (0, s * 5.6, 1.8), C(NAVY), .03, 2)
-    rbox(acc, (.35, 11, 3.6), (-8.1, 0, 1.8), C(NAVY), .03, 2)
-    rbox(acc, (.35, 11, 3.6), (8.1, 0, 1.8), C(NAVY), .03, 2)
-    for k in range(4):
-        for j in range(2):
-            rbox(acc, (3.2, .8, 1.6), (-5 + k * 3.4, -2.2 + j * 3.8, .9), C("F6F2EA"), .05, 2)
-            rbox(acc, (3.24, .84, .08), (-5 + k * 3.4, -2.2 + j * 3.8, 1.72), C(GOLD), .02, 1)
-    for o in acc.realize():
-        o.name = "Mock_Floor_" + o.name
-    for row, y in enumerate((-3.9, -.4, 3.2)):
-        for k in range(4):
-            garland("MarketBunting", L=4.0, loc=(-8 + k * 4.0, y, 3.55))
-    for x in (-5.1, -1.7, 1.7, 5.1):
-        for y in (-2.2, 1.6):
-            pendant("MarketPendant", 1.05, (x, y + .0, 3.6))
-    garland("MarketBunting_Close", L=4.0, loc=(-30, 0, 3.55))
-    pendant("MarketPendant_Close", 1.05, (-23.5, .4, 3.6))
