@@ -49,7 +49,7 @@ namespace Checkout {
    fuel.SetPositionAndRotation(W(Pump.x,Pump.y),Quaternion.Euler(0,-90,0));
    ClearPlaza();
    Grow(true);
-   Report=$"yard on, hid {hidden.Count} plaza renderers, map north edge {(fog?fog.Playable.yMax:0):0.0}";
+   Report=$"yard on, hid {hidden.Count} plaza renderers, map north edge {(fog?fog.PlayableRect.yMax:0):0.0}";
   }
 
   void Off(){
@@ -67,10 +67,10 @@ namespace Checkout {
    if(!fog&&Camera.main)fog=Camera.main.GetComponent<CheckoutEdgeFog>();
    if(on&&!grown){
     grown=true;MarketDay.MarketSimulation.ExtraNorth=14f;
-    if(fog){fogBefore=fog.Playable;var r=fogBefore;if(r.width>0&&r.yMax<NorthEdge)fog.Playable=Rect.MinMaxRect(r.xMin,r.yMin,r.xMax,NorthEdge);}
+    if(fog){fogBefore=fog.PlayableRect;var r=fogBefore;if(r.width>0&&r.yMax<NorthEdge)fog.PlayableRect=Rect.MinMaxRect(r.xMin,r.yMin,r.xMax,NorthEdge);}
    }else if(!on&&grown){
     grown=false;MarketDay.MarketSimulation.ExtraNorth=0;
-    if(fog&&fogBefore.width>0)fog.Playable=fogBefore;
+    if(fog&&fogBefore.width>0)fog.PlayableRect=fogBefore;
    }
   }
 

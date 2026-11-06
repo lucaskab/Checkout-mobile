@@ -15,7 +15,7 @@ namespace Checkout
 
         public void Configure(Rect map, float start, float end) { playable = map; range = new Vector2(start, end); }
         /// <summary>The playable map now (the chain's fleet yard grows it north: CheckoutRedeYard).</summary>
-        public Rect Playable { get => playable; set => playable = value; }
+        public Rect PlayableRect { get => playable; set => playable = value; }
 
         void OnEnable()
         {
