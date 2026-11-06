@@ -4686,7 +4686,7 @@ const catalog: Catalog = {
 	"Você já ganhou os diamantes de vídeo de hoje · volta em {0}": "You've already earned today's video diamonds · back in {0}",
 	"Use para acelerar obras e entregas": "Use them to speed up construction and deliveries",
 	"Assista um vídeo curto e ganhe +{0} diamantes · {1} hoje": "Watch a short video and get +{0} diamonds · {1} left today",
-	"Avisos": "Notifications",
+	"Avisos": "Alerts",
 	"Escolha os avisos que o celular mostra.": "Choose which notifications your phone shows.",
 	"Os avisos estão desligados nos ajustes do celular.": "Notifications are turned off in your phone's settings.",
 	"Abrir ajustes": "Open settings",

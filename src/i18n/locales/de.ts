@@ -4686,7 +4686,7 @@ const catalog: Catalog = {
 	"Você já ganhou os diamantes de vídeo de hoje · volta em {0}": "Du hast die Video-Diamanten von heute schon bekommen · wieder in {0}",
 	"Use para acelerar obras e entregas": "Nutze sie, um Bauarbeiten und Lieferungen zu beschleunigen",
 	"Assista um vídeo curto e ganhe +{0} diamantes · {1} hoje": "Schau ein kurzes Video und erhalte +{0} Diamanten · heute noch {1}",
-	"Avisos": "Benachrichtigungen",
+	"Avisos": "Hinweise",
 	"Escolha os avisos que o celular mostra.": "Wähle, welche Benachrichtigungen dein Handy zeigt.",
 	"Os avisos estão desligados nos ajustes do celular.": "Benachrichtigungen sind in den Handy-Einstellungen ausgeschaltet.",
 	"Abrir ajustes": "Einstellungen öffnen",
