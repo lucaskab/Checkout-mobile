@@ -70,7 +70,7 @@ namespace Checkout {
    if(fakePlays!=null)s.decorPlays=fakePlays;
    PatchRoom(s);
    if(fakeDock!=null&&(s.dock==null||s.dock.All(d=>d.id!=fakeDock.id)))s.dock=(s.dock??Array.Empty<DockEntry>()).Append(fakeDock).ToArray();
-   if(fakeSlots!=null&&(s.restockSlots==null||s.restockSlots.All(d=>d.slotId!=fakeSlots[0].slotId)))s.restockSlots=(s.restockSlots??Array.Empty<RestockSlot>()).Concat(fakeSlots).ToArray();
+   if(fakeSlots!=null&&fakeSlots.Length>0&&(s.restockSlots==null||s.restockSlots.All(d=>d.slotId!=fakeSlots[0].slotId)))s.restockSlots=(s.restockSlots??Array.Empty<RestockSlot>()).Concat(fakeSlots).ToArray();
    // "fixtures": every slot a third full with stock in the stockroom (visual check of the REPOR game)
    if(lowShelves&&s.restockSlots!=null)foreach(var r in s.restockSlots){r.stock=Mathf.Min(r.stock,r.capacity/3);r.reserve=Mathf.Max(r.reserve,8);}
    if(fakeIncident!=null&&(s.incidents==null||s.incidents.All(d=>d.id!=fakeIncident.id))){s.incidents=(s.incidents??Array.Empty<IncidentEntry>()).Append(fakeIncident).ToArray();if(s.coins<fakeIncident.fixCost+1)s.coins=fakeIncident.fixCost+100;}
