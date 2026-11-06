@@ -73,6 +73,10 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(2.5f);
    Result("the staff wear the chain's logo",CheckoutRedeUniforms.Shown>0,$"{CheckoutRedeUniforms.Shown} badges");
    var cashier=world?world.Find("Worker_Cashier"):null;
+   if(cashier)Note("dc: cashier active="+cashier.gameObject.activeInHierarchy+" bones: "+string.Join(",",cashier.GetComponentsInChildren<Transform>(true).Select(t=>t.name).Where(n=>System.Text.RegularExpressions.Regex.IsMatch(n,"Arm|Hand|Head|Spine|Chest|Neck|Clav",System.Text.RegularExpressions.RegexOptions.IgnoreCase)).Take(30)));
+   if(world)Note("dc: workers: "+string.Join(",",world.Cast<Transform>().Where(t=>t.name.StartsWith("Worker_")).Select(t=>t.name+(t.gameObject.activeInHierarchy?"":"(off)"))));
+   // shelves stocked so customers find something to buy and reach the till
+   foreach(var sh in bridge.State.shelves??new Shelf[0])if(sh!=null&&sh.unlocked&&!sh.building&&sh.productId>0&&sh.stock<sh.capacity){int add=sh.capacity-sh.stock;Act("devAdjustInventory",$"[{sh.productId},{add}]");Act("restockShelf","[{\"shelfId\":\""+sh.id+"\",\"productId\":"+sh.productId+",\"amount\":"+add+"}]");}
    if(cashier&&cashier.gameObject.activeInHierarchy){var cf=-cashier.forward;cf.y=0;yield return From("dc_uniform",cashier.position+Vector3.up*1.4f,cf.normalized+Vector3.up*.35f,3.2f,32);}
    CheckoutRedeBag carrier=null;var served=new System.Collections.Generic.HashSet<string>();
    for(float t=0;t<90&&!carrier;t+=.5f){
