@@ -304,6 +304,8 @@ export type GameActions = {
 	devSetMarketEra: (eraId: MarketEraId) => boolean;
 	/** DEV: pretend the player was away this many hours (obras advance, offline sales are paid). */
 	devPassTime: (hours: number) => boolean;
+	/** QA: every order on its way jumps to at least this share of its trip (0.5 = on the road). */
+	devAdvanceOrders: (progress: number) => boolean;
 	/** Pays the next era and starts its obra. */
 	evolveMarketEra: () => boolean;
 	/** Pays the next level of a product (price set by the current expansion). */

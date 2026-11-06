@@ -1772,6 +1772,23 @@ export const useGameStore = create<GameStore>()(
 				});
 				return true;
 			},
+			devAdvanceOrders: (progress: number) => {
+				if (!Number.isFinite(progress) || progress <= 0 || progress >= 1) return false;
+				const { logistics } = get();
+				const now = Date.now();
+				set({
+					logistics: {
+						...logistics,
+						orders: logistics.orders.map((order) =>
+							order.deliveredAt || (now - order.createdAt) / order.deliveryDurationMs >= progress
+								? order
+								: { ...order, createdAt: now - order.deliveryDurationMs * progress },
+						),
+					},
+				});
+				get().processSupplierOrders();
+				return true;
+			},
 			devPassTime: (hours: number) => {
 				if (!Number.isFinite(hours) || hours <= 0) return false;
 				const shift = hours * 60 * 60_000;

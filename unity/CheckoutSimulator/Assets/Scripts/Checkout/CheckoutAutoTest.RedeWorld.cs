@@ -47,7 +47,7 @@ namespace Checkout {
    for(float t=0;t<90&&!fleet;t+=.5f){
     yield return new WaitForSecondsRealtime(.5f);
     // (the order is packed at the DC first: time is moved on until it leaves on its truck)
-    if(Mathf.Repeat(t,2f)<.01f&&bridge.State.orders.Any(o=>!string.IsNullOrEmpty(o.fleetTruckId)&&o.status!="em-transporte"))Act("devPassTime","[0.01]");
+    if(Mathf.Repeat(t,2f)<.01f&&bridge.State.orders.Any(o=>!string.IsNullOrEmpty(o.fleetTruckId)&&o.status!="em-transporte"))Act("devAdvanceOrders","[0.5]");
     foreach(var name in new[]{"Anim_Truck_5","Anim_Truck_8","Anim_Truck_11"}){var tr=world?world.Find(name):null;var skin=tr?tr.Find("Fleet skin"):null;if(tr&&tr.gameObject.activeInHierarchy&&skin&&skin.gameObject.activeSelf)fleet=tr;}
    }
    Result("a delivery through the DC comes in a fleet truck",fleet,fleet?fleet.name:string.Join(",",bridge.State.orders.Select(o=>o.id+":"+o.status+":"+o.fleetTruckId)));
