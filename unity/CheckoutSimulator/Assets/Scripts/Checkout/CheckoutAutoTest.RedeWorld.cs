@@ -28,6 +28,8 @@ namespace Checkout {
    Act("nameChain","[\"Bom Preço\",\"coroa\"]");yield return new WaitForSecondsRealtime(2f);Route("");
    Act("hireEmployee","[\"cashier\"]");Act("hireEmployee","[\"stock_clerk\"]");
    Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(3f);
+   for(int k=0;k<3&&!bridge.State.isOpen;k++){Act("claimDayResult","[]");Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(2f);if(!bridge.State.isOpen){Act("setMarketOpen","[true]");yield return new WaitForSecondsRealtime(2f);}}
+   Note("dc: market open="+bridge.State.isOpen+" day "+bridge.State.day?.phase);
    Note("dc: "+CheckoutRedeWorld.Report);
    var grand=world?world.Find(CheckoutMarketLayout.GrandWarehouse):null;
    if(grand)Note("dc: Warehouse Large children: "+string.Join(", ",grand.Cast<Transform>().Select(c=>c.name+(c.gameObject.activeSelf?"":"(off)"))));
