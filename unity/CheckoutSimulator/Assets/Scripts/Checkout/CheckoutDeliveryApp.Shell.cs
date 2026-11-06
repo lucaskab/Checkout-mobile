@@ -157,7 +157,7 @@ namespace Checkout {
    var s=bridge?.State;bool open=s!=null&&s.isOpen;
    if(statusText){string want=CheckoutI18n.T(open?"Loja aberta · recebendo pedidos":"Loja fechada · sem pedidos novos");if(statusText.text!=want)statusText.text=want;}
    if(statusDot)statusDot.color=K.C(open?Green:"A0A6AE");
-   if(barRating)barRating.text=d.rating.ToString("0.0",Br);
+   if(barRating)barRating.text=d.rating.ToString("0.0",Local);
    if(barAvatarRing)barAvatarRing.color=K.C(RankColors[RankOf(d.delivered)]);
    int offersN=0,activeN=0;
    if(d.orders!=null)foreach(var o in d.orders){if(o==null)continue;if(o.status=="oferta")offersN++;else if(StageOf(o.status)>0)activeN++;}

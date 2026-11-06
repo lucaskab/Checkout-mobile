@@ -101,7 +101,7 @@ namespace Checkout
                     float lw = lot.x1 - lot.x0, ld = lot.z1 - lot.z0;
                     Quad(lot.id, new Vector3(lot.x0 + .12f, Height, lot.z0 + .12f), new Vector3(lot.x1 - .12f, Height, lot.z1 - .12f), colour);
                     Frame(lot.id, lot.x0, lot.z0, lw, ld);
-                    string price = lot.price.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+                    string price = CheckoutI18n.Number(lot.price);
                     string tag = st == "seu" ? "SEU" : st == "praca" ? "GRATUITA" : st == "comprado" ? "COMPRADO · LIMPAR"
                         : st == "limpando" ? "LIMPANDO" : st == "venda" ? string.Format("À VENDA · {0}", price) : st == "bloqueado" ? price
                         : owned.Contains(lot.id) ? "SEU" : next.Contains(lot.id) ? "PRÓXIMA" : plaza.Contains(lot.id) ? "GRATUITA" : "";

@@ -626,8 +626,8 @@ namespace Checkout
             foreach (var go in clutter) if (go && go.activeSelf) go.SetActive(false);
         }
 
-        static readonly CultureInfo Br = CultureInfo.GetCultureInfo("pt-BR");
-        public static string Money(double value) => value.ToString("N0", Br);
+        /// <summary>Coins written the player's way (1,500 in English, 1.500 in Portuguese).</summary>
+        public static string Money(double value) => CheckoutI18n.Number(value);
 
         // ------------------------------------------------------------------ padlocks, clicks
         void LateUpdate()

@@ -26,6 +26,8 @@ const SEPARATORS = /(:\s+|;\s+|\s+›\s+|\s{2,})/;
 const SENTENCES = /((?<=[.!?…])\s+)/;
 /** Last resort inside a piece: a list ("tomate, alface e banana"). */
 const LIST = /(,\s+|\s+e\s+)/;
+/** A pattern whose only word is one of these ("de {0}", "{0} e {1}") is too loose to use. */
+const GLUE = /^[\s\p{P}]*(?:de|da|do|em|no|na|e|a|o|ou|um)?[\s\p{P}]*$/iu;
 const MAX_CACHE = 20_000;
 
 export class Translator {
@@ -66,8 +68,9 @@ export class Translator {
 			}
 			if (/\{\d+\}/.test(source)) {
 				const literal = source.replace(/\{\d+\}/g, "");
-				// "{0} {1}" or "{0} de {1}" would match almost anything: patterns need real words.
-				if (letters(literal) < 3) continue;
+				// "{0} {1}" or "{0} de {1}" would match almost anything: patterns need real words — three letters, or
+				// two that are not a joining word ("NV {0}", "{0} cx", "🪙 {0} ou 💎 {1}").
+				if (letters(literal) < 3 && (letters(literal) < 2 || GLUE.test(literal))) continue;
 				const order: number[] = [];
 				const body = source
 					.split(/(\{\d+\})/)

@@ -293,7 +293,7 @@ namespace Checkout {
   }
 
   // ------------------------------------------------------------------ helpers
-  static string Fmt(int value)=>value.ToString("N0",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+  static string Fmt(int value)=>CheckoutI18n.Number(value);
   static string Args(string text)=>"[\""+text+"\"]";
   static DesktopButton Btn(string label,string action,string args,string variant,string icon,bool enabled,string ok,string fail)=>
    new DesktopButton{label=label,action=action,args=args,variant=variant,icon=icon,enabled=enabled,ok=ok,fail=fail,route="",after="",badge=""};
@@ -352,7 +352,7 @@ namespace Checkout {
    gameObject.SetActive(!hidden);pile.gameObject.SetActive(!hidden);if(hidden)return;
    bool product=slot.state=="product";
    empty.SetActive(slot.state=="empty");locked.SetActive(slot.state=="locked");
-   if(slot.state=="locked")lockText.text=slot.unlockCost<=0?"Com a evolução":"Abrir · "+slot.unlockCost.ToString("N0",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+   if(slot.state=="locked")lockText.text=slot.unlockCost<=0?"Com a evolução":"Abrir · "+CheckoutI18n.Number(slot.unlockCost);
    tag.SetActive(product);stockChip.SetActive(product);levelChip.SetActive(product&&slot.level>0);
    if(product){
     tagText.text=slot.price.ToString();

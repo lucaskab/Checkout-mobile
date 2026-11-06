@@ -4,6 +4,7 @@ import { achievements } from "@/data/achievements";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
+import { t } from "@/i18n";
 import {
 	albumCollections,
 	getCollectionProgress,
@@ -125,7 +126,7 @@ function missionTile(state: State, mission: (typeof missions)[number]): BoardTil
 		facts: [
 			stat(gameIcon("target"), `${fmt(shown)}/${fmt(mission.goal)}`, "Progresso", status === "claimable" ? "success" : ""),
 			stat(gameIcon("coin"), fmt(plan.coins), "Moedas de prêmio", "gold"),
-			stat(gameIcon("clipboard"), missionCategory[mission.category], "Categoria"),
+			stat(gameIcon("clipboard"), t(missionCategory[mission.category]), "Categoria"),
 			stat(gameIcon("crown"), `Nv ${mission.requiredLevel}`, "Nível mínimo"),
 		],
 		lines: [`Prêmio: ${rewards.join(", ")}`],

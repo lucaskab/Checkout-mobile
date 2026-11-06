@@ -29,7 +29,7 @@ namespace Checkout {
   const string AllKey="*",LowKey="!low";
   const string Blue="2E8CAE",Dark="2B2B2B",Muted="8A7560",Green="3DAA5C",Red="E15533",Cream="FFF6E6";
   const int CardW=206,CardH=326,CardGap=14,CartWidth=420,SideWidth=232,MaxLines=40;
-  static readonly CultureInfo Br=CultureInfo.GetCultureInfo("pt-BR");
+  static CultureInfo Local=>CheckoutI18n.Culture; // numbers written the player's way
 
   CheckoutBridge bridge;AudioSource sound;
   RectTransform root,frameRect,screenRect,body,deliveryBody,gridView,gridContent,sideContent,cartRect,cartList,cartContent,cartBadge;
@@ -221,7 +221,7 @@ namespace Checkout {
    var label=U.Label(img.transform,"Text",K.Headline,20,Dark);U.Stretch(label.rectTransform,Vector2.zero,Vector2.one);label.text=text;
    U.Tap(img,onTap);return img;
   }
-  static string Money(long v)=>v.ToString("N0",Br);
+  static string Money(long v)=>v.ToString("N0",Local);
   static float Ease(float t)=>1-Mathf.Pow(1-t,3);
   static DesktopButton Btn(string label,string variant,bool enabled,string icon,bool active=false)=>new DesktopButton{label=label,variant=variant,enabled=enabled,icon=icon,active=active,action="",args="[]",route="",after="",ok="",fail="",badge=""};
   // "Only N boxes fit." plus the reason, as two whole sentences (each one has its own translation).
@@ -304,7 +304,7 @@ namespace Checkout {
    c.barFill.rectTransform.anchorMax=new Vector2(Mathf.Clamp01(stockBoxes/(float)capacity),1);
    c.barFill.color=K.C(low?Red:Green);
    c.price.text=Money(Mathf.RoundToInt(p.boxPrice));
-   c.unit.text=string.Format("{0} por un. · vende a {1}",p.unitCost.ToString("N2",Br),p.salePrice.ToString("N2",Br));
+   c.unit.text=string.Format("{0} por un. · vende a {1}",p.unitCost.ToString("N2",Local),p.salePrice.ToString("N2",Local));
    c.ribbon.gameObject.SetActive(low);
    c.lockIcon.gameObject.SetActive(locked);
    c.icon.color=locked?new Color(1,1,1,.45f):Color.white;
