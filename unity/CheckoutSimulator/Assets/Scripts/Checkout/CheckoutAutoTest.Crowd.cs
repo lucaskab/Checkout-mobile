@@ -61,23 +61,15 @@ namespace Checkout {
     foreach (var st in stationTypes) { Hud("purchaseDecor", "[\"" + st + "\",\"coins\"]"); yield return new WaitForSecondsRealtime(1f); }
     Hud("dismissLevelUp", "[]"); yield return new WaitForSecondsRealtime(1f); var hudUi = FindAnyObjectByType<CheckoutDesktopHUD>(); if (hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen)) hudUi.QaCloseCelebrations();
    }
+   string[] laneItems = CheckoutLanes.Counters.Concat(CheckoutLanes.Kiosks).Select(c => c.item).Where(i => i != null).Distinct().ToArray();
    if (lanes) {
     roomLanes = true;
     Hud("setMarketLevel", "[60]");
     Hud("grantCurrencyPurchase", "[{\"coins\":9000000,\"diamonds\":500,\"transactionId\":\"qa-crowd-lanes-" + System.DateTime.Now.Ticks + "\"}]");
     yield return new WaitForSecondsRealtime(1.5f); Hud("dismissLevelUp", "[]");
-    foreach (var item in CheckoutLanes.Counters.Concat(CheckoutLanes.Kiosks).Select(c => c.item).Where(i => i != null).Distinct()) {
-     Hud("purchaseShopItem", "[\"" + item + "\",\"coins\"]"); yield return new WaitForSecondsRealtime(.8f);
-     Hud("devFinishInteriorConstructions", "[]"); yield return new WaitForSecondsRealtime(.8f);
-    }
-    var ownedNow = bridge.State.ownedItems ?? System.Array.Empty<string>();
-    int counters = CheckoutLanes.Counters.Count(c => c.item == null || ownedNow.Contains(c.item));
-    int had = (bridge.State.employees ?? System.Array.Empty<Employee>()).Count(e => e != null && e.role == "cashier");
-    for (int i = had; i < counters + 1; i++) { Hud("hireEmployee", "[\"cashier\"]"); yield return new WaitForSecondsRealtime(.6f); }   // (one more than the checkouts: the cap must refuse it)
-    int cashiersNow = (bridge.State.employees ?? System.Array.Empty<Employee>()).Count(e => e != null && e.role == "cashier");
-    Line($"lanes: owned {string.Join(",", ownedNow.Where(o => CheckoutLanes.PiecesOf(o).Length > 0))}; checkouts {counters}, kiosks {CheckoutLanes.Kiosks.Count(k => ownedNow.Contains(k.item))}; cashiers {cashiersNow} (cap {counters})");
-    Line($"RESULT {tag} cashier cap: {(cashiersNow == counters ? "PASS" : "FAIL")} {cashiersNow} cashiers for {counters} checkouts");
-    Hud("dismissLevelUp", "[]"); yield return new WaitForSecondsRealtime(3);
+    // The first of each line (Caixa 2, the first kiosk pair): the next ones need these built first.
+    foreach (var item in laneItems) { Hud("purchaseShopItem", "[\"" + item + "\",\"coins\"]"); yield return new WaitForSecondsRealtime(.6f); }
+    yield return new WaitForSecondsRealtime(3);
    }
    inside = CheckoutInterior.Active; var map = FindAnyObjectByType<CheckoutMap>();
    if (!inside || !map) { Line("no interior"); roomEra = -1; crowdLayout = null; yield break; }
@@ -128,6 +120,44 @@ namespace Checkout {
      saved.Add(string.Join(";", it.id, it.type, it.x.ToString("0.0000", CultureInfo.InvariantCulture), it.z.ToString("0.0000", CultureInfo.InvariantCulture), it.rot.ToString("0.0", CultureInfo.InvariantCulture), it.root.position.x.ToString("0.000", CultureInfo.InvariantCulture), it.root.position.z.ToString("0.000", CultureInfo.InvariantCulture)));
     File.WriteAllLines(layoutFile, saved);
     yield return new WaitForSecondsRealtime(3);
+    if (lanes) {
+     // Build what was placed, buy the next checkout / kiosk pair, place it by the others, again until all are there.
+     for (int round = 0; round < 4; round++) {
+      Hud("devFinishInteriorConstructions", "[]"); yield return new WaitForSecondsRealtime(2);
+      foreach (var item in laneItems) { Hud("purchaseShopItem", "[\"" + item + "\",\"coins\"]"); yield return new WaitForSecondsRealtime(.6f); }
+      yield return new WaitForSecondsRealtime(2.5f);
+      inside.editing = true; yield return new WaitForSecondsRealtime(.5f);
+      var next = inside.waiting.Keys.Where(k => k.StartsWith("checkout") || k.StartsWith("kiosk")).OrderBy(k => k).ToList();
+      if (next.Count == 0) { inside.editing = false; break; }
+      foreach (var id in next) {
+       CheckoutInterior.Item placed = null; int tries = 0;
+       var near = inside.items.Values.Where(i => i.root && (i.type == "checkout" || i.type == "kiosk")).Select(i => i.root.position).ToList();
+       var points = new List<Vector3>();
+       foreach (var c in near) for (int dx = -3; dx <= 3; dx++) for (int dz = -2; dz <= 2; dz++) points.Add(new Vector3(c.x + dx * 1.6f, CheckoutInterior.Floor, c.z + dz * 1.6f));
+       points.Add(new Vector3(inside.CheckoutZone.center.x, CheckoutInterior.Floor, floor.yMin + 2));
+       foreach (var p in points.OrderBy(p => near.Count > 0 ? near.Min(c => (c - p).sqrMagnitude) : 0)) {
+        if (++tries > 60) break;
+        var it = inside.PlaceWaiting(id, p); if (it == null) break;
+        if (inside.Reachable(out _)) { placed = it; break; }
+        inside.Unplace(it);
+       }
+       Line(placed != null ? $"lanes round {round}: placed {id} at ({placed.root.position.x:0.00},{placed.root.position.z:0.00}) rot {placed.rot:0}" : $"lanes round {round}: NO ROOM {id}");
+      }
+      map.FurnitureChanged(false); map.SaveInterior(); inside.MarkPending(); inside.editing = false;
+      yield return new WaitForSecondsRealtime(3);
+     }
+     Hud("devFinishInteriorConstructions", "[]"); yield return new WaitForSecondsRealtime(3);
+     var ownedNow = bridge.State.ownedItems ?? System.Array.Empty<string>();
+     int counters = CheckoutLanes.Counters.Count(c => c.item == null || ownedNow.Contains(c.item));
+     int had = (bridge.State.employees ?? System.Array.Empty<Employee>()).Count(e => e != null && e.role == "cashier");
+     for (int i = had; i < counters + 1; i++) { Hud("hireEmployee", "[\"cashier\"]"); yield return new WaitForSecondsRealtime(.6f); }   // (one more than the checkouts: the cap must refuse it)
+     yield return new WaitForSecondsRealtime(1.5f);
+     int cashiersNow = (bridge.State.employees ?? System.Array.Empty<Employee>()).Count(e => e != null && e.role == "cashier");
+     Line($"lanes: owned {string.Join(",", ownedNow.Where(o => CheckoutLanes.PiecesOf(o).Length > 0))}; checkouts {counters}, kiosks {CheckoutLanes.Kiosks.Count(k => ownedNow.Contains(k.item))}; cashiers {cashiersNow} (cap {counters})");
+     Line($"RESULT {tag} cashier cap: {(cashiersNow == counters ? "PASS" : "FAIL")} {cashiersNow} cashiers for {counters} checkouts");
+     Line($"RESULT {tag} all lanes built: {(counters == CheckoutLanes.Counters.Length && CheckoutLanes.Kiosks.All(k => ownedNow.Contains(k.item)) ? "PASS" : "FAIL")}");
+     Hud("dismissLevelUp", "[]"); yield return new WaitForSecondsRealtime(2);
+    }
    } else {
     // The pieces of the old layout, at their saved coordinates, against the shop as it is now.
     yield return new WaitForSecondsRealtime(3);
@@ -285,7 +315,8 @@ namespace Checkout {
     if (lanes) foreach (var l in map.Lanes.lanes) { laneMax.TryGetValue(l.itemId ?? "?", out var m); laneMax[l.itemId ?? "?"] = Mathf.Max(m, l.queue.Count); }
     if (lanes && !shotLanes && at > seconds * .6f) {
      shotLanes = true; var z = inside.CheckoutZone; var zc = new Vector3(z.center.x, .8f, z.center.y);
-     foreach (var l in map.Lanes.lanes) { var it = l.itemId != null ? inside.Get(l.itemId) : null; if (it != null && it.root) { zc = Vector3.Lerp(zc, it.root.position + Vector3.up * .8f, .5f); } }
+     var lanePos = map.Lanes.lanes.Select(l => l.itemId != null ? inside.Get(l.itemId) : null).Where(it => it != null && it.root).Select(it => it.root.position).ToList();
+     if (lanePos.Count > 0) zc = new Vector3(lanePos.Average(p => p.x), .8f, lanePos.Average(p => p.z));
      TierShot($"crowd_{tag}_lanes", 2048, 1152, zc, 9f); TierShot($"crowd_{tag}_lanes_wide", 2048, 1152, zc, 15f);
      var fz = CheckoutStall.Footprint; TopDown(new Vector3(fz.center.x, 0, fz.center.z), Mathf.Max(floor.width, floor.height) + 3, $"crowd_{tag}_lanes_top");
     }

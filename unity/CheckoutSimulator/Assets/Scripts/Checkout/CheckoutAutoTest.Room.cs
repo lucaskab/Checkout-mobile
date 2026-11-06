@@ -22,7 +22,8 @@ namespace Checkout {
    if(roomEra<0)return;
    if(s.shelves!=null)foreach(var x in s.shelves){x.unlocked=ShelfEra.TryGetValue(x.id,out var e)&&e<=roomEra;x.building=false;}
    if(s.sectors!=null)foreach(var x in s.sectors){x.unlocked=SectorEra.TryGetValue(x.id,out var e)&&e<=roomEra;x.building=false;}
-   s.builds=System.Array.Empty<BuildEntry>();
+   // (.lanes: the checkouts and kiosks bought in the run wait in the inventory through their pending works)
+   s.builds=roomLanes?(s.builds??System.Array.Empty<BuildEntry>()).Where(b=>b!=null&&b.kind=="shop"&&CheckoutLanes.PiecesOf(b.targetId).Length>0).ToArray():System.Array.Empty<BuildEntry>();
    var owned=(s.ownedItems??System.Array.Empty<string>()).Where(i=>roomLanes||i!=CheckoutLanes.ExtraItem&&i!=CheckoutLanes.SelfItem).ToList();
    if(roomExtras&&!roomLanes){owned.Add(CheckoutLanes.ExtraItem);if(roomEra>=8)owned.Add(CheckoutLanes.SelfItem);}
    s.ownedItems=owned.ToArray();
