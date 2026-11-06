@@ -4,6 +4,11 @@ using UnityEngine;
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
 using Unity.Notifications;
 #endif
+#if UNITY_ANDROID && !UNITY_EDITOR
+using Unity.Notifications.Android;
+#elif UNITY_IOS && !UNITY_EDITOR
+using Unity.Notifications.iOS;
+#endif
 
 namespace Checkout
 {
@@ -43,13 +48,21 @@ namespace Checkout
         {
             get
             {
-#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+#if UNITY_ANDROID && !UNITY_EDITOR
                 if (!started) return "unknown";
-                switch (NotificationCenter.PermissionStatus)
+                switch (AndroidNotificationCenter.UserPermissionToPost)
                 {
-                    case NotificationsPermissionStatus.Granted: return "granted";
-                    case NotificationsPermissionStatus.Denied: return "denied";
-                    case NotificationsPermissionStatus.RequestPending: return "pending";
+                    case PermissionStatus.Allowed: return "granted";
+                    case PermissionStatus.Denied: case PermissionStatus.DeniedDontAskAgain: case PermissionStatus.NotificationsBlockedForApp: return "denied";
+                    case PermissionStatus.RequestPending: return "pending";
+                    default: return "unknown";
+                }
+#elif UNITY_IOS && !UNITY_EDITOR
+                if (!started) return "unknown";
+                switch (iOSNotificationCenter.GetNotificationSettings().AuthorizationStatus)
+                {
+                    case AuthorizationStatus.Authorized: case AuthorizationStatus.Provisional: case AuthorizationStatus.Ephemeral: return "granted";
+                    case AuthorizationStatus.Denied: return "denied";
                     default: return "unknown";
                 }
 #else
@@ -132,19 +145,8 @@ namespace Checkout
         /// <summary>Opens the phone's settings page of the app (to turn the notifications back on).</summary>
         public static void OpenSystemSettings()
         {
-#if UNITY_IOS && !UNITY_EDITOR
-            Application.OpenURL("app-settings:");
-#elif UNITY_ANDROID && !UNITY_EDITOR
-            try
-            {
-                using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-                using var activity = player.GetStatic<AndroidJavaObject>("currentActivity");
-                using var intent = new AndroidJavaObject("android.content.Intent", "android.settings.APP_NOTIFICATION_SETTINGS");
-                intent.Call<AndroidJavaObject>("putExtra", "android.provider.extra.APP_PACKAGE", Application.identifier);
-                intent.Call<AndroidJavaObject>("addFlags", 0x10000000);
-                activity.Call("startActivity", intent);
-            }
-            catch (Exception e) { Debug.LogWarning("CHECKOUT_NOTIF settings: " + e.Message); }
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+            NotificationCenter.OpenNotificationSettings();
 #else
             Debug.Log("CHECKOUT_NOTIF open system settings (Editor)");
 #endif
