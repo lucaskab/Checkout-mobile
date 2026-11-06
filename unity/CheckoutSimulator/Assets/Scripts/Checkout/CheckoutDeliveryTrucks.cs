@@ -332,7 +332,7 @@ namespace Checkout
         }
         public string Describe()
         {
-            var lines = new List<string> { $"truck yard {Kind}" };
+            var lines = new List<string> { $"truck yard {Kind}, reserved {string.Join(",", reserved.Where(r => r.Key).Select(r => r.Key.name + "@" + r.Value.z.ToString("0.0")))}" };
             foreach (var tr in trucks.Values)
             {
                 var rear = tr.home + tr.rotation * Vector3.Scale(tr.RearLocal, tr.t.lossyScale);

@@ -139,7 +139,7 @@ namespace Checkout {
   void FindDoors(){
    if(!dc)return;
    foreach(var t in dc.GetComponentsInChildren<Transform>(true))
-    for(int i=0;i<doors.Length;i++)if(t.name.StartsWith("DockDoor"+i))doors[i]=t;
+    for(int i=0;i<doors.Length;i++)if(t.name.Contains("DockDoor"+i))doors[i]=t;
    for(int i=0;i<doors.Length;i++)if(doors[i]){doorOpen[i]=0;doorBase[i]=doors[i].position;}
   }
   void UpdateDoors(){
@@ -154,6 +154,7 @@ namespace Checkout {
    }
   }
   /// <summary>QA: how far each door is up (0..1).</summary>
+  public float QaDoorMax=>Mathf.Max(doorOpen[0],Mathf.Max(doorOpen[1],doorOpen[2]));
   public string QaDoors=>$"{doorOpen[0]:0.0}/{doorOpen[1]:0.0}/{doorOpen[2]:0.0} found {(doors[0]?1:0)+(doors[1]?1:0)+(doors[2]?1:0)}"+(doors[0]||!dc?"":" children: "+string.Join(",",System.Linq.Enumerable.Take(System.Linq.Enumerable.Select(dc.GetComponentsInChildren<Transform>(true),t=>t.name),14)));
 
   // ------------------------------------------------------------------ the fleet's trucks

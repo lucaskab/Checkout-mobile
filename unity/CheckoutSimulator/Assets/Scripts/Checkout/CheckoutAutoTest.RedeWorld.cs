@@ -119,9 +119,10 @@ namespace Checkout {
    // The two trucks that stay home must stay parked (Lucas 06/11: the parked trucks vanished).
    if(sim)sim.FocusCinematic(new Vector3(11,0,45),27);yield return new WaitForSecondsRealtime(.5f);
    RecStart("Logs/yard_demo.mjpg");
-   Act("devFleetJob","[\""+ids[0]+"\",\"contrato\",40]");
+   bool onlySupply=request!=null&&request.Contains("supply");   // "eventsyard.supply": the supply run alone (faster)
+   if(!onlySupply)Act("devFleetJob","[\""+ids[0]+"\",\"contrato\",40]");
    yield return Frames(6f);
-   Act("devFleetJob","[\""+ids[1]+"\",\"filial\",40]");
+   if(!onlySupply)Act("devFleetJob","[\""+ids[1]+"\",\"filial\",40]");
    yield return Frames(2f);
    Act("orderFromDistributionCenter","[[{\"productId\":172,\"boxes\":2}]]");
    yield return Frames(1f);
@@ -158,7 +159,7 @@ namespace Checkout {
       if(!yardSlab&&!road&&!drive){kerbHits++;if(kerbAt.Length<200)kerbAt+=$" {x.id}({p.x:0.0},{p.z:0.0})";}
      }
     }
-    if(rede&&rede.QaDoors.Contains("1.0"))doorSeen=true;
+    if(rede&&rede.QaDoorMax>.95f)doorSeen=true;
     // the contract truck loading at its dock
     if(yard.QaMode(ids[0])=="Loading"&&yard.QaLoaders>0){
      loadedSeen=true;
@@ -174,6 +175,7 @@ namespace Checkout {
      }
      Transform dressed=null;var trucksNow=CheckoutDeliveryTrucks.Current;
      if(trucksNow&&rede)foreach(var at in trucksNow.All)if(at&&at.gameObject.activeInHierarchy&&rede.FleetIdOf(at)==supplyId)dressed=at;
+     if(Mathf.Repeat(t,30f)<.01f&&trucksNow)Note("yard: "+trucksNow.Describe().Replace("\n"," | "));
      if(Mathf.Repeat(t,10f)<.01f)Note($"yard: supply t={t:0} orders {string.Join(",",bridge.State.orders.Where(ord=>ord.fleetTruckId==supplyId).Select(ord=>ord.id+":"+ord.status))} dock {(bridge.State.dock==null?0:bridge.State.dock.Length)} dressed {(dressed?dressed.name+(trucksNow.Docked(dressed)?" docked":" driving"):"-")} {yard.QaMode(supplyId)}");
      if(dressed&&trucksNow.Docked(dressed)){
       unloadSeen=true;
@@ -185,7 +187,7 @@ namespace Checkout {
     bool contractHome=routes[ids[0]].Contains("home from the city")&&yard.QaMode(ids[0])=="Parked";
     bool branchHome=routes[ids[1]].Contains("home from the city")&&yard.QaMode(ids[1])=="Parked";
     bool supplyHome=supplyId==null||tookOver&&yard.QaMode(supplyId)=="Parked";
-    if(contractHome&&branchHome&&supplyHome)break;
+    if((contractHome||onlySupply)&&(branchHome||onlySupply)&&supplyHome)break;
    }
    yield return Frames(1.5f);RecStop();
    Note("yard: "+yard.Describe());
