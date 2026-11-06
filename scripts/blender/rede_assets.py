@@ -133,6 +133,9 @@ def arch(acc, x, y, z, side, r=.58, key=RUBBER_D):
 
 # --------------------------------------------------------------------------------------------- the cab
 CAB_FRONT, CAB_BACK, CAB_W = -3.05, -1.42, 2.26
+# Front axle: under the front half of the cab, so the entry steps hang behind the wheel, under the door's rear half
+# (Lucas 05/11: the steps sat on the wheel).
+FRONT_Y = -2.56
 CAB_PROFILE = [(-1.42, .72), (-3.00, .72), (-3.08, 1.05), (-3.06, 1.58), (-2.74, 2.40), (-2.58, 2.53), (-1.52, 2.57), (-1.42, 2.48)]
 
 
@@ -192,13 +195,20 @@ def cab(acc, root, reefer=False):
         tube(acc, [(s * (W / 2), -2.80, 1.62), (mx, -2.62, 1.70)], .02, DASH, seg=8)
         rbox(acc, (.12, .10, .52), (mx, -2.62, 1.90), C(NAVY), .04, 3)
         rpanel(acc, .09, .44, .01, (mx, -2.565, 1.90), C("CFE3EE"), .03)
-        # entry steps (two treads) and a grab handle
-        for k, zz in enumerate((.50, .26)):
-            rbox(acc, (.26, .52, .04), (s * (W / 2 - .02 + k * .02), -2.12, zz), ALU, .015, 2)
-            for t in range(4):
-                rbox(acc, (.2, .02, .012), (s * (W / 2 - .02 + k * .02), -2.30 + t * .12, zz + .025), C(CHROME), .004, 1)
+        # entry steps: a ladder of two treads hanging from the cab floor behind the front wheel, under the door's rear
+        # half (side plates on brackets, anti-slip ribs on the treads), and a grab handle
+        sy, sl = -1.83, .34
+        sx = s * (W / 2 - .10)
+        for dy in (-sl / 2 - .015, sl / 2 + .015):
+            rbox(acc, (.20, .025, .56), (sx, sy + dy, .46), DASH, .01, 2)                 # side plates
+        rbox(acc, (.06, .05, .16), (s * (W / 2 - .30), sy - sl / 2 + .03, .68), DASH, .015, 1)  # brackets to the floor
+        rbox(acc, (.06, .05, .16), (s * (W / 2 - .30), sy + sl / 2 - .03, .68), DASH, .015, 1)
+        for k, zz in enumerate((.50, .24)):
+            rbox(acc, (.22 + k * .03, sl, .04), (sx + s * k * .015, sy, zz), ALU, .015, 2)
+            for t in range(3):
+                rbox(acc, (.18 + k * .03, .02, .012), (sx + s * k * .015, sy - .1 + t * .1, zz + .025), C(CHROME), .004, 1)
         tube(acc, [(s * (W / 2 + .03), -1.50, 1.30), (s * (W / 2 + .06), -1.50, 1.62), (s * (W / 2 + .06), -1.50, 2.05), (s * (W / 2 + .03), -1.50, 2.30)], .018, C(CHROME), seg=8, smooth_n=3)
-        arch(acc, s * (W / 2 + .03), -2.42, .48, s)
+        arch(acc, s * (W / 2 + .03), FRONT_Y, .48, s)
     # roof: air deflector up to the box (navy, follows the paint), clearance lights, horn
     if not reefer:
         defl = [(-1.50, 2.55), (-2.45, 2.55), (-2.20, 2.78), (-1.60, 3.06), (-1.42, 3.06), (-1.42, 2.55)]
@@ -223,7 +233,7 @@ def chassis(acc, reefer=False):
     for yy in (-1.0, .2, 1.3, 2.6):
         rbox(acc, (1.05, .10, .12), (0, yy, .64), DASH, .02, 2)
     # axles + differential
-    cyl_x(acc, .07, 1.9, (0, -2.42, .48), DASH, 12)
+    cyl_x(acc, .07, 1.9, (0, FRONT_Y, .48), DASH, 12)
     cyl_x(acc, .09, 1.9, (0, 1.75, .48), DASH, 12)
     lathe(acc, [(0, -.14), (.17, -.12), (.2, 0), (.17, .12), (0, .14)], (0, 1.75, .48), DASH, 16, 2, rot=(90, 0, 0))
     cyl_y(acc, .045, 3.9, (0, -.3, .52), PLASTIC, 10)                                   # drive shaft
@@ -376,7 +386,7 @@ def truck(name, loc=(0, 0, 0), reefer=False):
     chassis(acc, reefer)
     box(acc, root, reefer)
     for s in (-1, 1):
-        wheel(acc, (s * 1.02, -2.42, .48), s)
+        wheel(acc, (s * 1.02, FRONT_Y, .48), s)
         wheel(acc, (s * 1.04, 1.75, .48), s, dual=True)
     objs = acc.realize()
     for o in objs:

@@ -383,7 +383,6 @@ function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
 			stars: b.level,
 			maxStars: b.level > 0 ? 3 : 0,
 			subtitle: b.level === 0 ? "A loja está sendo construída" : "A loja está crescendo",
-			lines: likes,
 			action: act(`Acelerar · ${cost}`, "finishChainBranchNow", [id], { variant: "gem", icon: gameIcon("diamond"), ok: `Filial ${def.name} pronta!`, fail: "Diamantes insuficientes" }),
 		});
 	}
@@ -430,7 +429,6 @@ function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
 		timerEnd: b.cargo ? b.cargo.arriveAt : 0,
 		timerTotal: b.cargo ? b.cargo.arriveAt - now : 0,
 		subtitle: `${fmt(getBranchIncomePerMin(id, b.level) * 60 * b.supply)} moedas por hora`,
-		lines: likes,
 		action: actions[0],
 		actions,
 	});

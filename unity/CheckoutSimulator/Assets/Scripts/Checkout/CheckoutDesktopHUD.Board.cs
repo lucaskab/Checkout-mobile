@@ -344,7 +344,7 @@ namespace Checkout {
    foreach(var x in tiles){if(x.chips!=null)chipRows=Mathf.Max(chipRows,Mathf.Min(ChipRows,x.chips.Length));if(x.fill>=0&&x.frame!="line")barred=true;if(x.frame=="showcase")showcase=true;}
    boardChipRows=chipRows;
    // (a narrow window keeps cards wide enough for two buttons: fewer columns)
-   if(!rows){float pgap=picker?14:TileGap;float least=picker?96:chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+pgap)/(least+pgap))));}
+   if(!rows){float pgap=picker?14:TileGap;float least=picker?86:chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+pgap)/(least+pgap))));}
    boardFaces=faces&&chipRows==0;
    float cellH=picker?128:chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+74:showcase?316:faces?214:276;
    // (ranking rows with a bar under the name, Amigos: a little taller)
