@@ -82,8 +82,8 @@ def fleet_yard(name="RedeFleetYard", loc=(0, 0, 0)):
     iy0, iy1 = BAY_Y0 + .5, BAY_Y1 - .5
     rbox(acc, (ISLAND[1] - ISLAND[0], iy1 - iy0, .22), ((ISLAND[0] + ISLAND[1]) / 2, (iy0 + iy1) / 2, TOP + .06), KERB, .08, 3)
     rbox(acc, (ISLAND[1] - ISLAND[0] - .4, iy1 - iy0 - .4, .05), ((ISLAND[0] + ISLAND[1]) / 2, (iy0 + iy1) / 2, TOP + .19), GRASS, .04, 2)
-    for i in range(6):
-        hx = ISLAND[0] + .9 + i * (ISLAND[1] - ISLAND[0] - 1.8) / 5
+    for i in range(5):   # hedges along the island, its light pole at the east end, clear of them
+        hx = ISLAND[0] + .9 + i * (ISLAND[1] - ISLAND[0] - 2.9) / 4
         lathe(acc, [(0, 0), (.45, .06), (.52, .3), (.38, .6), (0, .7)], (hx, (iy0 + iy1) / 2 + (.25 if i % 2 else -.25), TOP + .2), HEDGE if i % 2 else HEDGE_D, 12, 2)
     # the pump pad (hatched yellow) under the diesel island
     px, py = PUMP
@@ -107,7 +107,7 @@ def fleet_yard(name="RedeFleetYard", loc=(0, 0, 0)):
             xx = x - (w - .3) / 2 + (j + .5) * (w - .3) / n
             lathe(acc, [(0, 0), (.36, .05), (.42, .25), (.3, .5), (0, .58)], (xx, Y1 + .55 + (.04 if j % 2 else -.04), .4), HEDGE if j % 2 else HEDGE_D, 12, 2)
     # light poles: north kerb, the island, by the exit
-    for (lx, ly, hd) in ((-12.2, Y1 + 1.15, -1), (1.3, Y1 + 1.15, -1), (10.6, (iy0 + iy1) / 2, 1), (-6.0, Y0 - .6, 1)):
+    for (lx, ly, hd) in ((-12.2, Y1 + 1.15, -1), (1.3, Y1 + 1.15, -1), (ISLAND[1] - .75, (iy0 + iy1) / 2, 1), (-6.0, Y0 - .6, 1)):
         base = TOP + .26 if ly == (iy0 + iy1) / 2 else 0
         tube(acc, [(lx, ly, base), (lx, ly, 6.2)], .07, POLE, seg=12)
         lathe(acc, [(.14, 0), (.18, 0), (.18, .35), (.1, .45)], (lx, ly, base), POLE, 12, 0, cap_top=False, cap_bottom=False)

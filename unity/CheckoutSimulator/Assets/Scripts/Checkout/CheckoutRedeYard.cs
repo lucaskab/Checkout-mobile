@@ -29,7 +29,7 @@ namespace Checkout {
   // the east street (world x 22.4 southbound, 24.6 northbound: CheckoutNeighborhoodTraffic) in model space, and how
   // far north a truck comes from / goes to (world z 95.6: deep in the edge fog of the grown map)
   const float SouthLane=20.4f,NorthLane=22.6f,FarNorth=40f;
-  const float Speed=3.6f,RefuelSeconds=18f;
+  const float Speed=3.6f,RefuelSeconds=9f;
 
   Transform world,yard,fuel;
   readonly List<Renderer> hidden=new List<Renderer>();
@@ -38,7 +38,7 @@ namespace Checkout {
   public static CheckoutRedeYard Current{get;private set;}
 
   enum Mode{Away,Parked,Leaving,Arriving,Refuelling,ToBay}
-  sealed class Truck{public string id,kind,phase;public Transform model;public Mode mode;public int bay;public List<Vector3> path;public float along,length,timer,waited;public bool held,started;}
+  sealed class Truck{public string id,kind,phase;public Transform model;public Mode mode;public int bay;public List<Vector3> path;public float along,length,timer,waited;public bool held,started,qaStay;}
   readonly Dictionary<string,Truck> trucks=new Dictionary<string,Truck>();
 
   static Vector3 W(float x,float y)=>Origin+new Vector3(x,Top,y);
@@ -132,7 +132,7 @@ namespace Checkout {
   void Settle(Truck t){
    bool home=t.phase=="patio";
    if(t.mode==Mode.Parked&&!home)Leave(t);
-   else if(t.mode==Mode.Away&&home)Arrive(t);
+   else if(t.mode==Mode.Away&&home&&!t.qaStay)Arrive(t);
   }
 
   void Park(Truck t){
@@ -219,9 +219,9 @@ namespace Checkout {
   CheckoutNeighborhoodTraffic Traffic{get{if(!traffic)traffic=FindAnyObjectByType<CheckoutNeighborhoodTraffic>();return traffic;}}
 
   // Something in the way ahead: a fleet truck on the move or refuelling (a queue at the pump), a car on the street.
-  // Parked trucks are in their bays, off every lane. After a long wait it creeps on (never a deadlock).
+  // Parked trucks are in their bays, off every lane. The loop is one-way, so trucks never face each other: a truck
+  // always waits for the one ahead. Only a car that stays in the way long (a jam) is crept past (never a deadlock).
   bool Ahead(Truck t,Vector3 heading){
-   if(t.waited>8f)return false;
    var p=t.model.position;
    bool In(Vector3 q,float reach,float half){var d=q-p;d.y=0;float f=Vector3.Dot(d,heading);return f>.2f&&f<reach&&(d-heading*f).sqrMagnitude<half*half;}
    foreach(var o in trucks.Values){
@@ -229,7 +229,7 @@ namespace Checkout {
     if(In(o.model.position,6.4f,1.7f))return true;
    }
    var traffic=Traffic;
-   if(traffic&&traffic.cars!=null)foreach(var c in traffic.cars)if(c!=null&&c.vehicle&&c.vehicle.gameObject.activeSelf&&In(c.vehicle.position,6f,1.8f))return true;
+   if(t.waited<8f&&traffic&&traffic.cars!=null)foreach(var c in traffic.cars)if(c!=null&&c.vehicle&&c.vehicle.gameObject.activeSelf&&In(c.vehicle.position,6f,1.8f))return true;
    return false;
   }
 
@@ -263,9 +263,10 @@ namespace Checkout {
   /// <summary>QA: a parked truck goes out of sight and comes straight back (fog → entrance → pump → its bay).</summary>
   public bool QaRoundTrip(string id){
    if(!trucks.TryGetValue(id,out var t)||t.mode!=Mode.Parked)return false;
-   Arrive(t);return true;
+   t.qaStay=false;Arrive(t);return true;
   }
-  public bool QaLeave(string id){if(!trucks.TryGetValue(id,out var t)||t.mode!=Mode.Parked)return false;Leave(t);return true;}
+  /// <summary>QA: a parked truck leaves and stays away (the store still has it at the depot).</summary>
+  public bool QaLeave(string id){if(!trucks.TryGetValue(id,out var t)||t.mode!=Mode.Parked)return false;t.qaStay=true;Leave(t);return true;}
   public string QaMode(string id)=>trucks.TryGetValue(id,out var t)?t.mode.ToString():"-";
   public bool QaHeld(string id)=>trucks.TryGetValue(id,out var t)&&t.held;
   /// <summary>QA: each truck's id, mode and bay.</summary>

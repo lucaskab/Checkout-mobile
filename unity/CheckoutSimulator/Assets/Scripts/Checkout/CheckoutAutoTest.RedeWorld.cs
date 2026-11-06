@@ -114,7 +114,7 @@ namespace Checkout {
    TopDown(o+new Vector3(2,0,5),46,"yard_top");
    // Filmed: two trucks leave and two come back at the same time (the second waits behind the first at the pump):
    // out by the exit, in by the entrance, never on the same stretch of road, never over the pavement.
-   if(sim)sim.FocusCinematic(o+new Vector3(6,0,6),28);yield return new WaitForSecondsRealtime(.5f);
+   if(sim)sim.FocusCinematic(o+new Vector3(7,0,5),18);yield return new WaitForSecondsRealtime(.5f);
    RecStart("Logs/yard_demo.mjpg");
    bool left1=ids.Length>1&&yard.QaLeave(ids[1]);
    bool left3=ids.Length>3&&yard.QaLeave(ids[3]);
