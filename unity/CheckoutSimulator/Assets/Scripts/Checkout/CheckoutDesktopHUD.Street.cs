@@ -146,8 +146,9 @@ namespace Checkout {
     if(hasBar){fillTarget=Mathf.Clamp01(t.fill);if(changed||fillShown<0)fillShown=fillTarget;barText.text=K.Clean(t.fillText);
      barFill.GetComponent<Image>().color=fillTarget<.25f?ToneStrong("danger"):fillTarget<.5f?ToneStrong("warning"):ToneStrong("success");}
     face.color=t.tone=="danger"?K.C("FFF1EB"):K.C("FFF9EE");edge.color=t.tone=="danger"?K.C("E9A48F"):K.Border;
+    // (no auto-size on these labels: TextMeshPro's default ceiling of 72 blew the prices up to fill the button, Lucas 05/11)
     while(list.Count<actions.Length){var x=CheckoutDesktopButton.Create(buttons,ButtonH,15,14);x.Clicked=hud.BoardPress;list.Add(x);}
-    for(int i=0;i<list.Count;i++){bool on=i<actions.Length;list[i].gameObject.SetActive(on);if(on){list[i].Apply(actions[i]);list[i].Shrink(11);}}
+    for(int i=0;i<list.Count;i++){bool on=i<actions.Length;list[i].gameObject.SetActive(on);if(on){list[i].Apply(actions[i]);}}
     art.GetComponent<Image>().color=locked?new Color(1,1,1,.6f):Color.white;
    }
 
