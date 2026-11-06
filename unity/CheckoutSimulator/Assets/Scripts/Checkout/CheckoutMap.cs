@@ -211,7 +211,9 @@ namespace Checkout {
   }
   // Whether a dock entry is "entrega-" + orderId (the old set of joined ids), compared in place: no string per order.
   static bool DockedFor(DockEntry[] dock,string orderId){if(dock==null)return false;const string prefix="entrega-";string id=orderId??"";
-   foreach(var d in dock)if(d.id!=null&&d.id.Length==prefix.Length+id.Length&&string.CompareOrdinal(d.id,0,prefix,0,prefix.Length)==0&&string.CompareOrdinal(d.id,prefix.Length,id,0,id.Length)==0)return true;
+   // (a cart order parks one dock delivery per product, id "<order id>:<product id>": its orderId names the order)
+   foreach(var d in dock){if(d.orderId!=null&&d.orderId.Length>0&&string.Equals(d.orderId,id,System.StringComparison.Ordinal))return true;
+    if(d.id!=null&&d.id.Length==prefix.Length+id.Length&&string.CompareOrdinal(d.id,0,prefix,0,prefix.Length)==0&&string.CompareOrdinal(d.id,prefix.Length,id,0,id.Length)==0)return true;}
    return false;}
   // A truck parked with goods still to unload can be clicked to open the unloading mini-game.
   static void DockClick(Transform truck,bool on){
