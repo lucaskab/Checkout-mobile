@@ -174,6 +174,7 @@ namespace Checkout {
      }
      Transform dressed=null;var trucksNow=CheckoutDeliveryTrucks.Current;
      if(trucksNow&&rede)foreach(var at in trucksNow.All)if(at&&at.gameObject.activeInHierarchy&&rede.FleetIdOf(at)==supplyId)dressed=at;
+     if(Mathf.Repeat(t,10f)<.01f)Note($"yard: supply t={t:0} orders {string.Join(",",bridge.State.orders.Where(ord=>ord.fleetTruckId==supplyId).Select(ord=>ord.id+":"+ord.status))} dock {(bridge.State.dock==null?0:bridge.State.dock.Length)} dressed {(dressed?dressed.name+(trucksNow.Docked(dressed)?" docked":" driving"):"-")} {yard.QaMode(supplyId)}");
      if(dressed&&trucksNow.Docked(dressed)){
       unloadSeen=true;
       if(!unloadShot){unloadShot=true;yield return Frames(4f);yield return From("yard_unloading",dressed.position+new Vector3(-2.5f,1.2f,0),new Vector3(1f,.55f,-.85f),11,34);}

@@ -154,7 +154,7 @@ namespace Checkout {
    }
   }
   /// <summary>QA: how far each door is up (0..1).</summary>
-  public string QaDoors=>$"{doorOpen[0]:0.0}/{doorOpen[1]:0.0}/{doorOpen[2]:0.0} found {(doors[0]?1:0)+(doors[1]?1:0)+(doors[2]?1:0)}";
+  public string QaDoors=>$"{doorOpen[0]:0.0}/{doorOpen[1]:0.0}/{doorOpen[2]:0.0} found {(doors[0]?1:0)+(doors[1]?1:0)+(doors[2]?1:0)}"+(doors[0]||!dc?"":" children: "+string.Join(",",System.Linq.Enumerable.Take(System.Linq.Enumerable.Select(dc.GetComponentsInChildren<Transform>(true),t=>t.name),14)));
 
   // ------------------------------------------------------------------ the fleet's trucks
   sealed class Skin{public Transform model;public string kind,fleetId;public readonly List<Renderer> own=new List<Renderer>();}
