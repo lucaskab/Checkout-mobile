@@ -14,6 +14,8 @@ namespace Checkout
             FogColor = Shader.PropertyToID("_FogColor"), FogRange = Shader.PropertyToID("_FogRange");
 
         public void Configure(Rect map, float start, float end) { playable = map; range = new Vector2(start, end); }
+        /// <summary>The playable map now (the chain's fleet yard grows it north: CheckoutRedeYard).</summary>
+        public Rect Playable { get => playable; set => playable = value; }
 
         void OnEnable()
         {

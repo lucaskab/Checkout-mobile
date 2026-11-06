@@ -48,14 +48,30 @@ namespace Checkout {
    // the Blender island turned 90° about Z: the long side along the aisle
    fuel.SetPositionAndRotation(W(Pump.x,Pump.y),Quaternion.Euler(0,-90,0));
    ClearPlaza();
-   Report=$"yard on, hid {hidden.Count} plaza renderers";
+   Grow(true);
+   Report=$"yard on, hid {hidden.Count} plaza renderers, map north edge {(fog?fog.Playable.yMax:0):0.0}";
   }
 
   void Off(){
    foreach(var r in hidden)if(r)r.enabled=true;hidden.Clear();
    if(yard)yard.gameObject.SetActive(false);if(fuel)fuel.gameObject.SetActive(false);
    foreach(var t in trucks.Values)if(t.model)Destroy(t.model.gameObject);
-   trucks.Clear();Report="yard off";
+   trucks.Clear();Grow(false);Report="yard off";
+  }
+
+  // The yard lies just past the map's north edge (z 49.5): with it the map grows north, the edge fog moves back past
+  // the hedges and the camera can pan up to it ("Quando a gente expande para rede, o mapa aumenta um pouco também").
+  const float NorthEdge=65f;
+  CheckoutEdgeFog fog;Rect fogBefore;bool grown;
+  void Grow(bool on){
+   if(!fog&&Camera.main)fog=Camera.main.GetComponent<CheckoutEdgeFog>();
+   if(on&&!grown){
+    grown=true;MarketDay.MarketSimulation.ExtraNorth=14f;
+    if(fog){fogBefore=fog.Playable;var r=fogBefore;if(r.width>0&&r.yMax<NorthEdge)fog.Playable=Rect.MinMaxRect(r.xMin,r.yMin,r.xMax,NorthEdge);}
+   }else if(!on&&grown){
+    grown=false;MarketDay.MarketSimulation.ExtraNorth=0;
+    if(fog&&fogBefore.width>0)fog.Playable=fogBefore;
+   }
   }
 
   // Whatever stands wholly on the yard's footprint (the plaza's planters, a bench or a lamp) hides; the ground under it,
