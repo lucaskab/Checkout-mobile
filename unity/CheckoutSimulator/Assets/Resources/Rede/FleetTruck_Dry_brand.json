@@ -1,0 +1,214 @@
+{
+ "model": "FleetTruck_Dry",
+ "tris": 42060,
+ "size": [
+  2.98,
+  3.2,
+  6.505
+ ],
+ "plates": [
+  {
+   "name": "Brand_Logo_Back.018",
+   "holder": "FleetTruck_Dry_x",
+   "kind": "logo",
+   "size": 0.44,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    0.0,
+    2.6,
+    3.115
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    1.0
+   ],
+   "right": [
+    -1.0,
+    0.0,
+    -0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_DoorL.008",
+   "holder": "FleetTruck_Dry_x",
+   "kind": "logo",
+   "size": 0.26,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    -1.15,
+    1.52,
+    -2.12
+   ],
+   "normal": [
+    -1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    -1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_DoorR.008",
+   "holder": "FleetTruck_Dry_x",
+   "kind": "logo",
+   "size": 0.26,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    1.15,
+    1.52,
+    -2.12
+   ],
+   "normal": [
+    1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_L.008",
+   "holder": "FleetTruck_Dry_x",
+   "kind": "logo",
+   "size": 0.95,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    -1.212,
+    2.2,
+    1.805
+   ],
+   "normal": [
+    -1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    -1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_R.008",
+   "holder": "FleetTruck_Dry_x",
+   "kind": "logo",
+   "size": 0.95,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    1.212,
+    2.2,
+    -0.005
+   ],
+   "normal": [
+    1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Name_L.008",
+   "holder": "FleetTruck_Dry_x",
+   "kind": "name",
+   "size": 0,
+   "text": 0.36,
+   "upper": true,
+   "color": "1D2B4F",
+   "pos": [
+    -1.212,
+    2.2,
+    0.48
+   ],
+   "normal": [
+    -1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    -1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Name_R.008",
+   "holder": "FleetTruck_Dry_x",
+   "kind": "name",
+   "size": 0,
+   "text": 0.36,
+   "upper": true,
+   "color": "1D2B4F",
+   "pos": [
+    1.212,
+    2.2,
+    1.32
+   ],
+   "normal": [
+    1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  }
+ ]
+}

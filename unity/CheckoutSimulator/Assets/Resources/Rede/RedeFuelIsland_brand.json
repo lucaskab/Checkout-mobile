@@ -1,0 +1,69 @@
+{
+ "model": "RedeFuelIsland",
+ "tris": 5832,
+ "size": [
+  3.44,
+  4.012,
+  5.056
+ ],
+ "plates": [
+  {
+   "name": "Brand_Logo_Back.016",
+   "holder": "RedeFuelIsland.003",
+   "kind": "logo",
+   "size": 0.28,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    0.0,
+    3.8,
+    2.53
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    1.0
+   ],
+   "right": [
+    -1.0,
+    0.0,
+    -0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_Front.017",
+   "holder": "RedeFuelIsland.003",
+   "kind": "logo",
+   "size": 0.28,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    0.0,
+    3.8,
+    -2.53
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "right": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  }
+ ]
+}

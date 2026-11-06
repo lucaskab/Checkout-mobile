@@ -1,0 +1,40 @@
+{
+ "model": "RedeMedallion",
+ "tris": 2236,
+ "size": [
+  1.84,
+  1.84,
+  0.754
+ ],
+ "plates": [
+  {
+   "name": "Brand_Logo_Front.019",
+   "holder": "RedeMedallion.002",
+   "kind": "logo",
+   "size": 1.25,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    0.0,
+    0.0,
+    -0.136
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "right": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  }
+ ]
+}

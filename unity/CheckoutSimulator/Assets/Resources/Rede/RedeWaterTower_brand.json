@@ -1,0 +1,127 @@
+{
+ "model": "RedeWaterTower",
+ "tris": 5896,
+ "size": [
+  3.14,
+  5.07,
+  3.14
+ ],
+ "plates": [
+  {
+   "name": "Brand_Logo_E.004",
+   "holder": "RedeWaterTower.002",
+   "kind": "logo",
+   "size": 0.8,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    1.3103,
+    3.65,
+    0.0
+   ],
+   "normal": [
+    1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_N.004",
+   "holder": "RedeWaterTower.002",
+   "kind": "logo",
+   "size": 0.8,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    0.0,
+    3.65,
+    1.3103
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    1.0
+   ],
+   "right": [
+    -1.0,
+    0.0,
+    -0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_S.004",
+   "holder": "RedeWaterTower.002",
+   "kind": "logo",
+   "size": 0.8,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    0.0,
+    3.65,
+    -1.3103
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "right": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_W.004",
+   "holder": "RedeWaterTower.002",
+   "kind": "logo",
+   "size": 0.8,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    -1.3103,
+    3.65,
+    -0.0
+   ],
+   "normal": [
+    -1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    -1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  }
+ ]
+}
