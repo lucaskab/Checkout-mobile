@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using MarketDay;
+using TMPro;
 
 namespace Checkout {
  // Rede de supermercados (Lucas 06/11 "Aprovado"): the chain's Blender models (scripts/blender/rede_export.py →
@@ -59,11 +60,10 @@ namespace Checkout {
 
  // The logo and the name on a model's blank plates; redrawn when the brand changes (name, emblem, colours).
  public sealed class CheckoutRedePlates:MonoBehaviour {
-  sealed class Made{public CheckoutRedeModels.Plate plate;public Transform t;public MeshRenderer logo;public TextMesh text;}
+  sealed class Made{public CheckoutRedeModels.Plate plate;public Transform t;public MeshRenderer logo;public TextMeshPro text;}
   readonly List<Made> made=new List<Made>();
   int version=-1;
   static Material logoMaterial;static Texture logoTexture;
-  static Font font;static Material fontMaterial;
 
   static Vector3 V(float[] a)=>a!=null&&a.Length>=3?new Vector3(a[0],a[1],a[2]):Vector3.zero;
 
@@ -79,10 +79,13 @@ namespace Checkout {
      m.logo=go.AddComponent<MeshRenderer>();m.logo.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
      go.transform.localScale=new Vector3(p.size,p.size,1);
     }else{
-     m.text=go.AddComponent<TextMesh>();
-     EnsureFont();if(font){m.text.font=font;go.GetComponent<MeshRenderer>().sharedMaterial=fontMaterial?fontMaterial:font.material;}
-     m.text.fontSize=64;m.text.anchor=TextAnchor.MiddleCenter;m.text.alignment=TextAlignment.Center;m.text.fontStyle=FontStyle.Bold;
-     m.text.characterSize=p.text*10f/64f*1.35f;
+     // TextMeshPro in the world: depth-tested like the model (the plate hides the letters from behind), and it
+     // shrinks a long name to the plate. Never translated: the chain's name is the player's own text.
+     m.text=go.AddComponent<TextMeshPro>();
+     m.text.font=K.Headline;m.text.alignment=TextAlignmentOptions.Center;m.text.textWrappingMode=TextWrappingModes.NoWrap;
+     m.text.rectTransform.sizeDelta=new Vector2(p.text*9f*.62f,p.text*1.35f);
+     m.text.enableAutoSizing=true;m.text.fontSizeMin=.05f;m.text.fontSizeMax=p.text*10f;
+     var mr=go.GetComponent<MeshRenderer>();if(mr)mr.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
     }
     made.Add(m);
    }
@@ -97,22 +100,6 @@ namespace Checkout {
    quad.uv=new[]{new Vector2(0,0),new Vector2(1,0),new Vector2(0,1),new Vector2(1,1)};
    quad.triangles=new[]{0,2,1,2,3,1};quad.RecalculateNormals();quad.RecalculateBounds();
    return quad;
-  }
-
-  // The facade's own letters (the hipermercado dressing) set the look of the chain's lettering.
-  static void EnsureFont(){
-   if(font)return;
-   var dressing=GameObject.Find("Market Stage Dressing");
-   var sample=dressing?dressing.GetComponentInChildren<TextMesh>(true):null;
-   Material source=null;
-   if(sample&&sample.font){font=sample.font;source=sample.GetComponent<MeshRenderer>()?.sharedMaterial;}
-   else{var stage=FindAnyObjectByType<CheckoutStageConstruction>(FindObjectsInactive.Include);if(stage&&stage.titleFont){font=stage.titleFont;source=stage.titleMaterial;}}
-   if(!font)return;
-   // The text shader draws over everything by default (GUI): the plates' letters are hidden behind walls and boxes
-   // like the rest of the model, and only from the front.
-   fontMaterial=new Material(source?source:font.material){name="Rede plate text"};
-   fontMaterial.SetInt("unity_GUIZTestMode",(int)UnityEngine.Rendering.CompareFunction.LessEqual);
-   if(fontMaterial.HasProperty("_Cull"))fontMaterial.SetInt("_Cull",(int)UnityEngine.Rendering.CullMode.Back);
   }
 
   void Update(){Refresh(false);}
@@ -131,18 +118,9 @@ namespace Checkout {
      var name=m.plate.upper?CheckoutBrand.Name.ToUpperInvariant():CheckoutBrand.Name;
      m.text.text=name;
      m.text.color=m.plate.color=="F0C75A"?Color.Lerp(CheckoutBrand.Accent,Color.white,.2f):CheckoutBrand.Primary;
-     Fit(m);
     }
    }
   }
 
-  // Long names shrink to the plate (a plate is about as wide as the text was planned for 9 letters).
-  static void Fit(Made m){
-   float baseSize=m.plate.text*10f/64f*1.35f;m.text.characterSize=baseSize;
-   var r=m.text.GetComponent<MeshRenderer>();if(!r)return;
-   float planned=m.plate.text*9f*.62f,width=0;
-   var b=r.localBounds;width=b.size.x;
-   if(width>planned&&width>0)m.text.characterSize=baseSize*planned/width;
-  }
  }
 }

@@ -200,7 +200,7 @@ namespace Checkout {
      bool near=Vector3.Distance(agent.nextPosition,tail.Value)<2.2f||(!agent.pathPending&&agent.hasPath&&agent.remainingDistance<.6f);
      if(near&&Fx.JoinLine(this)){phase=16;lineGoal=Vector3.one*1e5f;}}}
    if(wait>0){wait-=Time.deltaTime;agent.isStopped=true;TurnTo(facing);if(phase==8&&lane!=null&&lane.kiosk&&!motion.Busy)motion.Perform("GetFromShelf",false); // Scanning their own items.
-   Hold();if(wait<=0){if(phase==1){index++;NextShelf();}else if(phase==8){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),lane!=null&&lane.kiosk?0:map.PaymentDuration);}else if(phase==17){phase=14;Go(map.Entrance);}else if(phase==4){HasPaid=true;CountEvent(3);Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);}}return;}
+   Hold();if(wait<=0){if(phase==1){index++;NextShelf();}else if(phase==8){phase=4;wait=Mathf.Max(motion.Perform("PayAtCheckout"),lane!=null&&lane.kiosk?0:map.PaymentDuration);}else if(phase==17){phase=14;Go(map.Entrance);}else if(phase==4){HasPaid=true;CountEvent(3);Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);CheckoutRedeBag.Carry(transform,CheckoutBrand.Unlocked);Go(map.Entrance);}}return;}
    // Gave up while still in line: the basket stays behind and they walk out.
    if(phase==3&&bridge.CheckoutFor(customer?.id)==null&&bridge.CheckoutResultFor(customer?.id)?.status=="left"){Line.Remove(this);lane=null;phase=5;CheckoutShoppingProps.SetVisible(transform,false);Go(map.Entrance);return;}
    if(phase==3){var q=Line.IndexOf(this);var position=QueuePosition(q);if((position-target).sqrMagnitude>.05f)Go(position);}

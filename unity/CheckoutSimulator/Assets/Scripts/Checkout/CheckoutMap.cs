@@ -166,6 +166,7 @@ namespace Checkout {
    CheckoutBrand.Apply(next.chain,next.paint);
    CheckoutBrandWorld.Ensure(world);
    CheckoutRedeWorld.Ensure(world,next);
+   CheckoutRedeUniforms.Ensure(world);
   }
   // Stock clerks and cleaners work in front of the shelves wherever those stand.
   // Build mode moved furniture: staff follow at once; `navigation` also rebuilds the walkable floor.
