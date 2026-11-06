@@ -49,6 +49,7 @@ namespace Checkout {
   void Finished(){
    CheckoutAudio.HoldMusic(false);
    var id=showingId;showingId=null;if(string.IsNullOrEmpty(id))return;
+   if(earned)CheckoutFirebase.AdWatched(id);
    if(earned)host.Action("claimRewardedAd","["+CheckoutIapFlow.Quote(id)+"]","",(ok,reason)=>{if(!ok)Debug.LogWarning("CHECKOUT_ADS reward refused: "+reason);});
    else Report(Ready?"ready":"loading","closed",id);
    Load();

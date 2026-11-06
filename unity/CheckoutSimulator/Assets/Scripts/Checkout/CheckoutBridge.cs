@@ -13,6 +13,8 @@ namespace Checkout {
  public class CheckoutBridge : MonoBehaviour {
   // Dev play-mode checks (CheckoutAutoTest) add their test data to each snapshot as it arrives.
   public static System.Action<Snapshot> TestPatch;
+  // Every snapshot that became the state (CheckoutFirebase: analytics events from the differences).
+  public static event System.Action<Snapshot> Received;
   public Snapshot State {get;private set;}
   MarketSimulation simulation;CheckoutMap map;CheckoutCityTraffic traffic;float hello;int commandSequence;Vector2 pointerStart;bool pointerDragged;
   readonly Queue<Customer> visits=new Queue<Customer>();readonly HashSet<string> seen=new HashSet<string>();readonly List<CheckoutWalker> walkers=new List<CheckoutWalker>();readonly List<string> appearanceBag=new List<string>();string lastAppearance;
@@ -48,7 +50,7 @@ namespace Checkout {
    bool closing=State!=null&&State.isOpen&&!next.isOpen;
    // The first shoppers of the day start close by, so the shop comes alive right after opening (CheckoutWalker.ArrivalSpot).
    if(State!=null&&!State.isOpen&&next.isOpen)CheckoutWalker.MarketOpenedAt=Time.time;
-   State=next;map.Apply(next);
+   State=next;map.Apply(next);try{Received?.Invoke(next);}catch(Exception e){Debug.LogException(e);}
    if(closing)foreach(var w in walkers)w.MarketClosed();if(seen.Count>2000){seen.Clear();foreach(var c in next.customers??Array.Empty<Customer>())seen.Add(c.id);}
   }catch(Exception ex){Debug.LogError("CHECKOUT_SNAPSHOT_ERROR "+ex.Message);}}
   void Update(){simulation.ExternalCamera();if(State==null){hello+=Time.unscaledDeltaTime;if(hello>1){hello=0;Emit("{\"kind\":\"ready\",\"protocol\":1}");}return;}
