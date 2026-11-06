@@ -56,6 +56,7 @@ namespace Checkout {
    dc.position=c;dc.rotation=Quaternion.identity;
    CheckoutDeliveryTrucks.GrandShift=c.x+DockFace+.1f-OldRearX;
    CheckoutDeliveryTrucks.Current?.Reconfigure();
+   ShowGate();Totem(true);
    Report=$"dc on at ({c.x:0.00},{c.z:0.00}) old warehouse x[{oldBounds.min.x:0.0},{oldBounds.max.x:0.0}] z[{oldBounds.min.z:0.0},{oldBounds.max.z:0.0}] hid {hidden.Count} renderers, truck shift {CheckoutDeliveryTrucks.GrandShift:0.00}";
   }
 
@@ -63,9 +64,54 @@ namespace Checkout {
    foreach(var r in hidden)if(r)r.enabled=true;
    hidden.Clear();
    if(dc)dc.gameObject.SetActive(false);
+   if(gate)gate.gameObject.SetActive(false);
+   Totem(false);
    CheckoutDeliveryTrucks.GrandShift=0;
    CheckoutDeliveryTrucks.Current?.Reconfigure();
    Report="dc off";
+  }
+
+  // ------------------------------------------------------------------ the truck gate and the totem
+  // The guard booth with its barrier stands on the north side of the yard's driveway from the east street (z 31.3–35.6):
+  // the arm closes the driveway southwards and lifts for every truck that comes near.
+  static readonly Vector3 GatePosition=new Vector3(18.8f,.13f,36.9f);
+  Transform gate,arm;float armAngle;
+  void ShowGate(){
+   if(!gate){
+    gate=CheckoutRedeModels.Spawn("RedeGatehouse",world,"Rede gatehouse");
+    // the arm was exported in the model's space: a pivot at its hinge (Blender (1.3, −1.2, 1.08))
+    var mesh=gate.GetComponentsInChildren<MeshFilter>(true);
+    foreach(var mf in mesh)if(mf.name.Contains("Arm")){
+     var pivot=new GameObject("Arm pivot").transform;pivot.SetParent(gate,false);pivot.localPosition=new Vector3(1.3f,1.08f,-1.2f);
+     mf.transform.SetParent(pivot,true);arm=pivot;break;
+    }
+   }
+   gate.gameObject.SetActive(true);
+   gate.SetPositionAndRotation(GatePosition,Quaternion.Euler(0,90,0));
+  }
+  void UpdateGate(){
+   if(!gate||!gate.gameObject.activeInHierarchy||!arm)return;
+   bool open=false;var trucks=CheckoutDeliveryTrucks.Current;
+   if(trucks)foreach(var t in trucks.All)if(t&&t.gameObject.activeInHierarchy&&(t.position-GatePosition).sqrMagnitude<11f*11f)open=true;
+   armAngle=Mathf.MoveTowards(armAngle,open?82:0,Time.deltaTime*70);
+   arm.localRotation=Quaternion.Euler(0,0,armAngle);
+  }
+
+  // The hipermercado's lit totem by the car park becomes the chain's (Resources/Rede/RedeTotem) where it stood.
+  Transform totem,oldTotem;readonly List<Renderer> totemHidden=new List<Renderer>();float nextTotem;
+  void Totem(bool show){
+   var dressing=world?world.Find("Market Stage Dressing"):null;
+   var t=dressing?dressing.Find("S4 totem"):null;
+   if(!show||!t||!t.gameObject.activeInHierarchy){
+    foreach(var r in totemHidden)if(r)r.enabled=true;totemHidden.Clear();
+    if(totem)totem.gameObject.SetActive(false);return;
+   }
+   if(oldTotem!=t){foreach(var r in totemHidden)if(r)r.enabled=true;totemHidden.Clear();oldTotem=t;}
+   foreach(var r in t.GetComponentsInChildren<Renderer>(false))if(r.enabled){r.enabled=false;totemHidden.Add(r);}
+   if(!totem)totem=CheckoutRedeModels.Spawn("RedeTotem",world,"Rede totem");
+   totem.gameObject.SetActive(true);
+   var p=t.position;p.y=.13f;
+   totem.SetPositionAndRotation(p,Quaternion.Euler(0,t.eulerAngles.y,0));
   }
 
   // ------------------------------------------------------------------ the fleet's trucks
@@ -123,6 +169,9 @@ namespace Checkout {
   // The chain's trucks drive outside the market roots the paint watches: they follow the colours from here.
   float nextPaint;
   void Update(){
+   UpdateGate();
+   // the dressing is shown again by stage changes: the old totem stays hidden
+   if(on&&Time.unscaledTime>nextTotem){nextTotem=Time.unscaledTime+2f;Totem(true);}
    if(Time.unscaledTime<nextPaint)return;nextPaint=Time.unscaledTime+1f;
    foreach(var s in skins.Values)if(s.model&&s.model.gameObject.activeInHierarchy)CheckoutMarketPaint.Touch(s.model.gameObject);
   }

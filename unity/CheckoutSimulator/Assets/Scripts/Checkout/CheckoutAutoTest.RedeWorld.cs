@@ -41,9 +41,14 @@ namespace Checkout {
    yield return From("dc_sw",c,new Vector3(-.9f,.6f,-1f),36,30);
    yield return From("dc_ne_docks",c+new Vector3(6,-1,0),new Vector3(1.2f,.55f,.35f),30,30);
    TopDown(new Vector3(c.x+6,0,c.z),34,"dc_top");
+   var gate=world?world.Find("Rede gatehouse"):null;var totem=world?world.Find("Rede totem"):null;
+   Result("the truck gate and the chain's totem stand",gate&&gate.gameObject.activeInHierarchy&&totem&&totem.gameObject.activeInHierarchy,$"gate {(gate?gate.position.ToString():"-")} totem {(totem?totem.position.ToString():"-")}");
+   if(gate)yield return From("dc_gate",gate.position+new Vector3(0,1.5f,-2f),new Vector3(1f,.55f,-.8f),13,30);
+   if(totem){yield return From("dc_totem",totem.position+Vector3.up*3.5f,new Vector3(.3f,.35f,-1f),12,32);TierShot("dc_totem_gamecam",2048,1152,totem.position+Vector3.up*2,16);}
    // 3. an order through the DC
    Act("orderFromDistributionCenter","[[{\"productId\":172,\"boxes\":2},{\"productId\":175,\"boxes\":1}]]");
    Transform fleet=null;
+   bool gateShot=false;
    for(float t=0;t<90&&!fleet;t+=.5f){
     yield return new WaitForSecondsRealtime(.5f);
     // (the order is packed at the DC first: time is moved on until it leaves on its truck)
@@ -53,7 +58,12 @@ namespace Checkout {
    Result("a delivery through the DC comes in a fleet truck",fleet,fleet?fleet.name:string.Join(",",bridge.State.orders.Select(o=>o.id+":"+o.status+":"+o.fleetTruckId)));
    if(fleet){
     var trucks=FindAnyObjectByType<CheckoutMap>()?.Trucks;
-    for(float t=0;t<40;t+=.5f){yield return new WaitForSecondsRealtime(.5f);if(trucks&&Vector3.Distance(fleet.position,trucks.Home(fleet))<.3f)break;}
+    for(float t=0;t<40;t+=.1f){
+     yield return new WaitForSecondsRealtime(.1f);
+     if(!gateShot&&gate&&(fleet.position-gate.position).sqrMagnitude<5f*5f){gateShot=true;yield return From("dc_gate_open",gate.position+new Vector3(0,1.5f,-2f),new Vector3(1f,.55f,-.8f),14,30);}
+     if(trucks&&Vector3.Distance(fleet.position,trucks.Home(fleet))<.3f)break;
+    }
+    Note("dc: gate shot while the truck passed: "+gateShot);
     yield return new WaitForSecondsRealtime(1.5f);
     var p=fleet.position;Note($"dc: fleet truck {fleet.name} at ({p.x:0.00},{p.z:0.00}) home {(trucks?trucks.Home(fleet).ToString():"?")}");
     yield return From("dc_fleet_dock",p+new Vector3(-1,1,0),new Vector3(1f,.7f,-.9f),14,30);
