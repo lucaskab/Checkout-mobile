@@ -17,8 +17,10 @@ from mathutils import Vector
 W2, D2 = 9.2, 9.0                    # half width (x) and half depth (y)
 H_BAY, H_OFFICE = 11.0, 7.4          # high bay and office block heights (top of the parapet)
 OFF_X1, OFF_Y1 = -2.2, -3.0          # the office block: x -9.2..-2.2, y -9..-3 (south-west corner)
-DOCKS = (-4.45, -1.45, 1.55, 4.55)   # dock door centres on the east wall (the last three are the yard's bays)
-DOCK_W, DOCK_Z0, DOCK_Z1 = 3.0, 1.1, 4.3
+DOCKS = (-1.45, 1.55, 4.55)          # dock door centres on the east wall: the yard's three bays (1, 2, 3)
+DOCK_W, DOCK_Z0, DOCK_Z1 = 2.6, .12, 3.7   # ground-level roller doors (the loaders walk through them)
+APRON_X, APRON_TOP = 1.45, .03       # asphalt apron from the dock wall out to the yard's asphalt (x 2.7 .. 4.2 world)
+BAY_LINES = (-2.95, .05, 3.05, 6.05) # the yard's bay lines (between the docks): one guide post each
 
 CLAD, RIB, PLINTH = "C_EEF0EE", "C_DCE0DF", "C_A8A399"
 DOOR, DOOR_D = "C_D9DFE3", "C_9AA4AC"
@@ -112,54 +114,54 @@ def downpipe(acc, x, y, z1):
 
 
 # --------------------------------------------------------------------------------------------- docks
-def dock(acc, root, yc, active=True):
-    """One loading dock on the east wall: steel-framed opening, sectional door with a window row, black foam
-    shelter with yellow guides, rubber bumpers, leveller lip, swing-arm dock light, traffic light, guide posts."""
+# v2 (Lucas 06/11: "tem alguns pilares que não tá fazendo muito sentido, as portas também não estão muito alinhadas com
+# o chão e com as vagas 1, 2 e 3 ... 4 portas para 3 vagas"): three docks only, one on each of the yard's bays; the doors
+# come down to the ground (the loaders walk in and out of them), the wall between them stays wall (the old foam
+# shelters of neighbouring docks met and read as double pillars), one guide post on each bay line, an asphalt apron
+# from the wall to the yard's own asphalt. Each roller door is its own mesh (DockDoor<i>) so the game rolls it up.
+def dock(acc, root, i, yc):
+    """One loading dock on the east wall: steel frame, sectional roller door (own mesh) with a window row, a dark
+    inside behind it, a rubber hood over it, yellow / black guards on the jambs, a traffic light, a threshold strip."""
     x = W2
     a, b = yc - DOCK_W / 2, yc + DOCK_W / 2
-    # reveal frame
-    for yy in (a - .08, b + .08):
-        rbox(acc, (.18, .16, DOCK_Z1 - DOCK_Z0 + .16), (x + .02, yy, (DOCK_Z0 + DOCK_Z1) / 2), C(STEEL), .02, 1)
-    rbox(acc, (.18, DOCK_W + .32, .16), (x + .02, yc, DOCK_Z1 + .08), C(STEEL), .02, 1)
-    # the door (closed on the decorative bay, half up on the others: a dark inside shows under it)
-    open_to = DOCK_Z0 if not active else DOCK_Z0 + .0
-    rbox(acc, (.06, DOCK_W, DOCK_Z1 - open_to), (x - .12, yc, (open_to + DOCK_Z1) / 2), DOOR, .01, 1)
-    n = 6
+    # the dark loading bay behind the door (seen when it rolls up)
+    rbox(acc, (2.2, DOCK_W + .1, DOCK_Z1 - DOCK_Z0 + .3), (x - 1.4, yc, (DOCK_Z0 + DOCK_Z1) / 2 + .1), C("3A3F47"), .01, 1)
+    rbox(acc, (2.2, DOCK_W + .1, .04), (x - 1.4, yc, DOCK_Z0 + .01), C("8C8A84"), .01, 1)
+    for k in range(3):   # pallets of boxes waiting inside
+        px, pz = x - 1.6 - (k % 2) * .5, DOCK_Z0 + .05
+        py = a + .55 + k * (DOCK_W - 1.1) / 2
+        rbox(acc, (.9, .9, .12), (px, py, pz + .06), C("B88A55"), .01, 1)
+        rbox(acc, (.8, .8, .7 - .15 * (k % 2)), (px, py, pz + .12 + (.7 - .15 * (k % 2)) / 2), C("C9A06A"), .02, 2)
+    # steel frame round the opening, yellow / black guards on the jambs
+    for yy in (a - .07, b + .07):
+        rbox(acc, (.16, .14, DOCK_Z1 - DOCK_Z0 + .1), (x + .03, yy, (DOCK_Z0 + DOCK_Z1) / 2 + .05), C(STEEL), .02, 1)
+        for k in range(6):
+            rbox(acc, (.03, .15, .16), (x + .12, yy, DOCK_Z0 + .12 + k * .2), (YELLOW if k % 2 == 0 else BLACK), .005, 1)
+    rbox(acc, (.16, DOCK_W + .28, .14), (x + .03, yc, DOCK_Z1 + .07), C(STEEL), .02, 1)
+    # the roller door (closed; the game rolls it up): panels, a window row, a handle
+    g = f"DockDoor{i}"
+    rbox(acc, (.06, DOCK_W, DOCK_Z1 - DOCK_Z0), (x - .12, yc, (DOCK_Z0 + DOCK_Z1) / 2), DOOR, .01, 1, grp=g)
+    n = 7
     for k in range(1, n):
-        z = open_to + k * (DOCK_Z1 - open_to) / n
-        rbox(acc, (.03, DOCK_W - .04, .035), (x - .08, yc, z), DOOR_D, .008, 1)
-    zw = open_to + 3.5 * (DOCK_Z1 - open_to) / n
-    for k in range(5):
-        rpanel(acc, .42, .2, .02, (x - .075, a + .35 + k * (DOCK_W - .7) / 4, zw), WIN, .04, rot=(0, 0, 90))
-    rbox(acc, (.05, .3, .05), (x - .07, yc, open_to + .25), C(STEEL), .01, 1)       # handle
-    # shelter: side pads, head curtain, yellow guide stripes
-    for s, yy in ((-1, a - .32), (1, b + .32)):
-        rbox(acc, (.55, .36, DOCK_Z1 - DOCK_Z0 + .5), (x + .3, yy, (DOCK_Z0 + DOCK_Z1 + .5) / 2), RUBBER_D, .06, 3)
-        rbox(acc, (.02, .1, DOCK_Z1 - DOCK_Z0), (x + .585, yy - s * .06, (DOCK_Z0 + DOCK_Z1) / 2 + .1), YELLOW, .005, 1)
-    rbox(acc, (.62, DOCK_W + 1.0, .65), (x + .32, yc, DOCK_Z1 + .45), RUBBER_D, .06, 3)
-    for k in range(7):
-        rbox(acc, (.03, .02, .5), (x + .64, a + .1 + k * (DOCK_W - .2) / 6, DOCK_Z1 + .38), RUBBER, .005, 1)
-    # dock face below the door: bumpers, leveller lip, hazard edge
-    for yy in (yc - 1.15, yc + 1.15):
-        rbox(acc, (.2, .32, .5), (x + .1, yy, .78), RUBBER, .04, 3)
-        rbox(acc, (.06, .26, .06), (x + .19, yy, .9), C(STEEL), .01, 1)
-    rbox(acc, (.32, 2.2, .04), (x + .12, yc, DOCK_Z0 - .02), C(STEEL), .01, 1)
-    for k in range(10):
-        rbox(acc, (.03, .22, .12), (x + .02, a + .3 + k * .26, DOCK_Z0 - .1), (YELLOW if k % 2 == 0 else BLACK), .004, 1)
-    # dock light on a swing arm, traffic light
-    ly = b + .75
-    rbox(acc, (.08, .2, .3), (x + .04, ly, 3.4), C(NAVY), .02, 1)
-    tube(acc, [(x + .08, ly, 3.4), (x + .5, ly - .25, 3.45), (x + .78, ly - .55, 3.42)], .025, C(STEEL), seg=6)
-    lathe(acc, [(0, 0), (.11, 0), (.13, .1), (.06, .2), (0, .2)], (x + .82, ly - .58, 3.42), C(NAVY), 12, 1, rot=(0, 120, -40))
-    lathe(acc, [(0, 0), (.1, 0), (0, .01)], (x + .9, ly - .62, 3.37), HEAD_L, 10, 0, rot=(0, 120, -40))
-    tl = a - .78
-    rbox(acc, (.1, .22, .5), (x + .05, tl, 2.3), BLACK, .03, 2)
-    lathe(acc, [(0, 0), (.06, 0), (.06, .02), (0, .02)], (x + .1, tl, 2.42), RED_L, 12, 0, rot=(0, 90, 0))
-    lathe(acc, [(0, 0), (.06, 0), (.06, .02), (0, .02)], (x + .1, tl, 2.18), "E_5BE35B", 12, 0, rot=(0, 90, 0))
-    # guide posts on the apron
-    for yy in (a - .55, b + .55):
-        lathe(acc, [(0, 0), (.09, 0), (.09, 1.05), (.07, 1.12), (0, 1.14)], (x + 1.0, yy, 0), YELLOW, 12, 1)
-        lathe(acc, [(.092, .7), (.092, .85)], (x + 1.0, yy, 0), BLACK, 12, 0, cap_top=False, cap_bottom=False)
+        z = DOCK_Z0 + k * (DOCK_Z1 - DOCK_Z0) / n
+        rbox(acc, (.03, DOCK_W - .04, .035), (x - .08, yc, z), DOOR_D, .008, 1, grp=g)
+    zw = DOCK_Z0 + 4.5 * (DOCK_Z1 - DOCK_Z0) / n
+    for k in range(4):
+        rpanel(acc, .42, .2, .02, (x - .075, a + .4 + k * (DOCK_W - .8) / 3, zw), WIN, .04, rot=(0, 0, 90), grp=g)
+    rbox(acc, (.05, .3, .05), (x - .07, yc, DOCK_Z0 + .9), C(STEEL), .01, 1, grp=g)
+    rbox(acc, (.06, DOCK_W, .08), (x - .1, yc, DOCK_Z0 + .04), RUBBER, .01, 1, grp=g)   # bottom seal
+    # rubber hood over the door
+    rbox(acc, (.45, DOCK_W + .3, .5), (x + .24, yc, DOCK_Z1 + .38), RUBBER_D, .06, 3)
+    for k in range(6):
+        rbox(acc, (.03, .02, .38), (x + .47, a + .15 + k * (DOCK_W - .3) / 5, DOCK_Z1 + .3), RUBBER, .005, 1)
+    # traffic light on the wall beside the door, a downlight over it
+    tl = a - .42
+    rbox(acc, (.1, .22, .5), (x + .05, tl, 2.0), BLACK, .03, 2)
+    lathe(acc, [(0, 0), (.06, 0), (.06, .02), (0, .02)], (x + .1, tl, 2.12), RED_L, 12, 0, rot=(0, 90, 0))
+    lathe(acc, [(0, 0), (.06, 0), (.06, .02), (0, .02)], (x + .1, tl, 1.88), "E_5BE35B", 12, 0, rot=(0, 90, 0))
+    # threshold strip on the apron in front of the door
+    for k in range(9):
+        rbox(acc, (.3, .28, .012), (x + .25, a + .15 + k * (DOCK_W - .3) / 8, APRON_TOP + .006), (YELLOW if k % 2 == 0 else BLACK), .004, 1)
 
 
 # --------------------------------------------------------------------------------------------- the office block
@@ -300,7 +302,7 @@ def dc_building(name="RedeDC", loc=(0, 0, 0)):
     root.location = Vector(loc)
     acc = Acc(name)
     personnel = (-7.8, -6.8, 0, 2.3)
-    east_holes = [(yc - DOCK_W / 2 - .45, yc + DOCK_W / 2 + .45, DOCK_Z0 - .05, DOCK_Z1 + .9) for yc in DOCKS] + [personnel]
+    east_holes = [(yc - DOCK_W / 2 - .02, yc + DOCK_W / 2 + .02, DOCK_Z0 - .05, DOCK_Z1 + .05) for yc in DOCKS] + [personnel]
     # walls: east (docks), north, west wing, south of A, the step above the office (south face of B, east face of
     # the office's top)
     clad_wall(acc, "y", W2, 1, -D2, D2, H_BAY, east_holes)
@@ -310,10 +312,16 @@ def dc_building(name="RedeDC", loc=(0, 0, 0)):
     clad_wall(acc, "x", -D2, -1, OFF_X1, W2, H_BAY, [exit_door])
     clad_wall(acc, "x", OFF_Y1, -1, -W2, OFF_X1, H_BAY, z0=H_OFFICE - .2, band=False)
     clad_wall(acc, "y", OFF_X1, -1, -D2, OFF_Y1, H_BAY, z0=H_OFFICE - .2, band=False)
-    for yc in DOCKS:
-        dock(acc, root, yc, active=yc != DOCKS[0])
-    # dock canopy over the four bays
-    cy0, cy1 = DOCKS[0] - 2.1, DOCKS[-1] + 2.1
+    for i, yc in enumerate(DOCKS):
+        dock(acc, root, i, yc)
+    # the asphalt apron in front of the docks (down to the yard's asphalt) and a guide post on each bay line
+    ay0, ay1 = BAY_LINES[0] - .4, BAY_LINES[-1] + .4
+    rbox(acc, (APRON_X, ay1 - ay0, .06), (W2 + APRON_X / 2, (ay0 + ay1) / 2, APRON_TOP - .03), C("484B4E"), .01, 1)
+    for yy in BAY_LINES:
+        lathe(acc, [(0, 0), (.09, 0), (.09, 1.05), (.07, 1.12), (0, 1.14)], (W2 + .75, yy, APRON_TOP), YELLOW, 12, 1)
+        lathe(acc, [(.092, .7), (.092, .85)], (W2 + .75, yy, APRON_TOP), BLACK, 12, 0, cap_top=False, cap_bottom=False)
+    # dock canopy over the three bays
+    cy0, cy1 = BAY_LINES[0] - .3, BAY_LINES[-1] + .3
     rbox(acc, (2.8, cy1 - cy0, .38), (W2 + 1.4, (cy0 + cy1) / 2, 5.6), C(NAVY), .06, 3)
     rbox(acc, (.12, cy1 - cy0 + .04, .14), (W2 + 2.82, (cy0 + cy1) / 2, 5.5), C(GOLD), .03, 2)
     rbox(acc, (2.7, cy1 - cy0 - .1, .03), (W2 + 1.4, (cy0 + cy1) / 2, 5.4), C("F4F1E8"), .01, 1)
@@ -394,6 +402,23 @@ def dc_building(name="RedeDC", loc=(0, 0, 0)):
 
 
 # --------------------------------------------------------------------------------------------- previews
+def docks_preview():
+    """Studio stills of the dock side (v2 docks): the three docks on the bays, two trucks backed onto them."""
+    dc = build_dc_v2()
+    # the yard's bay lines and numbers' places, painted on the studio floor for reference
+    acc = Acc("BayRef")
+    for yy in BAY_LINES:
+        rbox(acc, (6.0, .12, .01), (W2 + APRON_X + 3.0, yy, .006), "C_EDE6D3", .005, 1)
+    rbox(acc, (8.0, BAY_LINES[-1] - BAY_LINES[0] + 2, .01), (W2 + APRON_X + 4.0, (BAY_LINES[0] + BAY_LINES[-1]) / 2, .002), "C_43474A", .005, 1)
+    acc.realize()
+    out = []
+    for nm, d, ds, lens, tgt in (("dc_docks_v2", (1.0, -.55, .5), 22, 38, (W2 + 1.0, 1.5, 2.2)),
+                                 ("dc_docks_v2_front", (1.0, 0.0, .28), 17, 40, (W2, 1.5, 2.0)),
+                                 ("dc_docks_v2_iso", (.8, -.9, .8), 34, 36, (W2 - 1.0, 0.5, 3.0))):
+        out.append(rk_core.shoot(nm, Vector(tgt), d, ds, lens, (1600, 1000)))
+    return out
+
+
 def build_dc_v2():
     rk_core.clear("Rede DC v2")
     rk_core.studio((1800, 1100), bg=(.86, .84, .8))
@@ -403,9 +428,10 @@ def build_dc_v2():
         fl.data.materials[0].node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (.5, .5, .52, 1)
     dc = dc_building("RedeDC", (0, 0, 0))
     # two fleet trucks at the bays and the yard pieces, for scale
-    for yc, reefer in ((DOCKS[1], False), (DOCKS[3], True)):
+    for yc, reefer in ((DOCKS[0], False), (DOCKS[2], True)):
         r, _ = truck("FleetTruck_" + ("Reefer" if reefer else "Dry"), (0, 0, 0), reefer=reefer)
-        r.location = Vector((W2 + 3.75, yc, 0)); r.rotation_euler = (0, 0, math.radians(90))   # backed into the bay
+        # backed onto the bay at the game's fleet scale, its tail 0.8 m off the wall
+        r.location = Vector((W2 + .8 + 2.4, yc, 0)); r.rotation_euler = (0, 0, math.radians(90)); r.scale = (.75, .75, .75)
     fuel_island("RedeFuelIsland", (W2 + 13.0, -4.5, 0))
     gatehouse("RedeGatehouse", (W2 + 10.0, 6.5, 0))
     return dc

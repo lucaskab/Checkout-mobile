@@ -47,10 +47,9 @@ namespace Checkout
         // these stops move with the block, and the drop-off at the market moves past it.
         Visit marketVisit,detourIn,detourMid,detourOut;bool hidden;
         // Rede (Lucas 06/11): with the fleet's yard the map grows north; the local streets' turning points at the north
-        // end move out with it, deep into the fog (0 = the map's own edge), and the fleet's trucks on the street are
-        // given way to like any car.
+        // end move out with it, deep into the fog (0 = the map's own edge). (The fleet's trucks register with
+        // CheckoutEventTraffic: the cars wait for them like for any event vehicle.)
         public static float NorthTurn;
-        public static readonly List<Transform> Blockers=new List<Transform>();
         readonly List<Visit> northEnds=new List<Visit>();float northBase,northApplied;
         // Nobody is dropped at the supermarket while it is closed: they would walk in and vanish.
         bool MarketOpen{get{if(!bridge)bridge=FindAnyObjectByType<CheckoutBridge>();return !bridge||bridge.State==null||bridge.State.isOpen;}}
@@ -304,7 +303,6 @@ namespace Checkout
             }
             foreach(var other in cars)if(other!=car&&other.vehicle.gameObject.activeSelf&&Ahead(other.vehicle.position,4.4f+reach))return true;
             if(marketTraffic&&marketTraffic.enabled)foreach(var other in marketTraffic.vehicles)if(other.gameObject.activeInHierarchy&&Ahead(other.position,4.4f+reach))return true;
-            foreach(var other in Blockers)if(other&&other.gameObject.activeInHierarchy&&Ahead(other.position,4.8f+reach))return true;
             foreach(var person in pedestrians)if(person&&person.gameObject.activeInHierarchy&&Ahead(person.transform.position,2.8f+reach))return true;
             return false;
         }

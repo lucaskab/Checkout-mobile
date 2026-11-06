@@ -179,9 +179,18 @@ namespace Checkout
         void ConfigureWorker(CheckoutMarketLayout market, MarketLayout next)
         {
             if (!worker) return;
+            worker.routeFor = null;
             Vector3 G(float x, float z) => new Vector3(x, .15f, z);
             switch (Kind)
             {
+                case Yard.Grand when CheckoutRedeWorld.DockWall(out float wall):
+                {
+                    // Rede: out of the dock door of the truck's own bay (ground level, docks v2) to its tail, and back in.
+                    worker.approach = Approach;
+                    worker.routeFor = t => { var h = Home(t); return new[] { G(wall - 1.1f, h.z), G(wall + .25f, h.z), G(wall + .25f, h.z) }; };
+                    if (trucks.Count > 0) { var first = worker.routeFor(trucks.Values.First().t); worker.SetDestination(first[0], first); }
+                    break;
+                }
                 case Yard.Grand:
                 {
                     var path = world.Find(CheckoutMarketLayout.GrandYard + "/Worker path");
@@ -233,6 +242,7 @@ namespace Checkout
             if (tr.state != State.Away) return false;
             // One truck per bay: the next one waits round the corner until it has gone.
             foreach (var other in trucks.Values) if (other != tr && other.spot == tr.spot && other.state != State.Away) return false;
+            if (Kind == Yard.Grand && Reserved(tr.home)) return false;
             if (Kind == Yard.Curb)
             {
                 if (CheckoutEventTraffic.AvenueJammed || !PickCurb(tr)) return false;
@@ -258,6 +268,14 @@ namespace Checkout
             if (tr.state == State.Away) { if (t.gameObject.activeSelf) t.gameObject.SetActive(false); return; }
             if (tr.state == State.Leaving) return;
             if (Kind == Yard.Curb) CheckoutEventTraffic.ClearDeliveryBlock();
+            // Rede: unloaded at the centre's dock, the chain's truck it was dressed as drives home to the yard from here
+            // (the yard's own truck takes its place, same model, same spot).
+            var rede = CheckoutRedeWorld.Current;
+            if (Kind == Yard.Grand && tr.state == State.Docked && rede && CheckoutRedeYard.Current && CheckoutRedeYard.Current.TakeOver(rede.FleetIdOf(t), rede.SkinOf(t)))
+            {
+                tr.state = State.Away; tr.speed = 0; CheckoutEventTraffic.Unregister(t); t.gameObject.SetActive(false);
+                return;
+            }
             BuildDeparture(tr);
             tr.run = 0; tr.s = 0; tr.speed = 0; tr.state = State.Leaving; tr.since = Time.time;
         }
@@ -289,6 +307,29 @@ namespace Checkout
             return first != null && Arrive(first.t) ? first.t : first?.t;
         }
         public bool Docked(Transform t) => t && trucks.TryGetValue(t.name, out var tr) && tr.state == State.Docked;
+
+        // Rede: the chain's own trucks (CheckoutRedeYard) use the grand yard's docks too. A fleet truck heading for a dock
+        // reserves it (`tail`: where its tail stops); a supplier's truck for that bay waits round the corner until it has
+        // gone, and a fleet truck only takes a dock no supplier's truck stands on or is headed for.
+        static readonly Dictionary<Transform, Vector3> reserved = new Dictionary<Transform, Vector3>();
+        public static void Reserve(Transform who, Vector3 tail) { if (who) reserved[who] = tail; }
+        public static void Unreserve(Transform who) { if (who) reserved.Remove(who); }
+        static bool Reserved(Vector3 home) { foreach (var r in reserved) if (r.Key && Mathf.Abs(r.Value.z - home.z) < 1.4f) return true; return false; }
+        /// <summary>Whether a supplier's truck stands on, or is on its way to, the grand yard's bay at `tail`.</summary>
+        public static bool BayTaken(Vector3 tail)
+        {
+            var me = Current; if (!me || me.Kind != Yard.Grand) return false;
+            foreach (var tr in me.trucks.Values) if (tr.state != State.Away && tr.state != State.Leaving && Mathf.Abs(tr.home.z - tail.z) < 1.4f) return true;
+            return false;
+        }
+        /// <summary>Whether a supplier's truck stands on the bay at `tail` (or is backing onto it).</summary>
+        public bool DockedAt(Vector3 tail)
+        {
+            if (Kind != Yard.Grand) return false;
+            foreach (var tr in trucks.Values)
+                if ((tr.state == State.Docked || (tr.state == State.Arriving && tr.run > 0)) && Mathf.Abs(tr.home.z - tail.z) < 1.4f) return true;
+            return false;
+        }
         public string Describe()
         {
             var lines = new List<string> { $"truck yard {Kind}" };
@@ -331,7 +372,8 @@ namespace Checkout
         void BuildArrival(Truck tr)
         {
             tr.path.Clear(); tr.back.Clear();
-            float north = city.max.z - 2f, east = city.max.x - 1f;
+            // (with the Rede's yard the map grows north: the trucks come down the east street from deep in the fog)
+            float north = Mathf.Max(city.max.z - 2f, CheckoutNeighborhoodTraffic.NorthTurn), east = city.max.x - 1f;
             switch (Kind)
             {
                 case Yard.Grand:

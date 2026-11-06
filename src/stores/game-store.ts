@@ -392,7 +392,7 @@ import {
 	settleDelivery,
 	trimDeliveryOrders,
 } from "@/services/delivery";
-import type { ChainBranchId, FleetTruckKind } from "@/@types/chain";
+import type { ChainBranchId, FleetJobKind, FleetTruckKind } from "@/@types/chain";
 import {
 	addTruck,
 	checkChainName,
@@ -1787,6 +1787,19 @@ export const useGameStore = create<GameStore>()(
 					},
 				});
 				get().processSupplierOrders();
+				return true;
+			},
+			// QA (Rede): a parked fleet truck leaves on a job of `kind` for `tripSeconds` each way (no cargo moves).
+			devFleetJob: (truckId: string, kind: string, tripSeconds: number) => {
+				const state = get();
+				if (!isChainUnlocked(state.era.id) || !Number.isFinite(tripSeconds) || tripSeconds <= 0) return false;
+				if (kind !== "contrato" && kind !== "filial" && kind !== "abastecer") return false;
+				const now = Date.now();
+				const chain = releaseTrucks(state.chain, now);
+				const truck = chain.fleet.trucks.find((item) => item.id === truckId);
+				if (!truck || truck.job) return false;
+				const trip = Math.round(tripSeconds * 1000);
+				set({ chain: withTruckJob(chain, truckId, { kind: kind as FleetJobKind, refId: "dev", departAt: now, arriveAt: now + trip, returnAt: now + trip * 2 }) });
 				return true;
 			},
 			devPassTime: (hours: number) => {

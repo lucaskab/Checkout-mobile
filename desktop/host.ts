@@ -99,6 +99,7 @@ const hudActions: (keyof GameActions)[] = [
 	"devArriveDelivery",
 	"devPassTime",
 	"devAdvanceOrders",
+	"devFleetJob",
 	"devSetMarketEra",
 	"devClearDock",
 	"devSpawnDeliveryOffer",

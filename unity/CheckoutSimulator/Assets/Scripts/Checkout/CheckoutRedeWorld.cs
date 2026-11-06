@@ -5,16 +5,30 @@ namespace Checkout {
  // Rede de supermercados in the world (Lucas 06/11 "Aprovado", part 1):
  //  * the distribution centre (Resources/Rede/RedeDC) stands where the hipermercado's central warehouse was, once the
  //    chain is unlocked: the old building's renderers hide (its colliders stay: tapping it still opens the storage),
- //    the DC's docks face the yard's three bays (y −1.45 / +1.55 / +4.55 of its centre) and the supplier trucks back
- //    onto its dock bumpers (CheckoutDeliveryTrucks.GrandShift);
+ //    the DC's three docks face the yard's three bays (y −1.45 / +1.55 / +4.55 of its centre), the trucks back onto
+ //    them, tail 0.8 m off the wall (CheckoutDeliveryTrucks.GrandShift), and the doors roll up while a truck is there;
  //  * the fleet: a delivery that comes through the distribution centre (order.fleetTruckId) arrives in one of the
- //    chain's own trucks (dry or refrigerated) instead of a supplier's, and a truck leaving on a contract or a branch run
- //    comes to the dock first and drives off loaded (CheckoutMap.UpdateSupplierDeliveries).
+ //    chain's own trucks (dry or refrigerated) instead of a supplier's and drives home to the yard once unloaded; a truck
+ //    leaving on a contract or a branch run comes to a dock from the yard and is loaded first (CheckoutRedeYard).
  // Everything goes back to the old warehouse when the chain goes away (dev jumps).
  public sealed class CheckoutRedeWorld:MonoBehaviour {
   public static CheckoutRedeWorld Current{get;private set;}
-  // The DC's half width and its dock face (bumpers) east of its centre, metres (scripts/blender/rede_dc.py W2 + .2).
-  const float HalfWidth=9.2f,DockFace=9.45f;
+  // The DC's half width (its dock wall east of its centre) and where a truck's tail stops (0.8 m off the wall, docks v2:
+  // ground-level doors, no bumpers), metres (scripts/blender/rede_dc.py W2).
+  const float HalfWidth=9.2f,TailGap=.8f,DockFace=HalfWidth+TailGap-.1f;
+  // the three docks (rede_dc.py DOCKS): z of each door from the DC's centre, south to north (the yard's bays 1, 2, 3)
+  static readonly float[] Docks={-1.45f,1.55f,4.55f};
+  public const int DockCount=3;
+  static bool dcOn;static Vector3 dcCentre;
+  /// <summary>Dock `i` of the distribution centre: the middle of a docked truck's tail and the way it faces (from the
+  /// wall out to the yard). False while the DC is not standing.</summary>
+  public static bool DockPose(int i,out Vector3 tail,out Vector3 facing){
+   facing=Vector3.right;tail=Vector3.zero;
+   if(!dcOn||i<0||i>=Docks.Length)return false;
+   tail=new Vector3(dcCentre.x+HalfWidth+TailGap,.15f,dcCentre.z+Docks[i]);return true;
+  }
+  /// <summary>The DC's dock wall (x) and whether it stands.</summary>
+  public static bool DockWall(out float x){x=dcCentre.x+HalfWidth;return dcOn;}
   // The supplier trucks' tails at the old warehouse (the hipermercado yard's bays): x −0.39.
   const float OldRearX=-.39f;
   Transform world,dc;
@@ -54,6 +68,7 @@ namespace Checkout {
    // The old building's west edge + the DC's half width + .45 (its fire stair stays on the lot, off the sidewalk).
    var c=new Vector3(oldBounds.min.x+HalfWidth+.45f,oldBounds.min.y,oldBounds.center.z);
    dc.position=c;dc.rotation=Quaternion.identity;
+   dcOn=true;dcCentre=c;FindDoors();
    CheckoutDeliveryTrucks.GrandShift=c.x+DockFace+.1f-OldRearX;
    CheckoutDeliveryTrucks.Current?.Reconfigure();
    ShowGate();Totem(true);CheckoutRedeYard.Show(world);
@@ -64,6 +79,7 @@ namespace Checkout {
    foreach(var r in hidden)if(r)r.enabled=true;
    hidden.Clear();
    if(dc)dc.gameObject.SetActive(false);
+   dcOn=false;
    if(gate)gate.gameObject.SetActive(false);
    Totem(false);CheckoutRedeYard.HideYard();
    CheckoutDeliveryTrucks.GrandShift=0;
@@ -93,6 +109,8 @@ namespace Checkout {
    if(!gate||!gate.gameObject.activeInHierarchy||!arm)return;
    bool open=false;var trucks=CheckoutDeliveryTrucks.Current;
    if(trucks)foreach(var t in trucks.All)if(t&&t.gameObject.activeInHierarchy&&(t.position-GatePosition).sqrMagnitude<11f*11f)open=true;
+   var yard=CheckoutRedeYard.Current;
+   if(yard)foreach(var t in yard.Moving())if((t.position-GatePosition).sqrMagnitude<11f*11f)open=true;
    armAngle=Mathf.MoveTowards(armAngle,open?82:0,Time.deltaTime*70);
    arm.localRotation=Quaternion.Euler(0,0,armAngle);
   }
@@ -114,17 +132,46 @@ namespace Checkout {
    totem.SetPositionAndRotation(p,Quaternion.Euler(0,t.eulerAngles.y,0));
   }
 
-  // ------------------------------------------------------------------ the fleet's trucks
-  sealed class Skin{public Transform model;public string kind;public readonly List<Renderer> own=new List<Renderer>();}
-  readonly Dictionary<Transform,Skin> skins=new Dictionary<Transform,Skin>();
+  // ------------------------------------------------------------------ the docks' roller doors
+  // Each door is its own mesh (DockDoor<i>): it rolls up while a truck backs onto its dock and stands there (a fleet
+  // truck loading, a supplier's truck being unloaded), and down again when it has gone.
+  readonly Transform[] doors=new Transform[3];readonly Vector3[] doorBase=new Vector3[3];readonly float[] doorOpen=new float[3];
+  void FindDoors(){
+   if(!dc)return;
+   foreach(var t in dc.GetComponentsInChildren<Transform>(true))
+    for(int i=0;i<doors.Length;i++)if(t.name.StartsWith("DockDoor"+i))doors[i]=t;
+   for(int i=0;i<doors.Length;i++)if(doors[i]){doorOpen[i]=0;doorBase[i]=doors[i].position;}
+  }
+  void UpdateDoors(){
+   if(!dcOn)return;
+   var yard=CheckoutRedeYard.Current;var trucks=CheckoutDeliveryTrucks.Current;
+   for(int i=0;i<doors.Length;i++){
+    if(!doors[i])continue;
+    bool want=yard&&yard.DockBusy(i);
+    if(!want&&trucks&&DockPose(i,out var tail,out _))want=trucks.DockedAt(tail);
+    doorOpen[i]=Mathf.MoveTowards(doorOpen[i],want?1:0,Time.deltaTime*.8f);
+    doors[i].position=doorBase[i]+Vector3.up*(3.45f*Mathf.SmoothStep(0,1,doorOpen[i]));
+   }
+  }
+  /// <summary>QA: how far each door is up (0..1).</summary>
+  public string QaDoors=>$"{doorOpen[0]:0.0}/{doorOpen[1]:0.0}/{doorOpen[2]:0.0} found {(doors[0]?1:0)+(doors[1]?1:0)+(doors[2]?1:0)}";
 
-  /// <summary>Dress a supplier truck as one of the chain's trucks ("seco" / "refrigerado"), or back as itself (null).</summary>
-  public void Dress(Transform truck,string kind){
+  // ------------------------------------------------------------------ the fleet's trucks
+  sealed class Skin{public Transform model;public string kind,fleetId;public readonly List<Renderer> own=new List<Renderer>();}
+  readonly Dictionary<Transform,Skin> skins=new Dictionary<Transform,Skin>();
+  /// <summary>The fleet truck a supplier truck is dressed as (its id), or null.</summary>
+  public string FleetIdOf(Transform truck)=>truck&&skins.TryGetValue(truck,out var s)&&s.model&&s.model.gameObject.activeSelf?s.fleetId:null;
+  public Transform SkinOf(Transform truck)=>truck&&skins.TryGetValue(truck,out var s)&&s.model&&s.model.gameObject.activeSelf?s.model:null;
+
+  /// <summary>Dress a supplier truck as one of the chain's trucks ("seco" / "refrigerado"), or back as itself (null);
+  /// `fleetId`: which of the chain's trucks it is (it drives home to the yard from the dock).</summary>
+  public void Dress(Transform truck,string kind,string fleetId=null){
    if(!truck)return;
    skins.TryGetValue(truck,out var skin);
+   if(skin!=null)skin.fleetId=kind!=null?fleetId:null;
    string current=skin!=null&&skin.model&&skin.model.gameObject.activeSelf?skin.kind:null;
    if(current==kind)return;
-   if(skin==null){skin=new Skin();skins[truck]=skin;}
+   if(skin==null){skin=new Skin{fleetId=kind!=null?fleetId:null};skins[truck]=skin;}
    if(skin.model&&skin.kind!=kind){Destroy(skin.model.gameObject);skin.model=null;}
    if(kind!=null&&!skin.model){
     skin.kind=kind;
@@ -171,7 +218,7 @@ namespace Checkout {
   // The chain's trucks drive outside the market roots the paint watches: they follow the colours from here.
   float nextPaint;
   void Update(){
-   UpdateGate();
+   UpdateGate();UpdateDoors();
    // the dressing is shown again by stage changes: the old totem stays hidden
    if(on&&Time.unscaledTime>nextTotem){nextTotem=Time.unscaledTime+2f;Totem(true);}
    if(Time.unscaledTime<nextPaint)return;nextPaint=Time.unscaledTime+1f;

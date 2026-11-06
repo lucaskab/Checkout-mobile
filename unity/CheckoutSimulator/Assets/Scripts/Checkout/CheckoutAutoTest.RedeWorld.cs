@@ -82,9 +82,9 @@ namespace Checkout {
    if(sim)sim.HomeCamera();
   }
 
-  // "eventsyard": the fleet's yard (Lucas 06/11 "coloque no jogo"): the chain with 5 trucks, stills of the yard,
-  // one truck leaving (mid-way), one coming in → pump → backing into its bay; RESULT lines, stills Logs/yard_*.jpg,
-  // video Logs/yard_demo.mjpg.
+  // "eventsyard": the fleet's yard and the fleet on the map (Lucas 06/11): the chain with 5 trucks; a contract, a branch
+  // run and an order through the centre at once (docks, loading, unloading, the city, home); the others stay parked.
+  // RESULT lines, stills Logs/yard_*.jpg, video Logs/yard_demo.mjpg.
   IEnumerator RedeYard(string request){
    int seq=0;
    void Act(string action,string args)=>CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-yard-"+(++seq)+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
@@ -108,56 +108,94 @@ namespace Checkout {
    var o=CheckoutRedeYard.Origin;
    if(sim)sim.HomeCamera();yield return new WaitForSecondsRealtime(.5f);
    TierShot("yard_gamecam",2048,1152,o+new Vector3(0,1,5),38);
-   yield return From("yard_se",o+new Vector3(0,1,5),new Vector3(.75f,.8f,-1f),42,34);
-   yield return From("yard_north",o+new Vector3(12,1,16),new Vector3(-.5f,.9f,-1f),40,40);
-   yield return From("yard_pump_close",CheckoutRedeYard.PumpPosition+Vector3.up,new Vector3(.8f,.55f,-.9f),14,34);
    TopDown(o+new Vector3(2,0,5),46,"yard_top");
-   // Filmed: two trucks leave and two come back at the same time (the second waits behind the first at the pump):
-   // out by the exit, in by the entrance, never on the same stretch of road, never over the pavement.
-   if(sim)sim.FocusCinematic(o+new Vector3(7,0,5),18);yield return new WaitForSecondsRealtime(.5f);
+   var rede=CheckoutRedeWorld.Current;
+   CheckoutRedeWorld.DockPose(1,out var dockTail,out _);
+   yield return From("yard_docks_empty",dockTail+new Vector3(-1,1.5f,0),new Vector3(1f,.6f,-.8f),20,34);
+   Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(2f);
+   // Filmed, all at once: a contract (yard → dock → loaded → across the city → back), a branch run (another dock),
+   // an order through the centre (yard → supplier; back in the same truck to a dock, unloaded, home to the yard).
+   // The two trucks that stay home must stay parked (Lucas 06/11: the parked trucks vanished).
+   if(sim)sim.FocusCinematic(new Vector3(11,0,45),27);yield return new WaitForSecondsRealtime(.5f);
    RecStart("Logs/yard_demo.mjpg");
-   bool left1=ids.Length>1&&yard.QaLeave(ids[1]);
-   bool left3=ids.Length>3&&yard.QaLeave(ids[3]);
-   yield return Frames(1.5f);
-   bool back0=yard.QaRoundTrip(ids[0]);
-   bool back2=ids.Length>2&&yard.QaRoundTrip(ids[2]);
-   var watch=ids.Take(4).ToArray();
-   float closest=99;string closestAt="";int kerbHits=0;string kerbAt="";bool queued=false,pumpShot=false,leftShot=false;
+   Act("devFleetJob","[\""+ids[0]+"\",\"contrato\",40]");
+   yield return Frames(6f);
+   Act("devFleetJob","[\""+ids[1]+"\",\"filial\",40]");
+   yield return Frames(2f);
+   Act("orderFromDistributionCenter","[[{\"productId\":172,\"boxes\":2}]]");
+   yield return Frames(1f);
+   string supplyId=bridge.State.chain?.trucks?.FirstOrDefault(t=>t!=null&&t.job=="abastecer")?.id;
+   var stay=ids.Where(id=>id!=ids[0]&&id!=ids[1]&&id!=supplyId).ToArray();
+   Note($"yard: jobs contrato {ids[0]} filial {ids[1]} abastecer {supplyId ?? "-"} staying {string.Join(",",stay)}");
+   float closest=99;string closestAt="";int kerbHits=0;string kerbAt="";int vanished=0;string vanishedAt="";
+   bool loadedSeen=false,loadShot=false,unloadSeen=false,unloadShot=false,cityShot=false,tookOver=false,doorSeen=false;
    var slab=CheckoutRedeYard.Slab;
    bool OnDrive(float z)=>(z>o.z+9.6f-.3f&&z<o.z+12.8f+.3f)||(z>o.z-4f-.3f&&z<o.z-.6f+.3f);
-   for(float t=0;t<110;t+=.25f){
+   var routes=new Dictionary<string,HashSet<string>>();foreach(var id in ids)routes[id]=new HashSet<string>();
+   float advanced=-99,unloadAt=-99;bool unloaded=false;
+   for(float t=0;t<200;t+=.25f){
     yield return Frames(.25f);
-    // fleet trucks on the move never closer than a truck's width side by side / its length nose to tail
-    var moving=watch.Select(id=>(id,m:yard.TruckModel(id),mode:yard.QaMode(id))).Where(x=>x.m&&x.m.gameObject.activeInHierarchy&&x.mode!="Parked").ToArray();
+    foreach(var id in ids){var r=yard.QaRoute(id);if(yard.QaMode(id)=="Driving")routes[id].Add(r);else routes[id].Add(yard.QaMode(id));}
+    // the trucks that stay home never leave their bays nor vanish
+    foreach(var id in stay){var m=yard.TruckModel(id);if(yard.QaMode(id)!="Parked"||!m||!m.gameObject.activeInHierarchy){vanished++;if(vanishedAt.Length<120)vanishedAt+=$" {id}:{yard.QaMode(id)} t={t:0}";}}
+    // fleet trucks on the move: never one inside the other
+    var moving=ids.Select(id=>(id,m:yard.TruckModel(id),mode:yard.QaMode(id))).Where(x=>x.m&&x.m.gameObject.activeInHierarchy&&x.mode!="Parked").ToArray();
     for(int i=0;i<moving.Length;i++)for(int j=i+1;j<moving.Length;j++){
      var d=moving[i].m.position-moving[j].m.position;d.y=0;
      var f=moving[i].m.forward;float along=Mathf.Abs(Vector3.Dot(d,f)),side=(d-f*Vector3.Dot(d,f)).magnitude;
-     float gap=side>2.0f?99:along;   // side by side in two lanes (2.2 m apart): no clash
+     float gap=side>2.0f?99:along;
      if(gap<closest){closest=gap;closestAt=$"{moving[i].id}/{moving[j].id} at ({moving[i].m.position.x:0.0},{moving[i].m.position.z:0.0}) t={t:0.0}";}
     }
-    // nose and tail on asphalt: the yard, the driveways or the road, never the pavement / cycle lane / plaza
+    // in the yard and its driveways: nose and tail on asphalt, never on the pavement
     foreach(var x in moving){
      foreach(var k in new[]{-1.9f,0f,1.9f}){
       var p=x.m.position+x.m.forward*k;
+      if(p.z<o.z-7.5f)continue;
       bool yardSlab=slab.Contains(new Vector2(p.x,p.z));
       bool road=p.x>CheckoutStreetLayout.LocalCurbInner-.1f&&p.x<CheckoutStreetLayout.LocalCurbOuter+.1f;
       bool drive=p.x>=slab.xMax-.2f&&p.x<=CheckoutStreetLayout.LocalCurbInner+.1f&&OnDrive(p.z);
       if(!yardSlab&&!road&&!drive){kerbHits++;if(kerbAt.Length<200)kerbAt+=$" {x.id}({p.x:0.0},{p.z:0.0})";}
      }
     }
-    if(yard.QaHeld(ids[2])||yard.QaHeld(ids[0]))queued=true;
-    if(!leftShot&&left1&&yard.QaMode(ids[1])=="Leaving"&&yard.TruckModel(ids[1]).position.x>o.x+18){leftShot=true;yield return From("yard_leaving",CheckoutRedeYard.ExitAt+Vector3.up,new Vector3(.6f,.75f,-1f),22,34);}
-    if(!pumpShot&&yard.QaMode(ids[0])=="Refuelling"){pumpShot=true;yield return From("yard_refuel",CheckoutRedeYard.PumpPosition+Vector3.up,new Vector3(.8f,.55f,-.9f),18,34);}
-    if(watch.All(id=>yard.QaMode(id)=="Parked"||yard.QaMode(id)=="Away")&&yard.QaMode(ids[0])=="Parked"&&yard.QaMode(ids[2])=="Parked")break;
+    if(rede&&rede.QaDoors.Contains("1.0"))doorSeen=true;
+    // the contract truck loading at its dock
+    if(yard.QaMode(ids[0])=="Loading"&&yard.QaLoaders>0){
+     loadedSeen=true;
+     if(!loadShot&&t>1){loadShot=true;var m=yard.TruckModel(ids[0]);if(m)yield return From("yard_loading",m.position+new Vector3(-2.5f,1.2f,0),new Vector3(1f,.55f,-.85f),11,34);if(m)TierShot("yard_loading_gamecam",2048,1152,m.position,14);}
+    }
+    if(!cityShot&&yard.QaRoute(ids[0])=="to the city"){var m=yard.TruckModel(ids[0]);if(m&&m.position.z<0){cityShot=true;TierShot("yard_city",2048,1152,m.position,20);}}
+    // the supply order: moved on until it is due, unloaded once its truck stands at a dock, then home
+    if(supplyId!=null&&!unloaded){
+     // (packed at the centre first, then on its way: time is moved on so it arrives within the film)
+     if(t-advanced>2f&&t>20f){
+      if(bridge.State.orders.Any(ord=>ord.fleetTruckId==supplyId&&ord.status=="em-producao")){advanced=t;Act("devAdvanceOrders","[0.5]");}
+      else if(bridge.State.orders.Any(ord=>ord.fleetTruckId==supplyId&&ord.status=="em-transporte")){advanced=t+1f;Act("devAdvanceOrders","[0.99]");}
+     }
+     Transform dressed=null;var trucksNow=CheckoutDeliveryTrucks.Current;
+     if(trucksNow&&rede)foreach(var at in trucksNow.All)if(at&&at.gameObject.activeInHierarchy&&rede.FleetIdOf(at)==supplyId)dressed=at;
+     if(dressed&&trucksNow.Docked(dressed)){
+      unloadSeen=true;
+      if(!unloadShot){unloadShot=true;yield return Frames(4f);yield return From("yard_unloading",dressed.position+new Vector3(-2.5f,1.2f,0),new Vector3(1f,.55f,-.85f),11,34);}
+      else if(t-unloadAt>3f){unloadAt=t;Act("unloadAllDeliveries","[]");}
+     }
+    }
+    if(supplyId!=null&&yard.QaRoute(supplyId)=="home from the dock"){tookOver=true;unloaded=true;}
+    bool contractHome=routes[ids[0]].Contains("home from the city")&&yard.QaMode(ids[0])=="Parked";
+    bool branchHome=routes[ids[1]].Contains("home from the city")&&yard.QaMode(ids[1])=="Parked";
+    bool supplyHome=supplyId==null||tookOver&&yard.QaMode(supplyId)=="Parked";
+    if(contractHome&&branchHome&&supplyHome)break;
    }
    yield return Frames(1.5f);RecStop();
-   var m0=yard.TruckModel(ids[0]);
-   Result("two trucks come in, refuel and park in their bays",back0&&back2&&pumpShot&&yard.QaMode(ids[0])=="Parked"&&yard.QaMode(ids[2])=="Parked",yard.Describe());
-   Result("trucks leave by the exit to the north end of the map",left1&&left3&&yard.QaMode(ids[1])=="Away"&&yard.QaMode(ids[3])=="Away",yard.Describe());
+   Note("yard: "+yard.Describe());
+   foreach(var id in ids)Note($"yard: {id} went {string.Join(" > ",routes[id])}");
+   Result("the trucks that stay home stay parked and visible",vanished==0,$"{vanished} samples{vanishedAt}");
+   Result("a contract truck goes to a dock, is loaded, crosses the city and comes home",routes[ids[0]].Contains("to dock")&&loadedSeen&&routes[ids[0]].Contains("to the city")&&routes[ids[0]].Contains("home from the city")&&yard.QaMode(ids[0])=="Parked",string.Join(" > ",routes[ids[0]]));
+   Result("a branch run uses another dock and comes home",routes[ids[1]].Contains("to dock")&&routes[ids[1]].Contains("to the city")&&yard.QaMode(ids[1])=="Parked",string.Join(" > ",routes[ids[1]]));
+   Result("a supply run comes back to a dock, is unloaded and drives home",supplyId!=null&&routes[supplyId].Contains("to the supplier")&&unloadSeen&&tookOver&&yard.QaMode(supplyId)=="Parked",supplyId==null?"no supply truck":string.Join(" > ",routes[supplyId]));
+   Result("the dock doors roll up for the trucks",doorSeen,rede?rede.QaDoors:"-");
    Result("trucks on the move never overlap",closest>5f,$"closest nose-tail {closest:0.0} m {closestAt}");
-   Result("trucks never drive over the pavement",kerbHits==0,$"{kerbHits} samples off the asphalt{kerbAt}");
-   Note($"yard: the second arrival queued behind the first: {queued}");
-   if(m0)yield return From("yard_parked_again",o+new Vector3(2,1,5),new Vector3(.3f,.8f,-1f),30,34);
+   Result("trucks never drive over the pavement at the yard",kerbHits==0,$"{kerbHits} samples off the asphalt{kerbAt}");
+   yield return From("yard_docks_after",dockTail+new Vector3(-1,1.5f,0),new Vector3(1f,.6f,-.8f),20,34);
    yield return new WaitForSecondsRealtime(2f);
    if(sim)sim.HomeCamera();
   }
