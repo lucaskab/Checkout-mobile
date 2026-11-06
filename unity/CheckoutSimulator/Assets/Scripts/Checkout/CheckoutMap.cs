@@ -189,7 +189,7 @@ namespace Checkout {
   public CheckoutDeliveryTrucks Trucks {get;private set;}
   public CheckoutCityHorizon Horizon {get;private set;}
   // Per-frame scratch lists (reused, so the frame allocates nothing here).
-  readonly HashSet<Transform> claimedTrucks=new HashSet<Transform>();readonly List<Order> dueOrders=new List<Order>();
+  readonly HashSet<Transform> claimedTrucks=new HashSet<Transform>();readonly Dictionary<Transform,float> unclaimedSince=new Dictionary<Transform,float>();readonly List<Order> dueOrders=new List<Order>();
   void UpdateSupplierDeliveries(){if(!Trucks)return;var claimed=claimedTrucks;claimed.Clear();var dock=state.dock;
    // The orders on their way or waiting at the dock, oldest first. A stable insertion sort: equal createdAt keep their order (as OrderBy did).
    dueOrders.Clear();
@@ -203,7 +203,11 @@ namespace Checkout {
     DockClick(truck,DockedFor(dock,order.id)&&atBay);
    }
    // (Rede: a fleet truck leaving on a contract or a branch run comes to a dock from the yard itself: CheckoutRedeYard.)
-   foreach(var truck in Trucks.All){if(claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck)))continue;Trucks.Release(truck);}
+   // A truck no order wants any more drives off, a moment later: an order between two states (on its way → delivered,
+   // its dock entry one snapshot later) must not send its truck away mid-arrival.
+   foreach(var truck in Trucks.All){if(claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck))){unclaimedSince.Remove(truck);continue;}
+    if(!unclaimedSince.TryGetValue(truck,out var since)){unclaimedSince[truck]=Time.time;continue;}
+    if(Time.time-since<1.5f)continue;Trucks.Release(truck);}
   }
   // Whether a dock entry is "entrega-" + orderId (the old set of joined ids), compared in place: no string per order.
   static bool DockedFor(DockEntry[] dock,string orderId){if(dock==null)return false;const string prefix="entrega-";string id=orderId??"";
