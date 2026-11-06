@@ -23,6 +23,16 @@ namespace Checkout {
   void Awake(){DontDestroyOnLoad(gameObject);Application.logMessageReceived+=OnLog;CheckoutBridge.TestPatch=Patch;}
   void OnDestroy(){Application.logMessageReceived-=OnLog;CheckoutBridge.TestPatch=null;}
   void OnLog(string message,string stack,LogType type){if(type==LogType.Exception||type==LogType.Error)log.Add($"[{type}] {message}\n{stack}");else if(message.StartsWith("CHECKOUT_RECEIPT")||message.StartsWith("CHECKOUT_PORTRAIT"))log.Add(message);}
+  bool tipsAway;int tipSeq;
+  IEnumerator KeepTipsAway(){
+   var hud=FindAnyObjectByType<CheckoutDesktopHUD>();
+   while(tipsAway){
+    if(!hud)hud=FindAnyObjectByType<CheckoutDesktopHUD>();
+    var q=hud?hud.CoachQa():null;
+    if(q!=null&&q.isTip&&!string.IsNullOrEmpty(q.key)){CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-tip-"+(++tipSeq)+"\",\"action\":\"dismissOnboardingTip\",\"args\":[]}");Note("tip tapped away: "+q.key);}
+    yield return new WaitForSecondsRealtime(.4f);
+   }
+  }
   void Note(string s){log.Add($"{Time.realtimeSinceStartup:0.0}s {s}");Flush();}
   void Flush(){try{File.WriteAllLines("Logs/autotest_log.txt",log);}catch{}}
 
@@ -41,7 +51,12 @@ namespace Checkout {
     Note("== "+s);
     IEnumerator run=s.StartsWith("onboardingspot")?OnboardingSpot(s):s.StartsWith("eventsphotos")?Photos(s):s.StartsWith("eventssectors")?Sectors(s):s.StartsWith("onboarding")?Onboarding(s):s.StartsWith("rankings")?Rankings(s):s.StartsWith("walkturns")?WalkTurns(s):s.StartsWith("eventsstalls")?Stalls(s):s.StartsWith("eventscrowd")?Crowd(s):s.StartsWith("trafficturns")?TrafficTurns(s):s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsroom")?RoomAudit(s):s.StartsWith("eventscounter")?CounterCheck(s):s.StartsWith("eventsgrid")?GridCheck(s):s.StartsWith("eventskitchen")?KitchenShots(s):s.StartsWith("eventslook")?LookAround(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsfriends")?Friends(s):s.StartsWith("eventssocialcapture")?SocialCapture(s):s.StartsWith("eventssocial")?Social(s):s.StartsWith("eventspaint")?Paint(s):s.StartsWith("eventsrede")?Rede(s):s.StartsWith("eventsdc")?RedeWorld(s):s.StartsWith("eventsyard")?RedeYard(s):s.StartsWith("eventstiers")?Tiers(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s.StartsWith("trayplay")?TrayPlay(s):s.StartsWith("kitchenshot")?KitchenShots(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="account"?AccountShots():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
+    // The tutorial's tips ("DICA", Dona Neide) pile up when a QA save jumps ahead and sat in front of every still and
+    // video (Lucas 06/11): they are tapped away as they come, except in the scenarios that test the guide itself.
+    tipsAway=!(s.StartsWith("onboarding")||s.Contains("coach")||s.Contains("tutorial")||s.StartsWith("eventsrede"));
+    var tips=tipsAway?StartCoroutine(KeepTipsAway()):null;
     yield return run;
+    tipsAway=false;if(tips!=null)StopCoroutine(tips);
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
    }
    Finish();
