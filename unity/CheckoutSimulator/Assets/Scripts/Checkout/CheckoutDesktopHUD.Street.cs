@@ -77,8 +77,8 @@ namespace Checkout {
     var tm=N.Image(c.scene,"Timer",new Color(.11f,.17f,.31f,.92f),14);c.timer=tm.rectTransform;c.timer.anchorMin=c.timer.anchorMax=c.timer.pivot=new Vector2(.5f,0);c.timer.anchoredPosition=new Vector2(0,12);
     c.timerText=N.Text(tm.transform,"Text",K.Number,18,Color.white);c.timerText.alignment=TextAlignmentOptions.Center;c.timerText.textWrappingMode=TextWrappingModes.NoWrap;Stretch(c.timerText.rectTransform,new Vector2(10,0),new Vector2(-10,0));
     c.title=N.Text(root,"Title",K.Headline,24,K.Ink);c.title.alignment=TextAlignmentOptions.Center;c.title.textWrappingMode=TextWrappingModes.NoWrap;c.title.enableAutoSizing=true;c.title.fontSizeMin=16;c.title.fontSizeMax=24;
-    c.subtitle=N.Text(root,"Line",K.Body,17,K.Muted);c.subtitle.alignment=TextAlignmentOptions.Top;c.subtitle.enableAutoSizing=true;c.subtitle.fontSizeMin=13;c.subtitle.fontSizeMax=17;
-    c.likes=N.Text(root,"Likes",K.Body,15,K.C("A0805E"));c.likes.alignment=TextAlignmentOptions.Top;c.likes.enableAutoSizing=true;c.likes.fontSizeMin=12;c.likes.fontSizeMax=15;
+    c.subtitle=N.Text(root,"Line",K.Body,17,K.Muted);c.subtitle.alignment=TextAlignmentOptions.Center;c.subtitle.textWrappingMode=TextWrappingModes.NoWrap;c.subtitle.enableAutoSizing=true;c.subtitle.fontSizeMin=12;c.subtitle.fontSizeMax=17;
+    c.likes=N.Text(root,"Likes",K.Body,15,K.C("A0805E"));c.likes.alignment=TextAlignmentOptions.Center;c.likes.textWrappingMode=TextWrappingModes.NoWrap;c.likes.enableAutoSizing=true;c.likes.fontSizeMin=11;c.likes.fontSizeMax=15;
     c.pips=new BoardPips(root,15);
     var track=N.Image(root,"Shelves",K.C("EADBC4"),13);c.bar=track.rectTransform;
     var fill=N.Image(track.transform,"Fill",K.C("4F9A2E"),13);c.barFill=fill.rectTransform;c.barFill.anchorMin=Vector2.zero;c.barFill.anchorMax=new Vector2(0,1);c.barFill.offsetMin=c.barFill.offsetMax=Vector2.zero;
@@ -94,13 +94,13 @@ namespace Checkout {
     return K.C("E6EEF4");
    }
 
-   const float ButtonH=46,ButtonGap=8,TitleH=30,LineH=44,LikesH=36,BarH=26;
+   const float ButtonH=46,ButtonGap=10,TitleH=30,LineH=26,LikesH=22,BarH=26,Gap=10;
    static DesktopButton[] Actions(DesktopTile t)=>t.actions!=null&&t.actions.Length>0?t.actions:t.action!=null&&!string.IsNullOrEmpty(t.action.label)?new[]{t.action}:new DesktopButton[0];
    static bool HasLikes(DesktopTile t)=>t.lines!=null&&t.lines.Length>0&&!string.IsNullOrEmpty(t.lines[0]);
    /// <summary>The card's height without its scene: margins, the words, the shelves and the buttons.</summary>
    public static float Needs(DesktopTile t){
     int n=Actions(t).Length;
-    return 12+14+TitleH+6+LineH+(HasLikes(t)?6+LikesH:0)+12+n*ButtonH+Mathf.Max(0,n-1)*ButtonGap+StreetPad;
+    return 12+18+TitleH+Gap+LineH+(HasLikes(t)?Gap+LikesH:0)+20+n*ButtonH+Mathf.Max(0,n-1)*ButtonGap+StreetPad+4;
    }
 
    public void Apply(DesktopTile t,float cw,float sceneH){
@@ -109,7 +109,7 @@ namespace Checkout {
     float buttonsH=actions.Length*ButtonH+Mathf.Max(0,actions.Length-1)*ButtonGap;
     bool hasBar=t.fill>=0,hasLikes=HasLikes(t);
     // From the foot up: the buttons and the shelves; from the top down: the scene, the name, the line, the likes.
-    float y=StreetPad;
+    float y=StreetPad+4;
     Place(buttons,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,y),new Vector2(-2*StreetPad,buttonsH));y+=buttonsH+(actions.Length>0?14:0);
     // (the shelves sit on the scene's pavement, so the card keeps room for its words)
     bar.gameObject.SetActive(hasBar);
@@ -118,9 +118,9 @@ namespace Checkout {
     pips.gameObject.SetActive(false);
     Place(scene,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-12),new Vector2(-24,sceneH));
     sceneImage.color=Scene(t.look);
-    float top=-12-sceneH-14;
-    Place((RectTransform)title.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,TitleH));top-=TitleH+6;
-    Place((RectTransform)subtitle.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,LineH));top-=LineH+6;
+    float top=-12-sceneH-18;
+    Place((RectTransform)title.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,TitleH));top-=TitleH+Gap;
+    Place((RectTransform)subtitle.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,LineH));top-=LineH+Gap;
     Place((RectTransform)likes.transform,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,top),new Vector2(-2*StreetPad,LikesH));
     // The scene's pieces scale with it: pavement a third, the store as big as it fits over it.
     float sw=cw-24;
@@ -146,8 +146,8 @@ namespace Checkout {
     if(hasBar){fillTarget=Mathf.Clamp01(t.fill);if(changed||fillShown<0)fillShown=fillTarget;barText.text=K.Clean(t.fillText);
      barFill.GetComponent<Image>().color=fillTarget<.25f?ToneStrong("danger"):fillTarget<.5f?ToneStrong("warning"):ToneStrong("success");}
     face.color=t.tone=="danger"?K.C("FFF1EB"):K.C("FFF9EE");edge.color=t.tone=="danger"?K.C("E9A48F"):K.Border;
-    while(list.Count<actions.Length){var x=CheckoutDesktopButton.Create(buttons,ButtonH,18,14);x.Clicked=hud.BoardPress;list.Add(x);}
-    for(int i=0;i<list.Count;i++){bool on=i<actions.Length;list[i].gameObject.SetActive(on);if(on){list[i].Apply(actions[i]);list[i].Shrink(13);}}
+    while(list.Count<actions.Length){var x=CheckoutDesktopButton.Create(buttons,ButtonH,15,14);x.Clicked=hud.BoardPress;list.Add(x);}
+    for(int i=0;i<list.Count;i++){bool on=i<actions.Length;list[i].gameObject.SetActive(on);if(on){list[i].Apply(actions[i]);list[i].Shrink(11);}}
     art.GetComponent<Image>().color=locked?new Color(1,1,1,.6f):Color.white;
    }
 

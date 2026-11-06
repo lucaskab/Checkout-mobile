@@ -461,13 +461,13 @@ def garland(name="MarketBunting", L=4.0, sag=.32, loc=(0, 0, 0), n=8):
         bm = pennant_bm(.36, .46)
         place(bm, (x, 0, z - .015), (0, -slope, 0))
         acc.add(bm, PENNANT_COLOURS[k % 3], "Body")
-        rbox(acc, (.37, .03, .04), (x, 0, z), PENNANT_COLOURS[k % 3], .012, 2, rot=(0, -slope, 0))   # hem over the cord
+        rbox(acc, (.37, .03, .04), (x, 0, z), PENNANT_COLOURS[k % 3], .006, 1, rot=(0, -slope, 0))   # hem over the cord
         # a bulb between this pennant and the next
         bx = step * (k + 1)
         if k < n - 1:
             bz = cz(bx)
             rbox(acc, (.03, .03, .05), (bx, 0, bz - .035), DASH, .008, 1)
-            lathe(acc, [(0, 0), (.035, .01), (.045, .05), (.03, .09), (0, .1)], (bx, 0, bz - .16), BULB, 10, 2)
+            lathe(acc, [(0, 0), (.035, .01), (.045, .05), (.03, .09), (0, .1)], (bx, 0, bz - .16), BULB, 8, 0)
     objs = acc.realize()
     for o in objs:
         o.parent = root
@@ -487,14 +487,14 @@ def pendant(name="MarketPendant", drop=1.1, loc=(0, 0, 0)):
     lathe(acc, [(0, 0), (.025, 0), (.025, .1), (0, .1)], (0, 0, -drop - .02), C(GOLD), 10, 0)
     top = -drop - .02
     outer = [(0, top), (.07, top), (.12, top - .04), (.26, top - .2), (.4, top - .42), (.47, top - .56), (.48, top - .6)]
-    lathe(acc, outer, (0, 0, 0), C(NAVY), 32, 2, cap_top=False, cap_bottom=False)
+    lathe(acc, outer, (0, 0, 0), C(NAVY), 20, 1, cap_top=False, cap_bottom=False)
     # a gold collar and a gold band round the dome: from the game's camera (above) the lamp reads as a lamp
-    lathe(acc, [(.06, top + .01), (.13, top - .03), (.15, top - .07), (.1, top - .06)], (0, 0, 0), C(GOLD), 24, 1, cap_top=False, cap_bottom=False)
-    lathe(acc, [(.3, top - .27), (.335, top - .3), (.355, top - .34), (.32, top - .32)], (0, 0, 0), C(GOLD), 32, 1, cap_top=False, cap_bottom=False)
+    lathe(acc, [(.06, top + .01), (.13, top - .03), (.15, top - .07), (.1, top - .06)], (0, 0, 0), C(GOLD), 16, 1, cap_top=False, cap_bottom=False)
+    lathe(acc, [(.3, top - .27), (.335, top - .3), (.355, top - .34), (.32, top - .32)], (0, 0, 0), C(GOLD), 20, 1, cap_top=False, cap_bottom=False)
     inner = [(.46, top - .6), (.45, top - .56), (.38, top - .43), (.25, top - .22), (.11, top - .06), (0, top - .03)]
-    lathe(acc, inner, (0, 0, 0), "C_F7F4EC", 32, 2, cap_top=False, cap_bottom=False)
-    lathe(acc, [(.455, top - .6), (.49, top - .6), (.5, top - .62), (.49, top - .65), (.455, top - .65)], (0, 0, 0), C(GOLD), 32, 1, cap_top=False, cap_bottom=False)
-    lathe(acc, [(0, top - .5), (.38, top - .5), (.38, top - .52), (0, top - .53)], (0, 0, 0), HEAD_L, 28, 0)
+    lathe(acc, inner, (0, 0, 0), "C_F7F4EC", 20, 1, cap_top=False, cap_bottom=False)
+    lathe(acc, [(.455, top - .6), (.49, top - .6), (.5, top - .62), (.49, top - .65), (.455, top - .65)], (0, 0, 0), C(GOLD), 20, 1, cap_top=False, cap_bottom=False)
+    lathe(acc, [(0, top - .5), (.38, top - .5), (.38, top - .52), (0, top - .53)], (0, 0, 0), HEAD_L, 20, 0)
     lathe(acc, [(0, top - .2), (.09, top - .24), (.11, top - .34), (.07, top - .44), (0, top - .46)], (0, 0, 0), BULB, 14, 2)
     objs = acc.realize()
     for o in objs:

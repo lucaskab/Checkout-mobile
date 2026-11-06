@@ -4501,6 +4501,10 @@ const catalog: Catalog = {
 	"O nome e o logo vão para a fachada, os produtos da marca própria e as filiais, nas cores do mercado.": "El nombre y el logo van a la fachada, los productos de marca propia y las sucursales, con los colores del mercado.",
 	"Mais um na sua frota": "Uno más para tu flota",
 	"Entregue do seu estoque e receba {0} moedas. Viagem: {1}.": "Entrega de tu inventario y recibe {0} monedas. Viaje: {1}.",
+	"Em construção": "En construcción",
+	"Subindo para o nível {0}": "Subiendo al nivel {0}",
+	"Até {0} por hora": "Hasta {0} por hora",
+	"{0} por hora": "{0} por hora",
 };
 
 export default catalog;

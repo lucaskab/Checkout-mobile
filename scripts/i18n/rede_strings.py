@@ -216,3 +216,9 @@ S3 = [
  ("Mais um na sua frota", "One more for your fleet", "Uno más para tu flota", "Un de plus dans votre flotte", "Einer mehr für deine Flotte"),
  ("Entregue do seu estoque e receba {0} moedas. Viagem: {1}.", "Deliver from your stock and get {0} coins. Trip: {1}.", "Entrega de tu inventario y recibe {0} monedas. Viaje: {1}.", "Livrez depuis votre stock et recevez {0} pièces. Trajet : {1}.", "Liefere aus deinem Lager und erhalte {0} Münzen. Fahrt: {1}."),
 ]
+S4 = [
+ ("Em construção", "Under construction", "En construcción", "En construction", "Im Bau"),
+ ("Subindo para o nível {0}", "Growing to level {0}", "Subiendo al nivel {0}", "Passe au niveau {0}", "Wächst auf Stufe {0}"),
+ ("Até {0} por hora", "Up to {0} an hour", "Hasta {0} por hora", "Jusqu'à {0} par heure", "Bis zu {0} pro Stunde"),
+ ("{0} por hora", "{0} an hour", "{0} por hora", "{0} par heure", "{0} pro Stunde"),
+]

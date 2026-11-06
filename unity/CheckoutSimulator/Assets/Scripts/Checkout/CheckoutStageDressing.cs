@@ -130,6 +130,8 @@ namespace Checkout
                 item.gameObject.SetActive(visible && !hidden.Contains(item));
             }
             Stage = stage;
+            // the bunting lines and pendant lamps wear the Blender models (CheckoutCeilingDeco, Lucas 05/11)
+            CheckoutCeilingDeco.Dress(transform);
             return appeared;
         }
 

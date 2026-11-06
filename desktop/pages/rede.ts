@@ -369,7 +369,8 @@ function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
 	const next = getBranchNextStep(b);
 	const art = redeIcon(`filial-${id}`);
 	const look = `scene:${SCENES[id]}`;
-	const likes = [`Gosta de ${favoritesText(def.favorites)}`];
+	// (the two favourite goods only: the four of them wrapped into a block of small print)
+	const likes = [`Gosta de ${def.favorites.slice(0, 2).map(categoryLabel).join(" e ")}`];
 	if (b.works) {
 		const cost = getSkipDiamondCost(b.works.endsAt - now);
 		return tile(id, def.name, {
@@ -382,7 +383,7 @@ function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
 			state: "busy",
 			stars: b.level,
 			maxStars: b.level > 0 ? 3 : 0,
-			subtitle: b.level === 0 ? "A loja está sendo construída" : "A loja está crescendo",
+			subtitle: b.level === 0 ? "Em construção" : `Subindo para o nível ${b.works.level}`,
 			action: act(`Acelerar · ${cost}`, "finishChainBranchNow", [id], { variant: "gem", icon: gameIcon("diamond"), ok: `Filial ${def.name} pronta!`, fail: "Diamantes insuficientes" }),
 		});
 	}
@@ -394,7 +395,7 @@ function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
 			look,
 			tone: state.coins >= price ? "gold" : "locked",
 			sticker: "À VENDA",
-			subtitle: `Rende até ${fmt(perHour)} moedas por hora`,
+			subtitle: `Até ${fmt(perHour)} por hora`,
 			lines: likes,
 			action: act(fmt(price), "buyChainBranch", [id], { variant: "coin", icon: gameIcon("coin"), enabled: state.coins >= price, ok: `A obra da filial ${def.name} começou!`, fail: "Moedas insuficientes" }),
 		});
@@ -428,7 +429,7 @@ function branchTile(state: State, id: ChainBranchId, now: number): BoardTile {
 		fillText: `Prateleiras ${Math.round(b.supply * 100)}%`,
 		timerEnd: b.cargo ? b.cargo.arriveAt : 0,
 		timerTotal: b.cargo ? b.cargo.arriveAt - now : 0,
-		subtitle: `${fmt(getBranchIncomePerMin(id, b.level) * 60 * b.supply)} moedas por hora`,
+		subtitle: `${fmt(getBranchIncomePerMin(id, b.level) * 60 * b.supply)} por hora`,
 		action: actions[0],
 		actions,
 	});
