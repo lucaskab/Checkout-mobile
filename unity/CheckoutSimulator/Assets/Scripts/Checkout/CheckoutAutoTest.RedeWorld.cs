@@ -107,30 +107,57 @@ namespace Checkout {
    Result("the yard stands with the fleet parked",yard&&ids.Length>=5&&ids.All(id=>yard.QaMode(id)=="Parked"),yard?yard.Describe():"-");
    var o=CheckoutRedeYard.Origin;
    if(sim)sim.HomeCamera();yield return new WaitForSecondsRealtime(.5f);
-   TierShot("yard_gamecam",2048,1152,o+new Vector3(-2,1,0),30);
-   yield return From("yard_se",o+new Vector3(-1,1,0),new Vector3(.75f,.8f,-1f),34,34);
+   TierShot("yard_gamecam",2048,1152,o+new Vector3(0,1,5),38);
+   yield return From("yard_se",o+new Vector3(0,1,5),new Vector3(.75f,.8f,-1f),42,34);
+   yield return From("yard_north",o+new Vector3(12,1,16),new Vector3(-.5f,.9f,-1f),40,40);
    yield return From("yard_pump_close",CheckoutRedeYard.PumpPosition+Vector3.up,new Vector3(.8f,.55f,-.9f),14,34);
-   TopDown(o,40,"yard_top");
-   // a round trip filmed: one truck leaves, another comes in to the pump and backs into its bay
-   if(sim)sim.FocusCinematic(o+new Vector3(3,0,-1),20);yield return new WaitForSecondsRealtime(.5f);
+   TopDown(o+new Vector3(2,0,5),46,"yard_top");
+   // Filmed: two trucks leave and two come back at the same time (the second waits behind the first at the pump):
+   // out by the exit, in by the entrance, never on the same stretch of road, never over the pavement.
+   if(sim)sim.FocusCinematic(o+new Vector3(6,0,6),28);yield return new WaitForSecondsRealtime(.5f);
    RecStart("Logs/yard_demo.mjpg");
-   bool left=ids.Length>1&&yard.QaLeave(ids[1]);
-   yield return Frames(2.2f);
-   if(left)yield return From("yard_leaving",o+new Vector3(4,1,-2),new Vector3(.6f,.7f,-1f),24,34);
-   bool back=yard.QaRoundTrip(ids[0]);
-   Transform m0=yard.TruckModel(ids[0]);
-   bool pumpShot=false,parked=false;
-   for(float t=0;t<60;t+=.25f){
+   bool left1=ids.Length>1&&yard.QaLeave(ids[1]);
+   bool left3=ids.Length>3&&yard.QaLeave(ids[3]);
+   yield return Frames(1.5f);
+   bool back0=yard.QaRoundTrip(ids[0]);
+   bool back2=ids.Length>2&&yard.QaRoundTrip(ids[2]);
+   var watch=ids.Take(4).ToArray();
+   float closest=99;string closestAt="";int kerbHits=0;string kerbAt="";bool queued=false,pumpShot=false,leftShot=false;
+   var slab=CheckoutRedeYard.Slab;
+   bool OnDrive(float z)=>(z>o.z+9.6f-.3f&&z<o.z+12.8f+.3f)||(z>o.z-4f-.3f&&z<o.z-.6f+.3f);
+   for(float t=0;t<110;t+=.25f){
     yield return Frames(.25f);
-    var mode=yard.QaMode(ids[0]);
-    if(!pumpShot&&mode=="Refuelling"){pumpShot=true;yield return From("yard_refuel",CheckoutRedeYard.PumpPosition+Vector3.up,new Vector3(.8f,.55f,-.9f),15,34);}
-    if(mode=="Backing"&&m0&&t%2f<.26f)Note($"yard: backing at ({m0.position.x:0.0},{m0.position.z:0.0}) yaw {m0.eulerAngles.y:0}");
-    if(pumpShot&&mode=="Parked"){parked=true;break;}
+    // fleet trucks on the move never closer than a truck's width side by side / its length nose to tail
+    var moving=watch.Select(id=>(id,m:yard.TruckModel(id),mode:yard.QaMode(id))).Where(x=>x.m&&x.m.gameObject.activeInHierarchy&&x.mode!="Parked").ToArray();
+    for(int i=0;i<moving.Length;i++)for(int j=i+1;j<moving.Length;j++){
+     var d=moving[i].m.position-moving[j].m.position;d.y=0;
+     var f=moving[i].m.forward;float along=Mathf.Abs(Vector3.Dot(d,f)),side=(d-f*Vector3.Dot(d,f)).magnitude;
+     float gap=side>2.0f?99:along;   // side by side in two lanes (2.2 m apart): no clash
+     if(gap<closest){closest=gap;closestAt=$"{moving[i].id}/{moving[j].id} at ({moving[i].m.position.x:0.0},{moving[i].m.position.z:0.0}) t={t:0.0}";}
+    }
+    // nose and tail on asphalt: the yard, the driveways or the road, never the pavement / cycle lane / plaza
+    foreach(var x in moving){
+     foreach(var k in new[]{-1.9f,0f,1.9f}){
+      var p=x.m.position+x.m.forward*k;
+      bool yardSlab=slab.Contains(new Vector2(p.x,p.z));
+      bool road=p.x>CheckoutStreetLayout.LocalCurbInner-.1f&&p.x<CheckoutStreetLayout.LocalCurbOuter+.1f;
+      bool drive=p.x>=slab.xMax-.2f&&p.x<=CheckoutStreetLayout.LocalCurbInner+.1f&&OnDrive(p.z);
+      if(!yardSlab&&!road&&!drive){kerbHits++;if(kerbAt.Length<200)kerbAt+=$" {x.id}({p.x:0.0},{p.z:0.0})";}
+     }
+    }
+    if(yard.QaHeld(ids[2])||yard.QaHeld(ids[0]))queued=true;
+    if(!leftShot&&left1&&yard.QaMode(ids[1])=="Leaving"&&yard.TruckModel(ids[1]).position.x>o.x+18){leftShot=true;yield return From("yard_leaving",CheckoutRedeYard.ExitAt+Vector3.up,new Vector3(.6f,.75f,-1f),22,34);}
+    if(!pumpShot&&yard.QaMode(ids[0])=="Refuelling"){pumpShot=true;yield return From("yard_refuel",CheckoutRedeYard.PumpPosition+Vector3.up,new Vector3(.8f,.55f,-.9f),18,34);}
+    if(watch.All(id=>yard.QaMode(id)=="Parked"||yard.QaMode(id)=="Away")&&yard.QaMode(ids[0])=="Parked"&&yard.QaMode(ids[2])=="Parked")break;
    }
    yield return Frames(1.5f);RecStop();
-   Result("a truck comes in, refuels and backs into its bay",back&&pumpShot&&parked,m0?$"at ({m0.position.x:0.00},{m0.position.z:0.00}) yaw {m0.eulerAngles.y:0}":"-");
-   if(parked)yield return From("yard_parked_again",o+new Vector3(4,1,2),new Vector3(.3f,.8f,-1f),20,34);
-   Result("a truck leaves the yard to the street",left&&yard.QaMode(ids[1])=="Away",yard.QaMode(ids[1]));
+   var m0=yard.TruckModel(ids[0]);
+   Result("two trucks come in, refuel and park in their bays",back0&&back2&&pumpShot&&yard.QaMode(ids[0])=="Parked"&&yard.QaMode(ids[2])=="Parked",yard.Describe());
+   Result("trucks leave by the exit to the north end of the map",left1&&left3&&yard.QaMode(ids[1])=="Away"&&yard.QaMode(ids[3])=="Away",yard.Describe());
+   Result("trucks on the move never overlap",closest>5f,$"closest nose-tail {closest:0.0} m {closestAt}");
+   Result("trucks never drive over the pavement",kerbHits==0,$"{kerbHits} samples off the asphalt{kerbAt}");
+   Note($"yard: the second arrival queued behind the first: {queued}");
+   if(m0)yield return From("yard_parked_again",o+new Vector3(2,1,5),new Vector3(.3f,.8f,-1f),30,34);
    yield return new WaitForSecondsRealtime(2f);
    if(sim)sim.HomeCamera();
   }

@@ -142,11 +142,13 @@ namespace Checkout {
    return "seco";
   }
 
-  // The chain's truck in real metres on the supplier truck's footprint: tail on its tail, wheels on its wheels, facing
+  // The chain's truck (FleetScale) on the supplier truck's footprint: tail on its tail, wheels on its wheels, facing
   // the way it drives (+Z); the Blender truck faces −Z, so it turns round.
   static void Fit(Transform truck,Transform model){
    var ls=truck.lossyScale;
-   model.localScale=new Vector3(1/Mathf.Max(.0001f,ls.x),1/Mathf.Max(.0001f,ls.y),1/Mathf.Max(.0001f,ls.z));
+   // at the fleet's game scale (the same trucks as in the yard, in proportion to the streets)
+   float k=CheckoutRedeYard.FleetScale;
+   model.localScale=new Vector3(k/Mathf.Max(.0001f,ls.x),k/Mathf.Max(.0001f,ls.y),k/Mathf.Max(.0001f,ls.z));
    model.localRotation=Quaternion.Euler(0,180,0);model.localPosition=Vector3.zero;
    var own=Box(truck,truck,model,false);var fleet=Box(truck,model,null,true);
    model.localPosition+=new Vector3(own.center.x-fleet.center.x,own.min.y-fleet.min.y,own.min.z-fleet.min.z);
