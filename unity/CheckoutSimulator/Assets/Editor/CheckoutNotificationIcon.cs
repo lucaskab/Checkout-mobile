@@ -31,6 +31,10 @@ public static class CheckoutNotificationIcon
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.SaveAndReimport();
         }
+        // The game asks for the permission itself, after the first long build (CheckoutNotifications), not at launch;
+        // and Android keeps the scheduled notifications through a phone restart.
+        if (NotificationSettings.iOSSettings.RequestAuthorizationOnAppLaunch) NotificationSettings.iOSSettings.RequestAuthorizationOnAppLaunch = false;
+        if (!NotificationSettings.AndroidSettings.RescheduleOnDeviceRestart) NotificationSettings.AndroidSettings.RescheduleOnDeviceRestart = true;
         var settings = Path.Combine("ProjectSettings", "NotificationsSettings.asset");
         if (File.Exists(settings) && File.ReadAllText(settings).Contains(Id)) return;
         var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(TexturePath);
