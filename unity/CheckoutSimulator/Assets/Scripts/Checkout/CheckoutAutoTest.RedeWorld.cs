@@ -41,6 +41,12 @@ namespace Checkout {
    yield return From("dc_sw",c,new Vector3(-.9f,.6f,-1f),36,30);
    yield return From("dc_ne_docks",c+new Vector3(6,-1,0),new Vector3(1.2f,.55f,.35f),30,30);
    TopDown(new Vector3(c.x+6,0,c.z),34,"dc_top");
+   // the whole lot and its neighbours: where the fleet's diesel island and parked trucks could go
+   TopDown(new Vector3(4,0,24),78,"dc_overview");
+   yield return From("dc_overview_iso",new Vector3(6,0,30),new Vector3(.9f,1.25f,-.75f),70,40);
+   Note("dc: world texts on the depth-tested material: "+CheckoutWorldText.Fixed);
+   var facade=world?world.Find("Market Stage Dressing/S4 name"):null;
+   if(facade){var fz=facade.position;Note($"dc: facade letters at ({fz.x:0.0},{fz.y:0.0},{fz.z:0.0})");}
    var gate=world?world.Find("Rede gatehouse"):null;var totem=world?world.Find("Rede totem"):null;
    Result("the truck gate and the chain's totem stand",gate&&gate.gameObject.activeInHierarchy&&totem&&totem.gameObject.activeInHierarchy,$"gate {(gate?gate.position.ToString():"-")} totem {(totem?totem.position.ToString():"-")}");
    if(gate)yield return From("dc_gate",gate.position+new Vector3(0,1.5f,-2f),new Vector3(1f,.55f,-.8f),13,30);

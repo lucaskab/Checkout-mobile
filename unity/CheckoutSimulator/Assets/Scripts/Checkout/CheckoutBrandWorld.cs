@@ -33,6 +33,7 @@ namespace Checkout {
   Transform Dressing()=>world?world.Find("Market Stage Dressing"):null;
 
   void Dress(){
+   CheckoutWorldText.Fix(world);
    var root=Dressing();if(!root)return;
    bool on=CheckoutBrand.Named&&!string.IsNullOrEmpty(CheckoutBrand.Name);
    string name=CheckoutBrand.Name.ToUpperInvariant();
