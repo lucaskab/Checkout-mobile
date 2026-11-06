@@ -26,10 +26,7 @@ namespace Checkout {
    Act("resetMarketPaint","[]");Act("devSetMarketEra","[\"rede\"]");
    Route("");yield return new WaitForSecondsRealtime(8f);Act("dismissLevelUp","[]");if(hud)hud.QaReleaseCelebrations();
    Act("nameChain","[\"Bom Preço\",\"coroa\"]");yield return new WaitForSecondsRealtime(2f);Route("");
-   Act("hireEmployee","[\"cashier\"]");Act("hireEmployee","[\"stock_clerk\"]");
    Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(3f);
-   for(int k=0;k<3&&!bridge.State.isOpen;k++){Act("claimDayResult","[]");Act("startDay","[\"livre\"]");yield return new WaitForSecondsRealtime(2f);if(!bridge.State.isOpen){Act("setMarketOpen","[true]");yield return new WaitForSecondsRealtime(2f);}}
-   Note("dc: market open="+bridge.State.isOpen+" day "+bridge.State.day?.phase);
    Note("dc: "+CheckoutRedeWorld.Report);
    var grand=world?world.Find(CheckoutMarketLayout.GrandWarehouse):null;
    if(grand)Note("dc: Warehouse Large children: "+string.Join(", ",grand.Cast<Transform>().Select(c=>c.name+(c.gameObject.activeSelf?"":"(off)"))));
@@ -72,25 +69,6 @@ namespace Checkout {
     yield return From("dc_fleet_dock",p+new Vector3(-1,1,0),new Vector3(1f,.7f,-.9f),14,30);
     TierShot("dc_fleet_gamecam",2048,1152,p,18);
    }
-   // 5. the staff's uniforms and the customers' bags
-   yield return new WaitForSecondsRealtime(2.5f);
-   Result("the staff wear the chain's logo",CheckoutRedeUniforms.Shown>0,$"{CheckoutRedeUniforms.Shown} badges");
-   var cashier=world?world.Find("Worker_Cashier"):null;
-   if(cashier)Note("dc: cashier active="+cashier.gameObject.activeInHierarchy+" bones: "+string.Join(",",cashier.GetComponentsInChildren<Transform>(true).Select(t=>t.name).Where(n=>System.Text.RegularExpressions.Regex.IsMatch(n,"Arm|Hand|Head|Spine|Chest|Neck|Clav",System.Text.RegularExpressions.RegexOptions.IgnoreCase)).Take(30)));
-   if(world)Note("dc: workers: "+string.Join(",",world.Cast<Transform>().Where(t=>t.name.StartsWith("Worker_")).Select(t=>t.name+(t.gameObject.activeInHierarchy?"":"(off)"))));
-   // shelves stocked so customers find something to buy and reach the till
-   foreach(var sh in bridge.State.shelves??new Shelf[0])if(sh!=null&&sh.unlocked&&!sh.building&&sh.productId>0&&sh.stock<sh.capacity){int add=sh.capacity-sh.stock;Act("devAdjustInventory",$"[{sh.productId},{add}]");Act("restockShelf","[{\"shelfId\":\""+sh.id+"\",\"productId\":"+sh.productId+",\"amount\":"+add+"}]");}
-   if(cashier&&cashier.gameObject.activeInHierarchy){var cf=-cashier.forward;cf.y=0;yield return From("dc_uniform",cashier.position+Vector3.up*1.4f,cf.normalized+Vector3.up*.35f,3.2f,32);}
-   CheckoutRedeBag carrier=null;var served=new System.Collections.Generic.HashSet<string>();
-   for(float t=0;t<200&&!carrier;t+=.5f){
-    if(Mathf.Repeat(t,30f)<.01f)Note($"dc: t={t:0} open={bridge.State.isOpen} walkers active {FindObjectsByType<CheckoutWalker>(FindObjectsSortMode.None).Length} host customers {bridge.State.customers?.Length??0} till {bridge.State.checkouts?.Length??0}");
-    yield return new WaitForSecondsRealtime(.5f);
-    foreach(var b in FindObjectsByType<CheckoutRedeBag>(FindObjectsSortMode.None)){var bg=b.transform.Find("Rede bag");if(bg&&bg.gameObject.activeInHierarchy){carrier=b;break;}}
-    // the till is served at once so customers pay without waiting for the player
-    foreach(var e in bridge.State.checkouts??new CheckoutEntry[0])if(e!=null&&e.readyAt<=CheckoutBridge.Now&&served.Add(e.id))bridge.Command("completeCheckout","[\""+e.id+"\","+System.Math.Max(1,System.Math.Round(e.total)).ToString(System.Globalization.CultureInfo.InvariantCulture)+"]");
-   }
-   Result("a customer who paid leaves with the chain's bag",carrier,carrier?carrier.name:"nobody paid in 200 s");
-   if(carrier){yield return new WaitForSecondsRealtime(1.2f);var w=carrier.transform;var f=-w.forward;f.y=0;var side=Vector3.Cross(Vector3.up,f.normalized);yield return From("dc_bag",w.position+Vector3.up*1.0f,side+f*.6f+Vector3.up*.4f,4.2f,32);}
    // 4. repainted
    Act("applyMarketPaint","[\"C2185B\",\"00B8D4\",\"diamonds\"]");yield return new WaitForSecondsRealtime(3f);
    yield return From("dc_paint",c,new Vector3(1.1f,.75f,-1f),36,30);

@@ -37,8 +37,11 @@ namespace Checkout {
    // built through the host, one cashier hired per checkout, and the host serves the line itself (no instant serving):
    // per lane, every 15 s, open / staffed / people waiting; a still of the checkout area (crowd_<tag>_lanes*.jpg).
    bool lanes = args.Contains("lanes");
+   // ".brand" (Rede, Lucas 06/11): the chain is named first; customers who pay leave with its paper bag and the staff
+   // wear its logo (stills crowd_<tag>_bag / _uniform, RESULT lines).
+   bool brand = args.Contains("brand");
    bool stock = carts || lanes || args.Contains("stock");
-   string tag = stage + (keep ? "_keep" : "") + (carts ? "_carts" : lanes ? "_lanes" : stock ? "_stock" : "");
+   string tag = stage + (keep ? "_keep" : "") + (carts ? "_carts" : lanes ? "_lanes" : stock ? "_stock" : "") + (brand ? "_brand" : "");
    int era = System.Array.IndexOf(EraIds, stage); if (era < 0) { Note("unknown stage " + stage); yield break; }
    var lines = new List<string>();
    void Line(string t) { lines.Add(t); Note("CROWD " + t); }
@@ -61,6 +64,7 @@ namespace Checkout {
     foreach (var st in stationTypes) { Hud("purchaseDecor", "[\"" + st + "\",\"coins\"]"); yield return new WaitForSecondsRealtime(1f); }
     Hud("dismissLevelUp", "[]"); yield return new WaitForSecondsRealtime(1f); var hudUi = FindAnyObjectByType<CheckoutDesktopHUD>(); if (hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen)) hudUi.QaCloseCelebrations();
    }
+   if (brand) { Hud("setMarketLevel", "[55]"); yield return new WaitForSecondsRealtime(1f); Hud("dismissLevelUp", "[]"); Hud("nameChain", "[\"Bom Preço\",\"coroa\"]"); Hud("hireEmployee", "[\"cashier\"]"); Hud("hireEmployee", "[\"stock_clerk\"]"); yield return new WaitForSecondsRealtime(1.5f); }
    string[] laneItems = CheckoutLanes.Counters.Concat(CheckoutLanes.Kiosks).Select(c => c.item).Where(i => i != null).Distinct().ToArray();
    if (lanes) {
     roomLanes = true;
@@ -219,7 +223,7 @@ namespace Checkout {
    int sent = 0, stops3 = 0, stops8 = 0, maxInside = 0, maxLine = 0, maxOutside = 0; float insideSum = 0, overflowSec = 0, doorSec = 0, waitOutSec = 0, longestStop = 0, t0 = Time.time, nextSend = 0;
    string longestWho = "";
    float gap = Mathf.Max(1.2f, seconds * .45f / count);   // the shoppers set off within the first half of the run
-   bool shotClose = false, shotTop = false, shotLanes = false; float nextLineNote = 15; var laneMax = new Dictionary<string, int>();
+   bool shotClose = false, shotTop = false, shotLanes = false, bagShot = false, uniformShot = false; float nextLineNote = 15; var laneMax = new Dictionary<string, int>();
    var door = CheckoutStall.Door; float doorHalf = CheckoutStall.DoorHalf;
    Rect doorZone = Rect.MinMaxRect(door.x - doorHalf - .25f, door.y - 1.1f, door.x + doorHalf + .25f, door.y + .9f);
    // The register is served at once, as by an attentive player or a cashier: the host's customers otherwise wait at
@@ -312,6 +316,19 @@ namespace Checkout {
      if (lanes) Line($"t={at:0} lanes " + string.Join(" ", map.Lanes.lanes.Select(l => $"[{l.itemId ?? "?"} {(l.Open ? "open" : "shut")}{(l.staffed ? "" : " no-cashier")} q{l.queue.Count}]")) + $" | host line {bridge.State.checkouts?.Length ?? 0} paid {paidAll}");
     }
     if (!shotClose && at > seconds * .5f) { shotClose = true; var fc = CheckoutStall.Footprint; CaptureAt(new Vector3(fc.center.x, .6f, fc.center.z - .4f), Mathf.Max(fc.size.x, fc.size.z) * 1.5f + 1, $"crowd_{tag}_close"); Capture($"crowd_{tag}_home"); }
+    if (brand && !bagShot) foreach (var b in FindObjectsByType<CheckoutRedeBag>(FindObjectsSortMode.None)) {
+     var bg = b.transform.Find("Rede bag"); if (!bg || !bg.gameObject.activeInHierarchy) continue;
+     bagShot = true; var w = b.transform; var f = -w.forward; f.y = 0; var side = Vector3.Cross(Vector3.up, f.normalized);
+     Line($"RESULT {tag} bag: PASS {w.name} leaves with the chain's bag at t={at:0}");
+     yield return From($"crowd_{tag}_bag", w.position + Vector3.up * 1.0f, side + f * .6f + Vector3.up * .4f, 4.2f, 32);
+     TierShot($"crowd_{tag}_bag_gamecam", 2048, 1152, w.position + Vector3.up, 9); break;
+    }
+    if (brand && !uniformShot && at > 25) {
+     uniformShot = true;
+     Line($"RESULT {tag} uniforms: {(CheckoutRedeUniforms.Shown > 0 ? "PASS" : "FAIL")} {CheckoutRedeUniforms.Shown} badges");
+     var simW = FindAnyObjectByType<MarketDay.MarketSimulation>(); var cashier = simW && simW.world ? simW.world.Find("Worker_Cashier") : null;
+     if (cashier && cashier.gameObject.activeInHierarchy) { var cf = -cashier.forward; cf.y = 0; yield return From($"crowd_{tag}_uniform", cashier.position + Vector3.up * 1.4f, cf.normalized + Vector3.up * .35f, 3.2f, 32); }
+    }
     if (lanes) foreach (var l in map.Lanes.lanes) { laneMax.TryGetValue(l.itemId ?? "?", out var m); laneMax[l.itemId ?? "?"] = Mathf.Max(m, l.queue.Count); }
     if (lanes && !shotLanes && at > seconds * .6f) {
      shotLanes = true; var z = inside.CheckoutZone; var zc = new Vector3(z.center.x, .8f, z.center.y);
@@ -333,6 +350,7 @@ namespace Checkout {
         $"host checkouts served {served.Count}; paid (everyone) {paidAll}; " +
         $"market closed {closes}x ({closedSec:0}s); " +
         $"QA visits paid {paid.Count}/{sent} (time to get in mean {Mean(paid.Where(v => v.entered > 0).Select(v => v.entered - v.began)):0}s, to pay mean {Mean(paid.Select(v => v.paid - v.began)):0}s max {Max(paid.Select(v => v.paid - v.began)):0}s), left without paying {noPay.Count}, still in the shop {still.Count}");
+   if (brand && !bagShot) Line($"RESULT {tag} bag: FAIL nobody left with a bag ({paidAll} paid)");
    if (lanes) Line($"RESULT {tag} lanes: most waiting per lane [{string.Join(", ", laneMax.Select(p => p.Key + " " + p.Value))}]; lanes used {laneMax.Count(p => p.Value > 0)}/{laneMax.Count}; paid {paidAll}");
    if (carts) {
     var qa = CrowdCarriers.Select(c => $"{c}: sent {done.Count(v => v.carrier == c)} in {carrierInside.Count(x => x.EndsWith(":" + c))} paid {paid.Count(v => v.carrier == c)} shot {(carrierShots.Contains(c) ? "yes" : "no")}");
