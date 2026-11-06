@@ -183,7 +183,7 @@ namespace Checkout {
       else if(t-unloadAt>3f){unloadAt=t;Act("unloadAllDeliveries","[]");}
      }
     }
-    if(supplyId!=null&&yard.QaRoute(supplyId)=="home from the dock"){tookOver=true;unloaded=true;}
+    if(supplyId!=null&&yard.QaRoute(supplyId)=="home from the dock"){tookOver=true;unloaded=true;unloadSeen=true;}
     bool contractHome=routes[ids[0]].Contains("home from the city")&&yard.QaMode(ids[0])=="Parked";
     bool branchHome=routes[ids[1]].Contains("home from the city")&&yard.QaMode(ids[1])=="Parked";
     bool supplyHome=supplyId==null||tookOver&&yard.QaMode(supplyId)=="Parked";
