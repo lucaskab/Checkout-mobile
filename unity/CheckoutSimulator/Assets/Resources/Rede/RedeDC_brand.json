@@ -1,9 +1,9 @@
 {
  "model": "RedeDC",
- "tris": 69505,
+ "tris": 66777,
  "size": [
   22.48,
-  15.695,
+  15.7,
   20.507
  ],
  "plates": [
@@ -37,7 +37,7 @@
    ]
   },
   {
-   "name": "Brand_Logo_Front.014",
+   "name": "Brand_Logo_Front.015",
    "holder": "RedeDC_Medallion.001",
    "kind": "logo",
    "size": 1.25,
@@ -76,7 +76,7 @@
    "pos": [
     9.48,
     8.4,
-    0.05
+    1.55
    ],
    "normal": [
     1.0,
