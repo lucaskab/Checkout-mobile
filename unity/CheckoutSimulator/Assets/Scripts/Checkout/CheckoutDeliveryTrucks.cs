@@ -267,6 +267,9 @@ namespace Checkout
             if (!t || !trucks.TryGetValue(t.name, out var tr) || reviewing) return;
             if (tr.state == State.Away) { if (t.gameObject.activeSelf) t.gameObject.SetActive(false); return; }
             if (tr.state == State.Leaving) return;
+            // At the grand yard a truck on its way in parks first and leaves from its bay (never a U-turn mid-street; Rede:
+            // the chain's truck then drives home from the dock).
+            if (Kind == Yard.Grand && tr.state == State.Arriving) return;
             if (Kind == Yard.Curb) CheckoutEventTraffic.ClearDeliveryBlock();
             // Rede: unloaded at the centre's dock, the chain's truck it was dressed as drives home to the yard from here
             // (the yard's own truck takes its place, same model, same spot).
