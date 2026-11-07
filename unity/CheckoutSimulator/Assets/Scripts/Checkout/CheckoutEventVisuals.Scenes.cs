@@ -900,6 +900,8 @@ namespace Checkout {
    Prop("Maquininha_CounterSign", till + face * .62f - side * .45f + Vector3.up * .95f, Quaternion.LookRotation(-face).eulerAngles.y);
    Fx2(root, "Maquininha_CashBills", till + face * .66f + side * .3f + Vector3.up * .98f, "pulse", Quaternion.LookRotation(-face).eulerAngles.y);
    Focus(till + face * .5f);
+   var mr = machine.GetComponentInChildren<Renderer>(true);
+   Debug.Log($"CHECKOUT_MAQ working={working} till={till} face={face} hand={(holder ? holder.name : "-")} machine={machine.position} bounds={(mr ? mr.bounds.size.ToString() : "none")} root={root.position}");
   }
   static Vector3 Flat(Vector3 v, Vector3 fallback) { v.y = 0; return v.sqrMagnitude > .01f ? v.normalized : fallback; }
   // The right hand bone of a rigged character (names vary between the Tripo, Meshy and Blender rigs).
