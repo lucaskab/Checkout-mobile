@@ -16,7 +16,9 @@
 	// such as Monday's league results go out over several runs).
 	"triggers": { "crons": ["5 0 * * 1", "*/10 * * * *"] },
 	"vars": {
-		"GOOGLE_CLIENT_IDS": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com,663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
+		"GOOGLE_CLIENT_IDS": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com,663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com,663095472642-7u2tltaqinuirqi9p1s9lns9opad3710.apps.googleusercontent.com",
+		// The iPhone's Google login (Unity CheckoutCloud.IosClientId, OAuth client "Checkout iPhone"; no secret).
+		"GOOGLE_IOS_CLIENT_ID": "663095472642-7u2tltaqinuirqi9p1s9lns9opad3710.apps.googleusercontent.com",
 		"GOOGLE_DESKTOP_CLIENT_ID": "663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
 		"APPLE_BUNDLE_IDS": "com.lucasfurini.checkout,com.lucasfurini.checkout.dev",
 		// Temporary (the move from Render): the public half of the admin key, checks the signed tokens of /admin/*.

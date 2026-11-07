@@ -34,8 +34,9 @@ namespace Checkout {
   public const string WebClientId="663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com";
   const string DesktopClientId="663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com";
   // The iOS OAuth client (Google Cloud › Credentials › iOS, bundle id of the iPhone app). Empty = no Google button on
-  // the iPhone yet (Apple only). Its redirect is the reversed id: com.googleusercontent.apps.<id>:/oauth2redirect.
-  const string IosClientId="";
+  // the iPhone (Apple only). Its redirect is the reversed id: com.googleusercontent.apps.<id>:/oauth2redirect.
+  // "Checkout iPhone" (created 06/11, bundle com.lucasfurini.checkout, team 282CN823D6): iPhone = Apple + Google.
+  const string IosClientId="663095472642-7u2tltaqinuirqi9p1s9lns9opad3710.apps.googleusercontent.com";
   const float UploadEvery=300f,RetryOffline=60f;
   static string Server{get{var env=Environment.GetEnvironmentVariable("CHECKOUT_SERVER");return string.IsNullOrEmpty(env)?DefaultServer:env.TrimEnd('/');}}
   /// <summary>Social v1 (CheckoutSocial): the same server and session; the token stays in Unity.</summary>
