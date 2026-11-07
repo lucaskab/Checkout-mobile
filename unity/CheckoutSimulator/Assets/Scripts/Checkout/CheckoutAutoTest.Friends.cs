@@ -40,8 +40,10 @@ namespace Checkout {
   float RecAt=>recFrames/30f;
   // While recording every frame is 1/30 s of video: waits count frames.
   static IEnumerator Frames(float seconds){int n=Mathf.Max(1,Mathf.RoundToInt(seconds*30));for(int i=0;i<n;i++)yield return null;}
+  // Frames rendered at recSuper times the Game view's size and averaged down (the trailer: no crawling edges).
+  static int recSuper=1;
   static byte[] RecJpg(int width,int quality){
-   var tex=ScreenCapture.CaptureScreenshotAsTexture();
+   var tex=ScreenCapture.CaptureScreenshotAsTexture(recSuper);tex.filterMode=FilterMode.Bilinear;
    float k=Mathf.Min(1,width/(float)tex.width);
    int w=Mathf.RoundToInt(tex.width*k)/2*2,h=Mathf.RoundToInt(tex.height*k)/2*2;
    var rt=RenderTexture.GetTemporary(w,h,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);

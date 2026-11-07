@@ -53,7 +53,10 @@ namespace Checkout {
    State=next;map.Apply(next);try{Received?.Invoke(next);}catch(Exception e){Debug.LogException(e);}
    if(closing)foreach(var w in walkers)w.MarketClosed();if(seen.Count>2000){seen.Clear();foreach(var c in next.customers??Array.Empty<Customer>())seen.Add(c.id);}
   }catch(Exception ex){Debug.LogError("CHECKOUT_SNAPSHOT_ERROR "+ex.Message);}}
+  /// <summary>QA (the trailer's little table): the day's customers stay away while this is set.</summary>
+  public static bool QaNoVisits;
   void Update(){simulation.ExternalCamera();if(State==null){hello+=Time.unscaledDeltaTime;if(hello>1){hello=0;Emit("{\"kind\":\"ready\",\"protocol\":1}");}return;}
+   if(QaNoVisits)visits.Clear();
    simulation.speed=1;
    // New customers wait outside while the player rearranges the shop in build mode.
    if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutWalker.ShopCrowded){var walker=NextAvailableWalker();if(walker){if(EventVisit(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}else if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(WalkersClearOfEntrance()){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}

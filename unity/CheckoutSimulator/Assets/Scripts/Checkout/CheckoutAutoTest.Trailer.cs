@@ -46,6 +46,7 @@ namespace Checkout {
 
   /// <summary>Shoppers sent to the shop one after another (as eventscrowd does), each buying two or three things
   /// from the shop's shelves, until `count` were sent or the coroutine is stopped.</summary>
+  CheckoutWalker trLastWalker;
   IEnumerator TrSpawn(int count, float gap) {
    var rnd = new System.Random(7);
    var all = FindObjectsByType<CheckoutWalker>(FindObjectsInactive.Include, FindObjectsSortMode.None).ToList();
@@ -55,7 +56,7 @@ namespace Checkout {
     if (idle && shelfIds.Count > 0 && !CheckoutWalker.ShopCrowded) {
      var buy = new List<Purchase>(); int k = 2 + rnd.Next(2);
      for (int j = 0; j < k; j++) buy.Add(new Purchase { shelfId = shelfIds[rnd.Next(shelfIds.Count)], productId = 1, quantity = 1 + rnd.Next(2) });
-     idle.Begin(new Customer { id = "qa-trailer-" + sent, name = "QA", spent = 12, purchases = buy.ToArray() });
+     idle.Begin(new Customer { id = "qa-trailer-" + sent, name = "QA", spent = 12, purchases = buy.ToArray() }); trLastWalker = idle;
      sent++; yield return new WaitForSecondsRealtime(gap);
     } else yield return new WaitForSecondsRealtime(.5f);
    }
@@ -70,6 +71,7 @@ namespace Checkout {
    for (int i = 0; i <= n; i++) {
     float t = i / (float)n; t = t * t * (3 - 2 * t);
     if (sim) sim.FocusCinematic(Vector3.Lerp(a, b, t), Mathf.Lerp(za, zb, t));
+    if (i % 15 == 7) TrHideWorld(true);   // (padlocks and markers that came up mid-shot)
     if (i < n) yield return null;
    }
   }
@@ -115,61 +117,135 @@ namespace Checkout {
   /// the register served at once); returns once its shoppers are on their way. The crowd keeps running until the next.</summary>
   IEnumerator TrCrowd(string stage, int shoppers, string extra = "") {
    if (trCrowd != null) { StopCoroutine(trCrowd); trCrowd = null; }
+   tierLayout = null; tierOwned = null;   // (the last stage's layout must not land in this one)
    int from = log.Count;
    trCrowd = StartCoroutine(Crowd($"eventscrowd-{stage}.240.{shoppers}.stock{extra}"));
    yield return TrWaitLog("CROWD day ", 150);
    Note($"trailer: {stage} ready (era {bridge.State?.era?.id}, open {bridge.State?.isOpen})");
   }
 
-  /// <summary>The shop's shelves and sector counters laid out like a tidy player's shop: evenly along the back wall,
-  /// then an island row in the middle (eventscrowd stands them all near one corner). Checkouts stay where they are.</summary>
-  void TrArrange() {
-   var inside = CheckoutInterior.Active; var map = FindAnyObjectByType<CheckoutMap>(); if (!inside || !map) return;
-   var fl = inside.FloorRect;
-   var pieces = inside.items.Values.Where(i => i.root && i.functional && !i.outside && !i.building && (i.type == "shelf" || i.type == "sector"))
-    .OrderBy(i => i.type == "sector" ? 0 : 1).ThenBy(i => i.id).Select(i => i.id).ToList();
-   if (pieces.Count == 0) return;
-   inside.editing = true;
-   foreach (var id in pieces) inside.Unplace(inside.Get(id));
-   int nBack = Mathf.Max(1, Mathf.FloorToInt((fl.width - 2f) / 1.8f));
-   int back = Mathf.Min(nBack, pieces.Count <= 6 ? pieces.Count : Mathf.CeilToInt(pieces.Count * .6f)), mid = pieces.Count - back;
-   var spots = new List<Vector3>();
-   for (int i = 0; i < back; i++) spots.Add(new Vector3(fl.xMin + 1f + (fl.width - 2f) * (i + .5f) / back, CheckoutInterior.Floor, fl.yMax - .8f));
-   for (int i = 0; i < mid; i++) spots.Add(new Vector3(fl.xMin + 2.2f + (fl.width - 4.4f) * (i + .5f) / mid, CheckoutInterior.Floor, fl.center.y + .2f));
-   int put = 0;
-   for (int k = 0; k < pieces.Count; k++) {
-    var it = inside.PlaceWaiting(pieces[k], spots[k]);
-    if (it != null && !inside.Reachable(out _)) { inside.Unplace(it); it = null; }
-    if (it == null) it = inside.PlaceWaiting(pieces[k], new Vector3(fl.center.x, CheckoutInterior.Floor, fl.yMax - 1.5f));
-    if (it != null) put++;
+  // Merchandise islands that fill the floor between the fixtures (Lucas 08/11: "dê essa sensação de o mercado sempre
+  // tá mais cheio de coisas dentro"), then plants and machines for the gaps they leave.
+  static readonly string[] TrMerch = { "fruit-pyramid", "can-pyramid", "promo-stand", "watermelon-pile", "tasting-table", "wine-barrel", "flower-stand", "basket-stack" };
+  static readonly string[] TrSmall = { "plant-palm", "monstera", "water-cooler", "gumball", "digital-totem", "plant-small" };
+
+  /// <summary>The whole shop floor furnished like a busy supermarket: the sector counters along the back wall, then the
+  /// shelves and freezers, in rows from the back with an aisle between rows and a walkway in from the door; every gap
+  /// left in a row and every row after the fixtures filled with merchandise islands, plants and machines. The checkouts,
+  /// kiosks and their queues stay where they are. The layout goes in through the snapshot patch (tierLayout, as
+  /// eventstiers does), so every later snapshot keeps it; nothing is saved.</summary>
+  IEnumerator TrFill(string stage, int maxFill = 48) {
+   var inside = CheckoutInterior.Active; var map = FindAnyObjectByType<CheckoutMap>(); if (!inside || !map) yield break;
+   inside.editing = false;
+   var layout = inside.LayoutState; var floor = inside.FloorRect;
+   bool IsMain(string type) => type == "shelf" || type == "sector";
+   var live = inside.items.Values.Where(i => i.root && i.placed && !i.ghost && !i.design).ToList();
+   // what stays: checkouts, kiosks, stations, the decorations outside
+   var items = new List<InteriorItem>();
+   foreach (var i in live.Where(l => !IsMain(l.type) && (l.functional || l.outside)))
+    items.Add(new InteriorItem { id = i.id, type = i.type, x = i.x, z = i.z, rot = i.rot, outside = i.outside });
+   foreach (var w in inside.waiting.Where(w => !IsMain(w.Value.type))) items.Add(new InteriorItem { id = w.Key, type = w.Value.type, stored = true });
+   // where nothing goes: what stays inside (with room around it), the checkouts' queues, the way in, a walkway
+   Rect BoxOf(CheckoutInterior.Item i, float pad) {
+    var rs = i.root.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) return Rect.zero;
+    var bb = rs[0].bounds; foreach (var r in rs) bb.Encapsulate(r.bounds);
+    return Rect.MinMaxRect(bb.min.x - pad, bb.min.z - pad, bb.max.x + pad, bb.max.z + pad);
    }
-   map.FurnitureChanged(false); map.SaveInterior(); inside.MarkPending(); inside.editing = false;
-   Note($"trailer: arranged {put}/{pieces.Count} pieces ({back} along the back wall)");
+   var blockers = new List<Rect>();
+   float queueTop = floor.yMin;
+   foreach (var i in inside.items.Values.Where(l => l.root && l.root.gameObject.activeInHierarchy && (!IsMain(l.type) && !l.outside && l.functional || l.design))) {
+    bool counter = i.type == "checkout" || i.type == "kiosk";
+    var b = BoxOf(i, counter ? .9f : .35f); if (b.width <= 0) continue;
+    blockers.Add(b);
+    if (counter) { blockers.Add(Rect.MinMaxRect(b.xMin, b.yMin, b.xMax, b.yMax + 3.2f)); queueTop = Mathf.Max(queueTop, b.yMax + 3.2f); }
+   }
+   var zone = inside.CheckoutZone;
+   if (zone.width > .1f) blockers.Add(Rect.MinMaxRect(zone.xMin - .3f, floor.yMin, floor.xMax, Mathf.Max(queueTop, floor.yMin + 3f)));
+   float front = floor.yMin + (CheckoutStall.ShopInside ? 1.8f : 2.4f);
+   float right = CheckoutStall.Small && !CheckoutStall.PlacedCounter ? floor.xMax - .2f : floor.xMax - .1f;
+   float walk = Mathf.Clamp(map.Entrance.x, floor.xMin + 2.5f, right - 2.5f);
+   if (floor.width > 6f) blockers.Add(Rect.MinMaxRect(walk - .8f, floor.yMin, walk + .8f, floor.yMax));
+   // the fixtures: sectors first (the back wall), then shelves and freezers in buying order
+   var mains = new List<(string id, string type, CheckoutInteriorPiece piece)>();
+   CheckoutInteriorPiece PieceOf(string template) => inside.TemplateObject(template)?.GetComponent<CheckoutInteriorPiece>();
+   foreach (var i in live.Where(l => IsMain(l.type)).OrderBy(l => l.type == "sector" ? 0 : 1).ThenBy(l => l.type == "shelf" && ShelfEra.TryGetValue(l.id.Substring(6), out var e) ? e : 0).ThenBy(l => l.id)) {
+    var pc = PieceOf(i.desired ?? i.template) ?? i.piece; if (pc) mains.Add((i.id, i.type, pc)); else Note("trailer fill: no model for " + i.id);
+   }
+   foreach (var w in inside.waiting.Where(w => IsMain(w.Value.type))) { var pc = PieceOf(w.Value.template); if (pc) mains.Add((w.Key, w.Value.type, pc)); }
+   var fillers = TrMerch.Concat(TrSmall).Select(t => (type: t, piece: PieceOf(inside.DecorTemplate(t)))).Where(f => f.piece).ToList();
+   var small = fillers.Where(f => TrSmall.Contains(f.type)).ToList();
+   var merch = fillers.Where(f => TrMerch.Contains(f.type)).ToList();
+   int next = 0, fill = 0, fi = 0, placedMain = 0;
+   var owned = new Dictionary<string, int>();
+   float W(CheckoutInteriorPiece p) => p.max.x - p.min.x; float D(CheckoutInteriorPiece p) => p.max.y - p.min.y;
+   void Put(string id, string type, CheckoutInteriorPiece p, float x, float top) {
+    var b = CheckoutMarketLayout.Unproject(new Vector3(x - p.min.x, 0, top - p.max.y), layout);
+    items.Add(new InteriorItem { id = id, type = type, x = b.x, z = b.z, rot = 0 });
+   }
+   bool Free(Rect r) => r.xMax <= right && r.yMin >= front && !blockers.Any(b => b.Overlaps(r));
+   // a filler for a gap of `room` metres: the merchandise in turn, the small things when only they fit
+   (string type, CheckoutInteriorPiece piece) Filler(float room, float depth) {
+    for (int k = 0; k < merch.Count; k++) { var f = merch[(fi + k) % merch.Count]; if (W(f.piece) <= room && D(f.piece) <= depth) { fi = (fi + k + 1) % merch.Count; return f; } }
+    foreach (var f in small.OrderBy(_ => Random.value)) if (W(f.piece) <= room && D(f.piece) <= depth) return f;
+    return default;
+   }
+   const float gap = .15f, aisle = 1.3f;
+   float rowTop = floor.yMax - .05f;
+   for (int row = 0; row < 30 && rowTop - .5f > front; row++) {
+    float x = floor.xMin + .1f, rowDepth = 0;
+    // this row's depth: the next fixture's, or a merchandise island's
+    float depth = next < mains.Count ? D(mains[next].piece) : 1.2f;
+    for (int guard = 0; guard < 80 && x < right - .3f; guard++) {
+     bool main = next < mains.Count;
+     var (id, type, p) = main ? mains[next] : (null, null, null);
+     if (main && (x + W(p) > right || rowTop - D(p) < front || D(p) > depth + .6f && rowDepth > 0)) {
+      // no room for the fixture here: fill the rest of the row
+      var f = Filler(right - x, Mathf.Max(rowDepth, 1.2f)); if (f.piece == null || fill >= maxFill) break;
+      type = f.type; p = f.piece; main = false;
+     } else if (!main) {
+      if (fill >= maxFill) break;
+      var f = Filler(right - x, depth); if (f.piece == null) break; type = f.type; p = f.piece;
+     }
+     var spot = Rect.MinMaxRect(x, rowTop - D(p), x + W(p), rowTop);
+     var hit = blockers.Where(b => b.Overlaps(spot)).Select(b => b.xMax).DefaultIfEmpty(-999).Max();
+     if (hit > -999) { x = hit + .05f; continue; }
+     if (!Free(spot)) break;
+     if (main) { Put(id, type, p, x, rowTop); next++; placedMain++; }
+     else { int n = owned.TryGetValue(type, out var c) ? c : 0; owned[type] = n + 1; Put("decor-" + (800 + fill), type, p, x, rowTop); fill++; }
+     x += W(p) + gap; rowDepth = Mathf.Max(rowDepth, D(p));
+    }
+    rowTop -= (rowDepth > 0 ? rowDepth : .6f) + aisle;
+   }
+   // fixtures with no room left go back to the inventory (stored) rather than vanish
+   for (; next < mains.Count; next++) items.Add(new InteriorItem { id = mains[next].id, type = mains[next].type, stored = true });
+   foreach (var i in items.Where(x => x.outside)) { var lv = live.FirstOrDefault(l => l.id == i.id); if (lv != null && !lv.functional) owned[i.type] = (owned.TryGetValue(i.type, out var c) ? c : 0) + 1; }
+   tierPatching = true; tierLayout = items.ToArray();
+   tierOwned = owned.Select(o => new DecorOwned { type = o.Key, count = o.Value }).ToArray();
+   CheckoutBridge.TestPatch = s => { Patch(s); PatchTiers(s); };
+   yield return Reapply();
+   inside = CheckoutInterior.Active;
+   int shown = inside.items.Values.Count(i => i.root && i.root.gameObject.activeInHierarchy && !i.outside);
+   bool ok = inside.Reachable(out var blocked);
+   Note($"trailer fill {stage}: {placedMain}/{mains.Count} fixtures, {fill} fillers, {shown} pieces shown inside, waiting {inside.waiting.Count}, reachable {ok}{(ok ? "" : " (blocked: " + blocked?.id + ")")}");
+   ShootFloor("tr_fill_" + trLang + "_" + stage);
   }
 
-  /// <summary>The shop's fixtures at the tier a player who evolved them would have (bigger gondolas, premium finish),
+  /// <summary>The fixtures at the tier a player who evolved them would have (bigger gondolas, premium finish),
   /// through the same snapshot patch as eventstiers; sectors only where all of them belong (hipermercado, rede).</summary>
   void TrTiers(int shelves, int sectors) {
    tierPatching = shelves > 0 || sectors > 0; tierShelves = shelves; tierSector = sectors;
    CheckoutBridge.TestPatch = tierPatching ? s => { Patch(s); PatchTiers(s); } : (System.Action<Snapshot>)Patch;
   }
 
-  /// <summary>Decorations in the shop (not saved, not bought: only the picture), spread over the open floor in front
-  /// of the shelves, and a few outside by the door.</summary>
-  void TrDecorate(string[] inside, string[] outside) {
+  /// <summary>Decorations outside by the door (not saved, not bought: only the picture; TrFill keeps them).</summary>
+  void TrDecorateOutside(string[] outside) {
    var room = CheckoutInterior.Active; if (!room) return;
-   var fl = room.FloorRect; int put = 0;
-   for (int i = 0; i < inside.Length; i++) {
-    float u = (i + .5f) / inside.Length;
-    var p = new Vector3(fl.xMin + 2f + (fl.width - 4f) * u, CheckoutInterior.Floor, fl.yMin + fl.height * (i % 2 == 0 ? .34f : .58f));
-    if (room.AddDecor(inside[i], p) != null) put++;
-   }
-   var door = room.EntrancePoint;
+   int put = 0; var door = room.EntrancePoint;
    for (int i = 0; i < outside.Length; i++) {
     var p = door + new Vector3((i - (outside.Length - 1) * .5f) * 2.6f + (i >= outside.Length / 2 ? 2f : -2f), 0, -2.2f);
     if (room.AddDecor(outside[i], p, true) != null) put++;
    }
-   Note($"trailer: {put} decorations");
+   Note($"trailer: {put} decorations outside");
   }
 
   static IEnumerator TrThen(IEnumerator work, System.Action done) { yield return work; done(); }
@@ -184,6 +260,15 @@ namespace Checkout {
    var langBefore = CheckoutI18n.Language; Lang(trLang);
    crowdChainName = trLang == "en" ? "Fresh Market" : "Bom Preço";
    recW = 1920; recQ = 90;
+   // The footage at the best quality (Lucas 08/11: "quando a câmera move, tem alguns assets que ele fica meio
+   // piscando"): the editor runs the phone's level (no anti-aliasing, hard shadows that end 20 m from the camera,
+   // early LOD switches), so edges crawled and shadows popped in and out as the camera moved. Ultra, a long shadow
+   // reach, and each frame rendered at twice the size and averaged down.
+   int qualityBefore = QualitySettings.GetQualityLevel();
+   QualitySettings.SetQualityLevel(QualitySettings.names.Length - 1, true);
+   QualitySettings.shadowDistance = 160; QualitySettings.antiAliasing = 8;
+   recSuper = 2;
+   Note($"trailer: quality {QualitySettings.names[QualitySettings.GetQualityLevel()]} (was {QualitySettings.names[qualityBefore]}), AA {QualitySettings.antiAliasing}, shadows {QualitySettings.shadowDistance} m, frames x{recSuper}");
    yield return new WaitForSecondsRealtime(2f);
    try {
     foreach (var scene in scenes) {
@@ -198,6 +283,8 @@ namespace Checkout {
    } finally {
     if (trCrowd != null) { StopCoroutine(trCrowd); trCrowd = null; }
     roomEra = -1; roomKeepInterior = false; roomLanes = false; crowdLayout = null; lowShelves = false; TrTiers(-1, -1);
+    tierLayout = null; tierOwned = null; CheckoutBridge.QaNoVisits = false;
+    recSuper = 1; QualitySettings.SetQualityLevel(qualityBefore, true);   // (the level brings its own shadows and AA back)
     recW = 1280; recQ = 74; TrHideHud(false); MarketDay.MarketSimulation.Cinematic = false; crowdChainName = "Bom Preço";
     Lang(langBefore); Note("trailer: language back to " + CheckoutI18n.Language);
    }
@@ -208,13 +295,23 @@ namespace Checkout {
   IEnumerator TrMesa() {
    TrHud("resetGame", "[]"); yield return new WaitForSecondsRealtime(5f);
    TrHud("skipOnboarding", "[]"); yield return new WaitForSecondsRealtime(1.5f);
-   yield return TrOpen();
-   var spawn = StartCoroutine(TrSpawn(8, 2.5f));
-   yield return new WaitForSecondsRealtime(14f);   // the first customers walk up to the table
+   // One customer at the little table (Lucas 08/11: "só coloca um cliente sendo atendido"): the day's own visitors
+   // stay away (CheckoutBridge.QaNoVisits), one QA shopper walks up and buys.
+   CheckoutBridge.QaNoVisits = true;
+   foreach (var w in FindObjectsByType<CheckoutWalker>(FindObjectsSortMode.None)) if (w && w.gameObject.activeSelf) w.CancelVisit();
+   yield return TrOpen(); yield return new WaitForSecondsRealtime(2f);
    var (c, _) = TrShop();
+   trLastWalker = null; yield return TrSpawn(1, .1f);
+   var who = trLastWalker;
+   for (float t = 0; t < 45 && who && who.gameObject.activeInHierarchy; t += .25f) {
+    var d = who.transform.position - c; d.y = 0; if (d.magnitude < 2.2f) break;
+    yield return new WaitForSecondsRealtime(.25f);
+   }
+   Note($"trailer: the customer at the table ({(who ? (who.transform.position - c).magnitude.ToString("0.0") + " m, phase " + who.VisitPhase : "none")})");
+   yield return new WaitForSecondsRealtime(.6f);
    yield return TrGlideShot(c + new Vector3(.6f, 0, .3f), 3.6f, c, 5f, 4.5f);
    yield return TrGlideShot(c, 6f, c + new Vector3(-1.5f, 0, 1f), 9.5f, 4f);
-   StopCoroutine(spawn);
+   CheckoutBridge.QaNoVisits = false;
   }
 
   IEnumerator TrCaixa() {
@@ -250,11 +347,11 @@ namespace Checkout {
    foreach (var stage in new[] { "tenda", "banca", "conteiner", "spati", "quitanda", "minimercado", "mercadinho" }) {
     if (System.Array.IndexOf(EraIds, stage) >= 4) {
      TrTiers(stage == "minimercado" ? 3 : stage == "mercadinho" ? 4 : 2, -1);
-     yield return TrCrowd(stage, 16); TrArrange(); yield return new WaitForSecondsRealtime(10f);
+     yield return TrCrowd(stage, 16); yield return TrFill(stage); yield return new WaitForSecondsRealtime(10f);
     }
     else {
      if (trCrowd != null) { StopCoroutine(trCrowd); trCrowd = null; }
-     roomEra = -1; roomKeepInterior = false; crowdLayout = null;
+     roomEra = -1; roomKeepInterior = false; crowdLayout = null; tierLayout = null; tierOwned = null;
      TrHud("devSetMarketEra", "[\"" + stage + "\"]"); yield return new WaitForSecondsRealtime(10f);
      yield return TrOpen(); yield return new WaitForSecondsRealtime(9f);
     }
@@ -265,7 +362,7 @@ namespace Checkout {
   }
 
   IEnumerator TrRepor() {
-   if (bridge.State?.era?.id != "mercadinho") { yield return TrCrowd("mercadinho", 14); TrArrange(); yield return new WaitForSecondsRealtime(4f); }
+   if (bridge.State?.era?.id != "mercadinho") { yield return TrCrowd("mercadinho", 14); yield return TrFill("mercadinho"); yield return new WaitForSecondsRealtime(4f); }
    var game = CheckoutRestockGame.Instance; if (!game) { Note("trailer: no restock game"); yield break; }
    lowShelves = true; yield return new WaitForSecondsRealtime(1.5f);
    CheckoutRestockGame.Show(); yield return new WaitForSecondsRealtime(1.5f);
@@ -288,9 +385,9 @@ namespace Checkout {
 
   IEnumerator TrHiper() {
    TrTiers(5, 3);
-   yield return TrCrowd("hipermercado", 44, ".lanes"); TrArrange();
-   TrDecorate(new[] { "fruit-pyramid", "promo-stand", "can-pyramid", "plant-palm", "tasting-table", "watermelon-pile", "balloons", "monstera" },
-    new[] { "flower-bed", "ice-cream-cart", "bench", "popcorn-cart" });
+   yield return TrCrowd("hipermercado", 44, ".lanes");
+   TrDecorateOutside(new[] { "flower-bed", "ice-cream-cart", "bench", "popcorn-cart" });
+   yield return TrFill("hipermercado");
    yield return new WaitForSecondsRealtime(16f);   // the shoppers walk in
    var (c, size) = TrShop();
    var inside = CheckoutInterior.Active;
@@ -339,9 +436,9 @@ namespace Checkout {
 
   IEnumerator TrRede() {
    TrTiers(5, 3);
-   yield return TrCrowd("rede", 44, ".lanes.brand"); TrArrange();
-   TrDecorate(new[] { "fruit-pyramid", "promo-stand", "can-pyramid", "plant-palm", "tasting-table", "wine-barrel", "balloons", "aquarium" },
-    new[] { "flower-bed", "hotdog-cart", "bench", "fountain" });
+   yield return TrCrowd("rede", 44, ".lanes.brand");
+   TrDecorateOutside(new[] { "flower-bed", "hotdog-cart", "bench", "fountain" });
+   yield return TrFill("rede");
    TrHud("orderFromDistributionCenter", "[[{\"productId\":172,\"boxes\":2},{\"productId\":175,\"boxes\":1}]]");
    yield return new WaitForSecondsRealtime(14f);
    var (c, _) = TrShop();
