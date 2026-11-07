@@ -31,6 +31,39 @@ namespace Checkout {
    } else { foreach (var c in trHidden) if (c) c.enabled = true; trHidden.Clear(); }
   }
 
+  readonly List<Renderer> trWorldHidden = new List<Renderer>();
+  /// <summary>Padlocks over the lots, markers, price plates and rings in the world: hidden in the cinematic shots
+  /// (as the friend's postcard does, CheckoutSocial.PostcardHide). Request bubbles stay: they show a living shop.</summary>
+  void TrHideWorld(bool hide) {
+   if (!hide) { foreach (var r in trWorldHidden) if (r) r.enabled = true; trWorldHidden.Clear(); return; }
+   string[] words = { "Padlock", "Marker", "Speed up", "Plate", "Ring" };
+   foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None)) {
+    if (!r.enabled) continue; var t = r.transform; bool hit = false;
+    for (int depth = 0; depth < 3 && t && !hit; depth++, t = t.parent) foreach (var w in words) if (t.name.Contains(w)) { hit = true; break; }
+    if (hit) { r.enabled = false; trWorldHidden.Add(r); }
+   }
+  }
+
+  /// <summary>Shoppers sent to the shop one after another (as eventscrowd does), each buying two or three things
+  /// from the shop's shelves, until `count` were sent or the coroutine is stopped.</summary>
+  IEnumerator TrSpawn(int count, float gap) {
+   var rnd = new System.Random(7);
+   var all = FindObjectsByType<CheckoutWalker>(FindObjectsInactive.Include, FindObjectsSortMode.None).ToList();
+   for (int sent = 0; sent < count;) {
+    var shelfIds = (bridge.State.shelves ?? new Shelf[0]).Where(x => x != null && x.unlocked && !x.building).Select(x => x.id).ToList();
+    var idle = all.FirstOrDefault(w => w && !w.gameObject.activeSelf && !w.Reserved);
+    if (idle && shelfIds.Count > 0 && !CheckoutWalker.ShopCrowded) {
+     var buy = new List<Purchase>(); int k = 2 + rnd.Next(2);
+     for (int j = 0; j < k; j++) buy.Add(new Purchase { shelfId = shelfIds[rnd.Next(shelfIds.Count)], productId = 1, quantity = 1 + rnd.Next(2) });
+     idle.Begin(new Customer { id = "qa-trailer-" + sent, name = "QA", spent = 12, purchases = buy.ToArray() });
+     sent++; yield return new WaitForSecondsRealtime(gap);
+    } else yield return new WaitForSecondsRealtime(.5f);
+   }
+  }
+
+  /// <summary>A cinematic shot (no HUD): the camera glides from (a, za) to (b, zb).</summary>
+  IEnumerator TrGlideShot(Vector3 a, float za, Vector3 b, float zb, float seconds) => TrShot(false, TrGlide(a, za, b, zb, seconds), a, za);
+
   /// <summary>The camera from (a, za) to (b, zb) in `seconds` of video, eased; one step per recorded frame.</summary>
   IEnumerator TrGlide(Vector3 a, float za, Vector3 b, float zb, float seconds) {
    var sim = TrSim; int n = Mathf.Max(1, Mathf.RoundToInt(seconds * 30));
@@ -46,11 +79,11 @@ namespace Checkout {
    yield return CloseCardsSettled();
    var sim = TrSim; var was = MarketDay.MarketSimulation.Cinematic; MarketDay.MarketSimulation.Cinematic = true;
    if (startAt.HasValue && sim) { sim.FocusCinematic(startAt.Value, startZoom); yield return new WaitForSecondsRealtime(.5f); }
-   TrHideHud(!hud);
+   TrHideHud(!hud); if (!hud) TrHideWorld(true);
    var path = $"Logs/tr_{trLang}_{trScene}_{++trShotK}.mjpg";
    RecStart(path);
    try { yield return body; }
-   finally { RecStop(); TrHideHud(false); MarketDay.MarketSimulation.Cinematic = was; Note($"TRAILER shot {path}"); }
+   finally { RecStop(); TrHideHud(false); TrHideWorld(false); MarketDay.MarketSimulation.Cinematic = was; Note($"TRAILER shot {path}"); }
   }
 
   /// <summary>Waits for a log line containing `text` written after the call (at most `timeout` seconds).</summary>
@@ -123,10 +156,12 @@ namespace Checkout {
    TrHud("resetGame", "[]"); yield return new WaitForSecondsRealtime(5f);
    TrHud("skipOnboarding", "[]"); yield return new WaitForSecondsRealtime(1.5f);
    yield return TrOpen();
-   yield return new WaitForSecondsRealtime(16f);   // the first customers walk up to the table
+   var spawn = StartCoroutine(TrSpawn(8, 2.5f));
+   yield return new WaitForSecondsRealtime(14f);   // the first customers walk up to the table
    var (c, _) = TrShop();
-   yield return TrShot(false, TrGlide(c + new Vector3(.6f, 0, .3f), 2.8f, c, 4.2f, 4.5f));
-   yield return TrShot(false, TrGlide(c, 5.5f, c + new Vector3(-1.5f, 0, 1f), 9f, 4f));
+   yield return TrGlideShot(c + new Vector3(.6f, 0, .3f), 3.6f, c, 5f, 4.5f);
+   yield return TrGlideShot(c, 6f, c + new Vector3(-1.5f, 0, 1f), 9.5f, 4f);
+   StopCoroutine(spawn);
   }
 
   IEnumerator TrCaixa() {
@@ -166,7 +201,7 @@ namespace Checkout {
     }
     var (c, size) = TrShop();
     float z = Mathf.Clamp(size * .55f + 3.2f, 5f, 15f);
-    yield return TrShot(false, TrGlide(c + new Vector3(.9f, 0, .5f), z * 1.1f, c, z, 2.6f));
+    yield return TrGlideShot(c + new Vector3(.9f, 0, .5f), z * 1.1f, c, z, 2.6f);
    }
   }
 
@@ -193,13 +228,13 @@ namespace Checkout {
    var (c, size) = TrShop();
    var inside = CheckoutInterior.Active;
    // the building and the street from outside, then across the aisles, the checkouts, a sector counter
-   yield return TrShot(false, TrGlide(c + new Vector3(-6, 0, -8), 20f, c + new Vector3(0, 0, -2), 15f, 4.5f));
-   yield return TrShot(false, TrGlide(c + new Vector3(-size * .3f, 0, 0), 7.5f, c + new Vector3(size * .3f, 0, 1), 7f, 5f));
+   yield return TrGlideShot(c + new Vector3(-6, 0, -8), 20f, c + new Vector3(0, 0, -2), 15f, 4.5f);
+   yield return TrGlideShot(c + new Vector3(-size * .3f, 0, 0), 7.5f, c + new Vector3(size * .3f, 0, 1), 7f, 5f);
    if (inside) {
     var z = inside.CheckoutZone; var lanes = new Vector3(z.center.x, 0, z.center.y);
-    yield return TrShot(false, TrGlide(lanes + new Vector3(-1.5f, 0, 0), 5.2f, lanes + new Vector3(1.5f, 0, .5f), 4.6f, 4f));
+    yield return TrGlideShot(lanes + new Vector3(-1.5f, 0, 0), 5.2f, lanes + new Vector3(1.5f, 0, .5f), 4.6f, 4f);
     var sector = inside.items.Values.FirstOrDefault(i => i.root && i.id == "sector:acougue") ?? inside.items.Values.FirstOrDefault(i => i.root && i.type == "sector");
-    if (sector != null) { var p = sector.root.position; p.y = 0; yield return TrShot(false, TrGlide(p + new Vector3(.8f, 0, -.6f), 4.2f, p, 3.4f, 4f)); }
+    if (sector != null) { var p = sector.root.position; p.y = 0; yield return TrGlideShot(p + new Vector3(.8f, 0, -.6f), 4.2f, p, 3.4f, 4f); }
    }
   }
 
@@ -230,7 +265,7 @@ namespace Checkout {
    foreach (var (id, zoom) in new[] { ("carro-de-som", 8f), ("feira-de-rua", 10f), ("nevasca", 14f) }) {
     fx.Preview(id); yield return new WaitForSecondsRealtime(2.5f);
     var f = fx.FocusOf(id); f.y = 0;
-    yield return TrShot(false, TrGlide(f + new Vector3(.8f, 0, .4f), zoom * 1.08f, f, zoom, 3.6f));
+    yield return TrGlideShot(f + new Vector3(.8f, 0, .4f), zoom * 1.08f, f, zoom, 3.6f);
     fx.Preview(""); yield return new WaitForSecondsRealtime(1.5f);
    }
   }
@@ -241,10 +276,10 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(14f);
    var (c, _) = TrShop();
    var letters = GameObject.Find("S4 name");
-   if (letters) { var l = letters.transform.position; l.y = 0; yield return TrShot(false, TrGlide(l + new Vector3(0, 0, -6.5f), 8.5f, l + new Vector3(0, 0, -5.5f), 12f, 4f)); }
-   yield return TrShot(false, TrGlide(new Vector3(11, 0, 40), 17f, new Vector3(11, 0, 45), 23f, 4.5f));
+   if (letters) { var l = letters.transform.position; l.y = 0; yield return TrGlideShot(l + new Vector3(0, 0, -6.5f), 8.5f, l + new Vector3(0, 0, -5.5f), 12f, 4f); }
+   yield return TrGlideShot(new Vector3(11, 0, 40), 17f, new Vector3(11, 0, 45), 23f, 4.5f);
    // the whole map from above: the shop first, then everything
-   yield return TrShot(false, TrGlide(c, 13f, new Vector3(2, 0, 20), 38f, 6.5f));
+   yield return TrGlideShot(c, 13f, new Vector3(2, 0, 20), 38f, 6.5f);
   }
  }
 }
