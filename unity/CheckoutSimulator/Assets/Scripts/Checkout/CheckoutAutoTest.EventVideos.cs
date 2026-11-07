@@ -17,7 +17,7 @@ namespace Checkout {
    // "eventsvideo-<stage>-furnished": a player's shop first (shelves placed and built, two checkouts, a cashier and a
    // stock clerk, market open with customers), then only the events that happen at or in the shop.
    bool furnished=only=="furnished";if(furnished)only=null;
-   string[] inside={"quinto-dia-util","cafe-com-a-equipe","fim-do-mes","maquininha-fora-do-ar","queda-de-energia","turno-puxado","vigilancia-sanitaria"};
+   string[] shopEvents={"quinto-dia-util","cafe-com-a-equipe","fim-do-mes","maquininha-fora-do-ar","queda-de-energia","turno-puxado","vigilancia-sanitaria"};
    foreach(var f in Directory.GetFiles("Logs",furnished?"evv_*_loja.mjpg":"evv_*.mjpg"))File.Delete(f);
    int seq=0;void Act(string action,string args)=>CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-evv-"+(++seq)+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
    if(furnished){
@@ -58,7 +58,7 @@ namespace Checkout {
    foreach(var id in CheckoutEventVisuals.EventIds){
     n++;
     if(only!=null&&id!=only)continue;
-    if(furnished&&Array.IndexOf(inside,id)<0)continue;
+    if(furnished&&Array.IndexOf(shopEvents,id)<0)continue;
     fx.Preview(id);yield return new WaitForSecondsRealtime(1.5f);
     var focus=fx.FocusOf(id);
     if(home)home.Focus(new Vector3(focus.x,0,focus.z),12);
