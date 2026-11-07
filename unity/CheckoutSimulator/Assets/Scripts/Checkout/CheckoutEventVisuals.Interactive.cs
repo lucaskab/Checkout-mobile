@@ -434,7 +434,7 @@ namespace Checkout {
   // ---------------------------------------------------------------- the clerk with the cooler
   CheckoutEventActor Vendor() {
    if (vendor) return vendor;
-   var who = WorkerOr("Worker_Stocker", "Customer_09");
+   var who = Staff(3);
    var h = art.Actor(PlayRoot, who, DoorPoint, 0, "Idle", 1);
    vendor = CheckoutEventActor.Of(h);
    // the cooler hangs on the hip of the hand that takes the bottles (Hand_R), its strap over the other shoulder

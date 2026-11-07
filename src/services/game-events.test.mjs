@@ -200,7 +200,7 @@ test("every crowd event has a sane share and the negative/staff events bring no 
 		const share = event.crowdShare ?? 0;
 		expect(share >= 0 && share <= 0.8).toBe(true);
 	}
-	for (const id of ["chuva-forte", "rua-em-obras", "maquininha-fora-do-ar", "queda-de-energia", "turno-puxado", "cafe-com-a-equipe", "vigilancia-sanitaria", "carro-de-som"])
+	for (const id of ["chuva-forte", "nevasca", "rua-em-obras", "maquininha-fora-do-ar", "queda-de-energia", "turno-puxado", "cafe-com-a-equipe", "vigilancia-sanitaria", "carro-de-som"])
 		expect(getGameEvent(id).crowdShare ?? 0).toBe(0);
 	// payday and the prize wheel bring a few extra (modest) visits, so the people in their scenes are real buyers
 	expect(effectsOf("quinto-dia-util").customerArrivalMultiplier).toBe(1.15);

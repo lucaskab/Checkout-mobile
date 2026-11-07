@@ -330,7 +330,7 @@ namespace Checkout {
   // copy of the save) and photographs every event that can happen there: Logs/ev_<stage>_<event>.jpg.
   static readonly string[] Stages={"mesinha","tenda","banca","conteiner","spati","quitanda","minimercado","mercadinho","supermercado","hipermercado"};
   static readonly Dictionary<string,string> FirstStage=new Dictionary<string,string>{
-   {"hora-do-rush","mesinha"},{"quinto-dia-util","mesinha"},{"feira-de-rua","mesinha"},{"onda-de-calor","mesinha"},{"chuva-forte","mesinha"},
+   {"hora-do-rush","mesinha"},{"quinto-dia-util","mesinha"},{"feira-de-rua","mesinha"},{"onda-de-calor","mesinha"},{"nevasca","mesinha"},{"chuva-forte","mesinha"},
    {"rua-em-obras","mesinha"},{"engarrafamento","mesinha"},{"fim-do-mes","mesinha"},{"sorteio-na-porta","tenda"},{"maquininha-fora-do-ar","tenda"},
    {"caminhao-de-ofertas","banca"},{"queda-de-energia","banca"},{"vigilancia-sanitaria","banca"},{"dia-de-jogo","conteiner"},{"cafe-com-a-equipe","conteiner"},
    {"excursao-da-escola","conteiner"},{"turno-puxado","conteiner"},{"viralizou","spati"},{"carro-de-som","spati"}};

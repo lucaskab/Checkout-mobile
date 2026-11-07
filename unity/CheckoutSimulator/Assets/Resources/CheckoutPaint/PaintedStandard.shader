@@ -26,17 +26,21 @@ Shader "MarketDay/Painted Standard"
         #pragma target 3.0
         #pragma multi_compile_local __ _NORMALMAP
         #include "Assets/Resources/CheckoutPaint/MarketPaint.cginc"
+        #include "Assets/Resources/CheckoutPaint/CheckoutSnow.cginc"
         sampler2D _MainTex, _BumpMap, _EmissionMap;
         fixed4 _Color, _EmissionColor;
         half _Glossiness, _Metallic, _BumpScale;
-        struct Input { float2 uv_MainTex; };
+        struct Input { float2 uv_MainTex; float3 worldPos; float3 worldNormal; INTERNAL_DATA };
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
             o.Albedo = MarketPaint(c.rgb, IN.uv_MainTex);
             #ifdef _NORMALMAP
             o.Normal = UnpackScaleNormal(tex2D(_BumpMap, IN.uv_MainTex), _BumpScale);
+            #else
+            o.Normal = float3(0, 0, 1);
             #endif
+            o.Albedo = CheckoutSnow(o.Albedo, IN.worldPos, CheckoutSnowUp(WorldNormalVector(IN, o.Normal)), 1);
             o.Emission = tex2D(_EmissionMap, IN.uv_MainTex).rgb * _EmissionColor.rgb;
             o.Smoothness = _Glossiness;
             o.Metallic = _Metallic;

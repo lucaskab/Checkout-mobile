@@ -158,6 +158,14 @@ namespace Checkout {
   void Follow(Transform t, Transform target, Vector3 offset) => motions[building].Add(new Motion { root = t, target = target, offset = offset, home = t.localPosition, rot = t.localRotation, scale = t.localScale, kind = "follow" });
   static Vector3 Dir(float x, float z) => new Vector3(x, 0, z);
   static readonly Vector3 North = Vector3.forward, South = Vector3.back, EastDir = Vector3.right, WestDir = Vector3.left;
+  // The market's own people in the events: the Meshy workers of the sectors (Lucas 06/11: the old Worker_Cashier /
+  // Worker_Stocker models, round and made of primitives, don't match the game's characters - never cast them).
+  static readonly string[] StaffCast = { "Worker_Fishmonger", "Worker_Butcher", "Worker_Baker", "Worker_Delivery" };
+  string Staff(int i) {
+   var sim = FindAnyObjectByType<MarketSimulation>(); var list = new List<string>();
+   if (sim && sim.world) foreach (var n in StaffCast) if (sim.world.Find(n)) list.Add(n);
+   return list.Count > 0 ? list[i % list.Count] : Shoppers[i % Shoppers.Length];
+  }
   string WorkerOr(string worker, string fallback) { var sim = FindAnyObjectByType<MarketSimulation>(); return sim && sim.world && (sim.world.Find(worker) || (worker == "Worker_Stocker" && sim.world.Find("StockWorker_0"))) ? worker : fallback; }
   static IEnumerator Wait(float s) { yield return new WaitForSeconds(s); }
   // The people of the neighbourhood: the city's appearance templates (each looks different); "#n" picks one of them.
@@ -188,6 +196,7 @@ namespace Checkout {
     case "cafe-com-a-equipe": CoffeeBreak(); break;
     case "viralizou": Influencer(); break;
     case "chuva-forte": BuildRain(root); break;
+    case "nevasca": BuildSnow(root); break;
     case "rua-em-obras": RoadWorksScene(); break;
     case "engarrafamento": Jam(); break;
     case "fim-do-mes": MonthEnd(); break;
@@ -519,7 +528,7 @@ namespace Checkout {
    float back = small ? FootBack : Mathf.Min(facadeZ, -7.7f);
    if (!Place(ref x, 1.3f, 1.2f, back - 2.9f, back, 26f)) return;
    // the promoter first: her hand at the top of the pull decides where the wheel stands
-   var promoter = Person(WorkerOr("Worker_Cashier", "Customer_07"), On(x - .6f, back - .9f), South, "PullWheel", 1, true, 0);
+   var promoter = Person(Staff(0), On(x - .6f, back - .9f), South, "PullWheel", 1, true, 0);
    // wheel origin (its stand's foot): the disc's hub is 1.75 m above it and its face .32 m in front of it
    var moves = promoter.Moves; float ox = x + .45f, oz = back - .4f, ground = On(ox, oz).y;
    if (moves) {
@@ -569,7 +578,7 @@ namespace Checkout {
    Person(Next(), On(dx - .9f, -10.35f), North, "LookPhone"); Person(Next(), On(dx + .4f, -10.45f), Dir(-.2f, 1));
    // customers look through the pallets of offers on their way in (Market.cs)
    Stop(On(dx - 1.7f, -10.15f), On(dx - 1.0f, -9.3f), 2.5f, "GetFromShelf"); Stop(On(dx - .25f, -10.95f), On(dx + .3f, -9.25f), 2.5f, "GetFromShelf");
-   var porter = Person(WorkerOr("Worker_Stocker", "Customer_09"), Road(rear + .7f, CurbEdge), North, "HoldHandle", 1, false);
+   var porter = Person(Staff(3), Road(rear + .7f, CurbEdge), North, "HoldHandle", 1, false);
    var jack = Prop("Ofertas_PalletJack", Vector3.zero, 0); var load = art.Prop2(jack, "Ofertas_PalletStack", new Vector3(.58f, .13f, 0), 0, .95f);
    jack.localScale = Vector3.zero;
    var buyer = Person(Next(), On(dx, -10.4f), WestDir, "CarryBox", 1, false);
@@ -644,18 +653,45 @@ namespace Checkout {
   }
 
   // ================================================================ café com a equipe
-  // The staff take their coffee break at a folding table on the footway beside the market (the chalkboard says
-  // CAFÉ): two sit with their cups, one stands and sips.
+  // The staff take their coffee break INSIDE the market (Lucas 06/11: "não faz sentido ser fora do mercado"): the
+  // folding table on a free patch of the shop floor, towards the back (the staff side), two sit with their cups,
+  // one stands and sips, the chalkboard beside them. The stalls (no shop floor) keep it on the footway by the stall.
   void CoffeeBreak() {
-   float x = doorW.x - 3.8f;
-   if (!Place(ref x, 1.6f, 1.6f, -10.9f, -8.65f, 26f, -1)) return;
-   var t = On(x, -9.6f); Focus(t);
+   Vector3 t;
+   if (ShopSpot(3.4f, 2.4f, out var spot)) t = spot;
+   else {
+    float x = doorW.x - 3.8f;
+    if (!Place(ref x, 1.6f, 1.6f, -10.9f, -8.65f, 26f, -1)) return;
+    t = On(x, -9.6f);
+   }
+   Focus(t);
    Prop("Cafe_BreakTable", t, 0);
    Prop("Cafe_FoldingChair", t + new Vector3(-1.15f, 0, 0), -90); Prop("Cafe_FoldingChair", t + new Vector3(1.15f, 0, 0), 90);
-   Prop("Cafe_CoffeeBoard", On(x + 1.9f, -9.2f), 15);
-   Person(WorkerOr("Worker_Cashier", "Customer_07"), t + new Vector3(-1.1f, 0, 0), EastDir, "SitSip");
-   Person(WorkerOr("Worker_Stocker", "Customer_09"), t + new Vector3(1.1f, 0, 0), WestDir, "SitSip");
-   Person(WorkerOr("Worker_Baker", "Customer_06"), t + new Vector3(.1f, 0, -.95f), North, "Sip");
+   Prop("Cafe_CoffeeBoard", t + new Vector3(1.5f, 0, .55f), 15);
+   Person(Staff(0), t + new Vector3(-1.1f, 0, 0), EastDir, "SitSip");
+   Person(Staff(1), t + new Vector3(1.1f, 0, 0), WestDir, "SitSip");
+   Person(Staff(2), t + new Vector3(.1f, 0, -.95f), North, "Sip");
+  }
+
+  /// <summary>A free w x d patch of the shop floor (nothing placed there, not the door's way in nor the staff
+  /// corridor), the one nearest the back wall; false at the stalls or when the floor is full.</summary>
+  bool ShopSpot(float w, float d, out Vector3 spot) {
+   spot = default;
+   var inside = CheckoutInterior.Active;
+   if (!inside || CheckoutStall.Yard) return false;
+   var fl = inside.FloorRect;
+   var taken = new List<CheckoutInterior.Footprint> { inside.Entrance, inside.ServiceDoor };
+   foreach (var it in inside.items.Values) if (it != null && it.root && !it.outside && !it.ghost) taken.Add(inside.FootprintOf(it, .45f));
+   for (float z = fl.yMax - d * .5f - .3f; z >= fl.yMin + d * .5f + 1.4f; z -= .25f)
+    for (int k = 0; k < 80; k++) {
+     float x = fl.center.x + (k % 2 == 0 ? 1 : -1) * (k / 2) * .25f;
+     if (x - w * .5f < fl.xMin + .3f || x + w * .5f > fl.xMax - .3f) continue;
+     var f = new CheckoutInterior.Footprint { c = new Vector2(x, z), ax = Vector2.right, az = Vector2.up, hx = w * .5f, hz = d * .5f };
+     bool free = true;
+     foreach (var o in taken) if (CheckoutInterior.Overlap(o, f)) { free = false; break; }
+     if (free) { spot = On(x, z); return true; }
+    }
+   return false;
   }
 
   // ================================================================ viralizou
@@ -933,7 +969,7 @@ namespace Checkout {
    var till = cashier && cashier.gameObject.activeInHierarchy ? cashier.position : CheckoutStall.Register;
    if (small || !cashier || !cashier.gameObject.activeInHierarchy) {
     // the stall's clerk, worn out behind the counter
-    var clerk = Person(WorkerOr("Worker_Cashier", "Customer_07"), new Vector3(till.x, On(till.x, till.z + .7f).y, till.z + .7f), South, "Tired");
+    var clerk = Person(Staff(0), new Vector3(till.x, On(till.x, till.z + .7f).y, till.z + .7f), South, "Tired");
     var b = art.Prop2(root, "Turno_SleepyBubble", clerk.transform.position + Vector3.up * 2.7f, 0, .9f); Follow(b, clerk.transform, Vector3.up * 2.7f);
     Prop("Turno_CoffeeCups", new Vector3(till.x - .35f, till.y + .05f, till.z), 0);
    } else Prop("Turno_CoffeeCups", till + new Vector3(.55f, .95f, -.45f), 0);
