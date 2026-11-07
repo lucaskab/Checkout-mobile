@@ -64,7 +64,7 @@ namespace Checkout {
     foreach (var st in stationTypes) { Hud("purchaseDecor", "[\"" + st + "\",\"coins\"]"); yield return new WaitForSecondsRealtime(1f); }
     Hud("dismissLevelUp", "[]"); yield return new WaitForSecondsRealtime(1f); var hudUi = FindAnyObjectByType<CheckoutDesktopHUD>(); if (hudUi && (hudUi.LevelUpOpen || hudUi.ConquestOpen)) hudUi.QaCloseCelebrations();
    }
-   if (brand) { Hud("setMarketLevel", "[55]"); yield return new WaitForSecondsRealtime(1f); Hud("dismissLevelUp", "[]"); Hud("nameChain", "[\"Bom Preço\",\"coroa\"]"); Hud("hireEmployee", "[\"cashier\"]"); Hud("hireEmployee", "[\"stock_clerk\"]"); yield return new WaitForSecondsRealtime(1.5f); }
+   if (brand) { Hud("setMarketLevel", "[55]"); yield return new WaitForSecondsRealtime(1f); Hud("dismissLevelUp", "[]"); Hud("nameChain", "[\"" + crowdChainName + "\",\"coroa\"]"); Hud("hireEmployee", "[\"cashier\"]"); Hud("hireEmployee", "[\"stock_clerk\"]"); yield return new WaitForSecondsRealtime(1.5f); }
    string[] laneItems = CheckoutLanes.Counters.Concat(CheckoutLanes.Kiosks).Select(c => c.item).Where(i => i != null).Distinct().ToArray();
    if (lanes) {
     roomLanes = true;

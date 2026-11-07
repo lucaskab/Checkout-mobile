@@ -32,7 +32,7 @@ namespace Checkout {
    while(recOn){
     yield return new WaitForEndOfFrame();
     if(!recOn||recFile==null)break;
-    var jpg=RecJpg(1280,74);recFile.Write(jpg,0,jpg.Length);recFrames++;
+    var jpg=RecJpg(recW,recQ);recFile.Write(jpg,0,jpg.Length);recFrames++;
    }
   }
   void RecStart(string path){recFile=File.Create(path);recFrames=0;recOn=true;Time.captureFramerate=30;StartCoroutine(RecLoop());Note("rec start "+path);}
