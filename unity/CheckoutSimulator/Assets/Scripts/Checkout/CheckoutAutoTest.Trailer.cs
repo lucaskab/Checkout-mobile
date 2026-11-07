@@ -147,6 +147,31 @@ namespace Checkout {
    Note($"trailer: arranged {put}/{pieces.Count} pieces ({back} along the back wall)");
   }
 
+  /// <summary>The shop's fixtures at the tier a player who evolved them would have (bigger gondolas, premium finish),
+  /// through the same snapshot patch as eventstiers; sectors only where all of them belong (hipermercado, rede).</summary>
+  void TrTiers(int shelves, int sectors) {
+   tierPatching = shelves > 0 || sectors > 0; tierShelves = shelves; tierSector = sectors;
+   CheckoutBridge.TestPatch = tierPatching ? s => { Patch(s); PatchTiers(s); } : (System.Action<Snapshot>)Patch;
+  }
+
+  /// <summary>Decorations in the shop (not saved, not bought: only the picture), spread over the open floor in front
+  /// of the shelves, and a few outside by the door.</summary>
+  void TrDecorate(string[] inside, string[] outside) {
+   var room = CheckoutInterior.Active; if (!room) return;
+   var fl = room.FloorRect; int put = 0;
+   for (int i = 0; i < inside.Length; i++) {
+    float u = (i + .5f) / inside.Length;
+    var p = new Vector3(fl.xMin + 2f + (fl.width - 4f) * u, CheckoutInterior.Floor, fl.yMin + fl.height * (i % 2 == 0 ? .34f : .58f));
+    if (room.AddDecor(inside[i], p) != null) put++;
+   }
+   var door = room.EntrancePoint;
+   for (int i = 0; i < outside.Length; i++) {
+    var p = door + new Vector3((i - (outside.Length - 1) * .5f) * 2.6f + (i >= outside.Length / 2 ? 2f : -2f), 0, -2.2f);
+    if (room.AddDecor(outside[i], p, true) != null) put++;
+   }
+   Note($"trailer: {put} decorations");
+  }
+
   static IEnumerator TrThen(IEnumerator work, System.Action done) { yield return work; done(); }
 
   IEnumerator Trailer(string request) {
@@ -172,7 +197,7 @@ namespace Checkout {
     }
    } finally {
     if (trCrowd != null) { StopCoroutine(trCrowd); trCrowd = null; }
-    roomEra = -1; roomKeepInterior = false; roomLanes = false; crowdLayout = null; lowShelves = false;
+    roomEra = -1; roomKeepInterior = false; roomLanes = false; crowdLayout = null; lowShelves = false; TrTiers(-1, -1);
     recW = 1280; recQ = 74; TrHideHud(false); MarketDay.MarketSimulation.Cinematic = false; crowdChainName = "Bom Preço";
     Lang(langBefore); Note("trailer: language back to " + CheckoutI18n.Language);
    }
@@ -223,7 +248,10 @@ namespace Checkout {
    TrHud("setMarketLevel", "[45]"); TrHud("devAdjustCoins", "[9000000]"); yield return new WaitForSecondsRealtime(2f);
    TrHud("dismissLevelUp", "[]"); yield return CloseCardsSettled();
    foreach (var stage in new[] { "tenda", "banca", "conteiner", "spati", "quitanda", "minimercado", "mercadinho" }) {
-    if (System.Array.IndexOf(EraIds, stage) >= 4) { yield return TrCrowd(stage, 16); TrArrange(); yield return new WaitForSecondsRealtime(10f); }
+    if (System.Array.IndexOf(EraIds, stage) >= 4) {
+     TrTiers(stage == "minimercado" ? 3 : stage == "mercadinho" ? 4 : 2, -1);
+     yield return TrCrowd(stage, 16); TrArrange(); yield return new WaitForSecondsRealtime(10f);
+    }
     else {
      if (trCrowd != null) { StopCoroutine(trCrowd); trCrowd = null; }
      roomEra = -1; roomKeepInterior = false; crowdLayout = null;
@@ -259,7 +287,10 @@ namespace Checkout {
   }
 
   IEnumerator TrHiper() {
-   yield return TrCrowd("hipermercado", 40, ".lanes"); TrArrange();
+   TrTiers(5, 3);
+   yield return TrCrowd("hipermercado", 44, ".lanes"); TrArrange();
+   TrDecorate(new[] { "fruit-pyramid", "promo-stand", "can-pyramid", "plant-palm", "tasting-table", "watermelon-pile", "balloons", "monstera" },
+    new[] { "flower-bed", "ice-cream-cart", "bench", "popcorn-cart" });
    yield return new WaitForSecondsRealtime(16f);   // the shoppers walk in
    var (c, size) = TrShop();
    var inside = CheckoutInterior.Active;
@@ -282,7 +313,7 @@ namespace Checkout {
    yield return TrShot(true, TrTrayPlay(hud));
    Route(""); yield return new WaitForSecondsRealtime(1f);
    // the other sectors' puzzles, a moment each
-   foreach (var recipe in new[] { "picanha-wagyu", "sushi-especial", "sundae-chocolate", "vinho-da-casa" }) {
+   foreach (var recipe in new[] { "sushi-especial", "sundae-chocolate", "vinho-da-casa" }) {
     Route("kitchen:" + recipe + ":0"); yield return new WaitForSecondsRealtime(3f);
     yield return TrShot(true, Hold(2.4f));
     Route(""); yield return new WaitForSecondsRealtime(1f);
@@ -299,7 +330,7 @@ namespace Checkout {
    var fx = FindAnyObjectByType<CheckoutEventVisuals>(); if (!fx) { Note("trailer: no event visuals"); yield break; }
    if (bridge.State?.era?.id != "hipermercado" && bridge.State?.era?.id != "rede") { yield return TrCrowd("hipermercado", 30); yield return new WaitForSecondsRealtime(10f); }
    foreach (var (id, zoom) in new[] { ("carro-de-som", 8f), ("feira-de-rua", 10f), ("nevasca", 14f) }) {
-    fx.Preview(id); yield return new WaitForSecondsRealtime(2.5f);
+    fx.Preview(id); yield return new WaitForSecondsRealtime(id == "carro-de-som" ? 7f : 3f);
     var f = fx.FocusOf(id); f.y = 0;
     yield return TrGlideShot(f + new Vector3(.8f, 0, .4f), zoom * 1.08f, f, zoom, 3.6f);
     fx.Preview(""); yield return new WaitForSecondsRealtime(1.5f);
@@ -307,7 +338,10 @@ namespace Checkout {
   }
 
   IEnumerator TrRede() {
-   yield return TrCrowd("rede", 40, ".lanes.brand"); TrArrange();
+   TrTiers(5, 3);
+   yield return TrCrowd("rede", 44, ".lanes.brand"); TrArrange();
+   TrDecorate(new[] { "fruit-pyramid", "promo-stand", "can-pyramid", "plant-palm", "tasting-table", "wine-barrel", "balloons", "aquarium" },
+    new[] { "flower-bed", "hotdog-cart", "bench", "fountain" });
    TrHud("orderFromDistributionCenter", "[[{\"productId\":172,\"boxes\":2},{\"productId\":175,\"boxes\":1}]]");
    yield return new WaitForSecondsRealtime(14f);
    var (c, _) = TrShop();
@@ -315,7 +349,7 @@ namespace Checkout {
    if (letters) { var l = letters.transform.position; l.y = 0; yield return TrGlideShot(l + new Vector3(0, 0, -6.5f), 8.5f, l + new Vector3(0, 0, -5.5f), 12f, 4f); }
    yield return TrGlideShot(new Vector3(11, 0, 40), 17f, new Vector3(11, 0, 45), 23f, 4.5f);
    // the whole map from above: the shop first, then everything
-   yield return TrGlideShot(c, 13f, new Vector3(2, 0, 20), 38f, 6.5f);
+   yield return TrGlideShot(c, 13f, new Vector3(4, 0, 17), 30f, 6.5f);
   }
  }
 }
