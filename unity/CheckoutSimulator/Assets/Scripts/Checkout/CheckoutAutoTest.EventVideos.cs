@@ -53,14 +53,14 @@ namespace Checkout {
    if(!bridge.State.isOpen){CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-open\",\"action\":\"setMarketOpen\",\"args\":[true]}");for(float t=0;t<6&&!bridge.State.isOpen;t+=.5f)yield return new WaitForSecondsRealtime(.5f);}
    var home=FindAnyObjectByType<MarketDay.MarketSimulation>();
    if(furnished)yield return new WaitForSecondsRealtime(20f);   // customers come in
-   yield return CloseCards();
+   yield return CloseCardsSettled();
    Note($"stage {stage}: era={bridge.State?.era?.id} open={bridge.State.isOpen}");
    int n=0;
    foreach(var id in CheckoutEventVisuals.EventIds){
     n++;
     if(only!=null&&id!=only)continue;
     if(furnished&&Array.IndexOf(shopEvents,id)<0)continue;
-    yield return CloseCards();
+    yield return CloseCardsSettled();
     fx.Preview(id);yield return new WaitForSecondsRealtime(1.5f);
     var focus=fx.FocusOf(id);
     if(home)home.Focus(new Vector3(focus.x,0,focus.z),12);
@@ -77,7 +77,7 @@ namespace Checkout {
   }
 
   // The celebration cards ("Móvel pronto!" for each shelf built, level-ups) one after another, so none covers the video.
-  IEnumerator CloseCards(){
+  IEnumerator CloseCardsSettled(){
    var hud=FindAnyObjectByType<CheckoutDesktopHUD>();if(!hud)yield break;
    int quiet=0;
    for(int i=0;i<60&&quiet<4;i++){
