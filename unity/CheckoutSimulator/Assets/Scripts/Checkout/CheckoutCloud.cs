@@ -351,7 +351,8 @@ namespace Checkout {
    if(r==null){Report("signed-out");yield break;}
    // Only the status: the reply carries the session token (never in a log).
    Debug.Log("CHECKOUT_CLOUD login reply "+r.code);
-   if(r.network||r.code>=500){Report("signed-out","Sem conexão com o servidor. Tente de novo.");yield break;}
+   // 429: the server's login limit (too many logins from one address in a minute): same as no connection, try again.
+   if(r.network||r.code>=500||r.code==429){Report("signed-out","Sem conexão com o servidor. Tente de novo.");yield break;}
    if(r.code!=200){Report("signed-out",CheckoutI18n.T(apple?"A Apple não confirmou o login ({0}).":"O Google não confirmou o login ({0}).").Replace("{0}",r.code.ToString()));yield break;}
    var auth=JsonUtility.FromJson<AuthReply>(r.text);
    token=auth.token;playerId=auth.player.id;email=auth.player.email??"";playerName=auth.player.name??"";

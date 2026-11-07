@@ -51,4 +51,4 @@ export async function readCapped(request: Request, max: number): Promise<Uint8Ar
 	return bytes;
 }
 
-export const json =(status: number, body: unknown) => new Response(body === null ? null : JSON.stringify(body), { status, headers: HEADERS });
+export const json = (status: number, body: unknown) => new Response(body === null ? null : JSON.stringify(body), { status, headers: HEADERS });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { createApp, type LimiterName, type RateLimiter } from "../src/app.ts";
+import { createApp, expandV6, type LimiterName, type RateLimiter } from "../src/app.ts";
 import { DAY_MS, dayOf } from "../src/limits.ts";
 import { Store } from "../src/store.ts";
 import { fakeD1, fakeR2 } from "./fakes.ts";
@@ -150,6 +150,18 @@ describe("security: Workers Rate Limiting bindings", () => {
 		assert.equal((await w4.upload(cris.token, 1)).status, 429);
 	});
 
+	test("per-address limits count an IPv6 /64 as one address (a phone gets a whole /64 to rotate through)", async () => {
+		assert.deepEqual(expandV6("2001:db8::1"), ["2001", "db8", "0", "0", "0", "0", "0", "1"]);
+		assert.deepEqual(expandV6("2001:0db8:0001:0002:aaaa::"), ["2001", "db8", "1", "2", "aaaa", "0", "0", "0"]);
+		const auth = counter(2);
+		const w = world({ limiters: { auth } });
+		assert.equal((await w.call("POST", "/v1/auth/google", { idToken: "token-ana" }, undefined, "2001:db8:1:2::a")).status, 200);
+		assert.equal((await w.call("POST", "/v1/auth/google", { idToken: "token-ana" }, undefined, "2001:db8:1:2:ffff::b")).status, 200);
+		assert.equal((await w.call("POST", "/v1/auth/google", { idToken: "token-ana" }, undefined, "2001:db8:1:2:1234:5678:9abc:def0")).status, 429);
+		assert.equal((await w.call("POST", "/v1/auth/google", { idToken: "token-ana" }, undefined, "2001:db8:1:3::a")).status, 200, "another /64");
+		assert.deepEqual([...auth.seen.keys()], ["2001:db8:1:2", "2001:db8:1:3"]);
+	});
+
 	test("a limiter that fails lets the call through (players are never locked out by an outage) and says so in the log", async () => {
 		const broken: RateLimiter = { limit: async () => Promise.reject(new Error("counters down")) };
 		const w = world({ limiters: { ip: broken, auth: broken, player: broken, save: broken } });
@@ -161,7 +173,7 @@ describe("security: Workers Rate Limiting bindings", () => {
 });
 
 describe("security: least time between two uploads", () => {
-	test("a second upload within 5 s is 429 (the game retries a minute later); after that it goes through; conflicts still win", async () => {
+	test("a second upload within the gap is 429 (the game retries a minute later); after that it goes through; conflicts and forced uploads still win", async () => {
 		const w = world({ minUploadGapMs: 5_000 });
 		const { token } = await w.signIn("ana");
 		assert.equal((await w.upload(token, 0)).status, 200, "the first upload has nothing to wait for");
@@ -170,5 +182,9 @@ describe("security: least time between two uploads", () => {
 		assert.equal((await w.upload(token, 0)).status, 409, "a device that is behind gets its conflict right away");
 		w.clock.now += 3_000;
 		assert.equal((await w.upload(token, 1)).status, 200);
+		// "Keep this device" after a conflict is never held back (its retry would bring the conflict dialog back).
+		w.clock.now += 1_000;
+		const forced = await w.call("PUT", "/v1/save", { baseRevision: 2, data: save(6), deviceId: "tablet", force: true }, token);
+		assert.equal(forced.status, 200);
 	});
 });

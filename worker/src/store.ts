@@ -509,14 +509,15 @@ export class Store {
 		// SET expressions all read the row as it was before the update (SQLite), so `level` here is the old level.
 		// The climb clock (GCRA, a token bucket in one timestamp): every level past the early levels moves climb_at
 		// RANKINGS.climbMsPerLevel ahead of max(climb_at, now); more than RANKINGS.climbBurstLevels levels ahead of now is a
-		// strike. So many small jumps in a row (5 levels every upload) are caught like one big jump, while a real player
-		// (about one level a day past the early levels) never gets near it. The clock is kept at most one burst ahead.
+		// strike. So many small jumps in a row (5 levels every upload) are caught like one big jump. A strike also refills
+		// the bucket (climb_at = now): one strike per burst overrun, never one per upload, so a fast real player who goes
+		// past it once is not hidden by a run of strikes.
 		const gained = `(?1 - MAX(level, ${RANKINGS.earlyLevels}))`;
 		const ahead = `(MAX(climb_at, ?4) + ${gained} * ${RANKINGS.climbMsPerLevel} - ?4)`;
 		const burst = RANKINGS.climbBurstLevels * RANKINGS.climbMsPerLevel;
 		const climbing = withClimb ? ` OR (${gained} > 0 AND ${ahead} > ${burst})` : "";
 		const strike = `(CASE WHEN ?1 > ${MAX_LEVEL} OR (has_save = 1 AND ((?1 - level > ${RANKINGS.maxLevelJump} AND ?1 > ${RANKINGS.earlyLevels})${climbing})) THEN 1 ELSE 0 END)`;
-		const climb = withClimb ? `climb_at = CASE WHEN has_save = 1 AND ${gained} > 0 THEN ?4 + MIN(${ahead}, ${burst}) ELSE climb_at END,` : "";
+		const climb = withClimb ? `climb_at = CASE WHEN has_save = 1 AND ${gained} > 0 THEN (CASE WHEN ${ahead} > ${burst} THEN ?4 ELSE ?4 + ${ahead} END) ELSE climb_at END,` : "";
 		const statements = [
 			this.db
 				.prepare(

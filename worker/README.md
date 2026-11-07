@@ -38,7 +38,6 @@ Variáveis (públicas, em `wrangler.jsonc`): `GOOGLE_CLIENT_IDS`, `GOOGLE_IOS_CL
 Segredos (tipo **Secret**, colados pelo Lucas, iguais aos do Render › Environment):
 - `SESSION_SECRET` — **copiar exatamente o do Render** (senão todo mundo é deslogado)
 - `GOOGLE_DESKTOP_CLIENT_SECRET` — login do PC/Editor
-- `GOOGLE_IOS_CLIENT_ID` — se existir no Render (login do Google no iPhone)
 - `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` — se existirem no Render (revogar login da Apple ao apagar conta)
 - ~~`OLD_DATABASE_URL`~~ — era só para copiar os dados do Render. **Apagar:** `npx wrangler secret delete OLD_DATABASE_URL`.
 
@@ -278,26 +277,28 @@ fechamento da liga (cron). Itens com mais de 1 hora ou já lidos no jogo nunca v
 Pesquisa e decisões completas no doc do projeto `claude/seguranca-servidor.md`. No código:
 - **Limite de requisições em duas camadas.** Por instância (`rateLimit`, 120/min por endereço e por jogador) e pelos
   bindings de Rate Limiting da Cloudflare (`ratelimits` em `wrangler.jsonc`, contados por local da Cloudflare):
-  `RL_IP` 600/min por endereço (generoso: celulares da mesma operadora dividem endereço), `RL_AUTH` 30 logins/min por
-  endereço, `RL_PLAYER` 120/min por jogador, `RL_SAVE` 6 envios do save/min por jogador. Passou do limite = 429
+  `RL_IP` 600/min por endereço (generoso: celulares da mesma operadora dividem endereço; IPv6 conta por /64),
+  `RL_AUTH` 120 logins/min por endereço, `RL_PLAYER` 120/min por jogador, `RL_SAVE` 6 envios do save/min por jogador. Passou do limite = 429
   `slow-down` (o jogo trata como "sem rede" e tenta de novo em 1 minuto). Se o contador da Cloudflare falhar, a
   chamada passa (e vai para o log): jogador nunca fica trancado por causa disso.
-- **Mínimo de 5 s entre dois envios do save** do mesmo jogador (usa o `updated_at` que já existe; o jogo envia a cada
-  5 min e ao sair). Uma conta mandando envios sem parar gastaria as escritas do D1 e as operações do R2 de todo mundo.
+- **Mínimo de 2 s entre dois envios do save** do mesmo jogador (usa o `updated_at` que já existe; o jogo envia a cada
+  5 min e ao sair; "manter este aparelho" depois de um conflito nunca espera). Uma conta mandando envios sem parar
+  gastaria as escritas do D1 e as operações do R2 de todo mundo.
 - **Corpos limitados também quando chegam em pedaços** (sem Content-Length): logins, push e social 16 KB; save ~4 MB.
-- **Anti-trapaça do ranking — relógio de subida** (`migrations/0006_climb.sql`): depois do nível 12, no máximo 10
-  níveis de uma vez e depois 3 por hora. Pega quem sobe +5 a cada envio (cada um abaixo do limite de salto). 3
-  strikes escondem dos rankings e das ligas (o save nunca é mexido; para perdoar alguém: `UPDATE profiles SET
+- **Anti-trapaça do ranking — relógio de subida** (`migrations/0006_climb.sql`): depois do nível 12, no máximo 20
+  níveis de uma vez e depois 7,5 por hora; cada estouro é 1 strike (e zera o balde). Pega quem sobe +5 a cada envio
+  (cada um abaixo do limite de salto). 3 strikes escondem dos rankings e das ligas (o save nunca é mexido; para perdoar alguém: `UPDATE profiles SET
   strikes = 0, ranking_hidden = 0, climb_at = 0 WHERE code = '…'` no console do D1).
 - **Cabeçalhos** em toda resposta JSON: `nosniff`, CSP `default-src 'none'`, `no-referrer`, HSTS. Sem CORS.
 - **`/health` não conta mais quais configurações existem** (vão para o log), **nonce obrigatório** no login da Apple,
-  **rotas `/admin/*` desligadas**.
+  **rotas `/admin/*` desligadas no código** (`src/admin.ts` só fica para os testes da cópia).
 
 ### Antes de publicar esta versão
 1. **Migração (uma vez só):** `npx wrangler d1 execute checkout-saves --remote --file=migrations/0006_climb.sql`
    (ou colar no console do D1). Conferir antes: `SELECT name FROM pragma_table_info('profiles') WHERE name = 'climb_at';`
    — sem linhas = ainda não rodou. Antes dela o Worker funciona igual, só sem o relógio de subida.
-2. `npx wrangler deploy` (wrangler 4.36 ou mais novo, por causa dos `ratelimits`).
+2. `npx wrangler deploy` (wrangler 4.36 ou mais novo, por causa dos `ratelimits`). Sem os bindings, o log avisa
+   "rate limiting bindings missing".
 3. `npx wrangler secret delete OLD_DATABASE_URL`.
 
 ## Testes

@@ -635,43 +635,53 @@ describe("rankings: anti-cheat on uploads", () => {
 
 describe("rankings: anti-cheat climb clock (migrations/0006_climb.sql)", () => {
 	const MIN = 60_000;
-	test("+5 levels every upload (each one under the jump limit) is caught from the third upload on; 3 strikes hide", async () => {
+	test("+5 levels every 5-minute upload (each one under the jump limit): a strike per overrun of the burst; 3 strikes hide", async () => {
 		const w = world();
 		const ana = await w.user("ana", 1);
 		await w.upload(ana, 12);
 		const strikes: number[] = [];
-		for (let level = 17; level <= 37; level += 5) {
+		for (let i = 1; i <= 15; i++) {
 			w.clock.now += 5 * MIN;
-			await w.upload(ana, level);
+			await w.upload(ana, 12 + 5 * i);
 			strikes.push(w.profile(ana).strikes);
 		}
-		assert.deepEqual(strikes, [0, 0, 1, 2, 3]);
+		assert.deepEqual(strikes, [0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3]);
 		assert.equal(w.profile(ana).ranking_hidden, 1);
-		assert.equal(w.profile(ana).level, 37, "the level is still stored (the save is never touched)");
+		assert.equal(w.profile(ana).level, 87, "the level is still stored (the save is never touched)");
 	});
 
-	test("a real pace never strikes: a level every hour for two days, a burst of 10 after a break, the early levels at once", async () => {
+	test("a real pace never strikes: a level an hour for two days, 10 levels an hour for 6 hours, 20 levels in an evening", async () => {
 		const w = world();
 		const ana = await w.user("ana", 1);
 		await w.upload(ana, 12, 0);
-		for (let level = 13; level <= 60; level++) {
+		let level = 12;
+		for (let i = 0; i < 48; i++) {
 			w.clock.now += 60 * MIN;
-			await w.upload(ana, level);
+			await w.upload(ana, ++level);
+		}
+		for (let i = 0; i < 60; i++) {
+			w.clock.now += 6 * MIN;
+			await w.upload(ana, ++level);
 		}
 		assert.equal(w.profile(ana).strikes, 0);
-		// A week away, then 2 big evenings: +5 twice in a row (the jump limit) and 0 strikes.
+		// A week away, then a big evening: +5 four times, ten minutes apart (20 levels = the burst).
 		w.clock.now += 7 * DAY_MS;
-		await w.upload(ana, 65);
+		for (let i = 0; i < 4; i++) {
+			w.clock.now += 10 * MIN;
+			await w.upload(ana, (level += 5));
+		}
+		assert.equal(w.profile(ana).strikes, 0, "20 levels at once is the burst");
 		w.clock.now += 10 * MIN;
-		await w.upload(ana, 70);
-		assert.equal(w.profile(ana).strikes, 0, "10 levels at once is the burst");
+		await w.upload(ana, (level += 5));
 		w.clock.now += 10 * MIN;
-		await w.upload(ana, 72);
-		assert.equal(w.profile(ana).strikes, 1, "past the burst, faster than 3 levels an hour");
-		// The clock refills with time: three hours later, 3 more levels are fine.
-		w.clock.now += 3 * 60 * MIN;
-		await w.upload(ana, 75);
-		assert.equal(w.profile(ana).strikes, 1);
+		await w.upload(ana, (level += 5));
+		assert.equal(w.profile(ana).strikes, 1, "past the burst: one strike");
+		// The strike refilled the bucket: going on at a normal pace adds nothing.
+		for (let i = 0; i < 10; i++) {
+			w.clock.now += 10 * MIN;
+			await w.upload(ana, ++level);
+		}
+		assert.equal(w.profile(ana).strikes, 1, "one strike per overrun, not one per upload");
 	});
 
 	test("before the migration runs: uploads work, only the older checks apply, the log says what to run", async () => {

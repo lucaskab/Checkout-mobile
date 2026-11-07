@@ -1,7 +1,5 @@
-import { connect } from "cloudflare:sockets";
-import { adminRoutes } from "./admin.ts";
 import { createApp } from "./app.ts";
-import type { Connect, Env } from "./cf.ts";
+import type { Env } from "./cf.ts";
 import { HEADERS } from "./http.ts";
 import { fcmSender, flushPush, readServiceAccount } from "./push.ts";
 import { closeWeeks } from "./ranking-store.ts";
@@ -24,14 +22,12 @@ const SETTINGS = [
 	"APPLE_TEAM_ID",
 	"APPLE_KEY_ID",
 	"APPLE_PRIVATE_KEY",
-	"OLD_DATABASE_URL",
-	"ADMIN_PUBLIC_KEY",
 	"FCM_SERVICE_ACCOUNT",
 ] as const;
 
 const log = (line: string) => console.log(line);
 /** The least time between two accepted uploads of one save (the game uploads every 5 minutes and on leaving). */
-const MIN_UPLOAD_GAP_MS = 5_000;
+const MIN_UPLOAD_GAP_MS = 2_000;
 const list = (value: string | undefined) => (value ?? "").split(",").map((id) => id.trim()).filter(Boolean);
 
 type Handler = (request: Request, address: string, country?: unknown, waitUntil?: (work: Promise<unknown>) => void) => Promise<Response>;
@@ -47,15 +43,9 @@ function build(env: Env): Handler {
 	log(`settings: ${configured ? "configured" : "NOT configured"}; missing: ${missing.join(", ") || "none"}${sessionSecret && sessionSecret.length < 32 ? "; SESSION_SECRET shorter than 32" : ""}${env.DB ? "" : "; no DB binding"}${env.SAVES ? "" : "; no SAVES binding"}`);
 	const health = () => ({ configured });
 	if (!configured) {
-		// Not set up yet: only /health answers (it tells what is missing, by name), plus the token-gated /admin/* routes
-		// (copy from Render, CPU benchmark), which need no session secret.
-		const admin =
-			env.ADMIN_PUBLIC_KEY && env.DB && env.SAVES
-				? appFor(env, Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16)).join(""), [], health)
-				: null;
-		return async (request, address) => {
+		// Not set up yet: only /health answers; the game's routes are 503 (what is missing is in the log above).
+		return async (request) => {
 			const path = new URL(request.url).pathname;
-			if (admin && path.startsWith("/admin/")) return admin(request, address);
 			const status = path === "/health" || path === "/" ? 200 : 503;
 			return new Response(JSON.stringify(status === 200 ? { ok: false, ...health() } : { error: "not-configured" }), {
 				status,
@@ -63,6 +53,9 @@ function build(env: Env): Handler {
 			});
 		};
 	}
+	// The Rate Limiting bindings come only with `wrangler deploy` (wrangler.jsonc "ratelimits"): say so when absent.
+	const noLimiters = (["RL_IP", "RL_AUTH", "RL_PLAYER", "RL_SAVE"] as const).filter((name) => !env[name]);
+	if (noLimiters.length) log(`rate limiting bindings missing (deploy with wrangler 4.36+): ${noLimiters.join(", ")}`);
 	return appFor(env, sessionSecret, clientIds, health);
 }
 
@@ -89,9 +82,7 @@ function appFor(env: Env, sessionSecret: string, clientIds: string[], health: ()
 		cache: ((globalThis as { caches?: { default?: BoardCache } }).caches?.default as BoardCache | undefined) ?? null,
 		limiters: { ip: env.RL_IP, auth: env.RL_AUTH, player: env.RL_PLAYER, save: env.RL_SAVE },
 		minUploadGapMs: MIN_UPLOAD_GAP_MS,
-		extra: env.ADMIN_PUBLIC_KEY
-			? adminRoutes({ publicKey: env.ADMIN_PUBLIC_KEY, oldDatabaseUrl: env.OLD_DATABASE_URL, connect: connect as unknown as Connect, db: env.DB, bucket: env.SAVES, store })
-			: undefined,
+		// The /admin/* routes of the move from Render (src/admin.ts) are no longer wired, whatever the settings say.
 	});
 	return app;
 }

@@ -18,7 +18,7 @@ import { type AppleTokens, type AppleVerifier, type GoogleVerifier, photoUrlOf, 
  * - PUT  /v1/save         {baseRevision, data, deviceId, force?, public?} → {revision, updatedAt, summary, deviceId}
  *                                                           | 409 {error:"conflict", current: {…} | null}
  * - DELETE /v1/account                                     → 204 (the player, every save and every social row, for good)
- * - GET  /health                                           → {ok, settings: which settings are present (names only)}
+ * - GET  /health                                           → {ok, configured} (what is missing goes to the log)
  * - /v1/social/* and GET /i/<code>: friends, invites, visits, helps, gifts, product requests (social.ts,
  *   docs/social-api.md). PUT /v1/save also takes the optional social `public` block.
  * - /v1/rankings/*: world, country, friends, weekly league, opt-out (rankings.ts, docs/rankings-api.md). PUT /v1/save
@@ -94,6 +94,15 @@ async function readBytes(request: Request) {
 /** The small JSON bodies (logins, push): at most 16 KB, refused before reading more (social.ts readBody). */
 const readJson = (request: Request) => readBody(request);
 
+/** An IPv6 address as its 8 groups ("2001:db8::1" → ["2001","db8","0","0","0","0","0","1"]); junk stays as given. */
+export function expandV6(address: string): string[] {
+	const [head, tail] = address.toLowerCase().split("::");
+	const left = head ? head.split(":") : [];
+	const right = tail !== undefined && tail ? tail.split(":") : [];
+	const fill = tail !== undefined ? Array(Math.max(0, 8 - left.length - right.length)).fill("0") : [];
+	return [...left, ...fill, ...right].map((g) => g.replace(/^0+(?=.)/, ""));
+}
+
 export function createApp(options: AppOptions) {
 	const { store, verifyGoogle, sessionSecret } = options;
 	const now = options.now ?? Date.now;
@@ -117,6 +126,10 @@ export function createApp(options: AppOptions) {
 	 * Throws 429 when the binding `name` says this key is over its limit. A binding that fails (an outage of the
 	 * counters) lets the call through: the per-instance limit still applies, and players are never locked out by it.
 	 */
+	/** The key of an address for the per-address limits: IPv4 as is, IPv6 by its /64 (one phone or home line gets a
+	 * whole /64, so its addresses would otherwise each get their own counter). */
+	const addressKey = (address: string) => (address.includes(":") ? expandV6(address).slice(0, 4).join(":") : address);
+
 	const limited = async (name: LimiterName, key: string) => {
 		const limiter = options.limiters?.[name];
 		if (!limiter) return;
@@ -188,7 +201,9 @@ export function createApp(options: AppOptions) {
 			}
 			if (!canReplace(current, upload.baseRevision)) throw new HttpError(409, { error: "conflict", current: current ? describe(current) : null });
 			// One account flooding uploads would spend the day's D1 writes and R2 operations of everyone (free plan).
-			if (current && minUploadGap > 0 && now() - current.updatedAt < minUploadGap) throw new HttpError(429, { error: "slow-down" });
+			// A forced upload (the player chose this device after a conflict) is never held back: its retry would be a plain
+			// upload of the old revision, i.e. the conflict dialog again.
+			if (current && !upload.force && minUploadGap > 0 && now() - current.updatedAt < minUploadGap) throw new HttpError(429, { error: "slow-down" });
 			const summary = upload.summary;
 			const publicChanged = !!social && upload.public !== undefined && upload.public !== social.publicJson;
 			const rewardDue = !!social?.rewardPending && summary.level >= SOCIAL.inviteRewardLevel;
@@ -199,8 +214,19 @@ export function createApp(options: AppOptions) {
 			const ranked = social?.ranked;
 			const rankedChanged =
 				!!ranked && (changed || ranked.xp !== summary.xp || !ranked.hasSave || (!!country && country !== ranked.country) || summary.level > MAX_LEVEL);
-			const extra = rankedChanged ? (key: string) => store.afterUpload(player.id, key, summary, publicChanged ? upload.public : undefined, country, rewardDue, ranked?.climb === true) : undefined;
-			const result = await store.replaceSave(player.id, current, { literal: upload.literal, summary, deviceId: upload.deviceId, keepReplaced: upload.force }, extra);
+			const extraWith = (climb: boolean) =>
+				rankedChanged ? (key: string) => store.afterUpload(player.id, key, summary, publicChanged ? upload.public : undefined, country, rewardDue, climb) : undefined;
+			const replace = (climb: boolean) =>
+				store.replaceSave(player.id, current, { literal: upload.literal, summary, deviceId: upload.deviceId, keepReplaced: upload.force }, extraWith(climb));
+			let result: Awaited<ReturnType<typeof replace>>;
+			try {
+				result = await replace(ranked?.climb === true);
+			} catch (error) {
+				// The climb column vanished between the read and the write (a D1 restore to before 0006): the upload goes
+				// through without it rather than failing.
+				if (!(ranked?.climb && store.missingClimb(error))) throw error;
+				result = await replace(false);
+			}
 			if (!result.ok) throw new HttpError(409, { error: "conflict", current: result.current ? describe(result.current) : null });
 			if (upload.publicRefused) log(`public block refused for ${player.id}: ${upload.publicRefused}`);
 			// Before migrations/0003_rankings.sql: the social profile (only one that exists) as before — level/era from the
@@ -225,7 +251,7 @@ export function createApp(options: AppOptions) {
 		if (path === "/health" || path === "/") return json(200, { ok: true, ...options.health?.() });
 
 		// Logins: few per address (each one asks Google/Apple and writes the player row), against token stuffing.
-		if (path.startsWith("/v1/auth/")) await limited("auth", address);
+		if (path.startsWith("/v1/auth/")) await limited("auth", addressKey(address));
 
 		if ((path === "/v1/auth/google" || path === "/v1/auth/google-code") && method === "POST") {
 			const body = await readJson(request);
@@ -274,9 +300,9 @@ export function createApp(options: AppOptions) {
 				log("apple login refused");
 				throw new HttpError(401, { error: "apple-refused" });
 			}
-			// The login's one-time nonce: the token must carry its SHA-256, so a token caught on its way cannot be replayed
-			// by another login. Required since the store launch (every build since 29/10 sends it; the ones before were
-			// TestFlight builds only).
+			// The login's one-time nonce: the token must carry its SHA-256, so an identity token leaked on its own (a log, a
+			// crash report) cannot be used to sign in — the raw nonce never leaves the phone except in this request.
+			// Required since the store launch (every build since 29/10 sends it; the ones before were TestFlight builds only).
 			const nonce = body.nonce;
 			const expected = typeof nonce === "string" && nonce && nonce.length <= 256 ? await sha256Hex(nonce) : null;
 			if (!expected || identity.nonce !== expected) {
@@ -377,8 +403,8 @@ export function createApp(options: AppOptions) {
 
 	async function answer(request: Request, address: string, country?: unknown): Promise<Response> {
 		try {
-			if (!allow(`ip:${address}`)) throw new HttpError(429, { error: "slow-down" });
-			await limited("ip", address);
+			if (!allow(`ip:${addressKey(address)}`)) throw new HttpError(429, { error: "slow-down" });
+			await limited("ip", addressKey(address));
 			return await route(request, countryOf(country), address);
 		} catch (error) {
 			if (error instanceof HttpError) return json(error.status, error.body);
