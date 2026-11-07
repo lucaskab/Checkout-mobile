@@ -896,13 +896,12 @@ namespace Checkout {
    // (props a bit larger than life so they read from the game camera, like the other event props)
    var machine = Prop("Maquininha_Handheld", till + face * .45f + Vector3.up * 1.05f, Quaternion.LookRotation(-face).eulerAngles.y, 1.8f);
    if (holder) Ride(machine, holder, face * .04f);
-   // the bubble and the standee turn their faces (+Z) to the game camera
+   // the bubble and the standee turn their faces to the game camera (these two were exported facing -Z)
    var cam = Camera.main; var toCam = cam ? Flat(-cam.transform.forward, -face) : -face;
-   float camYaw = Quaternion.LookRotation(toCam).eulerAngles.y;
+   float camYaw = Quaternion.LookRotation(-toCam).eulerAngles.y;
    var bubble = till + face * .9f + Vector3.up * 2.1f;
    Fx2(root, "Maquininha_NoCardBubble", bubble, "float", camYaw, 1.7f);
    Prop("Maquininha_CounterSign", till + face * .62f + side * .45f + Vector3.up * .95f, camYaw, 1.8f);
-   Debug.Log($"CHECKOUT_MAQ bubble={bubble} camYaw={camYaw} cam={(cam ? cam.transform.position.ToString() : "-")}");
    Fx2(root, "Maquininha_CashBills", till + face * .66f + side * .3f + Vector3.up * .98f, "pulse", Quaternion.LookRotation(-face).eulerAngles.y, 1.6f);
    Focus(till + face * .5f);
   }
