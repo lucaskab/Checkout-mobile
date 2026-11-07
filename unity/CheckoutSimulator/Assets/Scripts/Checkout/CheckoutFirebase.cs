@@ -9,9 +9,6 @@ using Firebase.Crashlytics;
 using Firebase.Extensions;
 using Firebase.Messaging;
 #endif
-#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR && CHECKOUT_ADMOB
-using GoogleMobileAds.Ump.Api;
-#endif
 
 namespace Checkout
 {
@@ -76,10 +73,10 @@ namespace Checkout
         void LookAtConsent()
         {
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR && CHECKOUT_ADMOB
-            var status = ConsentInformation.ConsentStatus;
-            if (status == ConsentStatus.Unknown) return;       // CheckoutAds has not refreshed the consent info yet
+            var status = GoogleMobileAds.Ump.Api.ConsentInformation.ConsentStatus;
+            if (status == GoogleMobileAds.Ump.Api.ConsentStatus.Unknown) return;       // CheckoutAds has not refreshed the consent info yet
             consentSet = true;
-            if (status == ConsentStatus.NotRequired) SetConsent(true);
+            if (status == GoogleMobileAds.Ump.Api.ConsentStatus.NotRequired) SetConsent(true);
 #elif (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
             consentSet = true;                                  // no consent SDK in this build: stay denied
 #else
