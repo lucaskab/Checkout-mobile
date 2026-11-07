@@ -17,6 +17,8 @@ namespace Checkout {
    // "eventsvideo-<stage>-furnished": a player's shop first (shelves placed and built, two checkouts, a cashier and a
    // stock clerk, market open with customers), then only the events that happen at or in the shop.
    bool furnished=only=="furnished";if(furnished)only=null;
+   // "...-furnished-<id>-close": the furnished shop, then the close stills of one event.
+   if(only!=null&&only.StartsWith("furnished-")){furnished=true;only=only.Substring(10);}
    // "...-<id>-close": no video, three close stills of the scene (Logs/evc_<id>_<n>.jpg), to look at the assets.
    bool close=only!=null&&only.EndsWith("-close");if(close)only=only.Substring(0,only.Length-6);
    string[] shopEvents={"quinto-dia-util","cafe-com-a-equipe","fim-do-mes","maquininha-fora-do-ar","queda-de-energia","turno-puxado","vigilancia-sanitaria"};

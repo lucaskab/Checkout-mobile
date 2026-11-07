@@ -864,7 +864,7 @@ namespace Checkout {
    // the street when the van's spot is in front of the door)
    if (!Place(ref px, .5f, 1.9f, -11.2f, -9.3f, 6f) && !Place(ref px, .5f, 1.9f, -11.2f, -9.3f, 26f)) px = float.NaN;
    if (float.IsNaN(px)) { Person(Next(), On(vx + van.BackOffset - .4f, CurbEdge + .25f), Dir(-.4f, 1), "Clipboard"); CashOnly(); return; }
-   var pole = Prop("Maquininha_TelecomPole", On(px, -9.55f), 0); Focus(On(px, -10.8f));
+   var pole = Prop("Maquininha_TelecomPole", On(px, -9.55f), 0);   // the camera stays on the checkout
    Fx2(pole, "Maquininha_CtoLed", new Vector3(.11f, 4.52f, -.5f), "blink");
    Prop("Maquininha_Ladder", On(px, -11.0f), 0);
    // standing on the ladder ~2.1 m up, leaning in to the box
