@@ -854,6 +854,7 @@ namespace Checkout {
   // The operator's van parks at the curb west of the crossing; on the telecom pole a technician up the ladder works
   // on the box (its LED blinking), the other checks the list at the van; SÓ DINHEIRO at the market.
   void CardsDown() {
+   CardsDownAtCounter();
    var van = Vehicle("Rig_TelecomVan", Road(0, LaneW), West);
    float front = WestZoneFrom + .1f, vx = front + van.FrontOffset;
    van.transform.position = Road(vx, LaneW);
@@ -871,6 +872,48 @@ namespace Checkout {
    Prop("Maquininha_CableReel", On(px + 1.3f, -10.7f), 0);
    Person(Next(), On(vx + van.BackOffset - .4f, CurbEdge + .25f), Dir(-.4f, 1), "Clipboard");
    CashOnly();
+  }
+  // At the checkout (Lucas 06/11: "se o evento é da maquininha de cartão não tá funcionando, o caixa é lá que tem que
+  // ficar com alguma animação"): the cashier holds the card machine up with its red error screen (riding her hand
+  // while she works), a "no card" bubble bobs over the counter, the standee on the counter says cash yes / card no,
+  // and the customer at the counter pays with a fan of banknotes. Props from ArtSource/events_v2/maquininha_v2.py
+  // (no text baked in: icons only). At a stall without a hired cashier, the stall's clerk does it.
+  void CardsDownAtCounter() {
+   var sim = FindAnyObjectByType<MarketSimulation>();
+   var cashier = sim && sim.world ? sim.world.Find("Worker_Cashier") : null;
+   bool working = cashier && cashier.gameObject.activeInHierarchy;
+   Vector3 till, face; Transform holder;
+   if (working) {
+    till = cashier.position; face = Flat(cashier.forward, South);
+    holder = HandOf(cashier);
+   } else {
+    till = CheckoutStall.Register; face = South;
+    var clerk = Person(Staff(0), new Vector3(till.x, On(till.x, till.z + .7f).y, till.z + .7f), South, "LookPhone");
+    holder = HandOf(clerk.transform); till = clerk.transform.position;
+   }
+   var side = Vector3.Cross(Vector3.up, face).normalized;
+   // the machine: in her right hand, screen towards the customer; on the counter by her when no hand bone is found
+   var machine = Prop("Maquininha_Handheld", till + face * .45f + Vector3.up * 1.05f, Quaternion.LookRotation(-face).eulerAngles.y);
+   if (holder) Ride(machine, holder, face * .04f);
+   var bubble = till + face * .7f + Vector3.up * 2.45f;
+   Fx2(root, "Maquininha_NoCardBubble", bubble, "float", Quaternion.LookRotation(-face).eulerAngles.y, 1.1f);
+   Prop("Maquininha_CounterSign", till + face * .62f - side * .45f + Vector3.up * .95f, Quaternion.LookRotation(-face).eulerAngles.y);
+   Fx2(root, "Maquininha_CashBills", till + face * .66f + side * .3f + Vector3.up * .98f, "pulse", Quaternion.LookRotation(-face).eulerAngles.y);
+   Focus(till + face * .5f);
+  }
+  static Vector3 Flat(Vector3 v, Vector3 fallback) { v.y = 0; return v.sqrMagnitude > .01f ? v.normalized : fallback; }
+  // The right hand bone of a rigged character (names vary between the Tripo, Meshy and Blender rigs).
+  static Transform HandOf(Transform who) {
+   if (!who) return null;
+   Transform best = null;
+   foreach (var t in who.GetComponentsInChildren<Transform>(true)) {
+    var n = t.name.ToLowerInvariant();
+    if (!n.Contains("hand") || n.Contains("thumb") || n.Contains("index") || n.Contains("finger")) continue;
+    bool right = n.EndsWith("_r") || n.EndsWith(".r") || n.Contains("right") || n.EndsWith(" r") || n.EndsWith("hand_r");
+    if (right) return t;
+    if (!best && !n.Contains("left") && !n.EndsWith("_l") && !n.EndsWith(".l")) best = t;
+   }
+   return best;
   }
   // SÓ DINHEIRO beside the way in (on the door glass at the shop), and a customer reading it off to the side
   void CashOnly() {
