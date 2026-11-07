@@ -9,6 +9,9 @@ using Firebase.Crashlytics;
 using Firebase.Extensions;
 using Firebase.Messaging;
 #endif
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR && CHECKOUT_ADMOB
+using GoogleMobileAds.Ump.Api;
+#endif
 
 namespace Checkout
 {
@@ -22,6 +25,11 @@ namespace Checkout
     //  - Messaging: started only after the notification permission was asked (CheckoutNotifications), because on the
     //    iPhone starting it asks for the permission at once. The device token is kept for the server (Token).
     // Only on phones; the Editor and the PC build log the events (CHECKOUT_ANALYTICS) and do nothing else.
+    // Consent (07/11, privacy policy review): Analytics starts with analytics storage DENIED (Firebase consent mode:
+    // no analytics identifiers kept). It is granted only once Google's consent check (UMP, the same one the ads use)
+    // says this player is outside the regions that need consent (EEA, UK, Switzerland). Ads storage, ad user data and
+    // ad personalization stay denied everywhere: the game never uses Analytics for advertising. Crashlytics is not
+    // gated (crash reports only, needed to keep the game working).
     public sealed class CheckoutFirebase : MonoBehaviour
     {
         public static bool Ready { get; private set; }
@@ -30,7 +38,7 @@ namespace Checkout
         public static event Action<string> TokenChanged;
 
         static CheckoutFirebase current;
-        bool messaging;
+        bool messaging, consentSet;
         float nextLook;
 
         // What the last snapshot said (the events are the differences).
@@ -54,6 +62,7 @@ namespace Checkout
                 if (task.Result != DependencyStatus.Available) { Debug.LogWarning("CHECKOUT_FIREBASE not available: " + task.Result); return; }
                 _ = FirebaseApp.DefaultInstance;
                 Crashlytics.ReportUncaughtExceptionsAsFatal = true;
+                SetConsent(false);
                 FirebaseAnalytics.SetAnalyticsCollectionEnabled(true);
                 Ready = true;
                 Debug.Log("CHECKOUT_FIREBASE ready");
@@ -63,10 +72,40 @@ namespace Checkout
 
         void OnDestroy() { CheckoutBridge.Received -= OnSnapshot; }
 
+        /// <summary>Grants analytics storage once UMP knows consent is not required here (see the note above).</summary>
+        void LookAtConsent()
+        {
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR && CHECKOUT_ADMOB
+            var status = ConsentInformation.ConsentStatus;
+            if (status == ConsentStatus.Unknown) return;       // CheckoutAds has not refreshed the consent info yet
+            consentSet = true;
+            if (status == ConsentStatus.NotRequired) SetConsent(true);
+#elif (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+            consentSet = true;                                  // no consent SDK in this build: stay denied
+#else
+            consentSet = true;
+#endif
+        }
+
+        static void SetConsent(bool analytics)
+        {
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+            FirebaseAnalytics.SetConsent(new Dictionary<ConsentType, Firebase.Analytics.ConsentStatus>
+            {
+                { ConsentType.AnalyticsStorage, analytics ? Firebase.Analytics.ConsentStatus.Granted : Firebase.Analytics.ConsentStatus.Denied },
+                { ConsentType.AdStorage, Firebase.Analytics.ConsentStatus.Denied },
+                { ConsentType.AdUserData, Firebase.Analytics.ConsentStatus.Denied },
+                { ConsentType.AdPersonalization, Firebase.Analytics.ConsentStatus.Denied },
+            });
+            Debug.Log("CHECKOUT_FIREBASE consent analytics=" + analytics);
+#endif
+        }
+
         void Update()
         {
             if (Time.unscaledTime < nextLook) return;
             nextLook = Time.unscaledTime + 1f;
+            if (Ready && !consentSet) LookAtConsent();
             // Messaging once the notification permission has been asked (never before: it would ask on its own).
             if (Ready && !messaging && PlayerPrefs.GetInt("notif.asked", 0) == 1) StartMessaging();
             // Push: the server learns this phone's token, language and the push kinds left on (Opções › Avisos).
