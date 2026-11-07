@@ -17,8 +17,10 @@ namespace Checkout {
    // "eventsvideo-<stage>-furnished": a player's shop first (shelves placed and built, two checkouts, a cashier and a
    // stock clerk, market open with customers), then only the events that happen at or in the shop.
    bool furnished=only=="furnished";if(furnished)only=null;
+   // "...-<id>-close": no video, three close stills of the scene (Logs/evc_<id>_<n>.jpg), to look at the assets.
+   bool close=only!=null&&only.EndsWith("-close");if(close)only=only.Substring(0,only.Length-6);
    string[] shopEvents={"quinto-dia-util","cafe-com-a-equipe","fim-do-mes","maquininha-fora-do-ar","queda-de-energia","turno-puxado","vigilancia-sanitaria"};
-   foreach(var f in Directory.GetFiles("Logs",furnished?"evv_*_loja.mjpg":"evv_*.mjpg"))File.Delete(f);
+   if(!close)foreach(var f in Directory.GetFiles("Logs",furnished?"evv_*_loja.mjpg":"evv_*.mjpg"))File.Delete(f);
    int seq=0;void Act(string action,string args)=>CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-evv-"+(++seq)+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
    if(furnished){
     Act("resetGame","[]");yield return new WaitForSecondsRealtime(4f);
@@ -63,6 +65,10 @@ namespace Checkout {
     yield return CloseCardsSettled();
     fx.Preview(id);yield return new WaitForSecondsRealtime(1.5f);
     var focus=fx.FocusOf(id);
+    if(close&&home){
+     for(int k=0;k<3;k++){home.FocusCinematic(new Vector3(focus.x+(k-1)*.8f,0,focus.z),k==1?3.2f:4.5f);yield return new WaitForSecondsRealtime(2.5f);yield return new WaitForEndOfFrame();File.WriteAllBytes($"Logs/evc_{id}_{k}.jpg",RecJpg(2400,88));}
+     Note($"event {n:00} {id}: close stills");fx.Preview("");yield return new WaitForSecondsRealtime(.8f);continue;
+    }
     if(home)home.Focus(new Vector3(focus.x,0,focus.z),12);
     yield return new WaitForSecondsRealtime(.6f);
     RecStart($"Logs/evv_{n:00}_{id}{(furnished?"_loja":"")}.mjpg");
