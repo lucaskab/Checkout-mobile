@@ -7,7 +7,7 @@ namespace Checkout {
   TextMeshProUGUI goalText;UnityEngine.UI.Image goalIcon;
   TextMeshProUGUI levelText,progressText,xpText,dailyText,eventName,eventTimer,eventEffect,coinsText,gemsText;
   RectTransform xpFill,dailyFill;GameObject eventPanel;UnityEngine.UI.Image eventEdge,eventFace,eventIcon,dailyEdge;
-  CheckoutDesktopButton marketButton,claimButton;RectTransform helpButton,settingsButton;
+  CheckoutDesktopButton marketButton,claimButton;RectTransform helpButton,settingsButton,discordButton;
 
   TextMeshProUGUI Chip(Transform parent,string icon,System.Action onClick){
    var face=Panel(parent,"Chip",Phone?130:150,Phone?38:58,out var edge,out _,18);Clickable(edge.gameObject,onClick);
@@ -67,6 +67,10 @@ namespace Checkout {
    // Gear: the Opções window (music and sound-effects volume, CheckoutSettings). Phones: in the toolbar, after "?".
    var gear=Panel(bar,"Settings",58,58,out var gearEdge,out _,29);Clickable(gearEdge.gameObject,()=>CheckoutSettings.Show(CoachKey=="conta"?"conta":null));settingsButton=(RectTransform)gearEdge.transform;
    var cog=N.Image(gear,"Icon",Color.white,0);cog.sprite=K.Icon("Icons/settings");cog.preserveAspect=true;var cr=cog.rectTransform;cr.anchorMin=Vector2.zero;cr.anchorMax=Vector2.one;cr.offsetMin=new Vector2(7,6);cr.offsetMax=new Vector2(-7,-6);
+   // Discord (Lucas 06/11: "um botão com um ícone do Discord... ele vai poder entrar no canal do Discord"): the game's
+   // community server (bugs, suggestions, questions, players' markets). Phones: in the toolbar, after the gear.
+   var dc=Panel(bar,"Discord",58,58,out var dcEdge,out _,29);Clickable(dcEdge.gameObject,()=>{Sound("tap",1.1f);CheckoutLinks.Open("discord");});discordButton=(RectTransform)dcEdge.transform;
+   var dci=N.Image(dc,"Icon",Color.white,0);dci.sprite=K.Icon("Icons/discord");dci.preserveAspect=true;var dr=dci.rectTransform;dr.anchorMin=Vector2.zero;dr.anchorMax=Vector2.one;dr.offsetMin=new Vector2(5,5);dr.offsetMax=new Vector2(-5,-5);
    var wallet=N.Node("Wallet",bar);N.Column(wallet.gameObject,Phone?4:6);wallet.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().flexibleWidth=0;
    coinsText=Chip(wallet,"coin",()=>host.Route(CheckoutDesktopHost.IsRelease?"!currency":"!dev:moedas")); // the coin cheats only in development
    gemsText=Chip(wallet,"diamond",()=>host.Route("!currency"));

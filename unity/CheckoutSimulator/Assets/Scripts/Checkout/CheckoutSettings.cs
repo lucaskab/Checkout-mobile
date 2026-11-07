@@ -102,12 +102,17 @@ namespace Checkout
             }
 
             // Footer on every tab (App Store rule 5.1.1(i), 29/10): the privacy policy and the support page, then "Fechar".
-            var privacy = U.Button(f, L("Política de privacidade"), "secondary", () => CheckoutLinks.Open("privacy"), 64, 20);
-            U.At((RectTransform)privacy.transform, new Vector2(.5f, 0), new Vector2(320, 64), new Vector2(-214, 48));
-            var support = U.Button(f, L("Suporte"), "secondary", () => CheckoutLinks.Open("support"), 64, 20);
-            U.At((RectTransform)support.transform, new Vector2(.5f, 0), new Vector2(180, 64), new Vector2(50, 48));
-            var done = U.Button(f, L("Fechar"), "success", Hide, 64, 24);
-            U.At((RectTransform)done.transform, new Vector2(.5f, 0), new Vector2(220, 64), new Vector2(264, 48));
+            // ...and the game's Discord server (Lucas 06/11).
+            var privacy = U.Button(f, L("Política de privacidade"), "secondary", () => CheckoutLinks.Open("privacy"), 64, 19);
+            U.At((RectTransform)privacy.transform, new Vector2(.5f, 0), new Vector2(256, 64), new Vector2(-250, 48));
+            var support = U.Button(f, L("Suporte"), "secondary", () => CheckoutLinks.Open("support"), 64, 19);
+            U.At((RectTransform)support.transform, new Vector2(.5f, 0), new Vector2(146, 64), new Vector2(-37, 48));
+            var discord = CheckoutDesktopButton.Create(f, 64, 19, 14);
+            discord.Apply(new DesktopButton { label = "Discord", variant = "secondary", icon = "Icons/discord", enabled = true, action = "", args = "[]", route = "", after = "", ok = "", fail = "" });
+            discord.Clicked = _ => CheckoutLinks.Open("discord");
+            U.At((RectTransform)discord.transform, new Vector2(.5f, 0), new Vector2(172, 64), new Vector2(129, 48));
+            var done = U.Button(f, L("Fechar"), "success", Hide, 64, 22);
+            U.At((RectTransform)done.transform, new Vector2(.5f, 0), new Vector2(150, 64), new Vector2(301, 48));
 
             Refresh();
             if (pop) StartCoroutine(U.Pop(window, 1.04f, .22f));
@@ -367,12 +372,14 @@ namespace Checkout
     {
         public const string Privacy = "https://lucaskab.github.io/privacy.html";
         public const string Support = "https://lucaskab.github.io";
+        /// <summary>The game's Discord server (Lucas 06/11), a permanent invite; desktop/links.ts keeps the same address.</summary>
+        public const string Discord = "https://discord.gg/xfMgfpYzMu";
 
         [Serializable] class LinkMessage { public string link; }
 
         public static void Open(string id)
         {
-            var url = id == "privacy" ? Privacy : id == "support" ? Support : null;
+            var url = id == "privacy" ? Privacy : id == "support" ? Support : id == "discord" ? Discord : null;
             if (url != null) Application.OpenURL(url);
         }
 

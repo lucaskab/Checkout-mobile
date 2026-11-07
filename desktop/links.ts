@@ -6,6 +6,8 @@
 export const gameLinks = {
 	privacy: "https://lucaskab.github.io/privacy.html",
 	support: "https://lucaskab.github.io",
+	// The game's Discord server (Lucas 06/11): bugs, suggestions, questions, players' markets. A permanent invite.
+	discord: "https://discord.gg/xfMgfpYzMu",
 } as const;
 export type GameLink = keyof typeof gameLinks;
 

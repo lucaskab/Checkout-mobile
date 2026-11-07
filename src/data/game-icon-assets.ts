@@ -20,6 +20,7 @@ export const gameIconAssets = {
 	customers: require("../../assets/game-art/icons/customers.png"),
 	deliveryTruck: require("../../assets/game-art/icons/delivery-truck.png"),
 	rede: require("../../assets/game-art/icons/rede.png"),
+	discord: require("../../assets/game-art/icons/discord.png"),
 	diamond: require("../../assets/game-art/icons/diamond.png"),
 	distributionCenter: require("../../assets/game-art/icons/distribution-center.png"),
 	drone: require("../../assets/game-art/icons/drone.png"),
