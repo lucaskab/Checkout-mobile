@@ -204,3 +204,6 @@ CREATE TABLE IF NOT EXISTS push_devices (
 );
 CREATE INDEX IF NOT EXISTS push_devices_player ON push_devices (player_id);
 ALTER TABLE inbox ADD COLUMN pushed_at INTEGER;
+
+-- 0006 (anti-cheat climb clock, worker/src/store.ts afterUpload): see migrations/0006_climb.sql.
+ALTER TABLE profiles ADD COLUMN climb_at INTEGER NOT NULL DEFAULT 0;

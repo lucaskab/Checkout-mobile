@@ -67,4 +67,11 @@ export type Env = {
 	OLD_DATABASE_URL?: string;
 	/** Temporary, public (not a secret): the key that checks the signed tokens of /admin/* (copy, CPU benchmark). */
 	ADMIN_PUBLIC_KEY?: string;
+	/** Workers Rate Limiting bindings (wrangler.jsonc "ratelimits"), see app.ts AppOptions.limiters. */
+	RL_IP?: RateLimitBinding;
+	RL_AUTH?: RateLimitBinding;
+	RL_PLAYER?: RateLimitBinding;
+	RL_SAVE?: RateLimitBinding;
 };
+
+export type RateLimitBinding = { limit(options: { key: string }): Promise<{ success: boolean }> };

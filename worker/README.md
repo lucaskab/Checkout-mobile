@@ -4,7 +4,7 @@ O mesmo servidor de `server/` (Render), agora num **Cloudflare Worker** com **D1
 Mesmas rotas, mesmos JSON e códigos de status, mesmo token de sessão: o jogo só precisa trocar o endereço.
 `server/` continua no ar no Render, sem mudanças, para as versões antigas do jogo até os testers atualizarem.
 
-- Endereço: **https://checkout-server.lucaslfurini.workers.dev** (`/health` mostra quais configurações existem, só os nomes)
+- Endereço: **https://checkout-server.lucaslfurini.workers.dev** (`/health` só diz `{ok, configured}`; quais configurações faltam vai para o log do Worker)
 - Worker `checkout-server` · D1 `checkout-saves` (`660aad42-3495-4b98-8e91-a727acecbae2`, Europa Ocidental) · R2 `checkout-saves` (Europa Ocidental)
 - Sem dependências npm: TypeScript puro + WebCrypto. O pacote publicado tem ~78 KB (25 KB comprimido; o limite é 3 MB).
 
@@ -13,12 +13,12 @@ Mesmas rotas, mesmos JSON e códigos de status, mesmo token de sessão: o jogo s
 |---|---|
 | `POST /v1/auth/google {idToken}` | Login do celular. Verifica o ID token do Google e devolve `{token, player, save}` |
 | `POST /v1/auth/google-code {code, codeVerifier, redirectUri, client?}` | Login do PC/Editor (e `client: "ios"`: Google no iPhone) |
-| `POST /v1/auth/apple {idToken, authorizationCode?, name?, nonce?}` | Entrar com Apple. Com `nonce`, o token tem que trazer o SHA-256 dele (builds de 29/10 em diante) |
+| `POST /v1/auth/apple {idToken, nonce, authorizationCode?, name?}` | Entrar com Apple. O `nonce` é obrigatório desde o lançamento (07/11): o token tem que trazer o SHA-256 dele |
 | `GET /v1/save` | `{revision, updatedAt, summary, deviceId, data}` ou 404 |
 | `PUT /v1/save {baseRevision, data, deviceId, force?}` | Substitui se a nuvem ainda está em `baseRevision`; senão 409 com o atual |
 | `DELETE /v1/account` | Apaga conta, progresso, cópias e tudo do social (e revoga o login da Apple, se a chave estiver configurada) |
 | `/v1/social/*`, `GET /i/<código>` | Amigos, convites, visitas, ajudas, presentes e pedidos — veja **Social (v1)** abaixo |
-| `GET /health` | `{ok, settings: {NOME: true/false}, storage}` — nunca mostra valores |
+| `GET /health` | `{ok, configured}` — o que falta (só os nomes) vai para Workers › checkout-server › Logs |
 
 Sessão: o mesmo token HMAC de 180 dias do Render, com o **mesmo `SESSION_SECRET`** — quem já entrou continua logado.
 
@@ -32,15 +32,15 @@ Sessão: o mesmo token HMAC de 180 dias do Render, com o **mesmo `SESSION_SECRET
   CPU re-codificando 2 MB.
 
 ## Configuração (Workers › checkout-server › Settings › Variables and Secrets)
-Variáveis (públicas, já configuradas): `GOOGLE_CLIENT_IDS`, `GOOGLE_DESKTOP_CLIENT_ID`, `APPLE_BUNDLE_IDS`,
-`ADMIN_PUBLIC_KEY` (temporária, só durante a mudança — veja abaixo).
+Variáveis (públicas, em `wrangler.jsonc`): `GOOGLE_CLIENT_IDS`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_DESKTOP_CLIENT_ID`,
+`APPLE_BUNDLE_IDS`. `ADMIN_PUBLIC_KEY` saiu no lançamento (07/11): as rotas `/admin/*` não respondem mais.
 
 Segredos (tipo **Secret**, colados pelo Lucas, iguais aos do Render › Environment):
 - `SESSION_SECRET` — **copiar exatamente o do Render** (senão todo mundo é deslogado)
 - `GOOGLE_DESKTOP_CLIENT_SECRET` — login do PC/Editor
 - `GOOGLE_IOS_CLIENT_ID` — se existir no Render (login do Google no iPhone)
 - `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` — se existirem no Render (revogar login da Apple ao apagar conta)
-- `OLD_DATABASE_URL` — temporário: o `DATABASE_URL` do Render (Prisma Postgres, `postgres://…`), só para copiar os dados. Apagar depois.
+- ~~`OLD_DATABASE_URL`~~ — era só para copiar os dados do Render. **Apagar:** `npx wrangler secret delete OLD_DATABASE_URL`.
 
 Enquanto `SESSION_SECRET` não existe, só `/health` responde (as rotas do jogo dão 503 `not-configured`).
 
@@ -269,10 +269,36 @@ fechamento da liga (cron). Itens com mais de 1 hora ou já lidos no jogo nunca v
 2. **Secret `FCM_SERVICE_ACCOUNT`** (o Lucas cola): Google Cloud › projeto checkout-game › IAM › Contas de serviço ›
    `checkout-push` › Chaves › Adicionar chave › JSON. Colar o arquivo **inteiro** como secret em Workers ›
    checkout-server › Settings › Variables and Secrets e apagar o arquivo baixado. Sem o secret o Worker guarda os
-   aparelhos e não envia nada; `/health` mostra `FCM_SERVICE_ACCOUNT: true` quando está lá.
+   aparelhos e não envia nada; o log do Worker lista `FCM_SERVICE_ACCOUNT` entre as que faltam enquanto não está lá.
 3. iPhone: a chave APNs (.p8, Apple Developer › Keys › Apple Push Notifications service) em Firebase › Configurações
    do projeto › Cloud Messaging › app iOS. Sem ela o FCM não entrega no iPhone (o Android funciona).
 4. Publicar o Worker. Antes da migração ele segue normal, sem push.
+
+## Segurança (07/11/2026)
+Pesquisa e decisões completas no doc do projeto `claude/seguranca-servidor.md`. No código:
+- **Limite de requisições em duas camadas.** Por instância (`rateLimit`, 120/min por endereço e por jogador) e pelos
+  bindings de Rate Limiting da Cloudflare (`ratelimits` em `wrangler.jsonc`, contados por local da Cloudflare):
+  `RL_IP` 600/min por endereço (generoso: celulares da mesma operadora dividem endereço), `RL_AUTH` 30 logins/min por
+  endereço, `RL_PLAYER` 120/min por jogador, `RL_SAVE` 6 envios do save/min por jogador. Passou do limite = 429
+  `slow-down` (o jogo trata como "sem rede" e tenta de novo em 1 minuto). Se o contador da Cloudflare falhar, a
+  chamada passa (e vai para o log): jogador nunca fica trancado por causa disso.
+- **Mínimo de 5 s entre dois envios do save** do mesmo jogador (usa o `updated_at` que já existe; o jogo envia a cada
+  5 min e ao sair). Uma conta mandando envios sem parar gastaria as escritas do D1 e as operações do R2 de todo mundo.
+- **Corpos limitados também quando chegam em pedaços** (sem Content-Length): logins, push e social 16 KB; save ~4 MB.
+- **Anti-trapaça do ranking — relógio de subida** (`migrations/0006_climb.sql`): depois do nível 12, no máximo 10
+  níveis de uma vez e depois 3 por hora. Pega quem sobe +5 a cada envio (cada um abaixo do limite de salto). 3
+  strikes escondem dos rankings e das ligas (o save nunca é mexido; para perdoar alguém: `UPDATE profiles SET
+  strikes = 0, ranking_hidden = 0, climb_at = 0 WHERE code = '…'` no console do D1).
+- **Cabeçalhos** em toda resposta JSON: `nosniff`, CSP `default-src 'none'`, `no-referrer`, HSTS. Sem CORS.
+- **`/health` não conta mais quais configurações existem** (vão para o log), **nonce obrigatório** no login da Apple,
+  **rotas `/admin/*` desligadas**.
+
+### Antes de publicar esta versão
+1. **Migração (uma vez só):** `npx wrangler d1 execute checkout-saves --remote --file=migrations/0006_climb.sql`
+   (ou colar no console do D1). Conferir antes: `SELECT name FROM pragma_table_info('profiles') WHERE name = 'climb_at';`
+   — sem linhas = ainda não rodou. Antes dela o Worker funciona igual, só sem o relógio de subida.
+2. `npx wrangler deploy` (wrangler 4.36 ou mais novo, por causa dos `ratelimits`).
+3. `npx wrangler secret delete OLD_DATABASE_URL`.
 
 ## Testes
 `npm test` — roda o código do Worker no Node 22 com substitutos de D1 (SQLite do Node, com o `schema.sql` de
@@ -281,7 +307,8 @@ Com `OLD_TEST_DATABASE_URL` (um Postgres com senha SCRAM e TLS), roda também a 
 migrações do Prisma do Render (`test/migrate.test.ts`). `test/social.test.ts` cobre todas as rotas sociais e limites
 (com o relógio injetável `now`), a migração rodando duas vezes sobre o banco de hoje e a exclusão de conta.
 `test/push.test.ts` cobre o push (aparelhos, um aviso por jogador, categorias, tokens esquecidos, a chamada ao FCM).
-`test/photos.test.ts` cobre a foto do Google: guardada do token, só para amigos e o próprio jogador, o interruptor
+`test/security.test.ts` cobre cabeçalhos, limites de corpo (inclusive em pedaços), os bindings de Rate Limiting
+(e quando falham) e o mínimo entre envios. `test/photos.test.ts` cobre a foto do Google: guardada do token, só para amigos e o próprio jogador, o interruptor
 desligado, conta Apple sem foto e o Worker antes da migração 0004.
 
 ## Publicar

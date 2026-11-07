@@ -2,6 +2,7 @@ import { connect } from "cloudflare:sockets";
 import { adminRoutes } from "./admin.ts";
 import { createApp } from "./app.ts";
 import type { Connect, Env } from "./cf.ts";
+import { HEADERS } from "./http.ts";
 import { fcmSender, flushPush, readServiceAccount } from "./push.ts";
 import { closeWeeks } from "./ranking-store.ts";
 import type { BoardCache } from "./rankings.ts";
@@ -29,17 +30,23 @@ const SETTINGS = [
 ] as const;
 
 const log = (line: string) => console.log(line);
+/** The least time between two accepted uploads of one save (the game uploads every 5 minutes and on leaving). */
+const MIN_UPLOAD_GAP_MS = 5_000;
 const list = (value: string | undefined) => (value ?? "").split(",").map((id) => id.trim()).filter(Boolean);
 
 type Handler = (request: Request, address: string, country?: unknown, waitUntil?: (work: Promise<unknown>) => void) => Promise<Response>;
 const apps = new WeakMap<Env, Handler>();
 
 function build(env: Env): Handler {
-	const settings = Object.fromEntries(SETTINGS.map((name) => [name, !!env[name]]));
-	const health = () => ({ settings, sessionSecretLongEnough: (env.SESSION_SECRET ?? "").length >= 32, storage: { DB: !!env.DB, SAVES: !!env.SAVES } });
+	// Which settings exist goes to the Worker's log (Workers › checkout-server › Logs), not to the public /health: the
+	// setup is nobody else's business (OWASP API8, security misconfiguration / information exposure).
+	const missing = SETTINGS.filter((name) => !env[name]);
 	const clientIds = list(env.GOOGLE_CLIENT_IDS);
 	const sessionSecret = env.SESSION_SECRET ?? "";
-	if (sessionSecret.length < 32 || !clientIds.length || !env.DB || !env.SAVES) {
+	const configured = sessionSecret.length >= 32 && !!clientIds.length && !!env.DB && !!env.SAVES;
+	log(`settings: ${configured ? "configured" : "NOT configured"}; missing: ${missing.join(", ") || "none"}${sessionSecret && sessionSecret.length < 32 ? "; SESSION_SECRET shorter than 32" : ""}${env.DB ? "" : "; no DB binding"}${env.SAVES ? "" : "; no SAVES binding"}`);
+	const health = () => ({ configured });
+	if (!configured) {
 		// Not set up yet: only /health answers (it tells what is missing, by name), plus the token-gated /admin/* routes
 		// (copy from Render, CPU benchmark), which need no session secret.
 		const admin =
@@ -52,7 +59,7 @@ function build(env: Env): Handler {
 			const status = path === "/health" || path === "/" ? 200 : 503;
 			return new Response(JSON.stringify(status === 200 ? { ok: false, ...health() } : { error: "not-configured" }), {
 				status,
-				headers: { "content-type": "application/json", "cache-control": "no-store" },
+				headers: HEADERS,
 			});
 		};
 	}
@@ -80,6 +87,8 @@ function appFor(env: Env, sessionSecret: string, clientIds: string[], health: ()
 		push: pushSender(env),
 		// The Workers Cache API (the top lists of the boards, 10 min). Absent outside Workers (tests, benchmarks).
 		cache: ((globalThis as { caches?: { default?: BoardCache } }).caches?.default as BoardCache | undefined) ?? null,
+		limiters: { ip: env.RL_IP, auth: env.RL_AUTH, player: env.RL_PLAYER, save: env.RL_SAVE },
+		minUploadGapMs: MIN_UPLOAD_GAP_MS,
 		extra: env.ADMIN_PUBLIC_KEY
 			? adminRoutes({ publicKey: env.ADMIN_PUBLIC_KEY, oldDatabaseUrl: env.OLD_DATABASE_URL, connect: connect as unknown as Connect, db: env.DB, bucket: env.SAVES, store })
 			: undefined,

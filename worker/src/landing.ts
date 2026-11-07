@@ -228,6 +228,7 @@ const PAGE_HEADERS = {
 	"content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
 	"referrer-policy": "no-referrer",
 	"x-content-type-options": "nosniff",
+	"strict-transport-security": "max-age=31536000",
 	vary: "accept-language",
 };
 

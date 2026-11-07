@@ -212,14 +212,19 @@ describe("the API", () => {
 		verifyGoogle: async (t) => identities[t] ?? null,
 		exchangeCode: async (code, verifier, uri) => (code === "code-ana" && verifier === "v" && uri.startsWith("http://127.0.0.1:") ? "token-ana" : null),
 		exchangeIosCode: async (code, verifier, uri) => (code === "ios-ana" && verifier === "v" && uri.endsWith(":/oauth2redirect") ? "token-ana" : null),
-		verifyApple: async (t) =>
-			t === "apple-cris"
-				? { sub: "001.cris", email: "cris@privaterelay.appleid.com" }
+		// Every Apple token carries the SHA-256 of its login's nonce ("n-<token>"), except "apple-old" (no nonce).
+		verifyApple: async (t) => {
+			const nonce = createHash("sha256").update(t === "apple-eva" ? "raw-nonce-1" : `n-${t}`).digest("hex");
+			return t === "apple-cris"
+				? { sub: "001.cris", email: "cris@privaterelay.appleid.com", nonce }
 				: t === "apple-dani"
-					? { sub: "001.dani" }
+					? { sub: "001.dani", nonce }
 					: t === "apple-eva"
-						? { sub: "001.eva", nonce: createHash("sha256").update("raw-nonce-1").digest("hex") }
-						: null,
+						? { sub: "001.eva", nonce }
+						: t === "apple-old"
+							? { sub: "001.old" }
+							: null;
+		},
 		apple: {
 			exchange: async (code) => (code === "auth-code" ? "refresh-cris" : null),
 			revoke: async (token) => (revoked.push(token), true),
@@ -282,27 +287,28 @@ describe("the API", () => {
 	test("Sign in with Apple: own account, the name from the first login, refresh token kept and revoked on delete", async () => {
 		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "forged" })).status, 401);
 		assert.equal((await call("POST", "/v1/auth/apple", {})).status, 400);
-		const first = (await call("POST", "/v1/auth/apple", { idToken: "apple-cris", authorizationCode: "auth-code", name: "  Cris   Souza " })).body;
+		const first = (await call("POST", "/v1/auth/apple", { idToken: "apple-cris", nonce: "n-apple-cris", authorizationCode: "auth-code", name: "  Cris   Souza " })).body;
 		assert.equal(first.player.provider, "apple");
 		assert.equal(first.player.name, "Cris Souza");
 		assert.equal(first.player.email, "cris@privaterelay.appleid.com");
-		const again = (await call("POST", "/v1/auth/apple", { idToken: "apple-cris" })).body;
+		const again = (await call("POST", "/v1/auth/apple", { idToken: "apple-cris", nonce: "n-apple-cris" })).body;
 		assert.equal(again.player.id, first.player.id);
 		assert.equal(again.player.name, "Cris Souza", "Apple sends the name only once: the server keeps it");
 		assert.equal(again.player.email, "cris@privaterelay.appleid.com");
 		assert.notEqual((await signIn("token-ana")).player.id, first.player.id);
 		// No e-mail shared, no name: still an account.
-		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-dani" })).status, 200);
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-dani", nonce: "n-apple-dani" })).status, 200);
 		assert.equal((await call("DELETE", "/v1/account", undefined, again.token)).status, 204);
 		assert.deepEqual(revoked, ["refresh-cris"]);
 	});
 
-	test("Sign in with Apple: the nonce sent with the login must match the token's (older builds send none)", async () => {
+	test("Sign in with Apple: the nonce sent with the login must match the token's, and is required", async () => {
 		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva", nonce: "raw-nonce-1" })).status, 200);
 		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva", nonce: "another-nonce" })).status, 401);
 		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva", nonce: "" })).status, 401);
-		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-dani", nonce: "raw-nonce-1" })).status, 401, "a token without a nonce");
-		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva" })).status, 200, "builds before 29/10 send no nonce");
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-old", nonce: "raw-nonce-1" })).status, 401, "a token without a nonce");
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-eva" })).status, 401, "a login without a nonce (replayable token)");
+		assert.equal((await call("POST", "/v1/auth/apple", { idToken: "apple-old" })).status, 401, "neither side has a nonce");
 	});
 
 	test("Sign in with Apple not configured → 404", async () => {

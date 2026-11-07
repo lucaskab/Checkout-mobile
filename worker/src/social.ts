@@ -1,4 +1,4 @@
-import { HttpError, json } from "./http.ts";
+import { HEADERS, HttpError, json, readCapped } from "./http.ts";
 import { readCode } from "./codes.ts";
 import { invitePage, pageResponse, pickLanguage } from "./landing.ts";
 import { SOCIAL } from "./limits.ts";
@@ -20,7 +20,7 @@ export type SocialOptions = {
 	sessionOf: (request: Request) => Promise<string>;
 };
 
-const JSON_HEADERS = { "content-type": "application/json", "cache-control": "no-store" };
+const JSON_HEADERS = HEADERS;
 const raw = (status: number, text: string) => new Response(text, { status, headers: JSON_HEADERS });
 const fail = (status: number, error: string): never => {
 	throw new HttpError(status, { error });
@@ -41,9 +41,7 @@ const ROUTES = new Set(
 
 /** Social bodies are small: refuse anything bigger than 16 KB before reading it. */
 export async function readBody(request: Request): Promise<Record<string, unknown>> {
-	if (Number(request.headers.get("content-length") ?? "0") > MAX_SOCIAL_BODY) fail(413, "too-large");
-	const text = await request.text();
-	if (text.length > MAX_SOCIAL_BODY) fail(413, "too-large");
+	const text = new TextDecoder().decode(await readCapped(request, MAX_SOCIAL_BODY));
 	try {
 		const body = JSON.parse(text || "{}");
 		if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();

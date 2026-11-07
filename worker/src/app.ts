@@ -1,9 +1,9 @@
-import { HEADERS, HttpError, json } from "./http.ts";
+import { HEADERS, HttpError, json, readCapped } from "./http.ts";
 import { MAX_LEVEL, SOCIAL } from "./limits.ts";
 import { BadRequest, canReplace, MAX_SAVE_BYTES, readUpload, type SaveMeta } from "./save.ts";
 import { type BoardCache, countryOf, rankingRoutes } from "./rankings.ts";
 import { flushPush, readDevice, registerDevice, removeDevice, removePlayerDevices, type Sender } from "./push.ts";
-import { socialRoutes } from "./social.ts";
+import { readBody, socialRoutes } from "./social.ts";
 import type { PlayerRecord, SocialSnapshot, Store } from "./store.ts";
 import { type AppleTokens, type AppleVerifier, type GoogleVerifier, photoUrlOf, readSession, sha256Hex, signSession } from "./tokens.ts";
 
@@ -45,7 +45,21 @@ export type AppOptions = {
 	push?: Sender | null;
 	/** Extra routes (the temporary /admin/* ones). Answers null when the path is not theirs. */
 	extra?: (request: Request, path: string, helpers: Helpers) => Promise<Response | null>;
+	/**
+	 * Cloudflare's Rate Limiting bindings (wrangler.jsonc "ratelimits"; counters shared by every Worker instance in the
+	 * same Cloudflare location, unlike `rateLimit`, which is per instance). Absent = only the per-instance limit.
+	 * `ip`: every request, per address; `auth`: logins, per address; `player`: signed-in calls, per player;
+	 * `save`: PUT /v1/save, per player.
+	 */
+	limiters?: Partial<Record<LimiterName, RateLimiter>>;
+	/** The least time between two accepted uploads of one player's save (ms; 0 = no minimum). The game uploads every
+	 * 5 minutes and when it goes to the background; a 429 makes it retry a minute later. */
+	minUploadGapMs?: number;
 };
+
+/** A Workers Rate Limiting binding (env.<NAME>.limit({ key })). */
+export type RateLimiter = { limit(options: { key: string }): Promise<{ success: boolean }> };
+export type LimiterName = "ip" | "auth" | "player" | "save";
 
 /** What the extra routes reuse: the save routes for any player (the CPU benchmark). */
 export type Helpers = {
@@ -68,28 +82,23 @@ export const describe = (save: SaveMeta) => ({
 const MAX_BODY = MAX_SAVE_BYTES * 2 + 64 * 1024;
 
 async function readBytes(request: Request) {
-	const declared = Number(request.headers.get("content-length") ?? "0");
-	if (declared > MAX_BODY) throw new HttpError(413, { error: "too-large" });
+	const declared = request.headers.get("content-length");
+	// No Content-Length (chunked): read with the cap, chunk by chunk. With one, the runtime holds the body to it.
+	if (declared === null) return readCapped(request, MAX_BODY);
+	if (Number(declared) > MAX_BODY) throw new HttpError(413, { error: "too-large" });
 	const bytes = await request.arrayBuffer();
 	if (bytes.byteLength > MAX_BODY) throw new HttpError(413, { error: "too-large" });
 	return new Uint8Array(bytes);
 }
 
-async function readJson(request: Request): Promise<Record<string, unknown>> {
-	const text = new TextDecoder().decode(await readBytes(request));
-	try {
-		const body = JSON.parse(text || "{}");
-		if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
-		return body;
-	} catch {
-		throw new HttpError(400, { error: "bad-json" });
-	}
-}
+/** The small JSON bodies (logins, push): at most 16 KB, refused before reading more (social.ts readBody). */
+const readJson = (request: Request) => readBody(request);
 
 export function createApp(options: AppOptions) {
 	const { store, verifyGoogle, sessionSecret } = options;
 	const now = options.now ?? Date.now;
 	const limit = options.rateLimit ?? 120;
+	const minUploadGap = options.minUploadGapMs ?? 0;
 	const log = options.log ?? (() => {});
 	const hits = new Map<string, { windowStart: number; count: number }>();
 
@@ -104,12 +113,29 @@ export function createApp(options: AppOptions) {
 		return ++entry.count <= limit;
 	};
 
-	/** The signed-in player's id: a valid session, within the rate limit (no storage read). */
+	/**
+	 * Throws 429 when the binding `name` says this key is over its limit. A binding that fails (an outage of the
+	 * counters) lets the call through: the per-instance limit still applies, and players are never locked out by it.
+	 */
+	const limited = async (name: LimiterName, key: string) => {
+		const limiter = options.limiters?.[name];
+		if (!limiter) return;
+		let ok = true;
+		try {
+			ok = (await limiter.limit({ key })).success;
+		} catch (error) {
+			log(`rate limiter ${name} failed: ${(error as Error)?.message ?? error}`);
+		}
+		if (!ok) throw new HttpError(429, { error: "slow-down" });
+	};
+
+	/** The signed-in player's id: a valid session, within the rate limits (no storage read). */
 	const sessionOf = async (request: Request) => {
 		const header = request.headers.get("authorization") ?? "";
 		const session = await readSession(header.startsWith("Bearer ") ? header.slice(7) : undefined, sessionSecret, now());
 		if (!session) throw new HttpError(401, { error: "signed-out" });
 		if (!allow(`player:${session.sub}`)) throw new HttpError(429, { error: "slow-down" });
+		await limited("player", session.sub);
 		return session.sub;
 	};
 
@@ -120,6 +146,7 @@ export function createApp(options: AppOptions) {
 		const session = await readSession(header.slice(7), sessionSecret, now());
 		if (!session) return null;
 		if (!allow(`player:${session.sub}`)) throw new HttpError(429, { error: "slow-down" });
+		await limited("player", session.sub);
 		return session.sub;
 	};
 
@@ -160,6 +187,8 @@ export function createApp(options: AppOptions) {
 				throw error;
 			}
 			if (!canReplace(current, upload.baseRevision)) throw new HttpError(409, { error: "conflict", current: current ? describe(current) : null });
+			// One account flooding uploads would spend the day's D1 writes and R2 operations of everyone (free plan).
+			if (current && minUploadGap > 0 && now() - current.updatedAt < minUploadGap) throw new HttpError(429, { error: "slow-down" });
 			const summary = upload.summary;
 			const publicChanged = !!social && upload.public !== undefined && upload.public !== social.publicJson;
 			const rewardDue = !!social?.rewardPending && summary.level >= SOCIAL.inviteRewardLevel;
@@ -170,7 +199,7 @@ export function createApp(options: AppOptions) {
 			const ranked = social?.ranked;
 			const rankedChanged =
 				!!ranked && (changed || ranked.xp !== summary.xp || !ranked.hasSave || (!!country && country !== ranked.country) || summary.level > MAX_LEVEL);
-			const extra = rankedChanged ? (key: string) => store.afterUpload(player.id, key, summary, publicChanged ? upload.public : undefined, country, rewardDue) : undefined;
+			const extra = rankedChanged ? (key: string) => store.afterUpload(player.id, key, summary, publicChanged ? upload.public : undefined, country, rewardDue, ranked?.climb === true) : undefined;
 			const result = await store.replaceSave(player.id, current, { literal: upload.literal, summary, deviceId: upload.deviceId, keepReplaced: upload.force }, extra);
 			if (!result.ok) throw new HttpError(409, { error: "conflict", current: result.current ? describe(result.current) : null });
 			if (upload.publicRefused) log(`public block refused for ${player.id}: ${upload.publicRefused}`);
@@ -190,10 +219,13 @@ export function createApp(options: AppOptions) {
 		},
 	};
 
-	async function route(request: Request, country: string | null): Promise<Response> {
+	async function route(request: Request, country: string | null, address: string): Promise<Response> {
 		const path = new URL(request.url).pathname;
 		const method = request.method;
 		if (path === "/health" || path === "/") return json(200, { ok: true, ...options.health?.() });
+
+		// Logins: few per address (each one asks Google/Apple and writes the player row), against token stuffing.
+		if (path.startsWith("/v1/auth/")) await limited("auth", address);
 
 		if ((path === "/v1/auth/google" || path === "/v1/auth/google-code") && method === "POST") {
 			const body = await readJson(request);
@@ -242,15 +274,14 @@ export function createApp(options: AppOptions) {
 				log("apple login refused");
 				throw new HttpError(401, { error: "apple-refused" });
 			}
-			// The login's one-time nonce (newer builds): the token must carry its SHA-256, so a token caught on its way
-			// cannot be replayed by another login. Older builds send none and still sign in.
-			if (body.nonce !== undefined) {
-				const nonce = body.nonce;
-				const expected = typeof nonce === "string" && nonce && nonce.length <= 256 ? await sha256Hex(nonce) : null;
-				if (!expected || identity.nonce !== expected) {
-					log("apple login refused (nonce)");
-					throw new HttpError(401, { error: "apple-refused" });
-				}
+			// The login's one-time nonce: the token must carry its SHA-256, so a token caught on its way cannot be replayed
+			// by another login. Required since the store launch (every build since 29/10 sends it; the ones before were
+			// TestFlight builds only).
+			const nonce = body.nonce;
+			const expected = typeof nonce === "string" && nonce && nonce.length <= 256 ? await sha256Hex(nonce) : null;
+			if (!expected || identity.nonce !== expected) {
+				log("apple login refused (nonce)");
+				throw new HttpError(401, { error: "apple-refused" });
 			}
 			// The phone sends the name the player shared (only on the very first login).
 			const name = typeof body.name === "string" ? body.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";
@@ -277,6 +308,7 @@ export function createApp(options: AppOptions) {
 
 		if (path === "/v1/save" && method === "PUT") {
 			const { player, save, social } = await playerOf(request);
+			await limited("save", player.id);
 			return helpers.putSave(request, player, save, social, country);
 		}
 
@@ -346,7 +378,8 @@ export function createApp(options: AppOptions) {
 	async function answer(request: Request, address: string, country?: unknown): Promise<Response> {
 		try {
 			if (!allow(`ip:${address}`)) throw new HttpError(429, { error: "slow-down" });
-			return await route(request, countryOf(country));
+			await limited("ip", address);
+			return await route(request, countryOf(country), address);
 		} catch (error) {
 			if (error instanceof HttpError) return json(error.status, error.body);
 			log(`error ${(error as Error)?.stack ?? error}`);

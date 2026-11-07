@@ -633,6 +633,71 @@ describe("rankings: anti-cheat on uploads", () => {
 	});
 });
 
+describe("rankings: anti-cheat climb clock (migrations/0006_climb.sql)", () => {
+	const MIN = 60_000;
+	test("+5 levels every upload (each one under the jump limit) is caught from the third upload on; 3 strikes hide", async () => {
+		const w = world();
+		const ana = await w.user("ana", 1);
+		await w.upload(ana, 12);
+		const strikes: number[] = [];
+		for (let level = 17; level <= 37; level += 5) {
+			w.clock.now += 5 * MIN;
+			await w.upload(ana, level);
+			strikes.push(w.profile(ana).strikes);
+		}
+		assert.deepEqual(strikes, [0, 0, 1, 2, 3]);
+		assert.equal(w.profile(ana).ranking_hidden, 1);
+		assert.equal(w.profile(ana).level, 37, "the level is still stored (the save is never touched)");
+	});
+
+	test("a real pace never strikes: a level every hour for two days, a burst of 10 after a break, the early levels at once", async () => {
+		const w = world();
+		const ana = await w.user("ana", 1);
+		await w.upload(ana, 12, 0);
+		for (let level = 13; level <= 60; level++) {
+			w.clock.now += 60 * MIN;
+			await w.upload(ana, level);
+		}
+		assert.equal(w.profile(ana).strikes, 0);
+		// A week away, then 2 big evenings: +5 twice in a row (the jump limit) and 0 strikes.
+		w.clock.now += 7 * DAY_MS;
+		await w.upload(ana, 65);
+		w.clock.now += 10 * MIN;
+		await w.upload(ana, 70);
+		assert.equal(w.profile(ana).strikes, 0, "10 levels at once is the burst");
+		w.clock.now += 10 * MIN;
+		await w.upload(ana, 72);
+		assert.equal(w.profile(ana).strikes, 1, "past the burst, faster than 3 levels an hour");
+		// The clock refills with time: three hours later, 3 more levels are fine.
+		w.clock.now += 3 * 60 * MIN;
+		await w.upload(ana, 75);
+		assert.equal(w.profile(ana).strikes, 1);
+	});
+
+	test("before the migration runs: uploads work, only the older checks apply, the log says what to run", async () => {
+		const w = world();
+		w.db.sqlite.exec("ALTER TABLE profiles DROP COLUMN climb_at");
+		const ana = await w.user("ana", 1);
+		await w.upload(ana, 12);
+		for (let level = 17; level <= 37; level += 5) {
+			w.clock.now += 5 * MIN;
+			await w.upload(ana, level);
+		}
+		assert.equal(w.profile(ana).strikes, 0);
+		assert.equal(w.profile(ana).level, 37);
+		assert.ok(w.logs.some((l) => l.includes("0006_climb.sql")));
+		assert.equal((await w.call("GET", "/v1/rankings/world", undefined, ana.token)).status, 200, "the boards still work");
+	});
+
+	test("the migration: the same statement as the end of schema.sql; says to run once", () => {
+		const migration = readFileSync(new URL("../migrations/0006_climb.sql", import.meta.url), "utf8");
+		const schema = readFileSync(new URL("../schema.sql", import.meta.url), "utf8");
+		const statement = "ALTER TABLE profiles ADD COLUMN climb_at INTEGER NOT NULL DEFAULT 0";
+		assert.ok(migration.includes(statement) && schema.includes(statement));
+		assert.match(migration, /RUN IT ONCE/);
+	});
+});
+
 describe("rankings: account deletion", () => {
 	test("removes the player's league rows; the group keeps one member less", async () => {
 		const w = world();

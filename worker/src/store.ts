@@ -25,7 +25,8 @@ export type SocialSnapshot = {
 	era: string;
 	publicJson: string | null;
 	rewardPending: boolean;
-	ranked: { xp: number; country: string | null; hasSave: boolean } | null;
+	/** `climb`: the anti-cheat climb clock column (migrations/0006_climb.sql) is there. */
+	ranked: { xp: number; country: string | null; hasSave: boolean; climb: boolean } | null;
 };
 
 /** A row of `profiles` (docs/social-api.md › Data). */
@@ -216,19 +217,38 @@ export class Store {
 		return true;
 	}
 
+	/**
+	 * The anti-cheat climb clock (migrations/0006_climb.sql): until it has run, a "no such column: climb_at" turns only
+	 * that check off for a minute (uploads, boards and leagues work as before, with the older checks).
+	 */
+	climbOffUntil = 0;
+	climbColumn() {
+		return this.rankingColumns() && this.clock() >= this.climbOffUntil;
+	}
+	missingClimb(error: unknown) {
+		if (!/(no such column|has no column named):? *(\w+\.)?climb_at\b/i.test(String((error as Error)?.message ?? error))) return false;
+		this.climbOffUntil = this.clock() + 60_000;
+		this.log("climb column missing: run worker/migrations/0006_climb.sql in the D1 console");
+		return true;
+	}
+
 	/** The player, their save's description and their social snapshot (one round trip). Null when the player is gone. */
 	async getPlayer(id: string): Promise<{ player: PlayerRecord; save: SaveMeta | null; social: SocialSnapshot | null } | null> {
 		const withSocial = this.socialTables();
 		const withRankings = withSocial && this.rankingColumns();
+		const withClimb = withRankings && this.climbColumn();
 		const statements = [this.db.prepare("SELECT * FROM players WHERE id = ?").bind(id), this.db.prepare("SELECT * FROM cloud_saves WHERE player_id = ?").bind(id)];
 		if (withSocial)
 			statements.push(
-				this.db.prepare(`SELECT level, era, public_json, invited_by, invite_rewarded${withRankings ? ", xp, country, has_save" : ""} FROM profiles WHERE player_id = ?`).bind(id),
+				this.db
+					.prepare(`SELECT level, era, public_json, invited_by, invite_rewarded${withRankings ? ", xp, country, has_save" : ""}${withClimb ? ", climb_at" : ""} FROM profiles WHERE player_id = ?`)
+					.bind(id),
 			);
 		let results: D1Result[];
 		try {
 			results = await this.db.batch<Row>(statements);
 		} catch (error) {
+			if (withClimb && this.missingClimb(error)) return this.getPlayer(id);
 			if (withSocial && (this.missingSocial(error) || (withRankings && this.missingRankings(error)))) return this.getPlayer(id);
 			throw error;
 		}
@@ -241,7 +261,7 @@ export class Store {
 					era: String(p.era),
 					publicJson: str(p.public_json),
 					rewardPending: p.invited_by !== null && !Number(p.invite_rewarded),
-					ranked: withRankings ? { xp: Number(p.xp ?? 0), country: str(p.country), hasSave: flag(p.has_save) } : null,
+					ranked: withRankings ? { xp: Number(p.xp ?? 0), country: str(p.country), hasSave: flag(p.has_save), climb: withClimb } : null,
 				}
 			: null;
 		return { player: toPlayer(player.results[0]), save: save.results[0] ? toSave(save.results[0]) : null, social };
@@ -482,11 +502,21 @@ export class Store {
 		publicJson: string | null | undefined,
 		country: string | null,
 		rewardDue: boolean,
+		withClimb = false,
 	): D1PreparedStatement[] {
 		const now = this.clock();
 		const withPublic = publicJson !== undefined;
 		// SET expressions all read the row as it was before the update (SQLite), so `level` here is the old level.
-		const strike = `(CASE WHEN ?1 > ${MAX_LEVEL} OR (has_save = 1 AND ?1 - level > ${RANKINGS.maxLevelJump} AND ?1 > ${RANKINGS.earlyLevels}) THEN 1 ELSE 0 END)`;
+		// The climb clock (GCRA, a token bucket in one timestamp): every level past the early levels moves climb_at
+		// RANKINGS.climbMsPerLevel ahead of max(climb_at, now); more than RANKINGS.climbBurstLevels levels ahead of now is a
+		// strike. So many small jumps in a row (5 levels every upload) are caught like one big jump, while a real player
+		// (about one level a day past the early levels) never gets near it. The clock is kept at most one burst ahead.
+		const gained = `(?1 - MAX(level, ${RANKINGS.earlyLevels}))`;
+		const ahead = `(MAX(climb_at, ?4) + ${gained} * ${RANKINGS.climbMsPerLevel} - ?4)`;
+		const burst = RANKINGS.climbBurstLevels * RANKINGS.climbMsPerLevel;
+		const climbing = withClimb ? ` OR (${gained} > 0 AND ${ahead} > ${burst})` : "";
+		const strike = `(CASE WHEN ?1 > ${MAX_LEVEL} OR (has_save = 1 AND ((?1 - level > ${RANKINGS.maxLevelJump} AND ?1 > ${RANKINGS.earlyLevels})${climbing})) THEN 1 ELSE 0 END)`;
+		const climb = withClimb ? `climb_at = CASE WHEN has_save = 1 AND ${gained} > 0 THEN ?4 + MIN(${ahead}, ${burst}) ELSE climb_at END,` : "";
 		const statements = [
 			this.db
 				.prepare(
@@ -494,7 +524,7 @@ export class Store {
 					   level_at = CASE WHEN ?1 > level OR level_at = 0 THEN ?4 ELSE level_at END,
 					   country = COALESCE(?5, country),
 					   ranking_hidden = CASE WHEN strikes + ${strike} >= ${RANKINGS.strikesToHide} THEN 1 ELSE ranking_hidden END,
-					   strikes = strikes + ${strike},
+					   strikes = strikes + ${strike}, ${climb}
 					   ${withPublic ? "public_json = ?8, " : ""}updated_at = ?4
 					 WHERE player_id = ?6 AND EXISTS (SELECT 1 FROM cloud_saves WHERE player_id = ?6 AND body_key = ?7)`,
 				)

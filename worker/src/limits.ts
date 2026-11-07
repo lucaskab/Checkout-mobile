@@ -76,6 +76,14 @@ export const RANKINGS = {
 	 * full price): a player who plays offline for a while can legitimately jump more than 5 of them in one upload.
 	 */
 	earlyLevels: 12,
+	/**
+	 * Anti-cheat climb clock (store.ts afterUpload): past the early levels, at most `climbBurstLevels` levels at once and
+	 * then one level per `climbMsPerLevel` (3 levels an hour, for days on end). The game's pace past level 12 is about a
+	 * level a day (level 52 ≈ the designed month of play), so even a 10× faster player never gets a strike from it;
+	 * an edited save that climbs 5 levels every upload gets one from its third upload on.
+	 */
+	climbMsPerLevel: 20 * 60_000,
+	climbBurstLevels: 10,
 	/** Strikes that hide a player from every board (league points ignored, no league rewards). */
 	strikesToHide: 3,
 	/** League closes: groups per D1 batch (one transaction) and batches per cron run / per lazy close. */
