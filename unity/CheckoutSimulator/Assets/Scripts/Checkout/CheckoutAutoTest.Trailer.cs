@@ -121,6 +121,34 @@ namespace Checkout {
    Note($"trailer: {stage} ready (era {bridge.State?.era?.id}, open {bridge.State?.isOpen})");
   }
 
+  /// <summary>The shop's shelves and sector counters laid out like a tidy player's shop: evenly along the back wall,
+  /// then an island row in the middle (eventscrowd stands them all near one corner). Checkouts stay where they are.</summary>
+  void TrArrange() {
+   var inside = CheckoutInterior.Active; var map = FindAnyObjectByType<CheckoutMap>(); if (!inside || !map) return;
+   var fl = inside.FloorRect;
+   var pieces = inside.items.Values.Where(i => i.root && i.functional && !i.outside && !i.building && (i.type == "shelf" || i.type == "sector"))
+    .OrderBy(i => i.type == "sector" ? 0 : 1).ThenBy(i => i.id).Select(i => i.id).ToList();
+   if (pieces.Count == 0) return;
+   inside.editing = true;
+   foreach (var id in pieces) inside.Unplace(inside.Get(id));
+   int nBack = Mathf.Max(1, Mathf.FloorToInt((fl.width - 2f) / 1.8f));
+   int back = Mathf.Min(nBack, pieces.Count <= 6 ? pieces.Count : Mathf.CeilToInt(pieces.Count * .6f)), mid = pieces.Count - back;
+   var spots = new List<Vector3>();
+   for (int i = 0; i < back; i++) spots.Add(new Vector3(fl.xMin + 1f + (fl.width - 2f) * (i + .5f) / back, CheckoutInterior.Floor, fl.yMax - .8f));
+   for (int i = 0; i < mid; i++) spots.Add(new Vector3(fl.xMin + 2.2f + (fl.width - 4.4f) * (i + .5f) / mid, CheckoutInterior.Floor, fl.center.y + .2f));
+   int put = 0;
+   for (int k = 0; k < pieces.Count; k++) {
+    var it = inside.PlaceWaiting(pieces[k], spots[k]);
+    if (it != null && !inside.Reachable(out _)) { inside.Unplace(it); it = null; }
+    if (it == null) it = inside.PlaceWaiting(pieces[k], new Vector3(fl.center.x, CheckoutInterior.Floor, fl.yMax - 1.5f));
+    if (it != null) put++;
+   }
+   map.FurnitureChanged(false); map.SaveInterior(); inside.MarkPending(); inside.editing = false;
+   Note($"trailer: arranged {put}/{pieces.Count} pieces ({back} along the back wall)");
+  }
+
+  static IEnumerator TrThen(IEnumerator work, System.Action done) { yield return work; done(); }
+
   IEnumerator Trailer(string request) {
    var parts = request.Split('-');
    trLang = parts.Length > 1 && parts[1] == "en" ? "en" : "pt";
@@ -191,8 +219,11 @@ namespace Checkout {
   }
 
   IEnumerator TrCresce() {
+   // a player well on the way: the shelves have their products (they come with the levels)
+   TrHud("setMarketLevel", "[45]"); TrHud("devAdjustCoins", "[9000000]"); yield return new WaitForSecondsRealtime(2f);
+   TrHud("dismissLevelUp", "[]"); yield return CloseCardsSettled();
    foreach (var stage in new[] { "tenda", "banca", "conteiner", "spati", "quitanda", "minimercado", "mercadinho" }) {
-    if (System.Array.IndexOf(EraIds, stage) >= 4) { yield return TrCrowd(stage, 14); yield return new WaitForSecondsRealtime(9f); }
+    if (System.Array.IndexOf(EraIds, stage) >= 4) { yield return TrCrowd(stage, 16); TrArrange(); yield return new WaitForSecondsRealtime(10f); }
     else {
      if (trCrowd != null) { StopCoroutine(trCrowd); trCrowd = null; }
      roomEra = -1; roomKeepInterior = false; crowdLayout = null;
@@ -206,7 +237,7 @@ namespace Checkout {
   }
 
   IEnumerator TrRepor() {
-   if (bridge.State?.era?.id != "mercadinho") { yield return TrCrowd("mercadinho", 14); yield return new WaitForSecondsRealtime(4f); }
+   if (bridge.State?.era?.id != "mercadinho") { yield return TrCrowd("mercadinho", 14); TrArrange(); yield return new WaitForSecondsRealtime(4f); }
    var game = CheckoutRestockGame.Instance; if (!game) { Note("trailer: no restock game"); yield break; }
    lowShelves = true; yield return new WaitForSecondsRealtime(1.5f);
    CheckoutRestockGame.Show(); yield return new WaitForSecondsRealtime(1.5f);
@@ -217,13 +248,18 @@ namespace Checkout {
   }
   IEnumerator TrRestockPlay(CheckoutRestockGame game) {
    yield return Frames(.8f);
-   var run = StartCoroutine(game.QaPlayAll());
-   for (int i = 0; i < 30 * 9 && game.IsOpen; i++) yield return null;
-   StopCoroutine(run);
+   // one fixture after another: the game opens the next one by itself after each round
+   int budget = 30 * 11;
+   while (budget > 0 && game.IsOpen) {
+    bool done = false; var run = StartCoroutine(TrThen(game.QaPlayAll(), () => done = true));
+    while (!done && budget > 0 && game.IsOpen) { budget--; yield return null; }
+    if (!done) { StopCoroutine(run); break; }
+    for (int i = 0; i < 75 && budget > 0; i++) { budget--; yield return null; }
+   }
   }
 
   IEnumerator TrHiper() {
-   yield return TrCrowd("hipermercado", 40, ".lanes");
+   yield return TrCrowd("hipermercado", 40, ".lanes"); TrArrange();
    yield return new WaitForSecondsRealtime(16f);   // the shoppers walk in
    var (c, size) = TrShop();
    var inside = CheckoutInterior.Active;
@@ -271,7 +307,7 @@ namespace Checkout {
   }
 
   IEnumerator TrRede() {
-   yield return TrCrowd("rede", 40, ".lanes.brand");
+   yield return TrCrowd("rede", 40, ".lanes.brand"); TrArrange();
    TrHud("orderFromDistributionCenter", "[[{\"productId\":172,\"boxes\":2},{\"productId\":175,\"boxes\":1}]]");
    yield return new WaitForSecondsRealtime(14f);
    var (c, _) = TrShop();
