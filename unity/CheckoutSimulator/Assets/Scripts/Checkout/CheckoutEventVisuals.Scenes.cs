@@ -893,15 +893,14 @@ namespace Checkout {
    }
    var side = Vector3.Cross(Vector3.up, face).normalized;
    // the machine: in her right hand, screen towards the customer; on the counter by her when no hand bone is found
-   var machine = Prop("Maquininha_Handheld", till + face * .45f + Vector3.up * 1.05f, Quaternion.LookRotation(-face).eulerAngles.y);
+   // (props a bit larger than life so they read from the game camera, like the other event props)
+   var machine = Prop("Maquininha_Handheld", till + face * .45f + Vector3.up * 1.05f, Quaternion.LookRotation(-face).eulerAngles.y, 1.8f);
    if (holder) Ride(machine, holder, face * .04f);
-   var bubble = till + face * .7f + Vector3.up * 2.45f;
-   Fx2(root, "Maquininha_NoCardBubble", bubble, "float", Quaternion.LookRotation(-face).eulerAngles.y, 1.1f);
-   Prop("Maquininha_CounterSign", till + face * .62f - side * .45f + Vector3.up * .95f, Quaternion.LookRotation(-face).eulerAngles.y);
-   Fx2(root, "Maquininha_CashBills", till + face * .66f + side * .3f + Vector3.up * .98f, "pulse", Quaternion.LookRotation(-face).eulerAngles.y);
+   var bubble = till + face * .9f + Vector3.up * 2.1f;
+   Fx2(root, "Maquininha_NoCardBubble", bubble, "float", Quaternion.LookRotation(-face).eulerAngles.y, 1.7f);
+   Prop("Maquininha_CounterSign", till + face * .62f - side * .45f + Vector3.up * .95f, Quaternion.LookRotation(-face).eulerAngles.y, 1.8f);
+   Fx2(root, "Maquininha_CashBills", till + face * .66f + side * .3f + Vector3.up * .98f, "pulse", Quaternion.LookRotation(-face).eulerAngles.y, 1.6f);
    Focus(till + face * .5f);
-   var mr = machine.GetComponentInChildren<Renderer>(true);
-   Debug.Log($"CHECKOUT_MAQ working={working} till={till} face={face} hand={(holder ? holder.name : "-")} machine={machine.position} bounds={(mr ? mr.bounds.size.ToString() : "none")} root={root.position}");
   }
   static Vector3 Flat(Vector3 v, Vector3 fallback) { v.y = 0; return v.sqrMagnitude > .01f ? v.normalized : fallback; }
   // The right hand bone of a rigged character (names vary between the Tripo, Meshy and Blender rigs).
