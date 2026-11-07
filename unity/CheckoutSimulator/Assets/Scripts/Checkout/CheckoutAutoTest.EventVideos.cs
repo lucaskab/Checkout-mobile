@@ -14,22 +14,56 @@ namespace Checkout {
    var fx=FindAnyObjectByType<CheckoutEventVisuals>();if(!fx){Note("no CheckoutEventVisuals");yield break;}
    var parts=request.Split('-');var stage=parts.Length>1&&parts[1]!=""?parts[1]:"mercadinho";
    string only=parts.Length>2?string.Join("-",parts,2,parts.Length-2):null;
-   foreach(var f in Directory.GetFiles("Logs","evv_*.mjpg"))File.Delete(f);
+   // "eventsvideo-<stage>-furnished": a player's shop first (shelves placed and built, two checkouts, a cashier and a
+   // stock clerk, market open with customers), then only the events that happen at or in the shop.
+   bool furnished=only=="furnished";if(furnished)only=null;
+   string[] inside={"quinto-dia-util","cafe-com-a-equipe","fim-do-mes","maquininha-fora-do-ar","queda-de-energia","turno-puxado","vigilancia-sanitaria"};
+   foreach(var f in Directory.GetFiles("Logs",furnished?"evv_*_loja.mjpg":"evv_*.mjpg"))File.Delete(f);
+   int seq=0;void Act(string action,string args)=>CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-evv-"+(++seq)+"\",\"action\":\""+action+"\",\"args\":"+args+"}");
+   if(furnished){
+    Act("resetGame","[]");yield return new WaitForSecondsRealtime(4f);
+    Act("skipOnboarding","[]");Act("claimDayResult","[]");yield return new WaitForSecondsRealtime(1.5f);
+    Act("setMarketLevel","[40]");
+    Act("grantCurrencyPurchase","[{\"coins\":20000000,\"diamonds\":5000,\"transactionId\":\"qa-evv-"+DateTime.Now.Ticks+"\"}]");
+    yield return new WaitForSecondsRealtime(2f);Act("dismissLevelUp","[]");
+   }
    CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-"+stage+"\",\"action\":\"devSetMarketEra\",\"args\":[\""+stage+"\"]}");
    yield return new WaitForSecondsRealtime(6);
+   if(furnished){
+    var inside0=CheckoutInterior.Active;
+    for(float t=0;t<8&&(inside0==null||bridge.State?.era?.id!=stage);t+=.5f){yield return new WaitForSecondsRealtime(.5f);inside0=CheckoutInterior.Active;}
+    yield return new WaitForSecondsRealtime(3.5f);
+    for(int k=0;k<9;k++){Act("unlockNextShelf","[]");yield return new WaitForSecondsRealtime(.7f);}
+    Act("purchaseShopItem","[\"extra-checkout\",\"coins\"]");yield return new WaitForSecondsRealtime(2f);
+    var inside=CheckoutInterior.Active;var fl=inside.FloorRect;int put=0;
+    foreach(var key in new System.Collections.Generic.List<string>(inside.waiting.Keys)){
+     if(key.StartsWith("sector:"))continue;
+     CheckoutInterior.Item it=null;
+     for(float pz=fl.yMin+1.2f;it==null&&pz<fl.yMax-.6f;pz+=.8f)
+      for(float px=fl.xMin+.8f;it==null&&px<fl.xMax-.6f;px+=.8f)
+       it=inside.PlaceWaiting(key,new Vector3(px,0,pz));
+     if(it!=null&&inside.Reachable(out _))put++;else if(it!=null){inside.waiting[key]=(it.type,it.template);Destroy(it.root.gameObject);inside.items.Remove(key);}
+    }
+    inside.MarkPending();FindAnyObjectByType<CheckoutMap>().SaveInterior();yield return new WaitForSecondsRealtime(2.5f);
+    Act("devFinishInteriorConstructions","[]");yield return new WaitForSecondsRealtime(3f);
+    Act("hireEmployee","[\"cashier\"]");Act("hireEmployee","[\"cashier\"]");Act("hireEmployee","[\"stock_clerk\"]");yield return new WaitForSecondsRealtime(1.5f);
+    Note($"furnished: {put} pieces placed");
+   }
    // open, so customers walk in and out as in the game
    if(!bridge.State.isOpen){CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-open\",\"action\":\"setMarketOpen\",\"args\":[true]}");for(float t=0;t<6&&!bridge.State.isOpen;t+=.5f)yield return new WaitForSecondsRealtime(.5f);}
    var home=FindAnyObjectByType<MarketDay.MarketSimulation>();
+   if(furnished)yield return new WaitForSecondsRealtime(20f);   // customers come in
    Note($"stage {stage}: era={bridge.State?.era?.id} open={bridge.State.isOpen}");
    int n=0;
    foreach(var id in CheckoutEventVisuals.EventIds){
     n++;
     if(only!=null&&id!=only)continue;
+    if(furnished&&Array.IndexOf(inside,id)<0)continue;
     fx.Preview(id);yield return new WaitForSecondsRealtime(1.5f);
     var focus=fx.FocusOf(id);
     if(home)home.Focus(new Vector3(focus.x,0,focus.z),12);
     yield return new WaitForSecondsRealtime(.6f);
-    RecStart($"Logs/evv_{n:00}_{id}.mjpg");
+    RecStart($"Logs/evv_{n:00}_{id}{(furnished?"_loja":"")}.mjpg");
     yield return Frames(9f);
     if(home)home.Focus(new Vector3(focus.x,0,focus.z-1.5f),20);
     yield return Frames(6f);
