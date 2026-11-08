@@ -162,14 +162,19 @@ namespace Checkout {
     bool counter = i.type == "checkout" || i.type == "kiosk";
     var b = BoxOf(i, counter ? 1f : .4f); if (b.width <= 0) continue;
     blockers.Add(b); if (b.width * b.height > 6f) Note($"trailer fill {stage}: big blocker {i.id} ({i.type}{(i.design ? ", design" : "")}) {b.xMin:0.0},{b.yMin:0.0}..{b.xMax:0.0},{b.yMax:0.0}");
-    if (counter) { blockers.Add(Rect.MinMaxRect(b.xMin, b.yMin, b.xMax, b.yMax + 3.4f)); queueTop = Mathf.Max(queueTop, b.yMax + 3.4f); }
+    // the queue: towards the middle of the shop (a line of checkouts along a side wall queues across the floor, a
+    // counter at the front queues back into the shop)
+    if (counter) {
+     float cx = b.center.x - floor.center.x;
+     blockers.Add(cx > floor.width * .2f ? Rect.MinMaxRect(b.xMin - 2.6f, b.yMin, b.xMax, b.yMax) : cx < -floor.width * .2f ? Rect.MinMaxRect(b.xMin, b.yMin, b.xMax + 2.6f, b.yMax)
+      : Rect.MinMaxRect(b.xMin, b.yMin, b.xMax, b.yMax + 3f));
+    }
    }
    var zone = inside.CheckoutZone;
-   if (zone.width > .1f) blockers.Add(Rect.MinMaxRect(zone.xMin - .4f, floor.yMin, floor.xMax, Mathf.Max(queueTop, floor.yMin + 3f)));
+   if (zone.width > .1f) blockers.Add(Rect.MinMaxRect(zone.xMin - .4f, floor.yMin, floor.xMax, floor.yMin + 3f));
    float front = floor.yMin + (big ? (deep ? 3.4f : 2.4f) : CheckoutStall.ShopInside ? 1.6f : 1.9f);
    float right = CheckoutStall.Small && !CheckoutStall.PlacedCounter ? floor.xMax - .2f : floor.xMax - .1f;
    float walk = Mathf.Clamp(map.Entrance.x, floor.xMin + 2.5f, right - 2.5f);
-   if (floor.width > 6f) blockers.Add(Rect.MinMaxRect(walk - (big ? 1f : .8f), floor.yMin, walk + (big ? 1f : .8f), floor.yMax));
    CheckoutInteriorPiece PieceOf(string template) => inside.TemplateObject(template)?.GetComponent<CheckoutInteriorPiece>();
    float W(CheckoutInteriorPiece p) => p.max.x - p.min.x; float D(CheckoutInteriorPiece p) => p.max.y - p.min.y;
    // the real fixtures, by where a supermarket keeps them
@@ -249,6 +254,8 @@ namespace Checkout {
    var backReals = sectors.Concat(!deep || sectors.Count == 0 ? cold : new List<TrP>()).ToList();
    if (!deep || sectors.Count == 0) cold = new List<TrP>();
    float dA = MaxD(backReals, 1f);
+   // the walkway in from the door, up to the main aisle (the back wall stays whole)
+   if (floor.width > 6f) blockers.Add(Rect.MinMaxRect(walk - (big ? 1f : .8f), floor.yMin, walk + (big ? 1f : .8f), floor.yMax - dA - .3f));
    var left = Row(rowTop, dA, backReals, big ? ColdExtra : (System.Func<TrP>)null, 99f, false);
    rowTop -= dA + mainAisle;
    // 2. the cold row (drinks, dairy, freezers) in a deep shop
