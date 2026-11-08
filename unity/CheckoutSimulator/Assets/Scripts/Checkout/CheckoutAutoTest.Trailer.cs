@@ -309,12 +309,15 @@ namespace Checkout {
    var (c, _) = TrShop();
    trLastWalker = null; yield return TrSpawn(1, .1f);
    var who = trLastWalker;
-   for (float t = 0; t < 45 && who && who.gameObject.activeInHierarchy; t += .25f) {
-    var d = who.transform.position - c; d.y = 0; if (d.magnitude < 2.2f) break;
+   // (at the table and standing still: buying, not walking past it)
+   var last = who ? who.transform.position : Vector3.zero; int still = 0;
+   for (float t = 0; t < 60 && who && who.gameObject.activeInHierarchy; t += .25f) {
     yield return new WaitForSecondsRealtime(.25f);
+    var pos = who.transform.position; var d = pos - c; d.y = 0;
+    still = d.magnitude < 2.8f && (pos - last).magnitude < .04f ? still + 1 : 0; last = pos;
+    if (still >= 2) break;
    }
    Note($"trailer: the customer at the table ({(who ? (who.transform.position - c).magnitude.ToString("0.0") + " m, phase " + who.VisitPhase : "none")})");
-   yield return new WaitForSecondsRealtime(.6f);
    yield return TrGlideShot(c + new Vector3(.6f, 0, .3f), 3.6f, c, 5f, 4.5f);
    yield return TrGlideShot(c, 6f, c + new Vector3(-1.5f, 0, 1f), 9.5f, 4f);
    CheckoutBridge.QaNoVisits = false;
