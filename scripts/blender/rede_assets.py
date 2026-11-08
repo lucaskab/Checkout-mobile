@@ -474,7 +474,8 @@ def totem(name="RedeTotem", loc=(0, 0, 0)):
     H0, H1 = .42, 5.0
     rbox(acc, (1.0, .55, H1 - H0), (0, 0, (H0 + H1) / 2), C(NAVY), .08, 3)
     for s in (-1, 1):
-        rbox(acc, (.06, .57, H1 - H0 - .1), (s * .47, 0, (H0 + H1) / 2), C(GOLD), .02, 2)          # gold edges
+        # gold edges, 1 cm proud of the column's sides (flush, the two faces fought: the trailer showed a navy shimmer)
+        rbox(acc, (.07, .57, H1 - H0 - .1), (s * .475, 0, (H0 + H1) / 2), C(GOLD), .02, 2)
         for k in range(14):
             lathe(acc, [(0, 0), (.025, 0), (.02, .02), (0, .03)], (s * .47, -.29, H0 + .3 + k * .3), BULB, 8, 0, rot=(90, 0, 0))
             lathe(acc, [(0, 0), (.025, 0), (.02, .02), (0, .03)], (s * .47, .29, H0 + .3 + k * .3), BULB, 8, 0, rot=(-90, 0, 0))
