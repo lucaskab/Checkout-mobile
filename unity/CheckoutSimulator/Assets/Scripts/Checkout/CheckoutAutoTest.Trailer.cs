@@ -333,7 +333,8 @@ namespace Checkout {
    trLang = parts.Length > 1 && parts[1] == "en" ? "en" : "pt";
    var scenes = parts.Length > 2 ? parts[2].Split('.') : new[] { "mesa", "caixa", "cresce", "repor", "hiper", "padaria", "evento", "rede" };
    if (!CheckoutStartMenu.QaMode) { Note("trailer: not on the QA copy, stopping"); yield break; }
-   Note("trailer: " + CheckoutQaGameView.Set(1920, 1080));
+   bool stills = scenes.Contains("stills");   // (the store's size: iPhone 6.5" landscape)
+   Note("trailer: " + (stills ? CheckoutQaGameView.Set(2778, 1284) : CheckoutQaGameView.Set(1920, 1080)));
    void Lang(string l) { CheckoutI18n.SetLanguage(l); CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\"" + l + "\"}"); }
    var langBefore = CheckoutI18n.Language; Lang(trLang);
    crowdChainName = trLang == "en" ? "Fresh Market" : "Bom Preço";
@@ -345,7 +346,7 @@ namespace Checkout {
    int qualityBefore = QualitySettings.GetQualityLevel();
    QualitySettings.SetQualityLevel(QualitySettings.names.Length - 1, true);
    QualitySettings.shadowDistance = 160; QualitySettings.antiAliasing = 8;
-   recSuper = 4; trFull = true;
+   recSuper = stills ? 2 : 4; trFull = true;
    // (and no shadow acne: thin trims such as the chain's totem showed a dark seam that came and went with the camera)
    var lightsBefore = new List<(Light l, float bias, float normal)>();
    foreach (var l in FindObjectsByType<Light>(FindObjectsSortMode.None))
@@ -358,7 +359,8 @@ namespace Checkout {
      foreach (var f in Directory.GetFiles("Logs", $"tr_{trLang}_{scene}_*.mjpg")) File.Delete(f);
      Note("TRAILER scene " + scene);
      IEnumerator run = scene == "fill" ? TrFillOnly() : scene == "mesa" ? TrMesa() : scene == "caixa" ? TrCaixa() : scene == "cresce" ? TrCresce() : scene == "repor" ? TrRepor()
-      : scene == "hiper" ? TrHiper() : scene == "padaria" ? TrPadaria() : scene == "evento" ? TrEvento() : scene == "rede" ? TrRede() : null;
+      : scene == "hiper" ? TrHiper() : scene == "padaria" ? TrPadaria() : scene == "evento" ? TrEvento() : scene == "rede" ? TrRede()
+      : scene == "stills" ? TrStills() : null;
      if (run == null) { Note("trailer: unknown scene " + scene); continue; }
      yield return run;
     }
@@ -527,6 +529,42 @@ namespace Checkout {
     yield return TrGlideShot(f + new Vector3(.8f, 0, .4f), zoom * 1.08f, f, zoom, 3.6f);
     fx.Preview(""); yield return new WaitForSecondsRealtime(1.5f);
    }
+  }
+
+  /// <summary>App Store stills (Lucas 08/11: "uma imagem mostrando o jogo lá no final já, igual no vídeo, com tudo
+  /// liberado, o mercado lotado"): the chain as in the trailer's last scene, photographed at the store's size
+  /// (2778x1284, rendered at 2x and averaged down) from several framings, two takes each a few seconds apart (the
+  /// crowd moves), to Logs/st_<lang>_<name>_<take>.jpg. No HUD, no padlocks or markers.</summary>
+  IEnumerator TrStills() {
+   foreach (var f in Directory.GetFiles("Logs", $"st_{trLang}_*.jpg")) File.Delete(f);
+   TrTiers(5, 3);
+   yield return TrCrowd("rede", 60, ".lanes.brand");
+   TrDecorateOutside(new[] { "flower-bed", "hotdog-cart", "bench", "fountain", "ice-cream-cart", "popcorn-cart" });
+   yield return TrFill("rede");
+   TrHud("orderFromDistributionCenter", "[[{\"productId\":172,\"boxes\":2},{\"productId\":175,\"boxes\":1}]]");
+   yield return new WaitForSecondsRealtime(20f);   // the shoppers walk in, the trucks leave the distribution centre
+   var (c, size) = TrShop();
+   var shots = new List<(string name, Vector3 at, float zoom)> {
+    ("shop", c + new Vector3(0, 0, -2), 13f), ("shopwide", c + new Vector3(2, 0, 2), 17f),
+    ("block", new Vector3(11, 0, 42), 20f), ("city", new Vector3(8, 0, 30), 25f), ("map", new Vector3(4, 0, 17), 30f),
+    ("aisles", c + new Vector3(-size * .15f, 0, 0), 7.5f) };
+   var letters = GameObject.Find("S4 name");
+   if (letters) { var l = letters.transform.position; l.y = 0; shots.Insert(0, ("facade", l + new Vector3(0, 0, -5.5f), 11f)); }
+   var inside = CheckoutInterior.Active;
+   if (inside) { var z = inside.CheckoutZone; shots.Add(("lanes", new Vector3(z.center.x, 0, z.center.y), 5f)); }
+   var sim = TrSim; var was = MarketDay.MarketSimulation.Cinematic; MarketDay.MarketSimulation.Cinematic = true;
+   yield return CloseCardsSettled();
+   TrHideHud(true);
+   try {
+    foreach (var (name, at, zoom) in shots)
+     for (int take = 1; take <= 2; take++) {
+      if (sim) sim.FocusCinematic(at, zoom);
+      yield return new WaitForSecondsRealtime(take == 1 ? 2.5f : 4f);   // (the camera settles, shadows and LODs catch up)
+      TrHideWorld(true); yield return null; yield return new WaitForEndOfFrame();
+      var path = $"Logs/st_{trLang}_{name}_{take}.jpg";
+      File.WriteAllBytes(path, RecJpg(2778, 95)); Note($"STILL {path}");
+     }
+   } finally { TrHideHud(false); TrHideWorld(false); MarketDay.MarketSimulation.Cinematic = was; }
   }
 
   IEnumerator TrRede() {
