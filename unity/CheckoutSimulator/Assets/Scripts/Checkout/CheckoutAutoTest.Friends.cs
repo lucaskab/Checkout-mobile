@@ -46,8 +46,12 @@ namespace Checkout {
    var tex=ScreenCapture.CaptureScreenshotAsTexture(recSuper);tex.filterMode=FilterMode.Bilinear;
    float k=Mathf.Min(1,width/(float)tex.width);
    int w=Mathf.RoundToInt(tex.width*k)/2*2,h=Mathf.RoundToInt(tex.height*k)/2*2;
+   // (halved step by step: each bilinear halving averages 2x2 texels exactly, so a 4x frame is a true 4x4 average and
+   // thin bars such as railings stop shimmering; one big bilinear step would sample a few texels and keep the aliasing)
+   Texture src=tex;RenderTexture step=null;
+   while(src.width>=w*2){var half=RenderTexture.GetTemporary(src.width/2,src.height/2,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);half.filterMode=FilterMode.Bilinear;Graphics.Blit(src,half);if(step)RenderTexture.ReleaseTemporary(step);step=half;src=half;}
    var rt=RenderTexture.GetTemporary(w,h,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
-   Graphics.Blit(tex,rt);
+   Graphics.Blit(src,rt);if(step)RenderTexture.ReleaseTemporary(step);
    var prev=RenderTexture.active;RenderTexture.active=rt;
    var small=new Texture2D(w,h,TextureFormat.RGB24,false);small.ReadPixels(new Rect(0,0,w,h),0,0);small.Apply();
    RenderTexture.active=prev;RenderTexture.ReleaseTemporary(rt);
