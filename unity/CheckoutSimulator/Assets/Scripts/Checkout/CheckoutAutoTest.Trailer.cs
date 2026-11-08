@@ -269,6 +269,10 @@ namespace Checkout {
    QualitySettings.SetQualityLevel(QualitySettings.names.Length - 1, true);
    QualitySettings.shadowDistance = 160; QualitySettings.antiAliasing = 8;
    recSuper = 2; trFull = true;
+   // (and no shadow acne: thin trims such as the chain's totem showed a dark seam that came and went with the camera)
+   var lightsBefore = new List<(Light l, float bias, float normal)>();
+   foreach (var l in FindObjectsByType<Light>(FindObjectsSortMode.None))
+    if (l && l.type == LightType.Directional && l.shadows != LightShadows.None) { lightsBefore.Add((l, l.shadowBias, l.shadowNormalBias)); l.shadowBias = Mathf.Max(l.shadowBias, .12f); l.shadowNormalBias = Mathf.Max(l.shadowNormalBias, .6f); }
    Note($"trailer: quality {QualitySettings.names[QualitySettings.GetQualityLevel()]} (was {QualitySettings.names[qualityBefore]}), AA {QualitySettings.antiAliasing}, shadows {QualitySettings.shadowDistance} m, frames x{recSuper}");
    yield return new WaitForSecondsRealtime(2f);
    try {
@@ -285,6 +289,7 @@ namespace Checkout {
     if (trCrowd != null) { StopCoroutine(trCrowd); trCrowd = null; }
     roomEra = -1; roomKeepInterior = false; roomLanes = false; crowdLayout = null; lowShelves = false; TrTiers(-1, -1);
     tierLayout = null; tierOwned = null; CheckoutBridge.QaNoVisits = false; trFull = false;
+    foreach (var (l, bias, normal) in lightsBefore) if (l) { l.shadowBias = bias; l.shadowNormalBias = normal; }
     recSuper = 1; QualitySettings.SetQualityLevel(qualityBefore, true);   // (the level brings its own shadows and AA back)
     recW = 1280; recQ = 74; TrHideHud(false); MarketDay.MarketSimulation.Cinematic = false; crowdChainName = "Bom Preço";
     Lang(langBefore); Note("trailer: language back to " + CheckoutI18n.Language);
