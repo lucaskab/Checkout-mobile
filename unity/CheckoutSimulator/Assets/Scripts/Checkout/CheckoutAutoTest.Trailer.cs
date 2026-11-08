@@ -258,6 +258,9 @@ namespace Checkout {
    if (floor.width > 6f) blockers.Add(Rect.MinMaxRect(walk - (big ? 1f : .8f), floor.yMin, walk + (big ? 1f : .8f), floor.yMax - dA - .3f));
    var left = Row(rowTop, dA, backReals, big ? ColdExtra : (System.Func<TrP>)null, 99f, false);
    rowTop -= dA + mainAisle;
+   // a sector the back wall had no room for (the checkout lines reach far back in the big shops) stands on its own
+   // by the way in (a bakery by the door, as stores do), not in the cold row
+   var sectorOverflow = left.Where(x => x.type == "sector").ToList(); left = left.Where(x => x.type != "sector").ToList();
    // 2. the cold row (drinks, dairy, freezers) in a deep shop
    if (deep && (cold.Count > 0 || big)) {
     var coldReals = cold.Concat(left).ToList(); left.Clear();
@@ -280,11 +283,13 @@ namespace Checkout {
    if (rows == 0) dryReals = produce.Concat(dryReals).ToList();
    // a fixture the rows had no room for (a small shop): anywhere it fits, from the back, before the inventory
    front = floor.yMin + .9f;
+   dryReals = sectorOverflow.Concat(dryReals).ToList();
    foreach (var x in dryReals.Where(x => !x.decor).ToList()) {
     bool done = false; float w = W(x.p), d = D(x.p);
     for (float top = floor.yMax - .05f; top - d >= front && !done; top -= .25f)
      for (float px = floor.xMin + .1f; px + w <= right && !done; px += .25f) {
-      var r = Rect.MinMaxRect(px, top - d, px + w, top);
+      // (with room in front of it for the customers, and the aisle behind it left free)
+      var r = Rect.MinMaxRect(px, top - d - 1.2f, px + w, top + (top < floor.yMax - .2f ? 1.3f : 0f));
       if (blockers.Any(b => b.Overlaps(r))) continue;
       Put(x, px, top); dryReals.Remove(x); done = true;
      }
