@@ -9,6 +9,10 @@ public static class CheckoutVersionTool
 {
     const string File_ = "Logs/set_version.txt";
 
+    // The tool runner refuses menu names with parentheses: the Android build under a plain name.
+    [MenuItem("Checkout/Release/Build Android AAB")]
+    static void BuildAndroid() => CheckoutAndroidBuild.Build();
+
     [MenuItem("Checkout/Release/Set version from Logs file")]
     static void SetFromFile()
     {
