@@ -558,10 +558,16 @@ namespace Checkout {
    TrHideHud(true);
    // then the App Store's creative assets (iOS 27): the product page header (21:9, 3840x1646) and the search results
    // asset (3:2, 2400x1600), the Game view resized for each
+   // (and the 16:9 "universal" one, 5244x2950, that both placements take: rendered at 1x, a 2x frame of that size is
+   // too big a texture)
    var sizes = new List<(string tag, int w, int h, string[] only)> {
-    ("", 2778, 1284, storeShots ? null : new string[0]), ("hd_", 3840, 1646, new[] { "shopwide", "block", "city", "shop" }), ("sr_", 2400, 1600, new[] { "shopwide", "shop", "aisles", "block" }) };
+    ("", 2778, 1284, storeShots ? null : new string[0]), ("hd_", 3840, 1646, new[] { "shopwide", "block", "city", "shop" }), ("sr_", 2400, 1600, new[] { "shopwide", "shop", "aisles", "block" }),
+    ("uv_", 5244, 2950, new[] { "shopwide", "shop" }) };
+   if (File.Exists("Logs/stills_universal_only.txt")) sizes.RemoveRange(0, 3);
+   int superBefore = recSuper;
    try {
     foreach (var (tag, w, h, only) in sizes) {
+     recSuper = w > 4000 ? 1 : superBefore;
      if (tag != "") { Note("trailer: " + CheckoutQaGameView.Set(w, h)); yield return new WaitForSecondsRealtime(1.5f); }
      foreach (var (name, at, zoom) in shots) {
       if (only != null && System.Array.IndexOf(only, name) < 0) continue;
@@ -574,7 +580,7 @@ namespace Checkout {
       }
      }
     }
-   } finally { TrHideHud(false); TrHideWorld(false); MarketDay.MarketSimulation.Cinematic = was; }
+   } finally { recSuper = superBefore; TrHideHud(false); TrHideWorld(false); MarketDay.MarketSimulation.Cinematic = was; }
   }
 
   IEnumerator TrRede() {
