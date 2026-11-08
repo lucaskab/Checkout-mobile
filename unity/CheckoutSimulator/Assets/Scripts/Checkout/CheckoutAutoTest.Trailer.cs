@@ -537,6 +537,7 @@ namespace Checkout {
   /// crowd moves), to Logs/st_<lang>_<name>_<take>.jpg. No HUD, no padlocks or markers.</summary>
   IEnumerator TrStills() {
    foreach (var f in Directory.GetFiles("Logs", $"st_{trLang}_*.jpg")) File.Delete(f);
+   bool storeShots = !File.Exists("Logs/stills_assets_only.txt");   // (the creative assets only: skip the 2778x1284 set)
    TrTiers(5, 3);
    yield return TrCrowd("rede", 60, ".lanes.brand");
    TrDecorateOutside(new[] { "flower-bed", "hotdog-cart", "bench", "fountain", "ice-cream-cart", "popcorn-cart" });
@@ -555,15 +556,24 @@ namespace Checkout {
    var sim = TrSim; var was = MarketDay.MarketSimulation.Cinematic; MarketDay.MarketSimulation.Cinematic = true;
    yield return CloseCardsSettled();
    TrHideHud(true);
+   // then the App Store's creative assets (iOS 27): the product page header (21:9, 3840x1646) and the search results
+   // asset (3:2, 2400x1600), the Game view resized for each
+   var sizes = new List<(string tag, int w, int h, string[] only)> {
+    ("", 2778, 1284, storeShots ? null : new string[0]), ("hd_", 3840, 1646, new[] { "shopwide", "block", "city", "shop" }), ("sr_", 2400, 1600, new[] { "shopwide", "shop", "aisles", "block" }) };
    try {
-    foreach (var (name, at, zoom) in shots)
-     for (int take = 1; take <= 2; take++) {
-      if (sim) sim.FocusCinematic(at, zoom);
-      yield return new WaitForSecondsRealtime(take == 1 ? 2.5f : 4f);   // (the camera settles, shadows and LODs catch up)
-      TrHideWorld(true); yield return null; yield return new WaitForEndOfFrame();
-      var path = $"Logs/st_{trLang}_{name}_{take}.jpg";
-      File.WriteAllBytes(path, RecJpg(2778, 95)); Note($"STILL {path}");
+    foreach (var (tag, w, h, only) in sizes) {
+     if (tag != "") { Note("trailer: " + CheckoutQaGameView.Set(w, h)); yield return new WaitForSecondsRealtime(1.5f); }
+     foreach (var (name, at, zoom) in shots) {
+      if (only != null && System.Array.IndexOf(only, name) < 0) continue;
+      for (int take = 1; take <= 2; take++) {
+       if (sim) sim.FocusCinematic(at, zoom);
+       yield return new WaitForSecondsRealtime(take == 1 ? 2.5f : 4f);   // (the camera settles, shadows and LODs catch up)
+       TrHideWorld(true); yield return null; yield return new WaitForEndOfFrame();
+       var path = $"Logs/st_{trLang}_{tag}{name}_{take}.jpg";
+       File.WriteAllBytes(path, RecJpg(w, 95)); Note($"STILL {path}");
+      }
      }
+    }
    } finally { TrHideHud(false); TrHideWorld(false); MarketDay.MarketSimulation.Cinematic = was; }
   }
 
