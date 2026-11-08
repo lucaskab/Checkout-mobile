@@ -15,6 +15,7 @@ namespace Checkout {
  // sector puzzles), evento (live events), rede (the chain: facade, distribution centre, the whole map from above).
  public sealed partial class CheckoutAutoTest {
   int recW = 1280, recQ = 74;
+  bool trFull;
   readonly List<Canvas> trHidden = new List<Canvas>();
   int trSeq; string trLang = "pt"; string trScene = ""; int trShotK;
   /// <summary>The chain's name when eventscrowd names it (".brand").</summary>
@@ -267,7 +268,7 @@ namespace Checkout {
    int qualityBefore = QualitySettings.GetQualityLevel();
    QualitySettings.SetQualityLevel(QualitySettings.names.Length - 1, true);
    QualitySettings.shadowDistance = 160; QualitySettings.antiAliasing = 8;
-   recSuper = 2;
+   recSuper = 2; trFull = true;
    Note($"trailer: quality {QualitySettings.names[QualitySettings.GetQualityLevel()]} (was {QualitySettings.names[qualityBefore]}), AA {QualitySettings.antiAliasing}, shadows {QualitySettings.shadowDistance} m, frames x{recSuper}");
    yield return new WaitForSecondsRealtime(2f);
    try {
@@ -283,7 +284,7 @@ namespace Checkout {
    } finally {
     if (trCrowd != null) { StopCoroutine(trCrowd); trCrowd = null; }
     roomEra = -1; roomKeepInterior = false; roomLanes = false; crowdLayout = null; lowShelves = false; TrTiers(-1, -1);
-    tierLayout = null; tierOwned = null; CheckoutBridge.QaNoVisits = false;
+    tierLayout = null; tierOwned = null; CheckoutBridge.QaNoVisits = false; trFull = false;
     recSuper = 1; QualitySettings.SetQualityLevel(qualityBefore, true);   // (the level brings its own shadows and AA back)
     recW = 1280; recQ = 74; TrHideHud(false); MarketDay.MarketSimulation.Cinematic = false; crowdChainName = "Bom Preço";
     Lang(langBefore); Note("trailer: language back to " + CheckoutI18n.Language);
