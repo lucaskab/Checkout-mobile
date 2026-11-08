@@ -140,7 +140,8 @@ namespace Checkout {
    inside.editing = false;
    var layout = inside.LayoutState; var floor = inside.FloorRect;
    bool IsMain(string type) => type == "shelf" || type == "sector";
-   bool big = floor.width * floor.height > 150f;
+   bool big = floor.width * floor.height > 150f, deep = floor.height >= 11f;
+   float mainAisle = deep ? 2f : 1.5f, aisle = deep ? 1.8f : 1.4f;
    var live = inside.items.Values.Where(i => i.root && i.placed && !i.ghost && !i.design).ToList();
    // what stays: checkouts, kiosks, stations, the decorations outside
    var items = new List<InteriorItem>();
@@ -148,8 +149,10 @@ namespace Checkout {
     items.Add(new InteriorItem { id = i.id, type = i.type, x = i.x, z = i.z, rot = i.rot, outside = i.outside });
    foreach (var w in inside.waiting.Where(w => !IsMain(w.Value.type))) items.Add(new InteriorItem { id = w.Key, type = w.Value.type, stored = true });
    // where nothing goes: what stays inside (with room around it), the checkouts and their queues, a walkway in from the door
+   // (what stands on the floor: lamps and bunting hanging from the ceiling are not in the way)
+   float reach = CheckoutInterior.FloorHere + 1.6f;
    Rect BoxOf(CheckoutInterior.Item i, float pad) {
-    var rs = i.root.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) return Rect.zero;
+    var rs = i.root.GetComponentsInChildren<Renderer>().Where(r => r.enabled && r.bounds.min.y < reach).ToArray(); if (rs.Length == 0) return Rect.zero;
     var bb = rs[0].bounds; foreach (var r in rs) bb.Encapsulate(r.bounds);
     return Rect.MinMaxRect(bb.min.x - pad, bb.min.z - pad, bb.max.x + pad, bb.max.z + pad);
    }
@@ -158,12 +161,12 @@ namespace Checkout {
    foreach (var i in inside.items.Values.Where(l => l.root && l.root.gameObject.activeInHierarchy && (!IsMain(l.type) && !l.outside && l.functional || l.design))) {
     bool counter = i.type == "checkout" || i.type == "kiosk";
     var b = BoxOf(i, counter ? 1f : .4f); if (b.width <= 0) continue;
-    blockers.Add(b);
+    blockers.Add(b); if (b.width * b.height > 6f) Note($"trailer fill {stage}: big blocker {i.id} ({i.type}{(i.design ? ", design" : "")}) {b.xMin:0.0},{b.yMin:0.0}..{b.xMax:0.0},{b.yMax:0.0}");
     if (counter) { blockers.Add(Rect.MinMaxRect(b.xMin, b.yMin, b.xMax, b.yMax + 3.4f)); queueTop = Mathf.Max(queueTop, b.yMax + 3.4f); }
    }
    var zone = inside.CheckoutZone;
    if (zone.width > .1f) blockers.Add(Rect.MinMaxRect(zone.xMin - .4f, floor.yMin, floor.xMax, Mathf.Max(queueTop, floor.yMin + 3f)));
-   float front = floor.yMin + (big ? 3.4f : CheckoutStall.ShopInside ? 1.8f : 2.4f);
+   float front = floor.yMin + (big ? (deep ? 3.4f : 2.4f) : CheckoutStall.ShopInside ? 1.6f : 1.9f);
    float right = CheckoutStall.Small && !CheckoutStall.PlacedCounter ? floor.xMax - .2f : floor.xMax - .1f;
    float walk = Mathf.Clamp(map.Entrance.x, floor.xMin + 2.5f, right - 2.5f);
    if (floor.width > 6f) blockers.Add(Rect.MinMaxRect(walk - (big ? 1f : .8f), floor.yMin, walk + (big ? 1f : .8f), floor.yMax));
@@ -202,20 +205,21 @@ namespace Checkout {
     if (pc.decor) { id = "decor-" + (800 + decorN++); owned[pc.type] = (owned.TryGetValue(pc.type, out var c) ? c : 0) + 1; }
     else placedMain++;
     items.Add(new InteriorItem { id = id, type = pc.type, x = b.x, z = b.z, rot = 0 });
+    blockers.Add(Rect.MinMaxRect(x - .06f, top - D(pc.p) - .06f, x + W(pc.p) + .06f, top + .06f));
    }
    const float gap = .12f;
    // One row, left to right (the way in is on the left): the real pieces first, then what `extra` gives; runs of at
    // most `runMax` metres with a cross aisle between them and, if `endcaps`, a promotional display at each end.
    List<TrP> Row(float top, float depth, List<TrP> reals, System.Func<TrP> extra, float runMax, bool endcaps) {
-    var deferred = new List<TrP>(); float x = floor.xMin + .1f, run = 0;
+    var deferred = new List<TrP>(); float x = floor.xMin + .1f, run = 0; string why = "end of the row";
     for (int guard = 0; guard < 240 && x < right - .3f; guard++) {
      bool isEnd = endcaps && run == 0;
      var pc = isEnd ? Endcap() : reals.Count > 0 ? reals[0] : extra?.Invoke();
-     if (pc == null) { if (isEnd) { run = .01f; continue; } break; }
+     if (pc == null) { if (isEnd) { run = .01f; continue; } why = "nothing more to place"; break; }
      float w = W(pc.p), d = D(pc.p);
      bool fromReals = !isEnd && reals.Count > 0 && reals[0] == pc;
-     if (d > depth + .05f) { if (fromReals) { if (!pc.decor) deferred.Add(pc); reals.RemoveAt(0); continue; } if (isEnd) { run = .01f; continue; } break; }
-     if (x + w > right) break;
+     if (d > depth + .05f) { if (fromReals) { if (!pc.decor) deferred.Add(pc); reals.RemoveAt(0); continue; } if (isEnd) { run = .01f; continue; } why = "too deep " + pc.type; break; }
+     if (x + w > right) { why = "no width for " + pc.type; break; }
      var spot = Rect.MinMaxRect(x, top - d, x + w, top);
      var hit = blockers.Where(b => b.Overlaps(spot)).Select(b => b.xMax).DefaultIfEmpty(-999).Max();
      if (hit > -999) {
@@ -223,7 +227,7 @@ namespace Checkout {
       if (endcaps && run > 1f) { var e = Endcap(); if (e != null && x + W(e.p) <= hit && !blockers.Any(b => b.Overlaps(Rect.MinMaxRect(x, top - D(e.p), x + W(e.p), top)))) Put(e, x, top); }
       x = hit + .05f; run = 0; continue;
      }
-     if (spot.yMin < front) break;
+     if (spot.yMin < front) { why = "past the front for " + pc.type; break; }
      Put(pc, x, top); if (fromReals) reals.RemoveAt(0);
      if (pc.decor && !isEnd) { if (standIns.Values.Any(v => v.type == pc.type)) standInCount++; else displayCount++; }
      x += w + gap; run += w + gap;
@@ -232,6 +236,7 @@ namespace Checkout {
       x += big ? 1.8f : 1.4f; run = 0;
      }
     }
+    Note($"trailer fill {stage}: row top {top - floor.yMin:0.0} m depth {depth:0.0}: {why} at x {x - floor.xMin:0.0}/{right - floor.xMin:0.0}; {reals.Count} fixtures left");
     deferred.AddRange(reals); reals.Clear();
     return deferred;
    }
@@ -240,32 +245,44 @@ namespace Checkout {
    TrP ColdExtra() { for (int k = 0; k < coldCycle.Length; k++) { var e = StandIn(coldCycle[ci++ % coldCycle.Length]); if (e != null) return e; } return null; }
    TrP DryExtra() => StandIn("shelf");
    float rowTop = floor.yMax - .05f;
-   // 1. the perimeter: sectors along the back wall (a small shop without sectors: its coolers there)
-   var backReals = sectors.Count > 0 ? sectors : cold;
+   // 1. the perimeter: sectors along the back wall, and in a shallow shop (or one without sectors) the coolers too
+   var backReals = sectors.Concat(!deep || sectors.Count == 0 ? cold : new List<TrP>()).ToList();
+   if (!deep || sectors.Count == 0) cold = new List<TrP>();
    float dA = MaxD(backReals, 1f);
-   var left = Row(rowTop, dA, backReals, sectors.Count > 0 ? ColdExtra : (System.Func<TrP>)null, 99f, false);
-   rowTop -= dA + (big ? 2f : 1.5f);
-   // 2. the cold row (drinks, dairy, freezers), when there is anything left for it
-   if (cold.Count > 0 || big) {
+   var left = Row(rowTop, dA, backReals, big ? ColdExtra : (System.Func<TrP>)null, 99f, false);
+   rowTop -= dA + mainAisle;
+   // 2. the cold row (drinks, dairy, freezers) in a deep shop
+   if (deep && (cold.Count > 0 || big)) {
     var coldReals = cold.Concat(left).ToList(); left.Clear();
     float dB = MaxD(coldReals.Concat(new[] { StandIn("drinks"), StandIn("dairy") }), 1f);
-    if (rowTop - dB >= front) { left = Row(rowTop, dB, coldReals, big ? ColdExtra : (System.Func<TrP>)null, big ? 9f : 99f, big); rowTop -= dB + (big ? 1.8f : 1.4f); }
+    if (rowTop - dB >= front) { left = Row(rowTop, dB, coldReals, big ? ColdExtra : (System.Func<TrP>)null, big ? 9f : 99f, big); rowTop -= dB + aisle; }
     else left = coldReals;
    }
    // 3. the dry gondolas in parallel rows; the front-most row starts with the produce by the way in
    var dryReals = dry.Concat(left).ToList();
    float dC = MaxD(dryReals.Concat(produce).Concat(new[] { StandIn("shelf") }), 1f);
-   int rows = 0; for (float t = rowTop; t - dC >= front; t -= dC + (big ? 1.8f : 1.4f)) rows++;
+   int rows = 0; for (float t = rowTop; t - dC >= front; t -= dC + aisle) rows++;
    for (int r = 0; r < rows; r++) {
     bool last = r == rows - 1;
     var reals = last ? produce.Concat(new[] { Display("fruit-pyramid"), Display("watermelon-pile") }.Where(x => x != null)).Concat(dryReals).ToList() : dryReals;
     if (last) dryReals = new List<TrP>();
-    var rest = Row(rowTop, Mathf.Max(dC, MaxD(reals, dC)), reals, DryExtra, big ? 8f : 99f, big || floor.width > 9f);
+    var rest = Row(rowTop, Mathf.Max(dC, MaxD(reals, dC)), reals, DryExtra, big ? 8f : 99f, big);
     dryReals = rest.Where(x => !x.decor).Concat(dryReals).ToList();
-    rowTop -= dC + (big ? 1.8f : 1.4f);
+    rowTop -= dC + aisle;
    }
    if (rows == 0) dryReals = produce.Concat(dryReals).ToList();
-   // what found no room waits in the inventory (stored) rather than vanish
+   // a fixture the rows had no room for (a small shop): anywhere it fits, from the back, before the inventory
+   front = floor.yMin + .9f;
+   foreach (var x in dryReals.Where(x => !x.decor).ToList()) {
+    bool done = false; float w = W(x.p), d = D(x.p);
+    for (float top = floor.yMax - .05f; top - d >= front && !done; top -= .25f)
+     for (float px = floor.xMin + .1f; px + w <= right && !done; px += .25f) {
+      var r = Rect.MinMaxRect(px, top - d, px + w, top);
+      if (blockers.Any(b => b.Overlaps(r))) continue;
+      Put(x, px, top); dryReals.Remove(x); done = true;
+     }
+   }
+   // what still found no room waits in the inventory (stored) rather than vanish
    foreach (var x in dryReals.Where(x => !x.decor)) items.Add(new InteriorItem { id = x.id, type = x.type, stored = true });
    foreach (var i in items.Where(x => x.outside)) { var lv = live.FirstOrDefault(l => l.id == i.id); if (lv != null && !lv.functional) owned[i.type] = (owned.TryGetValue(i.type, out var c) ? c : 0) + 1; }
    tierPatching = true; tierLayout = items.ToArray(); tierDecor = decorTiers.ToArray();
@@ -328,7 +345,7 @@ namespace Checkout {
      trScene = scene; trShotK = 0;
      foreach (var f in Directory.GetFiles("Logs", $"tr_{trLang}_{scene}_*.mjpg")) File.Delete(f);
      Note("TRAILER scene " + scene);
-     IEnumerator run = scene == "mesa" ? TrMesa() : scene == "caixa" ? TrCaixa() : scene == "cresce" ? TrCresce() : scene == "repor" ? TrRepor()
+     IEnumerator run = scene == "fill" ? TrFillOnly() : scene == "mesa" ? TrMesa() : scene == "caixa" ? TrCaixa() : scene == "cresce" ? TrCresce() : scene == "repor" ? TrRepor()
       : scene == "hiper" ? TrHiper() : scene == "padaria" ? TrPadaria() : scene == "evento" ? TrEvento() : scene == "rede" ? TrRede() : null;
      if (run == null) { Note("trailer: unknown scene " + scene); continue; }
      yield return run;
@@ -341,6 +358,15 @@ namespace Checkout {
     recSuper = 1; QualitySettings.SetQualityLevel(qualityBefore, true);   // (the level brings its own shadows and AA back)
     recW = 1280; recQ = 74; TrHideHud(false); MarketDay.MarketSimulation.Cinematic = false; crowdChainName = "Bom Preço";
     Lang(langBefore); Note("trailer: language back to " + CheckoutI18n.Language);
+   }
+  }
+
+  /// <summary>Layout check only (no recording): the furnished mercadinho, hypermarket and chain, a still of each floor.</summary>
+  IEnumerator TrFillOnly() {
+   TrHud("setMarketLevel", "[45]"); TrHud("devAdjustCoins", "[9000000]"); yield return new WaitForSecondsRealtime(2f);
+   TrHud("dismissLevelUp", "[]"); yield return CloseCardsSettled();
+   foreach (var (stage, t, sec, extra) in new[] { ("spati", 2, -1, ""), ("mercadinho", 4, -1, ""), ("hipermercado", 5, 3, ".lanes"), ("rede", 5, 3, ".lanes.brand") }) {
+    TrTiers(t, sec); yield return TrCrowd(stage, 6, extra); yield return TrFill(stage); yield return new WaitForSecondsRealtime(2f);
    }
   }
 
