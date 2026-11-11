@@ -76,6 +76,15 @@ export const RANKINGS = {
 	 * full price): a player who plays offline for a while can legitimately jump more than 5 of them in one upload.
 	 */
 	earlyLevels: 12,
+	/**
+	 * Anti-cheat climb clock (store.ts afterUpload): past the early levels, at most `climbBurstLevels` levels at once and
+	 * then one level per `climbMsPerLevel` (7.5 levels an hour, for hours on end). Levels 13→23 cost ~55 k XP
+	 * (src/services/progression.ts): even a binge player doing 10 levels an hour needs ~8 hours non-stop to overrun it
+	 * once, and each overrun is one strike (the bucket refills). An edited save that climbs 5 levels every 5-minute
+	 * upload overruns it about every 25 minutes.
+	 */
+	climbMsPerLevel: 8 * 60_000,
+	climbBurstLevels: 20,
 	/** Strikes that hide a player from every board (league points ignored, no league rewards). */
 	strikesToHide: 3,
 	/** League closes: groups per D1 batch (one transaction) and batches per cron run / per lazy close. */

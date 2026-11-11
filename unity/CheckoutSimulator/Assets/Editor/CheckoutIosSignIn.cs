@@ -35,6 +35,9 @@ public static class CheckoutIosSignIn
         var manager = new ProjectCapabilityManager(projectPath, "Unity-iPhone/Checkout.entitlements", null, project.GetUnityMainTargetGuid());
         manager.AddSignInWithApple();
         manager.AddInAppPurchase();
+        // 06/11: phone notifications (CheckoutNotifications, local) and Firebase Cloud Messaging (push, CheckoutFirebase).
+        manager.AddPushNotifications(false);
+        manager.AddBackgroundModes(BackgroundModesOptions.RemoteNotifications);
         manager.WriteToFile();
 
         var plistPath = System.IO.Path.Combine(path, "Info.plist");

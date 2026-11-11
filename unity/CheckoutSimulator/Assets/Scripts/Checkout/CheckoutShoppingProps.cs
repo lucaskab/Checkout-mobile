@@ -9,6 +9,8 @@ namespace Checkout
             var motion=actor.GetComponent<MarketDay.MarketCharacterAnimator>();if(motion)motion.CarryingBasket=visible;
             // Real cart/basket models held by the character (the skinned props of the FBX stay hidden).
             CheckoutShopperRig.For(actor).SetVisible(visible);
+            // (the chain's paper bag comes only after paying: CheckoutWalker)
+            CheckoutRedeBag.Carry(actor,false);
         }
     }
 }

@@ -26,7 +26,7 @@ namespace Checkout {
   const string Ink="1F2329",Muted="737B86",Green="1FA45A",Red="E5483B",Blue="F0532D",Gold="F5B423",EmptyTone="E7E9EC",Paper="FFFFFF",ScreenTone="F2F3F5";
   const double MoneyDoorWait=60000;
   const float PillHold=6f;
-  static readonly CultureInfo Br=CultureInfo.GetCultureInfo("pt-BR");
+  static CultureInfo Local=>CheckoutI18n.Culture; // numbers written the player's way
   static readonly string[] AvatarColors={"2E8CAE","E15533","3DAA5C","8B5C9E","F2B03D","E0884A"};
   static readonly string[] StepNames={"Aceito","Embalar","Moto","Na porta","A caminho"};
   // Ranks by deliveries made: name, colour of the XP bar, and the count each rank starts at.
@@ -60,8 +60,8 @@ namespace Checkout {
   }
 
   // ------------------------------------------------------------------ helpers (shared with the column code)
-  static string Money(long v)=>v.ToString("N0",Br);
-  static string Km(float km)=>km.ToString("0.0",Br)+" km";
+  static string Money(long v)=>v.ToString("N0",Local);
+  static string Km(float km)=>km.ToString("0.0",Local)+" km";
   // Countdown: m:ss, or Ns under a minute.
   static string Clock(double seconds){int s=Mathf.Max(0,(int)Math.Ceiling(seconds));return (s/60)+":"+(s%60).ToString("00",CultureInfo.InvariantCulture);}
   static string Short(double seconds){int s=Mathf.Max(0,(int)Math.Ceiling(seconds));return s<60?s+"s":Clock(seconds);}
@@ -350,7 +350,7 @@ namespace Checkout {
     for(int i=0;i<streakSegments.Length;i++)streakSegments[i].color=K.C(i<lit?"EF6A1F":"FFFFFF");
    }
    streakText.text=d.streak.ToString(CultureInfo.InvariantCulture);
-   ratingText.text=d.rating.ToString("0.0",Br);
+   ratingText.text=d.rating.ToString("0.0",Local);
    motosText.text=d.active+"/"+d.slots;
   }
   // Per-frame motion: the flame breathes with the streak, the truck icon bobs by scale, and the cards and map animate.

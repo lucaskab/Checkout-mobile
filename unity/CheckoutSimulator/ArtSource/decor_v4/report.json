@@ -2775,5 +2775,205 @@
   },
   "secs": 4.7,
   "date": "2026-10-22 19:22"
+ },
+ "pet-bed-round": {
+  "name": "PetBedRound",
+  "tris": 4960,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.421,
+   0.423,
+   0.186
+  ],
+  "size_xyz": [
+   0.842,
+   0.844,
+   0.186
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_PetBedRound"
+  ],
+  "texture": "IK_D4_PetBedRound_albedo.png",
+  "texture_size": 1024,
+  "texture_styles": {
+   "teal": "IK_D4_PetBedRound_albedo_teal.png",
+   "orange": "IK_D4_PetBedRound_albedo_orange.png",
+   "rose": "IK_D4_PetBedRound_albedo_rose.png"
+  },
+  "fbx": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/fbx/pet-bed-round.fbx",
+  "thumb": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/thumbs/pet-bed-round.png",
+  "previews": [
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-round_game.png",
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-round_close.png"
+  ],
+  "old": null,
+  "secs": 36.4,
+  "date": "2026-11-08 22:21"
+ },
+ "pet-bed-house": {
+  "name": "PetBedHouse",
+  "tris": 4708,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.499,
+   0.55,
+   0.861
+  ],
+  "size_xyz": [
+   0.998,
+   1.051,
+   0.861
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_PetBedHouse"
+  ],
+  "texture": "IK_D4_PetBedHouse_albedo.png",
+  "texture_size": 1024,
+  "texture_styles": {
+   "teal": "IK_D4_PetBedHouse_albedo_teal.png",
+   "orange": "IK_D4_PetBedHouse_albedo_orange.png",
+   "rose": "IK_D4_PetBedHouse_albedo_rose.png"
+  },
+  "fbx": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/fbx/pet-bed-house.fbx",
+  "thumb": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/thumbs/pet-bed-house.png",
+  "previews": [
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-house_game.png",
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-house_close.png"
+  ],
+  "old": null,
+  "secs": 41.7,
+  "date": "2026-11-08 22:23"
+ },
+ "pet-bed-basket": {
+  "name": "PetBedBasket",
+  "tris": 4278,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.484,
+   0.371,
+   0.367
+  ],
+  "size_xyz": [
+   0.967,
+   0.73,
+   0.367
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_PetBedBasket"
+  ],
+  "texture": "IK_D4_PetBedBasket_albedo.png",
+  "texture_size": 1024,
+  "texture_styles": {
+   "teal": "IK_D4_PetBedBasket_albedo_teal.png",
+   "orange": "IK_D4_PetBedBasket_albedo_orange.png",
+   "rose": "IK_D4_PetBedBasket_albedo_rose.png"
+  },
+  "fbx": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/fbx/pet-bed-basket.fbx",
+  "thumb": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/thumbs/pet-bed-basket.png",
+  "previews": [
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-basket_game.png",
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-basket_close.png"
+  ],
+  "old": null,
+  "secs": 56.0,
+  "date": "2026-11-08 22:29"
+ },
+ "pet-bed-royal": {
+  "name": "PetBedRoyal",
+  "tris": 5806,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.534,
+   0.426,
+   1.077
+  ],
+  "size_xyz": [
+   1.068,
+   0.806,
+   1.077
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_PetBedRoyal"
+  ],
+  "texture": "IK_D4_PetBedRoyal_albedo.png",
+  "texture_size": 1024,
+  "texture_styles": {
+   "teal": "IK_D4_PetBedRoyal_albedo_teal.png",
+   "orange": "IK_D4_PetBedRoyal_albedo_orange.png",
+   "rose": "IK_D4_PetBedRoyal_albedo_rose.png"
+  },
+  "fbx": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/fbx/pet-bed-royal.fbx",
+  "thumb": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/thumbs/pet-bed-royal.png",
+  "previews": [
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-royal_game.png",
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-royal_close.png"
+  ],
+  "old": null,
+  "secs": 26.1,
+  "date": "2026-11-08 22:29"
+ },
+ "pet-bed-sofa": {
+  "name": "PetBedSofa",
+  "tris": 5500,
+  "budget": 6000,
+  "within_budget": true,
+  "footprint_half_x_half_z_height": [
+   0.541,
+   0.42,
+   0.6
+  ],
+  "size_xyz": [
+   1.082,
+   0.826,
+   0.603
+  ],
+  "objects": [
+   "Body"
+  ],
+  "anim": [],
+  "pivots": {},
+  "materials": [
+   "T_IK_D4_PetBedSofa"
+  ],
+  "texture": "IK_D4_PetBedSofa_albedo.png",
+  "texture_size": 1024,
+  "texture_styles": {
+   "teal": "IK_D4_PetBedSofa_albedo_teal.png",
+   "orange": "IK_D4_PetBedSofa_albedo_orange.png",
+   "rose": "IK_D4_PetBedSofa_albedo_rose.png"
+  },
+  "fbx": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/fbx/pet-bed-sofa.fbx",
+  "thumb": "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/thumbs/pet-bed-sofa.png",
+  "previews": [
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-sofa_game.png",
+   "/Users/lucas-furini/repos/checkout/unity/CheckoutSimulator/ArtSource/decor_v4/previews/pet-bed-sofa_close.png"
+  ],
+  "old": null,
+  "secs": 44.7,
+  "date": "2026-11-08 22:24"
  }
 }

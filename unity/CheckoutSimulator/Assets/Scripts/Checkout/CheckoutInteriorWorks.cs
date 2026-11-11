@@ -253,7 +253,9 @@ namespace Checkout
             var dir = works.TransformDirection(delta);
             w.body.rotation = Quaternion.RotateTowards(w.body.rotation, Quaternion.LookRotation(dir), dt * 300);
             Play(w, loaded ? "CarryWalking" : "Walking");
+            var before = w.body.position;
             w.body.localPosition = Vector3.MoveTowards(w.body.localPosition, new Vector3(target.x, w.body.localPosition.y, target.z), dt * (loaded ? .9f : 1.1f));
+            if (w.anim && w.anim[w.clip] && Time.deltaTime > 0) { var moved = w.body.position - before; moved.y = 0; w.anim[w.clip].speed = CheckoutWalkCycle.Rate(w.anim, w.clip, moved.magnitude / Time.deltaTime); }
             return false;
         }
 

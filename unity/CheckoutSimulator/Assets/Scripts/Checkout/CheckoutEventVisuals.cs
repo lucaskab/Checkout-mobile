@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Checkout {
  public sealed partial class CheckoutEventVisuals:MonoBehaviour {
-  public static readonly string[] EventIds={"hora-do-rush","quinto-dia-util","feira-de-rua","onda-de-calor","sorteio-na-porta","caminhao-de-ofertas","dia-de-jogo","cafe-com-a-equipe","viralizou","chuva-forte","rua-em-obras","engarrafamento","fim-do-mes","maquininha-fora-do-ar","excursao-da-escola","queda-de-energia","turno-puxado","vigilancia-sanitaria","carro-de-som"};
+  public static readonly string[] EventIds={"hora-do-rush","quinto-dia-util","feira-de-rua","onda-de-calor","sorteio-na-porta","caminhao-de-ofertas","dia-de-jogo","cafe-com-a-equipe","viralizou","chuva-forte","rua-em-obras","engarrafamento","fim-do-mes","maquininha-fora-do-ar","excursao-da-escola","queda-de-energia","turno-puxado","vigilancia-sanitaria","carro-de-som","nevasca"};
  class Motion {public Transform root,target;public Vector3 home,dir,scale,offset;public Quaternion rot;public string kind;public float phase,range,speed;}
   class StreetlightState {public Light light;public bool enabled;public float intensity,range,spotAngle;}
   class GlowState {public Renderer renderer;public Material[] original,glowing;}
@@ -20,21 +20,24 @@ namespace Checkout {
   string building,active="";float clock,umbrellaRefresh;double expiresAt;
   public string ActiveId=>active;
   public static bool RoadWorks{get;private set;}
-  public void Initialize(){sun=FindObjectsByType<Light>().FirstOrDefault(l=>l.type==LightType.Directional);if(sun){sunColor=sun.color;sunIntensity=sun.intensity;}ambient=RenderSettings.ambientLight;view=Camera.main;if(view)background=view.backgroundColor;particleMaterial=new Material(Shader.Find("Sprites/Default"));rainPuddles=gameObject.AddComponent<CheckoutRainPuddles>();rainPuddles.Initialize();umbrellaPrefab=Resources.Load<GameObject>("Rain/StreetUmbrella");EnsureOriginalStreetlights();CacheStreetlights();CacheStreetlightGlow();lampPools=gameObject.AddComponent<CheckoutStreetLightPools>();lampPools.Initialize();CheckoutLampClearance.Ensure();CheckoutSignText.Ensure();CheckoutDecorPlays.Ensure();}
+  public void Initialize(){sun=FindObjectsByType<Light>().FirstOrDefault(l=>l.type==LightType.Directional);if(sun){sunColor=sun.color;sunIntensity=sun.intensity;}ambient=RenderSettings.ambientLight;view=Camera.main;if(view)background=view.backgroundColor;particleMaterial=new Material(Shader.Find("Sprites/Default"));rainPuddles=gameObject.AddComponent<CheckoutRainPuddles>();rainPuddles.Initialize();umbrellaPrefab=Resources.Load<GameObject>("Rain/RainUmbrellaV3")??Resources.Load<GameObject>("Rain/StreetUmbrella");EnsureOriginalStreetlights();CacheStreetlights();CacheStreetlightGlow();lampPools=gameObject.AddComponent<CheckoutStreetLightPools>();lampPools.Initialize();CheckoutLampClearance.Ensure();CheckoutSignText.Ensure();CheckoutDecorPlays.Ensure();}
   MarketEvent lastSnapshot;bool previewing;
   public bool Previewing=>previewing;
   public void Apply(MarketEvent value){lastSnapshot=value;if(previewing)return;string id=value!=null&&value.endsAt>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()?value.id:"";expiresAt=value?.endsAt??0;SetEvent(id??"");}
   // Editor/dev preview: shows an event regardless of the game store; an empty id hands control back to the snapshots.
   public void Preview(string id){if(string.IsNullOrEmpty(id)){previewing=false;Apply(lastSnapshot);return;}previewing=true;expiresAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+3600000;SetEvent(id);}
   void SetEvent(string id){if(active==id){if(string.IsNullOrEmpty(id)||!builtFor.TryGetValue(id,out var builtKey)||builtKey==LayoutKey())return;active="\u0000";} // same event, but the shop grew (stage, entrance): its scene is rebuilt for the new layout
-   ReleaseCrowd();if(scenes.TryGetValue(active,out var previous)){previous.SetActive(false);foreach(var particles in previous.GetComponentsInChildren<ParticleSystem>(true))particles.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);}active=id;RoadWorks=id=="rua-em-obras";ApplyTraffic(id);clock=0;umbrellaRefresh=0;rainPuddles.SetRaining(id=="chuva-forte");SetCustomerUmbrellas(id=="chuva-forte");
-   RestoreLight();SetStreetlights((id=="chuva-forte"||night)&&id!="queda-de-energia");if(string.IsNullOrEmpty(id)){if(night)NightLight();return;}
+   ReleaseCrowd();if(scenes.TryGetValue(active,out var previous)){previous.SetActive(false);foreach(var particles in previous.GetComponentsInChildren<ParticleSystem>(true))particles.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);}active=id;RoadWorks=id=="rua-em-obras";ApplyTraffic(id);clock=0;umbrellaRefresh=0;rainPuddles.SetRaining(id=="chuva-forte");if(!snowCover)snowCover=gameObject.AddComponent<CheckoutSnowCover>();snowCover.SetSnowing(id=="nevasca");SetCustomerUmbrellas(id=="chuva-forte");
+   RestoreLight();SetStreetlights((id=="chuva-forte"||id=="nevasca"||night)&&id!="queda-de-energia");if(string.IsNullOrEmpty(id)){if(night)NightLight();return;}
    if(scenes.TryGetValue(id,out var stale)&&builtFor.TryGetValue(id,out var key)&&key!=LayoutKey()){Destroy(stale);scenes.Remove(id);}
    if(!scenes.TryGetValue(id,out var scene)){building=id;builtFor[id]=LayoutKey();scene=new GameObject("Event · "+id);scene.transform.SetParent(transform,false);WorldAligned(scene.transform);scene.SetActive(false);scenes[id]=scene;motions[id]=new List<Motion>();try{Build(id,scene.transform);}catch(Exception e){Debug.LogException(e);ForgetCrowd(id);}}
    foreach(var motion in motions[id]){motion.root.localPosition=motion.home;motion.root.localRotation=motion.rot;motion.root.localScale=motion.scale;}scene.SetActive(true);ApplyTraffic(id);foreach(var particles in scene.GetComponentsInChildren<ParticleSystem>())particles.Play();
    if(id=="chuva-forte"){if(sun){sun.color=new Color(.66f,.77f,.94f);sun.intensity=sunIntensity*.68f;}RenderSettings.ambientLight=new Color(.39f,.46f,.55f);if(view)view.backgroundColor=new Color(.52f,.63f,.66f);}
+   // the snowstorm: a white, cold overcast light
+   if(id=="nevasca"){if(sun){sun.color=new Color(.82f,.88f,1f);sun.intensity=sunIntensity*.8f;}RenderSettings.ambientLight=new Color(.56f,.62f,.71f);if(view)view.backgroundColor=new Color(.76f,.81f,.87f);}
    if(night)NightLight();
   }
+  CheckoutSnowCover snowCover;
   // Night turn: a dark blue sky over whatever the event set, with the street lights on.
   bool night;
   public void SetNight(bool value){if(night==value)return;night=value;var id=active;active="\u0000";SetEvent(id);}
@@ -128,6 +131,38 @@ namespace Checkout {
    Strip("Rain north city",area.min.x,area.max.x,9.5f,area.max.z);
    Strip("Rain west city",area.min.x,-9.5f,-9.5f,9.5f);
    Strip("Rain east city",9.5f,area.max.x,-9.5f,9.5f);
+  }
+  // Snowfall over the city (the shop floor stays dry, as with the rain): big soft flakes falling slowly, drifting.
+  void BuildSnow(Transform root){
+   var terrain=FindObjectsByType<UnityEngine.Tilemaps.TilemapRenderer>().FirstOrDefault(t=>t.name=="Painted Terrain");
+   var area=terrain?terrain.bounds:new Bounds(P(0,0,0),P(90,1,90));
+   var cut=CheckoutSnowCover.ShopCut();
+   void Strip(string name,float minX,float maxX,float minZ,float maxZ){
+    float width=maxX-minX,depth=maxZ-minZ;if(width<=0||depth<=0)return;
+    var go=Group(root,name,P((minX+maxX)*.5f,9,(minZ+maxZ)*.5f)).gameObject;go.layer=2;go.transform.localRotation=Quaternion.Euler(90,0,0);
+    var system=go.AddComponent<ParticleSystem>();system.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
+    var main=system.main;main.playOnAwake=false;main.startLifetime=new ParticleSystem.MinMaxCurve(6.5f,8.5f);main.startSpeed=new ParticleSystem.MinMaxCurve(1.0f,1.5f);
+    main.startSize=new ParticleSystem.MinMaxCurve(.06f,.13f);main.startColor=new Color(1,1,1,.92f);main.simulationSpace=ParticleSystemSimulationSpace.World;main.cullingMode=ParticleSystemCullingMode.AlwaysSimulate;
+    float rate=width*depth*.22f;main.maxParticles=Mathf.CeilToInt(rate*8.5f)+16;main.prewarm=true;main.loop=true;
+    var shape=system.shape;shape.shapeType=ParticleSystemShapeType.Box;shape.scale=P(width,depth,.1f);
+    var emission=system.emission;emission.rateOverTime=rate;
+    var noise=system.noise;noise.enabled=true;noise.strength=.45f;noise.frequency=.35f;noise.scrollSpeed=.25f;noise.quality=ParticleSystemNoiseQuality.Low;
+    var wind=system.velocityOverLifetime;wind.enabled=true;wind.space=ParticleSystemSimulationSpace.World;wind.x=new ParticleSystem.MinMaxCurve(.25f,.45f);wind.y=new ParticleSystem.MinMaxCurve(0,0);wind.z=new ParticleSystem.MinMaxCurve(-.1f,.1f);
+    var fade=system.colorOverLifetime;fade.enabled=true;var g=new Gradient();g.SetKeys(new[]{new GradientColorKey(Color.white,0),new GradientColorKey(Color.white,1)},new[]{new GradientAlphaKey(0,0),new GradientAlphaKey(.95f,.08f),new GradientAlphaKey(.95f,.9f),new GradientAlphaKey(0,1)});fade.color=g;
+    var renderer=system.GetComponent<ParticleSystemRenderer>();renderer.sharedMaterial=SnowflakeMaterial();
+   }
+   Strip("Snow south city",area.min.x,area.max.x,area.min.z,cut.y);
+   Strip("Snow north city",area.min.x,area.max.x,cut.w,area.max.z);
+   Strip("Snow west city",area.min.x,cut.x,cut.y,cut.w);
+   Strip("Snow east city",cut.z,area.max.x,cut.y,cut.w);
+  }
+  // A soft round flake (a radial gradient), so the snow doesn't read as squares.
+  Material snowflakeMaterial;
+  Material SnowflakeMaterial(){
+   if(snowflakeMaterial)return snowflakeMaterial;
+   const int n=32;var tex=new Texture2D(n,n,TextureFormat.RGBA32,false){wrapMode=TextureWrapMode.Clamp,name="Snowflake"};
+   for(int y=0;y<n;y++)for(int x=0;x<n;x++){float d=Vector2.Distance(new Vector2(x+.5f,y+.5f),new Vector2(n*.5f,n*.5f))/(n*.5f);tex.SetPixel(x,y,new Color(1,1,1,Mathf.Clamp01(1-Mathf.SmoothStep(.45f,1f,d))));}
+   tex.Apply();snowflakeMaterial=new Material(particleMaterial){name="Snowflake",mainTexture=tex};return snowflakeMaterial;
   }
   void Particles(Transform parent,string name,Vector3 p,Vector3 size,Color color,float rate,float lifetime,float speed,float scale,bool rain){var go=Group(parent,name,p).gameObject;go.layer=2;if(rain)go.transform.localRotation=Quaternion.Euler(90,0,0);else go.transform.localRotation=Quaternion.Euler(-90,0,0);var system=go.AddComponent<ParticleSystem>();system.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);var main=system.main;main.playOnAwake=false;main.startLifetime=lifetime;main.startSpeed=speed;main.startSize=scale;main.startColor=color;main.maxParticles=Mathf.CeilToInt(rate*lifetime)+16;main.simulationSpace=ParticleSystemSimulationSpace.World;main.cullingMode=ParticleSystemCullingMode.AlwaysSimulate;var shape=system.shape;shape.shapeType=ParticleSystemShapeType.Box;shape.scale=size;var emission=system.emission;emission.rateOverTime=rate;var renderer=system.GetComponent<ParticleSystemRenderer>();renderer.sharedMaterial=particleMaterial;if(rain){renderer.renderMode=ParticleSystemRenderMode.Stretch;renderer.lengthScale=8;renderer.velocityScale=.025f;}else{var fade=system.colorOverLifetime;fade.enabled=true;var gradient=new Gradient();gradient.SetKeys(new[]{new GradientColorKey(Color.white,0),new GradientColorKey(Color.white,1)},new[]{new GradientAlphaKey(0,0),new GradientAlphaKey(.6f,.2f),new GradientAlphaKey(0,1)});fade.color=gradient;}}
  }

@@ -25,6 +25,16 @@ export function accountStatusLine(now = Date.now()) {
 	}
 }
 
+/** The game's Discord server (Lucas 06/11): in the Guia and on this page; Opções has the same button. */
+export function discordCard() {
+	return card("Comunidade no Discord", {
+		icon: gameIcon("discord"),
+		eyebrow: "COMUNIDADE",
+		lines: ["Fale com o desenvolvedor, mande bugs e sugestões, tire dúvidas e mostre o seu mercado."],
+		buttons: [act("Entrar no Discord", "openLink", ["discord"], { variant: "success", ok: "Abrindo o Discord…" })],
+	});
+}
+
 /** "Política de privacidade" and "Suporte" (App Store rule 5.1.1(i)): on this page and in the Guia. */
 export function linksCard() {
 	return card("Privacidade e suporte", {
@@ -133,7 +143,7 @@ export const routes: Routes = {
 				}),
 			);
 		}
-		cards.push(linksCard());
+		cards.push(discordCard(), linksCard());
 		return page("conta", "Conta e nuvem", cards, { icon, subtitle: "Seu progresso em qualquer celular" });
 	},
 };

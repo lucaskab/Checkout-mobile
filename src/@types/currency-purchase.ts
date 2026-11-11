@@ -14,6 +14,10 @@ export type CurrencyPack = {
 	coinTurns?: number;
 	/** Sold once per player (the welcome combo). */
 	oncePerPlayer?: boolean;
+	/** Pacote inicial (Lucas 11/11): sold only in its first 48 h (src/services/perks.ts). */
+	limitedTime?: boolean;
+	/** More than coins and diamonds: trucks, freight coupons, a cosmetic for the dog. */
+	extras?: { trucks?: number; freightCoupons?: number; petCosmeticId?: string };
 };
 
 export type CurrencyPurchaseState = {

@@ -96,6 +96,9 @@ export function getClaimableMissionCount(state: GameState) {
  * their supplier price instead, so a mission can always be claimed. */
 export type MissionRewardPlan = {
 	coins: number;
+	diamonds: number;
+	/** Freight coupons (10% off one supplier order). */
+	coupons: number;
 	stored: { productId: number; quantity: number }[];
 	sold: { productId: number; quantity: number; coins: number; reason: "full" | "locked" }[];
 };
@@ -103,7 +106,13 @@ export function getMissionRewardPlan(
 	mission: MissionDefinition,
 	state: Pick<GameState, "inventory" | "inventoryCapacityLevels" | "market">,
 ): MissionRewardPlan {
-	const plan: MissionRewardPlan = { coins: mission.reward.coins, stored: [], sold: [] };
+	const plan: MissionRewardPlan = {
+		coins: mission.reward.coins,
+		diamonds: Math.max(0, mission.reward.diamonds ?? 0),
+		coupons: Math.max(0, Math.floor(mission.reward.freightCoupons ?? 0)),
+		stored: [],
+		sold: [],
+	};
 	const held: Record<number, number> = {};
 	for (const item of mission.reward.items ?? []) {
 		const product = itemCatalog.find((entry) => entry.id === item.productId);
@@ -136,6 +145,8 @@ export function describeMissionReward(
 	const coins = (value: number) => value.toLocaleString("pt-BR");
 	return [
 		`${coins(mission.reward.coins)} moedas`,
+		...(plan.diamonds > 0 ? [`${plan.diamonds} diamantes`] : []),
+		...(plan.coupons > 0 ? [plan.coupons === 1 ? "1 cupom de frete" : `${plan.coupons} cupons de frete`] : []),
 		...plan.stored.map((item) => `${item.quantity}× ${name(item.productId)}`),
 		...plan.sold.map(
 			(item) =>

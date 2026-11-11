@@ -15,7 +15,8 @@ namespace Checkout
     // "Cores do mercado" picker (Lucas 30/10: "como é mobile, tem que ser bem fácil de fazer"). A panel on the right of the
     // screen; the market stays in view on the left (the camera draws only there and frames the shop) and wears every
     // colour the moment it is tapped (CheckoutMarketPaint.Preview). From the top:
-    //  - curated palettes as big one-tap chips (both colours and the name), and "Recentes" (the last 3 applied);
+    //  - curated palettes as big one-tap chips (both colours and the name), and "Suas cores" (every pair bought: theirs
+    //    for good, applying one again is free — Lucas 09/11);
     //  - two slot tabs, Principal (the navy's place) and Destaque (the gold's place), each showing its colour;
     //  - for the slot picked: 24 swatches, then a hue bar and a brightness bar (big handles) for any colour at all;
     //  - the price buttons ("Aplicar · 7.700" coins / "Aplicar · 25" diamonds, only when something changed),
@@ -175,7 +176,9 @@ namespace Checkout
             var headRow = N.Node("Header buttons", head); headRow.anchorMin = new Vector2(1, 0); headRow.anchorMax = Vector2.one; headRow.pivot = new Vector2(1, .5f);
             headRow.sizeDelta = new Vector2(headButtons, -6); headRow.anchoredPosition = Vector2.zero;
             var hr = N.Row(headRow.gameObject, 8); hr.childForceExpandWidth = true; hr.childControlHeight = true; hr.childForceExpandHeight = true;
-            classic = Btn(headRow, "Clássico", "secondary", BackToClassic, headH - 10);
+            // (a preview like any chip: the classic look is saved only with the free button below — one tap here used to
+            // save it at once, and a tester lost her colour that way, 09/11)
+            classic = Btn(headRow, "Clássico", "secondary", PickClassic, headH - 10);
             cancel = Btn(headRow, "Cancelar", "danger", Cancel, headH - 10);
 
             // Footer: the two prices (or, when the classic look is picked, its free button).
@@ -197,7 +200,7 @@ namespace Checkout
             Caption(content, "Paletas");
             paletteList = Strip(content, "Palettes", Phone ? 104 : 96, out _);
             var recentHolder = N.Node("Recent", content); N.Column(recentHolder.gameObject, 6); recentRow = recentHolder;
-            Caption(recentHolder, "Recentes");
+            Caption(recentHolder, "Suas cores");
             recentList = Strip(recentHolder, "Recent chips", Phone ? 104 : 96, out _);
 
             // The two slots.
@@ -315,7 +318,7 @@ namespace Checkout
 
         void RebuildPalettes()
         {
-            var s = State; var palettes = s?.palettes ?? Array.Empty<PaintPalette>(); var recent = s?.recent ?? Array.Empty<PaintPalette>();
+            var s = State; var palettes = s?.palettes ?? Array.Empty<PaintPalette>(); var recent = s?.owned ?? s?.recent ?? Array.Empty<PaintPalette>();
             var key = string.Join(",", palettes.Select(p => p.id + p.name)) + "|" + string.Join(",", recent.Select(p => p.primary + p.accent + p.name));
             if (key == lastPaletteKey && swatches.Count > 0) return;
             lastPaletteKey = key;
@@ -402,9 +405,11 @@ namespace Checkout
             nowLabel.text = changed ? CheckoutI18n.F("Prévia: {0} · toque em Aplicar para pintar", CheckoutI18n.T(name)) : CheckoutI18n.F("Seu mercado agora: {0}", CheckoutI18n.T(name));
             // Prices only when something changed. The classic look picked (chip or button) over other colours: one free
             // green button instead of the prices.
-            bool pay = changed && !toClassic && !busy, freeBack = changed && toClassic;
-            applyGems.gameObject.SetActive(!freeBack);
+            bool owned = Owned(draftPrimary, draftAccent);
+            bool pay = changed && !toClassic && !owned && !busy, freeBack = changed && toClassic, freeOwned = changed && !toClassic && owned;
+            applyGems.gameObject.SetActive(!freeBack && !freeOwned);
             if (freeBack) applyCoins.Apply(Data("Voltar ao clássico · grátis", "success", !busy, "Icons/success"));
+            else if (freeOwned) applyCoins.Apply(Data("Aplicar · grátis", "success", !busy, "Icons/success"));
             else applyCoins.Apply(Data(pay && coins < coinPrice ? CheckoutI18n.F("Faltam {0} moedas", CheckoutI18n.Number(coinPrice - coins)) : CheckoutI18n.F("Aplicar · {0}", CheckoutI18n.Number(coinPrice)), "coin", pay && coins >= coinPrice, "Icons/coin"));
             applyGems.Apply(Data(CheckoutI18n.F("Aplicar · {0}", CheckoutI18n.Number(gemPrice)), "gem", pay, "Icons/diamond"));
             classic.Apply(Data("Clássico", "secondary", !busy && !(savedClassic && toClassic), "", toClassic));
@@ -440,7 +445,7 @@ namespace Checkout
             if (IsClassic(draftPrimary, draftAccent)) { BackToClassic(); return; }
             var host = CheckoutDesktopHost.Active; if (!host) return;
             var s = State; var bridge = FindAnyObjectByType<CheckoutBridge>();
-            if (currency == "coins" && bridge && bridge.State != null && s != null && bridge.State.coins < s.coinPrice)
+            if (currency == "coins" && !Owned(draftPrimary, draftAccent) && bridge && bridge.State != null && s != null && bridge.State.coins < s.coinPrice)
             { Toast(CheckoutI18n.F("Faltam {0} moedas.", CheckoutI18n.Number(s.coinPrice - bridge.State.coins)), false); return; }
             busy = true; Refresh();
             string p = draftPrimary, a = draftAccent;
@@ -483,6 +488,23 @@ namespace Checkout
         }
 
         void Cancel() { if (Open) Leave(false); }
+
+        /// <summary>Bought before: wearing it again is free (the game's isOwnedPaint).</summary>
+        bool Owned(string p, string a)
+        {
+            if (IsClassic(p, a)) return true;
+            var list = State?.owned; if (list == null) return false;
+            foreach (var x in list) if (CheckoutMarketPaint.Norm(x.primary) == p && CheckoutMarketPaint.Norm(x.accent) == a) return true;
+            return false;
+        }
+
+        /// <summary>The header's "Clássico": shows the classic look; the free green button saves it.</summary>
+        void PickClassic()
+        {
+            if (busy) return;
+            draftPrimary = CheckoutMarketPaint.ClassicPrimary; draftAccent = CheckoutMarketPaint.ClassicAccent;
+            SyncBars(); Preview(); Refresh();
+        }
 
         void Toast(string message, bool ok)
         {

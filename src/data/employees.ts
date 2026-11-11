@@ -4,7 +4,7 @@ import { getMarketEra } from "@/data/economy";
 
 export const employeeDefinitions: EmployeeDefinition[] = [
 	{
-		description: "Assume o caixa: passa as compras e recebe o pagamento sozinho. Sem ele, quem atende é você.",
+		description: "Assume um caixa: passa as compras e recebe o pagamento sozinho. Cada caixa precisa do seu operador; sem nenhum, quem atende é você.",
 		efficiency: 1,
 		hireCost: 1_500,
 		id: "cashier",
@@ -25,7 +25,7 @@ export const employeeDefinitions: EmployeeDefinition[] = [
 		salary: 240,
 	},
 	{
-		description: "Varre a sujeira, seca o que derramou e troca lâmpadas queimadas assim que aparecem.",
+		description: "Varre a sujeira, seca o que derramou e troca lâmpadas queimadas. Loja limpa: +5 de reputação (+5% de clientes).",
 		efficiency: 1,
 		hireCost: 5_000,
 		id: "cleaner",
@@ -33,6 +33,17 @@ export const employeeDefinitions: EmployeeDefinition[] = [
 		requiredEra: "mercadinho",
 		name: "Auxiliar de limpeza",
 		salary: 220,
+	},
+	{
+		// "Ladrão e segurança" (src/services/store-security.ts): catches thieves alone and makes them come less often.
+		description: "Fica de olho na porta: pega ladrões sozinho e espanta metade deles.",
+		efficiency: 1,
+		hireCost: 6_000,
+		id: "security",
+		level: 15,
+		requiredEra: "minimercado",
+		name: "Segurança",
+		salary: 260,
 	},
 ];
 

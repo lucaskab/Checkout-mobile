@@ -116,7 +116,7 @@ namespace Checkout {
     var file=Application.platform==RuntimePlatform.Android?"checkout-android-save.json":"checkout-iphone-save.json";
     if(!StartEmbedded(Path.Combine(Application.persistentDataPath,file))){Destroy(this);return;}
     Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
-    CheckoutIap.Attach(this);CheckoutAds.Attach(this);CheckoutCloud.Attach(this);CheckoutSocial.Attach(this);
+    CheckoutIap.Attach(this);CheckoutAds.Attach(this);CheckoutCloud.Attach(this);CheckoutSocial.Attach(this);CheckoutAppStore.Attach(this);
     return;
    }
    ProcessStartInfo start;var bundled=BundledHost();
@@ -144,7 +144,7 @@ namespace Checkout {
    process.BeginOutputReadLine();process.BeginErrorReadLine();
    Active=this;hud=gameObject.AddComponent<CheckoutDesktopHUD>();hud.Initialize(this);
    // Real-money packs: Unity IAP (the Editor's fake store here; no store in desktop builds, the shop says so).
-   if(!CheckoutStartMenu.EditMode){CheckoutIap.Attach(this);CheckoutAds.Attach(this);} // + rewarded videos (CheckoutAds)
+   if(!CheckoutStartMenu.EditMode){CheckoutIap.Attach(this);CheckoutAds.Attach(this);CheckoutAppStore.Attach(this);} // + rewarded videos (CheckoutAds), rating and update check (CheckoutAppStore)
    // Cloud saves (Google login): the real game only, never the editor's sandbox or a QA copy.
    if(!CheckoutStartMenu.EditMode&&!CheckoutStartMenu.QaMode)CheckoutCloud.Attach(this);
    // Amigos (social v1): QA runs and the Editor talk to the host's fake server (desktop/social-mock.ts).
@@ -199,6 +199,7 @@ namespace Checkout {
     else if(kind=="open-link")CheckoutLinks.FromHost(line);
     else if(kind=="ad-show")CheckoutAds.Active?.Show(line);
     else if(kind=="ad-privacy")CheckoutAds.Active?.ShowPrivacy();
+    else if(kind=="store-review")CheckoutAppStore.Active?.RequestReview();
     else if(kind!=null&&kind.StartsWith("cloud-",System.StringComparison.Ordinal))CheckoutCloud.Active?.OnHost(kind,line);
     else if(kind!=null&&kind.StartsWith("social-",System.StringComparison.Ordinal))CheckoutSocial.Active?.OnHost(kind,line);
    }

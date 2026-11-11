@@ -208,6 +208,13 @@ How the game uses the contract (read these as the game's half of it):
   receipt. The Correio also keeps the last 30 things friends did (`social.history`); `social.daily` counts the helps
   the player gave today (the "Ajudas hoje" meter, 30 a day like the server).
 - **UI**: Amigos · Pedidos · Convidar · Correio are full-screen windows (the Loja's board layout, Lucas 02/11).
+- **Loading the Amigos window** (fix of TestFlight 1.0 (11), 05/11): the window shows the sign-in card, "Carregando os
+  amigos…", the error card with "Tentar de novo", or the content (`desktop/social.ts` `socialPhase`). A Google / Apple
+  login that lands while the window is open, or just before it opens, starts the load by itself (`syncSocialOnline`,
+  on Unity's `social` status); the load ends in the content or the error card within 20 s
+  (`SOCIAL_LOAD_TIMEOUT_MS`), and answers of a load made before a sign-out are dropped. The first `GET /me` of the
+  load creates the profile; the first-time setup (name + face) follows. Tests: `desktop/social-loading.test.mjs`;
+  Unity QA `eventsfriends-phone`.
 
 Open questions for the server:
 1. Should the market-expansion works (`marketExpansionConstruction`) be a fifth build kind (`expansion`) friends can

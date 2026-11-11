@@ -200,10 +200,25 @@ test("every crowd event has a sane share and the negative/staff events bring no 
 		const share = event.crowdShare ?? 0;
 		expect(share >= 0 && share <= 0.8).toBe(true);
 	}
-	for (const id of ["chuva-forte", "rua-em-obras", "maquininha-fora-do-ar", "queda-de-energia", "turno-puxado", "cafe-com-a-equipe", "vigilancia-sanitaria", "carro-de-som"])
+	for (const id of ["chuva-forte", "nevasca", "rua-em-obras", "maquininha-fora-do-ar", "queda-de-energia", "turno-puxado", "cafe-com-a-equipe", "vigilancia-sanitaria", "carro-de-som"])
 		expect(getGameEvent(id).crowdShare ?? 0).toBe(0);
 	// payday and the prize wheel bring a few extra (modest) visits, so the people in their scenes are real buyers
 	expect(effectsOf("quinto-dia-util").customerArrivalMultiplier).toBe(1.15);
 	expect(effectsOf("quinto-dia-util").customerBudgetMultiplier).toBe(1.4);
 	expect(effectsOf("sorteio-na-porta").customerArrivalMultiplier).toBe(1.1);
+});
+
+test("in every era the events do not cost visits on average (negatives never outweigh positives)", () => {
+	// Economy robot (scripts/economy-robot.ts): positives average about +10% revenue per turn, negatives about -3%.
+	// This guards the cheap proxy: the mean visits x budget factor over the era's event pool stays >= 0.98 (the game also lifts the customer cap on busy events, so the real figure is higher).
+	const eraIds = ["mesinha", "tenda", "banca", "conteiner", "spati", "quitanda", "minimercado", "mercadinho", "supermercado", "hipermercado", "rede"];
+	for (const eraId of eraIds) {
+		const pool = getAvailableGameEvents({ eraId, hasRefrigeration: true, hasWorkingStaff: true });
+		const factor = (event) => {
+			const effects = event.effects;
+			return (effects.customerArrivalMultiplier ?? 1) * (effects.customerBudgetMultiplier ?? 1);
+		};
+		const mean = pool.reduce((total, event) => total + (1 + 0.45 * (factor(event) - 1)), 0) / pool.length;
+		expect(mean).toBeGreaterThanOrEqual(0.98);
+	}
 });

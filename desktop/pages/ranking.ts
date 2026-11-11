@@ -175,12 +175,29 @@ function pinnedTile(row: RankRow | null, look: RowLook & { inTop: boolean }): Bo
 	};
 }
 
+/**
+ * "Visitar" on a Mundo / País row (Lucas 10/11): anyone in the top can be visited, only to look (a friend opens as a
+ * friend, with like, gift and help). Needs an account: the server answers signed-in players only.
+ */
+function visitButton(rowId: string): Button {
+	const opening = socialStore.busy.has(`visit-start:${rowId}`) || socialStore.busy.has(`visit:${rowId}`);
+	return act(opening ? "Abrindo…" : "Visitar", "socialVisitPlayer", [rowId], {
+		icon: socialIcon("market"),
+		variant: "primary",
+		enabled: rankingsOnline() && !opening,
+		ok: "",
+		fail: "Entre na sua conta para visitar os mercados do ranking.",
+	});
+}
+
 /** Mundo / País rows: the top three on the podium, the rest as rows, me pinned. */
 function levelBoardView(board0: LevelBoard, me: RankRow | null) {
 	const id = me?.id ?? myId();
-	const tiles = board0.top.map((row) =>
-		playerTile(row.id, row, row.rank, { value: fmt(row.xp), valueLabel: "XP", you: row.id === id }),
-	);
+	const tiles = board0.top.map((row) => {
+		const you = row.id === id;
+		const look = playerTile(row.id, row, row.rank, { value: fmt(row.xp), valueLabel: "XP", you, actions: you ? [] : [visitButton(row.id)] });
+		return you ? look : { ...look, action: visitButton(row.id) };
+	});
 	const inTop = !!me && board0.top.some((row) => row.id === me.id);
 	return {
 		podium: tiles.slice(0, 3),

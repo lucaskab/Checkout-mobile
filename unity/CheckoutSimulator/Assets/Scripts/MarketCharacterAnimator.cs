@@ -56,7 +56,9 @@ namespace MarketDay
             if(current!=next){current=next;animationPlayer.CrossFade(next,.18f);}
             if(animationPlayer[next]){
                 if(next.StartsWith("Walking")){
-                    if(delta.magnitude<2)walkPhase=Mathf.Repeat(walkPhase+delta.magnitude/Mathf.Max(.1f,walkCycleDistance),1f);
+                    // the cycle is measured from the clip (each body has its own stride, Checkout.CheckoutWalkCycle)
+                    float cycle=Checkout.CheckoutWalkCycle.World(animationPlayer,next,walkCycleDistance);
+                    if(delta.magnitude<2)walkPhase=Mathf.Repeat(walkPhase+delta.magnitude/Mathf.Max(.1f,cycle),1f);
                     animationPlayer[next].speed=0;
                     animationPlayer[next].normalizedTime=walkPhase;
                     animationPlayer.Sample();

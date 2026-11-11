@@ -1,7 +1,8 @@
-import { HttpError, json } from "./http.ts";
+import { HEADERS, HttpError, json, readCapped } from "./http.ts";
 import { readCode } from "./codes.ts";
 import { invitePage, pageResponse, pickLanguage } from "./landing.ts";
-import { SOCIAL } from "./limits.ts";
+import { RANKINGS, SOCIAL } from "./limits.ts";
+import { RankingStore } from "./ranking-store.ts";
 import { cleanName, isNameAllowed, sameName } from "./names.ts";
 import type { FriendRow, InboxRow, OwnPhoto, Profile, RequestRow, Store } from "./store.ts";
 
@@ -20,7 +21,7 @@ export type SocialOptions = {
 	sessionOf: (request: Request) => Promise<string>;
 };
 
-const JSON_HEADERS = { "content-type": "application/json", "cache-control": "no-store" };
+const JSON_HEADERS = HEADERS;
 const raw = (status: number, text: string) => new Response(text, { status, headers: JSON_HEADERS });
 const fail = (status: number, error: string): never => {
 	throw new HttpError(status, { error });
@@ -34,16 +35,14 @@ const VERBS = new Set(["add", "accept", "decline", "ack", "redeem"]);
 const ROUTES = new Set(
 	[
 		"GET me", "PUT me", "GET friends", "POST friends/add", "POST friends/accept", "POST friends/decline", "DELETE friends/:id",
-		"GET friends/:id/market", "POST report", "POST gift", "POST like", "POST help", "GET requests", "POST requests",
+		"GET friends/:id/market", "GET players/:id/market", "POST report", "POST gift", "POST like", "POST help", "GET requests", "POST requests",
 		"DELETE requests/:id", "POST requests/:id/fulfill", "GET inbox", "POST inbox/ack", "POST invite/redeem",
 	],
 );
 
 /** Social bodies are small: refuse anything bigger than 16 KB before reading it. */
 export async function readBody(request: Request): Promise<Record<string, unknown>> {
-	if (Number(request.headers.get("content-length") ?? "0") > MAX_SOCIAL_BODY) fail(413, "too-large");
-	const text = await request.text();
-	if (text.length > MAX_SOCIAL_BODY) fail(413, "too-large");
+	const text = new TextDecoder().decode(await readCapped(request, MAX_SOCIAL_BODY));
 	try {
 		const body = JSON.parse(text || "{}");
 		if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
@@ -237,6 +236,37 @@ export function socialRoutes(options: SocialOptions) {
 				if (!found) return fail(404, "no-save");
 				// {"profile":Friend,"public":…,"data":<the stored string literal>} — the save is not re-encoded.
 				const head = `{"profile":${friendJson(visit.friend, visit.requests)},"public":${visit.friend.publicJson ?? "null"},"data":`;
+				return new Response(new Blob([head, found.body, "}"]), { status: 200, headers: JSON_HEADERS });
+			}
+
+			// A player of the Mundo / País boards (Lucas 10/11): only to look at, no like, gift or help. Allowed while they
+			// are ranked and in the top RANKINGS.maxTop of the world or of their country (what the boards show), so the
+			// endpoint cannot be used to read any player's save. Same answer shape as a friend's market.
+			case "GET players/:id/market": {
+				const targetId = playerId(parts[1]);
+				await me();
+				if (!targetId) return fail(404, "not-found");
+				const ranks = new RankingStore(store);
+				const [world, local] = await store.db.batch([ranks.me(targetId, false), ranks.me(targetId, true)]);
+				const row = world.results[0] as Record<string, unknown> | undefined;
+				const rankOf = (r: Record<string, unknown> | undefined) => (typeof r?.rank === "number" ? (r.rank as number) : null);
+				const worldRank = rankOf(row), countryRank = rankOf(local.results[0] as Record<string, unknown> | undefined);
+				const onBoard = (rank: number | null) => rank !== null && rank <= RANKINGS.maxTop;
+				if (!row || !(onBoard(worldRank) || onBoard(countryRank))) return fail(403, "not-public");
+				const save = await store.getSave(targetId);
+				const found = save ? await store.readSave(targetId, save) : null;
+				if (!found) return fail(404, "no-save");
+				const profile = {
+					id: targetId,
+					code: row.code,
+					marketName: row.name_hidden ? null : (row.market_name ?? null),
+					avatar: row.avatar ?? null,
+					level: row.level,
+					era: row.era,
+					country: row.country ?? null,
+				};
+				const publicJson = typeof row.public_json === "string" ? row.public_json : "null";
+				const head = `{"profile":${JSON.stringify(profile)},"public":${publicJson},"data":`;
 				return new Response(new Blob([head, found.body, "}"]), { status: 200, headers: JSON_HEADERS });
 			}
 

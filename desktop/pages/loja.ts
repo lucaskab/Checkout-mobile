@@ -1,3 +1,4 @@
+import { getCheckoutFixture } from "@/data/checkout-lanes";
 import { describeFixtureProducts } from "@/data/fixture-products";
 import { getFixtureName, getShelfType } from "@/data/shelf-types";
 import { interiorDecor } from "@/data/interior-decor";
@@ -27,6 +28,7 @@ import {
 	type State,
 } from "../view-kit";
 import { buildCard, placeButton, shelfThumb } from "./build-cards";
+import { petCards, petChipIcon } from "./pet";
 import { evolutionSkipButton, evolutionStatus, evolutionTimeText } from "./evolution-kit";
 import {
 	checkoutItemTiers,
@@ -44,6 +46,7 @@ import { eraCards } from "./eras";
 import { lotCards } from "./lots";
 import { getMarketEra, getNextMarketEra } from "@/data/economy";
 import { getMarketPaintCoinPrice, getMarketPalette, isClassicPaint, MARKET_PAINT_DIAMONDS } from "@/data/market-paint";
+import { getMarketStyleItem, isMarketSignStyleUnlocked, isMarketStyleUnlocked } from "@/data/market-style";
 import { routes as progress } from "./progress";
 import { routes as upgrades } from "./upgrades";
 
@@ -208,7 +211,7 @@ function checkoutCards(state: State) {
 		return [
 			buildCard(state, {
 				title: item.name,
-				icon: decorIcon(id === "self-checkout" ? "kiosk" : "checkout"),
+				icon: decorIcon(getCheckoutFixture(id)?.pieceIds[0].startsWith("kiosk") ? "kiosk" : "checkout"),
 				subtitle: item.description,
 				status: locked && status.status === "available" ? { ...status, status: "locked", reason: `Nível ${item.level}` } : status,
 				...(isDiamond
@@ -273,7 +276,39 @@ function paintCard(state: State): Card {
 	});
 }
 
+// "Estilo do mercado": floor, walls, staff uniform and the big sign, drawn by Unity over the live market ("@style",
+// CheckoutMarketStylePanel). From the Späti (the first shop with an inside); the sign from the mercadinho.
+function styleCard(state: State): Card | null {
+	const style = state.marketStyle;
+	if (!style || !isMarketStyleUnlocked(state.era.id)) return null;
+	const name = (kind: "floor" | "wall" | "uniform", id: string) => getMarketStyleItem(kind, id)?.name ?? id;
+	const lines = [`Piso: ${name("floor", style.floor)} · Parede: ${name("wall", style.wall)}`, `Uniforme: ${name("uniform", style.uniform)}`];
+	if (isMarketSignStyleUnlocked(state.era.id)) lines.push(`Letreiro: ${getMarketStyleItem("look", style.sign.look)?.name ?? ""} · ${getMarketStyleItem("effect", style.sign.effect)?.name ?? ""}`);
+	return card("Estilo do mercado", {
+		eyebrow: "DEIXE COM A SUA CARA",
+		icon: gameIcon("paint"),
+		tone: "featured",
+		subtitle: isMarketSignStyleUnlocked(state.era.id)
+			? "Piso, parede, uniforme da equipe e o letreiro: fontes, cores, neon e efeitos piscando."
+			: "Piso, parede e uniforme da equipe. Veja ao vivo antes de comprar.",
+		lines,
+		buttons: [button("Escolher estilo", { route: "@style", variant: "primary", icon: gameIcon("paint") })],
+	});
+}
+
+const petChip = (active: boolean) => chip("Caramelo", "decoracao", "caramelo", active, petChipIcon);
+
 function decoracao(state: State, sub: string) {
+	// "Mascote caramelo": the store dog and his cosmetics (desktop/pages/pet.ts).
+	if (sub === "caramelo")
+		return {
+			cards: petCards(state),
+			chips: [
+				chip("Dentro da loja", "decoracao", "dentro", false, gameIcon("market")),
+				chip("Praça", "decoracao", "fora", false, gameIcon("garden")),
+				petChip(true),
+			],
+		};
 	const zone = sub === "fora" ? "outside" : "inside";
 	const coins = state.coins;
 	const diamonds = state.logistics.premiumCurrency;
@@ -333,10 +368,11 @@ function decoracao(state: State, sub: string) {
 			});
 		});
 	return {
-		cards: [paintCard(state), ...cards],
+		cards: [paintCard(state), ...(styleCard(state) ? [styleCard(state) as Card] : []), ...cards],
 		chips: [
 			chip("Dentro da loja", "decoracao", "dentro", zone === "inside", gameIcon("market")),
 			chip("Praça", "decoracao", "fora", zone === "outside", gameIcon("garden")),
+			petChip(false),
 		],
 	};
 }

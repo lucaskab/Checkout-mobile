@@ -1,5 +1,6 @@
 // Jogador robô: joga o Checkout por 45 dias reais com as fórmulas do próprio jogo e diz em que dia
 // cada era chega. Rode com:  bun scripts/economy-robot.ts            (relatório com a tabela atual)
+//                            bun scripts/economy-robot.ts --sem-eventos (como antes: ignora os eventos de mercado)
 //                            bun scripts/economy-robot.ts --calibrar (procura os multiplicadores de
 //                            ticket que fazem o jogador regular chegar em cada era no dia-alvo)
 // Saída: tmp/economia-robo.json e tmp/economia-robo.md
@@ -37,6 +38,9 @@ import {
 	simulateMarketVisit,
 } from "@/services/customer-simulation";
 import { createDayOffers } from "@/services/market-day";
+import { gameEvents } from "@/data/game-events";
+import { getEventDurationMs, isGameEventAvailable } from "@/services/game-events";
+import type { GameEventDefinition } from "@/@types/game-event";
 import {
 	applyExperience,
 	getExperienceFromSales,
@@ -74,7 +78,30 @@ export const profiles: Profile[] = [
 	{ id: "casual", name: "Casual (2 sessões × 1 turno = 20 min/dia)", sessions: [9, 20], turnsPerSession: 1, contractRate: 0.6 },
 	{ id: "regular", name: "Regular (3 sessões × 2 turnos = 1 h/dia)", sessions: [8, 13, 20], turnsPerSession: 2, contractRate: 0.8 },
 	{ id: "dedicado", name: "Dedicado (5 sessões × 2 turnos = 1h40/dia)", sessions: [8, 11, 14, 18, 22], turnsPerSession: 2, contractRate: 0.9 },
+	// The design's reference player: 3 sessions of 15 min a day (three 5-minute turns each).
+	{ id: "alvo", name: "Alvo (3 sessões × 15 min = 45 min/dia)", sessions: [9, 14, 20], turnsPerSession: 1.5, contractRate: 0.7 },
 ];
+
+/**
+ * Market events, rolled as the game does (advanceGameEvents with a turn): ONE event per turn, picked uniformly
+ * among the available ones except the previous event, starting 0:40-1:40 into the turn and lasting its
+ * getEventDurationMs (cut by the end of the turn). Only the effects the robot can price are applied: customer
+ * arrival, budget, extra basket items, category demand and supplier cost.
+ */
+let eventsEnabled = true;
+export function setRobotEvents(enabled: boolean) {
+	eventsEnabled = enabled;
+}
+const EVENT_START_MIN_MS = 40_000;
+const EVENT_START_SPREAD_MS = 60_000;
+const seeded = (seed: number) => {
+	const value = Math.sin(seed * 12.9898) * 43_758.5453;
+	return value - Math.floor(value);
+};
+const eraOrder = (id: string) => marketEras.findIndex((era) => era.id === id);
+
+/** How a market event rolls through a turn: when it starts/ends and what it does. */
+type TurnEvent = { event: GameEventDefinition; startMs: number; endMs: number };
 
 /** How the offline income works: as in the game today, or scaled by the era (proposal). */
 type OfflineRule = "atual" | "por-era";
@@ -143,6 +170,8 @@ export function runRobot(
 	let eraIndex = 0;
 	let building: { index: number; endsAt: number } | null = null;
 	let seed = 1;
+	let eventSeed = 1;
+	let lastEventId: string | null = null;
 	let totalRevenue = 0;
 	let buyers = 0;
 	let lastSessionAt = 0;
@@ -178,31 +207,67 @@ export function runRobot(
 			slotLevels.push(0);
 			slotProfit.push(0);
 		}
-		const simulated = products.map((product, slot) => ({
-			...product,
-			availableQuantity: 99,
-			marketPrice: product.suggestedPrice,
-			necessity: product.demand,
-			productId: product.id,
-			promotionRate: 0,
-			sellingPrice: product.suggestedPrice,
-			shelfId: String(slot),
-		}));
-		const arrival = era.arrivalMultiplier * (night ? 0.7 : 1);
+		const buildSimulated = (demand: Record<string, number>) =>
+			products.map((product, slot) => ({
+				...product,
+				availableQuantity: 99,
+				marketPrice: product.suggestedPrice,
+				necessity: product.demand * (demand[product.category] ?? 1),
+				productId: product.id,
+				promotionRate: 0,
+				sellingPrice: product.suggestedPrice,
+				shelfId: String(slot),
+			}));
+		const simulated = buildSimulated({});
+		// This turn's event (one per turn, like advanceGameEvents).
+		let turnEvent: TurnEvent | null = null;
+		if (eventsEnabled) {
+			const context = {
+				eraId: era.id,
+				hasWorkingStaff: eraOrder(era.id) >= eraOrder("conteiner"),
+				hasRefrigeration: eraOrder(era.id) >= eraOrder("banca"),
+			};
+			const candidates = gameEvents.filter((event) => isGameEventAvailable(event, context));
+			const pool = candidates.filter((event) => event.id !== lastEventId);
+			const list = pool.length > 0 ? pool : candidates;
+			const picked = list[Math.floor(seeded(eventSeed) * list.length)];
+			const startMs = EVENT_START_MIN_MS + Math.round(EVENT_START_SPREAD_MS * seeded(eventSeed + 7));
+			eventSeed += 1;
+			if (picked && TURN_DURATION_MS - startMs - 5_000 >= 60_000) {
+				const duration = Math.min(TURN_DURATION_MS - startMs - 5_000, getEventDurationMs(picked));
+				turnEvent = { event: picked, startMs, endMs: startMs + duration };
+				lastEventId = picked.id;
+			}
+		}
+		const eventSimulated = turnEvent ? buildSimulated(turnEvent.event.effects.categoryDemand ?? {}) : simulated;
+		const baseArrival = era.arrivalMultiplier * (night ? 0.7 : 1);
 		const ticket = era.ticketMultiplier * (night ? 1.2 : 1);
 		const minDelay = getMinArrivalDelayMs(era);
 		const unlockedCount = getUnlockedProductIds(level, era.id).length;
-		let t = getCustomerArrivalDelay(level, unlockedCount, seed, arrival, minDelay) * 0.4;
+		const effectsAt = (time: number) => {
+			const active = turnEvent && time >= turnEvent.startMs && time < turnEvent.endMs ? turnEvent.event.effects : null;
+			return {
+				arrival: baseArrival * (active?.customerArrivalMultiplier ?? 1),
+				// As in game-store: a busy event (rush, payday) lifts the shop's usual customer cap.
+				minDelay: minDelay / Math.max(1, active?.customerArrivalMultiplier ?? 1),
+				budget: active?.customerBudgetMultiplier ?? 1,
+				extra: active?.extraBasketItems ?? 0,
+				cost: active?.supplierCostMultiplier ?? 1,
+				products: active ? eventSimulated : simulated,
+			};
+		};
+		let t = getCustomerArrivalDelay(level, unlockedCount, seed, baseArrival, minDelay) * 0.4;
 		let profit = 0;
 		let revenue = 0;
 		let turnXp = 0;
 		let customers = 0;
 		while (t < TURN_DURATION_MS) {
 			seed += 1;
+			const fx = effectsAt(t);
 			const visit = simulateMarketVisit({
-				budgetMultiplier: (1 + Math.max(level - 1, 0) * 0.08) * ticket,
-				maxProductsBonus: era.basketBonus,
-				products: simulated,
+				budgetMultiplier: (1 + Math.max(level - 1, 0) * 0.08) * ticket * fx.budget,
+				maxProductsBonus: era.basketBonus + fx.extra,
+				products: fx.products,
 				seed,
 				storeReputation: 60,
 			});
@@ -212,7 +277,7 @@ export function runRobot(
 				const slot = Number(purchase.shelfId);
 				const bonus = getItemIncomeMultiplier(slotLevels[slot] ?? 0);
 				// Stock is bought at the supplier price: a bigger era sells pricier baskets of the same goods.
-				const cost = (product?.purchasePrice ?? 0) * purchase.quantity;
+				const cost = (product?.purchasePrice ?? 0) * purchase.quantity * fx.cost;
 				// An upgraded item earns more per sale (better display, better goods): +10% profit per level.
 				const gain = (purchase.revenue - cost) * bonus;
 				profit += gain;
@@ -225,7 +290,8 @@ export function runRobot(
 			const next = applyExperience(level, experience, xp);
 			level = next.level;
 			experience = next.experience;
-			t += getCustomerArrivalDelay(level, unlockedCount, seed, arrival, minDelay);
+			const next2 = effectsAt(t);
+			t += getCustomerArrivalDelay(level, unlockedCount, seed, next2.arrival, next2.minDelay);
 		}
 		totalRevenue += revenue;
 		averageTurnProfit = averageTurnProfit === 0 ? profit : averageTurnProfit * 0.7 + profit * 0.3;
@@ -412,6 +478,7 @@ function table(runs: RobotRun[], eras: MarketEraDefinition[]) {
 
 if (import.meta.main) {
 	const calibrating = process.argv.includes("--calibrar");
+	if (process.argv.includes("--sem-eventos")) setRobotEvents(false);
 	const eras = calibrating ? calibrate(marketEras) : marketEras;
 	const runs = profiles.map((profile) => runRobot(profile, eras));
 	const today = profiles.map((profile) => runRobot(profile, eras, "atual"));

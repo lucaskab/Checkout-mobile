@@ -70,6 +70,8 @@ public static partial class CheckoutMarketStagesBuilder
         foreach (var id in OutsideDecor) Decor(Next(id), id);
         // decor v4 (22/10): new decorations, inside and on the plaza (src/data/interior-decor.ts)
         foreach (var id in NewDecorV4) Decor(Next(id), id);
+        // Caramelo's beds (08/11): inside or outside; the dog sleeps on them (CheckoutPets), fabrics swap the atlas
+        foreach (var id in PetBeds) Decor(Next(id), id);
         if (skipNode) UnityEngine.Object.DestroyImmediate(skipNode);
 
         foreach (var m in scratch) if (m && !AssetDatabase.Contains(m)) UnityEngine.Object.DestroyImmediate(m);
@@ -1035,6 +1037,9 @@ public static partial class CheckoutMarketStagesBuilder
         { "balloons", new Vector3(.33f, .34f, 2.23f) }, { "floor-lamp", new Vector3(.24f, .24f, 1.89f) }, { "bench", new Vector3(.78f, .3f, 1.05f) },
         { "water-cooler", new Vector3(.22f, .21f, 1.7f) }, { "umbrella-stand", new Vector3(.17f, .16f, 1.1f) }, { "monstera", new Vector3(.49f, .47f, 1.48f) },
         { "can-pyramid", new Vector3(.33f, .25f, 1.35f) }, { "fruit-pyramid", new Vector3(.66f, .59f, 1.14f) }, { "tasting-table", new Vector3(.72f, .43f, .96f) },
+        // pet beds (ArtSource/decor_v4 pet-bed-*, 08/11/2026): half x, half z, height measured on the models
+        { "pet-bed-round", new Vector3(.42f, .42f, .19f) }, { "pet-bed-basket", new Vector3(.49f, .37f, .37f) }, { "pet-bed-house", new Vector3(.5f, .55f, .86f) },
+        { "pet-bed-sofa", new Vector3(.54f, .42f, .6f) }, { "pet-bed-royal", new Vector3(.54f, .43f, 1.08f) },
         { "wine-barrel", new Vector3(.46f, .44f, 1.18f) }, { "neon-cart", new Vector3(.5f, .15f, 1.77f) }, { "giant-teddy", new Vector3(.45f, .42f, 1.38f) },
         { "party-tree", new Vector3(.5f, .5f, 2.29f) }, { "aquarium", new Vector3(.45f, .45f, 1.72f) }, { "swing-set", new Vector3(1.15f, .57f, 2.2f) },
         { "hotdog-cart", new Vector3(.8f, .46f, 2.38f) }, { "topiary-animal", new Vector3(.44f, .51f, 1.29f) }, { "gazebo", new Vector3(1.41f, 1.49f, 3.2f) },
@@ -1043,6 +1048,7 @@ public static partial class CheckoutMarketStagesBuilder
         { "flower-stand", new Vector3(1.12f, .74f, 2.43f) }, { "coffee-kiosk", new Vector3(1.13f, .7f, 3.19f) }, { "festoon-pergola", new Vector3(1.34f, 1.24f, 2.66f) },
     };
     public static readonly string[] OutsideDecor = { "park-bench", "tree-planter", "flower-bed", "street-lamp", "fountain", "bike-rack", "popcorn-cart", "ice-cream-cart", "parasol-table", "kiddie-ride", "billboard", "recycle-bins", "festoon-pergola" };
+    static readonly string[] PetBeds = { "pet-bed-round", "pet-bed-basket", "pet-bed-house", "pet-bed-sofa", "pet-bed-royal" };
     static readonly string[] NewDecorV4 = { "umbrella-stand", "monstera", "can-pyramid", "fruit-pyramid", "tasting-table", "wine-barrel", "neon-cart", "giant-teddy", "party-tree", "aquarium", "picket-fence", "hedge-planter", "bird-bath", "picnic-table", "veggie-garden", "swing-set", "hotdog-cart", "topiary-animal", "gazebo", "carousel" };
 
     static void Decor(Transform t, string id)

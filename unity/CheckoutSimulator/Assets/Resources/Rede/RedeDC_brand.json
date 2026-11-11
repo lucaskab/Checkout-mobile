@@ -1,0 +1,243 @@
+{
+ "model": "RedeDC",
+ "tris": 66777,
+ "size": [
+  22.48,
+  15.7,
+  20.507
+ ],
+ "plates": [
+  {
+   "name": "Brand_Name_Entrance.001",
+   "holder": "RedeDC.001",
+   "kind": "name",
+   "size": 0,
+   "text": 0.26,
+   "upper": false,
+   "color": "1D2B4F",
+   "pos": [
+    -5.5,
+    3.25,
+    -11.033
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "right": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_Front.015",
+   "holder": "RedeDC_Medallion.001",
+   "kind": "logo",
+   "size": 1.25,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    1.4,
+    7.6,
+    -9.7608
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "right": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Name_Front.007",
+   "holder": "RedeDC_NameBoardEast.001",
+   "kind": "name",
+   "size": 0,
+   "text": 0.62,
+   "upper": true,
+   "color": "F0C75A",
+   "pos": [
+    9.48,
+    8.4,
+    1.55
+   ],
+   "normal": [
+    1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Name_Front.006",
+   "holder": "RedeDC_NameBoardSouth.001",
+   "kind": "name",
+   "size": 0,
+   "text": 0.62,
+   "upper": true,
+   "color": "F0C75A",
+   "pos": [
+    -5.7,
+    9.15,
+    -3.28
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "right": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_E.003",
+   "holder": "RedeDC_WaterTower.001",
+   "kind": "logo",
+   "size": 0.8,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    7.7103,
+    14.25,
+    6.6
+   ],
+   "normal": [
+    1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_N.003",
+   "holder": "RedeDC_WaterTower.001",
+   "kind": "logo",
+   "size": 0.8,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    6.4,
+    14.25,
+    7.9103
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    1.0
+   ],
+   "right": [
+    -1.0,
+    0.0,
+    -0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_S.003",
+   "holder": "RedeDC_WaterTower.001",
+   "kind": "logo",
+   "size": 0.8,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    6.4,
+    14.25,
+    5.2897
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "right": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Brand_Logo_W.003",
+   "holder": "RedeDC_WaterTower.001",
+   "kind": "logo",
+   "size": 0.8,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    5.0897,
+    14.25,
+    6.6
+   ],
+   "normal": [
+    -1.0,
+    -0.0,
+    0.0
+   ],
+   "right": [
+    -0.0,
+    0.0,
+    -1.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  }
+ ]
+}

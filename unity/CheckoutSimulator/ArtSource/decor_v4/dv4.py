@@ -21,8 +21,9 @@ import os, sys, math, json, time, random
 import bpy, bmesh
 from mathutils import Vector, Matrix, Euler
 
-ROOT = r"C:\Checkout-mobile\unity\CheckoutSimulator\ArtSource\decor_v4"
-ASSETS = r"C:\Checkout-mobile\unity\CheckoutSimulator\Assets"
+# Paths follow this file (C:\Checkout-mobile\... on the PC, ~/repos/checkout/... on the Mac).
+ROOT = os.path.dirname(os.path.abspath(__file__))
+ASSETS = os.path.normpath(os.path.join(ROOT, "..", "..", "Assets"))
 OLD_MODELS = os.path.join(ASSETS, "Art", "Interior", "Models")
 ASSET_TEX = os.path.join(ASSETS, "Art", "Interior", "Textures")
 D = {k: os.path.join(ROOT, k) for k in ("fbx", "tex", "thumbs", "previews", "items", "logs")}
@@ -37,6 +38,8 @@ GREEN, LEAF, LEAFD, BLUE, TERRACOTTA = "5A9D33", "5DAE3E", "2F6F2C", "3E8FD6", "
 
 PARTS = []        # objects created by the helpers (bpy objects); each has ["dv4_out"]
 PIVOTS = {}       # output object name -> pivot (Blender space)
+STYLED = []       # [(material, factory)] paints that follow a style (fabric colourways), see styled()
+BAKE_SUFFIX = ""  # appended to the atlas file / image name (colourway bakes: "_teal" -> IK_D4_<Name>_albedo_teal.png)
 RNG = random.Random(4)
 
 
@@ -61,7 +64,7 @@ def rad(a):
 
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    PARTS.clear(); PIVOTS.clear()
+    PARTS.clear(); PIVOTS.clear(); STYLED.clear()
     sc = bpy.context.scene
     sc.unit_settings.system = "METRIC"; sc.unit_settings.scale_length = 1
     return sc
@@ -695,6 +698,43 @@ def pivot(out, p):
     PIVOTS[out] = Vector(p)
 
 
+def styled(factory, default):
+    """A paint that follows a style (e.g. the fabric colourway): factory(style) -> paint material. Returns the paint of the
+    `default` style; when build() returns cfg["styles"] = [other styles], run_item re-bakes the atlas once per style with the
+    same mesh and UVs, swapping these paints for factory(style), into IK_D4_<Name>_albedo_<style>.png."""
+    m = factory(default)
+    STYLED.append((m, factory))
+    return m
+
+
+def bake_styles(outs, name, size, samples, styles):
+    """Colourway atlases: same UVs and AO, the styled paints swapped per style. Returns {style: path}."""
+    global BAKE_SUFFIX
+    only = os.environ.get("DV4_STYLES", "").strip()          # "none" = skip, "teal,rose" = only these (fast iterations)
+    if only.lower() == "none":
+        return {}
+    if only:
+        styles = [s for s in styles if s in only.split(",")]
+    paths = {}
+    for st in styles:
+        swap = {m: f(st) for m, f in STYLED}
+        for ob in outs:
+            for i, m in enumerate(ob.data.materials):
+                if m in swap:
+                    ob.data.materials[i] = swap[m]
+        BAKE_SUFFIX = "_" + st
+        try:
+            paths[st] = bake(outs, name, size, samples)[1]
+        finally:
+            BAKE_SUFFIX = ""
+            back = {v: k for k, v in swap.items()}
+            for ob in outs:
+                for i, m in enumerate(ob.data.materials):
+                    if m in back:
+                        ob.data.materials[i] = back[m]
+    return paths
+
+
 # ================================================================================================= realize
 def _select(objs, active=None):
     bpy.ops.object.select_all(action="DESELECT")
@@ -816,7 +856,7 @@ def bake(outs, name, size, samples=64):
     sc.cycles.samples = samples; sc.cycles.use_denoising = False; sc.cycles.use_adaptive_sampling = False
     if not sc.world:
         sc.world = bpy.data.worlds.new("W")
-    img = bpy.data.images.new("IK_D4_" + name + "_albedo", size, size, alpha=False)
+    img = bpy.data.images.new("IK_D4_" + name + "_albedo" + BAKE_SUFFIX, size, size, alpha=False)
     img.generated_color = (.5, .5, .5, 1)
     for ob in outs:
         for mat in ob.data.materials:
@@ -828,8 +868,8 @@ def bake(outs, name, size, samples=64):
     _select(outs)
     t0 = time.time()
     bpy.ops.object.bake(type="EMIT")
-    log("baked %s %dpx in %.1fs" % (name, size, time.time() - t0))
-    path = os.path.join(D["tex"], "IK_D4_" + name + "_albedo.png")
+    log("baked %s%s %dpx in %.1fs" % (name, BAKE_SUFFIX, size, time.time() - t0))
+    path = os.path.join(D["tex"], "IK_D4_" + name + "_albedo" + BAKE_SUFFIX + ".png")
     sc.render.image_settings.file_format = "PNG"; sc.render.image_settings.color_mode = "RGB"; sc.render.image_settings.color_depth = "8"
     # save_render applies the scene's view transform: the factory default (AgX) greys the whites (~197) and
     # desaturates the paint. The atlas must keep the painted colours as they are.
@@ -1059,6 +1099,7 @@ def run_item(id_, module):
     log("realized", [o.name for o in outs], "tris", tris)
     unwrap(outs, cfg["tex"], BAKE_MARGIN)
     img, tex_path = bake(outs, name, cfg["tex"], cfg.get("samples", 64))
+    styles = bake_styles(outs, name, cfg["tex"], cfg.get("samples", 64), cfg["styles"]) if cfg.get("styles") and STYLED else {}
     mats = final_materials(outs, name, img)
     set_pivots(outs)
     lo, hi = bounds(outs)
@@ -1071,6 +1112,7 @@ def run_item(id_, module):
              "objects": [o.name for o in outs], "anim": [o.name for o in outs if o.name.startswith("Anim")],
              "pivots": {o.name: [round(c, 4) for c in o.location] for o in outs if o.name != "Body"},
              "materials": [m.name for m in mats], "texture": os.path.basename(tex_path), "texture_size": cfg["tex"],
+             **({"texture_styles": {k: os.path.basename(v) for k, v in styles.items()}} if styles else {}),
              "fbx": fbx, "thumb": os.path.join(D["thumbs"], id_ + ".png"), "previews": pv,
              "old": old, "secs": round(time.time() - t0, 1), "date": time.strftime("%Y-%m-%d %H:%M")}
     rp = os.path.join(ROOT, "report.json")

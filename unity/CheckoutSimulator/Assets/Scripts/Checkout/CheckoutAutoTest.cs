@@ -23,6 +23,16 @@ namespace Checkout {
   void Awake(){DontDestroyOnLoad(gameObject);Application.logMessageReceived+=OnLog;CheckoutBridge.TestPatch=Patch;}
   void OnDestroy(){Application.logMessageReceived-=OnLog;CheckoutBridge.TestPatch=null;}
   void OnLog(string message,string stack,LogType type){if(type==LogType.Exception||type==LogType.Error)log.Add($"[{type}] {message}\n{stack}");else if(message.StartsWith("CHECKOUT_RECEIPT")||message.StartsWith("CHECKOUT_PORTRAIT"))log.Add(message);}
+  bool tipsAway;int tipSeq;
+  IEnumerator KeepTipsAway(){
+   var hud=FindAnyObjectByType<CheckoutDesktopHUD>();
+   while(tipsAway){
+    if(!hud)hud=FindAnyObjectByType<CheckoutDesktopHUD>();
+    var q=hud?hud.CoachQa():null;
+    if(q!=null&&q.isTip&&!string.IsNullOrEmpty(q.key)){CheckoutBridge.Emit("{\"kind\":\"hud\",\"id\":\"qa-tip-"+(++tipSeq)+"\",\"action\":\"dismissOnboardingTip\",\"args\":[]}");Note("tip tapped away: "+q.key);}
+    yield return new WaitForSecondsRealtime(.4f);
+   }
+  }
   void Note(string s){log.Add($"{Time.realtimeSinceStartup:0.0}s {s}");Flush();}
   void Flush(){try{File.WriteAllLines("Logs/autotest_log.txt",log);}catch{}}
 
@@ -39,9 +49,14 @@ namespace Checkout {
    yield return new WaitForSecondsRealtime(3);
    foreach(var s in scenarios){
     Note("== "+s);
-    IEnumerator run=s.StartsWith("eventsphotos")?Photos(s):s.StartsWith("eventssectors")?Sectors(s):s.StartsWith("onboarding")?Onboarding(s):s.StartsWith("rankings")?Rankings(s):s.StartsWith("walkturns")?WalkTurns(s):s.StartsWith("eventsstalls")?Stalls(s):s.StartsWith("eventscrowd")?Crowd(s):s.StartsWith("trafficturns")?TrafficTurns(s):s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsroom")?RoomAudit(s):s.StartsWith("eventscounter")?CounterCheck(s):s.StartsWith("eventsgrid")?GridCheck(s):s.StartsWith("eventskitchen")?KitchenShots(s):s.StartsWith("eventslook")?LookAround(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventssocialcapture")?SocialCapture(s):s.StartsWith("eventssocial")?Social(s):s.StartsWith("eventspaint")?Paint(s):s.StartsWith("eventstiers")?Tiers(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s.StartsWith("trayplay")?TrayPlay(s):s.StartsWith("kitchenshot")?KitchenShots(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="account"?AccountShots():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
+    IEnumerator run=s.StartsWith("security")?SecurityVideo(s):s.StartsWith("onboardingspot")?OnboardingSpot(s):s.StartsWith("eventsphotos")?Photos(s):s.StartsWith("eventssectors")?Sectors(s):s.StartsWith("onboarding")?Onboarding(s):s.StartsWith("rankings")?Rankings(s):s.StartsWith("walkturns")?WalkTurns(s):s.StartsWith("eventsstalls")?Stalls(s):s.StartsWith("eventscrowd")?Crowd(s):s.StartsWith("trafficturns")?TrafficTurns(s):s.StartsWith("traffic")?Traffic(s):s.StartsWith("walkers")?Walkers(s):s=="eventsrigs"?RigTest():s.StartsWith("eventslayout")?LayoutReview(s):s.StartsWith("eventshorizon")?HorizonReview(s):s.StartsWith("eventsroom")?RoomAudit(s):s.StartsWith("eventscounter")?CounterCheck(s):s.StartsWith("eventsgrid")?GridCheck(s):s.StartsWith("eventskitchen")?KitchenShots(s):s.StartsWith("eventslook")?LookAround(s):s.StartsWith("eventsaudit")?AuditReview(s):s.StartsWith("eventshud")?HudReview(s):s.StartsWith("eventsdoorway")?Doorway(s):s.StartsWith("umbrella")?Umbrellas(s):s.StartsWith("eventsfriends")?Friends(s):s.StartsWith("eventssocialcapture")?SocialCapture(s):s.StartsWith("eventssocial")?Social(s):s.StartsWith("eventsbancadairy")?BancaDairy(s):s.StartsWith("eventsvideoui")?VideoUi(s):s.StartsWith("eventsrankvisit")?RankVisit(s):s.StartsWith("eventscart")?Cart(s):s.StartsWith("eventsperks")?Perks(s):s.StartsWith("eventspaint")?Paint(s):s.StartsWith("eventsstyle")?Style(s):s.StartsWith("eventsrede")?Rede(s):s.StartsWith("eventsdc")?RedeWorld(s):s.StartsWith("eventsyard")?RedeYard(s):s.StartsWith("eventsvideo")?EventVideos(s):s.StartsWith("eventstrailer")?Trailer(s):s.StartsWith("eventstiers")?Tiers(s):s.StartsWith("eventsmarket")?EventsMarket(s):s.StartsWith("events")?Events(s):s.StartsWith("interactive")?InteractiveEvents(s):s.StartsWith("trayplay")?TrayPlay(s):s.StartsWith("kitchenshot")?KitchenShots(s):s=="register"?RegisterCash():s=="decorplays"?DecorPlays():s=="decorshow"?DecorShow():s=="hudtidy"?HudTidy():s=="account"?AccountShots():s=="discord"?DiscordShots():s=="notices"?NoticeShots():s=="deliveryapp"?DeliveryAppShots():s=="dock"?Dock():s=="receiving"?Receiving():s=="restock"?Restock():s.StartsWith("fixtures")?Fixtures(s):s=="freezer"?Wires("freezer_sorvete"):s=="geladeira"?Wires("geladeira_bebidas"):null;
     if(run==null){Note("unknown scenario");continue;}
+    // The tutorial's tips ("DICA", Dona Neide) pile up when a QA save jumps ahead and sat in front of every still and
+    // video (Lucas 06/11): they are tapped away as they come, except in the scenarios that test the guide itself.
+    tipsAway=!(s.StartsWith("onboarding")||s.Contains("coach")||s.Contains("tutorial")||s.StartsWith("eventsrede"));
+    var tips=tipsAway?StartCoroutine(KeepTipsAway()):null;
     yield return run;
+    tipsAway=false;if(tips!=null)StopCoroutine(tips);
     CloseAll();fakeDock=null;fakeSlots=null;fakeIncident=null;yield return new WaitForSecondsRealtime(1);
    }
    Finish();
@@ -55,7 +70,9 @@ namespace Checkout {
    if(fakePlays!=null)s.decorPlays=fakePlays;
    PatchRoom(s);
    if(fakeDock!=null&&(s.dock==null||s.dock.All(d=>d.id!=fakeDock.id)))s.dock=(s.dock??Array.Empty<DockEntry>()).Append(fakeDock).ToArray();
-   if(fakeSlots!=null&&(s.restockSlots==null||s.restockSlots.All(d=>d.slotId!=fakeSlots[0].slotId)))s.restockSlots=(s.restockSlots??Array.Empty<RestockSlot>()).Concat(fakeSlots).ToArray();
+   if(fakeSlots!=null&&fakeSlots.Length>0&&(s.restockSlots==null||s.restockSlots.All(d=>d.slotId!=fakeSlots[0].slotId)))s.restockSlots=(s.restockSlots??Array.Empty<RestockSlot>()).Concat(fakeSlots).ToArray();
+   // the trailer: every shelf of the shop full (a busy shop restocks; empty fixtures read as an empty shop)
+   if(trFull){foreach(var x in s.shelves??Array.Empty<Shelf>())if(x!=null&&x.unlocked){if(x.capacity<=0)x.capacity=20;x.stock=x.capacity;}foreach(var r in s.restockSlots??Array.Empty<RestockSlot>())if(r!=null&&r.capacity>0)r.stock=r.capacity;}
    // "fixtures": every slot a third full with stock in the stockroom (visual check of the REPOR game)
    if(lowShelves&&s.restockSlots!=null)foreach(var r in s.restockSlots){r.stock=Mathf.Min(r.stock,r.capacity/3);r.reserve=Mathf.Max(r.reserve,8);}
    if(fakeIncident!=null&&(s.incidents==null||s.incidents.All(d=>d.id!=fakeIncident.id))){s.incidents=(s.incidents??Array.Empty<IncidentEntry>()).Append(fakeIncident).ToArray();if(s.coins<fakeIncident.fixCost+1)s.coins=fakeIncident.fixCost+100;}
@@ -116,6 +133,37 @@ namespace Checkout {
    Route("!currency");yield return new WaitForSecondsRealtime(1.6f);yield return Shot("account_store");
    Route("!day");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("account_contracts");
    Route("");Lang(before);yield return new WaitForSecondsRealtime(1.5f);Note("account: language back to "+CheckoutI18n.Language);
+  }
+  // The Discord button (Lucas 06/11, "discord"): the HUD (top bar, or the toolbar on phones), the Opções footer, the
+  // Guia and the Conta page, in Portuguese and in English. Nothing is opened. Shots Logs/at_discord_*.png.
+  IEnumerator DiscordShots(){
+   void Route(string r)=>CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\""+r+"\"}");
+   void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
+   var before=CheckoutI18n.Language;
+   foreach(var l in new[]{"pt","en"}){
+    Lang(l);Route("");yield return new WaitForSecondsRealtime(2.5f);yield return Shot("discord_hud_"+l);
+    CheckoutSettings.Show("sons");yield return new WaitForSecondsRealtime(1f);yield return Shot("discord_opcoes_"+l);CheckoutSettings.Hide();
+    Route("!guia");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("discord_guia_"+l);
+    Route("!conta");yield return new WaitForSecondsRealtime(1.4f);yield return Shot("discord_conta_"+l);
+   }
+   Route("");Lang(before);yield return new WaitForSecondsRealtime(1.5f);Note("discord: language back to "+CheckoutI18n.Language);
+  }
+  // Opções › Avisos (Lucas 06/11, "notices"): the tab in Portuguese and English, one switch turned off and back on,
+  // and the notifications the game would schedule now if the app left (CheckoutNotifications.Plan, in the notes).
+  // Nothing is saved but the switch, which ends as it began. Shots Logs/at_notices_*.png.
+  IEnumerator NoticeShots(){
+   void Route(string r)=>CheckoutBridge.Emit("{\"kind\":\"route\",\"route\":\""+r+"\"}");
+   void Lang(string l){CheckoutI18n.SetLanguage(l);CheckoutBridge.Emit("{\"kind\":\"language\",\"lang\":\""+l+"\"}");}
+   var before=CheckoutI18n.Language;
+   Route("");yield return new WaitForSecondsRealtime(2f);
+   CheckoutSettings.Show("avisos");yield return new WaitForSecondsRealtime(1f);yield return Shot("notices_pt");
+   bool was=CheckoutNotifications.IsOn("mercado");CheckoutNotifications.Set("mercado",!was);yield return new WaitForSecondsRealtime(.6f);yield return Shot("notices_toggled");
+   CheckoutNotifications.Set("mercado",was);
+   Lang("en");yield return new WaitForSecondsRealtime(2.5f);CheckoutSettings.Show("avisos");yield return new WaitForSecondsRealtime(.8f);yield return Shot("notices_en");
+   var bridge=FindAnyObjectByType<CheckoutBridge>();
+   if(bridge&&bridge.State!=null)foreach(var p in CheckoutNotifications.Plan(bridge.State,System.DateTime.Now))Note($"notices: {p.category} in {p.inMs/60000d:0.#} min — {p.title} / {p.text}");
+   CheckoutSettings.Show("sons");yield return new WaitForSecondsRealtime(.6f);yield return Shot("notices_sons_tabs");
+   CheckoutSettings.Hide();Lang(before);yield return new WaitForSecondsRealtime(1.5f);Note("notices: language back to "+CheckoutI18n.Language);
   }
   // The tidier HUD (Lucas 19/10, "hudtidy"): the corner Bônus button and its menu, the Produtos and Missões windows with
   // their header tabs, the Opções window on both tabs, and the game switched to English and back from Opções › Idioma.
@@ -298,7 +346,7 @@ namespace Checkout {
   // copy of the save) and photographs every event that can happen there: Logs/ev_<stage>_<event>.jpg.
   static readonly string[] Stages={"mesinha","tenda","banca","conteiner","spati","quitanda","minimercado","mercadinho","supermercado","hipermercado"};
   static readonly Dictionary<string,string> FirstStage=new Dictionary<string,string>{
-   {"hora-do-rush","mesinha"},{"quinto-dia-util","mesinha"},{"feira-de-rua","mesinha"},{"onda-de-calor","mesinha"},{"chuva-forte","mesinha"},
+   {"hora-do-rush","mesinha"},{"quinto-dia-util","mesinha"},{"feira-de-rua","mesinha"},{"onda-de-calor","mesinha"},{"nevasca","mesinha"},{"chuva-forte","mesinha"},
    {"rua-em-obras","mesinha"},{"engarrafamento","mesinha"},{"fim-do-mes","mesinha"},{"sorteio-na-porta","tenda"},{"maquininha-fora-do-ar","tenda"},
    {"caminhao-de-ofertas","banca"},{"queda-de-energia","banca"},{"vigilancia-sanitaria","banca"},{"dia-de-jogo","conteiner"},{"cafe-com-a-equipe","conteiner"},
    {"excursao-da-escola","conteiner"},{"turno-puxado","conteiner"},{"viralizou","spati"},{"carro-de-som","spati"}};

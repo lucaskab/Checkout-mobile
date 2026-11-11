@@ -146,6 +146,17 @@ export const gameEvents: GameEventDefinition[] = [
 		requirements: { minEra: "mesinha" },
 	},
 	{
+		// Lucas 06/11: a snowstorm, the other weather event; the city turns white (the shop floor stays dry).
+		description: "Uma nevasca cobriu a cidade de neve e pouca gente saiu de casa.",
+		durationMinutes: 5,
+		effectLabel: "-40% de clientes",
+		effects: { customerArrivalMultiplier: 0.6 },
+		id: "nevasca",
+		kind: "negative",
+		name: "Nevasca",
+		requirements: { minEra: "mesinha" },
+	},
+	{
 		description: "A rua foi aberta para obras e o trânsito foi desviado.",
 		durationMinutes: 5,
 		effectLabel: "-45% de clientes",

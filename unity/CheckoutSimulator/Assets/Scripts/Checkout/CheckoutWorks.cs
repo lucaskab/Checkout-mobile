@@ -491,7 +491,7 @@ namespace Checkout
             var moved = w.body.position - before; moved.y = 0;
             bool stepping = moved.magnitude > speed * dt * .3f;
             Play(w, stepping ? (loaded && !w.shoulder ? "CarryWalking" : "Walking") : (loaded && !w.shoulder ? "CarryIdle" : "Idle"));
-            if (stepping && w.anim && w.anim[w.clip] && dt > 0) w.anim[w.clip].speed = Mathf.Clamp(moved.magnitude / dt / speed, .4f, 1.2f);
+            if (stepping && w.anim && w.anim[w.clip] && Time.deltaTime > 0) w.anim[w.clip].speed = CheckoutWalkCycle.Rate(w.anim, w.clip, moved.magnitude / Time.deltaTime);
             return false;
         }
 

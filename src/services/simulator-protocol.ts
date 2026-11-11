@@ -1,4 +1,5 @@
 import type { GameActions } from "../@types/game";
+import { petCosmetics } from "../data/pet";
 import type {
 	SimulatorAction,
 	SimulatorCommand,
@@ -16,6 +17,7 @@ const unitInterval = (v: unknown): boolean => typeof v === "number" && Number.is
 const currency = (v: unknown): boolean => v === "coins" || v === "diamonds";
 const object = (v: unknown): v is Record<string, unknown> =>
 	!!v && typeof v === "object" && !Array.isArray(v);
+const petCosmetic = (v: unknown): boolean => typeof v === "string" && petCosmetics.some((item) => item.id === v);
 const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	activateLogisticsBoost: [],
 	claimDailyGoal: [],
@@ -60,10 +62,18 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 	fixIncident: [text],
 	// A driver of the jam asks for a drink through the window (event "engarrafamento").
 	serveWindowSale: [text],
+	// "Ladrão e segurança": the player taps the fleeing thief (src/services/store-security.ts).
+	catchThief: [text],
+	// "Mascote caramelo" (src/services/store-pet.ts): adopt the dog at the door, pet him, dress him up.
+	adoptPet: [],
+	petDog: [],
+	buyPetCosmetic: [petCosmetic],
+	// "" takes the bandana off.
+	equipPetCosmetic: [(v) => v === "" || petCosmetic(v)],
 	unloadDelivery: [text, integer],
 	unloadAllDeliveries: [],
 	hireEmployee: [
-		(v) => ["cashier", "stock_clerk", "cleaner"].includes(String(v)),
+		(v) => ["cashier", "stock_clerk", "cleaner", "security"].includes(String(v)),
 	],
 	placeSupplierOrder: [
 		(v) =>
@@ -85,6 +95,16 @@ const schemas: Record<SimulatorAction, ((v: unknown) => boolean)[]> = {
 			) &&
 			(v.useFreightCoupon === undefined || boolean(v.useFreightCoupon)),
 	],
+	// The saved supplier cart (Lucas 11/11): "Pedir caixas" adds to it; the shop window sends it whole after each change.
+	addToSupplierCart: [(v) => object(v) && integer(v.productId) && integer(v.boxes)],
+	setSupplierCart: [
+		(v) =>
+			Array.isArray(v) &&
+			v.length <= 40 &&
+			v.every((line) => object(line) && integer(line.productId) && integer(line.boxes)),
+	],
+	removeFromSupplierCart: [integer],
+	clearSupplierCart: [],
 	// Delivery app (src/services/delivery.ts): accept or decline an offer, pack the bag, hand it to the motoboy.
 	acceptDeliveryOrder: [text],
 	declineDeliveryOrder: [text],

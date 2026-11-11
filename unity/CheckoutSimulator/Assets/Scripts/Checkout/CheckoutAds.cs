@@ -23,7 +23,7 @@ namespace Checkout {
   CheckoutDesktopHost host;
   // Ad SDK callbacks may come from another thread: they are run on the next Update.
   readonly ConcurrentQueue<Action> main=new ConcurrentQueue<Action>();
-  string showingId;bool earned;
+  string showingId;bool earned;float showingAt;
 
   [Serializable] class ShowMessage{public string id;}
   [Serializable] class StatusMessage{public string kind="ad",status="",@event="",id="";public bool privacy;}
@@ -39,17 +39,23 @@ namespace Checkout {
   /// <summary>Host line <c>ad-show</c>: play a video for this id.</summary>
   public void Show(string json){
    var id=JsonUtility.FromJson<ShowMessage>(json)?.id;
-   if(string.IsNullOrEmpty(id)||!string.IsNullOrEmpty(showingId))return;
-   showingId=id;earned=false;
-   if(!ShowVideo()){Report(Ready?"ready":"unavailable","failed",id);showingId=null;}
-   else CheckoutAudio.HoldMusic(true); // the game's music waits while the video plays
+   // One at a time; a video that never reported its end is given up after 150 s (the host gives up at 120 s).
+   if(string.IsNullOrEmpty(id)||(!string.IsNullOrEmpty(showingId)&&Time.realtimeSinceStartup-showingAt<150f))return;
+   showingId=id;showingAt=Time.realtimeSinceStartup;earned=false;
+   if(ShowVideo())CheckoutAudio.HoldMusic(true); // the game's music waits while the video plays
+   // None loaded yet (phones): QueueShow loads one and opens it as soon as it arrives, or reports "failed".
+   else if(!QueueShow()){Report(Ready?"ready":"unavailable","failed",id);showingId=null;}
   }
 
   // The video ended: watched to the end pays (through the host), otherwise nothing.
   void Finished(){
    CheckoutAudio.HoldMusic(false);
    var id=showingId;showingId=null;if(string.IsNullOrEmpty(id))return;
-   if(earned)host.Action("claimRewardedAd","["+CheckoutIapFlow.Quote(id)+"]","",(ok,reason)=>{if(!ok)Debug.LogWarning("CHECKOUT_ADS reward refused: "+reason);});
+   if(earned)CheckoutFirebase.AdWatched(id);
+   if(earned){
+    host.Action("claimRewardedAd","["+CheckoutIapFlow.Quote(id)+"]","",(ok,reason)=>{if(!ok)Debug.LogWarning("CHECKOUT_ADS reward refused: "+reason);});
+    Report(Ready?"ready":"loading"); // the shown video is used up: the host must not think one is still ready
+   }
    else Report(Ready?"ready":"loading","closed",id);
    Load();
   }
@@ -66,23 +72,37 @@ namespace Checkout {
 #else
   static string Unit=>Debug.isDebugBuild?"ca-app-pub-3940256099942544/5224354917":"ca-app-pub-6635161191872845/4528327896";
 #endif
-  RewardedAd ad;bool loading,started;
+  RewardedAd ad;bool loading,started,consenting,waitingToShow;
+  float loadAt;int loadFailures,consentFailures;
+  // "Assistir" pressed with no video loaded: how long to wait for one before answering "failed".
+  const float WaitForVideoSeconds=12f;
   bool Ready=>ad!=null&&ad.CanShowAd();
   static bool PrivacyRequired=>ConsentInformation.PrivacyOptionsRequirementStatus==PrivacyOptionsRequirementStatus.Required;
   void Begin(){
-   Report("loading");
+   if(consenting)return;consenting=true;
+   Report(Ready?"ready":"loading");
    // Last session's answer may already allow ads: start right away while the consent info refreshes.
    if(ConsentInformation.CanRequestAds())StartAds();
    ConsentInformation.Update(new ConsentRequestParameters(),updateError=>main.Enqueue(()=>{
     if(updateError!=null)Debug.LogWarning("CHECKOUT_ADS consent info: "+updateError.Message);
     ConsentForm.LoadAndShowConsentFormIfRequired(formError=>main.Enqueue(()=>{
+     consenting=false;
      if(formError!=null)Debug.LogWarning("CHECKOUT_ADS consent form: "+formError.Message);
-     if(ConsentInformation.CanRequestAds())StartAds();else Report("unavailable");
+     if(ConsentInformation.CanRequestAds()){consentFailures=0;StartAds();return;}
+     if(started)return;
+     // No answer that allows ads yet (offline at launch, the form did not load...): ask again later (30 s, 1 min…
+     // up to 5 min, and whenever the player presses "Assistir") instead of leaving the videos off for the session.
+     consentFailures++;
+     var wait=Mathf.Min(300f,30f*Mathf.Pow(2,Mathf.Min(consentFailures,5)-1));
+     Debug.LogWarning("CHECKOUT_ADS ads not allowed yet (consent "+ConsentInformation.ConsentStatus+"), asking again in "+wait+" s");
+     Report("unavailable");
+     if(waitingToShow)GiveUpWaiting();
+     CancelInvoke(nameof(Begin));Invoke(nameof(Begin),wait);
     }));
    }));
   }
   void StartAds(){
-   if(started){Report(Ready?"ready":"loading");return;}
+   if(started){Report(Ready?"ready":"loading");Load();return;}
    started=true;
    MobileAds.Initialize(_=>main.Enqueue(Load));
   }
@@ -92,16 +112,53 @@ namespace Checkout {
    if(ConsentInformation.CanRequestAds())StartAds();else Report("unavailable");
   }));
   void Load(){
-   if(!started||loading||Ready)return;loading=true;
+   // A load that never answered (60 s) does not block the next one.
+   if(!started||Ready||(loading&&Time.realtimeSinceStartup-loadAt<60f))return;
+   loading=true;loadAt=Time.realtimeSinceStartup;
    RewardedAd.Load(Unit,new AdRequest(),(loaded,error)=>main.Enqueue(()=>{
     loading=false;
-    if(error!=null||loaded==null){Debug.LogWarning("CHECKOUT_ADS no video: "+error?.GetMessage());Report("unavailable");Invoke(nameof(Load),60);return;}
+    if(error!=null||loaded==null){
+     // Keep trying (5 s, 10 s, 20 s… up to 2 min, and right away when the player presses "Assistir"): one failed
+     // load (no fill, no network) must never leave the videos off.
+     loadFailures++;
+     var wait=Mathf.Min(120f,5f*Mathf.Pow(2,Mathf.Min(loadFailures,6)-1));
+     Debug.LogWarning("CHECKOUT_ADS no video (code "+error?.GetCode()+", "+error?.GetDomain()+"): "+error?.GetMessage()+" · failure "+loadFailures+", next try in "+wait+" s");
+     if(loadFailures<=3)CheckoutFirebase.Log("ad_load_failed",("code",error?.GetCode()??-1),("domain",error?.GetDomain()??""),("failure",loadFailures));
+     Report("unavailable");
+     if(waitingToShow)GiveUpWaiting();
+     CancelInvoke(nameof(Load));Invoke(nameof(Load),wait);
+     return;
+    }
+    loadFailures=0;
     ad?.Destroy();ad=loaded;
     ad.OnAdFullScreenContentClosed+=()=>main.Enqueue(Finished);
     ad.OnAdFullScreenContentFailed+=e=>main.Enqueue(()=>{Debug.LogWarning("CHECKOUT_ADS video failed: "+e?.GetMessage());earned=false;Finished();});
     Report("ready");
+    // The player pressed "Assistir" while it loaded: open it now.
+    if(waitingToShow){
+     if(ShowVideo()){waitingToShow=false;CancelInvoke(nameof(WaitTimedOut));CheckoutAudio.HoldMusic(true);}
+     else GiveUpWaiting();
+    }
    }));
   }
+  // "Assistir" with no video loaded yet: load one now (skipping the back-off wait) and open it as soon as it
+  // arrives, or answer "failed" after a few seconds, instead of a dead button (Lucas 08/11).
+  bool QueueShow(){
+   waitingToShow=true;
+   CancelInvoke(nameof(WaitTimedOut));Invoke(nameof(WaitTimedOut),WaitForVideoSeconds);
+   if(!started)Begin(); // ads not allowed yet (no consent answer, offline at launch): ask again now
+   else{CancelInvoke(nameof(Load));Load();}
+   Report(Ready?"ready":"loading");
+   return true;
+  }
+  void WaitTimedOut(){if(!waitingToShow)return;Debug.LogWarning("CHECKOUT_ADS no video arrived in "+WaitForVideoSeconds+" s");GiveUpWaiting();}
+  void GiveUpWaiting(){
+   waitingToShow=false;CancelInvoke(nameof(WaitTimedOut));
+   var id=showingId;showingId=null;if(string.IsNullOrEmpty(id))return;
+   Report(Ready?"ready":loading?"loading":"unavailable","failed",id);
+  }
+  // Back in the game (after a call, another app...): try again at once if no video is loaded.
+  void OnApplicationPause(bool paused){if(!paused&&started&&!Ready&&string.IsNullOrEmpty(showingId)){CancelInvoke(nameof(Load));Load();}}
   bool ShowVideo(){
    if(!Ready)return false;
    var current=ad;ad=null;
@@ -115,6 +172,7 @@ namespace Checkout {
   public void ShowPrivacy(){}
   void Begin(){Report(Ready?"ready":"unavailable");}
   void Load(){}
+  bool QueueShow()=>false;
   bool ShowVideo(){if(!Ready)return false;TestVideo();return true;}
 
   // A full-screen "ad" with a 5-second countdown: Close at any time = no reward; wait to the end = reward.

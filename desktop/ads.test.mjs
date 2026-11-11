@@ -41,7 +41,11 @@ afterAll(() => {
 	adsHost.resetAdsStore();
 });
 const store = () => useGameStore.getState();
-const adCard = () => pages(store(), "currency:diamonds").cards.find((c) => c.title === "Diamantes grátis");
+// The diamond video's card (Lucas 10/11: the "Vídeo grátis" page has a card for diamonds and one for coins).
+const adCard = () => pages(store(), "currency:diamonds").cards.find((c) => c.title === "Diamantes" && c.eyebrow === "VÍDEO GRÁTIS");
+const coinCard = () => pages(store(), "video").cards.find((c) => c.title === "Moedas");
+// The status line under "Hoje: x de 7 vídeos".
+const status = (c) => c.lines[1];
 
 describe("rewarded videos on the host", () => {
 	test("only the video the game asked for pays, once", () => {
@@ -59,34 +63,63 @@ describe("rewarded videos on the host", () => {
 		const request = adsHost.requestRewardedAd(store());
 		adsHost.applyAdsMessage({ kind: "ad", event: "closed", id: request.message.id });
 		expect(adsHost.adsStore.pendingId).toBe("");
-		expect(adCard().lines[0]).toContain("sem prêmio");
+		expect(status(adCard())).toContain("sem prêmio");
 		expect(adCard().buttons[0].enabled).toBe(true);
 	});
 
-	test("the card shows the reward, no daily limit, and the next video is ready at once", () => {
+	test("the card shows the reward and what is left today; after 7 videos it waits for midnight", () => {
 		useGameStore.setState({ logistics: { ...store().logistics, premiumCurrency: 0 } });
-		expect(adCard().buttons[0].label).toBe("Assistir · +3");
-		expect(adCard().subtitle).toContain("sem limite por dia");
+		expect(adCard().buttons[0].label).toBe("Assistir · +2");
+		expect(adCard().lines[0]).toBe("Hoje: 0 de 7 vídeos");
 		const request = adsHost.requestRewardedAd(store());
 		adsHost.takePendingAd(request.message.id);
 		adsHost.noteAdReward(store().claimRewardedAd(request.message.id));
-		expect(adCard().lines[0]).toBe("Você ganhou +3 diamantes!");
-		expect(adCard().subtitle).toContain("hoje: 1");
-		expect(adCard().buttons[0].label).toBe("Assistir · +3");
+		expect(status(adCard())).toBe("Você ganhou +2 diamantes!");
+		expect(adCard().lines[0]).toBe("Hoje: 1 de 7 vídeos");
 		expect(adCard().buttons[0].enabled).toBe(true);
-		expect(adsHost.requestRewardedAd(store()).ok).toBe(true);
+		for (let i = 0; i < 6; i++) {
+			const next = adsHost.requestRewardedAd(store());
+			adsHost.takePendingAd(next.message.id);
+			adsHost.noteAdReward(store().claimRewardedAd(next.message.id));
+		}
+		expect(store().logistics.premiumCurrency).toBe(14);
+		expect(adCard().buttons[0].enabled).toBe(false);
+		expect(adCard().subtitle).toContain("volta em");
+		expect(adsHost.requestRewardedAd(store()).ok).toBe(false);
 	});
 
-	test("no video available: the button is off and says why", () => {
-		adsHost.applyAdsMessage({ kind: "ad", status: "unavailable" });
-		expect(adsHost.requestRewardedAd(store())).toEqual({ ok: false, reason: "Nenhum vídeo disponível agora. Tente mais tarde." });
-		expect(adCard().buttons[0].enabled).toBe(false);
+	test("no video loaded (or the last load failed): the button stays on, says so, and still asks Unity", async () => {
+		// Lucas 08/11: a friend on the App Store found the video button dead. It must never be switched off by the
+		// ad network: Unity loads a video and opens it as soon as one arrives, or answers "failed".
+		const { createDesktopView } = await import("./view.ts");
+		for (const status of ["starting", "loading", "unavailable"]) {
+			adsHost.resetAdsStore();
+			adsHost.applyAdsMessage({ kind: "ad", status });
+			expect(adCard().buttons[0].enabled).toBe(true);
+			expect(createDesktopView(store(), 1, []).quickFixed[0].route).toBe("!video");
+		}
+		expect(status(adCard())).toBe("Sem vídeo agora, tente em instantes.");
+		adsHost.applyAdsMessage({ kind: "ad", status: "loading" });
+		expect(status(adCard())).toBe("Carregando o vídeo…");
+		const request = adsHost.requestRewardedAd(store());
+		expect(request.ok).toBe(true);
+		expect(request.message.kind).toBe("ad-show");
+		expect(adCard().buttons[0].enabled).toBe(false); // opening: "Aguardando…"
+		// No video arrived in time: Unity says "failed", the button comes back and the page says it did not load.
+		adsHost.applyAdsMessage({ kind: "ad", status: "unavailable", event: "failed", id: request.message.id });
+		expect(adCard().buttons[0].enabled).toBe(true);
+		expect(status(adCard())).toBe("O vídeo não carregou. Tente de novo.");
+		// The placement videos too.
+		expect(store().claimDailyLogin()).toBe(true);
+		const gift = pages(store(), "gratis").cards.find((c) => c.title === "Presente do dia");
+		expect(gift.buttons[0].action).toBe("watchRewardedAd");
+		expect(gift.buttons[0].enabled).toBe(true);
 	});
 });
 
 describe("ads consent (GDPR)", () => {
 	test("the privacy button shows only where Google asks for it and reopens the form", () => {
-		const labels = () => adCard().buttons.map((b) => b.action);
+		const labels = () => pages(store(), "video").cards.flatMap((c) => c.buttons.map((b) => b.action));
 		expect(labels()).not.toContain("openAdPrivacy");
 		expect(adsHost.requestAdPrivacy().ok).toBe(false);
 		adsHost.applyAdsMessage({ kind: "ad", status: "ready", privacy: true });
@@ -134,16 +167,39 @@ describe("placement videos (consolation, daily gift)", () => {
 		expect(adsHost.requestRewardedAd(store(), Date.now(), "gift").ok).toBe(false);
 		expect(store().claimDailyLoginBonus("again")).toBe(null);
 	});
-	test("the HUD's side buttons: gift, video, store; the free page", async () => {
+	test("the HUD: \"Grátis\" (videos) always on screen; the Bônus menu has gift and store; the free page", async () => {
 		const { createDesktopView } = await import("./view.ts");
 		adsHost.adsStore.status = "ready";
-		const quick = createDesktopView(store(), 1, []).quick;
-		expect(quick.map((q) => q.icon.length > 0)).toEqual([true, true, true]);
-		expect(quick[0].badge).toBe("!"); // the gift can be claimed
-		expect(quick[1].action).toBe("watchRewardedAd"); // a video plays right away
-		expect(quick[2].route).toBe("!currency");
+		const view = createDesktopView(store(), 1, []);
+		// Lucas 10/11: the videos stand on the screen with the diamond, counting the 7 + 7 videos left today
+		expect(view.quickFixed[0]).toMatchObject({ label: "Grátis", route: "!video", variant: "gem", badge: "14" });
+		expect(view.quick.map((q) => q.icon.length > 0).every(Boolean)).toBe(true);
+		expect(view.quick[0].badge).toBe("!"); // the gift can be claimed
+		expect(view.quick[1].route).toBe("!currency");
+		expect(view.quick.some((q) => q.action === "watchRewardedAd")).toBe(false);
 		const free = pages(store(), "gratis");
 		expect(free.cards.map((c) => c.title)).toContain("Presente do dia");
-		expect(free.cards.map((c) => c.title)).toContain("Diamantes grátis");
+		expect(free.cards.map((c) => c.title)).toEqual(expect.arrayContaining(["Diamantes", "Moedas"]));
+	});
+
+	test("coin videos: the player picks coins, 7 a day apart from the diamonds, by level", () => {
+		useGameStore.setState({ market: { ...store().market, level: 10 } });
+		const coins = store().coins;
+		const request = adsHost.requestRewardedAd(store(), Date.now(), "coins");
+		expect(request.ok).toBe(true);
+		expect(adsHost.takePendingAd(request.message.id)).toBe("coins");
+		const got = store().claimRewardedCoinAd(request.message.id);
+		expect(got).toBeGreaterThan(0);
+		expect(store().coins).toBe(coins + got);
+		expect(coinCard().lines[0]).toBe("Hoje: 1 de 7 vídeos");
+		expect(store().rewardedAds.watched).toBe(0); // the diamond videos are untouched
+		for (let i = 0; i < 6; i++) {
+			const next = adsHost.requestRewardedAd(store(), Date.now(), "coins");
+			adsHost.takePendingAd(next.message.id);
+			store().claimRewardedCoinAd(next.message.id);
+		}
+		expect(adsHost.requestRewardedAd(store(), Date.now(), "coins").ok).toBe(false);
+		expect(coinCard().buttons[0].enabled).toBe(false);
+		expect(adsHost.requestRewardedAd(store(), Date.now(), "diamonds").ok).toBe(true);
 	});
 });

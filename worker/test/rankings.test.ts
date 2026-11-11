@@ -312,6 +312,42 @@ describe("rankings: world and country boards", () => {
 	});
 });
 
+describe("rankings: visiting a player of the Mundo / País boards (Lucas 10/11, only to look)", () => {
+	test("a ranked player in the top can be visited by anyone signed in; the answer has their save and no photo", async () => {
+		const w = world();
+		const [a, b] = [await w.user("a", 9, 0, "BR"), await w.user("b", 4, 0, "BR")];
+		const visit = await w.call("GET", `/v1/social/players/${a.id}/market`, undefined, b.token);
+		assert.equal(visit.status, 200);
+		assert.deepEqual(Object.keys(visit.body), ["profile", "public", "data"]);
+		assert.equal(visit.body.profile.id, a.id);
+		assert.equal(visit.body.profile.level, 9);
+		assert.equal("photo" in visit.body.profile, false);
+		assert.equal(JSON.parse(visit.body.data).state.market.level, 9);
+		// signed out: no
+		assert.equal((await w.call("GET", `/v1/social/players/${a.id}/market`)).status, 401);
+	});
+
+	test("not ranked (opt-out, hidden, no save) or unknown: refused; out of the world top but in the country top: allowed", async () => {
+		const w = world();
+		const viewer = await w.user("viewer", 2, 0, "BR");
+		const out = await w.user("out", 7, 0, "BR");
+		const nosave = await w.user("nosave");
+		assert.equal((await w.call("PUT", "/v1/rankings/settings", { optOut: true }, out.token)).status, 204);
+		assert.equal((await w.call("GET", `/v1/social/players/${out.id}/market`, undefined, viewer.token)).status, 403);
+		assert.equal((await w.call("GET", `/v1/social/players/${nosave.id}/market`, undefined, viewer.token)).status, 403);
+		assert.equal((await w.call("GET", "/v1/social/players/nobody/market", undefined, viewer.token)).status, 403);
+		assert.equal((await w.call("GET", "/v1/social/players/bad%20id/market", undefined, viewer.token)).status, 404);
+		// 100 players above "pt" in the world, but "pt" is alone in Portugal: still on the PT board, so visible
+		const pt = await w.user("pt", 3, 0, "PT");
+		for (let i = 0; i < RANKINGS.maxTop; i++) await w.user(`big${i}`, 20, 0, "US");
+		assert.equal((await w.call("GET", `/v1/social/players/${pt.id}/market`, undefined, viewer.token)).status, 200);
+		// a Brazilian below 100 Brazilians and 100+ players worldwide: not on any board
+		const crowd = [];
+		for (let i = 0; i < RANKINGS.maxTop; i++) crowd.push(await w.user(`br${i}`, 10, 0, "BR"));
+		assert.equal((await w.call("GET", `/v1/social/players/${viewer.id}/market`, undefined, crowd[0].token)).status, 403);
+	});
+});
+
 describe("rankings: friends board", () => {
 	test("me + friends (not hidden ones), unsorted, with week points, likes and market rating; rank null", async () => {
 		const w = world();
@@ -630,6 +666,81 @@ describe("rankings: anti-cheat on uploads", () => {
 		assert.equal(w.rows("SELECT strikes FROM profiles WHERE player_id = ?", login.player.id)[0].strikes, 0);
 		await w.upload(bia, 40);
 		assert.equal(w.profile(bia).strikes, 0, "the first save of a profile is not a jump");
+	});
+});
+
+describe("rankings: anti-cheat climb clock (migrations/0006_climb.sql)", () => {
+	const MIN = 60_000;
+	test("+5 levels every 5-minute upload (each one under the jump limit): a strike per overrun of the burst; 3 strikes hide", async () => {
+		const w = world();
+		const ana = await w.user("ana", 1);
+		await w.upload(ana, 12);
+		const strikes: number[] = [];
+		for (let i = 1; i <= 15; i++) {
+			w.clock.now += 5 * MIN;
+			await w.upload(ana, 12 + 5 * i);
+			strikes.push(w.profile(ana).strikes);
+		}
+		assert.deepEqual(strikes, [0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3]);
+		assert.equal(w.profile(ana).ranking_hidden, 1);
+		assert.equal(w.profile(ana).level, 87, "the level is still stored (the save is never touched)");
+	});
+
+	test("a real pace never strikes: a level an hour for two days, 10 levels an hour for 6 hours, 20 levels in an evening", async () => {
+		const w = world();
+		const ana = await w.user("ana", 1);
+		await w.upload(ana, 12, 0);
+		let level = 12;
+		for (let i = 0; i < 48; i++) {
+			w.clock.now += 60 * MIN;
+			await w.upload(ana, ++level);
+		}
+		for (let i = 0; i < 60; i++) {
+			w.clock.now += 6 * MIN;
+			await w.upload(ana, ++level);
+		}
+		assert.equal(w.profile(ana).strikes, 0);
+		// A week away, then a big evening: +5 four times, ten minutes apart (20 levels = the burst).
+		w.clock.now += 7 * DAY_MS;
+		for (let i = 0; i < 4; i++) {
+			w.clock.now += 10 * MIN;
+			await w.upload(ana, (level += 5));
+		}
+		assert.equal(w.profile(ana).strikes, 0, "20 levels at once is the burst");
+		w.clock.now += 10 * MIN;
+		await w.upload(ana, (level += 5));
+		w.clock.now += 10 * MIN;
+		await w.upload(ana, (level += 5));
+		assert.equal(w.profile(ana).strikes, 1, "past the burst: one strike");
+		// The strike refilled the bucket: going on at a normal pace adds nothing.
+		for (let i = 0; i < 10; i++) {
+			w.clock.now += 10 * MIN;
+			await w.upload(ana, ++level);
+		}
+		assert.equal(w.profile(ana).strikes, 1, "one strike per overrun, not one per upload");
+	});
+
+	test("before the migration runs: uploads work, only the older checks apply, the log says what to run", async () => {
+		const w = world();
+		w.db.sqlite.exec("ALTER TABLE profiles DROP COLUMN climb_at");
+		const ana = await w.user("ana", 1);
+		await w.upload(ana, 12);
+		for (let level = 17; level <= 37; level += 5) {
+			w.clock.now += 5 * MIN;
+			await w.upload(ana, level);
+		}
+		assert.equal(w.profile(ana).strikes, 0);
+		assert.equal(w.profile(ana).level, 37);
+		assert.ok(w.logs.some((l) => l.includes("0006_climb.sql")));
+		assert.equal((await w.call("GET", "/v1/rankings/world", undefined, ana.token)).status, 200, "the boards still work");
+	});
+
+	test("the migration: the same statement as the end of schema.sql; says to run once", () => {
+		const migration = readFileSync(new URL("../migrations/0006_climb.sql", import.meta.url), "utf8");
+		const schema = readFileSync(new URL("../schema.sql", import.meta.url), "utf8");
+		const statement = "ALTER TABLE profiles ADD COLUMN climb_at INTEGER NOT NULL DEFAULT 0";
+		assert.ok(migration.includes(statement) && schema.includes(statement));
+		assert.match(migration, /RUN IT ONCE/);
 	});
 });
 

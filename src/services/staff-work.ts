@@ -86,6 +86,12 @@ export function getStaffSpeed(employee: Pick<GameEmployee, "efficiency" | "role"
 	return Math.min(1.6, Math.max(0.7, 1 + (employee.efficiency - base) * 0.12));
 }
 
+/** The shop's restock upgrades (carrinho, empilhadeira, robôs, café) also make every trip quicker, up to twice as fast:
+ * their bigger loads alone were mostly cut by the shelf's free room (audit 05/11: a trip already fills a shelf). */
+export function getRestockTripSpeed(restockMultiplier: number) {
+	return Math.min(2, Math.max(1, restockMultiplier));
+}
+
 export function getRestockTripMs(
 	employee: Pick<GameEmployee, "efficiency" | "role">,
 	storage: StaffStorageKind,
@@ -226,7 +232,8 @@ export function planStaffTasks(input: StaffPlanInput): StaffPlan {
 			endsAt:
 				input.now +
 				Math.round(
-					(getRestockTripMs(employee, input.storage) * (1 - (slot.restockBonus ?? 0))) / (input.speedMultiplier ?? 1),
+					(getRestockTripMs(employee, input.storage) * (1 - (slot.restockBonus ?? 0))) /
+						((input.speedMultiplier ?? 1) * getRestockTripSpeed(input.restockMultiplier ?? 1)),
 				),
 			id: `tarefa-${nextTaskNumber}`,
 			kind: "restock",

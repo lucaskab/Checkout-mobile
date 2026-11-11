@@ -2,6 +2,7 @@ import type { MarketEraId } from "@/@types/economy";
 import type { ItemDefinition, ItemRarity } from "@/@types/item";
 import type { StoreShelf } from "@/@types/store";
 import { getCaseSize } from "@/data/case-sizes";
+import { privateLabelProducts } from "@/data/chain";
 import { getFixturesForCategory, shelfTypes } from "@/data/shelf-types";
 
 // The whole catalog of the game, from the tomato on the sidewalk table to the champagne of the chain.
@@ -71,6 +72,7 @@ type CatalogSeed = Pick<
 	unlockLevel: number;
 	xpPerSale?: number;
 	exclusive?: ItemDefinition["exclusive"];
+	privateLabel?: boolean;
 };
 
 const raritySettings: Record<
@@ -147,6 +149,7 @@ function createItem(seed: CatalogSeed): ItemDefinition {
 		unlockLevel: seed.unlockLevel,
 		visualAttractiveness: rarity.visualAttractiveness,
 		...(seed.exclusive ? { exclusive: seed.exclusive } : {}),
+		...(seed.privateLabel ? { privateLabel: true } : {}),
 		xpPerSale: withSaleXpBoost(seed.xpPerSale ?? rarity.xpPerSale),
 	};
 }
@@ -300,7 +303,44 @@ const catalogSeeds: CatalogSeed[] = [
 /** Products retired from the catalog: old saves give them back as coins (see migrateGameState). */
 export const retiredProductIds = [11, 42];
 
-export const itemCatalog: ItemDefinition[] = catalogSeeds.map(createItem);
+// Rede de supermercados: the chain's own products ("marca própria", src/data/chain.ts). Each one stands in for an
+// everyday product: it costs a little over half as much (it comes from the chain's own distribution centre) and sells
+// for 85% of the original's price, so its margin is higher. They open with the rede and are ordered only through the
+// distribution centre (src/services/supplier-cart.ts). Kept out of the generated seeds on purpose
+// (scripts/economy/catalog.py rewrites the list above).
+const PRIVATE_LABEL_NAMES: Record<number, string> = {
+	172: "Arroz marca própria",
+	173: "Feijão marca própria",
+	174: "Café marca própria",
+	175: "Leite marca própria",
+	176: "Biscoito marca própria",
+	177: "Detergente marca própria",
+	178: "Papel higiênico marca própria",
+	179: "Macarrão marca própria",
+};
+const privateLabelSeeds: CatalogSeed[] = privateLabelProducts.flatMap(({ id, baseId }) => {
+	const base = catalogSeeds.find((seed) => seed.id === baseId);
+	if (!base) return [];
+	return [
+		{
+			id,
+			name: PRIVATE_LABEL_NAMES[id] ?? `${base.name} marca própria`,
+			category: base.category,
+			unlockEra: "rede" as MarketEraId,
+			unlockLevel: 1,
+			purchasePrice: Math.max(1, Math.round(base.purchasePrice * 0.55)),
+			sellingPrice: Math.max(2, Math.round(base.sellingPrice * 0.85)),
+			rarity: base.rarity,
+			demand: base.demand,
+			popularity: base.popularity,
+			preferredCustomers: ["economico", "familia"],
+			xpPerSale: base.xpPerSale,
+			privateLabel: true,
+		},
+	];
+});
+
+export const itemCatalog: ItemDefinition[] = [...catalogSeeds, ...privateLabelSeeds].map(createItem);
 
 export const marketProducts = itemCatalog.map((product) => ({
 	...product,

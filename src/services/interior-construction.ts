@@ -1,3 +1,4 @@
+import { getShopItem } from "@/data/shop-items";
 import type { GameState } from "@/@types/game";
 import type { InteriorConstruction } from "@/@types/interior-construction";
 import {
@@ -152,6 +153,10 @@ export function getShopItemBuildStatus(
 	const base = { coinCost: 0, diamondCost: 0, durationMs: shopItemBuildDurations[itemId] };
 	if (state.shop.ownedItemIds.includes(itemId)) return { status: "built", reason: "", ...base, ...works(null, now) };
 	if (construction) return { ...started(construction, now), ...base, ...works(construction, now) };
+	// (Caixa 3 after Caixa 2, the next pair of kiosks after the first one…)
+	const required = getShopItem(itemId)?.requiresItemId;
+	if (required && !state.shop.ownedItemIds.includes(required))
+		return { status: "locked", reason: `Antes: ${getShopItem(required)?.name ?? ""}`, ...base, ...works(null, now) };
 	const roomEra = getShopItemPlaceEra(itemId);
 	if (roomEra && beforeEra(state, roomEra))
 		return { status: "locked", reason: `Chega com: ${getMarketEra(roomEra).name}`, ...base, ...works(null, now) };

@@ -10,15 +10,27 @@
 	"observability": { "enabled": true, "head_sampling_rate": 1 },
 	"d1_databases": [{ "binding": "DB", "database_name": "checkout-saves", "database_id": "660aad42-3495-4b98-8e91-a727acecbae2" }],
 	"r2_buckets": [{ "binding": "SAVES", "bucket_name": "checkout-saves" }],
+	// Workers Rate Limiting (src/app.ts AppOptions.limiters; needs wrangler 4.36+). Counters are per Cloudflare location
+	// and approximate; the per-instance limit in app.ts still applies on top. Period: 10 or 60 seconds only.
+	// Per address only where there is no player yet, and generous: phones on one carrier often share an address.
+	"ratelimits": [
+		{ "name": "RL_IP", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } },
+		{ "name": "RL_AUTH", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } },
+		{ "name": "RL_PLAYER", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } },
+		{ "name": "RL_SAVE", "namespace_id": "1004", "simple": { "limit": 6, "period": 60 } }
+	],
 	// The weekly league close (src/ranking-store.ts closeWeeks), Monday 00:05 UTC. A dashboard/API upload does not carry
 	// this: add it in Workers › checkout-server › Settings › Triggers › Cron Triggers.
-	"triggers": { "crons": ["5 0 * * 1"] },
+	// Every 10 minutes: the push flush (src/push.ts; the Free plan allows 50 outgoing fetches per run, so big batches
+	// such as Monday's league results go out over several runs).
+	"triggers": { "crons": ["5 0 * * 1", "*/10 * * * *"] },
 	"vars": {
-		"GOOGLE_CLIENT_IDS": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com,663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
+		"GOOGLE_CLIENT_IDS": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com,663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com,663095472642-7u2tltaqinuirqi9p1s9lns9opad3710.apps.googleusercontent.com",
+		// The iPhone's Google login (Unity CheckoutCloud.IosClientId, OAuth client "Checkout iPhone"; no secret).
+		"GOOGLE_IOS_CLIENT_ID": "663095472642-7u2tltaqinuirqi9p1s9lns9opad3710.apps.googleusercontent.com",
 		"GOOGLE_DESKTOP_CLIENT_ID": "663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com",
-		"APPLE_BUNDLE_IDS": "com.lucasfurini.checkout,com.lucasfurini.checkout.dev",
-		// Temporary (the move from Render): the public half of the admin key, checks the signed tokens of /admin/*.
-		// Remove it when the move is over and the /admin routes are gone.
-		"ADMIN_PUBLIC_KEY": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/htQ9aNobDQH0ZxK2fCGRKRKnyxCQBoyjf0CQiOOfAlrnb2NAlQx+05Eggy3grVq8jZsLWft0sqEwpnT42MInA=="
+		"APPLE_BUNDLE_IDS": "com.lucasfurini.checkout,com.lucasfurini.checkout.dev"
+		// ADMIN_PUBLIC_KEY (the /admin/* routes of the move from Render) was removed at the store launch (07/11/2026): no
+		// /admin route answers any more. Also delete the secret OLD_DATABASE_URL: npx wrangler secret delete OLD_DATABASE_URL
 	}
 }

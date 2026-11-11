@@ -56,6 +56,8 @@ export const MARKET_PAINT_COIN_TURNS = 1.25;
 export const MARKET_PAINT_MIN_COINS = 200;
 /** Palettes kept in "Recentes". */
 export const MARKET_PAINT_RECENT = 3;
+/** Pairs kept in "Suas cores" (bought once, free for good). */
+export const MARKET_PAINT_OWNED = 40;
 
 export function getMarketPaintCoinPrice(eraId: MarketEraId | undefined) {
 	const profit = ERA_TURN_PROFIT[eraId ?? "mesinha"] ?? ERA_TURN_PROFIT.mesinha;
@@ -83,7 +85,7 @@ export function isClassicPaint(choice: Pick<MarketPaintChoice, "primary" | "acce
 }
 
 export function createMarketPaintState(): MarketPaintState {
-	return { paletteId: CLASSIC_PALETTE_ID, primary: CLASSIC_PRIMARY, accent: CLASSIC_ACCENT, recent: [], purchases: 0 };
+	return { paletteId: CLASSIC_PALETTE_ID, primary: CLASSIC_PRIMARY, accent: CLASSIC_ACCENT, recent: [], owned: [], purchases: 0 };
 }
 
 /** Saves from before the feature (v46 and older) and anything malformed: the classic look. */
@@ -92,21 +94,43 @@ export function normalizeMarketPaintState(value: unknown): MarketPaintState {
 	const primary = normalizeHex(state.primary);
 	const accent = normalizeHex(state.accent);
 	if (!primary || !accent) return createMarketPaintState();
-	const recent = (Array.isArray(state.recent) ? state.recent : [])
-		.map((entry) => {
-			const p = normalizeHex(entry?.primary);
-			const a = normalizeHex(entry?.accent);
-			return p && a ? { paletteId: getPaletteIdFor(p, a), primary: p, accent: a } : null;
-		})
-		.filter((entry): entry is MarketPaintChoice => entry !== null)
-		.slice(0, MARKET_PAINT_RECENT);
+	const choices = (list: unknown) =>
+		(Array.isArray(list) ? list : [])
+			.map((entry) => {
+				const p = normalizeHex(entry?.primary);
+				const a = normalizeHex(entry?.accent);
+				return p && a ? { paletteId: getPaletteIdFor(p, a), primary: p, accent: a } : null;
+			})
+			.filter((entry): entry is MarketPaintChoice => entry !== null);
+	const recent = choices(state.recent).slice(0, MARKET_PAINT_RECENT);
+	const current: MarketPaintChoice = { paletteId: getPaletteIdFor(primary, accent), primary, accent };
+	// Every pair ever applied was paid for: the one on the market, the ones in "Recentes" (saves from before "Suas
+	// cores", 09/11: a tester's colour went back to the classic and the game asked her to pay for it again) and the
+	// list itself.
+	const owned = ownedList([current, ...choices(state.owned), ...recent]);
 	return {
-		paletteId: getPaletteIdFor(primary, accent),
-		primary,
-		accent,
+		...current,
 		recent,
+		owned,
 		purchases: Math.max(0, Math.floor(Number(state.purchases) || 0)),
 	};
+}
+
+const samePair = (a: Pick<MarketPaintChoice, "primary" | "accent">, b: Pick<MarketPaintChoice, "primary" | "accent">) =>
+	a.primary === b.primary && a.accent === b.accent;
+
+/** Non-classic, one of each pair, newest first, at most MARKET_PAINT_OWNED. */
+function ownedList(list: MarketPaintChoice[]) {
+	return list
+		.filter((entry) => !isClassicPaint(entry))
+		.filter((entry, index, all) => all.findIndex((other) => samePair(other, entry)) === index)
+		.slice(0, MARKET_PAINT_OWNED);
+}
+
+/** Bought before (or the free classic look): applying it costs nothing. */
+export function isOwnedPaint(state: Pick<MarketPaintState, "owned"> | undefined, primary: string, accent: string) {
+	if (isClassicPaint({ primary, accent })) return true;
+	return (state?.owned ?? []).some((entry) => samePair(entry, { primary, accent }));
 }
 
 /** The new state after applying `primary` + `accent` (the old pair goes first in "Recentes" unless it is classic). */
@@ -119,7 +143,7 @@ export function withAppliedPaint(state: MarketPaintState, primary: string, accen
 		.filter((entry) => !isClassicPaint(entry))
 		.filter((entry, index, list) => list.findIndex((other) => same(other, entry)) === index)
 		.slice(0, MARKET_PAINT_RECENT);
-	return { ...next, recent, purchases: state.purchases + (paid ? 1 : 0) };
+	return { ...next, recent, owned: ownedList([next, ...(state.owned ?? [])]), purchases: state.purchases + (paid ? 1 : 0) };
 }
 
 /** WCAG contrast ratio of two hex colours (1–21). */
@@ -135,6 +159,13 @@ export function getContrastRatio(a: string, b: string) {
 	return (hi + 0.05) / (lo + 0.05);
 }
 
+const toDefinition = (entry: MarketPaintChoice): MarketPaletteDefinition => ({
+	id: entry.paletteId,
+	name: getMarketPalette(entry.paletteId)?.name ?? "Sua cor",
+	primary: entry.primary,
+	accent: entry.accent,
+});
+
 /** What Unity gets in every snapshot (paint: CheckoutMarketPaint + CheckoutMarketPaintPanel). */
 export function createMarketPaintSnapshot(state: MarketPaintState | undefined, eraId: MarketEraId | undefined): MarketPaintSnapshot {
 	const paint = normalizeMarketPaintState(state);
@@ -145,11 +176,7 @@ export function createMarketPaintSnapshot(state: MarketPaintState | undefined, e
 		coinPrice: getMarketPaintCoinPrice(eraId),
 		diamondPrice: MARKET_PAINT_DIAMONDS,
 		palettes: marketPalettes,
-		recent: paint.recent.map((entry) => ({
-			id: entry.paletteId,
-			name: getMarketPalette(entry.paletteId)?.name ?? "Sua cor",
-			primary: entry.primary,
-			accent: entry.accent,
-		})),
+		recent: paint.recent.map(toDefinition),
+		owned: paint.owned.map(toDefinition),
 	};
 }

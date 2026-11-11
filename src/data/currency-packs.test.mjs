@@ -2,12 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { currencyPacks } from "./currency-packs";
 
 describe("currencyPacks", () => {
-	test("contains five packs for every category", () => {
+	test("contains five packs for every category (plus the 48 h starter pack)", () => {
 		for (const category of ["bundle", "coins", "diamonds"]) {
 			expect(
-				currencyPacks.filter((pack) => pack.category === category),
+				currencyPacks.filter((pack) => pack.category === category && !pack.limitedTime),
 			).toHaveLength(5);
 		}
+		expect(currencyPacks.filter((pack) => pack.limitedTime).map((pack) => pack.id)).toEqual(["bundle-firstdays"]);
 	});
 
 	test("uses unique store product identifiers", () => {

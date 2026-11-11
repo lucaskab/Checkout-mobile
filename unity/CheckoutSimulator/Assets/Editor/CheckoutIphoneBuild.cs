@@ -39,6 +39,12 @@ public static class CheckoutIphoneBuild
     public const string StoreBundleId = "com.lucasfurini.checkout";
     const string StoreMenu = "Checkout/iPhone/Build for TestFlight";
 
+    // Platform switches from a menu (the tool runner and Claude reach menus, not the Build Profiles window).
+    [MenuItem("Checkout/iPhone/Switch platform to iOS")]
+    public static void SwitchToIos() => EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
+    [MenuItem("Checkout/Android/Switch platform to Android")]
+    public static void SwitchToAndroid() => EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+
     [MenuItem(StoreMenu)]
     public static void BuildForTestFlight()
     {

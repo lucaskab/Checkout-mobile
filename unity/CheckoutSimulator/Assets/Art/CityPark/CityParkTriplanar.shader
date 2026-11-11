@@ -26,6 +26,7 @@ Shader "MarketDay/City Park Triplanar"
         // The market's walls and trims get a copy with MARKET_PAINT on while the player's colours are on (CheckoutMarketPaint).
         #pragma multi_compile_local __ MARKET_PAINT
         #include "Assets/Resources/CheckoutPaint/MarketPaint.cginc"
+        #include "Assets/Resources/CheckoutPaint/CheckoutSnow.cginc"
         sampler2D _MainTex, _BumpMap;
         fixed4 _Color;
         half _BumpScale, _Tiling, _Glossiness, _Metallic, _Variation;
@@ -75,6 +76,7 @@ Shader "MarketDay/City Park Triplanar"
             #ifdef MARKET_PAINT
             o.Albedo = MarketPaint(o.Albedo, uvY);
             #endif
+            o.Albedo = CheckoutSnow(o.Albedo, IN.worldPos, CheckoutSnowUp(worldNormal), 1);
             o.Normal = WorldToTangentNormalVector(IN, worldNormal);
             o.Smoothness = _Glossiness * albedo.a;
             o.Metallic = _Metallic;

@@ -46,6 +46,11 @@ namespace Checkout
         // The swerve round a blocked curb lane (CheckoutEventTraffic: road works, a parked truck, the street market):
         // these stops move with the block, and the drop-off at the market moves past it.
         Visit marketVisit,detourIn,detourMid,detourOut;bool hidden;
+        // Rede (Lucas 06/11): with the fleet's yard the map grows north; the local streets' turning points at the north
+        // end move out with it, deep into the fog (0 = the map's own edge). (The fleet's trucks register with
+        // CheckoutEventTraffic: the cars wait for them like for any event vehicle.)
+        public static float NorthTurn;
+        readonly List<Visit> northEnds=new List<Visit>();float northBase,northApplied;
         // Nobody is dropped at the supermarket while it is closed: they would walk in and vanish.
         bool MarketOpen{get{if(!bridge)bridge=FindAnyObjectByType<CheckoutBridge>();return !bridge||bridge.State==null||bridge.State.isOpen;}}
         void Start()
@@ -86,9 +91,19 @@ namespace Checkout
             if(detourOut!=null)detourOut.road=new Vector3(Mathf.Max(from-3.4f,-13.5f),.15f,-14);
             if(marketVisit!=null){marketVisit.road=new Vector3(blocked?Mathf.Max(MarketStopX,to+2.8f):MarketStopX,.15f,-14);marketVisit.sidewalk=new Vector3(marketVisit.road.x,.15f,CheckoutStreetLayout.NorthWalkZ);}
         }
+        // The stops at the north end of the local streets follow NorthTurn (a car on its way re-plans: see Plan's sig).
+        void FollowNorth()
+        {
+            if(Mathf.Approximately(northApplied,NorthTurn))return;
+            northApplied=NorthTurn;
+            float z=NorthTurn>0?Mathf.Max(northBase,NorthTurn):northBase;
+            foreach(var v in northEnds)v.road=new Vector3(v.road.x,v.road.y,z);
+            foreach(var c in cars)if(c.vehicle&&c.phase==2)c.vehicle.position=route[c.waypoint].road;
+        }
         void Update()
         {
             FollowBlock();
+            FollowNorth();
             // A market event jams the avenue: its own queues are the traffic, the city's cars wait off stage.
             if(CheckoutEventTraffic.AvenueJammed!=hidden)
             {
@@ -124,6 +139,7 @@ namespace Checkout
         {
             // what the plan depends on: the stretch the road works block (the swerve follows it), the market being open (a drop-off there)
             int sig=(CheckoutEventTraffic.HasCurbBlock?Mathf.RoundToInt(CheckoutEventTraffic.BlockFrom*10)*7919+Mathf.RoundToInt(CheckoutEventTraffic.BlockTo*10):int.MinValue)^(MarketOpen?1:0);
+            sig^=Mathf.RoundToInt(northApplied*10)*104729;
             var circle=CheckoutRoundabout.Current;
             if(car.planned&&car.planSig!=sig&&!(circle&&circle.Inside(car.vehicle.position)))car.planned=false; // never re-plan on the ring
             if(!car.planned&&!Plan(car,sig))return;
@@ -273,6 +289,8 @@ namespace Checkout
             Road(b.max.x-3,-17);Edge(b.min.x+3,-17);
             Road(b.min.x+3,-23);Edge(b.max.x-3,-23);
             // The stops inside the roundabout stay: every path through it is bent round the island (CheckoutVehiclePath).
+            northBase=b.max.z-3;northEnds.Clear();
+            foreach(var v in stops)if(Mathf.Abs(v.road.z-northBase)<.01f)northEnds.Add(v);
             route=stops.ToArray();
         }
         bool Blocked(Car car,Vector3 direction,float reach)

@@ -82,7 +82,7 @@ namespace Checkout {
      var pos = route.Sample(s, out _);
      route.Sample(Mathf.Min(route.Length, s + v * CheckoutStride.WalkTurnTime), out var ahead);   // (leads the eased turn)
      transform.position = pos; stride.Face(transform, ahead, dt, true);
-     if (walking) walking.speed = v * walking.length / WalkCycle;   // the feet move as fast as the body
+     if (walking) walking.speed = v * walking.length / CheckoutWalkCycle.World(anim, "Walking", WalkCycle);   // the feet move as fast as the body
      Follow(follower, followOffset, followTurn);
      yield return null;
     }

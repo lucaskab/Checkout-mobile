@@ -63,7 +63,7 @@ namespace Checkout
         // Walking clip keyed by distance travelled, like MarketCharacterAnimator.
         public void Walk(float distance)
         {
-            walkPhase = Mathf.Repeat(walkPhase + distance / Mathf.Max(.1f, walkCycle), 1);
+            walkPhase = Mathf.Repeat(walkPhase + distance / Mathf.Max(.1f, CheckoutWalkCycle.World(clips, "Walking", walkCycle)), 1);
             Sample("Walking", walkPhase);
         }
 

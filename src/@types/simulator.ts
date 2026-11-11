@@ -1,4 +1,5 @@
 import type { MarketPaintSnapshot } from "./market-paint";
+import type { MarketStyleSnapshot } from "./market-style";
 import type { GameActions, GameState } from "./game";
 export type SimulatorPanel =
 	| "store"
@@ -128,6 +129,14 @@ export type SimulatorSnapshot = {
 	delivery: SimulatorDelivery;
 	/** "Cores do mercado" (src/data/market-paint.ts): the market's two colours, the palettes and the prices. */
 	paint: MarketPaintSnapshot;
+	/** "Estilo do mercado": floor, walls, uniform and sign. */
+	style: MarketStyleSnapshot;
+	/** Rede de supermercados: brand and fleet (src/services/chain.ts createChainSnapshot). */
+	chain: import("./chain").ChainSnapshot;
+	/** "Ladrão e segurança" (src/services/store-security.ts createSecuritySnapshot). */
+	security: import("./security").StoreSecuritySnapshot;
+	/** "Mascote caramelo" (src/services/store-pet.ts createPetSnapshot). */
+	pet: import("./pet").PetSnapshot;
 	customers: GameState["market"]["recentCustomers"];
 	expansions: string[];
 	era: {
@@ -417,6 +426,12 @@ export type SimulatorSupplierInfo = {
 	active: number;
 	maxBoxes: number;
 	freightCoupons: number;
+	/** The saved supplier cart and its revision (+1 on every change). */
+	cart: { productId: number; boxes: number }[];
+	cartRevision: number;
+	/** Several products on one truck: average time × (1 + share per extra product, up to the cap). */
+	extraProductShare: number;
+	extraProductCap: number;
 };
 
 export type SimulatorSupplierProduct = {

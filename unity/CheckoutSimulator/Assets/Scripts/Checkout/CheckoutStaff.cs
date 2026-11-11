@@ -595,7 +595,7 @@ namespace Checkout
                 if (step.walk && clip == step.clip)
                 {
                     var moved = a.root.position - a.lastPosition; moved.y = 0;
-                    float cycle = clip == "Walking" ? 1.33f : clip == "CarryWalking" ? 1.36f : 1.2f; // delivery-worker clips at the staff scale
+                    float cycle = CheckoutWalkCycle.World(a.anim, clip, clip == "Walking" ? 1.33f : clip == "CarryWalking" ? 1.36f : 1.2f); // measured from the clip
                     if (moved.magnitude < 2) a.phase = Mathf.Repeat(a.phase + moved.magnitude / cycle, 1);
                     st.normalizedTime = a.phase;
                 }

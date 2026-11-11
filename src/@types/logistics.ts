@@ -31,6 +31,8 @@ export type SupplierOrder = {
 	status: SupplierOrderStatus;
 	/** What was charged for the whole truck. */
 	totalCost: number;
+	/** Rede: brought by the chain's own fleet from its distribution centre (that truck), not by a supplier. */
+	fleetTruckId?: string;
 };
 
 export type LogisticsState = {
@@ -39,7 +41,13 @@ export type LogisticsState = {
 	logisticsBoostExpiresAt: number | null;
 	orders: SupplierOrder[];
 	premiumCurrency: number;
+	/** The supplier trucks the player owns (the first, bought, kept from old saves); the free ones are added by
+	 * getSupplierTrucks (src/data/supplier-capacity.ts). */
 	supplierOrderSlots: number;
+	/** The supplier cart: boxes waiting to go on one truck (Lucas 11/11). */
+	cart?: { productId: number; boxes: number }[];
+	/** +1 on every change of the cart (the Unity shop window follows it). */
+	cartRevision?: number;
 };
 
 export type PlaceSupplierOrderInput = {
@@ -55,4 +63,6 @@ export type PlaceSupplierOrderInput = {
 export type PlaceSupplierCartInput = {
 	lines: { productId: number; boxes: number }[];
 	useFreightCoupon?: boolean;
+	/** Rede: order from the chain's distribution centre (own fleet, wholesale price, faster) instead of a supplier. */
+	via?: "frota";
 };

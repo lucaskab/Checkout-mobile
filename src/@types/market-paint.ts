@@ -16,9 +16,11 @@ export type MarketPaintChoice = {
 	accent: string;
 };
 
-/** The market's colours in the save: the current pair and the last ones applied (newest first, at most 3). */
+/** The market's colours in the save: the current pair, the last ones applied (newest first, at most 3) and every pair
+ * the player ever bought (newest first): those are theirs for good and wearing one again never costs (Lucas 09/11). */
 export type MarketPaintState = MarketPaintChoice & {
 	recent: MarketPaintChoice[];
+	owned: MarketPaintChoice[];
 	/** How many times the player paid to repaint (statistics). */
 	purchases: number;
 };
@@ -34,4 +36,6 @@ export type MarketPaintSnapshot = {
 	diamondPrice: number;
 	palettes: MarketPaletteDefinition[];
 	recent: MarketPaletteDefinition[];
+	/** The pairs the player bought ("Suas cores"): applying one is free. */
+	owned: MarketPaletteDefinition[];
 };

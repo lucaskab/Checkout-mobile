@@ -13,6 +13,8 @@ namespace Checkout {
  public class CheckoutBridge : MonoBehaviour {
   // Dev play-mode checks (CheckoutAutoTest) add their test data to each snapshot as it arrives.
   public static System.Action<Snapshot> TestPatch;
+  // Every snapshot that became the state (CheckoutFirebase: analytics events from the differences).
+  public static event System.Action<Snapshot> Received;
   public Snapshot State {get;private set;}
   MarketSimulation simulation;CheckoutMap map;CheckoutCityTraffic traffic;float hello;int commandSequence;Vector2 pointerStart;bool pointerDragged;
   readonly Queue<Customer> visits=new Queue<Customer>();readonly HashSet<string> seen=new HashSet<string>();readonly List<CheckoutWalker> walkers=new List<CheckoutWalker>();readonly List<string> appearanceBag=new List<string>();string lastAppearance;
@@ -22,11 +24,14 @@ namespace Checkout {
   [DllImport("__Internal")] static extern void sendMessageToMobileApp(string message);
 #endif
   void Awake(){name="CheckoutBridge";simulation=FindAnyObjectByType<MarketSimulation>();simulation.quietCapture=true;simulation.enabled=false;var qa=simulation.GetComponent<MarketPlaytest>();if(qa)qa.enabled=false;}
-  void Start(){simulation.Initialize(false);simulation.hud.gameObject.SetActive(false);map=gameObject.AddComponent<CheckoutMap>();gameObject.AddComponent<CheckoutCounterGame>().Initialize(this);gameObject.AddComponent<CheckoutIncidents>().Initialize(this,map);gameObject.AddComponent<CheckoutStockroom>().Initialize(this);gameObject.AddComponent<CheckoutRestockGame>().Initialize(this);gameObject.AddComponent<CheckoutReceivingGame>().Initialize(this);gameObject.AddComponent<CheckoutSupplierShop>().Initialize(this);gameObject.AddComponent<CheckoutPackingGame>().Initialize(this);gameObject.AddComponent<CheckoutDeliveryApp>().Initialize(this);map.Initialize(simulation.world,this);gameObject.AddComponent<CheckoutCityViews>().Initialize(this,map);gameObject.AddComponent<CheckoutCourier>().Initialize(this,map);gameObject.AddComponent<CheckoutBuildMode>().Initialize(this,map);gameObject.AddComponent<CheckoutLotView>().Initialize(this);traffic=FindAnyObjectByType<CheckoutCityTraffic>();
+  void Start(){simulation.Initialize(false);simulation.hud.gameObject.SetActive(false);map=gameObject.AddComponent<CheckoutMap>();gameObject.AddComponent<CheckoutCounterGame>().Initialize(this);gameObject.AddComponent<CheckoutIncidents>().Initialize(this,map);gameObject.AddComponent<CheckoutStockroom>().Initialize(this);gameObject.AddComponent<CheckoutRestockGame>().Initialize(this);gameObject.AddComponent<CheckoutReceivingGame>().Initialize(this);gameObject.AddComponent<CheckoutSupplierShop>().Initialize(this);gameObject.AddComponent<CheckoutPackingGame>().Initialize(this);gameObject.AddComponent<CheckoutDeliveryApp>().Initialize(this);map.Initialize(simulation.world,this);gameObject.AddComponent<CheckoutCityViews>().Initialize(this,map);gameObject.AddComponent<CheckoutCourier>().Initialize(this,map);gameObject.AddComponent<CheckoutBuildMode>().Initialize(this,map);gameObject.AddComponent<CheckoutLotView>().Initialize(this);gameObject.AddComponent<CheckoutPets>().Initialize(this,map);gameObject.AddComponent<CheckoutSecurity>().Initialize(this,map);traffic=FindAnyObjectByType<CheckoutCityTraffic>();
    // The scene has a handful of shoppers; the hypermarket and the chain draw a crowd (up to 160 customers a
    // turn in the app's economy), so the walkers are cloned from them up to MaxWalkers.
    var shoppers=simulation.world.Cast<Transform>().Where(t=>t.name.StartsWith("Customer_")).ToList();
-   for(int i=0;shoppers.Count>0&&shoppers.Count+i<MaxWalkers;i++){var source=shoppers[i%shoppers.Count];var copy=Instantiate(source.gameObject,source.parent);copy.name="Customer_Extra"+i;copy.transform.position=source.position+new Vector3(.4f*(i%5),0,.4f*(i/5));}
+   // Each copy takes a look of the sex with fewer walkers so far (the scene has 6 men and 3 women): the app draws
+   // women and men half and half and every customer walks in with a body of their own sex (NextAvailableWalker).
+   var women=shoppers.Where(t=>SexOfLook(LookOf(t))=="f").ToList();var men=shoppers.Where(t=>SexOfLook(LookOf(t))=="m").ToList();int womenCount=women.Count,menCount=men.Count;
+   for(int i=0;shoppers.Count>0&&shoppers.Count+i<MaxWalkers;i++){bool woman=women.Count>0&&(womenCount<=menCount||men.Count==0);var source=woman?women[womenCount++%women.Count]:men[menCount++%men.Count];var copy=Instantiate(source.gameObject,source.parent);copy.name="Customer_Extra"+i;copy.transform.position=source.position+new Vector3(.4f*(i%5),0,.4f*(i/5));}
    foreach(Transform t in simulation.world)if(t.name.StartsWith("Customer_")){var w=t.gameObject.AddComponent<CheckoutWalker>();w.Initialize(this,t.GetComponent<NavMeshAgent>(),map);walkers.Add(w);t.gameObject.SetActive(false);}
    // Integration is read-only until the React Native authority supplies a snapshot.
    foreach(Transform t in simulation.world)if(t.name.StartsWith("StockWorker_"))t.gameObject.SetActive(false);
@@ -48,13 +53,16 @@ namespace Checkout {
    bool closing=State!=null&&State.isOpen&&!next.isOpen;
    // The first shoppers of the day start close by, so the shop comes alive right after opening (CheckoutWalker.ArrivalSpot).
    if(State!=null&&!State.isOpen&&next.isOpen)CheckoutWalker.MarketOpenedAt=Time.time;
-   State=next;map.Apply(next);
+   State=next;map.Apply(next);try{Received?.Invoke(next);}catch(Exception e){Debug.LogException(e);}
    if(closing)foreach(var w in walkers)w.MarketClosed();if(seen.Count>2000){seen.Clear();foreach(var c in next.customers??Array.Empty<Customer>())seen.Add(c.id);}
   }catch(Exception ex){Debug.LogError("CHECKOUT_SNAPSHOT_ERROR "+ex.Message);}}
+  /// <summary>QA (the trailer's little table): the day's customers stay away while this is set.</summary>
+  public static bool QaNoVisits;
   void Update(){simulation.ExternalCamera();if(State==null){hello+=Time.unscaledDeltaTime;if(hello>1){hello=0;Emit("{\"kind\":\"ready\",\"protocol\":1}");}return;}
+   if(QaNoVisits)visits.Clear();
    simulation.speed=1;
    // New customers wait outside while the player rearranges the shop in build mode.
-   if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutWalker.ShopCrowded){var walker=NextAvailableWalker();if(walker){if(EventVisit(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}else if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(WalkersClearOfEntrance()){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
+   if(visits.Count>0&&State.isOpen&&!CheckoutBuildMode.Open&&!CheckoutMapEditor.Open&&!CheckoutWalker.ShopCrowded){var walker=NextAvailableWalker(visits.Peek());if(walker){if(EventVisit(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}else if(traffic&&map.HasParking&&!CheckoutEventTraffic.AvenueJammed){if(traffic.TryBegin(visits.Peek(),walker)){visits.Dequeue();AppearanceStarted(walker);}}else if(WalkersClearOfEntrance()){walker.Begin(visits.Dequeue());AppearanceStarted(walker);}}}
    if(Input.GetMouseButtonDown(0)){pointerStart=Input.mousePosition;pointerDragged=false;}
    if(Input.touchCount>1||(Input.GetMouseButton(0)&&Vector2.Distance(pointerStart,Input.mousePosition)>10))pointerDragged=true;
    // A friend's market is looked at only (its builds have their own "Ajudar" buttons, CheckoutDesktopHUD.Social).
@@ -71,7 +79,7 @@ namespace Checkout {
    // Evolution ring: a tap shows the diamond skip under it; the gold plate spends the diamonds (CheckoutEvolutionSite).
    else if(action.panel=="evolution")CheckoutEvolutionSite.Tapped(action.requestId);
    else if(action.panel=="finishEvolution"&&!string.IsNullOrEmpty(action.requestId))Command("finishEvolutionNow","[\""+action.requestId+"\"]");
-   else if(action.panel=="finishWorks")Command("finishMarketExpansionNow","[]");else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="windowSale"){var fx=GetComponent<CheckoutEventVisuals>();if(fx)fx.ServeWindow(action.requestId);}else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);
+   else if(action.panel=="finishWorks")Command("finishMarketExpansionNow","[]");else if(action.panel=="incident")CheckoutIncidents.Show(action.requestId);else if(action.panel=="windowSale"){var fx=GetComponent<CheckoutEventVisuals>();if(fx)fx.ServeWindow(action.requestId);}else if(action.panel=="pet")CheckoutPets.Tapped();else if(action.panel=="thief")CheckoutSecurity.Tapped(action.requestId);else if(action.panel=="dock")CheckoutStockroom.ShowDock();else OpenPanel(action.panel,action.shelfId,action.sectorId,action.requestId);
    return action;
   }
   // A customer the running event brought (Customer.origin): their walk starts in the event's scene (the ATM queue on
@@ -82,11 +90,24 @@ namespace Checkout {
   readonly List<SkinnedMeshRenderer> bodyRenderers=new List<SkinnedMeshRenderer>();readonly List<CheckoutWalker> idleWalkers=new List<CheckoutWalker>();
   // True when no walker stands at the entrance (a walker counts when it is active and within 1.5 m of it).
   bool WalkersClearOfEntrance(){foreach(var w in walkers)if(w.gameObject.activeSelf&&!(Vector3.Distance(w.transform.position,map.Entrance)>1.5f))return false;return true;}
-  string AppearanceKey(CheckoutWalker walker){var motion=walker.GetComponent<MarketCharacterAnimator>();bodyRenderers.Clear();motion.animationPlayer.GetComponentsInChildren<SkinnedMeshRenderer>(true,bodyRenderers);SkinnedMeshRenderer body=null;foreach(var r in bodyRenderers)if(!r.name.EndsWith("_Prop")){body=r;break;}return body&&body.sharedMaterial&&body.sharedMaterial.mainTexture?body.sharedMaterial.mainTexture.name:walker.name;}
-  CheckoutWalker NextAvailableWalker(){
+  string AppearanceKey(CheckoutWalker walker)=>LookOf(walker.transform);
+  // The look of a customer actor: its body texture (copies share it with their source), else the actor's name.
+  string LookOf(Transform actor){var motion=actor.GetComponent<MarketCharacterAnimator>();if(!motion||!motion.animationPlayer)return actor.name;bodyRenderers.Clear();motion.animationPlayer.GetComponentsInChildren<SkinnedMeshRenderer>(true,bodyRenderers);SkinnedMeshRenderer body=null;foreach(var r in bodyRenderers)if(!r.name.EndsWith("_Prop")){body=r;break;}return body&&body.sharedMaterial&&body.sharedMaterial.mainTexture?body.sharedMaterial.mainTexture.name:actor.name;}
+  // Sex of each customer look, read from the art (ArtSource/NPCs/logs/walk_Customer_NN.png): Customer_04 is the girl in
+  // the cardigan (Customer_Jacket), Customer_06 the woman with the ponytail, Customer_08 the curly-haired older woman;
+  // CustomerChild (Customer_01/05, a boy), Customer_Plaid (02), Customer_Elder (03), Customer_07 and Customer_09 are men.
+  // A new customer look must be added here when it is a woman.
+  static readonly HashSet<string> WomenLooks=new HashSet<string>{"Customer_Jacket","Customer_06","Customer_08","Customer_04"};
+  public static string SexOfLook(string look)=>look!=null&&WomenLooks.Contains(look)?"f":"m";
+  // The app names each customer for their sex (Customer.sex, src/data/customer-names.ts): only a body of that sex may play them.
+  static bool LookFits(string look,Customer visit)=>visit==null||string.IsNullOrEmpty(visit.sex)||SexOfLook(look)==visit.sex;
+  CheckoutWalker NextAvailableWalker(Customer visit){
    // Several pooled actors share the same GLB; randomize appearances, not actor IDs.
    if(appearanceBag.Count==0){for(int n=0;n<walkers.Count;n++){var k=AppearanceKey(walkers[n]);if(!appearanceBag.Contains(k))appearanceBag.Add(k);}for(int i=appearanceBag.Count-1;i>0;i--){int j=UnityEngine.Random.Range(0,i+1);var t=appearanceBag[i];appearanceBag[i]=appearanceBag[j];appearanceBag[j]=t;}if(appearanceBag.Count>1&&appearanceBag[0]==lastAppearance){var t=appearanceBag[0];appearanceBag[0]=appearanceBag[1];appearanceBag[1]=t;}}
-   foreach(var key in appearanceBag){idleWalkers.Clear();foreach(var w in walkers)if(!w.Reserved&&!w.gameObject.activeSelf&&AppearanceKey(w)==key)idleWalkers.Add(w);if(idleWalkers.Count>0)return idleWalkers[UnityEngine.Random.Range(0,idleWalkers.Count)];}return null;
+   foreach(var key in appearanceBag){if(!LookFits(key,visit))continue;idleWalkers.Clear();foreach(var w in walkers)if(!w.Reserved&&!w.gameObject.activeSelf&&AppearanceKey(w)==key)idleWalkers.Add(w);if(idleWalkers.Count>0)return idleWalkers[UnityEngine.Random.Range(0,idleWalkers.Count)];}
+   // The looks left in the bag are all of the other sex (or all out walking): any idle walker of the customer's sex.
+   idleWalkers.Clear();foreach(var w in walkers)if(!w.Reserved&&!w.gameObject.activeSelf&&LookFits(AppearanceKey(w),visit))idleWalkers.Add(w);
+   return idleWalkers.Count>0?idleWalkers[UnityEngine.Random.Range(0,idleWalkers.Count)]:null;
   }
   void AppearanceStarted(CheckoutWalker walker){lastAppearance=AppearanceKey(walker);appearanceBag.Remove(lastAppearance);}
   public void OpenPanel(string panel,string shelfId="",string sectorId="",string requestId="")=>Emit(JsonUtility.ToJson(new PanelMessage{kind="panel",panel=panel,shelfId=shelfId,sectorId=sectorId,requestId=requestId}));

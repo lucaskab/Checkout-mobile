@@ -88,6 +88,8 @@ namespace Checkout {
   public DesktopButton[] quick;
   // The corner "Bônus" button that opens the quick buttons as a menu (CheckoutDesktopHUD.Quick.cs).
   public DesktopButton quickMain;
+  // Always on screen above "Bônus" (Lucas 10/11): "Grátis" (the videos) and "Amigos" (desktop/view.ts fixedQuickButtons).
+  public DesktopButton[] quickFixed;
   public DesktopButton[] tools;public DesktopCard offline;public DesktopPage page;public DesktopLevelUp levelUp;public DesktopCelebration celebration;
   public DesktopCoach coach;public DesktopGoal goal;
   // null (an empty object in JsonUtility) = at home; active = the player is visiting a friend.

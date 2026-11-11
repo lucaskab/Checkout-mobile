@@ -4,6 +4,7 @@ import { achievements } from "@/data/achievements";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
+import { t } from "@/i18n";
 import {
 	albumCollections,
 	getCollectionProgress,
@@ -24,7 +25,9 @@ import {
 import { describeMissionReward, getMissionProgress, getMissionRewardPlan, getMissionStatus } from "@/services/missions";
 import { getWeekEnd, getWeeklyProgress, getWeeklyReward } from "@/services/weekly-event";
 import type { Routes } from ".";
+import { streakRecoveryButtons, streakRecoveryText } from "./progress";
 import {
+	couponPlus,
 	act,
 	type BoardMark,
 	type BoardTile,
@@ -125,7 +128,8 @@ function missionTile(state: State, mission: (typeof missions)[number]): BoardTil
 		facts: [
 			stat(gameIcon("target"), `${fmt(shown)}/${fmt(mission.goal)}`, "Progresso", status === "claimable" ? "success" : ""),
 			stat(gameIcon("coin"), fmt(plan.coins), "Moedas de prêmio", "gold"),
-			stat(gameIcon("clipboard"), missionCategory[mission.category], "Categoria"),
+			...(plan.coupons > 0 ? [stat(gameIcon("receipt"), String(plan.coupons), "Cupom de frete", "gold")] : []),
+			stat(gameIcon("clipboard"), t(missionCategory[mission.category]), "Categoria"),
 			stat(gameIcon("crown"), `Nv ${mission.requiredLevel}`, "Nível mínimo"),
 		],
 		lines: [`Prêmio: ${rewards.join(", ")}`],
@@ -143,7 +147,7 @@ function giftTiles(state: State): BoardTile[] {
 		const gift = getLoginReward(day, state.era.id);
 		const done = day < today || (!ready && day === today);
 		const isToday = ready && day === today;
-		const prize = `${fmt(gift.coins)} moedas${gift.diamonds ? ` + ${gift.diamonds} diamantes` : ""}`;
+		const prize = `${fmt(gift.coins)} moedas${gift.diamonds ? ` + ${gift.diamonds} diamantes` : ""}${couponPlus(gift.coupons)}`;
 		const claim = act(`Resgatar ${prize}`, "claimDailyLogin", [], {
 			variant: "success",
 			icon: gameIcon("gift"),
@@ -152,17 +156,18 @@ function giftTiles(state: State): BoardTile[] {
 		});
 		return tile(`day${day}`, `Dia ${day}`, {
 			group: "PRESENTE DO DIA · VOLTE TODO DIA",
-			icon: gameIcon(gift.diamonds ? "diamond" : "gift"),
+			icon: gameIcon(gift.diamonds ? "diamond" : gift.coupons ? "receipt" : "gift"),
 			subtitle: prize,
-			sticker: isToday ? "HOJE!" : day === LOGIN_STREAK_DAYS ? "BÔNUS" : "",
+			sticker: isToday ? "HOJE!" : day === LOGIN_STREAK_DAYS ? "BÔNUS" : gift.coupons ? "CUPOM" : "",
 			tone: isToday ? "success" : done ? "info" : day === LOGIN_STREAK_DAYS ? "gold" : "",
 			badge: gift.diamonds ? `+${gift.diamonds}` : "",
 			state: isToday ? "ready" : done ? "done" : "",
 			action: isToday ? claim : noButton(),
-			detail: "Volte todo dia: o presente cresce a cada dia seguido e o 7º dia dá diamantes. Perder um dia recomeça a sequência.",
+			detail: "Volte todo dia: o presente cresce a cada dia seguido, o 3º e o 7º dia dão um cupom de frete (10% de desconto num pedido) e o 7º dá diamantes. Perder um dia recomeça a sequência.",
 			facts: [
 				stat(gameIcon("coin"), fmt(gift.coins), "Moedas"),
 				stat(gameIcon("diamond"), String(gift.diamonds ?? 0), "Diamantes"),
+				...(gift.coupons ? [stat(gameIcon("receipt"), String(gift.coupons), "Cupom de frete", "gold")] : []),
 				stat(gameIcon("flame"), `${Math.min(today, LOGIN_STREAK_DAYS)}/${LOGIN_STREAK_DAYS}`, "Sequência"),
 			],
 			actions: isToday ? [claim] : [],
@@ -170,7 +175,7 @@ function giftTiles(state: State): BoardTile[] {
 	});
 	const weekly = getWeeklyProgress(state.weeklyEvent, state.market.soldByProduct, now);
 	const reward = getWeeklyReward(state.era.id);
-	const prize = `${fmt(reward.coins)} moedas + ${reward.diamonds} diamantes`;
+	const prize = `${fmt(reward.coins)} moedas + ${reward.diamonds} diamantes${couponPlus(reward.coupons)}`;
 	const claimWeek = act(`Resgatar ${prize}`, "claimWeeklyEvent", [], {
 		variant: "success",
 		icon: gameIcon("festival"),
@@ -183,7 +188,25 @@ function giftTiles(state: State): BoardTile[] {
 	const prizes = albumCollections.filter(
 		(collection, index) => albumProgress[index].complete && !(state.albumClaimedIds ?? []).includes(collection.id),
 	).length;
+	// Lucas 11/11: a streak broken by 1–3 days can come back before today's claim restarts it.
+	const recovery = streakRecoveryButtons(state, now);
+	const recoveryTile = recovery.length
+		? [
+				tile("streak", "Recuperar sequência", {
+					group: "PRESENTE DO DIA · VOLTE TODO DIA",
+					icon: gameIcon("flame"),
+					subtitle: streakRecoveryText(state, now),
+					sticker: "PERDIDA",
+					tone: "warning",
+					state: "ready",
+					action: recovery[0],
+					detail: streakRecoveryText(state, now),
+					actions: recovery,
+				}),
+			]
+		: [];
 	return [
+		...recoveryTile,
 		...days,
 		tile("weekly", weekly.theme.name, {
 			group: "EVENTO DA SEMANA E ÁLBUM",
@@ -203,6 +226,7 @@ function giftTiles(state: State): BoardTile[] {
 				stat(gameIcon("target"), `${sold}/${weekly.theme.goal}`, "Vendidos"),
 				stat(gameIcon("coin"), fmt(reward.coins), "Moedas"),
 				stat(gameIcon("diamond"), String(reward.diamonds), "Diamantes"),
+				stat(gameIcon("receipt"), String(reward.coupons), "Cupom de frete"),
 			],
 			actions: weekly.done && !weekly.claimed ? [claimWeek] : [],
 		}),

@@ -13,6 +13,22 @@ import { roundPrice } from "@/data/economy";
 //   used to skip the whole game; 5 000 at the end was nothing). `coins` is the amount at the first expansion.
 // - Combos are ~1.3× the value of buying their diamonds and coins apart. The welcome combo is a one-time offer.
 export const currencyPacks: CurrencyPack[] = [
+	// Pacote inicial (Lucas 11/11): the cheapest price, the best value, once, in the first 48 h after the tutorial.
+	{
+		badge: "Só nas primeiras 48 h",
+		category: "bundle",
+		coins: 3_000,
+		coinTurns: 20,
+		oncePerPlayer: true,
+		limitedTime: true,
+		diamonds: 120,
+		extras: { trucks: 1, freightCoupons: 3, petCosmeticId: "bandana_flowers" },
+		fallbackPrice: "€ 1,99",
+		id: "bundle-firstdays",
+		name: "Pacote Inicial",
+		productId: "com.checkout.currency.bundle.firstdays",
+		tier: 1,
+	},
 	{
 		badge: "Oferta de boas-vindas",
 		category: "bundle",
@@ -281,7 +297,12 @@ export function getRegionalPrice(pack: CurrencyPack, region: string | undefined)
 	return REGIONAL_PRICES[getPriceCurrency(region)][point] ?? pack.fallbackPrice;
 }
 
-/** Whether the player may still buy `pack` (the welcome combo only once). */
-export function isCurrencyPackAvailable(pack: CurrencyPack, purchasedPackIds: readonly string[] | undefined) {
+/** Whether the player may still buy `pack` (the welcome combo only once; the starter pack in its 48 h). */
+export function isCurrencyPackAvailable(
+	pack: CurrencyPack,
+	purchasedPackIds: readonly string[] | undefined,
+	limitedOpen = false,
+) {
+	if (pack.limitedTime && !limitedOpen) return false;
 	return !pack.oncePerPlayer || !(purchasedPackIds ?? []).includes(pack.id);
 }

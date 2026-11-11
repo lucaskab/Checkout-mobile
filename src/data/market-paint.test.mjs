@@ -139,6 +139,34 @@ describe("store", () => {
 		expect(store().logistics.premiumCurrency).toBe(100);
 	});
 
+	test("a colour bought once is the player's for good: back to it later is free, with no money at all", () => {
+		money(100_000, 100);
+		expect(store().applyMarketPaint("8A1C2B", "D9A93E", "coins")).toBe(true);
+		expect(store().applyMarketPaint("0F6A6E", "F27D5E", "diamonds")).toBe(true);
+		expect(store().resetMarketPaint()).toBe(true);
+		money(0, 0);
+		expect(store().applyMarketPaint("8A1C2B", "D9A93E", "coins")).toBe(true);
+		expect(store().applyMarketPaint("0F6A6E", "F27D5E", "diamonds")).toBe(true);
+		expect(store().coins).toBe(0);
+		expect(store().logistics.premiumCurrency).toBe(0);
+		expect(store().marketPaint.purchases).toBe(2);
+		expect(store().marketPaint.owned.map((o) => o.paletteId)).toEqual(["oceano", "cereja"]);
+		expect(paint.isOwnedPaint(store().marketPaint, "8A1C2B", "D9A93E")).toBe(true);
+		expect(paint.isOwnedPaint(store().marketPaint, "4B2A6B", "C9CED6")).toBe(false);
+		// a new colour still costs
+		expect(store().applyMarketPaint("4B2A6B", "C9CED6", "coins")).toBe(false);
+	});
+
+	test("Suas cores keeps every colour bought, beyond the 3 of Recentes", () => {
+		money(1_000_000, 0);
+		for (const id of ["floresta", "cereja", "uva", "oceano", "grafite"]) {
+			const p = paint.getMarketPalette(id);
+			store().applyMarketPaint(p.primary, p.accent, "coins");
+		}
+		expect(store().marketPaint.recent).toHaveLength(3);
+		expect(store().marketPaint.owned.map((o) => o.paletteId)).toEqual(["grafite", "oceano", "uva", "cereja", "floresta"]);
+	});
+
 	test("Recentes: the last 3 applied, newest first, no repeats", () => {
 		money(1_000_000, 0);
 		for (const id of ["floresta", "cereja", "uva", "cereja", "oceano"]) {
@@ -169,7 +197,7 @@ describe("saves", () => {
 		const migrated = await migrate({ ...state, coins: 1234 }, 46);
 		expect(migrated.marketPaint).toEqual(paint.createMarketPaintState());
 		expect(migrated.coins).toBe(1234);
-		expect(useGameStore.persist.getOptions().version).toBe(50);
+		expect(useGameStore.persist.getOptions().version).toBe(53);
 	});
 
 	test("a malformed field falls back to classic; a good one is kept", () => {
@@ -186,8 +214,31 @@ describe("saves", () => {
 			primary: "5E4F8C",
 			accent: "F3E9C6",
 			recent: [{ paletteId: "cereja", primary: "8A1C2B", accent: "D9A93E" }],
+			owned: [
+				{ paletteId: "lavanda", primary: "5E4F8C", accent: "F3E9C6" },
+				{ paletteId: "cereja", primary: "8A1C2B", accent: "D9A93E" },
+			],
 			purchases: 2,
 		});
+	});
+
+	// Lucas 09/11: a tester's colour went back to the classic and "Sua cor" in Recentes asked to be paid again.
+	test("v51 save back on the classic with a paid colour in Recentes: the colour is hers, free, on the way in", async () => {
+		const state = JSON.parse(initial);
+		state.marketPaint = {
+			paletteId: "classico", primary: "1D2B4F", accent: "D3A53D", purchases: 1,
+			recent: [{ paletteId: "custom", primary: "E86A9E", accent: "F4F6F8" }],
+		};
+		const migrated = await useGameStore.persist.getOptions().migrate({ ...state, coins: 10 }, 51);
+		expect(migrated.marketPaint.owned).toEqual([{ paletteId: "custom", primary: "E86A9E", accent: "F4F6F8" }]);
+		useGameStore.setState(migrated);
+		money(10, 0);
+		expect(store().applyMarketPaint("E86A9E", "F4F6F8", "coins")).toBe(true);
+		expect(store().marketPaint.primary).toBe("E86A9E");
+		expect(store().coins).toBe(10);
+		expect(store().marketPaint.purchases).toBe(1);
+		const snapshot = createSimulatorSnapshot(store());
+		expect(snapshot.paint.owned).toEqual([{ id: "custom", name: "Sua cor", primary: "E86A9E", accent: "F4F6F8" }]);
 	});
 
 	test("the colours are saved with the game (and so in the cloud copy)", () => {

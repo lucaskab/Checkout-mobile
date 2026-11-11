@@ -1,3 +1,4 @@
+import { createChainSnapshot, createChainState } from "@/services/chain";
 import { getMarketEra, getNextMarketEra, marketEras } from "@/data/economy";
 import { ERA_LOTS, LOT_GRID, MARKET_LOTS, PLAZA_LOTS } from "@/data/market-lots";
 import type { GameState } from "@/@types/game";
@@ -15,7 +16,9 @@ import {
 	isDeliveryUnlocked,
 } from "@/services/delivery";
 import { getGameEvent } from "@/data/game-events";
+import { sexOfCustomerName } from "@/data/customer-names";
 import { createMarketPaintSnapshot } from "@/data/market-paint";
+import { createMarketStyleSnapshot } from "@/data/market-style";
 import { interiorDecor } from "@/data/interior-decor";
 import {
 	coldRoomTierItemIds,
@@ -56,16 +59,20 @@ import {
 import { getActiveGameEventEffects, getTurnEventKey } from "@/services/game-events";
 import { getContractProgress } from "@/services/market-day";
 import { getIncidentShelves } from "@/services/store-incidents-context";
+import { createSecuritySnapshot } from "@/services/store-security";
+import { createPetSnapshot } from "@/services/store-pet";
 import { getClaimableMissionCount } from "@/services/missions";
 import { isMarketBuilding } from "@/services/market-era";
 import { getLotClearCost, getLotClearDuration, getLotStatus } from "@/services/market-lots";
 import { getExperienceToNextLevel } from "@/services/progression";
 import { getActiveBoosts } from "@/services/shop-effects";
 import { getBoxCount, getCaseSize } from "@/data/case-sizes";
-import { getMaxBoxesPerOrder } from "@/data/supplier-capacity";
+import { getMaxBoxesPerOrder, getSupplierTrucks } from "@/data/supplier-capacity";
 import { getFreeBoxPlaces, getStockroomRoom } from "@/services/stockroom";
 import {
-	getActiveSupplierOrders,
+	EXTRA_PRODUCT_TIME_CAP,
+	EXTRA_PRODUCT_TIME_SHARE,
+	getSupplierSlotsInUse,
 	getOrderBoxes,
 	getOrderLines,
 	getSupplierCost,
@@ -310,16 +317,33 @@ export function createSimulatorSnapshot(
 		})),
 		supplierCatalog: createSupplierCatalog(state, now),
 		supplierInfo: {
-			slots: state.logistics.supplierOrderSlots,
-			active: getActiveSupplierOrders(state, now).length,
-			maxBoxes: getMaxBoxesPerOrder(state.logistics.supplierOrderSlots),
+			slots: getSupplierTrucks(state),
+			// The chain's fleet does not take a supplier truck.
+			active: getSupplierSlotsInUse(state, now),
+			maxBoxes: getMaxBoxesPerOrder(getSupplierTrucks(state)),
 			freightCoupons: state.logistics.freightCoupons,
+			// The saved cart (Lucas 11/11): the shop window adopts it when the revision moves without it.
+			cart: state.logistics.cart ?? [],
+			cartRevision: state.logistics.cartRevision ?? 0,
+			// Several products on one truck: average time × (1 + share per extra product, up to the cap).
+			extraProductShare: EXTRA_PRODUCT_TIME_SHARE,
+			extraProductCap: EXTRA_PRODUCT_TIME_CAP,
 		},
 		jobs: state.production.jobs,
 		delivery: createDeliverySnapshot(state),
 		paint: createMarketPaintSnapshot(state.marketPaint, state.era.id),
+		style: createMarketStyleSnapshot(state.marketStyle, state.era.id),
+		// Rede: the chain's name and logo (facade, totem, trucks, bags) and where each fleet truck is.
+		chain: createChainSnapshot(state.chain ?? createChainState(), state.era.id, Date.now()),
+		// "Ladrão e segurança": the thief inside (tap him while he runs) and the last outcome's toast.
+		security: createSecuritySnapshot(state, now),
+		// "Mascote caramelo": the dog at the door (offer / adopted), his mood and cosmetics.
+		pet: createPetSnapshot(state, now),
+		// Each customer carries their sex (customers saved before it: read from the name): Unity walks them in with
+		// a body of that sex, so the name on the checkout card matches the character (CheckoutBridge.NextAvailableWalker).
 		customers: state.market.recentCustomers.map((customer) => ({
 			...customer,
+			sex: customer.sex ?? sexOfCustomerName(customer.name),
 			purchases: customer.purchases?.map((purchase) => {
 				const recipe = productionRecipes.find(
 					(r) => r.outputProductId === purchase.productId,

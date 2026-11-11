@@ -2,6 +2,11 @@ import type { MarketEraId } from "@/@types/economy";
 import type { MissionDefinition } from "@/@types/mission";
 import { getMarketEra, getNextMarketEra } from "@/data/economy";
 
+// Some missions also give freight coupons (10% off one supplier order; Lucas 11/11), the player's only way to earn
+// them besides the daily gift (days 3 and 7) and the weekly event.
+// Diamonds for growing into the three long builds (Lucas 06/11: only a few missions give diamonds).
+const EXPANSION_DIAMONDS: Partial<Record<MarketEraId, number>> = { mercadinho: 10, supermercado: 15, hipermercado: 20 };
+
 export const missions: MissionDefinition[] = [
 	{
 		category: "progression",
@@ -33,7 +38,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-10",
 		metric: "level",
 		requiredLevel: 5,
-		reward: { coins: 2_500, items: [{ productId: 51, quantity: 3 }] },
+		reward: { diamonds: 5, coins: 2_500, items: [{ productId: 51, quantity: 3 }] },
 		title: "Dono do bairro",
 	},
 	{
@@ -55,7 +60,7 @@ export const missions: MissionDefinition[] = [
 		id: "level-22",
 		metric: "level",
 		requiredLevel: 16,
-		reward: { coins: 20_000, items: [{ productId: 19, quantity: 3 }] },
+		reward: { diamonds: 10, coins: 20_000, items: [{ productId: 19, quantity: 3 }] },
 		title: "Império varejista",
 	},
 	{
@@ -77,7 +82,7 @@ export const missions: MissionDefinition[] = [
 		id: "customers-25",
 		metric: "customersServed",
 		requiredLevel: 2,
-		reward: { coins: 500, items: [{ productId: 46, quantity: 4 }] },
+		reward: { freightCoupons: 1, coins: 500, items: [{ productId: 46, quantity: 4 }] },
 		title: "Movimento constante",
 	},
 	{
@@ -99,7 +104,7 @@ export const missions: MissionDefinition[] = [
 		id: "customers-350",
 		metric: "customersServed",
 		requiredLevel: 8,
-		reward: { coins: 4_000, items: [{ productId: 14, quantity: 6 }] },
+		reward: { freightCoupons: 2, coins: 4_000, items: [{ productId: 14, quantity: 6 }] },
 		title: "Fila no caixa",
 	},
 	{
@@ -110,7 +115,7 @@ export const missions: MissionDefinition[] = [
 		id: "customers-1000",
 		metric: "customersServed",
 		requiredLevel: 15,
-		reward: { coins: 12_000, items: [{ productId: 55, quantity: 4 }] },
+		reward: { diamonds: 5, coins: 12_000, items: [{ productId: 55, quantity: 4 }] },
 		title: "Mil clientes felizes",
 	},
 	{
@@ -132,7 +137,7 @@ export const missions: MissionDefinition[] = [
 		id: "buyers-75",
 		metric: "customersWhoBought",
 		requiredLevel: 4,
-		reward: { coins: 1_100, items: [{ productId: 49, quantity: 6 }] },
+		reward: { freightCoupons: 1, coins: 1_100, items: [{ productId: 49, quantity: 6 }] },
 		title: "Bom atendimento",
 	},
 	{
@@ -165,7 +170,7 @@ export const missions: MissionDefinition[] = [
 		id: "units-50",
 		metric: "unitsSold",
 		requiredLevel: 2,
-		reward: { coins: 650 },
+		reward: { freightCoupons: 1, coins: 650 },
 		title: "Giro de estoque",
 	},
 	{
@@ -187,7 +192,7 @@ export const missions: MissionDefinition[] = [
 		id: "units-750",
 		metric: "unitsSold",
 		requiredLevel: 10,
-		reward: { coins: 6_000, items: [{ productId: 25, quantity: 8 }] },
+		reward: { freightCoupons: 2, coins: 6_000, items: [{ productId: 25, quantity: 8 }] },
 		title: "Máquina de vendas",
 	},
 	{
@@ -220,7 +225,7 @@ export const missions: MissionDefinition[] = [
 		id: "revenue-5000",
 		metric: "revenue",
 		requiredLevel: 3,
-		reward: { coins: 900, items: [{ productId: 50, quantity: 6 }] },
+		reward: { freightCoupons: 1, coins: 900, items: [{ productId: 50, quantity: 6 }] },
 		title: "Boa margem",
 	},
 	{
@@ -231,7 +236,7 @@ export const missions: MissionDefinition[] = [
 		id: "revenue-25000",
 		metric: "revenue",
 		requiredLevel: 7,
-		reward: { coins: 3_500, items: [{ productId: 8, quantity: 6 }] },
+		reward: { freightCoupons: 2, coins: 3_500, items: [{ productId: 8, quantity: 6 }] },
 		title: "Resultado expressivo",
 	},
 	{
@@ -242,7 +247,7 @@ export const missions: MissionDefinition[] = [
 		id: "revenue-100000",
 		metric: "revenue",
 		requiredLevel: 13,
-		reward: { coins: 10_000, items: [{ productId: 17, quantity: 3 }] },
+		reward: { diamonds: 5, coins: 10_000, items: [{ productId: 17, quantity: 3 }] },
 		title: "Seis dígitos",
 	},
 	{
@@ -289,7 +294,7 @@ export const missions: MissionDefinition[] = [
 		id: "variety-8",
 		metric: "uniqueProductsSold",
 		requiredLevel: 4,
-		reward: { coins: 1_000 },
+		reward: { freightCoupons: 1, coins: 1_000 },
 		title: "Variedade na gôndola",
 	},
 	{
@@ -322,7 +327,7 @@ export const missions: MissionDefinition[] = [
 		id: "crafted-10",
 		metric: "productionCrafted",
 		requiredLevel: 20,
-		reward: { coins: 900, items: [{ productId: 7, quantity: 4 }] },
+		reward: { freightCoupons: 1, coins: 900, items: [{ productId: 7, quantity: 4 }] },
 		title: "Linha aquecida",
 	},
 	{
@@ -344,7 +349,7 @@ export const missions: MissionDefinition[] = [
 		id: "crafted-200",
 		metric: "productionCrafted",
 		requiredLevel: 27,
-		reward: { coins: 7_500, items: [{ productId: 27, quantity: 5 }] },
+		reward: { diamonds: 5, coins: 7_500, items: [{ productId: 27, quantity: 5 }] },
 		title: "Turno industrial",
 	},
 	{
@@ -377,7 +382,7 @@ export const missions: MissionDefinition[] = [
 		id: "inventory-75",
 		metric: "inventoryUnits",
 		requiredLevel: 3,
-		reward: { coins: 800, items: [{ productId: 47, quantity: 6 }] },
+		reward: { freightCoupons: 1, coins: 800, items: [{ productId: 47, quantity: 6 }] },
 		title: "Estoque seguro",
 	},
 	{
@@ -434,7 +439,7 @@ export const missions: MissionDefinition[] = [
 		id: "upgrades-5",
 		metric: "shelfUpgrades",
 		requiredLevel: 6,
-		reward: { coins: 1_800, items: [{ productId: 2, quantity: 5 }] },
+		reward: { freightCoupons: 1, coins: 1_800, items: [{ productId: 2, quantity: 5 }] },
 		title: "Loja otimizada",
 	},
 	{
@@ -445,7 +450,7 @@ export const missions: MissionDefinition[] = [
 		id: "upgrades-12",
 		metric: "shelfUpgrades",
 		requiredLevel: 12,
-		reward: { coins: 6_000, items: [{ productId: 17, quantity: 3 }] },
+		reward: { diamonds: 5, coins: 6_000, items: [{ productId: 17, quantity: 3 }] },
 		title: "Estrutura premium",
 	},
 	...expansionMissions(),
@@ -495,7 +500,8 @@ function expansionMissions(): MissionDefinition[] {
 				metric: "expansion",
 				requiredLevel: 1,
 				requiredEra: era,
-				reward: { coins: reward },
+				// the three long builds (supermercado, hipermercado, rede) also give a few diamonds
+				reward: { coins: reward, ...(EXPANSION_DIAMONDS[era] ? { diamonds: EXPANSION_DIAMONDS[era] } : {}) },
 				title: `Próxima expansão: ${next.name}`,
 			});
 		return list;

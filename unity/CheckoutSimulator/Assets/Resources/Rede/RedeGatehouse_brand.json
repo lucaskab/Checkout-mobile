@@ -1,0 +1,40 @@
+{
+ "model": "RedeGatehouse",
+ "tris": 4126,
+ "size": [
+  6.747,
+  3.152,
+  3.435
+ ],
+ "plates": [
+  {
+   "name": "Brand_Logo_Front.016",
+   "holder": "RedeGatehouse.004",
+   "kind": "logo",
+   "size": 0.26,
+   "text": 0,
+   "upper": false,
+   "color": "",
+   "pos": [
+    0.0,
+    2.57,
+    -0.915
+   ],
+   "normal": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "right": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  }
+ ]
+}

@@ -12,7 +12,7 @@ import {
 	sanitizeInteriorItems,
 } from "@/data/interior-decor";
 import type { CurrencyPurchaseState } from "@/@types/currency-purchase";
-import type { CustomerArchetype } from "@/@types/customer-simulation";
+import { pickCustomerIdentity } from "@/data/customer-names";
 import type { EmployeeRole, GameEmployeesState } from "@/@types/employee";
 import type {
 	GameInventory,
@@ -88,9 +88,13 @@ import {
 	shelfProductSlots,
 } from "@/data/shelf-slots";
 import { retiredShopItemIds, shopItems } from "@/data/shop-items";
+import { getCheckoutCount, getKioskCount, KIOSK_INTERVAL_MS } from "@/data/checkout-lanes";
 import {
-	getNextSupplierOrderSlotUpgrade,
+	getNextTruckDiamondPrice,
+	getSupplierTrucks,
 	initialSupplierOrderSlots,
+	MAX_SUPPLIER_TRUCKS,
+	migrateOwnedTrucks,
 	normalizeSupplierOrderSlots,
 } from "@/data/supplier-capacity";
 import {
@@ -111,7 +115,8 @@ import {
 	enqueueCheckout,
 	expireCheckouts,
 	markCheckoutArrived,
-	nextAutoCheckout,
+	nextAutoCheckouts,
+	AUTO_CASHIER_INTERVAL_MS,
 	normalizeCheckoutCounterState,
 } from "@/services/checkout-counter";
 import {
@@ -195,10 +200,12 @@ import {
 } from "@/services/inventory-lots";
 import { getOrderSkipCost, getSupplierOrderStatus } from "@/services/logistics";
 import { getSkipDiamondCost } from "@/data/diamond-skip";
-import { createRewardedAdsState, creditPlacementAd, normalizeRewardedAdsState, rewardAd } from "@/services/rewarded-ads";
+import { createRewardedAdsState, creditPlacementAd, normalizeRewardedAdsState, rewardAd, rewardCoinAd } from "@/services/rewarded-ads";
+import { createAppPromptsState, noteReviewAsked, normalizeAppPromptsState, shouldAskForReview, snoozeUpdate } from "@/services/app-prompts";
 import { canClaimConsolation, rollConsolation } from "@/services/contract-pressure";
 import { getCurrencyPack, getCurrencyPackCoins } from "@/data/currency-packs";
 import { getMissionProgress, getMissionRewardPlan, getNewlyReachedMissionIds } from "@/services/missions";
+import { getLevelRewards } from "@/data/level-rewards";
 import { getProductionDiamondCost } from "@/services/production";
 import {
 	applyExperience,
@@ -293,7 +300,9 @@ import {
 	getDayKey,
 	getLoginReward,
 	getNextLoginDay,
+	getStreakRecovery,
 	normalizeDailyLoginState,
+	recoverStreak,
 } from "@/services/daily-login";
 import {
 	applyProductLevel,
@@ -333,10 +342,22 @@ import {
 	isBuiltShopItem,
 	normalizeBuiltSectorIds,
 	normalizeInteriorConstructions,
+	isStallBuiltInShelf,
+	placeStallBuiltIns,
 	sectorBuildPlans,
 	shopItemBuildDurations,
 } from "@/data/interior-construction";
 import { getMaxBoxesPerOrder } from "@/data/supplier-capacity";
+import { MAX_CART_LINES, normalizeSupplierCart } from "@/services/supplier-cart";
+import { getMaxShelfOrderBoxes } from "@/services/shelf-order-quote";
+import {
+	createPerksState,
+	getNextOfflineCap,
+	getOfflineCapMs,
+	getOfflineTriplePrice,
+	normalizePerksState,
+	STARTER_PACK_ID,
+} from "@/services/perks";
 import {
 	getOrderLines,
 	getSupplierCartQuote,
@@ -360,9 +381,19 @@ import {
 	getMarketPaintCoinPrice,
 	MARKET_PAINT_DIAMONDS,
 	normalizeHex,
+	isOwnedPaint,
 	normalizeMarketPaintState,
 	withAppliedPaint,
 } from "@/data/market-paint";
+import {
+	createMarketStyleState,
+	getMarketStylePrice,
+	isMarketStyleUnlocked,
+	isSameMarketStyle,
+	normalizeMarketStyleChoice,
+	normalizeMarketStyleState,
+	styleKey,
+} from "@/data/market-style";
 import {
 	advanceDeliveryOrder,
 	applyLateCancelToRating,
@@ -390,6 +421,58 @@ import {
 	settleDelivery,
 	trimDeliveryOrders,
 } from "@/services/delivery";
+import type { ChainBranchId, FleetJobKind, FleetTruckKind } from "@/@types/chain";
+import {
+	addTruck,
+	checkChainName,
+	chooseBranchCargo,
+	createChainState,
+	getBranchNextStep,
+	getBranchTripMs,
+	getContractShortfall,
+	getNextSpeedPrice,
+	getNextTruckPrice,
+	getTripFactor,
+	isChainEmblem,
+	isChainUnlocked,
+	normalizeChainState,
+	pickTruck,
+	refreshContracts,
+	releaseTrucks,
+	updateBranch,
+	updateBranches,
+	withTruckJob,
+} from "@/services/chain";
+import {
+	AUTO_ORDER_EVERY_MS,
+	AUTO_ORDER_RESERVE,
+	CHAIN_RENAME_DIAMONDS,
+	DC_MAX_BOXES,
+	FLEET_RETURN_SHARE,
+	privateLabelProducts,
+} from "@/data/chain";
+// "Ladrão e segurança" and "Mascote caramelo" (rules in their own services).
+import {
+	applySecurityEffects,
+	catchStoreThief,
+	createStoreSecurityState,
+	getTillCash,
+	normalizeStoreSecurityState,
+	processSecurityTick,
+	spawnThiefNow,
+	withExperience,
+} from "@/services/store-security";
+import {
+	adoptPetRule,
+	checkPetPurchase,
+	createPetState,
+	equipPetCosmeticRule,
+	getPetArrivalMultiplier,
+	normalizePetState,
+	petDogRule,
+	withPetCosmetic,
+} from "@/services/store-pet";
+import { PET_EXPERIENCE, petCosmetics } from "@/data/pet";
 
 // A new game: a few crates of what the sidewalk table sells (tomato, lettuce, banana, water, soda).
 const initialInventory: GameInventory = {
@@ -480,6 +563,8 @@ const initialLogisticsState: LogisticsState = {
 	orders: [],
 	premiumCurrency: 10,
 	supplierOrderSlots: initialSupplierOrderSlots,
+	cart: [],
+	cartRevision: 0,
 };
 
 const initialMarketState: GameMarketState = {
@@ -509,6 +594,8 @@ const initialGameState: GameState = {
 	productLevels: {},
 	dailyLogin: createDailyLoginState(),
 	rewardedAds: createRewardedAdsState(),
+	appPrompts: createAppPromptsState(),
+	perks: createPerksState(),
 	albumClaimedIds: [],
 	weeklyEvent: createWeeklyEventState(),
 	lots: createLotsState(),
@@ -552,8 +639,12 @@ const initialGameState: GameState = {
 	delivery: createInitialDeliveryState(),
 	onboarding: createOnboardingState(),
 	marketPaint: createMarketPaintState(),
+	marketStyle: createMarketStyleState(),
 	social: createSocialState(),
 	rankings: createRankingsState(),
+	chain: createChainState(),
+	security: createStoreSecurityState(),
+	pet: createPetState(),
 };
 
 function getInitialGameState(): GameState {
@@ -562,6 +653,8 @@ function getInitialGameState(): GameState {
 		productLevels: {},
 		dailyLogin: createDailyLoginState(),
 		rewardedAds: createRewardedAdsState(),
+		appPrompts: createAppPromptsState(),
+	perks: createPerksState(),
 		albumClaimedIds: [],
 		weeklyEvent: createWeeklyEventState(),
 		lots: createLotsState(),
@@ -597,6 +690,8 @@ function getInitialGameState(): GameState {
 			...initialGameState.logistics,
 			orders: [...initialGameState.logistics.orders],
 			supplierOrderSlots: initialGameState.logistics.supplierOrderSlots,
+			cart: [],
+			cartRevision: 0,
 		},
 		market: {
 			...initialGameState.market,
@@ -646,8 +741,12 @@ function getInitialGameState(): GameState {
 		delivery: createInitialDeliveryState(),
 		onboarding: createOnboardingState(),
 		marketPaint: createMarketPaintState(),
+		marketStyle: createMarketStyleState(),
 		social: createSocialState(),
 		rankings: createRankingsState(),
+		chain: createChainState(),
+		security: createStoreSecurityState(),
+		pet: createPetState(),
 	};
 }
 
@@ -882,15 +981,17 @@ function migrateGameState(persistedState: unknown): GameState {
 	// (49: evolutions take time; the queue of the evolution crew)
 	const evolutions = normalizeEvolutions(state.evolutions);
 	const persistedShop = state.shop?.ownedItemIds ?? [];
-	// Works that already finished (or whose target exists) are dropped.
-	const interiorConstructions = normalizeInteriorConstructions(
-		state.interiorConstructions,
-	).filter((item) =>
-		item.kind === "sector"
-			? !builtSectorIds.includes(item.targetId as ProductionSectorId)
-			: item.kind === "shop"
-				? !persistedShop.includes(item.targetId)
-				: getShelfSlotCount(item.targetId, shelfSlotCounts) <= 0,
+	// Works that already finished (or whose target exists) are dropped. A shelf that is part of the current stall
+	// (the banca's refrigerated display...) never waits in the inventory: it has no spot to pick in build mode.
+	const interiorConstructions = placeStallBuiltIns(
+		normalizeInteriorConstructions(state.interiorConstructions).filter((item) =>
+			item.kind === "sector"
+				? !builtSectorIds.includes(item.targetId as ProductionSectorId)
+				: item.kind === "shop"
+					? !persistedShop.includes(item.targetId)
+					: getShelfSlotCount(item.targetId, shelfSlotCounts) <= 0,
+		),
+		(state as Partial<GameState>).era?.id,
 	);
 	const supplierOrderSlots = normalizeSupplierOrderSlots(
 		state.logistics?.supplierOrderSlots,
@@ -918,6 +1019,10 @@ function migrateGameState(persistedState: unknown): GameState {
 		productLevels: normalizeProductLevels(state.productLevels),
 		dailyLogin: normalizeDailyLoginState(state.dailyLogin),
 		rewardedAds: normalizeRewardedAdsState(state.rewardedAds),
+		// Review sheet and update prompt (Lucas 10/11); older saves start fresh.
+		appPrompts: normalizeAppPromptsState((state as Partial<GameState>).appPrompts),
+		// Pacote inicial and the longer time away (Lucas 11/11); older saves start fresh.
+		perks: normalizePerksState((state as Partial<GameState>).perks),
 		weeklyEvent: normalizeWeeklyEventState(state.weeklyEvent),
 		// Saves from before the land get the lots their expansion already stands on.
 		lots: normalizeLotsState(
@@ -959,6 +1064,9 @@ function migrateGameState(persistedState: unknown): GameState {
 				state.logistics?.premiumCurrency ??
 				initialGameState.logistics.premiumCurrency,
 			supplierOrderSlots,
+			// The supplier cart (Lucas 11/11) is saved: what the player put in it waits for a free truck.
+			cart: normalizeSupplierCart(state.logistics?.cart),
+			cartRevision: Math.max(0, Math.floor(Number(state.logistics?.cartRevision) || 0)),
 		},
 		market: {
 			...initialGameState.market,
@@ -1021,10 +1129,17 @@ function migrateGameState(persistedState: unknown): GameState {
 		}),
 		// 47: "Cores do mercado". Older saves (no field) keep the classic navy and gold.
 		marketPaint: normalizeMarketPaintState(state.marketPaint),
+		marketStyle: normalizeMarketStyleState(state.marketStyle),
 		// 50: social v1. Older saves (no field) start with an empty slice; nothing else changes.
 		social: normalizeSocialState(state.social),
 		// Rankings v1 (no version bump): older saves (no field) start this week with no league points.
 		rankings: normalizeRankingsState(state.rankings),
+		// 51: Rede de supermercados (brand, distribution centre, fleet, contracts, branches). Older saves (no field)
+		// get a fresh chain; a save already in the rede is asked to name it the next time the game opens.
+		chain: normalizeChainState(state.chain),
+		// Thief and store dog (no version bump): older saves (no field) start with a fresh slice; nothing else changes.
+		security: normalizeStoreSecurityState(state.security),
+		pet: normalizePetState(state.pet),
 	};
 }
 
@@ -1043,17 +1158,36 @@ export const useGameStore = create<GameStore>()(
 				if (!replace && phaseBefore === "open" && ended?.phase === "results" && ended.result)
 					rawSet({ rankings: addLeaguePoints(get().rankings, dayLeaguePoints(ended.result), Date.now()) });
 				const market = get().market;
-				if (!replace && market.level > before)
+				if (!replace && market.level > before) {
+					// A prize on every level (src/data/level-rewards.ts): coins, diamonds now and then, a decoration
+					// on the levels that unlock nothing else; added up in the celebration until it is closed.
+					const now = get();
+					const prizes = getLevelRewards(before, market.level, now.era.id, now.interior.owned);
+					const coins = prizes.reduce((sum, prize) => sum + prize.coins, 0);
+					const diamonds = prizes.reduce((sum, prize) => sum + prize.diamonds, 0);
+					const decorIds = prizes.flatMap((prize) => (prize.decorId ? [prize.decorId] : []));
+					const owned = { ...now.interior.owned };
+					for (const id of decorIds) owned[id] = (owned[id] ?? 0) + 1;
+					const earlier = market.levelUp?.rewards ?? { coins: 0, diamonds: 0, decorIds: [] };
 					rawSet({
+						coins: now.coins + coins,
+						logistics: { ...now.logistics, premiumCurrency: now.logistics.premiumCurrency + diamonds },
+						...(decorIds.length ? { interior: { ...now.interior, owned } } : {}),
 						market: {
 							...market,
 							levelUp: {
 								from: Math.min(market.levelUp?.from ?? before, before),
 								to: market.level,
 								at: Date.now(),
+								rewards: {
+									coins: earlier.coins + coins,
+									diamonds: earlier.diamonds + diamonds,
+									decorIds: [...earlier.decorIds, ...decorIds],
+								},
 							},
 						},
 					});
+				}
 			}) as typeof rawSet;
 			// Spending diamonds: when the player has too few, the HUD opens the diamond store (Lucas 12/10) — the
 			// shortfall is left here (not saved) for the host / app to react to (desktop/host.ts, use-simulator.ts).
@@ -1094,9 +1228,24 @@ export const useGameStore = create<GameStore>()(
 				if (update) set(update);
 				return Boolean(update);
 			},
+			// Closing a celebration; the arrival of an expansion (banca on) may also ask for a store rating, at most
+			// once every 30 days (src/services/app-prompts.ts): then it returns "review" and the host asks Unity.
 			dismissCelebration: (id) => {
-				const list = get().celebrations ?? [];
-				if (list.some((item) => item.id === id)) set({ celebrations: list.filter((item) => item.id !== id) });
+				const state = get();
+				const list = state.celebrations ?? [];
+				const item = list.find((entry) => entry.id === id);
+				if (!item) return;
+				const review =
+					item.kind === "era" &&
+					shouldAskForReview(state.appPrompts, item.targetId, { onboardingActive: state.onboarding?.status === "active" });
+				set({ celebrations: list.filter((entry) => entry.id !== id), ...(review ? { appPrompts: noteReviewAsked(state.appPrompts) } : {}) });
+				return review ? "review" : undefined;
+			},
+			// "Agora não" on the new-version card: that version is not offered again for 2 days.
+			snoozeAppUpdate: (version) => {
+				if (typeof version !== "string" || !version) return false;
+				set({ appPrompts: snoozeUpdate(get().appPrompts, version) });
+				return true;
 			},
 			claimDailyGoal: () => {
 				const { coins, daily, market } = get();
@@ -1120,10 +1269,9 @@ export const useGameStore = create<GameStore>()(
 			processSessionResume: () => {
 				const state = get();
 				const now = Date.now();
-				const elapsedMs = Math.min(
-					Math.max(0, now - state.lastSessionAt),
-					8 * 60 * 60_000,
-				);
+				// Up to 8 h away sell (12 h or 24 h bought once with diamonds: src/services/perks.ts).
+				const capMs = getOfflineCapMs(state.perks);
+				const elapsedMs = Math.min(Math.max(0, now - state.lastSessionAt), capMs);
 
 				if (elapsedMs < 60_000) {
 					set({ lastSessionAt: now });
@@ -1145,7 +1293,7 @@ export const useGameStore = create<GameStore>()(
 				// Only what is on the shelves sells: each offline customer takes one unit, so empty shelves sell
 				// nothing (QA 16/10).
 				const away = state.market.isOpen
-					? getOfflineEraIncome(get().era, elapsedMs, averageTicket)
+					? getOfflineEraIncome(get().era, elapsedMs, averageTicket, capMs)
 					: { coins: 0, customers: 0 };
 				const shelfStock = { ...(state.shelfStock ?? {}) } as GameShelfStock;
 				const stocked = Object.values(shelfStock).reduce((total, units) => total + Math.max(0, units ?? 0), 0);
@@ -1200,6 +1348,8 @@ export const useGameStore = create<GameStore>()(
 									coins: offlineCoins,
 									customers,
 									durationMs: elapsedMs,
+									// The time away reached the limit: the card offers a longer one.
+									capped: now - state.lastSessionAt >= capMs,
 								} satisfies OfflineRewardSummary)
 							: null,
 				});
@@ -1211,6 +1361,90 @@ export const useGameStore = create<GameStore>()(
 				return customers > 0 || offlineCoins > 0;
 			},
 			dismissOfflineSummary: () => set({ offlineSummary: null }),
+			// "2× com vídeo" on the way back: the coins of the time away once more (Lucas 11/11).
+			claimOfflineAd: (adId) => {
+				const summary = get().offlineSummary;
+				if (!summary || summary.coins <= 0) return null;
+				const ads = creditPlacementAd(get().rewardedAds, adId);
+				if (!ads) return null;
+				set({ coins: get().coins + summary.coins, offlineSummary: null, rewardedAds: ads });
+				return summary.coins;
+			},
+			// "3× com diamantes": twice more (4 diamonds per hour away).
+			tripleOfflineCoins: () => {
+				const summary = get().offlineSummary;
+				if (!summary || summary.coins <= 0) return false;
+				const price = getOfflineTriplePrice(summary.durationMs);
+				if (!enoughDiamonds(price)) return false;
+				const { logistics } = get();
+				set({
+					coins: get().coins + summary.coins * 2,
+					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - price },
+					offlineSummary: null,
+				});
+				return true;
+			},
+			// The market sells for longer while the player is away (8 h → 12 h → 24 h), bought once with diamonds.
+			buyOfflineCap: () => {
+				const perks = normalizePerksState(get().perks);
+				const next = getNextOfflineCap(perks);
+				if (!next || !enoughDiamonds(next.price)) return false;
+				const { logistics } = get();
+				set({
+					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - next.price },
+					perks: { ...perks, offlineCapLevel: perks.offlineCapLevel + 1 },
+				});
+				return true;
+			},
+			// The starter pack's 48 h begin once the tutorial is over (the host calls it; true the one time it begins).
+			startStarterOffer: (now = Date.now()) => {
+				const state = get();
+				const perks = normalizePerksState(state.perks);
+				if (perks.starterStartedAt > 0 || state.onboarding?.status === "active") return false;
+				if ((state.currencyPurchases.purchasedPackIds ?? []).includes(STARTER_PACK_ID)) return false;
+				set({ perks: { ...perks, starterStartedAt: now } });
+				return true;
+			},
+			// QA (Unity "eventsperks"): the card of 8 h away and a streak broken by one day.
+			devPreviewPerks: () => {
+				if (!__DEV__) return false;
+				const day = 24 * 60 * 60_000;
+				set({
+					offlineSummary: { coins: 480, customers: 36, durationMs: 8 * 60 * 60_000, capped: true },
+					dailyLogin: { lastClaimDay: getDayKey(Date.now() - 2 * day), streak: 4 },
+				});
+				return true;
+			},
+			noteStarterShown: () => {
+				const perks = normalizePerksState(get().perks);
+				if (perks.starterShown) return false;
+				set({ perks: { ...perks, starterShown: true } });
+				return true;
+			},
+			// "Recuperar sequência" of the daily gift: 10 diamonds per missed day (1 to 3).
+			recoverLoginStreak: () => {
+				const now = Date.now();
+				const login = get().dailyLogin ?? createDailyLoginState();
+				const offer = getStreakRecovery(login, now);
+				if (!offer || !enoughDiamonds(offer.diamonds)) return false;
+				const { logistics } = get();
+				set({
+					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - offer.diamonds },
+					dailyLogin: recoverStreak(login, now),
+				});
+				return true;
+			},
+			// …or a video, when it was a single missed day.
+			claimStreakAd: (adId) => {
+				const now = Date.now();
+				const login = get().dailyLogin ?? createDailyLoginState();
+				const offer = getStreakRecovery(login, now);
+				if (!offer?.video) return false;
+				const ads = creditPlacementAd(get().rewardedAds, adId, now);
+				if (!ads) return false;
+				set({ dailyLogin: recoverStreak(login, now), rewardedAds: ads });
+				return true;
+			},
 			activateLogisticsBoost: () => {
 				const { logistics } = get();
 
@@ -1228,35 +1462,69 @@ export const useGameStore = create<GameStore>()(
 
 				return true;
 			},
-			upgradeSupplierOrderSlots: (currency: SupplierOrderSlotCurrency) => {
-				const { coins, logistics, market } = get();
-				const nextUpgrade = getNextSupplierOrderSlotUpgrade(
-					logistics.supplierOrderSlots,
-				);
-
-				if (!nextUpgrade || market.level < nextUpgrade.playerLevel) {
-					return false;
-				}
-
-				if (
-					(currency === "coins" && coins < nextUpgrade.coinCost) ||
-					(currency === "diamonds" && !enoughDiamonds(nextUpgrade.diamondCost))
-				) {
-					return false;
-				}
-
+			// One more supplier truck, bought with diamonds (Lucas 11/11; the free ones come with the level and the
+			// expansions, src/data/supplier-capacity.ts). Coins no longer buy trucks.
+			upgradeSupplierOrderSlots: (currency: SupplierOrderSlotCurrency = "diamonds") => {
+				const state = get();
+				const price = getNextTruckDiamondPrice(state);
+				if (currency !== "diamonds" || price === null || getSupplierTrucks(state) >= MAX_SUPPLIER_TRUCKS) return false;
+				if (!enoughDiamonds(price)) return false;
+				const { logistics } = get();
 				set({
-					coins: currency === "coins" ? coins - nextUpgrade.coinCost : coins,
 					logistics: {
 						...logistics,
-						premiumCurrency:
-							currency === "diamonds"
-								? logistics.premiumCurrency - nextUpgrade.diamondCost
-								: logistics.premiumCurrency,
-						supplierOrderSlots: nextUpgrade.slots,
+						premiumCurrency: logistics.premiumCurrency - price,
+						supplierOrderSlots: normalizeSupplierOrderSlots(logistics.supplierOrderSlots + 1),
 					},
 				});
-
+				return true;
+			},
+			// The supplier cart (Lucas 11/11): every "Pedir caixas" button puts boxes here, and one order takes them all.
+			// Adds as many of `boxes` as still fit (room in the stockroom, the truck, the coins); false when none did.
+			addToSupplierCart: ({ productId, boxes }) => {
+				const state = get();
+				const wanted = Math.floor(Number(boxes));
+				const product = itemCatalog.find((item) => item.id === productId);
+				if (!product || product.acquisition !== "supplier" || product.privateLabel || !state.market.unlockedProductIds.includes(productId))
+					return false;
+				if (!Number.isFinite(wanted) || wanted < 1) return false;
+				const cart = state.logistics.cart ?? [];
+				if (!cart.some((line) => line.productId === productId) && cart.length >= MAX_CART_LINES) return false;
+				const fits = Math.min(wanted, getMaxShelfOrderBoxes(state, productId));
+				if (fits < 1) return false;
+				const next = cart.some((line) => line.productId === productId)
+					? cart.map((line) => (line.productId === productId ? { ...line, boxes: line.boxes + fits } : line))
+					: [...cart, { productId, boxes: fits }];
+				set({
+					logistics: { ...state.logistics, cart: normalizeSupplierCart(next), cartRevision: (state.logistics.cartRevision ?? 0) + 1 },
+				});
+				return true;
+			},
+			// The whole cart at once (the shop window sends it after every + / − / remove). Always counts as a change.
+			setSupplierCart: (lines) => {
+				const { logistics } = get();
+				set({
+					logistics: { ...logistics, cart: normalizeSupplierCart(lines), cartRevision: (logistics.cartRevision ?? 0) + 1 },
+				});
+				return true;
+			},
+			removeFromSupplierCart: (productId) => {
+				const { logistics } = get();
+				const cart = logistics.cart ?? [];
+				if (!cart.some((line) => line.productId === productId)) return false;
+				set({
+					logistics: {
+						...logistics,
+						cart: cart.filter((line) => line.productId !== productId),
+						cartRevision: (logistics.cartRevision ?? 0) + 1,
+					},
+				});
+				return true;
+			},
+			clearSupplierCart: () => {
+				const { logistics } = get();
+				if (!(logistics.cart ?? []).length) return false;
+				set({ logistics: { ...logistics, cart: [], cartRevision: (logistics.cartRevision ?? 0) + 1 } });
 				return true;
 			},
 			// "Finalizar": the truck parks at the dock now, paid in diamonds for the time it still had to go (the same
@@ -1324,6 +1592,15 @@ export const useGameStore = create<GameStore>()(
 
 				set({
 					coins: state.coins + plan.coins,
+					...(plan.diamonds > 0 || plan.coupons > 0
+						? {
+								logistics: {
+									...state.logistics,
+									premiumCurrency: state.logistics.premiumCurrency + plan.diamonds,
+									freightCoupons: state.logistics.freightCoupons + plan.coupons,
+								},
+							}
+						: {}),
 					inventory,
 					inventoryLots,
 					missions: {
@@ -1621,6 +1898,7 @@ export const useGameStore = create<GameStore>()(
 					logistics: {
 						...get().logistics,
 						premiumCurrency: get().logistics.premiumCurrency + reward.diamonds,
+						freightCoupons: get().logistics.freightCoupons + reward.coupons,
 					},
 					weeklyEvent: { ...weekly, claimed: true },
 				});
@@ -1690,6 +1968,8 @@ export const useGameStore = create<GameStore>()(
 					logistics: {
 						...get().logistics,
 						premiumCurrency: get().logistics.premiumCurrency + reward.diamonds,
+						// Days 3 and 7 also give a freight coupon (the video that doubles the gift does not double it).
+						freightCoupons: get().logistics.freightCoupons + reward.coupons,
 					},
 					dailyLogin: { lastClaimDay: getDayKey(now), streak: day },
 				});
@@ -1733,6 +2013,36 @@ export const useGameStore = create<GameStore>()(
 					unlockedMarketExpansionIds: [...ERA_BUILDING_EXPANSIONS[eraId]],
 					marketExpansionConstruction: null,
 				});
+				return true;
+			},
+			devAdvanceOrders: (progress: number) => {
+				if (!Number.isFinite(progress) || progress <= 0 || progress >= 1) return false;
+				const { logistics } = get();
+				const now = Date.now();
+				set({
+					logistics: {
+						...logistics,
+						orders: logistics.orders.map((order) =>
+							order.deliveredAt || (now - order.createdAt) / order.deliveryDurationMs >= progress
+								? order
+								: { ...order, createdAt: now - order.deliveryDurationMs * progress },
+						),
+					},
+				});
+				get().processSupplierOrders();
+				return true;
+			},
+			// QA (Rede): a parked fleet truck leaves on a job of `kind` for `tripSeconds` each way (no cargo moves).
+			devFleetJob: (truckId: string, kind: string, tripSeconds: number) => {
+				const state = get();
+				if (!isChainUnlocked(state.era.id) || !Number.isFinite(tripSeconds) || tripSeconds <= 0) return false;
+				if (kind !== "contrato" && kind !== "filial" && kind !== "abastecer") return false;
+				const now = Date.now();
+				const chain = releaseTrucks(state.chain, now);
+				const truck = chain.fleet.trucks.find((item) => item.id === truckId);
+				if (!truck || truck.job) return false;
+				const trip = Math.round(tripSeconds * 1000);
+				set({ chain: withTruckJob(chain, truckId, { kind: kind as FleetJobKind, refId: "dev", departAt: now, arriveAt: now + trip, returnAt: now + trip * 2 }) });
 				return true;
 			},
 			devPassTime: (hours: number) => {
@@ -1863,6 +2173,10 @@ export const useGameStore = create<GameStore>()(
 				const sameRoleCount = employees.employees.filter(
 					(employee) => employee.role === role,
 				).length;
+				// One cashier per checkout (src/data/checkout-lanes.ts): a new cashier needs a counter to stand at.
+				if (role === "cashier" && sameRoleCount >= getCheckoutCount(get().shop.ownedItemIds)) return false;
+				// One security guard watches the door.
+				if (role === "security" && sameRoleCount >= 1) return false;
 
 				set({
 					coins: coins - definition.hireCost,
@@ -1900,6 +2214,13 @@ export const useGameStore = create<GameStore>()(
 					logistics: { ...current.logistics, premiumCurrency: current.logistics.premiumCurrency + result.diamonds },
 				}));
 				return result.diamonds;
+			},
+			// A coin video watched to the end (Lucas 10/11): coins by the player's level, 7 a day apart from the diamonds.
+			claimRewardedCoinAd: (adId) => {
+				const result = rewardCoinAd(get().rewardedAds, adId, get().market.level);
+				if (result.coins <= 0) return null;
+				set((current) => ({ rewardedAds: result.state, coins: current.coins + result.coins }));
+				return result.coins;
 			},
 			applySocialInbox: (items, now = Date.now()) => {
 				const state = get();
@@ -2008,7 +2329,11 @@ export const useGameStore = create<GameStore>()(
 				}
 				const coins = getCurrencyPackCoins(pack, state.era?.id);
 				const diamonds = pack.diamonds;
+				// Pacote inicial (Lucas 11/11): also a truck, freight coupons and a bandana for the dog.
+				const extras = pack.extras ?? {};
+				const bandana = extras.petCosmeticId ? petCosmetics.find((item) => item.id === extras.petCosmeticId) : undefined;
 				set((current) => ({
+					...(bandana ? { pet: withPetCosmetic(normalizePetState(current.pet), bandana) } : {}),
 					coins: current.coins + coins,
 					currencyPurchases: {
 						processedTransactionIds: [
@@ -2020,6 +2345,8 @@ export const useGameStore = create<GameStore>()(
 					logistics: {
 						...current.logistics,
 						premiumCurrency: current.logistics.premiumCurrency + diamonds,
+						freightCoupons: current.logistics.freightCoupons + (extras.freightCoupons ?? 0),
+						supplierOrderSlots: normalizeSupplierOrderSlots(current.logistics.supplierOrderSlots + (extras.trucks ?? 0)),
 					},
 					// Whatever the player was short of is sorted: no store popping up again.
 					diamondShortfall: null,
@@ -2079,12 +2406,35 @@ export const useGameStore = create<GameStore>()(
 					lines: quote.lines,
 					status: "em-producao",
 					totalCost: quote.total,
+					...(quote.fleetTruckId ? { fleetTruckId: quote.fleetTruckId } : {}),
 				};
+				// Rede: the fleet truck is out until it unloads at the market and drives back to the centre.
+				const chain = quote.fleetTruckId
+					? withTruckJob(get().chain, quote.fleetTruckId, {
+							kind: "abastecer",
+							refId: order.id,
+							departAt: now,
+							arriveAt: now + quote.deliveryDurationMs,
+							returnAt: now + Math.round(quote.deliveryDurationMs * (1 + FLEET_RETURN_SHARE)),
+						})
+					: get().chain;
 
+				// What the truck took leaves the cart (the rest stays for the next truck).
+				const cartBefore = logistics.cart ?? [];
+				const cartAfter = cartBefore
+					.map((line) => {
+						const taken = quote.lines.find((item) => item.productId === line.productId)?.boxes ?? 0;
+						return { ...line, boxes: line.boxes - taken };
+					})
+					.filter((line) => line.boxes > 0);
+				const cartChanged =
+					cartAfter.length !== cartBefore.length || cartAfter.some((line, index) => line.boxes !== cartBefore[index].boxes);
 				set({
+					chain,
 					coins: coins - quote.total,
 					logistics: {
 						...logistics,
+						...(cartChanged ? { cart: cartAfter, cartRevision: (logistics.cartRevision ?? 0) + 1 } : {}),
 						freightCoupons: quote.couponUsed
 							? logistics.freightCoupons - 1
 							: logistics.freightCoupons,
@@ -2223,7 +2573,18 @@ export const useGameStore = create<GameStore>()(
 				if (!item?.isConsumable || !item.durationMs) return false;
 				if ((shop.consumableAmounts[item.id] ?? 0) <= 0) return false;
 				const now = Date.now();
-				// Using one more while it runs adds its time to what is left.
+				// Using one more while it runs adds its time to what is left. With the market closed it waits for the doors
+				// to open (it only runs while customers come in).
+				if (!get().market.isOpen) {
+					set({
+						shop: {
+							...shop,
+							pausedBoosts: { ...(shop.pausedBoosts ?? {}), [item.id]: (shop.pausedBoosts?.[item.id] ?? 0) + item.durationMs },
+							consumableAmounts: { ...shop.consumableAmounts, [item.id]: (shop.consumableAmounts[item.id] ?? 0) - 1 },
+						},
+					});
+					return true;
+				}
 				const endsAt = Math.max(now, shop.activeBoosts?.[item.id] ?? 0) + item.durationMs;
 				set({
 					shop: {
@@ -2699,14 +3060,16 @@ export const useGameStore = create<GameStore>()(
 				});
 				return true;
 			},
-			orderLowStock: () => {
+			orderLowStock: (via) => {
 				// Emptiest first, so the products about to run out get the trucks.
+				const fleet = via === "frota";
 				const state = get();
 				const now = Date.now();
 				const low = itemCatalog
 					.filter(
 						(product) =>
 							product.acquisition === "supplier" &&
+							(fleet || !product.privateLabel) &&
 							state.market.unlockedProductIds.includes(product.id),
 					)
 					.map((product) => ({
@@ -2718,14 +3081,17 @@ export const useGameStore = create<GameStore>()(
 					.filter((item) => item.share < LOW_STOCK_SHARE)
 					.sort((a, b) => a.share - b.share);
 				// One truck: every low product gets the most boxes that still fit the truck, the racks and the coins.
-				const maxBoxes = getMaxBoxesPerOrder(state.logistics.supplierOrderSlots);
+				const maxBoxes = fleet ? DC_MAX_BOXES : getMaxBoxesPerOrder(getSupplierTrucks(state));
 				const lines: PlaceSupplierCartInput["lines"] = [];
 				let boxes = 0;
 				for (const { product } of low) {
 					if (boxes >= maxBoxes) break;
 					const fits = (count: number) =>
-						getSupplierCartQuote(state, { lines: [...lines, { productId: product.id, boxes: count }] }, now)
-							.reason === null;
+						getSupplierCartQuote(
+							state,
+							{ lines: [...lines, { productId: product.id, boxes: count }], ...(fleet ? { via: "frota" as const } : {}) },
+							now,
+						).reason === null;
 					const free = getFreeBoxPlaces(
 						product,
 						state.inventory[product.id] ?? 0,
@@ -2745,7 +3111,7 @@ export const useGameStore = create<GameStore>()(
 						boxes += most;
 					}
 				}
-				return lines.length > 0 && get().placeSupplierCart({ lines });
+				return lines.length > 0 && get().placeSupplierCart({ lines, ...(fleet ? { via: "frota" as const } : {}) });
 			},
 			unloadAllDeliveries: () => {
 				let moved = false;
@@ -3282,7 +3648,9 @@ export const useGameStore = create<GameStore>()(
 					// Baskets and carts on the map: each customer takes the smallest that holds their plan.
 					carriers: decorEffects.carriers,
 					// Customers pay the shelf price: the era makes them richer (budget), never the goods dearer.
-					revenueMultiplier: shopEffects.revenueMultiplier * eventEffects.revenueMultiplier,
+					// (the ATM: customers who drew cash spend it — +15% on what they buy, +20/25% at its higher tiers; as a
+					// money ceiling alone it rarely changed anything, audit 05/11)
+					revenueMultiplier: shopEffects.revenueMultiplier * eventEffects.revenueMultiplier * decorEffects.spendMultiplier,
 					categoryRevenueBonuses: shopEffects.categoryRevenueBonuses,
 					seed: market.randomSeed,
 					storeReputation:
@@ -3440,7 +3808,9 @@ export const useGameStore = create<GameStore>()(
 									eventEffects.customerArrivalMultiplier *
 									employeeEffects.customerArrivalMultiplier *
 								getTurnEffects(get().era.id, get().day.shift).customerArrivalMultiplier *
-									getLoyaltyArrivalMultiplier(day.loyalty),
+									getLoyaltyArrivalMultiplier(day.loyalty) *
+									// a happy store dog (petted in the last minute) brings a few more people
+									getPetArrivalMultiplier(get().pet, now),
 								getTurnEffects(get().era.id, get().day.shift).minArrivalDelayMs / shopEffects.customerCapacityMultiplier /
 									// a busy event (payday, rush hour) brings more people than the shop's usual cap
 									Math.max(1, eventEffects.customerArrivalMultiplier),
@@ -3496,32 +3866,24 @@ export const useGameStore = create<GameStore>()(
 					set(returnAbandonedCheckouts(get(), expired, now));
 					changed = true;
 				}
-				// A working cashier rings up the line without the player.
-				const cashierEfficiency = get()
-					.employees.employees.filter(
-						(employee) => employee.isWorking && employee.role === "cashier",
-					)
-					.reduce((total, employee) => total + employee.efficiency, 0);
-				// Shop upgrades: a second lane, a conveyor and a scanner speed the cashier up; self-checkout
-				// kiosks ring customers up on their own, with or without one.
+				// The staffed counters and the kiosks ring customers up side by side (src/data/checkout-lanes.ts): one
+				// server per working cashier, as many as there are built checkouts (the best cashiers first), plus every
+				// built kiosk. Without a cashier the main checkout is the player's.
 				const shopEffects = getShopEffects(get().shop, now);
-				const next = nextAutoCheckout(
-					get().checkout,
-					now,
-					cashierEfficiency *
-						getActiveGameEventEffects(get().events, now).staffSpeedMultiplier *
-						shopEffects.cashierSpeedMultiplier +
-						shopEffects.selfCheckoutRate,
-				);
+				const ownedItemIds = get().shop.ownedItemIds;
+				const staffSpeed =
+					getActiveGameEventEffects(get().events, now).staffSpeedMultiplier * shopEffects.cashierSpeedMultiplier;
+				const cashierIntervals = get()
+					.employees.employees.filter((employee) => employee.isWorking && employee.role === "cashier")
+					.map((employee) => employee.efficiency)
+					.sort((a, b) => b - a)
+					.slice(0, getCheckoutCount(ownedItemIds))
+					.map((efficiency) => AUTO_CASHIER_INTERVAL_MS / Math.max(0.1, efficiency * staffSpeed));
+				const kioskIntervals = Array.from({ length: getKioskCount(ownedItemIds) }, () => KIOSK_INTERVAL_MS);
+				const next = nextAutoCheckouts(get().checkout, now, [...cashierIntervals, ...kioskIntervals]);
 				if (next.state !== get().checkout) set({ checkout: next.state });
-				if (next.checkoutId) {
-					const payment = completeCheckoutRule(
-						get().checkout,
-						next.checkoutId,
-						now,
-						undefined,
-						true,
-					);
+				for (const checkoutId of next.checkoutIds) {
+					const payment = completeCheckoutRule(get().checkout, checkoutId, now, undefined, true);
 					if (payment) {
 						set(applyCheckoutPayment(get(), payment, now));
 						changed = true;
@@ -3601,6 +3963,69 @@ export const useGameStore = create<GameStore>()(
 					coins: (sale.coins ?? state.coins) + (served.reachedGoal ? getWindowSalesBonus(state.daily.goal) : 0),
 					events: { ...state.events, windowSales: served.state },
 				});
+				return true;
+			},
+			// "Ladrão e segurança" (src/services/store-security.ts).
+			catchThief: (thiefId) => {
+				const state = get();
+				const now = Date.now();
+				const result = catchStoreThief(normalizeStoreSecurityState(state.security), thiefId, now);
+				if (!result.ok) return false;
+				set({ ...applySecurityEffects(state, result.effects, now), security: result.state });
+				return true;
+			},
+			processStoreSecurity: (now = Date.now()) => {
+				const patch = processSecurityTick(get(), now);
+				if (!patch) return false;
+				set(patch);
+				return true;
+			},
+			devSpawnThief: () => {
+				if (!__DEV__) return false;
+				const state = get();
+				const now = Date.now();
+				const security = spawnThiefNow(normalizeStoreSecurityState(state.security), getTillCash(state.coins, state.market.todayRevenue), now);
+				if (!security) return false;
+				set({ security });
+				return true;
+			},
+			// "Mascote caramelo" (src/services/store-pet.ts).
+			adoptPet: () => {
+				const state = get();
+				const pet = adoptPetRule(normalizePetState(state.pet), state.era.id, Date.now());
+				if (!pet) return false;
+				set({ pet });
+				return true;
+			},
+			petDog: () => {
+				const state = get();
+				const now = Date.now();
+				const result = petDogRule(normalizePetState(state.pet), now, state.day.dayNumber);
+				if (!result.ok) return false;
+				set({ pet: result.pet, market: withExperience(state, PET_EXPERIENCE), lastSessionAt: now });
+				return true;
+			},
+			buyPetCosmetic: (cosmeticId) => {
+				const state = get();
+				const pet = normalizePetState(state.pet);
+				const check = checkPetPurchase(pet, cosmeticId, state.market.level);
+				if (!check.ok) return false;
+				const { item } = check;
+				const useDiamonds = item.currency === "diamonds";
+				if (useDiamonds ? !enoughDiamonds(item.price) : state.coins < item.price) return false;
+				set({
+					coins: useDiamonds ? state.coins : state.coins - item.price,
+					logistics: useDiamonds
+						? { ...state.logistics, premiumCurrency: state.logistics.premiumCurrency - item.price }
+						: state.logistics,
+					pet: withPetCosmetic(pet, item),
+				});
+				return true;
+			},
+			equipPetCosmetic: (cosmeticId) => {
+				const pet = equipPetCosmeticRule(normalizePetState(get().pet), cosmeticId);
+				if (!pet) return false;
+				set({ pet });
 				return true;
 			},
 			processStoreIncidents: () => {
@@ -3918,6 +4343,23 @@ export const useGameStore = create<GameStore>()(
 				// The shop needs its furniture: nothing opens while owned pieces still wait to be placed.
 				if (isOpen && !get().market.isOpen && getPiecesToPlaceBeforeOpening(get()) > 0)
 					return false;
+				// Boosters only run while the market is open (audit 05/11: they ticked away between days, so a coffee
+				// used on the results screen was gone before anyone came in): closing pauses what is left, opening resumes it.
+				if (isOpen !== get().market.isOpen) {
+					const at = Date.now();
+					const shopNow = get().shop;
+					if (!isOpen) {
+						const paused = { ...(shopNow.pausedBoosts ?? {}) };
+						for (const [id, endsAt] of Object.entries(shopNow.activeBoosts ?? {}))
+							if (endsAt > at) paused[id] = (paused[id] ?? 0) + (endsAt - at);
+						set({ shop: { ...shopNow, activeBoosts: {}, pausedBoosts: paused } });
+					} else if (Object.keys(shopNow.pausedBoosts ?? {}).length > 0) {
+						const active = { ...(shopNow.activeBoosts ?? {}) };
+						for (const [id, left] of Object.entries(shopNow.pausedBoosts ?? {}))
+							active[id] = Math.max(at, active[id] ?? 0) + left;
+						set({ shop: { ...shopNow, activeBoosts: active, pausedBoosts: {} } });
+					}
+				}
 				// Closing time: the customers already in line are rung up before the doors lock.
 				if (!isOpen && get().market.isOpen)
 					for (const pending of [...get().checkout.queue]) {
@@ -4266,6 +4708,7 @@ export const useGameStore = create<GameStore>()(
 				const unlockedShelves = getUnlockedPhysicalShelfCount(shelfSlotCounts);
 				const nextUpgrade = getNextShelfUnlockUpgrade(unlockedShelves);
 				const nextShelf = shelves[unlockedShelves];
+				const builtIn = Boolean(nextShelf) && isStallBuiltInShelf(state.era.id, nextShelf.id);
 
 				if (
 					!nextUpgrade ||
@@ -4273,21 +4716,21 @@ export const useGameStore = create<GameStore>()(
 					findInteriorConstruction(state.interiorConstructions, "shelf", nextShelf.id) ||
 					// Each shelf comes with the expansion that has room for it.
 					getEraOrder(state.era.id) < getEraOrder(nextUpgrade.eraId) ||
-					// ...and only while the shop floor has room for it (Unity measures it).
-					!hasInteriorRoom(`shelf:${nextShelf.id}`) ||
+					// ...and only while the shop floor has room for it (Unity measures it; a stall's own fixture always fits).
+					(!builtIn && !hasInteriorRoom(`shelf:${nextShelf.id}`)) ||
 					state.market.level < nextUpgrade.playerLevel ||
 					state.coins < nextUpgrade.coinCost
 				) {
 					return false;
 				}
 
-				// The shelf goes to the inventory: the builders start once the player places it.
+				// The shelf goes to the inventory: the builders start once the player places it. A shelf that is part of
+				// the stall model (the banca's refrigerated display) has its spot already: the works start right away.
+				const pending = createPendingConstruction("shelf", nextShelf.id, getShelfBuildDurationMs(unlockedShelves));
+				const list = [...state.interiorConstructions, pending];
 				set({
 					coins: state.coins - nextUpgrade.coinCost,
-					interiorConstructions: [
-						...state.interiorConstructions,
-						createPendingConstruction("shelf", nextShelf.id, getShelfBuildDurationMs(unlockedShelves)),
-					],
+					interiorConstructions: builtIn ? placeInteriorConstruction(list, pending.id) : list,
 				});
 
 				return true;
@@ -4556,7 +4999,7 @@ export const useGameStore = create<GameStore>()(
 				return true;
 			},
 			// "Cores do mercado" (src/data/market-paint.ts): repaint for coins (≈2.5 turns of the stage's profit) or a fixed
-			// price in diamonds; going back to the classic navy and gold never costs.
+			// price in diamonds; going back to the classic navy and gold, or to a colour bought before, never costs.
 			applyMarketPaint: (primary, accent, currency = "coins") => {
 				const p = normalizeHex(primary);
 				const a = normalizeHex(accent);
@@ -4564,6 +5007,11 @@ export const useGameStore = create<GameStore>()(
 				const { coins, era, logistics, marketPaint } = get();
 				if (p === marketPaint.primary && a === marketPaint.accent) return false;
 				if (p === CLASSIC_PRIMARY && a === CLASSIC_ACCENT) return get().resetMarketPaint();
+				// A colour bought before is the player's for good: wearing it again is free (Lucas 09/11).
+				if (isOwnedPaint(marketPaint, p, a)) {
+					set({ marketPaint: withAppliedPaint(marketPaint, p, a, false) });
+					return true;
+				}
 				const useDiamonds = currency === "diamonds";
 				const price = useDiamonds ? MARKET_PAINT_DIAMONDS : getMarketPaintCoinPrice(era.id);
 				if (useDiamonds ? !enoughDiamonds(price) : coins < price) return false;
@@ -4579,6 +5027,302 @@ export const useGameStore = create<GameStore>()(
 				if (marketPaint.primary === CLASSIC_PRIMARY && marketPaint.accent === CLASSIC_ACCENT) return false;
 				set({ marketPaint: withAppliedPaint(marketPaint, CLASSIC_PRIMARY, CLASSIC_ACCENT, false) });
 				return true;
+			},
+			// "Estilo do mercado" (src/data/market-style.ts): every item is bought once, coins or diamonds for all the new
+			// ones in the draft together; wearing owned items and changing colours never costs.
+			applyMarketStyle: (choiceJson, currency = "coins") => {
+				let parsed: unknown;
+				try {
+					parsed = typeof choiceJson === "string" ? JSON.parse(choiceJson) : choiceJson;
+				} catch {
+					return false;
+				}
+				const { coins, era, logistics, marketStyle } = get();
+				if (!isMarketStyleUnlocked(era.id)) return false;
+				const choice = normalizeMarketStyleChoice(parsed, marketStyle);
+				if (isSameMarketStyle(choice, marketStyle)) return false;
+				const price = getMarketStylePrice(marketStyle, choice, era.id);
+				const useDiamonds = currency === "diamonds";
+				if (price.items.length > 0 && (useDiamonds ? !enoughDiamonds(price.diamonds) : coins < price.coins)) return false;
+				const paid = price.items.length > 0;
+				set({
+					coins: paid && !useDiamonds ? coins - price.coins : coins,
+					logistics: paid && useDiamonds ? { ...logistics, premiumCurrency: logistics.premiumCurrency - price.diamonds } : logistics,
+					marketStyle: {
+						...choice,
+						owned: [...marketStyle.owned, ...price.items.map((entry) => styleKey(entry.kind, entry.id))],
+						purchases: marketStyle.purchases + (paid ? 1 : 0),
+					},
+				});
+				return true;
+			},
+			// ---------------------------------------------------------------- Rede de supermercados (src/services/chain.ts)
+			// Naming the chain: free the first time (the card that opens with the rede), diamonds to rename later.
+			nameChain: (name, emblem) => {
+				const { chain, era, logistics } = get();
+				if (!isChainUnlocked(era.id)) return false;
+				const check = checkChainName(name);
+				if (!check.ok || !isChainEmblem(emblem)) return false;
+				const first = chain.brand.namedAt === null;
+				if (!first && check.name === chain.brand.name && emblem === chain.brand.emblem) return false;
+				// changing only the emblem is free; a new name after the first costs diamonds
+				const pays = !first && check.name !== chain.brand.name;
+				if (pays && !enoughDiamonds(CHAIN_RENAME_DIAMONDS)) return false;
+				set({
+					logistics: pays ? { ...logistics, premiumCurrency: logistics.premiumCurrency - CHAIN_RENAME_DIAMONDS } : logistics,
+					chain: {
+						...chain,
+						brand: {
+							name: check.name,
+							emblem,
+							namedAt: chain.brand.namedAt ?? Date.now(),
+							renames: chain.brand.renames + (pays ? 1 : 0),
+						},
+					},
+				});
+				return true;
+			},
+			setChainAutoOrder: (enabled) => {
+				const { chain, era } = get();
+				if (!isChainUnlocked(era.id) || chain.autoOrder.enabled === !!enabled) return false;
+				set({ chain: { ...chain, autoOrder: { enabled: !!enabled, lastAt: 0 } } });
+				return true;
+			},
+			buyFleetTruck: (kind) => {
+				const { chain, coins, era } = get();
+				if (!isChainUnlocked(era.id) || (kind !== "seco" && kind !== "refrigerado")) return false;
+				const price = getNextTruckPrice(chain, kind as FleetTruckKind);
+				if (price === null || coins < price) return false;
+				set({ coins: coins - price, chain: addTruck(chain, kind as FleetTruckKind) });
+				return true;
+			},
+			upgradeFleetSpeed: () => {
+				const { chain, coins, era } = get();
+				const price = getNextSpeedPrice(chain);
+				if (!isChainUnlocked(era.id) || price === null || coins < price) return false;
+				set({ coins: coins - price, chain: { ...chain, fleet: { ...chain.fleet, speedLevel: chain.fleet.speedLevel + 1 } } });
+				return true;
+			},
+			// Restock through the distribution centre: the same cart as a supplier's, carried by a fleet truck.
+			orderFromDistributionCenter: (lines) => get().placeSupplierCart({ lines, via: "frota" }),
+			acceptChainContract: (contractId) => {
+				const now = Date.now();
+				const state = get();
+				if (!isChainUnlocked(state.era.id)) return false;
+				const chain = releaseTrucks(state.chain, now);
+				const contract = chain.contracts.offers.find((offer) => offer.id === contractId && offer.acceptedAt === null);
+				if (!contract || contract.expiresAt <= now) return false;
+				if (getContractShortfall(contract, state.inventory).length > 0) return false;
+				const truck = pickTruck(chain, contract.cold, now);
+				if (!truck) return false;
+				const inventory = { ...state.inventory };
+				const inventoryLots = { ...state.inventoryLots };
+				for (const line of contract.lines) {
+					inventory[line.productId] = (inventory[line.productId] ?? 0) - line.units;
+					inventoryLots[line.productId] = takeInventoryLots(inventoryLots[line.productId], line.units).remainingLots;
+				}
+				const trip = Math.round(contract.tripMs * getTripFactor(chain));
+				const withJob = withTruckJob(chain, truck.id, {
+					kind: "contrato",
+					refId: contract.id,
+					departAt: now,
+					arriveAt: now + trip,
+					returnAt: now + trip * 2,
+				});
+				set({
+					inventory,
+					inventoryLots,
+					chain: {
+						...withJob,
+						contracts: {
+							...withJob.contracts,
+							offers: withJob.contracts.offers.map((offer) =>
+								offer.id === contract.id ? { ...offer, acceptedAt: now, truckId: truck.id } : offer,
+							),
+						},
+					},
+				});
+				return true;
+			},
+			// Buys a branch (level 1) or upgrades it; both are works on a clock.
+			buyChainBranch: (branchId) => {
+				const now = Date.now();
+				const { chain, coins, era } = get();
+				const branch = chain.branches[branchId as ChainBranchId];
+				if (!isChainUnlocked(era.id) || !branch) return false;
+				const current = updateBranch(branch, now);
+				const next = getBranchNextStep(current);
+				if (!next || coins < next.price) return false;
+				set({
+					coins: coins - next.price,
+					chain: {
+						...chain,
+						branches: {
+							...chain.branches,
+							[branchId]: { ...current, works: { level: next.level, endsAt: now + next.buildMs }, supplyAt: now },
+						},
+					},
+				});
+				return true;
+			},
+			finishChainBranchNow: (branchId) => {
+				const now = Date.now();
+				const { chain, logistics } = get();
+				const branch = chain.branches[branchId as ChainBranchId];
+				if (!branch?.works) return false;
+				const cost = getSkipDiamondCost(branch.works.endsAt - now);
+				if (!enoughDiamonds(cost)) return false;
+				const updated = updateBranch({ ...branch, works: { ...branch.works, endsAt: now } }, now);
+				set({
+					logistics: { ...logistics, premiumCurrency: logistics.premiumCurrency - cost },
+					chain: { ...chain, branches: { ...chain.branches, [branchId]: updated } },
+				});
+				return true;
+			},
+			// A truck takes a cargo from the market's stockroom to the branch: its shelves fill when it arrives.
+			sendChainBranchCargo: (branchId) => {
+				const now = Date.now();
+				const state = get();
+				const chain0 = releaseTrucks(state.chain, now);
+				const branch = chain0.branches[branchId as ChainBranchId];
+				if (!isChainUnlocked(state.era.id) || !branch || branch.level < 1 || branch.cargo) return false;
+				const cargo = chooseBranchCargo(
+					branch.id,
+					branch.level,
+					state.inventory,
+					itemCatalog,
+					state.market.unlockedProductIds,
+				);
+				if (!cargo.enough) return false;
+				const truck = pickTruck(chain0, cargo.cold, now) ?? (cargo.cold ? null : pickTruck(chain0, false, now));
+				if (!truck) return false;
+				const inventory = { ...state.inventory };
+				const inventoryLots = { ...state.inventoryLots };
+				for (const line of cargo.lines) {
+					inventory[line.productId] = (inventory[line.productId] ?? 0) - line.units;
+					inventoryLots[line.productId] = takeInventoryLots(inventoryLots[line.productId], line.units).remainingLots;
+				}
+				const trip = getBranchTripMs(chain0);
+				const updated = updateBranch(branch, now);
+				const chain = withTruckJob(chain0, truck.id, {
+					kind: "filial",
+					refId: branch.id,
+					departAt: now,
+					arriveAt: now + trip,
+					returnAt: now + trip * 2,
+				});
+				set({
+					inventory,
+					inventoryLots,
+					chain: {
+						...chain,
+						branches: {
+							...chain.branches,
+							[branch.id]: { ...updated, cargo: { truckId: truck.id, arriveAt: now + trip, supply: cargo.supply } },
+						},
+					},
+				});
+				return true;
+			},
+			collectChainBranches: () => {
+				const now = Date.now();
+				const { chain, coins } = get();
+				const updated = updateBranches(chain, now);
+				let got = 0;
+				const branches = { ...updated.branches };
+				for (const id of Object.keys(branches) as ChainBranchId[]) {
+					const amount = Math.floor(branches[id].pending);
+					if (amount <= 0) continue;
+					got += amount;
+					branches[id] = { ...branches[id], pending: branches[id].pending - amount, earned: branches[id].earned + amount };
+				}
+				if (got <= 0) return false;
+				set({ coins: coins + got, chain: { ...updated, branches } });
+				return true;
+			},
+			// Every second (desktop/host.ts): trucks come back, contracts pay, branches earn, offers refresh and the
+			// automatic restock sends a truck when something runs low.
+			processChain: (now = Date.now()) => {
+				const state = get();
+				if (!isChainUnlocked(state.era.id)) return false;
+				let chain = state.chain;
+				let coins = state.coins;
+				let diamonds = state.logistics.premiumCurrency;
+				let xp = 0;
+				let changed = false;
+				// the chain's own products open with the rede (saves already there get them now)
+				const missing = privateLabelProducts.filter((p) => !state.market.unlockedProductIds.includes(p.id)).map((p) => p.id);
+				// contracts whose truck reached the client are paid
+				const paid = chain.contracts.offers.filter((offer) => {
+					if (offer.acceptedAt === null || !offer.truckId) return false;
+					const truck = chain.fleet.trucks.find((t) => t.id === offer.truckId);
+					const arrive = truck?.job?.refId === offer.id ? truck.job.arriveAt : offer.acceptedAt + offer.tripMs;
+					return now >= arrive;
+				});
+				if (paid.length) {
+					changed = true;
+					for (const offer of paid) {
+						coins += offer.reward;
+						diamonds += offer.diamonds;
+						xp += offer.xp;
+					}
+					chain = {
+						...chain,
+						contracts: {
+							...chain.contracts,
+							offers: chain.contracts.offers.filter((offer) => !paid.includes(offer)),
+							completed: chain.contracts.completed + paid.length,
+							earned: chain.contracts.earned + paid.reduce((sum, offer) => sum + offer.reward, 0),
+						},
+					};
+				}
+				const released = releaseTrucks(chain, now);
+				if (released !== chain) changed = true;
+				chain = released;
+				// branches: works ending and cargos arriving change what the player sees; the income itself is applied
+				// lazily (collect / page view) so the save is not rewritten every second
+				for (const branch of Object.values(chain.branches)) {
+					if ((branch.works && now >= branch.works.endsAt) || (branch.cargo && now >= branch.cargo.arriveAt)) {
+						chain = { ...chain, branches: { ...chain.branches, [branch.id]: updateBranch(branch, now) } };
+						changed = true;
+					}
+				}
+				const refreshed = refreshContracts(chain, {
+					catalog: itemCatalog,
+					unlockedProductIds: state.market.unlockedProductIds,
+					eraIndex: getEraOrder(state.era.id),
+					now,
+				});
+				if (refreshed !== chain) changed = true;
+				chain = refreshed;
+				if (changed || missing.length || xp > 0) {
+					const market = get().market;
+					const progression = xp > 0 ? applyExperience(market.level, market.experience, xp) : null;
+					set({
+						coins,
+						logistics: { ...get().logistics, premiumCurrency: diamonds },
+						chain,
+						market: {
+							...market,
+							...(progression
+								? {
+										experience: progression.experience,
+										level: progression.level,
+										lastExperienceGain: xp,
+										totalExperience: market.totalExperience + xp,
+									}
+								: {}),
+							unlockedProductIds: Array.from(new Set([...market.unlockedProductIds, ...missing])),
+						},
+					});
+				}
+				// automatic restock through the distribution centre (a dry or cold truck, whatever runs low)
+				const auto = get().chain.autoOrder;
+				if (auto.enabled && now - auto.lastAt >= AUTO_ORDER_EVERY_MS) {
+					set({ chain: { ...get().chain, autoOrder: { ...auto, lastAt: now } } });
+					if (get().coins > AUTO_ORDER_RESERVE) get().orderLowStock("frota");
+				}
+				return changed;
 			},
 			finishMarketExpansionNow: () => {
 				const { logistics, marketExpansionConstruction } = get();
@@ -4792,7 +5536,21 @@ export const useGameStore = create<GameStore>()(
 					const state = migrated as Partial<GameState>;
 					migrated = { ...state, lots: migrateDepotLot(state.lots) ?? state.lots };
 				}
-				const normalized = migrateGameState(migrated);
+				let normalized = migrateGameState(migrated);
+				// 53: one truck at the start, the free ones follow the level and the expansions (Lucas 11/11). The trucks a
+				// save already had stay: what the level and the expansion do not give back becomes owned.
+				if (version < 53)
+					normalized = {
+						...normalized,
+						logistics: {
+							...normalized.logistics,
+							supplierOrderSlots: migrateOwnedTrucks(
+								(migrated as Partial<GameState>).logistics?.supplierOrderSlots,
+								normalized.market.level,
+								normalized.era?.id,
+							),
+						},
+					};
 				// 49: evolutions with rewards (claude/evolucoes-recompensas.md): fixtures and sectors already past T1 get the
 				// places and the exclusive products of their tiers now, with one "Novos produtos liberados" card. Nothing
 				// is lowered; production and stock are untouched.
@@ -4842,6 +5600,8 @@ export const useGameStore = create<GameStore>()(
 				productLevels,
 				dailyLogin,
 				rewardedAds,
+				appPrompts,
+				perks,
 				albumClaimedIds,
 				weeklyEvent,
 				lots,
@@ -4849,8 +5609,12 @@ export const useGameStore = create<GameStore>()(
 				delivery,
 				onboarding,
 				marketPaint,
+				marketStyle,
 				social,
 				rankings,
+				chain,
+				security,
+				pet,
 			}) => ({
 				era,
 				checkout,
@@ -4891,6 +5655,8 @@ export const useGameStore = create<GameStore>()(
 				productLevels,
 				dailyLogin,
 				rewardedAds,
+				appPrompts,
+				perks,
 				albumClaimedIds,
 				weeklyEvent,
 				lots,
@@ -4898,8 +5664,12 @@ export const useGameStore = create<GameStore>()(
 				delivery,
 				onboarding,
 				marketPaint,
+				marketStyle,
 				social,
 				rankings,
+				chain,
+				security,
+				pet,
 			}),
 			storage: createJSONStorage(() => mmkvStorage),
 			// A save that fails to load or migrate is kept on disk untouched (src/storage/save-guard.ts).
@@ -4925,7 +5695,14 @@ export const useGameStore = create<GameStore>()(
 			// exclusive products of the tiers they have (withMigratedTierRewards).
 			// 50: social v1 (social: inbox ids applied, gifts today, profile cache, requests, invite rewards). Old saves get
 			// an empty slice (migrateGameState); nothing else changes.
-			version: 50,
+			// 51: Rede de supermercados (chain: brand, fleet, contracts, branches). Old saves get a fresh slice; nothing else
+			// changes (the chain's own products open with the rede through processChain).
+			// 52: no new field to fill — the bump runs migrateGameState once on every save (Lucas 09/11, two tester bugs): a
+			// shelf that is part of the current stall (the banca's refrigerated display) leaves the inventory for the
+			// builders (placeStallBuiltIns), and every colour already bought goes to "Suas cores" (marketPaint.owned).
+			// 53: supplier trucks start at one (src/data/supplier-capacity.ts) and the cart is saved (logistics.cart). Old
+			// saves keep every truck they had (migrateOwnedTrucks) and start with an empty cart.
+			version: 53,
 		},
 	),
 );
@@ -5318,8 +6095,8 @@ function createMarketCustomer(
 	shelfPrices: GameShelfPrices,
 	marketSatisfaction: number,
 ): GameMarketCustomer {
-	const profile = customerProfiles[visit.customer.archetype];
-	const name = profile.names[seed % profile.names.length];
+	// The name comes with the customer's sex; Unity shows a body of the same sex (src/data/customer-names.ts).
+	const { name, sex } = pickCustomerIdentity(visit.customer.archetype, seed);
 	const purchasedProducts = visit.purchases
 		.reduce<string[]>((products, purchase) => {
 			const product = itemCatalog.find(
@@ -5369,6 +6146,7 @@ function createMarketCustomer(
 		item: purchasedProducts || "Não encontrou produtos",
 		mood: visit.customer.mood,
 		name,
+		sex,
 		satisfaction,
 		spent: visit.revenue,
 		status: visit.revenue > 0 ? "pagou" : "saiu sem comprar",
@@ -5567,14 +6345,6 @@ function returnAbandonedCheckouts(
 function clampSatisfaction(value: number) {
 	return Math.round(Math.min(100, Math.max(0, value)) * 10) / 10;
 }
-
-const customerProfiles: Record<CustomerArchetype, { names: string[] }> = {
-	economico: { names: ["Ana", "Paula", "Rita"] },
-	familia: { names: ["Marcos", "Davi", "Lucas"] },
-	impulsivo: { names: ["Bia", "Nina", "Lara"] },
-	normal: { names: ["Caio", "Igor", "Pedro"] },
-	premium: { names: ["Helena", "Clara", "Sofia"] },
-};
 
 /** Passive event wear is applied in steps of a few seconds (fewer saves, same total). */
 const PASSIVE_WEAR_TICK_MS = 5_000;

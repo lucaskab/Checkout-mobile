@@ -9,7 +9,8 @@ test("connects permanent shop items to the simulation effects", () => {
 	expect(effects.supplierDurationMultiplier).toBeCloseTo(0.65);
 	expect(effects.storeReputationBonus).toBe(3);
 	expect(effects.offlineRevenueMultiplier).toBeCloseTo(1.25);
-	expect(effects.cashierSpeedMultiplier).toBeCloseTo(2.5);
+	// (the extra checkout is a lane of its own now, not a speed-up: only the conveyor counts)
+	expect(effects.cashierSpeedMultiplier).toBeCloseTo(1.25);
 });
 
 test("marketing brings more customers and makes room for them", () => {
@@ -36,7 +37,8 @@ test("boosters only count while they run, owned or not", () => {
 test("every upgrade has an effect, a price and a description", () => {
 	for (const item of shopItems) {
 		// fixtures, and the cold room's tiers (their effect is the room for chilled boxes, src/data/fixture-tiers.ts)
-		const builtOnly = ["extra-checkout", "self-checkout", "cold-room-2", "cold-room-3"].includes(item.id);
+		// (the checkouts and kiosks of src/data/checkout-lanes.ts: their effect is a lane of their own)
+		const builtOnly = ["extra-checkout", "checkout-3", "checkout-4", "checkout-5", "self-checkout", "extra-kiosks", "kiosks-3", "cold-room-2", "cold-room-3"].includes(item.id);
 		expect({ id: item.id, effect: Boolean(item.effect) || builtOnly }).toEqual({ id: item.id, effect: true });
 		expect({ id: item.id, price: (item.coinPrice ?? item.diamondPrice ?? 0) > 0 }).toEqual({ id: item.id, price: true });
 		if (item.isConsumable) expect({ id: item.id, duration: (item.durationMs ?? 0) > 0 }).toEqual({ id: item.id, duration: true });

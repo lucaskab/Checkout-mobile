@@ -17,7 +17,7 @@ namespace Checkout {
  public partial class CheckoutDesktopHUD {
   RectTransform conquestRoot,conquestStage,conquestMedal,conquestRibbon,conquestChips,conquestButtons,conquestConfetti;
   Image conquestDim,conquestRays,conquestGlow,conquestRim,conquestIcon,conquestBand,conquestBandShade;readonly List<Image> conquestTails=new List<Image>();
-  TextMeshProUGUI conquestHeadline,conquestTitle,conquestSubtitle;CanvasGroup conquestText;
+  TextMeshProUGUI conquestHeadline,conquestTitle,conquestSubtitle;CanvasGroup conquestText,conquestCardGroup;RectTransform conquestCard;
   // Evolutions: the new look (a picture of the piece), the numbers counting up and the products opened (NOVO).
   RectTransform conquestStats,conquestProducts,conquestPips;Image conquestPipsBack;RawImage conquestPortrait;Texture2D conquestPortraitTex;
   readonly List<(TextMeshProUGUI text,DesktopCelebrationStat stat)> conquestCounters=new List<(TextMeshProUGUI,DesktopCelebrationStat)>();
@@ -43,7 +43,8 @@ namespace Checkout {
    conquestRoot=CheckoutScreen.SafeArea(canvasGo.transform);
    conquestAudio=gameObject.AddComponent<AudioSource>();conquestAudio.playOnAwake=false;conquestAudio.volume=.5f;
 
-   conquestDim=N.Image(conquestRoot,"Dim",new Color(.06f,.08f,.15f,.6f),0);conquestDim.raycastTarget=true;U.Stretch(conquestDim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900));
+   // (the layer only catches taps: no dark backdrop, U.TapCatcher; Lucas 05/11)
+   conquestDim=N.Image(conquestRoot,"Dim",U.TapCatcher,0);conquestDim.raycastTarget=true;U.Stretch(conquestDim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900));
    conquestStage=N.Node("Stage",conquestRoot);U.Stretch(conquestStage,new Vector2(.5f,.5f),new Vector2(.5f,.5f));conquestStage.sizeDelta=new Vector2(1000,700);
 
    // Rays and glow behind the medal.
@@ -75,6 +76,13 @@ namespace Checkout {
    // Title, explanation, chips and buttons.
    var textNode=N.Node("Text",conquestStage);U.Stretch(textNode,new Vector2(.5f,.5f),new Vector2(.5f,.5f));textNode.sizeDelta=new Vector2(900,300);textNode.anchoredPosition=new Vector2(0,-150);
    conquestText=textNode.gameObject.AddComponent<CanvasGroup>();
+   // The words, numbers and buttons stand on their own navy card (gold trim) now that nothing dims the world behind:
+   // under the ribbon (its tails stay in front), sized to the rows when the card shows (PlayConquest).
+   var cardEdge=N.Image(conquestStage,"Card",RankGoldTrim,30);cardEdge.raycastTarget=false;conquestCard=cardEdge.rectTransform;
+   conquestCard.anchorMin=conquestCard.anchorMax=new Vector2(.5f,.5f);conquestCard.pivot=new Vector2(.5f,1);conquestCard.sizeDelta=new Vector2(940,320);
+   var cardFace=N.Image(cardEdge.transform,"Face",RankNavy,28);cardFace.raycastTarget=false;U.Stretch(cardFace.rectTransform,Vector2.zero,Vector2.one,new Vector2(3,3),new Vector2(-3,-3));
+   conquestCardGroup=cardEdge.gameObject.AddComponent<CanvasGroup>();conquestCardGroup.blocksRaycasts=false;
+   conquestCard.SetSiblingIndex(conquestRibbon.GetSiblingIndex());
    conquestTitle=U.Label(textNode,"Title",K.Headline,46,"FFFFFF");U.At(conquestTitle.rectTransform,new Vector2(.5f,1),new Vector2(900,58),new Vector2(0,-30));
    conquestTitle.outlineWidth=.18f;conquestTitle.outlineColor=new Color32(15,20,40,220);conquestTitle.overflowMode=TextOverflowModes.Overflow;
    conquestTitle.textWrappingMode=TextWrappingModes.NoWrap;conquestTitle.enableAutoSizing=true;conquestTitle.fontSizeMin=26;conquestTitle.fontSizeMax=46;
@@ -101,6 +109,7 @@ namespace Checkout {
   static void Size(CheckoutDesktopButton button,float width){var le=button.gameObject.GetComponent<LayoutElement>();if(!le)le=button.gameObject.AddComponent<LayoutElement>();le.preferredWidth=width;le.preferredHeight=62;}
 
   void ApplyConquest(DesktopView v){
+   if(qaCelebrationHold)return;
    var data=v.celebration;
    bool has=data!=null&&!string.IsNullOrEmpty(data.key)&&data.key!=conquestClosedKey;
    if(!has){
@@ -238,6 +247,9 @@ namespace Checkout {
     conquestProducts.anchoredPosition=new Vector2(0,y);if(hasProducts)y-=104;
     conquestButtons.anchoredPosition=new Vector2(0,Mathf.Min(-226,y-10));
    }
+   // the card: from just over the title to just under the buttons (the text block's top is the stage's centre)
+   {float cardTop=conquestTitle.rectTransform.anchoredPosition.y+29+12,cardBottom=conquestButtons.anchoredPosition.y-31-22;
+    conquestCard.anchoredPosition=new Vector2(0,cardTop);conquestCard.sizeDelta=new Vector2(940,cardTop-cardBottom);}
    LayoutRebuilder.ForceRebuildLayoutImmediate(conquestStats);LayoutRebuilder.ForceRebuildLayoutImmediate(conquestProducts);LayoutRebuilder.ForceRebuildLayoutImmediate(conquestPips);
    conquestGo.gameObject.SetActive(!string.IsNullOrEmpty(data.button));
    if(!string.IsNullOrEmpty(data.button))conquestGo.Apply(new DesktopButton{label=K.Clean(data.button),variant="secondary",enabled=true,icon="",action="",args="[]",route="",after="",ok="",fail="",badge=""});
@@ -245,10 +257,9 @@ namespace Checkout {
 
    // Reset and play.
    conquestRoot.gameObject.SetActive(true);conquestRoot.SetAsLastSibling();
-   conquestDim.color=new Color(.06f,.08f,.15f,0);
+   conquestDim.color=U.TapCatcher;conquestCardGroup.alpha=0;
    conquestMedal.localScale=Vector3.zero;conquestRibbon.localScale=new Vector3(0,1,1);conquestRays.transform.localScale=Vector3.zero;conquestGlow.transform.localScale=Vector3.zero;
    conquestText.alpha=0;foreach(Transform chip in conquestChips)chip.localScale=Vector3.zero;
-   StartCoroutine(U.Fade(conquestDim,.58f,.3f));
    StartCoroutine(U.Scale(conquestRays.transform,Vector3.one,.5f,true));StartCoroutine(U.Scale(conquestGlow.transform,Vector3.one,.45f));
    // (brisk: the numbers stand at their new values about 0.8 s after the card shows)
    yield return U.Scale(conquestMedal,Vector3.one,.36f,true);
@@ -263,8 +274,8 @@ namespace Checkout {
    foreach(Transform pip in conquestPips){pip.localScale=Vector3.zero;StartCoroutine(LevelPopIn(pip,delay*.5f));}
    if(conquestPipsBack.gameObject.activeSelf){conquestPipsBack.transform.localScale=new Vector3(0,1,1);StartCoroutine(U.Scale(conquestPipsBack.transform,Vector3.one,.25f,true));}
    foreach(Transform tile in conquestProducts){StartCoroutine(LevelPopIn(tile,delay));delay+=.08f;}
-   for(float t=0;t<1;t+=CheckoutUiKit.Dt/.22f){conquestText.alpha=t;yield return null;}
-   conquestText.alpha=1;
+   for(float t=0;t<1;t+=CheckoutUiKit.Dt/.22f){conquestText.alpha=conquestCardGroup.alpha=t;yield return null;}
+   conquestText.alpha=conquestCardGroup.alpha=1;
    conquestRun=null;
   }
 

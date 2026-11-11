@@ -58,6 +58,8 @@ export type Env = {
 	GOOGLE_DESKTOP_CLIENT_SECRET?: string;
 	GOOGLE_IOS_CLIENT_ID?: string;
 	APPLE_BUNDLE_IDS?: string;
+	/** Firebase Cloud Messaging: the JSON key of a service account of the project checkout-game (push.ts). */
+	FCM_SERVICE_ACCOUNT?: string;
 	APPLE_TEAM_ID?: string;
 	APPLE_KEY_ID?: string;
 	APPLE_PRIVATE_KEY?: string;
@@ -65,4 +67,11 @@ export type Env = {
 	OLD_DATABASE_URL?: string;
 	/** Temporary, public (not a secret): the key that checks the signed tokens of /admin/* (copy, CPU benchmark). */
 	ADMIN_PUBLIC_KEY?: string;
+	/** Workers Rate Limiting bindings (wrangler.jsonc "ratelimits"), see app.ts AppOptions.limiters. */
+	RL_IP?: RateLimitBinding;
+	RL_AUTH?: RateLimitBinding;
+	RL_PLAYER?: RateLimitBinding;
+	RL_SAVE?: RateLimitBinding;
 };
+
+export type RateLimitBinding = { limit(options: { key: string }): Promise<{ success: boolean }> };

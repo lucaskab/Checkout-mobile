@@ -38,6 +38,8 @@ namespace MarketDay
         Walker routingWalker;
         Vector2 pointerDown,lastPointer;bool dragged;float saveTimer;float autoTimer;
         float zoom=20.5f;Vector3 focus=new Vector3(0f,.1f,6f);bool initialized;
+        // The map grows north with the chain's fleet yard (Checkout.CheckoutRedeYard): the camera may pan this much further.
+        public static float ExtraNorth;
         const string SaveName="market-save-v1.json";
         public string SavePath=>Path.Combine(Application.persistentDataPath,SaveName);
         static readonly Vector3 Entrance=P(-1.75f,-8.7f);
@@ -416,7 +418,7 @@ namespace MarketDay
             {
                 Vector2 now=Input.mousePosition;var delta=now-lastPointer;
                 if((now-pointerDown).magnitude>10)dragged=true;
-                if(dragged){Vector3 right=view.transform.right;Vector3 forward=Vector3.Cross(right,Vector3.up);focus-=(right*delta.x+forward*delta.y)*zoom*2/Screen.height;focus.x=Mathf.Clamp(focus.x,-26,26);focus.z=Mathf.Clamp(focus.z,-16,34);UpdateCamera();}
+                if(dragged){Vector3 right=view.transform.right;Vector3 forward=Vector3.Cross(right,Vector3.up);focus-=(right*delta.x+forward*delta.y)*zoom*2/Screen.height;focus.x=Mathf.Clamp(focus.x,-26,26);focus.z=Mathf.Clamp(focus.z,-16,34+ExtraNorth);UpdateCamera();}
                 lastPointer=now;
             }
             if(Input.GetMouseButtonUp(0)&&!over&&!dragged)

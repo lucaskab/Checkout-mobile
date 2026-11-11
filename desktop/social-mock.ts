@@ -1,3 +1,4 @@
+import { normalizeMarketStyleState } from "@/data/market-style";
 import type { MarketEraId } from "@/@types/economy";
 import type { SocialPublicBlock } from "@/@types/social";
 import { getUnlockedProductIds, itemCatalog } from "@/data/market-products";
@@ -65,6 +66,8 @@ export function createMockFriendSave(options: {
 	level: number;
 	coins: number;
 	paint?: { paletteId: string; primary: string; accent: string };
+	/** "Estilo do mercado" the friend wears (src/data/market-style.ts): every item is owned. */
+	style?: Record<string, unknown>;
 	builds?: { id: string; kind: "shelf" | "sector" | "shop"; targetId: string; minutesLeft: number }[];
 	evolutions?: { id: string; kind: string; targetId: string; toTier: number; minutesLeft: number }[];
 	/** Placed furniture and decorations (the decorations are owned once each). */
@@ -89,6 +92,12 @@ export function createMockFriendSave(options: {
 	persisted.unlockedMarketExpansionIds = [...(ERA_BUILDING_EXPANSIONS[era] ?? [])];
 	persisted.marketExpansionConstruction = null;
 	if (options.paint) persisted.marketPaint = { ...persisted.marketPaint, ...options.paint };
+	if (options.style) {
+		const style = { ...persisted.marketStyle, ...options.style } as Record<string, any>;
+		const sign = (style.sign ?? {}) as Record<string, string>;
+		const owned = [`floor:${style.floor}`, `wall:${style.wall}`, `uniform:${style.uniform}`, `font:${sign.font}`, `look:${sign.look}`, `effect:${sign.effect}`];
+		persisted.marketStyle = normalizeMarketStyleState({ ...style, owned });
+	}
 	if (options.interior) {
 		const owned: Record<string, number> = { ...(persisted.interior?.owned ?? {}) };
 		for (const item of options.interior) if (item.id.startsWith("decor-")) owned[item.type] = (owned[item.type] ?? 0) + 1;
@@ -145,6 +154,9 @@ export function createMockSocialServer(start = Date.now()) {
 	/** Calls answered so far (tests count them) and what a test wants to fail next. */
 	const log: string[] = [];
 	let failNext: { path: string; times: number } | null = null;
+	/** QA: every answer comes this many ms later (a slow phone network), and calls that never come back at all. */
+	let latency = 0;
+	let hang: { path: string; times: number } | null = null;
 
 	const person = (id: string, code: string, marketName: string | null, avatar: string, era: MarketEraId, level: number, save = "") => {
 		const value: Person = { id, code, marketName, avatar, level, era, likes: 0, lastSeen: now - HOUR, createdAt: now - 30 * DAY, invitedBy: null, invitesRewarded: 0, public: null, save, photo: null, showPhoto: true };
@@ -177,6 +189,7 @@ export function createMockSocialServer(start = Date.now()) {
 			level: 9,
 			coins: 4_200,
 			paint: { paletteId: "floresta", primary: "1F4D36", accent: "E3C77A" },
+			style: { floor: "taco", wall: "tijolinho", uniform: "vermelho" },
 			// a furnished Späti: the bakery shelf placed and being built, the produce shelf evolving (both with a
 			// floating "Ajudar" in a visit), plants inside, a bench, flowers, a tree and a lamp outside
 			builds: [{ id: "obra-shelf-bakery-ana", kind: "shelf", targetId: "bakery", minutesLeft: 25 }],
@@ -215,6 +228,14 @@ export function createMockSocialServer(start = Date.now()) {
 			level: 30,
 			coins: 48_000,
 			paint: { paletteId: "oceano", primary: "0F6A6E", accent: "F27D5E" },
+			style: {
+				floor: "xadrez",
+				floorColor: "0F6A6E",
+				wall: "metro",
+				wallColor: "F4F6F8",
+				uniform: "turquesa",
+				sign: { font: "redonda", look: "neon", effect: "pulsar", main: "F27D5E", second: "4FF5FF", palette: "arco-iris", speed: 1 },
+			},
 			builds: [{ id: "obra-shelf-snacks-gabi", kind: "shelf", targetId: "snacks", minutesLeft: 50 }],
 			evolutions: [{ id: "evolucao-shelf-drinks-3-gabi", kind: "shelf", targetId: "drinks", toTier: 3, minutesLeft: 75 }],
 			now,
@@ -258,6 +279,8 @@ export function createMockSocialServer(start = Date.now()) {
 		now: () => now,
 	});
 	const short = (p: Person) => ({ id: p.id, code: p.code, marketName: p.marketName, avatar: p.avatar || null });
+	/** Saves made up for board players visited from Mundo / País (made once each). */
+	const boardSaves = new Map<string, string>();
 	const brief = (p: Person) => ({ ...short(p), level: p.level, era: p.era });
 	const open = (row: RequestRow) => row.status === "open" && row.expiresAt > now;
 	const requestView = (row: RequestRow) => ({ id: row.id, productId: row.productId, qty: row.qty, createdAt: row.createdAt, expiresAt: row.expiresAt });
@@ -366,6 +389,21 @@ export function createMockSocialServer(start = Date.now()) {
 			if (!other.save) return fail(404, "no-save");
 			return reply(200, { profile: friendView(other), public: other.public, data: other.save });
 		}
+		// A player of the Mundo / País boards (Lucas 10/11): only to look; the top 100 of the world or their country.
+		if (method === "GET" && head === "players" && second && third === "market") {
+			if (!rankings.onBoard(second)) return fail(403, "not-public");
+			const known = people.get(second);
+			if (known?.save) return reply(200, { profile: { ...short(known), level: known.level, era: known.era }, public: known.public, data: known.save });
+			const p = rankings.player(second);
+			if (!p) return fail(404, "no-save");
+			const era = p.era as MarketEraId;
+			let save = boardSaves.get(second);
+			if (!save) {
+				save = createMockFriendSave({ era, level: p.level, coins: 5_000 + p.level * 900, now });
+				boardSaves.set(second, save);
+			}
+			return reply(200, { profile: { id: p.id, code: p.code, marketName: p.marketName, avatar: p.avatar || null, level: p.level, era: p.era, country: p.country }, public: publicOf(save, era), data: save });
+		}
 		if (method === "POST" && head === "gift") {
 			if (!areFriends(me.id, String(body.to))) return fail(403, "not-friends");
 			if (!once("gift", String(body.to))) return fail(409, "already-today");
@@ -460,9 +498,13 @@ export function createMockSocialServer(start = Date.now()) {
 		log,
 		inbox,
 		requests,
-		/** Answers one call of the game (path with its query). */
-		call(method: string, path: string, body?: unknown): MockReply {
+		/** Answers one call of the game (path with its query); null = this call never comes back (QA "hang"). */
+		call(method: string, path: string, body?: unknown): MockReply | null {
 			log.push(`${method} ${path}`);
+			if (hang && path.startsWith(hang.path) && hang.times > 0) {
+				hang.times--;
+				return null;
+			}
 			if (failNext && path.startsWith(failNext.path) && failNext.times > 0) {
 				failNext.times--;
 				return { code: 0, body: null, network: true };
@@ -479,6 +521,14 @@ export function createMockSocialServer(start = Date.now()) {
 			}
 			if (command === "fail") {
 				failNext = { path: arg, times: 1 };
+				return true;
+			}
+			if (command === "latency") {
+				latency = Math.max(0, Number(arg) || 0);
+				return true;
+			}
+			if (command === "hang") {
+				hang = { path: arg, times: 1 };
 				return true;
 			}
 			if (command === "gift") return Boolean(push(me.id, "gift", arg || ana.id));
@@ -535,6 +585,10 @@ export function createMockSocialServer(start = Date.now()) {
 				return Boolean(push(me.id, "friend_request", duda.id));
 			}
 			return rankings.control(command, arg);
+		},
+		/** QA: the delay of every answer in ms (control "latency"). */
+		get latency() {
+			return latency;
 		},
 		set clock(value: number) {
 			now = value;

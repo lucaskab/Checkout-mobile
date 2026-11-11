@@ -26,7 +26,7 @@ namespace Checkout {
   // ------------------------------------------------------------------ build
   void BuildKitchen(){
    var node=N.Node("Kitchen window",root);kitchenWin=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
-   var dim=kitchenWin.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.7f);
+   var dim=kitchenWin.AddComponent<Image>();dim.color=U.TapCatcher; // (no dark backdrop; still blocks taps on the world)
    var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(40,40),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-40,-16));
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("8A5A2B");
    var face=N.Image(window,"Face",K.Paper,28);Stretch(face.rectTransform,new Vector2(4,9),new Vector2(-4,-4));
@@ -177,7 +177,7 @@ namespace Checkout {
   }
 
   RectTransform KitchenCardBox(float w,float h){
-   var shade=N.Image(kitchenCard,"Shade",new Color(.1f,.06f,.03f,.45f),0);shade.raycastTarget=true;Stretch(shade.rectTransform,Vector2.zero,Vector2.zero);
+   var shade=N.Image(kitchenCard,"Shade",U.TapCatcher,0);shade.raycastTarget=true; // (the result card's layer: catches taps, no shade)Stretch(shade.rectTransform,Vector2.zero,Vector2.zero);
    var edge=N.Image(shade.transform,"Edge",K.C("8A5A2B"),26);Place(edge.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(0,30),new Vector2(w,h));
    var face=N.Image(edge.transform,"Face",K.Cream,24);Stretch(face.rectTransform,new Vector2(4,8),new Vector2(-4,-4));
    edge.transform.localScale=Vector3.zero;StartCoroutine(U.Scale(edge.transform,Vector3.one,.28f,true));

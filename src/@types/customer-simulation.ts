@@ -7,6 +7,9 @@ export type CustomerArchetype =
 
 export type CustomerMood = "calmo" | "com-pressa" | "feliz" | "estressado";
 
+/** The customer's sex: the name is drawn from it and Unity shows a body of the same sex ("f" female, "m" male). */
+export type CustomerSex = "f" | "m";
+
 export type CustomerProfile = {
 	archetype: CustomerArchetype;
 	budget: number;

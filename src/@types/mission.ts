@@ -31,6 +31,10 @@ export type MissionRewardItem = {
 export type MissionReward = {
 	coins: number;
 	items?: MissionRewardItem[];
+	/** A few milestone missions only (Lucas 06/11: "poucas deem diamante"): a taste of the premium currency. */
+	diamonds?: number;
+	/** Freight coupons: 10% off one supplier order (Lucas 11/11: the player earns them now and then). */
+	freightCoupons?: number;
 };
 
 export type MissionDefinition = {

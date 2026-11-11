@@ -8,8 +8,12 @@ namespace Checkout {
  // It holds no game rules; every button sends a route or a store action back to the host.
  public partial class CheckoutDesktopHUD:MonoBehaviour {
   CheckoutDesktopHost host;RectTransform root;DesktopView view;
+  /// <summary>The route of the page open now ("" at home), for the QA checks.</summary>
+  public string CurrentRoute=>view!=null&&view.hasPage&&view.page!=null?view.page.route??"":"";
   /// <summary>The tutorial step or tip the coach shows now ("" = none), e.g. "conta" opens Opções on its Conta tab.</summary>
   public string CoachKey=>view?.coach?.key??"";
+  /// <summary>QA: the open page's first card (the Amigos window's sign-in / loading / error / profile card), or null.</summary>
+  public DesktopCard QaPageCard=>view!=null&&view.hasPage&&view.page?.cards!=null&&view.page.cards.Length>0?view.page.cards[0]:null;
   readonly Dictionary<string,DesktopButton> pending=new Dictionary<string,DesktopButton>();
   public readonly HashSet<string> Silent=new HashSet<string>();
   // Actions answered in code instead of a toast (CheckoutIap: a purchase is confirmed to the store on the answer).
@@ -72,7 +76,10 @@ namespace Checkout {
    if(data.route=="@lots"){host.Route("");CheckoutLotView.Show();return;}
    // "@paint" opens "Cores do mercado" (CheckoutMarketPaintPanel) over the live market.
    if(data.route=="@paint"){host.Route("");CheckoutMarketPaintPanel.Show();return;}
+   // "@style" opens "Estilo do mercado" (CheckoutMarketStylePanel): floor, walls, uniform and the sign.
+   if(data.route=="@style"){host.Route("");CheckoutMarketStylePanel.Show();return;}
    // "@shop" opens the supplier market app; "@shop:<productId>" also puts one box of that product in the cart.
+   if((data.route??"")=="@shop:low"){host.Route("");CheckoutSupplierShop.ShowLow();return;}
    if((data.route??"")=="@shop"||(data.route??"").StartsWith("@shop:")){host.Route("");int.TryParse((data.route??"").Length>6?data.route.Substring(6):"0",out var shopProduct);CheckoutSupplierShop.Show(shopProduct);return;}
    // "@delivery" opens the store computer on the Delivery tab (CheckoutDeliveryApp).
    if((data.route??"")=="@delivery"){host.Route("");CheckoutSupplierShop.ShowDelivery();return;}

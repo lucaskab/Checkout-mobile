@@ -419,13 +419,14 @@ function orderPage(state: State, [id = "0", qty = "1"]: string[]) {
 					...(quote.reason ? [quote.reason] : []),
 				],
 				buttons: [
-					act(`Confirmar pedido · ${fmt(quote.total)}`, "placeSupplierOrder", [{ productId, boxes }], {
+					// Lucas 11/11: the boxes go in the cart; one order later takes the whole cart on one truck.
+					act(`Pôr no carrinho · ${fmt(quote.total)}`, "addToSupplierCart", [{ productId, boxes }], {
 						variant: "coin",
-						icon: gameIcon("deliveryTruck"),
+						icon: gameIcon("cart"),
 						enabled: !quote.reason,
 						after: "back",
-						ok: `Pedido de ${boxLabel} de ${product.name} confirmado! Acompanhe em Entregas.`,
-						fail: "As condições do pedido mudaram. Confira saldo, espaço e entregas disponíveis.",
+						ok: `${boxLabel} de ${product.name} no carrinho! Toque em Fazer pedido para mandar o caminhão.`,
+						fail: quote.reason ?? "Não coube no carrinho agora.",
 					}),
 				],
 			}),

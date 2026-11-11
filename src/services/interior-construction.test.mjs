@@ -127,11 +127,11 @@ test("a new shelf is built where the player places it and opens when the works e
 test("the second checkout waits in the inventory, then the builders install it", () => {
 	game().setMarketLevel(10);
 	useGameStore.setState({ coins: 100_000 });
-	// At the stalls there is no room for a second checkout: not on sale until the minimercado.
-	game().devSetMarketEra("tenda");
+	// The small shops send everyone to their one counter: the second checkout is on sale from the mercadinho.
+	game().devSetMarketEra("minimercado");
 	expect(getShopItemBuildStatus(game(), "extra-checkout").status).toBe("locked");
 	expect(game().purchaseShopItem("extra-checkout", "coins")).toBe(false);
-	game().devSetMarketEra("minimercado");
+	game().devSetMarketEra("mercadinho");
 	expect(game().purchaseShopItem("extra-checkout", "coins")).toBe(true);
 	expect(game().shop.ownedItemIds).not.toContain("extra-checkout");
 	expect(getShopItemBuildStatus(game(), "extra-checkout").status).toBe("stored");
@@ -157,4 +157,60 @@ test("old saves keep the sectors their level had already opened", async () => {
 	);
 	expect(next.builtSectorIds).not.toContain("peixaria");
 	expect(next.interiorConstructions).toEqual([]);
+});
+
+test("one cashier per checkout: the second needs Caixa 2 built", () => {
+	game().setMarketLevel(30);
+	game().devSetMarketEra("mercadinho");
+	useGameStore.setState({ coins: 200_000, employees: { ...game().employees, employees: [] } });
+	expect(game().hireEmployee("cashier")).toBe(true);
+	expect(game().hireEmployee("cashier")).toBe(false);
+	expect(game().purchaseShopItem("extra-checkout", "coins")).toBe(true);
+	place("checkout:extra");
+	finishAll();
+	expect(game().hireEmployee("cashier")).toBe(true);
+	expect(game().employees.employees.filter((e) => e.role === "cashier").length).toBe(2);
+});
+
+// Lucas 09/11: a tester bought the "Expositor refrigerado" in the banca and nobody ever delivered it — it is part of the
+// stall model (CheckoutStall.BuiltIn), so build mode never offered it to be placed and it waited in the inventory forever.
+const buyUntil = (shelfId) => {
+	for (let i = 0; i < 6; i++) {
+		const next = getNextShelfBuildStatus(game());
+		if (next.shelf?.id === shelfId) return next;
+		expect(game().unlockNextShelf()).toBe(true);
+		const stored = game().interiorConstructions.filter((item) => item.pending);
+		if (stored.length) place(...stored.map((item) => `shelf:${item.targetId}`));
+		finishAll();
+	}
+	throw new Error(`never reached ${shelfId}`);
+};
+
+test("the banca's refrigerated display is part of the stall: buying it starts the works, nothing to place", () => {
+	game().setMarketLevel(30);
+	game().devSetMarketEra("banca");
+	useGameStore.setState({ coins: 1_000_000 });
+	buyUntil("dairy");
+	expect(game().unlockNextShelf()).toBe(true);
+	const dairy = game().interiorConstructions.find((item) => item.targetId === "dairy");
+	expect(dairy.pending).toBeUndefined();
+	expect(["building", "queued"]).toContain(getNextShelfBuildStatus(game()).status);
+	finishAll();
+	expect(snapshot().shelves.find((s) => s.id === "dairy").unlocked).toBe(true);
+});
+
+test("a save with the display stuck in the inventory gets it built on the way in", async () => {
+	game().setMarketLevel(30);
+	game().devSetMarketEra("banca");
+	useGameStore.setState({ coins: 1_000_000 });
+	buyUntil("dairy");
+	const stuck = { id: "shelf-dairy-1", kind: "shelf", targetId: "dairy", startedAt: 0, endsAt: 0, pending: true, durationMs: 60_000 };
+	const saved = { ...JSON.parse(JSON.stringify(game())), interiorConstructions: [stuck] };
+	const next = await useGameStore.persist.getOptions().migrate(saved, 51);
+	const dairy = next.interiorConstructions.find((item) => item.targetId === "dairy");
+	expect(dairy.pending).toBeUndefined();
+	expect(dairy.endsAt).toBeGreaterThan(dairy.startedAt);
+	// In a shop with an inside (Späti on) it is a piece to place like any other.
+	const spati = await useGameStore.persist.getOptions().migrate({ ...saved, era: { ...saved.era, id: "spati" } }, 51);
+	expect(spati.interiorConstructions.find((item) => item.targetId === "dairy").pending).toBe(true);
 });

@@ -15,9 +15,12 @@ export type DailyLoginState = {
 };
 
 export const LOGIN_STREAK_DAYS = 7;
-/** Coins of each day of the streak, in item-level prices of the current expansion. */
-const COIN_STEPS = [1, 1.5, 2, 2.5, 3, 4, 6];
-const DIAMONDS_ON_LAST_DAY = 5;
+/** Coins of each day of the streak, in item-level prices of the current expansion. The 7th day is worth more than
+ * the six before it together (Lucas 06/11, launch audit: the genre's habit, a reason to keep the streak). */
+const COIN_STEPS = [1, 1.5, 2, 2.5, 3, 4, 15];
+const DIAMONDS_ON_LAST_DAY = 15;
+/** Days of the streak that also give a freight coupon (10% off one supplier order; Lucas 11/11). */
+export const COUPON_DAYS: readonly number[] = [3, 7];
 
 export function createDailyLoginState(): DailyLoginState {
 	return { lastClaimDay: "", streak: 0 };
@@ -65,5 +68,43 @@ export function getLoginReward(day: number, eraId: MarketEraId) {
 	const base = getMarketEra(eraId).itemUpgradeBaseCost;
 	const step = COIN_STEPS[Math.max(0, Math.min(LOGIN_STREAK_DAYS, day) - 1)];
 	const coins = Math.round((base * step) / 10) * 10;
-	return { coins, diamonds: day >= LOGIN_STREAK_DAYS ? DIAMONDS_ON_LAST_DAY : 0 };
+	const clamped = Math.max(1, Math.min(LOGIN_STREAK_DAYS, day));
+	return {
+		coins,
+		diamonds: day >= LOGIN_STREAK_DAYS ? DIAMONDS_ON_LAST_DAY : 0,
+		coupons: COUPON_DAYS.includes(clamped) ? 1 : 0,
+	};
+}
+
+// ---------------------------------------------------------------- Recuperar a sequência (Lucas 11/11)
+// A streak broken by 1 to 3 missed days can be bought back: the gift goes on from where it stopped instead of day 1.
+// Diamonds for any of those cases; a video only when it was a single day.
+export const STREAK_RECOVERY_MAX_DAYS = 3;
+export const STREAK_RECOVERY_DIAMONDS_PER_DAY = 10;
+
+const dayNumber = (key: string) => {
+	const [y, m, d] = key.split("-").map(Number);
+	return Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d) ? Math.round(Date.UTC(y, m - 1, d) / 86_400_000) : NaN;
+};
+
+/** Days missed since the last claim (0 = claimed yesterday or today). */
+export function getMissedLoginDays(state: DailyLoginState | undefined, now: number) {
+	const last = state?.lastClaimDay ?? "";
+	if (!last) return 0;
+	const gap = dayNumber(getDayKey(now)) - dayNumber(last);
+	return Number.isFinite(gap) ? Math.max(0, gap - 1) : 0;
+}
+
+/** What getting the streak back costs now, or null when there is nothing to get back. */
+export function getStreakRecovery(state: DailyLoginState | undefined, now: number) {
+	const missed = getMissedLoginDays(state, now);
+	const streak = state?.streak ?? 0;
+	// After day 7 the gift starts again anyway, and a streak of 1 has nothing to lose.
+	if (missed < 1 || missed > STREAK_RECOVERY_MAX_DAYS || streak < 2 || streak >= LOGIN_STREAK_DAYS) return null;
+	return { missed, streak, diamonds: missed * STREAK_RECOVERY_DIAMONDS_PER_DAY, video: missed === 1 };
+}
+
+/** The streak back: as if yesterday's gift had been claimed (the next claim is day streak + 1). */
+export function recoverStreak(state: DailyLoginState, now: number): DailyLoginState {
+	return { ...state, lastClaimDay: getDayKey(now - 24 * 60 * 60_000) };
 }

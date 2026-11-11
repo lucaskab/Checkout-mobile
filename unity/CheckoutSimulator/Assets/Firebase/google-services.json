@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "663095472642",
+    "project_id": "checkout-game",
+    "storage_bucket": "checkout-game.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:663095472642:android:5b1cb528bfa993ea1f2d1b",
+        "android_client_info": {
+          "package_name": "com.lucasfurini.checkout"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3GLGhkyA2Fu1DGpl9hJ9eyl_7JDz7jQ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

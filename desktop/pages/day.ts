@@ -20,7 +20,7 @@ import {
 } from "../view-kit";
 import type { Routes } from ".";
 import { canClaimConsolation, getConsolationOffer } from "@/services/contract-pressure";
-import { adsStore, getLastAdEvent, isAdOpening } from "../ads";
+import { getLastAdEvent, isAdOpening } from "../ads";
 
 // Desktop pages for the market day, mirroring src/components/market-day.
 const clock = (ms: number) => {
@@ -217,9 +217,9 @@ function consolationCards(state: State): Card[] {
 				act(waiting ? "Abrindo o vídeo…" : "Assistir e ganhar", "watchRewardedAd", ["consolation"], {
 					variant: "gem",
 					icon: gameIcon("television"),
-					enabled: canClaimConsolation(result) && !waiting && adsStore.status !== "unavailable",
+					// Pressable even with no video loaded yet: Unity loads one and opens it (Lucas 08/11).
+					enabled: canClaimConsolation(result) && !waiting,
 					ok: "",
-					fail: adsStore.status === "unavailable" ? "Nenhum vídeo disponível agora." : "",
 				}),
 			],
 		}),

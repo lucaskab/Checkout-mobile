@@ -182,7 +182,7 @@ namespace Checkout {
    yield return Dev("devAdjustDiamonds","[200]",()=>bridge.State.diamonds>=100);
    // Start from the classic look.
    if(!CheckoutMarketPaint.IsClassic(paint.SavedPrimary,paint.SavedAccent))yield return Dev("resetMarketPaint","[]",()=>CheckoutMarketPaint.IsClassic(paint.SavedPrimary,paint.SavedAccent));
-   string Wallet()=>$"coins {bridge.State.coins:0} diamonds {bridge.State.diamonds:0} paint {bridge.State.paint?.primary}/{bridge.State.paint?.accent} ({bridge.State.paint?.palette}) prices {bridge.State.paint?.coinPrice}/{bridge.State.paint?.diamondPrice} recent {bridge.State.paint?.recent?.Length}";
+   string Wallet()=>$"coins {bridge.State.coins:0} diamonds {bridge.State.diamonds:0} paint {bridge.State.paint?.primary}/{bridge.State.paint?.accent} ({bridge.State.paint?.palette}) prices {bridge.State.paint?.coinPrice}/{bridge.State.paint?.diamondPrice} recent {bridge.State.paint?.recent?.Length} owned {bridge.State.paint?.owned?.Length}";
    IEnumerator Step(string name){yield return new WaitForSecondsRealtime(.7f);yield return Shot($"paint_{tag}_{++n:00}_{name}");Note($"PAINTUI {tag} {name}: {CheckoutMarketPaintPanel.QaStatus} · {Wallet()}");}
    IEnumerator Press(string which){var b=CheckoutMarketPaintPanel.QaButton(which);if(!b){Note("PAINTUI missing button "+which);yield break;}Note($"PAINTUI press {which}: '{b.Data?.label}' enabled={b.Data?.enabled}");b.Clicked?.Invoke(b);for(float t=0;t<4&&CheckoutMarketPaintPanel.QaBusy;t+=.2f)yield return new WaitForSecondsRealtime(.2f);yield return new WaitForSecondsRealtime(.8f);}
    // 1. Loja › Decoração: the card, and its button.
@@ -217,8 +217,20 @@ namespace Checkout {
    Note($"PAINTUI diamonds paid {gems0-bridge.State.diamonds:0} (price {bridge.State.paint?.diamondPrice}), coins paid {coins0-bridge.State.coins:0}");
    // 6. Back to the classic look, free.
    coins0=bridge.State.coins;gems0=bridge.State.diamonds;
-   yield return Press("classic");yield return Step("classic_free");
+   // (the header's Clássico only previews since 09/11; the green free button saves it)
+   yield return Press("classic");yield return Step("classic_preview");
+   Note($"PAINTUI classic preview only: saved {paint.SavedPrimary}/{paint.SavedAccent} (still cereja = {paint.SavedPrimary=="8A1C2B"})");
+   yield return Press("coins");yield return Step("classic_free");
    Note($"PAINTUI back to classic paid coins {coins0-bridge.State.coins:0} diamonds {gems0-bridge.State.diamonds:0}; saved {paint.SavedPrimary}/{paint.SavedAccent}");
+   // 6b. A colour bought before is the player's for good: back to it for free, even with no money (Lucas 09/11).
+   double had0=bridge.State.coins,gems1=bridge.State.diamonds;
+   yield return Dev("devAdjustCoins","["+(-(long)had0)+"]",()=>bridge.State.coins<=1);
+   yield return Tap(CheckoutMarketPaintPanel.QaChip("cereja"));yield return Step("owned_preview");
+   Note($"PAINTUI owned: coins button '{CheckoutMarketPaintPanel.QaButton("coins")?.Data?.label}' enabled={CheckoutMarketPaintPanel.QaButton("coins")?.Data?.enabled} gems shown={CheckoutMarketPaintPanel.QaButton("diamonds")?.gameObject.activeSelf} owned={bridge.State.paint?.owned?.Length}");
+   yield return Press("coins");yield return Step("owned_applied");
+   Note($"PAINTUI owned applied: saved {paint.SavedPrimary}/{paint.SavedAccent} paid coins {-bridge.State.coins:0} diamonds {gems1-bridge.State.diamonds:0}");
+   yield return Dev("devAdjustCoins","["+((long)had0)+"]",()=>bridge.State.coins>=had0-1);
+   yield return Press("classic");yield return Press("coins");
    // 7. A preview cancelled: the market goes back.
    yield return Tap(CheckoutMarketPaintPanel.QaChip("grafite"));yield return Step("grafite_preview");
    yield return Press("cancel");yield return new WaitForSecondsRealtime(1f);yield return Shot($"paint_{tag}_{++n:00}_cancelled");

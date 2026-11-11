@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -31,7 +32,7 @@ function world() {
 			pictures.set(name, chosen);
 			return { sub: `g-${name}`, email: `${name}@example.com`, name, ...(chosen ? { picture: chosen } : {}) };
 		},
-		verifyApple: async (t) => (t.startsWith("apple-") ? { sub: `a-${t.slice(6)}`, email: `${t.slice(6)}@privaterelay.appleid.com` } : null),
+		verifyApple: async (t) => (t.startsWith("apple-") ? { sub: `a-${t.slice(6)}`, email: `${t.slice(6)}@privaterelay.appleid.com`, nonce: createHash("sha256").update(`n-${t}`).digest("hex") } : null),
 		sessionSecret: SECRET,
 		rateLimit: 1_000_000,
 		now: () => clock.now,
@@ -51,7 +52,7 @@ function world() {
 	};
 	type User = { token: string; id: string; code: string };
 	const login = async (idToken: string, apple = false): Promise<User> => {
-		const r = await call("POST", apple ? "/v1/auth/apple" : "/v1/auth/google", { idToken });
+		const r = await call("POST", apple ? "/v1/auth/apple" : "/v1/auth/google", apple ? { idToken, nonce: `n-${idToken}` } : { idToken });
 		assert.equal(r.status, 200, JSON.stringify(r.body));
 		await call("PUT", "/v1/save", { baseRevision: r.body.save?.revision ?? 0, data: save(5), deviceId: "d" }, r.body.token);
 		const me = (await call("GET", "/v1/social/me", undefined, r.body.token)).body;

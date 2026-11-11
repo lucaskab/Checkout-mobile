@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@string/gcm_defaultSenderId,@string/google_storage_bucket,@string/project_id,@string/google_api_key,@string/google_crash_reporting_api_key,@string/google_app_id,@string/default_web_client_id">
+  <string name="gcm_defaultSenderId" translatable="false">663095472642</string>
+  <string name="google_storage_bucket" translatable="false">checkout-game.firebasestorage.app</string>
+  <string name="project_id" translatable="false">checkout-game</string>
+  <string name="google_api_key" translatable="false">AIzaSyD3GLGhkyA2Fu1DGpl9hJ9eyl_7JDz7jQ8</string>
+  <string name="google_crash_reporting_api_key" translatable="false">AIzaSyD3GLGhkyA2Fu1DGpl9hJ9eyl_7JDz7jQ8</string>
+  <string name="google_app_id" translatable="false">1:663095472642:android:5b1cb528bfa993ea1f2d1b</string>
+  <string name="default_web_client_id" translatable="false">663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com</string>
+</resources>

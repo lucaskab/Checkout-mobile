@@ -29,6 +29,7 @@ namespace Checkout {
   public CheckoutStall Stall {get;private set;}
   /// <summary>The player's market colours ("Cores do mercado").</summary>
   public CheckoutMarketPaint Paint {get;private set;}
+  public CheckoutMarketStyle Style {get;private set;}
   CheckoutEventVisuals events;float workClock;Snapshot state;Material teal;
   static Vector3 P(float x,float z)=>new Vector3(x,.74f,z);
   Bounds SectorBounds(string id){var root=world.Find("Sector_"+id.Substring(7));var renderers=root?root.GetComponentsInChildren<Renderer>(true).Where(r=>r.enabled).ToArray():Array.Empty<Renderer>();if(renderers.Length==0)return new Bounds(P(0,4.3f),Vector3.one);var bounds=renderers[0].bounds;foreach(var renderer in renderers.Skip(1))bounds.Encapsulate(renderer.bounds);return bounds;}
@@ -52,7 +53,7 @@ namespace Checkout {
   public CheckoutMarketLayout Layout=>layout;
   // Applies the last snapshot again (the map editor switched the stage it previews).
   public void Reapply(){if(state!=null)Apply(state);}
-  public void Initialize(Transform root,CheckoutBridge owner){world=root;bridge=owner;Design=gameObject.AddComponent<CheckoutDesignWorld>();Design.Initialize(world);layout=gameObject.AddComponent<CheckoutMarketLayout>();layout.Initialize(world);Interior=gameObject.AddComponent<CheckoutInterior>();Interior.Initialize(world,layout,this);Lanes=gameObject.AddComponent<CheckoutLanes>();Lanes.Initialize(world,bridge.Queue,Interior);Stall=gameObject.AddComponent<CheckoutStall>();Stall.Initialize(world,this);Paint=gameObject.AddComponent<CheckoutMarketPaint>();Paint.Initialize(world);
+  public void Initialize(Transform root,CheckoutBridge owner){world=root;bridge=owner;Design=gameObject.AddComponent<CheckoutDesignWorld>();Design.Initialize(world);layout=gameObject.AddComponent<CheckoutMarketLayout>();layout.Initialize(world);Interior=gameObject.AddComponent<CheckoutInterior>();Interior.Initialize(world,layout,this);Lanes=gameObject.AddComponent<CheckoutLanes>();Lanes.Initialize(world,bridge.Queue,Interior);Stall=gameObject.AddComponent<CheckoutStall>();Stall.Initialize(world,this);Paint=gameObject.AddComponent<CheckoutMarketPaint>();Paint.Initialize(world);Style=gameObject.AddComponent<CheckoutMarketStyle>();Style.Initialize(world);
    if(Furnished){var sim=FindAnyObjectByType<MarketSimulation>();if(sim)sim.Furniture=()=>Interior.Obstacles().Concat(Design.Obstacles());}
    foreach(var old in world.GetComponentsInChildren<DepartmentTarget>())old.gameObject.SetActive(false);
    teal=Mat("2E8CAE");
@@ -140,9 +141,13 @@ namespace Checkout {
    if(Lanes.Apply(next.ownedItems))navigationChanged=true;Lanes.Rebase(layout.State);
    // The register is the player's until a cashier is hired: the operator only stands there while one works
    // (the second checkout opens with the same cashier on staff: the Caixa Extra upgrade).
+   // One cashier per checkout (Lucas 05/11): the first built counters get the working cashiers, the rest stay closed.
    int cashiers=next.employees?.Count(e=>e.role=="cashier"&&e.isWorking)??0;
-   var mainCashier=world.Find("Worker_Cashier");if(mainCashier)mainCashier.gameObject.SetActive(next.isOpen&&cashiers>0);
-   var extraCashier=world.Find("Worker_Cashier 2");if(extraCashier)extraCashier.gameObject.SetActive(next.isOpen&&cashiers>0&&next.ownedItems!=null&&next.ownedItems.Contains(CheckoutLanes.ExtraItem));
+   if(Furnished){if(Lanes.Staff(cashiers,next.isOpen))navigationChanged=true;}
+   else{
+    var mainCashier=world.Find("Worker_Cashier");if(mainCashier)mainCashier.gameObject.SetActive(next.isOpen&&cashiers>0);
+    var extraCashier=world.Find("Worker_Cashier 2");if(extraCashier)extraCashier.gameObject.SetActive(next.isOpen&&cashiers>1&&next.ownedItems!=null&&next.ownedItems.Contains(CheckoutLanes.ExtraItem));
+   }
    if(Furnished&&(furnitureMoved||resized||newSession||staff.Count!=placedClerks))PlaceClerks();
    if(resized||navigationChanged||furnitureMoved){FindAnyObjectByType<MarketSimulation>().RebuildLayoutNavigation(layout.State);foreach(var walker in FindObjectsByType<CheckoutWalker>(FindObjectsInactive.Include)){walker.RebaseLayout(previousLayout,layout.State);if(furnitureMoved)walker.FurnitureMoved();}}
    events.Apply(next.@event);
@@ -158,6 +163,13 @@ namespace Checkout {
    // The cold room by the depot / central warehouse (after the stall: it leans on the shop that stands now).
    if(Furnished)CheckoutColdRoom.Apply(next,world,layout);
    Paint.Apply(next.paint);
+   // "Estilo do mercado": floor, walls, staff uniform and the big sign (CheckoutMarketStyle).
+   Style.Apply(next.style);
+   // Rede: the chain's brand (name, logo in the market's colours) on the facade, signs and fleet.
+   CheckoutBrand.Apply(next.chain,next.paint);
+   CheckoutBrandWorld.Ensure(world);
+   CheckoutRedeWorld.Ensure(world,next);
+   CheckoutRedeUniforms.Ensure(world);
   }
   // Stock clerks and cleaners work in front of the shelves wherever those stand.
   // Build mode moved furniture: staff follow at once; `navigation` also rebuilds the walkable floor.
@@ -180,21 +192,31 @@ namespace Checkout {
   public CheckoutDeliveryTrucks Trucks {get;private set;}
   public CheckoutCityHorizon Horizon {get;private set;}
   // Per-frame scratch lists (reused, so the frame allocates nothing here).
-  readonly HashSet<Transform> claimedTrucks=new HashSet<Transform>();readonly List<Order> dueOrders=new List<Order>();
+  readonly HashSet<Transform> claimedTrucks=new HashSet<Transform>();readonly Dictionary<Transform,float> unclaimedSince=new Dictionary<Transform,float>();readonly List<Order> dueOrders=new List<Order>();
   void UpdateSupplierDeliveries(){if(!Trucks)return;var claimed=claimedTrucks;claimed.Clear();var dock=state.dock;
    // The orders on their way or waiting at the dock, oldest first. A stable insertion sort: equal createdAt keep their order (as OrderBy did).
    dueOrders.Clear();
    foreach(var order in state.orders)if(order.status=="em-transporte"||DockedFor(dock,order.id)){int at=dueOrders.Count;dueOrders.Add(order);while(at>0&&dueOrders[at-1].createdAt>order.createdAt){dueOrders[at]=dueOrders[at-1];at--;}dueOrders[at]=order;}
+   var rede=CheckoutRedeWorld.Current;
    for(int n=0;n<dueOrders.Count;n++){var order=dueOrders[n];var truck=TruckFor(order,claimed);if(!truck)continue;claimed.Add(truck);
+    // Rede: a delivery through the distribution centre comes in one of the chain's own trucks.
+    if(rede)rede.Dress(truck,string.IsNullOrEmpty(order.fleetTruckId)?null:CheckoutRedeWorld.KindOf(state,order.fleetTruckId),order.fleetTruckId);
     bool atBay=Trucks.Arrive(truck);
     if(atBay&&dispatchedDeliveryOrders.Add(order.id))deliveryWorker?.QueueDelivery(truck,Trucks.Home(truck),order.createdAt+order.deliveryDurationMs);
     DockClick(truck,DockedFor(dock,order.id)&&atBay);
    }
-   foreach(var truck in Trucks.All){if(claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck)))continue;Trucks.Release(truck);}
+   // (Rede: a fleet truck leaving on a contract or a branch run comes to a dock from the yard itself: CheckoutRedeYard.)
+   // A truck no order wants any more drives off, a moment later: an order between two states (on its way → delivered,
+   // its dock entry one snapshot later) must not send its truck away mid-arrival.
+   foreach(var truck in Trucks.All){if(claimed.Contains(truck)||(deliveryWorker&&deliveryWorker.HasDeliveryFor(truck))){unclaimedSince.Remove(truck);continue;}
+    if(!unclaimedSince.TryGetValue(truck,out var since)){unclaimedSince[truck]=Time.time;continue;}
+    if(Time.time-since<1.5f)continue;Trucks.Release(truck);}
   }
   // Whether a dock entry is "entrega-" + orderId (the old set of joined ids), compared in place: no string per order.
   static bool DockedFor(DockEntry[] dock,string orderId){if(dock==null)return false;const string prefix="entrega-";string id=orderId??"";
-   foreach(var d in dock)if(d.id!=null&&d.id.Length==prefix.Length+id.Length&&string.CompareOrdinal(d.id,0,prefix,0,prefix.Length)==0&&string.CompareOrdinal(d.id,prefix.Length,id,0,id.Length)==0)return true;
+   // (a cart order parks one dock delivery per product, id "<order id>:<product id>": its orderId names the order)
+   foreach(var d in dock){if(d.orderId!=null&&d.orderId.Length>0&&string.Equals(d.orderId,id,System.StringComparison.Ordinal))return true;
+    if(d.id!=null&&d.id.Length==prefix.Length+id.Length&&string.CompareOrdinal(d.id,0,prefix,0,prefix.Length)==0&&string.CompareOrdinal(d.id,prefix.Length,id,0,id.Length)==0)return true;}
    return false;}
   // A truck parked with goods still to unload can be clicked to open the unloading mini-game.
   static void DockClick(Transform truck,bool on){

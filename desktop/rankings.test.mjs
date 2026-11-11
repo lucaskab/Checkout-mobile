@@ -99,6 +99,31 @@ test("País: the player's flag and the country's name from the ISO code, in ever
 	}
 });
 
+// Lucas 10/11: every Mundo / País row can be visited — only to look (a friend opens as a friend).
+test("Mundo / País: Visitar opens a stranger's market only to look; like, gift and help are refused; back home as it was", async () => {
+	const world = await open("mundo");
+	const stranger = world.board.podium.concat(world.board.tiles).find((t) => t.action?.action === "socialVisitPlayer");
+	expect(stranger).toBeTruthy();
+	expect(world.board.pinned.action.action).not.toBe("socialVisitPlayer");
+	const id = JSON.parse(stranger.action.args)[0];
+	const before = storedSave();
+	expect(social.requestSocialAction("socialVisitPlayer", [id]).ok).toBe(true);
+	await settle();
+	expect(social.isVisiting()).toBe(true);
+	const view = social.visitView();
+	expect(view.buttons.map((b) => b.action)).toEqual(["socialLeave"]);
+	expect(view.builds).toEqual([]);
+	expect(social.requestSocialAction("socialLike", [id]).ok).toBe(false);
+	expect(social.requestSocialAction("socialGift", [id]).ok).toBe(false);
+	expect(social.socialMock().log.at(-1)).toContain(`/v1/social/players/${id}/market`);
+	expect(social.requestSocialAction("socialLeave", []).ok).toBe(true);
+	expect(social.isVisiting()).toBe(false);
+	expect(storedSave()).toBe(before);
+	// País too
+	const country = await open("pais");
+	expect(country.board.podium.concat(country.board.tiles).some((t) => t.action?.action === "socialVisitPlayer")).toBe(true);
+});
+
 // The save without the Amigos board's last-seen places (the one thing opening it remembers, for the ▲/▼).
 const saveSansSeen = () => {
 	let saved = JSON.parse(storedSave());

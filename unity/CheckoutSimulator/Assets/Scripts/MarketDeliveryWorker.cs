@@ -31,6 +31,8 @@ namespace MarketDay
         // Where to stand to take a parcel out of a truck (behind its tail, wherever it is parked). When set, the last
         // point of the route goes there; otherwise the old yard rule moves the last two points with the truck.
         public Func<Transform, Vector3> approach;
+        // The route for a given truck (Rede: out of the dock door of its own bay); null: the one route set above.
+        public Func<Transform, Vector3[]> routeFor;
         float gateWait;
         public Vector3 LastDropPosition { get; private set; }
 
@@ -181,6 +183,11 @@ namespace MarketDay
         {
             var delivery = deliveries.Dequeue();
             truck = delivery.truck;
+            if (routeFor != null && truck)
+            {
+                var own = routeFor(truck);
+                if (own != null && own.Length >= 2) { route = own; storageDoor.position = own[0]; transform.position = own[0]; }
+            }
             truckHome = delivery.home;
             deliveryEndsAt = delivery.endsAt;
             waypoint = 0;
@@ -277,7 +284,7 @@ namespace MarketDay
             bool stepping = moved.magnitude > speed * dt * .3f;
             Play(stepping ? (loaded ? "CarryWalking" : "Walking") : (loaded ? "CarryIdle" : "Idle"));
             // the steps as quick as the walk (slower while it rounds a corner): no sliding feet
-            if (stepping && dt > 0) animationPlayer[currentClip].speed *= Mathf.Clamp(moved.magnitude / dt / speed, .4f, 1.2f);
+            if (stepping && Time.deltaTime > 0) animationPlayer[currentClip].speed = Checkout.CheckoutWalkCycle.Rate(animationPlayer, currentClip, moved.magnitude / Time.deltaTime);
             return arrived;
         }
 

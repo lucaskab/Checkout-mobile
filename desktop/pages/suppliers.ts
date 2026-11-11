@@ -4,7 +4,8 @@ import { getBoxCount } from "@/data/case-sizes";
 import { getInventoryBoxCapacity, getInventoryCapacity } from "@/data/inventory-capacity";
 import { itemCatalog, itemCategories } from "@/data/market-products";
 import { productionRecipes } from "@/data/production-sectors";
-import { getNextSupplierOrderSlotUpgrade } from "@/data/supplier-capacity";
+import { getSupplierTrucks } from "@/data/supplier-capacity";
+import { buyTruckButton, nextTruckText, trucksText } from "./trucks";
 import {
 	formatSupplierDeliveryTime,
 	getOrderProgress,
@@ -136,7 +137,8 @@ export const routes: Routes = {
 		const filtered = active === "todos" ? all : all.filter((product) => product.category === active);
 		const totalOwned = all.reduce((total, product) => total + product.owned, 0);
 		const totalCapacity = all.reduce((total, product) => total + product.capacity, 0);
-		const { orders, supplierOrderSlots, premiumCurrency } = state.logistics;
+		const { orders, premiumCurrency } = state.logistics;
+		const supplierOrderSlots = getSupplierTrucks(state);
 		const running = activeOrders(state, now);
 		const visible = orders.filter(
 			(order) => getSupplierOrderStatus(order, now) !== "entregue" || order.status !== "entregue",
@@ -219,7 +221,7 @@ export const routes: Routes = {
 				: `Cabem mais ${quote.availableBoxes} caixas no depósito`;
 		const incomingLine =
 			incomingBoxes === 1 ? "A caminho: 1 caixa" : `A caminho: ${incomingBoxes} caixas`;
-		const message = `Pedido de ${boxLabel} de ${product.name} confirmado! Acompanhe em Entregas.`;
+		const message = `${boxLabel} de ${product.name} no carrinho! Toque em Fazer pedido para mandar o caminhão.`;
 		return page(to(boxes), `Pedir ${product.name}`, [
 			card("Espaço no depósito", {
 				eyebrow: "FORNECEDORES",
@@ -261,16 +263,18 @@ export const routes: Routes = {
 					`Seu saldo: ${fmt(state.coins)} moedas`,
 				],
 				buttons: [
-					act(`Confirmar pedido · ${quote.total}`, "placeSupplierOrder", [{ productId, boxes }], {
+					// Lucas 11/11: the boxes go in the cart; one order later takes the whole cart on one truck.
+					act(`Pôr no carrinho · ${quote.total}`, "addToSupplierCart", [{ productId, boxes }], {
 						variant: "coin",
-						icon: gameIcon("deliveryTruck"),
+						icon: gameIcon("cart"),
 						enabled: !quote.reason,
 						ok: message,
-						fail:
-							quote.reason ??
-							"As condições do pedido mudaram. Confira saldo, espaço e entregas disponíveis.",
+						fail: quote.reason ?? "Não coube no carrinho agora.",
 						after: "back",
 					}),
+					...(quote.inCart > 0
+						? [go(`Ver carrinho · ${quote.inCart === 1 ? "1 caixa" : `${quote.inCart} caixas`} deste`, "@shop", { icon: gameIcon("cart") })]
+						: []),
 				],
 			}),
 		], {
@@ -278,27 +282,23 @@ export const routes: Routes = {
 			subtitle: `Entrega no depósito em cerca de ${formatSupplierDeliveryTime(quote.duration)}.`,
 		});
 	},
-	// "logistics" — LogisticsSheet (turbo + simultaneous order slots).
+	// "logistics" — LogisticsSheet (turbo + the supplier trucks).
 	logistics: (state) => {
 		const now = Date.now();
-		const { logistics, coins } = state;
-		const level = state.market.level;
-		const next = getNextSupplierOrderSlotUpgrade(logistics.supplierOrderSlots);
+		const { logistics } = state;
+		const trucks = getSupplierTrucks(state);
 		const boostLeft = (logistics.logisticsBoostExpiresAt ?? 0) - now;
 		const running = activeOrders(state, now);
-		const upgradeFail = (currency: "coins" | "diamonds") =>
-			next && level < next.playerLevel
-				? `Alcance o nível ${next.playerLevel} para liberar mais um pedido.`
-				: currency === "coins"
-					? "Você não tem moedas suficientes para este upgrade."
-					: "Você não tem diamantes suficientes para este upgrade.";
+		const buy = buyTruckButton(state);
+		const nextFree = nextTruckText(state);
 		return page("logistics", "Central logística", [
 			card("Saldo", {
 				icon: gameIcon("diamond"),
 				lines: [
 					`Diamantes: ${fmt(logistics.premiumCurrency)}`,
 					`Tickets de entrega: ${fmt(logistics.emergencyTokens)}`,
-					`${running.length}/${logistics.supplierOrderSlots} pedidos em andamento`,
+					`Cupons de frete: ${fmt(logistics.freightCoupons)}`,
+					`${running.length}/${trucks} caminhões na estrada`,
 				],
 			}),
 			card("Turbo logística · 3 diamantes", {
@@ -317,32 +317,15 @@ export const routes: Routes = {
 					}),
 				],
 			}),
-			card("Pedidos simultâneos", {
+			card("Caminhões", {
 				icon: gameIcon("deliveryTruck"),
-				subtitle: `Você pode manter ${logistics.supplierOrderSlots} pedidos ativos ao mesmo tempo.`,
-				badge: String(logistics.supplierOrderSlots),
-				lines: next
-					? [`Próximo slot: ${next.slots} pedidos · requer nível ${next.playerLevel}`]
-					: [],
-				tone: next && level < next.playerLevel ? "locked" : "",
-				buttons: next
-					? [
-							act(next.coinCost.toLocaleString("pt-BR"), "upgradeSupplierOrderSlots", ["coins"], {
-								variant: "coin",
-								icon: gameIcon("coin"),
-								enabled: level >= next.playerLevel && coins >= next.coinCost,
-								ok: `Agora você pode manter ${next.slots} pedidos ativos.`,
-								fail: upgradeFail("coins"),
-							}),
-							act(next.diamondCost.toString(), "upgradeSupplierOrderSlots", ["diamonds"], {
-								variant: "gem",
-								icon: gameIcon("diamond"),
-								enabled: level >= next.playerLevel,
-								ok: `Agora você pode manter ${next.slots} pedidos ativos.`,
-								fail: upgradeFail("diamonds"),
-							}),
-						]
-					: [],
+				subtitle: `${trucksText(trucks)} Cada caminhão leva um pedido com vários produtos.`,
+				badge: String(trucks),
+				lines: [
+					...(nextFree ? [nextFree] : []),
+					"Caminhões novos chegam de graça com o nível e as expansões do mercado.",
+				],
+				buttons: buy ? [buy] : [],
 			}),
 		], {
 			icon: gameIcon("deliveryTruck"),

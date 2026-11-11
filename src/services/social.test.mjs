@@ -35,7 +35,7 @@ test("old saves get an empty social slice and keep everything else (v49 → v50)
 	expect(migrated.coins).toBe(4321);
 	expect(migrated.social).toEqual(normalizeSocialState(undefined));
 	expect(migrated.social.appliedInbox).toEqual([]);
-	expect(useGameStore.persist.getOptions().version).toBe(50);
+	expect(useGameStore.persist.getOptions().version).toBe(53);
 	// Junk in the field never breaks a load.
 	expect(normalizeSocialState({ appliedInbox: [1, "2", null, {}], gifts: { claimed: -3 }, requests: [{ id: "x" }, { id: 4, productId: 1, qty: 3 }] })).toMatchObject({
 		appliedInbox: ["1", "2"],

@@ -57,12 +57,16 @@ namespace MarketDay
                 forearmLength = Vector3.Distance(forearm.position, hand.position);
             }
             bodyRenderers = animationPlayer.GetComponentsInChildren<Renderer>(true);
-            rimHeight = umbrellaPrefab.name.Contains("V2") ? .85f : .93f;
-            // the chunky rigs are ~2.5 m tall with big heads: their umbrella is sized up to match (1.55 m across)
-            if (umbrellaPrefab.name.Contains("V2")) UmbrellaScale = 1.35f;
+            bool v3 = umbrellaPrefab.name.Contains("V3"), v2 = umbrellaPrefab.name.Contains("V2");
+            rimHeight = v3 ? .70f : v2 ? .85f : .93f;
+            topHeight = v3 ? 1.03f : v2 ? 1.10f : 1.12f;
+            canopyRadius = v3 ? .60f : v2 ? .575f : .6f;
+            // the chunky rigs are ~2.5 m tall with big heads: their umbrella is sized up to match (V3: 1.4 m across)
+            UmbrellaScale = v3 ? 1.25f : v2 ? 1.35f : 1f;
+            ShaftLean = v3 ? 17f : 7f;
             // the wrist as the model was bound (its bind pose): straight, the fist closed around the shaft
             if (forearm && hand) handRestLocal = BindLocal(forearm, hand) ?? Quaternion.Inverse(forearm.rotation) * hand.rotation;
-            if (head) headTop = MeasureHeadTop();
+            if (head) { headTop = MeasureHeadTop(); headPoints = MeasureHeadPoints(); }
 
             if (!umbrella)
             {
@@ -72,7 +76,7 @@ namespace MarketDay
                 umbrella.transform.SetParent(transform, false);
                 umbrella.transform.localScale = Vector3.one * UmbrellaScale;
                 Instantiate(umbrellaPrefab, umbrella.transform, false).name = umbrellaPrefab.name;
-                if (umbrellaPrefab.name.Contains("V2")) Tint(umbrella, TintFor(GetEntityId().GetHashCode()));
+                if (v3 || v2) Tint(umbrella, TintFor(GetEntityId().GetHashCode()), v3);
                 else ApplyColorfulMaterial(umbrella);
                 umbrella.SetActive(false);
             }
@@ -134,7 +138,11 @@ namespace MarketDay
             else axis = ShaftAxis(grip, headPosition);
 
             Quaternion rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(face, axis), axis);
-            umbrella.transform.position = grip;
+            // Lucas 06/11 ("o guarda-chuva tá entrando dentro da cabeça"): the hand slides along the shaft so the canopy's
+            // underside passes just over the hair (measured on this character's own head), never through it.
+            float want = Clearance(grip, axis, scale);
+            slide = slideReady ? Mathf.MoveTowards(slide, want, Time.deltaTime * 1.2f) : want; slideReady = true;
+            umbrella.transform.position = grip + axis * slide;
             umbrella.transform.rotation = rotation;
             if (!umbrella.activeSelf) umbrella.SetActive(true);
         }
@@ -186,7 +194,9 @@ namespace MarketDay
             return found.ToArray();
         }
 
-        // The shaft stands nearly upright, leaning a few degrees towards the head so the canopy reaches over it.
+        // The shaft leans towards the head so the middle of the canopy, not its rim, is over it (the shaft stands beside the
+        // big heads; Lucas 06/11: the rim used to cut into the hair). V3 leans 17 deg, the older models 7.
+        float ShaftLean = 7f;
         const float ShaftOffset = .4f;
         /// <summary>Turn of the hand about the forearm (the rigs have no finger bones: the open hand faces the shaft).</summary>
         public static float HandTwist = 180f;
@@ -194,13 +204,67 @@ namespace MarketDay
         Vector3 ShaftAxis(Vector3 grip, Vector3 headPosition)
         {
             Vector3 toHead = Vector3.ProjectOnPlane(headPosition - grip, Vector3.up);
-            return toHead.sqrMagnitude < .0001f ? Vector3.up : Vector3.RotateTowards(Vector3.up, toHead.normalized, 7f * Mathf.Deg2Rad, 0);
+            return toHead.sqrMagnitude < .0001f ? Vector3.up : Vector3.RotateTowards(Vector3.up, toHead.normalized, ShaftLean * Mathf.Deg2Rad, 0);
         }
 
         // Height of the canopy rim above the grip: .85 m in RainUmbrellaV2 (scripts/blender/build_umbrella_v2.py),
         // .93 m in the first umbrella (scripts/blender/build_props.py).
         float rimHeight = .93f;
         Quaternion handRestLocal = Quaternion.identity;
+
+        // Points of the head and hair (in the head bone's space, so they follow the animation), from one baked pose.
+        Vector3[] headPoints;
+        float topHeight = 1.12f, canopyRadius = .6f, slide;
+        bool slideReady;
+        Vector3[] MeasureHeadPoints()
+        {
+            var points = new System.Collections.Generic.List<Vector3>();
+            var baked = new Mesh();
+            float neck = head.position.y - .04f;
+            foreach (var skinned in animationPlayer.GetComponentsInChildren<SkinnedMeshRenderer>())
+            {
+                if (!skinned.enabled || skinned.name.EndsWith("_Prop")) continue;
+                skinned.BakeMesh(baked, true);
+                var vertices = baked.vertices;
+                int step = Mathf.Max(1, vertices.Length / 6000);
+                for (int i = 0; i < vertices.Length; i += step)
+                {
+                    var w = skinned.transform.TransformPoint(vertices[i]);
+                    var flat = w - head.position; flat.y = 0;
+                    if (w.y > neck && flat.magnitude < .7f) points.Add(head.InverseTransformPoint(w));
+                }
+            }
+            Destroy(baked);
+            // keep the outer shell only: the highest point in each little column is enough
+            var top = new System.Collections.Generic.Dictionary<Vector2Int, Vector3>();
+            foreach (var p in points)
+            {
+                var w = head.TransformPoint(p);
+                var key = new Vector2Int(Mathf.RoundToInt((w.x - head.position.x) / .05f), Mathf.RoundToInt((w.z - head.position.z) / .05f));
+                if (!top.TryGetValue(key, out var best) || w.y > head.TransformPoint(best).y) top[key] = p;
+            }
+            var result = new Vector3[top.Count]; top.Values.CopyTo(result, 0);
+            return result;
+        }
+
+        // How far the umbrella must move along its shaft (+ up, - down) for the underside of the canopy to pass
+        // 8 cm over every point of the head; the hand holds the shaft (up to 35 cm higher) or the crook (up to 22 cm lower).
+        float Clearance(Vector3 grip, Vector3 axis, float scale)
+        {
+            if (headPoints == null || headPoints.Length == 0 || !head) return 0;
+            float radius = canopyRadius * scale, need = float.MinValue;
+            foreach (var p in headPoints)
+            {
+                var v = head.TransformPoint(p) - grip;
+                float along = Vector3.Dot(v, axis);
+                float radial = (v - axis * along).magnitude;
+                if (radial > radius) continue;
+                float u = radial / radius;
+                float under = (rimHeight + (topHeight - rimHeight) * (1 - Mathf.Pow(u, 1.8f))) * scale - .03f * scale;
+                need = Mathf.Max(need, along + .08f - under);
+            }
+            return need == float.MinValue ? 0 : Mathf.Clamp(need, -.35f * scale, .22f * scale);
+        }
 
         // Highest point of the skinned body (hair included) above the head bone, from one baked pose.
         float MeasureHeadTop()
@@ -270,22 +334,30 @@ namespace MarketDay
             return null;
         }
 
-        static readonly Color[] Tints = { C(0xE04B3A), C(0x2E4A7D), C(0xF2C230), C(0x4FA36B), C(0x2FA3A3), C(0xE97AA2), C(0x8A5BB8), C(0x2B2B2E) };
+        static readonly Color[] Tints = { C(0xD9473A), C(0x2E4A7D), C(0xF2C230), C(0x4FA36B), C(0x2F9FA3), C(0xE07AA0), C(0x7C5BB0), C(0x2E2F33) };   // one colour per umbrella (Lucas 06/11)
         static Color C(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);
         static Color TintFor(int seed) => Tints[Mathf.Abs(seed) % Tints.Length];
-        static void Tint(GameObject target, Color color)
+        static readonly Color MetalTint = new Color(.70f, .72f, .76f), WoodTint = new Color(.48f, .29f, .15f);
+        static void Tint(GameObject target, Color color, bool all = false)
         {
             foreach (var renderer in target.GetComponentsInChildren<Renderer>(true))
             {
                 var materials = renderer.materials;
                 for (int i = 0; i < materials.Length; i++)
-                    if (materials[i] && materials[i].name.StartsWith("Canopy"))
+                {
+                    if (!materials[i]) continue;
+                    bool canopy = materials[i].name.StartsWith("Canopy"), metal = all && materials[i].name.StartsWith("Metal"), wood = all && materials[i].name.StartsWith("Handle");
+                    if (!canopy && !metal && !wood) continue;
+                    var tint = canopy ? color : metal ? MetalTint : WoodTint;
+                    var shader = Shader.Find("Checkout/TintedVertexColor");
+                    if (shader)
                     {
-                        var shader = Shader.Find("Checkout/TintedVertexColor");
-                        if (shader) { materials[i] = new Material(shader) { name = "Canopy (tinted)" }; materials[i].SetFloat("_Glossiness", .3f); }
-                        if (materials[i].HasProperty("_Color")) materials[i].SetColor("_Color", color);
-                        if (materials[i].HasProperty("_BaseColor")) materials[i].SetColor("_BaseColor", color);
+                        materials[i] = new Material(shader) { name = (canopy ? "Canopy" : metal ? "Metal" : "Handle") + " (tinted)" };
+                        materials[i].SetFloat("_Glossiness", metal ? .55f : .3f); materials[i].SetFloat("_Metallic", metal ? .5f : 0);
                     }
+                    if (materials[i].HasProperty("_Color")) materials[i].SetColor("_Color", tint);
+                    if (materials[i].HasProperty("_BaseColor")) materials[i].SetColor("_BaseColor", tint);
+                }
                 renderer.materials = materials;
             }
         }

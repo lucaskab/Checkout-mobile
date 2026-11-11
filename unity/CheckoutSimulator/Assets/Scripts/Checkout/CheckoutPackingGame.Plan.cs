@@ -96,7 +96,7 @@ namespace Checkout {
   void BuildSubstModal(){
    running=false;
    float cardW=Mathf.Min(W*.84f,920f),cardH=Mathf.Min(H*.66f,470f);
-   var dim=U.Box(board,"SubstDim","000000",0,Vector2.zero,Vector2.one);dim.color=new Color(.12f,.08f,.04f,.62f);dim.raycastTarget=true;
+   var dim=U.Box(board,"SubstDim","000000",0,Vector2.zero,Vector2.one);dim.color=U.TapCatcher;dim.raycastTarget=true; // (no dark backdrop)
    modal=dim.gameObject;
    var card=U.Shape(dim.transform,"SubstCard","FFF7EC",28,Mid,new Vector2(cardW,cardH));
    var head=U.Label(card.transform,"Title",K.Headline,36,"4A3624");

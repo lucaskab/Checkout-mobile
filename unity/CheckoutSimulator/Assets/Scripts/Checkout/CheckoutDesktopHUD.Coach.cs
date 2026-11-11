@@ -256,20 +256,29 @@ namespace Checkout {
    spots.Add(new Vector2(left,size.y-130-card.y*.5f)); // under the top bar, clear of the windows' buttons
    spots.Add(new Vector2(left,size.y*.5f));
    spots.Add(new Vector2(left,card.y*.5f+110));         // above the toolbar
-   // The hand: about 160 wide and 155 tall from the fingertip, above it (or below it near the top edge).
-   var tip=coachHand.anchoredPosition;var hand=nearTop?Rect.MinMaxRect(tip.x-80,tip.y-135,tip.x+80,tip.y+25):Rect.MinMaxRect(tip.x-80,tip.y-25,tip.x+80,tip.y+135);
+   // The hand: about 160 wide and 155 tall from the fingertip, above it (or below it near the top edge). It pulses
+   // (up to ~20 px), so the area covers the whole movement: measured on the pulsing hand the card jumped between two
+   // spots every beat (Lucas 05/11, the "Contrate ajuda" tip going back and forth beside LOJA).
+   var tip=found?hole.center:coachHand.anchoredPosition;const float sway=24;
+   var hand=nearTop?Rect.MinMaxRect(tip.x-80-sway,tip.y-135-sway,tip.x+80+sway,tip.y+25+sway):Rect.MinMaxRect(tip.x-80-sway,tip.y-25-sway,tip.x+80+sway,tip.y+135+sway);
+   // The spot it had keeps a head start: the card only moves when another spot is clearly better.
+   string stickKey=coach.key+(found?"#"+Mathf.Round(hole.center.x/24)+","+Mathf.Round(hole.center.y/24):"");
+   bool sticky=stickKey==coachCardStickKey;if(sticky)spots.Insert(0,coachCardStick);
    Vector2 best=spots[0];float bestScore=float.MaxValue;
-   foreach(var raw in spots){
+   for(int si=0;si<spots.Count;si++){var raw=spots[si];
     var at=new Vector2(Mathf.Clamp(raw.x,card.x*.5f+12,size.x-card.x*.5f-12),Mathf.Clamp(raw.y,card.y*.5f+12,size.y-card.y*.5f-12));
     var r=new Rect(at-card*.5f,card);
     float score=0;
     if(found){score+=1000*Overlap(r,CoachPad(hole,8));score+=400*Overlap(r,hand);score+=.02f*Vector2.Distance(at,hole.center);}
     // Off the page window, and above all off its header (title, tabs, X) when the window fills the screen.
     if(hasPage){score+=3*Overlap(r,page);score+=6*Overlap(r,Rect.MinMaxRect(page.xMin,page.yMax-110,page.xMax,page.yMax));}
+    if(sticky&&si==0)score-=2000;
     if(score<bestScore-.01f){bestScore=score;best=at;}
    }
+   coachCardStickKey=stickKey;coachCardStick=best;
    return best;
   }
+  string coachCardStickKey;Vector2 coachCardStick;
   readonly List<Vector2> coachSpots=new List<Vector2>();static readonly Vector3[] coachCorners=new Vector3[4];
   static float Overlap(Rect a,Rect b){float w=Mathf.Min(a.xMax,b.xMax)-Mathf.Max(a.xMin,b.xMin),h=Mathf.Min(a.yMax,b.yMax)-Mathf.Max(a.yMin,b.yMin);return w>0&&h>0?w*h:0;}
   bool CoachRectOf(RectTransform r,out Rect local){

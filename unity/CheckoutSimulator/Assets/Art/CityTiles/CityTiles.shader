@@ -28,6 +28,7 @@ Shader "MarketDay/City Tiles"
         CGPROGRAM
         #pragma surface surf Lambert vertex:vert
         #pragma target 3.0
+        #include "Assets/Resources/CheckoutPaint/CheckoutSnow.cginc"
         sampler2D _MainTex;
         fixed4 _Color;
         float _WideStreets;
@@ -358,6 +359,8 @@ Shader "MarketDay/City Tiles"
                 color=lerp(color,asphalt,grandAccess);
                 color=lerp(color,float3(.79,.78,.70),grandAccess*step(_GrandAccess.w-.12,grandAccessDelta.y));
             }
+            // snow: thinner on the asphalt (the traffic turns it to slush)
+            color=CheckoutSnow(color,IN.worldPos,1,lerp(.5,1,smoothstep(.1,.22,dot(color,float3(.3,.59,.11)))));
             o.Albedo=color;
             o.Alpha=1;
         }

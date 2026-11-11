@@ -35,6 +35,8 @@ namespace Checkout {
   readonly List<Image> boardSegBacks=new List<Image>(),boardSegFills=new List<Image>();
   /// <summary>Chip rows of this board's tiles (0 = none): every card of the board is cut to the same height.</summary>
   int boardChipRows;float boardScrollBottom,boardCellWidth;bool boardFaces;
+  /// <summary>A face picker (board style "faces", the profile's twelve faces): small tiles, a tap picks, no side panel.</summary>
+  bool boardPicker;
   /// <summary>A narrow window (an iPad's 4:3): a slimmer side panel and the header tabs as icons.</summary>
   bool BoardNarrow=>boardWin&&((RectTransform)boardWin.transform).rect.width>100&&((RectTransform)boardWin.transform).rect.width<1100;
   float BoardDetailWidth=>BoardNarrow?290:BoardDetailW;
@@ -52,7 +54,8 @@ namespace Checkout {
   // ------------------------------------------------------------------ build
   void BuildBoard(){
    var node=N.Node("Board window",root);boardWin=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
-   var dim=boardWin.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.58f);Clickable(boardWin,()=>host.Route(""));
+   // (a tap outside the window closes it; no dark backdrop, U.TapCatcher)
+   var dim=boardWin.AddComponent<Image>();dim.color=U.TapCatcher;Clickable(boardWin,()=>host.Route(""));
    var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(40,118),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-40,-16));
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("8A5A2B");
    window.gameObject.AddComponent<Button>().transition=Selectable.Transition.None;
@@ -106,6 +109,8 @@ namespace Checkout {
    var area=N.Image(boardBody,"Tiles area",K.C("F3E3C8"),22);boardGridArea=area.rectTransform;boardGridArea.anchorMin=Vector2.zero;boardGridArea.anchorMax=Vector2.one;boardGridArea.offsetMin=new Vector2(16,14);boardGridArea.offsetMax=new Vector2(-BoardDetailW-12,0);
    boardBackdrop=N.Image(area.transform,"Backdrop",new Color(1,1,1,.22f),0);boardBackdrop.preserveAspect=false;Stretch(boardBackdrop.rectTransform,new Vector2(4,4),new Vector2(-4,-4));
    boardScroll=Scroll(area.transform,"Tiles",true,out boardContent);Stretch((RectTransform)boardScroll.transform,new Vector2(10,124),new Vector2(-6,-8));
+   // Once the player scrolls, the whole-rows cut of the first view (SnapBoardRows) goes: the tiles use the full height.
+   boardScroll.onValueChanged.AddListener(_=>{if(!QaLegacySnap&&boardContent.anchoredPosition.y>1)UncutBoardRows();});
    var col=boardContent.GetComponent<VerticalLayoutGroup>();col.spacing=6;col.padding=new RectOffset(8,14,6,16);
    boardHeroes=N.Node("Heroes",boardContent);var hrow=N.Row(boardHeroes.gameObject,14,new RectOffset(2,2,2,8));hrow.childControlHeight=true;hrow.childForceExpandHeight=true;hrow.childForceExpandWidth=true;
    boardHeroes.gameObject.SetActive(false);
@@ -162,8 +167,12 @@ namespace Checkout {
    if(hasMeter)ApplyBoardMeter(b.meter,fresh);
    // Delivery lanes take the whole width: no side panel.
    bool road=b.style=="road";
+   // (the face picker has nothing for a side panel: the faces take the whole width)
+   bool picker=b.style=="faces"&&!QaLegacySnap;
    float detailW=BoardDetailWidth;
-   boardGridArea.offsetMax=new Vector2(road?-16:-detailW-12,0);
+   // (the Filiais street: the shops take the whole width too)
+   bool street=b.style=="street";
+   boardGridArea.offsetMax=new Vector2(road||picker||street?-16:-detailW-12,0);
    var dr=(RectTransform)boardDetailPanel.transform;dr.offsetMin=new Vector2(-detailW,14);
    ApplyBoardTiles(b);
    ApplyBoardHeroes(p.cards??new DesktopCard[0]);
@@ -266,9 +275,68 @@ namespace Checkout {
   }
   float boardMeterTarget;
 
+  // Rede · Filiais (board style "map"): the city map fills the tiles area, keeping its shape (the area clips it), and
+  // every tile stands on its lot as a pin card (tile.look = "pin:x,y", the lot's centre in 0..1 of the map, y from the
+  // top). The side panel shows the picked tile as on any board.
+  RectTransform boardMapPins;readonly List<RectTransform> boardMapHolders=new List<RectTransform>();
+  // Room between the cards of a board (it was 14: cards and their buttons looked glued together, Lucas 05/11).
+  const float TileGap=20;
+  bool ApplyBoardMap(DesktopBoard b){
+   var br=boardBackdrop.rectTransform;
+   if(b.style!="map"){
+    if(boardMapPins&&boardMapPins.gameObject.activeSelf){boardMapPins.gameObject.SetActive(false);boardBackdrop.color=new Color(1,1,1,.22f);Stretch(br,new Vector2(4,4),new Vector2(-4,-4));boardScroll.gameObject.SetActive(true);}
+    return false;
+   }
+   boardScroll.gameObject.SetActive(false);
+   boardBackdrop.color=Color.white;
+   var area=boardGridArea.rect;float aw=area.width>100?area.width-8:1100,ah=area.height>100?area.height-8:560;
+   var sp=boardBackdrop.sprite;float aspect=sp?sp.rect.width/Mathf.Max(1,sp.rect.height):1.33f;
+   float w=aw,h=w/aspect;if(h<ah){h=ah;w=h*aspect;}
+   br.anchorMin=br.anchorMax=new Vector2(.5f,.5f);br.pivot=new Vector2(.5f,.5f);br.sizeDelta=new Vector2(w,h);br.anchoredPosition=Vector2.zero;
+   if(!boardGridArea.GetComponent<RectMask2D>())boardGridArea.gameObject.AddComponent<RectMask2D>();
+   if(!boardMapPins)boardMapPins=Stretch(N.Node("Map pins",boardBackdrop.transform),Vector2.zero,Vector2.zero);
+   boardMapPins.gameObject.SetActive(true);
+   var tiles=b.tiles??new DesktopTile[0];
+   while(boardTiles.Count<tiles.Length)boardTiles.Add(BoardTileUi.Create(this,boardMapPins));
+   // (full-size cards, drawn smaller: five of them fit on the map of a phone without covering each other)
+   var cell=new Vector2(214,262);const float k=.6f;
+   string selected=SelectedId(tiles);
+   while(boardMapHolders.Count<tiles.Length)boardMapHolders.Add(N.Node("Pin",boardMapPins));
+   for(int i=0;i<boardMapHolders.Count;i++)boardMapHolders[i].gameObject.SetActive(i<tiles.Length);
+   for(int i=0;i<boardTiles.Count;i++){
+    var ui=boardTiles[i];bool on=i<tiles.Length;ui.gameObject.SetActive(on);if(!on)continue;
+    var t=tiles[i];var at=new Vector2(.5f,.5f);
+    var look=t.look??"";
+    if(look.StartsWith("pin:")){var xy=look.Substring(4).Split(',');
+     if(xy.Length==2&&float.TryParse(xy[0],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var x)&&float.TryParse(xy[1],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var y))at=new Vector2(x,1-y);}
+    // a scaled holder on the lot (the tile itself keeps scale 1: its pop animation owns its scale); a pin never hangs
+    // out of the visible area (the map is clipped by the area)
+    var holder=boardMapHolders[i];holder.anchorMin=holder.anchorMax=at;holder.pivot=new Vector2(.5f,.5f);holder.sizeDelta=cell;holder.localScale=Vector3.one*k;
+    float vx=(at.x-.5f)*w,vy=(at.y-.5f)*h,mx=Mathf.Max(0,aw/2-cell.x*k/2-6),my=Mathf.Max(0,ah/2-cell.y*k/2-6);
+    holder.anchoredPosition=new Vector2(Mathf.Clamp(vx,-mx,mx)-vx,Mathf.Clamp(vy,-my,my)-vy);
+    if(ui.transform.parent!=holder)ui.transform.SetParent(holder,false);
+    var r=(RectTransform)ui.transform;r.anchorMin=Vector2.zero;r.anchorMax=Vector2.one;r.pivot=new Vector2(.5f,.5f);r.offsetMin=r.offsetMax=Vector2.zero;
+    ui.Apply(t,false,t.id==selected);
+   }
+   foreach(var sec in boardSections)sec.gameObject.SetActive(false);
+   boardEmpty.gameObject.SetActive(false);
+   boardDetailPanel.SetActive(tiles.Length>0);
+   var picked=FindTile(tiles,selected);boardDetailUi.gameObject.SetActive(picked!=null);if(picked!=null)boardDetailUi.Apply(picked,false);
+   return true;
+  }
+
   void ApplyBoardTiles(DesktopBoard b){
+   if(ApplyBoardStreet(b))return;
+   if(ApplyBoardMap(b))return;
    var tiles=b.tiles;bool road=b.style=="road";bool rank=b.style=="rank";bool rows=b.style=="row"||road||rank;
-   int columns=Mathf.Max(1,b.columns);if(Phone)columns=Mathf.Min(columns,4); // phones: wider cards, ribbons clear of the badges
+   bool picker=b.style=="faces"&&!QaLegacySnap;boardPicker=picker;
+   // (faces without chips, the profile's twelve, a friend request alone: a short card)
+   bool faces=tiles.Length>0;foreach(var x in tiles)if(x.frame!="portrait"&&x.frame!="line"){faces=false;break;}
+   bool bareFaces=faces;foreach(var x in tiles)if(x.chips!=null&&x.chips.Length>0)bareFaces=false;
+   // phones: wider cards, ribbons clear of the badges. The profile's twelve faces keep their six columns: two rows sit
+   // under the name card on a phone instead of three, the last one under the fold (QA 05/11).
+   // (a picker of small tiles, the Rede logos too, keeps its columns on a phone as well)
+   int columns=Mathf.Max(1,b.columns);if(Phone&&(!(bareFaces||picker)||QaLegacySnap))columns=Mathf.Min(columns,4);
    // The window has a fixed size on the 1600×1000 canvas: before its first layout use that width.
    float width=boardGridArea.rect.width>100?boardGridArea.rect.width-40:(road?1440:1020);
    // Every card of a board has the same height: as tall as its tallest content (chip rows, a bar, big art) and no more.
@@ -276,15 +344,13 @@ namespace Checkout {
    foreach(var x in tiles){if(x.chips!=null)chipRows=Mathf.Max(chipRows,Mathf.Min(ChipRows,x.chips.Length));if(x.fill>=0&&x.frame!="line")barred=true;if(x.frame=="showcase")showcase=true;}
    boardChipRows=chipRows;
    // (a narrow window keeps cards wide enough for two buttons: fewer columns)
-   if(!rows){float least=chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+14)/(least+14))));}
-   // (faces without chips, the profile's twelve, a friend request alone: a short card)
-   bool faces=tiles.Length>0;foreach(var x in tiles)if(x.frame!="portrait"&&x.frame!="line"){faces=false;break;}
+   if(!rows){float pgap=picker?14:TileGap;float least=picker?86:chipRows>0?206:showcase?200:150;columns=Mathf.Max(1,Mathf.Min(columns,Mathf.FloorToInt((width+pgap)/(least+pgap))));}
    boardFaces=faces&&chipRows==0;
-   float cellH=chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+68:showcase?310:faces?208:268;
+   float cellH=picker?128:chipRows>0?CompactTop+chipRows*ChipH+(barred?18:0)+74:showcase?316:faces?214:276;
    // (ranking rows with a bar under the name, Amigos: a little taller)
    if(rank){bool anyBar=false;foreach(var x in tiles)if(x.fill>=0&&x.look!="invite")anyBar=true;RankCellH=RankRowH+(anyBar?16:0);}
-   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,108):new Vector2(Mathf.Floor((width-(columns-1)*14f)/columns),cellH);
-   var slimCell=new Vector2(Mathf.Floor((width-14)/2),64);boardCellWidth=rows?0:cell.x;
+   var cell=road?new Vector2(width-10,LaneHeight):rank?new Vector2(width-10,RankCellH):rows?new Vector2(width-10,116):new Vector2(Mathf.Floor((width-(columns-1)*(picker?14:TileGap))/columns),cellH);
+   var slimCell=new Vector2(Mathf.Floor((width-TileGap)/2),64);boardCellWidth=rows?0:cell.x;
    // Sections: a title each time the group changes.
    int section=-1;string group=null;
    if(road)while(boardLanes.Count<tiles.Length)boardLanes.Add(BoardLaneUi.Create(this,boardContent));
@@ -295,7 +361,7 @@ namespace Checkout {
      if(boardSections.Count<=section)boardSections.Add(BoardSection.Create(boardContent));
      // (the Correio's history: slim rows, two per line)
      bool slim=!rows&&t.frame=="line";
-     var s=boardSections[section];s.gameObject.SetActive(true);s.transform.SetSiblingIndex(section);s.Apply(g,slim?slimCell:cell,rows,slim?2:columns);}
+     var s=boardSections[section];s.gameObject.SetActive(true);s.transform.SetSiblingIndex(section);s.Apply(g,slim?slimCell:cell,rows,slim?2:columns,picker?14:TileGap);}
     Component ui=road?(Component)boardLanes[i]:boardTiles[i];ui.gameObject.SetActive(true);
     if(ui.transform.parent!=boardSections[section].grid)ui.transform.SetParent(boardSections[section].grid,false);
     ui.transform.SetAsLastSibling();
@@ -315,7 +381,7 @@ namespace Checkout {
    for(int i=road?0:tiles.Length;i<boardTiles.Count;i++)boardTiles[i].gameObject.SetActive(false);
    for(int i=road?tiles.Length:0;i<boardLanes.Count;i++)boardLanes[i].gameObject.SetActive(false);
    boardEmpty.gameObject.SetActive(tiles.Length==0);boardEmpty.text=K.Clean(b.empty);
-   if(road){boardDetailPanel.SetActive(false);return;}
+   if(road||picker){boardDetailPanel.SetActive(false);return;}
    // Nothing to pick (no friends yet): no empty side panel, the cards take the width.
    boardDetailPanel.SetActive(tiles.Length>0);
    if(tiles.Length==0){boardGridArea.offsetMax=new Vector2(-16,0);return;}
@@ -354,8 +420,15 @@ namespace Checkout {
   // Whole rows on the first view (QA 02/11 "no card should ever be sliced by the footer"): when a row (a section's
   // title goes with its first row) would stand half under the footer, the tile view ends just above it. The rows below
   // wait for a scroll, with the chevron saying so.
+  //
+  // Only on the first view, with the list at its top. It used to run on every view message (several a second while the
+  // market runs) at whatever scroll position: with the list scrolled, the cut moved to another row each time and the
+  // tiles were clipped at a line well above the footer, leaving an empty band across them that came and went (the face
+  // picker of the first-time profile, TestFlight 1.0 (11), Lucas 05/11).
   void SnapBoardRows(){
-   var view=(RectTransform)boardScroll.transform;view.offsetMin=new Vector2(10,boardScrollBottom);
+   var view=(RectTransform)boardScroll.transform;
+   if(!QaLegacySnap&&boardContent.anchoredPosition.y>1){UncutBoardRows();return;}
+   view.offsetMin=new Vector2(10,boardScrollBottom);
    Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(boardContent);
    var viewport=boardScroll.viewport?boardScroll.viewport:view;float height=viewport.rect.height;
    if(height<100)return;
@@ -385,6 +458,16 @@ namespace Checkout {
     break;
    }
   }
+
+  /// <summary>The tile view back to its full height (the player scrolled: the first view's cut is not wanted).</summary>
+  void UncutBoardRows(){var view=(RectTransform)boardScroll.transform;if(Mathf.Abs(view.offsetMin.y-boardScrollBottom)>.5f)view.offsetMin=new Vector2(10,boardScrollBottom);}
+  /// <summary>QA ("eventsfriends"): the TestFlight 1.0 (11) behaviour (the cut at any scroll position, four columns of
+  /// faces on a phone), to photograph the band next to the fix. Never set outside a QA run.</summary>
+  internal static bool QaLegacySnap;
+  /// <summary>QA: how far the tile view ends above the footer's line (0 = full height), and the list's scroll offset.</summary>
+  public (float cut,float scrolled) QaBoardCut(){var view=(RectTransform)boardScroll.transform;return (view.offsetMin.y-boardScrollBottom,boardContent.anchoredPosition.y);}
+  /// <summary>QA: scrolls the board's tile list (0 = top, 1 = bottom), as a finger drag would.</summary>
+  public void QaBoardScroll(float to){Canvas.ForceUpdateCanvases();boardScroll.verticalNormalizedPosition=1-Mathf.Clamp01(to);}
 
   // ------------------------------------------------------------------ interaction
   public void BoardSelect(string id){
@@ -426,6 +509,7 @@ namespace Checkout {
    foreach(var lane in boardLanes)if(lane.gameObject.activeInHierarchy)lane.Tick(now,t);
    boardDetailUi.Tick(now,t);
    foreach(var mark in boardMarks)if(mark.gameObject.activeSelf)mark.Tick(t);
+   TickStreet(now,t);
    UpdateRankBoard(t);
    if(boardMeter.gameObject.activeSelf){
     boardMeterShown=Mathf.MoveTowards(boardMeterShown,boardMeterTarget,Time.unscaledDeltaTime*.8f);
@@ -435,7 +519,8 @@ namespace Checkout {
    }
    // The chevron while rows wait below and the list is still at its top.
    var vp=boardScroll.viewport?boardScroll.viewport:(RectTransform)boardScroll.transform;
-   bool more=boardContent.rect.height>vp.rect.height+20&&boardScroll.verticalNormalizedPosition>.97f;
+   // (not over the Filiais map or street: there is no list there, the chevron sat over the cards)
+   bool more=boardScroll.gameObject.activeInHierarchy&&boardContent.rect.height>vp.rect.height+20&&boardScroll.verticalNormalizedPosition>.97f;
    if(boardMore.gameObject.activeSelf!=more)boardMore.gameObject.SetActive(more);
    if(more)boardMore.anchoredPosition=new Vector2(0,((RectTransform)boardScroll.transform).offsetMin.y-boardMoreDrop+Mathf.Abs(Mathf.Sin(t*3))*(boardMoreDrop>2?1.5f:5));
   }
@@ -501,6 +586,12 @@ namespace Checkout {
     else if(!string.IsNullOrEmpty(data.label))hud.Toast(K.Clean(data.label),data.state!="locked");
    }
   }
+  /// <summary>A face picker's tile was tapped: its own action (pick this face) runs, no button needed.</summary>
+  void PressTileAction(RectTransform tile,DesktopButton action){
+   if(action==null||string.IsNullOrEmpty(action.action)||!action.enabled)return;
+   boardPressed=tile;boardPressedVariant=action.variant;
+   pending[host.Action(action.action,action.args,action.after)]=action;
+  }
   void PressMark(BoardMarkUi mark,DesktopButton action){
    boardPressed=(RectTransform)mark.transform;boardPressedVariant="success";Sound("tap");
    pending[host.Action(action.action,action.args,action.after)]=action;
@@ -522,9 +613,9 @@ namespace Checkout {
     s.layout.startCorner=GridLayoutGroup.Corner.UpperLeft;s.layout.childAlignment=TextAnchor.UpperLeft;s.layout.constraint=GridLayoutGroup.Constraint.FixedColumnCount;
     return s;
    }
-   public void Apply(string group,Vector2 cell,bool rows,int columns){
+   public void Apply(string group,Vector2 cell,bool rows,int columns,float gap){
     header.SetActive(!string.IsNullOrEmpty(group));title.text=K.Clean(group);
-    layout.cellSize=cell;layout.spacing=new Vector2(14,rows?10:14);layout.constraintCount=rows?1:columns;
+    layout.cellSize=cell;layout.spacing=new Vector2(gap,rows?14:gap);layout.constraintCount=rows?1:columns;
    }
   }
  }

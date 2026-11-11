@@ -4,7 +4,7 @@ import { onboardingGuide } from "@/data/onboarding";
 import { getNextGoal } from "@/services/onboarding";
 import type { Routes } from ".";
 import { act, card, gameIcon, go, page } from "../view-kit";
-import { accountStatusLine, linksCard } from "./account";
+import { accountStatusLine, discordCard, linksCard } from "./account";
 
 // "Guia" (the "?" button of the top bar): what each part of the screen does, the next objective and a
 // button to play the tutorial again. For players who skipped it or forgot where something is.
@@ -22,6 +22,8 @@ export const routes: Routes = {
 				lines: [accountStatusLine()],
 				buttons: [go("Abrir", "conta", { icon: gameIcon("key") })],
 			}),
+			// Lucas 06/11: the community on Discord (bugs, suggestions, questions, show your market).
+			discordCard(),
 			card("O seu objetivo", {
 				icon: gameIcon("target"),
 				eyebrow: "DONA NEIDE EXPLICA",

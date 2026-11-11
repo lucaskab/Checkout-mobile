@@ -305,6 +305,20 @@ const builders: Record<Category, Builder> = {
 					}),
 				),
 			}),
+			// "Ladrão e segurança": a thief walks in now (QA videos), whatever the era or the clock.
+			card("Ladrão", {
+				eyebrow: "LOJA",
+				icon: gameIcon("lock"),
+				badge: state.security?.thief ? state.security.thief.phase : "",
+				subtitle: "Um ladrão entra agora e pega o produto mais caro da prateleira.",
+				buttons: [
+					act("Chamar ladrão", "devSpawnThief", [], {
+						variant: "danger",
+						ok: "Ladrão entrando!",
+						fail: "Já tem um ladrão ou nenhuma prateleira tem estoque",
+					}),
+				],
+			}),
 		]);
 	},
 	// Expansion works: finish the running one at once to check the reveal and the new building.

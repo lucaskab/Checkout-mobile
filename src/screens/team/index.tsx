@@ -145,6 +145,8 @@ function roleIcon(role: (typeof employeeDefinitions)[number]["id"]) {
 			return "package" as const;
 		case "cleaner":
 			return "broom" as const;
+		case "security":
+			return "lock" as const;
 	}
 }
 

@@ -1,3 +1,4 @@
+import { getNextOfflineCap, getOfflineCapHours, getOfflineTriplePrice, isStarterOfferOpen, getStarterOfferEnd } from "@/services/perks";
 import { t } from "@/i18n";
 import type { SimulatorPanel } from "@/@types/simulator";
 import { getGameEvent } from "@/data/game-events";
@@ -16,8 +17,8 @@ import {
 } from "@/services/market-day";
 import { getClaimableMissionCount } from "@/services/missions";
 import { canClaimDailyLogin, canDoubleDailyLogin } from "@/services/daily-login";
-import { getRewardedAdOffer } from "@/services/rewarded-ads";
-import { adsStore, isAdOpening } from "./ads";
+import { getRewardedVideosLeft } from "@/services/rewarded-ads";
+import { isAdOpening } from "./ads";
 import { cloudStore } from "./cloud";
 import { socialBadge, socialIcon, socialStore, type VisitView, visitView } from "./social";
 import { getExperienceToNextLevel } from "@/services/progression";
@@ -30,6 +31,7 @@ import { type LeagueCardView, leagueCardView } from "./pages/ranking";
 import { viewRankings } from "./rankings";
 import { pages } from "./pages";
 import { groupOf, groupRoute, type ToolGroup, toolGroups } from "./sections";
+import { isChainUnlocked } from "@/services/chain";
 import {
 	act,
 	type Button,
@@ -82,6 +84,8 @@ export type DesktopView = {
 	quick: Button[];
 	/** The one corner button that opens the side buttons as a small menu (Lucas 19/10, "a tela está muito lotada"). */
 	quickMain: Button;
+	/** Always on screen above "Bônus" (Lucas 10/11, testers could not find them): "Grátis" (the videos) and "Amigos". */
+	quickFixed: Button[];
 	hasOffline: boolean;
 	offline: Card;
 	// Level-up celebration with everything the new level opened (desktop/level-up.ts); null when seen.
@@ -140,14 +144,13 @@ function boostViews(state: State, now: number): BoostView[] {
 	});
 }
 
-// The money makers and the account, always one tap away (Lucas 14/10: "está muito escondido"): the daily gift
-// (lights up when it can be claimed or doubled), the free video (plays right away when one is ready), the diamond
-// store, and "Salvar" while the player has not signed in with Google.
+// The money makers and the account, one tap away (Lucas 14/10: "está muito escondido"). Lucas 10/11 (the testers had
+// to be told where the videos and the friends were): the videos and Amigos stand on the screen above "Bônus"
+// (fixedQuickButtons); the menu keeps the daily gift (lights up when it can be claimed or doubled), the diamond
+// store, Ranking and "Salvar" while the player has not signed in.
 function quickButtons(state: State, now: number): Button[] {
 	const giftReady = canClaimDailyLogin(state.dailyLogin, now);
 	const giftDouble = canDoubleDailyLogin(state.dailyLogin, now);
-	const offer = getRewardedAdOffer(state.rewardedAds, now);
-	const adReady = offer.available && adsStore.status !== "unavailable" && !isAdOpening();
 	const signedIn = !["unavailable", "signed-out", "signing-in"].includes(cloudStore.status);
 	const quick: Button[] = [
 		button("Presente", {
@@ -156,26 +159,49 @@ function quickButtons(state: State, now: number): Button[] {
 			variant: giftReady || giftDouble ? "success" : "secondary",
 			badge: giftReady ? "!" : giftDouble ? "2x" : "",
 		}),
-		adReady
-			? act(`Vídeo · +${offer.reward}`, "watchRewardedAd", ["diamonds"], { icon: gameIcon("television"), variant: "gem", badge: "Grátis", ok: "" })
-			: button(isAdOpening() ? "Abrindo…" : "Vídeo", {
-					icon: gameIcon("television"),
-					route: "!gratis",
-					variant: "secondary",
-				}),
 		button("Loja", { icon: gameIcon("diamond"), route: "!currency", variant: "gem" }),
 	];
-	// Amigos (social v1): in the same corner menu, no new button on the screen; a red count of what friends did.
-	if (cloudStore.status !== "unavailable" || socialStore.mock) {
-		const news = socialBadge();
-		quick.push(button("Amigos", { icon: socialIcon("friends"), route: "!amigos", variant: news > 0 ? "success" : "secondary", badge: news > 0 ? String(news) : "" }));
-		// Ranking (rankings v1), next to Amigos: a count of end-of-week cards waiting.
+	// Ranking (rankings v1): a count of end-of-week cards waiting.
+	if (socialShown()) {
 		const cards = viewRankings(now).cards.length;
 		quick.push(button("Ranking", { icon: gameIcon("trophy"), route: cards ? "!ranking:liga" : "!ranking", variant: cards ? "success" : "secondary", badge: cards ? String(cards) : "" }));
 	}
 	if (!signedIn && cloudStore.status !== "unavailable")
 		quick.push(button("Salvar", { icon: gameIcon("smartphone"), route: "!conta", variant: "primary", badge: "!" }));
 	return quick;
+}
+
+/** Friends need the cloud (or the test friends of the desktop build). */
+function socialShown() {
+	return cloudStore.status !== "unavailable" || socialStore.mock;
+}
+
+// Always on screen (research 10/11: the games that sell videos keep them in sight with their own colour and the
+// prize on the button; Hay Day and Township keep the friends one tap away with a count of what is waiting):
+// - "Grátis" with the diamond (Lucas: "mostrar o diamante grátis, pra já chamar atenção"): opens the page where the
+//   player picks diamonds or coins; the pill counts the videos left today (7 + 7). Never a dead button: with all
+//   used it still opens the page, which says when they come back.
+// - "Amigos" with a red count of what friends did.
+function fixedQuickButtons(state: State, now: number): Button[] {
+	const left = getRewardedVideosLeft(state.rewardedAds, state.market.level, now);
+	const fixed: Button[] = [
+		button(isAdOpening() ? "Abrindo…" : "Grátis", {
+			icon: gameIcon("diamond"),
+			route: "!video",
+			variant: left > 0 ? "gem" : "secondary",
+			badge: left > 0 ? String(left) : "",
+		}),
+	];
+	// Pacote inicial while its 48 h last (Lucas 11/11): the time left on the badge.
+	if (isStarterOfferOpen(state.perks, state.currencyPurchases.purchasedPackIds, now)) {
+		const hoursLeft = Math.max(1, Math.ceil((getStarterOfferEnd(state.perks) - now) / 3_600_000));
+		fixed.unshift(button("Oferta", { icon: gameIcon("gift"), route: "!oferta", variant: "coin", badge: `${hoursLeft}h` }));
+	}
+	if (socialShown()) {
+		const news = socialBadge();
+		fixed.push(button("Amigos", { icon: socialIcon("friends"), route: "!amigos", variant: news > 0 ? "success" : "secondary", badge: news > 0 ? String(news) : "" }));
+	}
+	return fixed;
 }
 
 // The corner button that holds them: a gift with a red count of what is waiting (gift to claim, free video, sign in).
@@ -189,7 +215,7 @@ export function quickMainButton(quick: Button[]): Button {
 }
 
 export const tools: {
-	id: SimulatorPanel | "dev" | "loja" | ToolGroup["id"];
+	id: SimulatorPanel | "dev" | "loja" | "rede" | ToolGroup["id"];
 	label: string;
 	icon: GameIconId;
 	requiredLevel: number;
@@ -201,6 +227,8 @@ export const tools: {
 	{ id: "sectors", label: "Produção", icon: "conveyor", requiredLevel: 18 },
 	// Missões = Missões · Conquistas.
 	{ id: "missoes", label: "Missões", icon: "trophy", requiredLevel: 1 },
+	// Rede de supermercados: only once the last expansion is built (desktop/pages/rede.ts).
+	{ id: "rede", label: "Rede", icon: "rede", requiredLevel: 1 },
 	{ id: "dev", label: "Dev", icon: "toolbox", requiredLevel: 1 },
 ];
 
@@ -259,14 +287,47 @@ function offline(state: State) {
 	const summary = state.offlineSummary;
 	if (!summary) return card("");
 	const minutes = Math.max(1, Math.round(summary.durationMs / 60_000));
+	// Lucas 11/11: "Coletar", "2× com vídeo" or "3× com diamantes", and a longer time away when it was reached.
+	const waiting = isAdOpening("offline");
+	const triple = getOfflineTriplePrice(summary.durationMs);
+	const next = summary.capped ? getNextOfflineCap(state.perks) : null;
+	const hours = getOfflineCapHours(state.perks);
 	return card("Enquanto você estava fora", {
 		icon: gameIcon("coin"),
 		lines: [
-			`${fmt(minutes)} min fora`,
+			minutes >= 60 ? `${fmt(Math.floor(minutes / 60))} h ${minutes % 60} min fora` : `${fmt(minutes)} min fora`,
 			summary.customers === 1 ? "1 cliente atendido" : `${fmt(summary.customers)} clientes atendidos`,
 			summary.coins === 1 ? "+1 moeda" : `+${fmt(summary.coins)} moedas`,
+			...(summary.coins > 0 ? [`2× com vídeo: +${fmt(summary.coins)} · 3× com diamantes: +${fmt(summary.coins * 2)}`] : []),
+			...(summary.capped
+				? [next ? `O mercado vende só ${hours} h sem você. Aumente para ${next.hours} h.` : `O mercado vendeu as ${hours} h inteiras.`]
+				: []),
 		],
-		buttons: [act("Coletar", "dismissOfflineSummary", [], { variant: "success" })],
+		buttons: [
+			act("Coletar", "dismissOfflineSummary", [], { variant: "secondary" }),
+			...(summary.coins > 0
+				? [
+						act(waiting ? "Abrindo…" : "2× vídeo", "watchRewardedAd", ["offline"], {
+							variant: "coin",
+							enabled: !waiting,
+							ok: "",
+						}),
+						act(`3× · ${triple}`, "tripleOfflineCoins", [], {
+							variant: "gem",
+							icon: gameIcon("diamond"),
+							ok: `Vendas triplicadas: +${fmt(summary.coins * 2)} moedas!`,
+						}),
+					]
+				: []),
+			...(next
+				? [
+						act(`${next.hours} h · ${next.price}`, "buyOfflineCap", [], {
+							variant: "gem",
+							ok: `Agora o mercado vende por até ${next.hours} h enquanto você está fora!`,
+						}),
+					]
+				: []),
+		],
 	});
 }
 
@@ -323,6 +384,7 @@ export function createDesktopView(
 	const visit = visitView(now);
 	// Visiting: only the visit's own bar and pages (the player's HUD, tutorial and celebrations wait at home).
 	const quick = visit ? [] : quickButtons(state, now);
+	const quickFixed = visit ? [] : fixedQuickButtons(state, now);
 	const home = !visit;
 	return {
 		kind: "view",
@@ -395,6 +457,7 @@ export function createDesktopView(
 		// Release builds (scripts/release/build-host.ts) hide the Dev tab.
 		// App Store screenshots (CHECKOUT_HIDE_DEV, Unity "Store screenshots") hide it too, while the dev actions keep working.
 		tools: tools
+			.filter((tool) => tool.id !== "rede" || isChainUnlocked(state.era.id))
 			.filter((tool) => tool.id !== "dev" || (__DEV__ && !(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.CHECKOUT_HIDE_DEV))
 			.map((tool) => {
 			const locked = state.market.level < tool.requiredLevel;
@@ -425,6 +488,7 @@ export function createDesktopView(
 		}),
 		quick,
 		quickMain: quickMainButton(quick),
+		quickFixed,
 		hasOffline: Boolean(state.offlineSummary),
 		offline: summary,
 		levelUp: levelUpView(state),
@@ -448,6 +512,7 @@ export function createDesktopView(
 					boosts: [],
 					tools: [],
 					quickMain: quickMainButton([]),
+					quickFixed: [],
 					hasOffline: false,
 					levelUp: null,
 					celebration: null,

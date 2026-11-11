@@ -158,6 +158,14 @@ namespace Checkout {
   void Follow(Transform t, Transform target, Vector3 offset) => motions[building].Add(new Motion { root = t, target = target, offset = offset, home = t.localPosition, rot = t.localRotation, scale = t.localScale, kind = "follow" });
   static Vector3 Dir(float x, float z) => new Vector3(x, 0, z);
   static readonly Vector3 North = Vector3.forward, South = Vector3.back, EastDir = Vector3.right, WestDir = Vector3.left;
+  // The market's own people in the events: the Meshy workers of the sectors (Lucas 06/11: the old Worker_Cashier /
+  // Worker_Stocker models, round and made of primitives, don't match the game's characters - never cast them).
+  static readonly string[] StaffCast = { "Worker_Fishmonger", "Worker_Butcher", "Worker_Baker", "Worker_Delivery" };
+  string Staff(int i) {
+   var sim = FindAnyObjectByType<MarketSimulation>(); var list = new List<string>();
+   if (sim && sim.world) foreach (var n in StaffCast) if (sim.world.Find(n)) list.Add(n);
+   return list.Count > 0 ? list[i % list.Count] : Shoppers[i % Shoppers.Length];
+  }
   string WorkerOr(string worker, string fallback) { var sim = FindAnyObjectByType<MarketSimulation>(); return sim && sim.world && (sim.world.Find(worker) || (worker == "Worker_Stocker" && sim.world.Find("StockWorker_0"))) ? worker : fallback; }
   static IEnumerator Wait(float s) { yield return new WaitForSeconds(s); }
   // The people of the neighbourhood: the city's appearance templates (each looks different); "#n" picks one of them.
@@ -188,6 +196,7 @@ namespace Checkout {
     case "cafe-com-a-equipe": CoffeeBreak(); break;
     case "viralizou": Influencer(); break;
     case "chuva-forte": BuildRain(root); break;
+    case "nevasca": BuildSnow(root); break;
     case "rua-em-obras": RoadWorksScene(); break;
     case "engarrafamento": Jam(); break;
     case "fim-do-mes": MonthEnd(); break;
@@ -519,7 +528,7 @@ namespace Checkout {
    float back = small ? FootBack : Mathf.Min(facadeZ, -7.7f);
    if (!Place(ref x, 1.3f, 1.2f, back - 2.9f, back, 26f)) return;
    // the promoter first: her hand at the top of the pull decides where the wheel stands
-   var promoter = Person(WorkerOr("Worker_Cashier", "Customer_07"), On(x - .6f, back - .9f), South, "PullWheel", 1, true, 0);
+   var promoter = Person(Staff(0), On(x - .6f, back - .9f), South, "PullWheel", 1, true, 0);
    // wheel origin (its stand's foot): the disc's hub is 1.75 m above it and its face .32 m in front of it
    var moves = promoter.Moves; float ox = x + .45f, oz = back - .4f, ground = On(ox, oz).y;
    if (moves) {
@@ -569,7 +578,7 @@ namespace Checkout {
    Person(Next(), On(dx - .9f, -10.35f), North, "LookPhone"); Person(Next(), On(dx + .4f, -10.45f), Dir(-.2f, 1));
    // customers look through the pallets of offers on their way in (Market.cs)
    Stop(On(dx - 1.7f, -10.15f), On(dx - 1.0f, -9.3f), 2.5f, "GetFromShelf"); Stop(On(dx - .25f, -10.95f), On(dx + .3f, -9.25f), 2.5f, "GetFromShelf");
-   var porter = Person(WorkerOr("Worker_Stocker", "Customer_09"), Road(rear + .7f, CurbEdge), North, "HoldHandle", 1, false);
+   var porter = Person(Staff(3), Road(rear + .7f, CurbEdge), North, "HoldHandle", 1, false);
    var jack = Prop("Ofertas_PalletJack", Vector3.zero, 0); var load = art.Prop2(jack, "Ofertas_PalletStack", new Vector3(.58f, .13f, 0), 0, .95f);
    jack.localScale = Vector3.zero;
    var buyer = Person(Next(), On(dx, -10.4f), WestDir, "CarryBox", 1, false);
@@ -644,18 +653,45 @@ namespace Checkout {
   }
 
   // ================================================================ café com a equipe
-  // The staff take their coffee break at a folding table on the footway beside the market (the chalkboard says
-  // CAFÉ): two sit with their cups, one stands and sips.
+  // The staff take their coffee break INSIDE the market (Lucas 06/11: "não faz sentido ser fora do mercado"): the
+  // folding table on a free patch of the shop floor, towards the back (the staff side), two sit with their cups,
+  // one stands and sips, the chalkboard beside them. The stalls (no shop floor) keep it on the footway by the stall.
   void CoffeeBreak() {
-   float x = doorW.x - 3.8f;
-   if (!Place(ref x, 1.6f, 1.6f, -10.9f, -8.65f, 26f, -1)) return;
-   var t = On(x, -9.6f); Focus(t);
+   Vector3 t;
+   if (ShopSpot(3.4f, 2.4f, out var spot)) t = spot;
+   else {
+    float x = doorW.x - 3.8f;
+    if (!Place(ref x, 1.6f, 1.6f, -10.9f, -8.65f, 26f, -1)) return;
+    t = On(x, -9.6f);
+   }
+   Focus(t);
    Prop("Cafe_BreakTable", t, 0);
    Prop("Cafe_FoldingChair", t + new Vector3(-1.15f, 0, 0), -90); Prop("Cafe_FoldingChair", t + new Vector3(1.15f, 0, 0), 90);
-   Prop("Cafe_CoffeeBoard", On(x + 1.9f, -9.2f), 15);
-   Person(WorkerOr("Worker_Cashier", "Customer_07"), t + new Vector3(-1.1f, 0, 0), EastDir, "SitSip");
-   Person(WorkerOr("Worker_Stocker", "Customer_09"), t + new Vector3(1.1f, 0, 0), WestDir, "SitSip");
-   Person(WorkerOr("Worker_Baker", "Customer_06"), t + new Vector3(.1f, 0, -.95f), North, "Sip");
+   Prop("Cafe_CoffeeBoard", t + new Vector3(1.5f, 0, .55f), 15);
+   Person(Staff(0), t + new Vector3(-1.1f, 0, 0), EastDir, "SitSip");
+   Person(Staff(1), t + new Vector3(1.1f, 0, 0), WestDir, "SitSip");
+   Person(Staff(2), t + new Vector3(.1f, 0, -.95f), North, "Sip");
+  }
+
+  /// <summary>A free w x d patch of the shop floor (nothing placed there, not the door's way in nor the staff
+  /// corridor), the one nearest the back wall; false at the stalls or when the floor is full.</summary>
+  bool ShopSpot(float w, float d, out Vector3 spot) {
+   spot = default;
+   var inside = CheckoutInterior.Active;
+   if (!inside || CheckoutStall.Yard) return false;
+   var fl = inside.FloorRect;
+   var taken = new List<CheckoutInterior.Footprint> { inside.Entrance, inside.ServiceDoor };
+   foreach (var it in inside.items.Values) if (it != null && it.root && !it.outside && !it.ghost) taken.Add(inside.FootprintOf(it, .45f));
+   for (float z = fl.yMax - d * .5f - .3f; z >= fl.yMin + d * .5f + 1.4f; z -= .25f)
+    for (int k = 0; k < 80; k++) {
+     float x = fl.center.x + (k % 2 == 0 ? 1 : -1) * (k / 2) * .25f;
+     if (x - w * .5f < fl.xMin + .3f || x + w * .5f > fl.xMax - .3f) continue;
+     var f = new CheckoutInterior.Footprint { c = new Vector2(x, z), ax = Vector2.right, az = Vector2.up, hx = w * .5f, hz = d * .5f };
+     bool free = true;
+     foreach (var o in taken) if (CheckoutInterior.Overlap(o, f)) { free = false; break; }
+     if (free) { spot = On(x, z); return true; }
+    }
+   return false;
   }
 
   // ================================================================ viralizou
@@ -818,6 +854,7 @@ namespace Checkout {
   // The operator's van parks at the curb west of the crossing; on the telecom pole a technician up the ladder works
   // on the box (its LED blinking), the other checks the list at the van; SÓ DINHEIRO at the market.
   void CardsDown() {
+   CardsDownAtCounter();
    var van = Vehicle("Rig_TelecomVan", Road(0, LaneW), West);
    float front = WestZoneFrom + .1f, vx = front + van.FrontOffset;
    van.transform.position = Road(vx, LaneW);
@@ -827,7 +864,7 @@ namespace Checkout {
    // the street when the van's spot is in front of the door)
    if (!Place(ref px, .5f, 1.9f, -11.2f, -9.3f, 6f) && !Place(ref px, .5f, 1.9f, -11.2f, -9.3f, 26f)) px = float.NaN;
    if (float.IsNaN(px)) { Person(Next(), On(vx + van.BackOffset - .4f, CurbEdge + .25f), Dir(-.4f, 1), "Clipboard"); CashOnly(); return; }
-   var pole = Prop("Maquininha_TelecomPole", On(px, -9.55f), 0); Focus(On(px, -10.8f));
+   var pole = Prop("Maquininha_TelecomPole", On(px, -9.55f), 0);   // the camera stays on the checkout
    Fx2(pole, "Maquininha_CtoLed", new Vector3(.11f, 4.52f, -.5f), "blink");
    Prop("Maquininha_Ladder", On(px, -11.0f), 0);
    // standing on the ladder ~2.1 m up, leaning in to the box
@@ -835,6 +872,52 @@ namespace Checkout {
    Prop("Maquininha_CableReel", On(px + 1.3f, -10.7f), 0);
    Person(Next(), On(vx + van.BackOffset - .4f, CurbEdge + .25f), Dir(-.4f, 1), "Clipboard");
    CashOnly();
+  }
+  // At the checkout (Lucas 06/11: "se o evento é da maquininha de cartão não tá funcionando, o caixa é lá que tem que
+  // ficar com alguma animação"): the cashier holds the card machine up with its red error screen (riding her hand
+  // while she works), a "no card" bubble bobs over the counter, the standee on the counter says cash yes / card no,
+  // and the customer at the counter pays with a fan of banknotes. Props from ArtSource/events_v2/maquininha_v2.py
+  // (no text baked in: icons only). At a stall without a hired cashier, the stall's clerk does it.
+  void CardsDownAtCounter() {
+   var sim = FindAnyObjectByType<MarketSimulation>();
+   var cashier = sim && sim.world ? sim.world.Find("Worker_Cashier") : null;
+   bool working = cashier && cashier.gameObject.activeInHierarchy;
+   Vector3 till, face; Transform holder;
+   if (working) {
+    till = cashier.position; face = Flat(cashier.forward, South);
+    holder = HandOf(cashier);
+   } else {
+    till = CheckoutStall.Register; face = South;
+    var clerk = Person(Staff(0), new Vector3(till.x, On(till.x, till.z + .7f).y, till.z + .7f), South, "LookPhone");
+    holder = HandOf(clerk.transform); till = clerk.transform.position;
+   }
+   var side = Vector3.Cross(Vector3.up, face).normalized;
+   // the machine: in her right hand, screen towards the customer; on the counter by her when no hand bone is found
+   // (props a bit larger than life so they read from the game camera, like the other event props)
+   var machine = Prop("Maquininha_Handheld", till + face * .45f + Vector3.up * 1.05f, Quaternion.LookRotation(-face).eulerAngles.y, 1.8f);
+   if (holder) Ride(machine, holder, face * .04f);
+   // the bubble and the standee turn their faces to the game camera (these two were exported facing -Z)
+   var cam = Camera.main; var toCam = cam ? Flat(-cam.transform.forward, -face) : -face;
+   float camYaw = Quaternion.LookRotation(-toCam).eulerAngles.y;
+   var bubble = till + face * .9f + Vector3.up * 2.1f;
+   Fx2(root, "Maquininha_NoCardBubble", bubble, "float", camYaw, 1.7f);
+   Prop("Maquininha_CounterSign", till + face * .62f + side * .45f + Vector3.up * .95f, camYaw, 1.8f);
+   Fx2(root, "Maquininha_CashBills", till + face * .66f + side * .3f + Vector3.up * .98f, "pulse", Quaternion.LookRotation(-face).eulerAngles.y, 1.6f);
+   Focus(till + face * .5f);
+  }
+  static Vector3 Flat(Vector3 v, Vector3 fallback) { v.y = 0; return v.sqrMagnitude > .01f ? v.normalized : fallback; }
+  // The right hand bone of a rigged character (names vary between the Tripo, Meshy and Blender rigs).
+  static Transform HandOf(Transform who) {
+   if (!who) return null;
+   Transform best = null;
+   foreach (var t in who.GetComponentsInChildren<Transform>(true)) {
+    var n = t.name.ToLowerInvariant();
+    if (!n.Contains("hand") || n.Contains("thumb") || n.Contains("index") || n.Contains("finger")) continue;
+    bool right = n.EndsWith("_r") || n.EndsWith(".r") || n.Contains("right") || n.EndsWith(" r") || n.EndsWith("hand_r");
+    if (right) return t;
+    if (!best && !n.Contains("left") && !n.EndsWith("_l") && !n.EndsWith(".l")) best = t;
+   }
+   return best;
   }
   // SÓ DINHEIRO beside the way in (on the door glass at the shop), and a customer reading it off to the side
   void CashOnly() {
@@ -933,7 +1016,7 @@ namespace Checkout {
    var till = cashier && cashier.gameObject.activeInHierarchy ? cashier.position : CheckoutStall.Register;
    if (small || !cashier || !cashier.gameObject.activeInHierarchy) {
     // the stall's clerk, worn out behind the counter
-    var clerk = Person(WorkerOr("Worker_Cashier", "Customer_07"), new Vector3(till.x, On(till.x, till.z + .7f).y, till.z + .7f), South, "Tired");
+    var clerk = Person(Staff(0), new Vector3(till.x, On(till.x, till.z + .7f).y, till.z + .7f), South, "Tired");
     var b = art.Prop2(root, "Turno_SleepyBubble", clerk.transform.position + Vector3.up * 2.7f, 0, .9f); Follow(b, clerk.transform, Vector3.up * 2.7f);
     Prop("Turno_CoffeeCups", new Vector3(till.x - .35f, till.y + .05f, till.z), 0);
    } else Prop("Turno_CoffeeCups", till + new Vector3(.55f, .95f, -.45f), 0);

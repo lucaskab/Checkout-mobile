@@ -52,7 +52,7 @@ namespace Checkout
         BuildEntry[] lastBuilds = Array.Empty<BuildEntry>();
         public static string[] PieceIds(BuildEntry b) =>
             b.kind == "shelf" ? new[] { "shelf:" + b.targetId } : b.kind == "sector" ? new[] { "sector:" + b.targetId }
-            : b.targetId == CheckoutLanes.ExtraItem ? new[] { "checkout:extra" } : b.targetId == CheckoutLanes.SelfItem ? new[] { "kiosk:1", "kiosk:2" } : Array.Empty<string>();
+            : b.kind == "shop" ? CheckoutLanes.PiecesOf(b.targetId) : Array.Empty<string>();
         public bool Ready => kit;
         // Build mode owns the positions while it is open; snapshots then only refresh stock.
         public bool editing;
@@ -73,6 +73,10 @@ namespace Checkout
         {
             { "checkout:main", new Vector3(-5.74f, 0, -4.63f) }, { "checkout:extra", new Vector3(2.55f, 0, -4.63f) },
             { "kiosk:1", new Vector3(5.6f, 0, -4.45f) }, { "kiosk:2", new Vector3(7.45f, 0, -4.45f) },
+            // (the checkouts and kiosks of the bigger markets: a second row; Settle moves them if they do not fit)
+            { "checkout:3", new Vector3(-1.6f, 0, -2.4f) }, { "checkout:4", new Vector3(-5.74f, 0, -2.4f) }, { "checkout:5", new Vector3(2.55f, 0, -2.4f) },
+            { "kiosk:3", new Vector3(5.6f, 0, -2.45f) }, { "kiosk:4", new Vector3(7.45f, 0, -2.45f) },
+            { "kiosk:5", new Vector3(5.6f, 0, -.65f) }, { "kiosk:6", new Vector3(7.45f, 0, -.65f) },
             { "shelf:produce", new Vector3(-6.96f, 0, 2.32f) }, { "shelf:dairy", new Vector3(-3.18f, 0, 2.32f) },
             { "shelf:bakery", new Vector3(.6f, 0, 2.32f) }, { "shelf:snacks", new Vector3(4.38f, 0, 2.32f) },
             { "shelf:drinks", new Vector3(-6.35f, 0, -.88f) }, { "shelf:coffee", new Vector3(-1.72f, 0, -.88f) },
@@ -209,13 +213,15 @@ namespace Checkout
             // Every checkout wears the market's step (caixinha → registradora → esteira → premium).
             var checkoutTemplate = CheckoutTierTemplate(s);
             want.Add(("checkout:main", "checkout", checkoutTemplate));
-            bool extra = s.ownedItems != null && s.ownedItems.Contains(CheckoutLanes.ExtraItem), self = s.ownedItems != null && s.ownedItems.Contains(CheckoutLanes.SelfItem);
-            var extraWorks = BuildOf("shop", CheckoutLanes.ExtraItem); var selfWorks = BuildOf("shop", CheckoutLanes.SelfItem);
-            if (extra || extraWorks != null) { want.Add(("checkout:extra", "checkout", checkoutTemplate)); if (!extra) works["checkout:extra"] = extraWorks; }
-            if (self || selfWorks != null)
+            // The extra checkouts and the kiosk pairs (CheckoutLanes.Counters / Kiosks, src/data/checkout-lanes.ts).
+            foreach (var (piece, item) in CheckoutLanes.Counters.Concat(CheckoutLanes.Kiosks))
             {
-                want.Add(("kiosk:1", "kiosk", "kiosk")); want.Add(("kiosk:2", "kiosk", "kiosk"));
-                if (!self) { works["kiosk:1"] = selfWorks; works["kiosk:2"] = selfWorks; }
+                if (item == null) continue;
+                bool has = s.ownedItems != null && s.ownedItems.Contains(item); var itemWorks = BuildOf("shop", item);
+                if (!has && itemWorks == null) continue;
+                bool kiosk = piece.StartsWith("kiosk:");
+                want.Add((piece, kiosk ? "kiosk" : "checkout", kiosk ? "kiosk" : checkoutTemplate));
+                if (!has) works[piece] = itemWorks;
             }
             foreach (var sector in s.sectors ?? Array.Empty<Sector>())
             {
@@ -425,7 +431,7 @@ namespace Checkout
             var p = it.piece; float h = Mathf.Max(1.2f, p.markerHeight - .2f);
             box.center = new Vector3((p.min.x + p.max.x) * .5f, h * .5f, (p.min.y + p.max.y) * .5f);
             box.size = new Vector3(p.max.x - p.min.x, h, p.max.y - p.min.y);
-            if (it.functional && it.id != "checkout:extra" && it.type != "kiosk")
+            if (it.functional && it.type != "kiosk" && (it.type != "checkout" || it.id == "checkout:main"))
             {
                 var target = go.AddComponent<CheckoutTarget>();
                 if (it.type == "shelf") { target.panel = "store"; target.shelfId = it.id.Substring(6); }

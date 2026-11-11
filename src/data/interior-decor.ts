@@ -7,14 +7,14 @@ import { normalizeDecorTiers } from "@/data/fixture-tiers";
 
 // Decorations for the build mode shop. Ids match the templates in Unity's Interior Kit.
 export const interiorDecor: InteriorDecorDefinition[] = [
-	{ id: "basket-stack", name: "Cestinhas", description: "Pilha de cestinhas na entrada.", coinPrice: 600, requiredLevel: 1, zone: "inside" },
+	{ id: "basket-stack", name: "Pilha de cestinhas (enfeite)", description: "Só enfeite: uma pilha de cestinhas na entrada. Para os clientes levarem mais, use o Suporte de cestinhas.", coinPrice: 600, requiredLevel: 1, zone: "inside" },
 	{ id: "plant-small", name: "Vaso de planta", description: "Um verdinho para alegrar o corredor.", coinPrice: 800, requiredLevel: 1, zone: "inside" },
 	{ id: "balloons", name: "Arco de balões", description: "Festa de inauguração todo dia.", diamondPrice: 15, requiredLevel: 1, zone: "inside" },
 	{ id: "floor-lamp", name: "Luminária", description: "Luz dourada e aconchegante.", coinPrice: 1_200, requiredLevel: 4, zone: "inside" },
 	{ id: "bench", name: "Banco de descanso", description: "Para quem espera na fila do caixa.", coinPrice: 1_500, requiredLevel: 5, zone: "inside" },
 	// Baskets and carts: three stations that live side by side, not tiers (30/10). Each customer takes the smallest
 	// one that holds what they plan to buy (src/data/fixture-tiers.ts chooseCarrier).
-	{ id: "basket-station", name: "Cestinhas", description: "Melhoria: suporte de cestinhas. Quem vai levar pouco pega uma cestinha e leva até +1 produto.", coinPrice: 800, requiredLevel: 2, zone: "inside", effect: { carrier: "basket" } },
+	{ id: "basket-station", name: "Suporte de cestinhas", description: "Melhoria: suporte de cestinhas. Quem vai levar pouco pega uma cestinha e leva até +1 produto.", coinPrice: 800, requiredLevel: 2, zone: "inside", effect: { carrier: "basket" } },
 	{ id: "cart-corral", name: "Carrinhos de Compras", description: "Melhoria: baia de carrinhos. Quem vai levar mais pega um carrinho e leva até +2 produtos.", coinPrice: 4_000, requiredLevel: 7, zone: "inside", effect: { carrier: "cart" }, placeEra: "mercadinho" },
 	{ id: "big-cart-corral", name: "Carrinhos Grandes", description: "Melhoria: baia de carrinhos grandes. Quem faz a compra do mês pega um carrinho grande e leva até +4 produtos.", coinPrice: 22_000, requiredLevel: 17, zone: "inside", effect: { carrier: "bigCart" }, placeEra: "mercadinho" },
 	{ id: "plant-palm", name: "Palmeira", description: "Planta grande em vaso dourado.", coinPrice: 2_500, requiredLevel: 8, zone: "inside" },
@@ -44,6 +44,13 @@ export const interiorDecor: InteriorDecorDefinition[] = [
 	{ id: "invite-reward-1", name: "Banco do Bairro", description: "Exclusivo: um amigo chegou ao Späti com o seu convite.", requiredLevel: 1, zone: "both", exclusive: "invite" },
 	{ id: "invite-reward-3", name: "Poste da Amizade", description: "Exclusivo: três amigos chegaram ao Späti com o seu convite.", requiredLevel: 1, zone: "outside", exclusive: "invite" },
 	{ id: "invite-reward-5", name: "Estátua dos Amigos", description: "Exclusivo: cinco amigos chegaram ao Späti com o seu convite.", requiredLevel: 1, zone: "both", exclusive: "invite" },
+	// Caramelo's beds (08/11/2026): placed anywhere inside or outside; he sleeps on the nearest one when the market
+	// closes (Unity CheckoutPets). Fabric colours: the bedStyle cosmetics on the Caramelo page (src/data/pet.ts).
+	{ id: "pet-bed-round", name: "Caminha redonda", description: "Almofadão fofinho para o Caramelo. Coloque onde quiser, dentro ou fora: ele dorme nela quando o mercado fecha.", coinPrice: 800, requiredLevel: 1, zone: "both" },
+	{ id: "pet-bed-basket", name: "Cesta de vime", description: "Cesta de vime com almofada e mantinha para o Caramelo cochilar.", coinPrice: 1_600, requiredLevel: 3, zone: "both" },
+	{ id: "pet-bed-house", name: "Casinha de madeira", description: "Casinha com telhado e almofada na porta. Fica linda na calçada.", coinPrice: 3_200, requiredLevel: 6, zone: "both" },
+	{ id: "pet-bed-sofa", name: "Sofazinho retrô", description: "Sofá de botões com pés de madeira, só para ele.", coinPrice: 4_800, requiredLevel: 10, zone: "both" },
+	{ id: "pet-bed-royal", name: "Cama real", description: "Cama com dossel e moldura dourada para o cachorro mais chique do bairro.", diamondPrice: 30, requiredLevel: 12, zone: "both" },
 	// Outside the market: the plaza and footways of the city block.
 	{ id: "flower-bed", name: "Canteiro de flores", description: "Floreira comprida para a calçada.", coinPrice: 1_500, requiredLevel: 1, zone: "outside" },
 	{ id: "bike-rack", name: "Bicicletário", description: "Vagas para as bicicletas dos clientes.", coinPrice: 1_200, requiredLevel: 3, zone: "outside" },

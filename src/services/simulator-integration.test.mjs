@@ -1,4 +1,4 @@
-import { beforeEach, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, expect, mock, test } from "bun:test";
 
 globalThis.__DEV__ = true;
 const memory = new Map();
@@ -22,6 +22,8 @@ const { isShelfSlotUnlocked } = await import("../data/shelf-slots.ts");
 useGameStore.setState({ interior: { items: [], owned: {} } });
 const initial = JSON.stringify(useGameStore.getState());
 beforeEach(() => useGameStore.setState(JSON.parse(initial)));
+// Leave the store as it was found: the test files share it (the next one reads it as its new game).
+afterAll(() => useGameStore.setState(JSON.parse(initial)));
 const snapshot = () =>
 	createSimulatorSnapshot(useGameStore.getState(), "integration", 1);
 /** Pays for an expansion and fast-forwards its construction to completion. */

@@ -17,6 +17,38 @@
       "dependencies": {},
       "url": "https://package.openupm.com"
     },
+    "com.google.firebase.analytics": {
+      "version": "file:../GooglePackages/com.google.firebase.analytics-13.17.1.tgz",
+      "depth": 0,
+      "source": "local-tarball",
+      "dependencies": {
+        "com.google.firebase.app": "13.17.1"
+      }
+    },
+    "com.google.firebase.app": {
+      "version": "file:../GooglePackages/com.google.firebase.app-13.17.1.tgz",
+      "depth": 0,
+      "source": "local-tarball",
+      "dependencies": {
+        "com.google.external-dependency-manager": "1.2.186"
+      }
+    },
+    "com.google.firebase.crashlytics": {
+      "version": "file:../GooglePackages/com.google.firebase.crashlytics-13.17.1.tgz",
+      "depth": 0,
+      "source": "local-tarball",
+      "dependencies": {
+        "com.google.firebase.app": "13.17.1"
+      }
+    },
+    "com.google.firebase.messaging": {
+      "version": "file:../GooglePackages/com.google.firebase.messaging-13.17.1.tgz",
+      "depth": 0,
+      "source": "local-tarball",
+      "dependencies": {
+        "com.google.firebase.app": "13.17.1"
+      }
+    },
     "com.tripo3d.tripo-api-unity": {
       "version": "file:com.tripo3d.tripo-api-unity",
       "depth": 0,
@@ -140,6 +172,15 @@
       "depth": 1,
       "source": "builtin",
       "dependencies": {}
+    },
+    "com.unity.mobile.notifications": {
+      "version": "2.4.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.modules.androidjni": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
     },
     "com.unity.multiplayer.center": {
       "version": "1.0.1",

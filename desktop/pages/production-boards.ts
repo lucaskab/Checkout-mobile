@@ -275,11 +275,11 @@ function recipeTile(state: State, sector: ProductionSector, recipe: ProductionRe
 			const quote = boxes > 0 ? getShelfOrderQuote(state, item.id, boxes, now) : null;
 			const boxLabel = boxes === 1 ? "1 caixa" : `${boxes} caixas`;
 			return quote
-				? act(`Pedir ${item.name} · ${boxLabel} · ${fmt(quote.total)}`, "placeSupplierOrder", [{ productId: item.id, boxes }], {
+				? act(`+ Carrinho · ${item.name} · ${boxLabel} · ${fmt(quote.total)}`, "addToSupplierCart", [{ productId: item.id, boxes }], {
 						variant: "coin",
-						icon: gameIcon("deliveryTruck"),
-						ok: `${item.name} a caminho!`,
-						fail: "Não deu para pedir agora.",
+						icon: gameIcon("cart"),
+						ok: `${boxLabel} de ${item.name} no carrinho! Toque em Fazer pedido para mandar o caminhão.`,
+						fail: "Não coube no carrinho agora.",
 					})
 				: null;
 		})

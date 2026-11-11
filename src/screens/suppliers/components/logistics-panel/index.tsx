@@ -5,7 +5,7 @@ import { useBottomSheet } from "@/components/bottom-sheet";
 import { GameButton } from "@/components/game-button";
 import { GameIcon } from "@/components/game-icon";
 import { GameText as Text } from "@/components/game-text";
-import { getNextSupplierOrderSlotUpgrade } from "@/data/supplier-capacity";
+import { getNextTruckDiamondPrice, getSupplierTrucks } from "@/data/supplier-capacity";
 import { getSupplierOrderStatus } from "@/services/logistics";
 import { useGameStore } from "@/stores/game-store";
 
@@ -64,9 +64,14 @@ function LogisticsSheet() {
 		(state) => state.upgradeSupplierOrderSlots,
 	);
 	const [feedback, setFeedback] = useState<string | null>(null);
-	const nextUpgrade = getNextSupplierOrderSlotUpgrade(
-		logistics.supplierOrderSlots,
-	);
+	// Trucks are bought with diamonds only now (Lucas 11/11); the free ones come with the level and the expansions.
+	const nextUpgrade = (() => {
+		const state = useGameStore.getState();
+		const price = getNextTruckDiamondPrice(state);
+		return price === null
+			? null
+			: { slots: getSupplierTrucks(state) + 1, playerLevel: 1, coinCost: Number.MAX_SAFE_INTEGER, diamondCost: price };
+	})();
 	const canActivateBoost = logistics.premiumCurrency >= 3;
 
 	function activateBoost() {

@@ -35,7 +35,7 @@ namespace Checkout
             try { qa = System.IO.File.Exists("Logs/autotest.txt") ? System.IO.File.ReadAllText("Logs/autotest.txt") : ""; } catch { qa = ""; }
             // "onboarding…" plays the tutorial on a brand-new QA save (never the player's), in the phone or desktop UI.
             QaFresh = Application.isEditor && qa.Contains("onboarding");
-            QaMode = qa.Contains("events") || QaFresh;
+            QaMode = qa.Contains("events") || qa.Contains("security") || QaFresh;   // "security…" (thief / store dog videos) too: never the player's save
 #if UNITY_EDITOR
             CheckoutScreen.QaHandheld = QaFresh ? !qa.Contains("-desk") : qa.Contains("-phone") || qa.Contains("-mini") ? true : (bool?)null; // reset too (play mode without a domain reload); "events…-phone" shows the phone UI on the QA copy
 #endif

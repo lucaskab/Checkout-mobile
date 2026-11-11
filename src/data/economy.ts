@@ -40,8 +40,10 @@ export const ITEM_COST_GROWTH = 1.15;
 /** …and earns 10% more than the level before. */
 export const ITEM_INCOME_GROWTH = 1.1;
 
-/** Away time that still counts for offline sales (longer absences earn the same). */
-export const OFFLINE_CAP_MS = 8 * HOUR;
+/** Away time that still counts for offline sales (longer absences earn the same). 12 h (Lucas 06/11, launch audit:
+ * it was 8 h): the night and the working day count whole, which lets a casual player (2 short visits a day) reach the
+ * chain around day 32 instead of 43, while players who come back often barely change. */
+export const OFFLINE_CAP_MS = 12 * HOUR;
 /** Offline sales give this share of the experience a played turn would. */
 export const OFFLINE_XP_SHARE = 1;
 
@@ -184,7 +186,8 @@ export const marketEras: MarketEraDefinition[] = [
 		name: "Supermercado",
 		coinCost: 260_000,
 		targetDay: 19,
-		buildDurationMs: getBuildDurationForCost(420_000),
+		// (Lucas 06/11, launch audit: the build follows the price again, ~7 h; it used the old 420k price, 10.4 h)
+		buildDurationMs: getBuildDurationForCost(260_000),
 		productSlots: 26,
 		arrivalMultiplier: 2.8,
 		ticketMultiplier: 1.6,
@@ -200,7 +203,8 @@ export const marketEras: MarketEraDefinition[] = [
 		name: "Hipermercado",
 		coinCost: 600_000,
 		targetDay: 24,
-		buildDurationMs: getBuildDurationForCost(880_000),
+		// (~14 h; it used the old 880k price, 18.8 h)
+		buildDurationMs: getBuildDurationForCost(600_000),
 		productSlots: 33,
 		arrivalMultiplier: 3.3,
 		ticketMultiplier: 1.8,

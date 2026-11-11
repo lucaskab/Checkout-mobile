@@ -6,6 +6,11 @@
 export const gameLinks = {
 	privacy: "https://lucaskab.github.io/privacy.html",
 	support: "https://lucaskab.github.io",
+	// The game's Discord server (Lucas 06/11): bugs, suggestions, questions, players' markets. A permanent invite.
+	discord: "https://discord.gg/xfMgfpYzMu",
+	// The game's page in the store of this device (Lucas 10/11, "Versão nova disponível"): Unity picks the App Store
+	// on the iPhone and Google Play on Android (CheckoutLinks "store").
+	store: "store",
 } as const;
 export type GameLink = keyof typeof gameLinks;
 

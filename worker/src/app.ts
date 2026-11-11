@@ -1,8 +1,9 @@
-import { HEADERS, HttpError, json } from "./http.ts";
+import { HEADERS, HttpError, json, readCapped } from "./http.ts";
 import { MAX_LEVEL, SOCIAL } from "./limits.ts";
 import { BadRequest, canReplace, MAX_SAVE_BYTES, readUpload, type SaveMeta } from "./save.ts";
 import { type BoardCache, countryOf, rankingRoutes } from "./rankings.ts";
-import { socialRoutes } from "./social.ts";
+import { flushPush, readDevice, registerDevice, removeDevice, removePlayerDevices, type Sender } from "./push.ts";
+import { readBody, socialRoutes } from "./social.ts";
 import type { PlayerRecord, SocialSnapshot, Store } from "./store.ts";
 import { type AppleTokens, type AppleVerifier, type GoogleVerifier, photoUrlOf, readSession, sha256Hex, signSession } from "./tokens.ts";
 
@@ -17,7 +18,7 @@ import { type AppleTokens, type AppleVerifier, type GoogleVerifier, photoUrlOf, 
  * - PUT  /v1/save         {baseRevision, data, deviceId, force?, public?} → {revision, updatedAt, summary, deviceId}
  *                                                           | 409 {error:"conflict", current: {…} | null}
  * - DELETE /v1/account                                     → 204 (the player, every save and every social row, for good)
- * - GET  /health                                           → {ok, settings: which settings are present (names only)}
+ * - GET  /health                                           → {ok, configured} (what is missing goes to the log)
  * - /v1/social/* and GET /i/<code>: friends, invites, visits, helps, gifts, product requests (social.ts,
  *   docs/social-api.md). PUT /v1/save also takes the optional social `public` block.
  * - /v1/rankings/*: world, country, friends, weekly league, opt-out (rankings.ts, docs/rankings-api.md). PUT /v1/save
@@ -40,9 +41,25 @@ export type AppOptions = {
 	health?: () => Record<string, unknown>;
 	/** Where the world/country top lists are kept for 10 minutes besides the isolate's memory (Workers: caches.default). */
 	cache?: BoardCache | null;
+	/** Push notifications through Firebase Cloud Messaging (push.ts); null/absent = no FCM key set: devices are still kept. */
+	push?: Sender | null;
 	/** Extra routes (the temporary /admin/* ones). Answers null when the path is not theirs. */
 	extra?: (request: Request, path: string, helpers: Helpers) => Promise<Response | null>;
+	/**
+	 * Cloudflare's Rate Limiting bindings (wrangler.jsonc "ratelimits"; counters shared by every Worker instance in the
+	 * same Cloudflare location, unlike `rateLimit`, which is per instance). Absent = only the per-instance limit.
+	 * `ip`: every request, per address; `auth`: logins, per address; `player`: signed-in calls, per player;
+	 * `save`: PUT /v1/save, per player.
+	 */
+	limiters?: Partial<Record<LimiterName, RateLimiter>>;
+	/** The least time between two accepted uploads of one player's save (ms; 0 = no minimum). The game uploads every
+	 * 5 minutes and when it goes to the background; a 429 makes it retry a minute later. */
+	minUploadGapMs?: number;
 };
+
+/** A Workers Rate Limiting binding (env.<NAME>.limit({ key })). */
+export type RateLimiter = { limit(options: { key: string }): Promise<{ success: boolean }> };
+export type LimiterName = "ip" | "auth" | "player" | "save";
 
 /** What the extra routes reuse: the save routes for any player (the CPU benchmark). */
 export type Helpers = {
@@ -65,28 +82,32 @@ export const describe = (save: SaveMeta) => ({
 const MAX_BODY = MAX_SAVE_BYTES * 2 + 64 * 1024;
 
 async function readBytes(request: Request) {
-	const declared = Number(request.headers.get("content-length") ?? "0");
-	if (declared > MAX_BODY) throw new HttpError(413, { error: "too-large" });
+	const declared = request.headers.get("content-length");
+	// No Content-Length (chunked): read with the cap, chunk by chunk. With one, the runtime holds the body to it.
+	if (declared === null) return readCapped(request, MAX_BODY);
+	if (Number(declared) > MAX_BODY) throw new HttpError(413, { error: "too-large" });
 	const bytes = await request.arrayBuffer();
 	if (bytes.byteLength > MAX_BODY) throw new HttpError(413, { error: "too-large" });
 	return new Uint8Array(bytes);
 }
 
-async function readJson(request: Request): Promise<Record<string, unknown>> {
-	const text = new TextDecoder().decode(await readBytes(request));
-	try {
-		const body = JSON.parse(text || "{}");
-		if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
-		return body;
-	} catch {
-		throw new HttpError(400, { error: "bad-json" });
-	}
+/** The small JSON bodies (logins, push): at most 16 KB, refused before reading more (social.ts readBody). */
+const readJson = (request: Request) => readBody(request);
+
+/** An IPv6 address as its 8 groups ("2001:db8::1" → ["2001","db8","0","0","0","0","0","1"]); junk stays as given. */
+export function expandV6(address: string): string[] {
+	const [head, tail] = address.toLowerCase().split("::");
+	const left = head ? head.split(":") : [];
+	const right = tail !== undefined && tail ? tail.split(":") : [];
+	const fill = tail !== undefined ? Array(Math.max(0, 8 - left.length - right.length)).fill("0") : [];
+	return [...left, ...fill, ...right].map((g) => g.replace(/^0+(?=.)/, ""));
 }
 
 export function createApp(options: AppOptions) {
 	const { store, verifyGoogle, sessionSecret } = options;
 	const now = options.now ?? Date.now;
 	const limit = options.rateLimit ?? 120;
+	const minUploadGap = options.minUploadGapMs ?? 0;
 	const log = options.log ?? (() => {});
 	const hits = new Map<string, { windowStart: number; count: number }>();
 
@@ -101,12 +122,33 @@ export function createApp(options: AppOptions) {
 		return ++entry.count <= limit;
 	};
 
-	/** The signed-in player's id: a valid session, within the rate limit (no storage read). */
+	/**
+	 * Throws 429 when the binding `name` says this key is over its limit. A binding that fails (an outage of the
+	 * counters) lets the call through: the per-instance limit still applies, and players are never locked out by it.
+	 */
+	/** The key of an address for the per-address limits: IPv4 as is, IPv6 by its /64 (one phone or home line gets a
+	 * whole /64, so its addresses would otherwise each get their own counter). */
+	const addressKey = (address: string) => (address.includes(":") ? expandV6(address).slice(0, 4).join(":") : address);
+
+	const limited = async (name: LimiterName, key: string) => {
+		const limiter = options.limiters?.[name];
+		if (!limiter) return;
+		let ok = true;
+		try {
+			ok = (await limiter.limit({ key })).success;
+		} catch (error) {
+			log(`rate limiter ${name} failed: ${(error as Error)?.message ?? error}`);
+		}
+		if (!ok) throw new HttpError(429, { error: "slow-down" });
+	};
+
+	/** The signed-in player's id: a valid session, within the rate limits (no storage read). */
 	const sessionOf = async (request: Request) => {
 		const header = request.headers.get("authorization") ?? "";
 		const session = await readSession(header.startsWith("Bearer ") ? header.slice(7) : undefined, sessionSecret, now());
 		if (!session) throw new HttpError(401, { error: "signed-out" });
 		if (!allow(`player:${session.sub}`)) throw new HttpError(429, { error: "slow-down" });
+		await limited("player", session.sub);
 		return session.sub;
 	};
 
@@ -117,6 +159,7 @@ export function createApp(options: AppOptions) {
 		const session = await readSession(header.slice(7), sessionSecret, now());
 		if (!session) return null;
 		if (!allow(`player:${session.sub}`)) throw new HttpError(429, { error: "slow-down" });
+		await limited("player", session.sub);
 		return session.sub;
 	};
 
@@ -157,6 +200,10 @@ export function createApp(options: AppOptions) {
 				throw error;
 			}
 			if (!canReplace(current, upload.baseRevision)) throw new HttpError(409, { error: "conflict", current: current ? describe(current) : null });
+			// One account flooding uploads would spend the day's D1 writes and R2 operations of everyone (free plan).
+			// A forced upload (the player chose this device after a conflict) is never held back: its retry would be a plain
+			// upload of the old revision, i.e. the conflict dialog again.
+			if (current && !upload.force && minUploadGap > 0 && now() - current.updatedAt < minUploadGap) throw new HttpError(429, { error: "slow-down" });
 			const summary = upload.summary;
 			const publicChanged = !!social && upload.public !== undefined && upload.public !== social.publicJson;
 			const rewardDue = !!social?.rewardPending && summary.level >= SOCIAL.inviteRewardLevel;
@@ -167,8 +214,19 @@ export function createApp(options: AppOptions) {
 			const ranked = social?.ranked;
 			const rankedChanged =
 				!!ranked && (changed || ranked.xp !== summary.xp || !ranked.hasSave || (!!country && country !== ranked.country) || summary.level > MAX_LEVEL);
-			const extra = rankedChanged ? (key: string) => store.afterUpload(player.id, key, summary, publicChanged ? upload.public : undefined, country, rewardDue) : undefined;
-			const result = await store.replaceSave(player.id, current, { literal: upload.literal, summary, deviceId: upload.deviceId, keepReplaced: upload.force }, extra);
+			const extraWith = (climb: boolean) =>
+				rankedChanged ? (key: string) => store.afterUpload(player.id, key, summary, publicChanged ? upload.public : undefined, country, rewardDue, climb) : undefined;
+			const replace = (climb: boolean) =>
+				store.replaceSave(player.id, current, { literal: upload.literal, summary, deviceId: upload.deviceId, keepReplaced: upload.force }, extraWith(climb));
+			let result: Awaited<ReturnType<typeof replace>>;
+			try {
+				result = await replace(ranked?.climb === true);
+			} catch (error) {
+				// The climb column vanished between the read and the write (a D1 restore to before 0006): the upload goes
+				// through without it rather than failing.
+				if (!(ranked?.climb && store.missingClimb(error))) throw error;
+				result = await replace(false);
+			}
 			if (!result.ok) throw new HttpError(409, { error: "conflict", current: result.current ? describe(result.current) : null });
 			if (upload.publicRefused) log(`public block refused for ${player.id}: ${upload.publicRefused}`);
 			// Before migrations/0003_rankings.sql: the social profile (only one that exists) as before — level/era from the
@@ -187,10 +245,13 @@ export function createApp(options: AppOptions) {
 		},
 	};
 
-	async function route(request: Request, country: string | null): Promise<Response> {
+	async function route(request: Request, country: string | null, address: string): Promise<Response> {
 		const path = new URL(request.url).pathname;
 		const method = request.method;
 		if (path === "/health" || path === "/") return json(200, { ok: true, ...options.health?.() });
+
+		// Logins: few per address (each one asks Google/Apple and writes the player row), against token stuffing.
+		if (path.startsWith("/v1/auth/")) await limited("auth", addressKey(address));
 
 		if ((path === "/v1/auth/google" || path === "/v1/auth/google-code") && method === "POST") {
 			const body = await readJson(request);
@@ -239,15 +300,14 @@ export function createApp(options: AppOptions) {
 				log("apple login refused");
 				throw new HttpError(401, { error: "apple-refused" });
 			}
-			// The login's one-time nonce (newer builds): the token must carry its SHA-256, so a token caught on its way
-			// cannot be replayed by another login. Older builds send none and still sign in.
-			if (body.nonce !== undefined) {
-				const nonce = body.nonce;
-				const expected = typeof nonce === "string" && nonce && nonce.length <= 256 ? await sha256Hex(nonce) : null;
-				if (!expected || identity.nonce !== expected) {
-					log("apple login refused (nonce)");
-					throw new HttpError(401, { error: "apple-refused" });
-				}
+			// The login's one-time nonce: the token must carry its SHA-256, so an identity token leaked on its own (a log, a
+			// crash report) cannot be used to sign in — the raw nonce never leaves the phone except in this request.
+			// Required since the store launch (every build since 29/10 sends it; the ones before were TestFlight builds only).
+			const nonce = body.nonce;
+			const expected = typeof nonce === "string" && nonce && nonce.length <= 256 ? await sha256Hex(nonce) : null;
+			if (!expected || identity.nonce !== expected) {
+				log("apple login refused (nonce)");
+				throw new HttpError(401, { error: "apple-refused" });
 			}
 			// The phone sends the name the player shared (only on the very first login).
 			const name = typeof body.name === "string" ? body.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";
@@ -274,11 +334,27 @@ export function createApp(options: AppOptions) {
 
 		if (path === "/v1/save" && method === "PUT") {
 			const { player, save, social } = await playerOf(request);
+			await limited("save", player.id);
 			return helpers.putSave(request, player, save, social, country);
+		}
+
+		// Push: this device's FCM token, language and the push kinds left on in Opções › Avisos (push.ts).
+		if (path === "/v1/push" && (method === "PUT" || method === "DELETE")) {
+			const id = await sessionOf(request);
+			const body = await readJson(request);
+			if (method === "DELETE") {
+				if (typeof body.token === "string") await removeDevice(store.db, id, body.token);
+				return json(204, null);
+			}
+			const device = readDevice(body);
+			if (!device) throw new HttpError(400, { error: "bad-device" });
+			const saved = await registerDevice(store.db, id, device, now());
+			return json(200, { ok: saved, categories: device.categories });
 		}
 
 		if (path === "/v1/account" && method === "DELETE") {
 			const { player } = await playerOf(request);
+			await removePlayerDevices(store.db, player.id);
 			// Apple accounts: the game's access to the Apple ID ends too (App Store rule 5.1.1(v)). Best effort.
 			if (player.appleRefresh && options.apple) {
 				try {
@@ -293,7 +369,11 @@ export function createApp(options: AppOptions) {
 		}
 
 		const socialAnswer = await social(request, path, method, country);
-		if (socialAnswer) return socialAnswer;
+		if (socialAnswer) {
+			// A social call that may have written a friend's inbox (a gift, a request, a help...): the push goes out now.
+			if (method !== "GET" && socialAnswer.status < 400 && options.push) later(flushPush(store.db, options.push, now(), log));
+			return socialAnswer;
+		}
 		const rankingAnswer = await rankings(request, path, method, country);
 		if (rankingAnswer) return rankingAnswer;
 
@@ -302,15 +382,34 @@ export function createApp(options: AppOptions) {
 		throw new HttpError(404, { error: "not-found" });
 	}
 
-	/** `address`: the caller's IP (Cloudflare's CF-Connecting-IP); `country`: Cloudflare's request.cf.country. */
-	return async (request: Request, address: string, country?: unknown): Promise<Response> => {
+	// Work that may finish after the answer (the push flush): the Worker's waitUntil when given, else awaited.
+	let pending: Promise<unknown>[] = [];
+	const later = (work: Promise<unknown>) => {
+		pending.push(work.catch((error) => log(`push flush failed: ${(error as Error)?.message ?? error}`)));
+	};
+
+	/** `address`: the caller's IP (Cloudflare's CF-Connecting-IP); `country`: Cloudflare's request.cf.country.
+	 * `waitUntil`: the Worker's ctx.waitUntil (work after the answer); without it that work is awaited first. */
+	return async (request: Request, address: string, country?: unknown, waitUntil?: (work: Promise<unknown>) => void): Promise<Response> => {
+		const response = await answer(request, address, country);
+		if (pending.length) {
+			const work = Promise.all(pending);
+			pending = [];
+			if (waitUntil) waitUntil(work);
+			else await work;
+		}
+		return response;
+	};
+
+	async function answer(request: Request, address: string, country?: unknown): Promise<Response> {
 		try {
-			if (!allow(`ip:${address}`)) throw new HttpError(429, { error: "slow-down" });
-			return await route(request, countryOf(country));
+			if (!allow(`ip:${addressKey(address)}`)) throw new HttpError(429, { error: "slow-down" });
+			await limited("ip", addressKey(address));
+			return await route(request, countryOf(country), address);
 		} catch (error) {
 			if (error instanceof HttpError) return json(error.status, error.body);
 			log(`error ${(error as Error)?.stack ?? error}`);
 			return json(500, { error: "server" });
 		}
-	};
+	}
 }

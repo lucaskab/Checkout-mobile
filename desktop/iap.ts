@@ -1,3 +1,4 @@
+import { isStarterOfferOpen } from "@/services/perks";
 import { currencyPacks, getCurrencyPack, getRegionalPrice, isCurrencyPackAvailable } from "@/data/currency-packs";
 import type { GameStore } from "@/@types/game";
 
@@ -143,8 +144,9 @@ export type BuyPackResult =
 export function requestPackPurchase(state: GameStore, packId: unknown): BuyPackResult {
 	const pack = typeof packId === "string" ? getCurrencyPack(packId) : undefined;
 	if (!pack) return { ok: false, reason: "Pacote desconhecido." };
-	if (!isCurrencyPackAvailable(pack, state.currencyPurchases.purchasedPackIds))
-		return { ok: false, reason: "Esta oferta já foi comprada." };
+	const purchased = state.currencyPurchases.purchasedPackIds;
+	if (!isCurrencyPackAvailable(pack, purchased, isStarterOfferOpen(state.perks, purchased)))
+		return { ok: false, reason: pack.limitedTime && !(purchased ?? []).includes(pack.id) ? "Esta oferta acabou." : "Esta oferta já foi comprada." };
 	if (iapStore.status !== "ready")
 		return {
 			ok: false,

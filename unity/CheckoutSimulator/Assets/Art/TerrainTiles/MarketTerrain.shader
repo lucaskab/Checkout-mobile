@@ -14,6 +14,7 @@ Shader "MarketDay/Painted Terrain Tiles"
         CGPROGRAM
         #pragma surface surf Lambert vertex:vert addshadow
         #pragma target 3.0
+        #include "Assets/Resources/CheckoutPaint/CheckoutSnow.cginc"
         sampler2D _GrassTex, _RoadTex, _WaterTex;
         struct Input { float2 tileUV; float4 tileData; float3 worldPos; };
         void vert(inout appdata_full v, out Input o)
@@ -155,6 +156,8 @@ Shader "MarketDay/Painted Terrain Tiles"
                     color=lerp(color,asphalt,1-smoothstep(-.004,.004,edge));
                 }
             }
+            // snow (none on the water)
+            color=CheckoutSnow(color,IN.worldPos,1,1-smoothstep(.04,.14,color.b-color.r));
             o.Albedo=color;
             o.Alpha=1;
         }

@@ -12,10 +12,10 @@ mock.module("@/storage/mmkv", () => ({
 const { useGameStore } = await import("../stores/game-store.ts");
 const { createSimulatorSnapshot } = await import("./simulator-snapshot.ts");
 const { createSimulatorCommandHandler } = await import("./simulator-protocol.ts");
-const { getSupplierCartQuote, getOrderLines } = await import("./supplier-cart.ts");
+const { getSupplierCartQuote, getOrderLines, getCartDurationMs, getCartTimeFactor, getSupplierDurationMs } = await import("./supplier-cart.ts");
 const { getCaseSize } = await import("../data/case-sizes.ts");
 const { itemCatalog, itemCategories } = await import("../data/market-products.ts");
-const { getMaxBoxesPerOrder } = await import("../data/supplier-capacity.ts");
+const { getMaxBoxesPerOrder, getSupplierTrucks } = await import("../data/supplier-capacity.ts");
 const { getInventoryBoxCapacity } = await import("../data/inventory-capacity.ts");
 // Test files share the store module: leave it as we found it.
 useGameStore.setState({ interior: { items: [], owned: {} } });
@@ -94,7 +94,7 @@ test("the same product twice in a cart is merged into one line", () => {
 
 test("a cart over the truck cap fails, and a truck full to the cap is fine", () => {
 	const [a, b] = roomy();
-	const cap = getMaxBoxesPerOrder(store().logistics.supplierOrderSlots);
+	const cap = getMaxBoxesPerOrder(getSupplierTrucks(store()));
 	expect(cap).toBe(10);
 	const coins = store().coins;
 	expect(store().placeSupplierCart({ lines: [{ productId: a, boxes: 6 }, { productId: b, boxes: 5 }] })).toBe(false);
@@ -106,7 +106,7 @@ test("a cart over the truck cap fails, and a truck full to the cap is fine", () 
 
 test("a cart fails when every supplier slot is on the road", () => {
 	const [a, b] = roomy();
-	const slots = store().logistics.supplierOrderSlots;
+	const slots = getSupplierTrucks(store());
 	const orders = Array.from({ length: slots }, (_, index) => truckOnRoad(a, `caminhao-${index}`));
 	useGameStore.setState({ logistics: { ...store().logistics, orders } });
 	const before = store();
@@ -182,7 +182,7 @@ test("orderLowStock places one truck with every low product, up to the truck cap
 	expect(store().logistics.orders.length).toBe(before + 1);
 	const order = store().logistics.orders[0];
 	// Every low product gets its 2 boxes (the stockroom room at level 0) until the truck holds 10.
-	expect(order.boxes).toBe(Math.min(getMaxBoxesPerOrder(store().logistics.supplierOrderSlots), 2 * low.length));
+	expect(order.boxes).toBe(Math.min(getMaxBoxesPerOrder(getSupplierTrucks(store())), 2 * low.length));
 	expect(getOrderLines(order).length).toBeGreaterThan(1);
 	expect(getOrderLines(order).every((line) => line.boxes === 2)).toBe(true);
 });
@@ -193,10 +193,14 @@ test("the snapshot lists the supplier catalog and the truck limits", () => {
 	const view = createSimulatorSnapshot(store(), "catalogo", 1, now);
 	const { supplierCatalog, supplierInfo } = view;
 	expect(supplierInfo).toEqual({
-		slots: store().logistics.supplierOrderSlots,
+		slots: getSupplierTrucks(store()),
 		active: 0,
 		maxBoxes: 10,
 		freightCoupons: store().logistics.freightCoupons,
+		cart: [],
+		cartRevision: 0,
+		extraProductShare: 0.1,
+		extraProductCap: 0.6,
 	});
 	expect(supplierCatalog.length).toBeGreaterThan(0);
 	// Unlocked products come first.
@@ -296,4 +300,98 @@ test("Chegar já parks a whole cart truck at the dock, one delivery per product,
 	for (const delivery of dock) expect(store().unloadDelivery(delivery.id, delivery.quantity)).toBe(true);
 	expect(store().inventory[a]).toBe(stockBefore.a + getCaseSize(product(a)));
 	expect(store().inventory[b]).toBe(stockBefore.b + getCaseSize(product(b)));
+});
+
+// ---------------------------------------------------------------- Lucas 11/11: the saved cart and the delivery time
+test("a truck with several products takes the average time, a little more per extra product", () => {
+	expect(getCartTimeFactor(1)).toBe(1);
+	expect(getCartTimeFactor(3)).toBeCloseTo(1.2);
+	expect(getCartTimeFactor(40)).toBeCloseTo(1.6);
+	expect(getCartDurationMs([60_000])).toBe(60_000);
+	// (1 min + 3 min) / 2 = 2 min, +10% for the second product.
+	expect(getCartDurationMs([60_000, 180_000])).toBe(132_000);
+	const [a, b] = roomy();
+	const quote = getSupplierCartQuote(store(), { lines: [{ productId: a, boxes: 1 }, { productId: b, boxes: 1 }] });
+	const own = [a, b].map((id) => getSupplierDurationMs(store(), product(id).supplierTime));
+	expect(quote.deliveryDurationMs).toBe(getCartDurationMs(own));
+});
+
+test("Pedir caixas adds to the saved cart; the order takes the cart and empties it", () => {
+	const [a, b] = roomy();
+	expect(store().addToSupplierCart({ productId: a, boxes: 2 })).toBe(true);
+	expect(store().addToSupplierCart({ productId: b, boxes: 1 })).toBe(true);
+	expect(store().addToSupplierCart({ productId: a, boxes: 1 })).toBe(true);
+	expect(store().logistics.cart).toEqual([
+		{ productId: a, boxes: 3 },
+		{ productId: b, boxes: 1 },
+	]);
+	const revision = store().logistics.cartRevision;
+	expect(revision).toBe(3);
+	// No truck is taken while the boxes wait in the cart.
+	expect(store().logistics.orders).toEqual([]);
+	expect(store().placeSupplierCart({ lines: store().logistics.cart })).toBe(true);
+	expect(store().logistics.orders.length).toBe(1);
+	expect(getOrderLines(store().logistics.orders[0]).length).toBe(2);
+	expect(store().logistics.cart).toEqual([]);
+	expect(store().logistics.cartRevision).toBe(revision + 1);
+});
+
+test("the cart takes only what fits: the stockroom, the truck and the coins", () => {
+	const [a, b] = roomy();
+	useGameStore.setState({ inventoryCapacityLevels: { ...store().inventoryCapacityLevels, [b]: 0 } });
+	// Level 0 holds 2 boxes of b: asking for 5 puts 2 in the cart, then nothing more fits.
+	expect(store().addToSupplierCart({ productId: b, boxes: 5 })).toBe(true);
+	expect(store().logistics.cart).toEqual([{ productId: b, boxes: 2 }]);
+	expect(store().addToSupplierCart({ productId: b, boxes: 1 })).toBe(false);
+	// The truck holds 10 boxes: 8 more of a fit, the 9th does not.
+	expect(store().addToSupplierCart({ productId: a, boxes: 12 })).toBe(true);
+	expect(store().logistics.cart.reduce((total, line) => total + line.boxes, 0)).toBe(10);
+	expect(store().addToSupplierCart({ productId: a, boxes: 1 })).toBe(false);
+	// Products that are not sold by suppliers never go in.
+	const crafted = itemCatalog.find((item) => item.acquisition === "production");
+	expect(store().addToSupplierCart({ productId: crafted.id, boxes: 1 })).toBe(false);
+});
+
+test("a busy truck does not stop the cart; the shop window can replace it whole", () => {
+	const [a, b] = roomy();
+	const orders = Array.from({ length: getSupplierTrucks(store()) }, (_, index) => truckOnRoad(a, `caminhao-${index}`));
+	useGameStore.setState({ logistics: { ...store().logistics, orders } });
+	expect(store().addToSupplierCart({ productId: b, boxes: 1 })).toBe(true);
+	expect(store().placeSupplierCart({ lines: store().logistics.cart })).toBe(false);
+	expect(store().logistics.cart).toEqual([{ productId: b, boxes: 1 }]);
+	expect(store().setSupplierCart([{ productId: a, boxes: 2 }, { productId: a, boxes: 1 }, { productId: 99999, boxes: 1 }])).toBe(true);
+	expect(store().logistics.cart).toEqual([{ productId: a, boxes: 3 }]);
+	expect(store().removeFromSupplierCart(a)).toBe(true);
+	expect(store().logistics.cart).toEqual([]);
+	expect(store().clearSupplierCart()).toBe(false);
+});
+
+test("save 53: an old save keeps its trucks and starts with an empty cart", () => {
+	const old = JSON.parse(JSON.stringify(useGameStore.persist.getOptions().partialize(store())));
+	old.logistics = { ...old.logistics, supplierOrderSlots: 3 };
+	delete old.logistics.cart;
+	delete old.logistics.cartRevision;
+	const migrated = useGameStore.persist.getOptions().migrate(old, 52);
+	expect(getSupplierTrucks(migrated)).toBe(3);
+	expect(migrated.logistics.cart).toEqual([]);
+	expect(useGameStore.persist.getOptions().version).toBe(53);
+});
+
+// ---------------------------------------------------------------- Lucas 11/11: ways to earn freight coupons
+test("freight coupons come from the daily gift (days 3 and 7), the weekly event and some missions", async () => {
+	const { getLoginReward } = await import("./daily-login.ts");
+	const { getWeeklyReward } = await import("./weekly-event.ts");
+	const { missions } = await import("../data/missions.ts");
+	expect([1, 2, 3, 4, 5, 6, 7].map((day) => getLoginReward(day, "mesinha").coupons)).toEqual([0, 0, 1, 0, 0, 0, 1]);
+	expect(getWeeklyReward("mesinha").coupons).toBe(1);
+	expect(missions.filter((mission) => (mission.reward.freightCoupons ?? 0) > 0).length).toBeGreaterThanOrEqual(8);
+	// Day 3 of a streak: the claim adds one coupon.
+	const day = (offset) => {
+		const d = new Date(Date.now() - offset * 86_400_000);
+		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+	};
+	useGameStore.setState({ dailyLogin: { lastClaimDay: day(1), streak: 2 } });
+	const before = store().logistics.freightCoupons;
+	expect(store().claimDailyLogin()).toBe(true);
+	expect(store().logistics.freightCoupons).toBe(before + 1);
 });

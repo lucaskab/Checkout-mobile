@@ -33,7 +33,7 @@ namespace Checkout
         public static void Show(string open)
         {
             // null keeps the last tab used.
-            if (open != null) tab = open == "idioma" || open == "conta" ? open : "sons";
+            if (open != null) tab = open == "idioma" || open == "conta" || open == "avisos" ? open : "sons";
             if (current) { current.BuildPage(false); return; }
             current = new GameObject("CheckoutSettings").AddComponent<CheckoutSettings>();
             current.Build();
@@ -51,6 +51,7 @@ namespace Checkout
             CheckoutAudio.Changed += Refresh;
             CheckoutI18n.Changed += Relabel;
             CheckoutCloud.Changed += AccountChanged;
+            CheckoutNotifications.Changed += NoticesChanged;
             BuildPage(true);
         }
 
@@ -61,7 +62,8 @@ namespace Checkout
             music = effects = null;
             page = N.Node("Page", canvas); U.Stretch(page, Vector2.zero, Vector2.one);
             // Dim layer: a click outside the window closes it (the window is its sibling, so its clicks stay inside).
-            var dim = U.Box(page, "Dim", "000000", 0, Vector2.zero, Vector2.one); dim.color = new Color(.14f, .09f, .05f, .62f); U.Bleed(dim); U.Tap(dim, Hide);
+            // (no dark backdrop: U.TapCatcher)
+            var dim = U.Box(page, "Dim", "000000", 0, Vector2.zero, Vector2.one); dim.color = U.TapCatcher; U.Bleed(dim); U.Tap(dim, Hide);
 
             var edge = U.Shape(page, "Window", "D4B482", 30, new Vector2(.5f, .5f), new Vector2(820, 640)); edge.raycastTarget = true;
             window = edge.rectTransform;
@@ -74,18 +76,21 @@ namespace Checkout
             U.At(title.rectTransform, new Vector2(.5f, 1), new Vector2(520, 56), new Vector2(0, -48)); title.text = L("Opções");
             var subtitle = U.Label(f, "Subtitle", K.Body, 21, "8A7560", TextAlignmentOptions.Left);
             U.At(subtitle.rectTransform, new Vector2(.5f, 1), new Vector2(520, 32), new Vector2(0, -92));
-            subtitle.text = L(tab == "idioma" ? "Escolha o idioma do jogo." : tab == "conta" ? "Guarde o seu progresso na nuvem." : "Ajuste a música e os sons do jogo.");
+            subtitle.text = L(tab == "idioma" ? "Escolha o idioma do jogo." : tab == "conta" ? "Guarde o seu progresso na nuvem." : tab == "avisos" ? "Escolha os avisos que o celular mostra." : "Ajuste a música e os sons do jogo.");
             var close = U.Button(f, "X", "danger", Hide, 60, 26);
             U.At((RectTransform)close.transform, new Vector2(1, 1), new Vector2(64, 64), new Vector2(-50, -50));
 
             // Tabs.
-            Tab(f, "sons", L("Sons"), "Icons/sound", new Vector2(-248, -158));
-            Tab(f, "idioma", L("Idioma"), "Icons/globe", new Vector2(0, -158));
-            Tab(f, "conta", L("Conta"), "Icons/smartphone", new Vector2(248, -158));
+            // Four tabs (Lucas 06/11: "Avisos", the phone notifications by kind).
+            Tab(f, "sons", L("Sons"), "Icons/sound", new Vector2(-279, -158));
+            Tab(f, "idioma", L("Idioma"), "Icons/globe", new Vector2(-93, -158));
+            Tab(f, "avisos", L("Avisos"), "Icons/warning", new Vector2(93, -158));
+            Tab(f, "conta", L("Conta"), "Icons/smartphone", new Vector2(279, -158));
             var line = U.Box(f, "TabLine", "E7D6BD", 2, new Vector2(.5f, 1), new Vector2(.5f, 1)); U.At(line.rectTransform, new Vector2(.5f, 1), new Vector2(740, 4), new Vector2(0, -192));
 
             if (tab == "idioma") BuildLanguages(f);
             else if (tab == "conta") BuildAccount(f);
+            else if (tab == "avisos") BuildNotices(f);
             else
             {
                 music = BuildRow(f, new Vector2(0, -280), L("Música"), K.C("8B5C9E"),
@@ -97,12 +102,17 @@ namespace Checkout
             }
 
             // Footer on every tab (App Store rule 5.1.1(i), 29/10): the privacy policy and the support page, then "Fechar".
-            var privacy = U.Button(f, L("Política de privacidade"), "secondary", () => CheckoutLinks.Open("privacy"), 64, 20);
-            U.At((RectTransform)privacy.transform, new Vector2(.5f, 0), new Vector2(320, 64), new Vector2(-214, 48));
-            var support = U.Button(f, L("Suporte"), "secondary", () => CheckoutLinks.Open("support"), 64, 20);
-            U.At((RectTransform)support.transform, new Vector2(.5f, 0), new Vector2(180, 64), new Vector2(50, 48));
-            var done = U.Button(f, L("Fechar"), "success", Hide, 64, 24);
-            U.At((RectTransform)done.transform, new Vector2(.5f, 0), new Vector2(220, 64), new Vector2(264, 48));
+            // ...and the game's Discord server (Lucas 06/11).
+            var privacy = U.Button(f, L("Política de privacidade"), "secondary", () => CheckoutLinks.Open("privacy"), 64, 19);
+            U.At((RectTransform)privacy.transform, new Vector2(.5f, 0), new Vector2(256, 64), new Vector2(-250, 48));
+            var support = U.Button(f, L("Suporte"), "secondary", () => CheckoutLinks.Open("support"), 64, 19);
+            U.At((RectTransform)support.transform, new Vector2(.5f, 0), new Vector2(146, 64), new Vector2(-37, 48));
+            var discord = CheckoutDesktopButton.Create(f, 64, 19, 14);
+            discord.Apply(new DesktopButton { label = "Discord", variant = "secondary", icon = "Icons/discord", enabled = true, action = "", args = "[]", route = "", after = "", ok = "", fail = "" });
+            discord.Clicked = _ => CheckoutLinks.Open("discord");
+            U.At((RectTransform)discord.transform, new Vector2(.5f, 0), new Vector2(172, 64), new Vector2(129, 48));
+            var done = U.Button(f, L("Fechar"), "success", Hide, 64, 22);
+            U.At((RectTransform)done.transform, new Vector2(.5f, 0), new Vector2(150, 64), new Vector2(301, 48));
 
             Refresh();
             if (pop) StartCoroutine(U.Pop(window, 1.04f, .22f));
@@ -114,7 +124,7 @@ namespace Checkout
             var b = CheckoutDesktopButton.Create(parent, 58, 24, 16);
             b.Apply(new DesktopButton { label = label, icon = icon, variant = on ? "coin" : "secondary", enabled = true, active = on, action = "", args = "[]", route = "", after = "", ok = "", fail = "", badge = "" });
             b.Clicked = _ => { if (tab == id) return; tab = id; BuildPage(false); };
-            U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(226, 58), offset);
+            U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(176, 58), offset);
         }
 
         // ── Idioma: every language written in its own language; the pick applies at once ───────────────────
@@ -131,6 +141,37 @@ namespace Checkout
                 int row = i / 2; bool alone = i == list.Length - 1 && list.Length % 2 == 1;
                 float x = alone ? 0 : (i % 2 == 0 ? -182 : 182);
                 U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(340, 64), new Vector2(x, -250 - row * 84));
+            }
+        }
+
+        // ── Avisos: one switch per kind of notification (CheckoutNotifications) ─────────────────────────────────
+        void NoticesChanged() { if (tab == "avisos" && canvas) BuildPage(false); }
+        void BuildNotices(Transform parent)
+        {
+            var list = CheckoutNotifications.Categories;
+            for (int i = 0; i < list.Length; i++)
+            {
+                var c = list[i]; bool on = CheckoutNotifications.IsOn(c.id);
+                var b = CheckoutDesktopButton.Create(parent, 64, 20, 16);
+                b.Apply(new DesktopButton { label = L(c.label), icon = on ? "Icons/success" : c.icon, variant = on ? "success" : "secondary", enabled = true, active = false, action = "", args = "[]", route = "", after = "", ok = "", fail = "", badge = "" });
+                b.Clicked = _ => CheckoutNotifications.Set(c.id, !CheckoutNotifications.IsOn(c.id));
+                int row = i / 2; float x = i % 2 == 0 ? -182 : 182;
+                U.At((RectTransform)b.transform, new Vector2(.5f, 1), new Vector2(340, 64), new Vector2(x, -246 - row * 84));
+            }
+            // The phone said no: the switches can't do anything until the notifications are allowed in its settings.
+            if (CheckoutNotifications.Permission == "denied")
+            {
+                var note = U.Label(parent, "Denied", K.Body, 19, "B4532A", TextAlignmentOptions.Left);
+                U.At(note.rectTransform, new Vector2(.5f, 1), new Vector2(470, 52), new Vector2(-130, -500));
+                note.text = L("Os avisos estão desligados nos ajustes do celular.");
+                var open = U.Button(parent, L("Abrir ajustes"), "coin", CheckoutNotifications.OpenSystemSettings, 52, 19);
+                U.At((RectTransform)open.transform, new Vector2(.5f, 1), new Vector2(220, 52), new Vector2(250, -500));
+            }
+            else
+            {
+                var note = U.Label(parent, "Hint", K.Body, 19, "8A7560", TextAlignmentOptions.Center);
+                U.At(note.rectTransform, new Vector2(.5f, 1), new Vector2(700, 52), new Vector2(0, -500));
+                note.text = L("Verde = ligado. Toque para ligar ou desligar cada aviso.");
             }
         }
 
@@ -317,6 +358,7 @@ namespace Checkout
             CheckoutAudio.Changed -= Refresh;
             CheckoutI18n.Changed -= Relabel;
             CheckoutCloud.Changed -= AccountChanged;
+            CheckoutNotifications.Changed -= NoticesChanged;
             if (current == this) current = null;
         }
     }
@@ -330,12 +372,16 @@ namespace Checkout
     {
         public const string Privacy = "https://lucaskab.github.io/privacy.html";
         public const string Support = "https://lucaskab.github.io";
+        /// <summary>The game's Discord server (Lucas 06/11), a permanent invite; desktop/links.ts keeps the same address.</summary>
+        public const string Discord = "https://discord.gg/xfMgfpYzMu";
 
         [Serializable] class LinkMessage { public string link; }
 
         public static void Open(string id)
         {
-            var url = id == "privacy" ? Privacy : id == "support" ? Support : null;
+            // "store": the game's page in this device's store ("Versão nova disponível", CheckoutAppStore).
+            if (id == "store") { CheckoutAppStore.OpenStore(); return; }
+            var url = id == "privacy" ? Privacy : id == "support" ? Support : id == "discord" ? Discord : null;
             if (url != null) Application.OpenURL(url);
         }
 

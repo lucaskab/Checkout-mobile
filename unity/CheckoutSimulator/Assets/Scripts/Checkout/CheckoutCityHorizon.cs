@@ -19,6 +19,7 @@ namespace Checkout
         // The fog starts a little inside the map's edge and is solid this far out (metres).
         public const float FogStart = -1f, FogEnd = 20f;
         const int RingCells = 5;          // tiles added round the map on every side
+        const float NorthRun = 52f;       // and this much further to the north (metres): the Rede's yard and its trucks
         const float Houses = 22f;         // how far out the park trees go (the fog is solid past it)
         // Only a few houses, in a loose row hugging the map's edge: the city "goes on" into the fog. It used to pack
         // every block out to 22 m (~180 copies of 150-175k-triangle Tripo houses, ~28M triangles a frame), which
@@ -91,10 +92,22 @@ namespace Checkout
             var map = tilesRenderer.GetComponent<Tilemap>(); if (!map) return;
             var cells = map.cellBounds; var frame = map.transform;
             var vertices = new List<Vector3>(); var uvs = new List<Vector2>(); var colors = new List<Color>(); var triangles = new List<int>();
-            for (int x = cells.xMin - RingCells; x < cells.xMax + RingCells; x++)
-                for (int y = cells.yMin - RingCells; y < cells.yMax + RingCells; y++)
+            // To the north the ground runs on further (NorthRun metres): the Rede's fleet yard grows the map that way
+            // (CheckoutRedeYard) and its trucks come and go along the streets deep into the fog.
+            float cell = Mathf.Max(.1f, (map.CellToWorld(Vector3Int.zero) - map.CellToWorld(new Vector3Int(1, 0, 0))).magnitude);
+            int extra = Mathf.CeilToInt(NorthRun / cell);
+            for (int x = cells.xMin - RingCells - extra; x < cells.xMax + RingCells + extra; x++)
+                for (int y = cells.yMin - RingCells - extra; y < cells.yMax + RingCells + extra; y++)
                 {
                     if (x >= cells.xMin && x < cells.xMax && y >= cells.yMin && y < cells.yMax) continue;   // the map itself
+                    int dx = Mathf.Max(0, Mathf.Max(cells.xMin - x, x - (cells.xMax - 1))), dy = Mathf.Max(0, Mathf.Max(cells.yMin - y, y - (cells.yMax - 1)));
+                    if (dx > RingCells || dy > RingCells)
+                    {
+                        // past the ring: only the strip north of the map
+                        if (dx > RingCells + extra || dy > RingCells + extra || Mathf.Min(dx, dy) > RingCells) continue;
+                        var centre = (map.CellToWorld(new Vector3Int(x, y, cells.zMin)) + map.CellToWorld(new Vector3Int(x + 1, y + 1, cells.zMin))) * .5f;
+                        if (centre.z < playable.yMax + RingCells * cell * .5f) continue;
+                    }
                     var source = new Vector3Int(Mathf.Clamp(x, cells.xMin, cells.xMax - 1), Mathf.Clamp(y, cells.yMin, cells.yMax - 1), cells.zMin);
                     Sprite sprite = null;
                     for (int z = cells.zMin; z < cells.zMax && !sprite; z++) { source.z = z; sprite = map.GetSprite(source); }

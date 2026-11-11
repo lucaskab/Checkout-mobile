@@ -14,6 +14,11 @@ namespace Checkout {
   RectTransform quickRail,quickMenu,quickList;GameObject quickBlocker;CheckoutDesktopButton quickMain;GameObject quickMainBadge;TextMeshProUGUI quickMainBadgeText;
   readonly List<CheckoutDesktopButton> quickButtons=new List<CheckoutDesktopButton>();
   readonly List<GameObject> quickBadges=new List<GameObject>();readonly List<TextMeshProUGUI> quickBadgeTexts=new List<TextMeshProUGUI>();
+  // Lucas 10/11 (the testers had to be told where the videos and the friends were): "Grátis" (diamond, opens the
+  // video page where the player picks diamonds or coins) and "Amigos" stand in the rail above "Bônus", always on
+  // screen. The video one breathes while videos are left today, so it catches the eye without a popup.
+  readonly List<CheckoutDesktopButton> fixedButtons=new List<CheckoutDesktopButton>();
+  readonly List<GameObject> fixedBadges=new List<GameObject>();readonly List<TextMeshProUGUI> fixedBadgeTexts=new List<TextMeshProUGUI>();
   bool quickOpen;
 
   void BuildQuick(){
@@ -54,9 +59,32 @@ namespace Checkout {
    StartCoroutine(CheckoutUiKit.Pop(quickMenu,1.05f,.16f));
   }
 
+  void ApplyFixed(DesktopView v){
+   var items=v.quickFixed??new DesktopButton[0];
+   while(fixedButtons.Count<items.Length){
+    var b=CheckoutDesktopButton.Create(quickRail,Phone?74:80,13,18,true);b.SetWidth(Phone?92:96);
+    b.transform.SetSiblingIndex(quickMain.transform.GetSiblingIndex());   // above "Bônus"
+    b.Clicked=x=>{if(quickOpen)SetQuickOpen(false);Press(x);};fixedButtons.Add(b);
+    var pill=QuickPill(b.transform,44,24,13,out var text);pill.AddComponent<CheckoutPulse>();
+    fixedBadges.Add(pill);fixedBadgeTexts.Add(text);
+   }
+   for(int i=0;i<fixedButtons.Count;i++){
+    bool on=i<items.Length;fixedButtons[i].gameObject.SetActive(on);if(!on)continue;
+    fixedButtons[i].Apply(items[i]);
+    var badge=items[i].badge??"";fixedBadges[i].SetActive(badge.Length>0);fixedBadgeTexts[i].text=badge;
+    // The first one is the videos: green pill (videos left) and a gentle breathing while any is left.
+    bool video=i==0&&items[i].route=="!video";
+    fixedBadges[i].GetComponent<Image>().color=video?K.C("2E9E44"):K.C("E15533");
+    var breathe=fixedButtons[i].GetComponent<CheckoutBreathe>();
+    if(video&&badge.Length>0){if(!breathe)fixedButtons[i].gameObject.AddComponent<CheckoutBreathe>();}
+    else if(breathe){Destroy(breathe);fixedButtons[i].transform.localScale=Vector3.one;}
+   }
+  }
+
   void ApplyQuick(DesktopView v){
    var items=v.quick??new DesktopButton[0];
    bool shown=!v.hasPage&&items.Length>0;
+   if(shown)ApplyFixed(v);
    quickRail.gameObject.SetActive(shown);
    if(!shown&&quickOpen)SetQuickOpen(false);
    if(v.quickMain!=null){
@@ -76,6 +104,12 @@ namespace Checkout {
     quickBadges[i].GetComponent<Image>().color=badge=="Grátis"?K.C("2E9E44"):K.C("E15533");
    }
   }
+ }
+
+ /// <summary>A slow, small breathing of a whole button (the free video): noticed without being a popup.</summary>
+ public sealed class CheckoutBreathe:MonoBehaviour {
+  void Update(){float s=1+.035f*Mathf.Sin(Time.unscaledTime*3.2f);transform.localScale=new Vector3(s,s,1);}
+  void OnDisable(){transform.localScale=Vector3.one;}
  }
 
  /// <summary>A gentle breathing scale for "something is waiting here" pills.</summary>

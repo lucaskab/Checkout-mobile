@@ -125,7 +125,8 @@ export function getWeeklyProgress(
 }
 
 export function getWeeklyReward(eraId: MarketEraId) {
-	return { coins: Math.round((getMarketEra(eraId).itemUpgradeBaseCost * 15) / 10) * 10, diamonds: 5 };
+	// …and a freight coupon (10% off one supplier order; Lucas 11/11).
+	return { coins: Math.round((getMarketEra(eraId).itemUpgradeBaseCost * 15) / 10) * 10, diamonds: 5, coupons: 1 };
 }
 
 export function getWeeklyNecessityMultiplier(category: string, now: number) {

@@ -11,7 +11,7 @@ import {
 	marketExpansions,
 } from "@/data/market-expansions";
 import { shopCategories, shopItems } from "@/data/shop-items";
-import { AUTO_CASHIER_INTERVAL_MS } from "@/services/checkout-counter";
+import { getCheckoutCount, getKioskCount } from "@/data/checkout-lanes";
 import { getActiveGameEventEffects } from "@/services/game-events";
 import { getShopEffects } from "@/services/shop-effects";
 import {
@@ -52,6 +52,8 @@ function roleIcon(role: EmployeeRole) {
 			return "package" as const;
 		case "cleaner":
 			return "broom" as const;
+		case "security":
+			return "lock" as const;
 	}
 }
 
@@ -85,16 +87,16 @@ function formatPrice(price: number) {
 	return price.toString();
 }
 
-// How fast the line moves without the player: the cashier (sped up by the shop) plus self-checkout.
+// How the checkouts are staffed: counters with a cashier, counters waiting for one, kiosks (src/data/checkout-lanes.ts).
 function checkoutPaceLine(state: State) {
-	const shop = getShopEffects(state.shop);
-	const cashier = state.employees.employees
-		.filter((employee) => employee.isWorking && employee.role === "cashier")
-		.reduce((total, employee) => total + employee.efficiency, 0);
-	const events = getActiveGameEventEffects(state.events, Date.now());
-	const rate = cashier * events.staffSpeedMultiplier * shop.cashierSpeedMultiplier + shop.selfCheckoutRate;
-	if (rate <= 0) return "Sem operador: quem passa as compras no caixa é você";
-	return `Caixa automático: 1 cliente a cada ${(Math.round((AUTO_CASHIER_INTERVAL_MS / 1000 / rate) * 10) / 10).toLocaleString("pt-BR")} s`;
+	const checkouts = getCheckoutCount(state.shop.ownedItemIds);
+	const kiosks = getKioskCount(state.shop.ownedItemIds);
+	const cashiers = state.employees.employees.filter((employee) => employee.isWorking && employee.role === "cashier").length;
+	const staffed = Math.min(cashiers, checkouts);
+	if (staffed === 0 && kiosks === 0) return "Sem operador: quem passa as compras no caixa é você";
+	const parts = [`Caixas com operador: ${staffed}/${checkouts}`];
+	if (kiosks > 0) parts.push(`totens: ${kiosks}`);
+	return parts.join(" · ");
 }
 
 function timer(ms: number) {
@@ -133,18 +135,24 @@ export const routes: Routes = {
 			progress: 1 - ratio(remaining, EMPLOYEE_PAYROLL_INTERVAL_MS),
 		});
 
-		const roleCards = employeeDefinitions.map((definition) => {
-			const employee = employees.employees.find(
-				(item) => item.role === definition.id,
-			);
-			const eraLocked = !isEmployeeEraReached(definition, state.era.id);
-			const levelLocked = eraLocked || level < definition.level;
-			const hireLocked = coins < definition.hireCost;
-
-			if (employee) {
+		const checkoutCount = getCheckoutCount(state.shop.ownedItemIds);
+		const roleCards = employeeDefinitions.flatMap((definition) => {
+			const hired = employees.employees.filter((item) => item.role === definition.id);
+			// One cashier per checkout (Caixa 2…5 in Melhorias): a card for each one hired, and a hire card while a
+			// counter has nobody.
+			if (definition.id === "cashier" && hired.length > 0) {
+				const cards = hired.map((employee, index) => employeeCard(definition, employee, index + 1, hired.length > 1 || checkoutCount > 1));
+				if (hired.length < checkoutCount) cards.push(hireCard(definition, `Caixa ${hired.length + 1} sem operador`));
+				return cards;
+			}
+			const employee = hired[0];
+			if (employee) return [employeeCard(definition, employee, 1, false)];
+			return [hireCard(definition, "")];
+		});
+		function employeeCard(definition: (typeof employeeDefinitions)[number], employee: (typeof employees.employees)[number], number: number, numbered: boolean) {
 				const cost = getEmployeeTrainingCost(employee);
 				const maxed = employee.level >= EMPLOYEE_MAX_LEVEL;
-				return card(definition.name, {
+				return card(numbered ? `${definition.name} ${number}` : definition.name, {
 					eyebrow: employee.isWorking ? "ATIVO" : "PAUSADO",
 					icon: gameIcon(roleIcon(definition.id)),
 					badge: `Nv ${employee.level}`,
@@ -175,18 +183,21 @@ export const routes: Routes = {
 						),
 					],
 				});
-			}
-
+		}
+		function hireCard(definition: (typeof employeeDefinitions)[number], note: string) {
+			const eraLocked = !isEmployeeEraReached(definition, state.era.id);
+			const levelLocked = eraLocked || level < definition.level;
+			const hireLocked = coins < definition.hireCost;
 			return card(definition.name, {
 				// The locked button already says which market is needed: no "A PARTIR DE" eyebrow on top.
-				eyebrow: eraLocked
+				eyebrow: note ? note.toUpperCase() : eraLocked
 					? ""
 					: levelLocked
 						? `NÍVEL ${definition.level}`
 						: "DISPONÍVEL",
 				icon: gameIcon(roleIcon(definition.id)),
 				tone: levelLocked ? "locked" : "",
-				subtitle: definition.description,
+				subtitle: note ? "Cada caixa precisa do seu operador: contrate mais um para abrir esta fila." : definition.description,
 				lines: [
 					`${definition.efficiency} eficiência · 🪙 ${getShiftSalary(definition.salary)}/turno`,
 				],
@@ -208,7 +219,7 @@ export const routes: Routes = {
 					),
 				],
 			});
-		});
+		}
 
 		return page("team", "Equipe", [payrollCard, ...roleCards], {
 			subtitle: "Monte seu time",
@@ -303,8 +314,10 @@ export const routes: Routes = {
 			if (item.isConsumable) {
 				const endsAt = activeBoosts[item.id] ?? 0;
 				const running = endsAt > now;
+				// (boosters run only while the market is open: one used between days waits for the doors)
+				const waitingMs = state.shop.pausedBoosts?.[item.id] ?? 0;
 				return card(item.name, {
-					eyebrow: running ? "ATIVO AGORA" : isLocked ? `NÍVEL ${item.level}` : "BOOSTER",
+					eyebrow: running ? "ATIVO AGORA" : waitingMs > 0 ? "ESPERANDO O MERCADO ABRIR" : isLocked ? `NÍVEL ${item.level}` : "BOOSTER",
 					icon: gameIcon(getShopItemIcon(item.id)),
 					badge: running ? timer(endsAt - now) : consumableAmount > 0 ? `x${consumableAmount}` : "",
 					tone: running ? "success" : isLocked ? "locked" : "",
@@ -314,6 +327,7 @@ export const routes: Routes = {
 						`${isDiamond ? "💎" : "🪙"} ${formatPrice(price)} cada`,
 						...(consumableAmount > 0 ? [`Guardados: ${consumableAmount}`] : []),
 						...(running ? [`Termina em ${timer(endsAt - now)}`] : []),
+						...(!running && waitingMs > 0 ? [`Começa quando o mercado abrir (${timer(waitingMs)})`] : []),
 					],
 					buttons: [
 						act(isLocked ? `Nível ${item.level}` : formatPrice(price), "purchaseShopItem", [item.id, isDiamond ? "diamonds" : "coins"], {

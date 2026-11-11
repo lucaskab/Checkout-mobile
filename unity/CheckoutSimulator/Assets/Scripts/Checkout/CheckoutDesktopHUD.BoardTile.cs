@@ -130,6 +130,8 @@ namespace Checkout {
    // big art), gift (a present to open, big wobbling art), line (a slim row: the Correio's history) and row (wide rows).
    void Layout(string mode,int chipRows){
     string key=mode+chipRows;if(key==layoutMode)return;layoutMode=key;
+    // (a wide row's chips start under its title, not in the middle of the row)
+    var chipsCol=chipsBox.GetComponent<VerticalLayoutGroup>();if(chipsCol)chipsCol.childAlignment=mode=="row"?TextAnchor.UpperLeft:TextAnchor.UpperCenter;
     ring.gameObject.SetActive(false);
     // (ribbons sit inside the card's corner, clear of the section title above; the number pill too)
     Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-6,-6),new Vector2(100,26));ribbonRect.localRotation=Quaternion.Euler(0,0,mode=="row"?4:6);
@@ -143,12 +145,13 @@ namespace Checkout {
       Place(pips.Rect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(-232,-16),new Vector2(90,14));
       Place(barRect,new Vector2(0,0),new Vector2(1,0),new Vector2(0,0),new Vector2(110,18),new Vector2(-430,20));
       Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(200,52));
-      Place(timerRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-222,-20),new Vector2(96,26));
-      Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-8,10),new Vector2(100,26));
-      Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(-224,-34),new Vector2(48,28));
+      // (the reward over the timer, 12 apart: they were glued together on the Contratos rows, Lucas 05/11)
+      Place(timerRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-226,-22),new Vector2(96,26));
+      Place(ribbonRect,new Vector2(0,1),new Vector2(0,1),new Vector2(0,1),new Vector2(-8,6),new Vector2(100,26));
+      Place(badgeRect,new Vector2(1,1),new Vector2(1,1),new Vector2(1,1),new Vector2(-226,-20),new Vector2(48,28));
       Place(ring.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(7,2),new Vector2(94,94));
       Place(cornerBack.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(86,-26),new Vector2(36,36));
-      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-64),new Vector2(-430,ChipH));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(0,1),new Vector2(110,-68),new Vector2(-430,ChipH));
       title.fontSizeMax=20;break;
      case "rank":
       // (placed per row in PlaceRank: the place, the button and the ribbon move things)
@@ -166,24 +169,38 @@ namespace Checkout {
       Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-5),new Vector2(106,106));
       Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(42,-92),new Vector2(40,40));
       Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-104),new Vector2(92,24));
-      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-118),new Vector2(-16,28));
-      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-146),new Vector2(-16,18));
-      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-CompactTop),new Vector2(-16,chipRows*ChipH));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-118),new Vector2(-28,28));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-146),new Vector2(-28,18));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-CompactTop),new Vector2(-28,chipRows*ChipH));
       float below=-CompactTop-chipRows*ChipH-2;
       Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,below),new Vector2(-24,14));
       Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,below),new Vector2(120,14));
       break;}
+     case "pick":
+      // a face picker's tile: the face in its ring and the name; a tap picks it (no button)
+      Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-10),new Vector2(74,74));
+      Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-6),new Vector2(82,82));
+      Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(32,-70),new Vector2(30,30));
+      Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-84),new Vector2(80,22));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-88),new Vector2(-10,24));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-112),new Vector2(-10,16));
+      Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-112),new Vector2(100,12));
+      Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-112),new Vector2(-20,12));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-112),new Vector2(-10,ChipH));
+      // (the "ESCOLHIDO" ribbon on the foot of the card, under the name)
+      Place(ribbonRect,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,1),new Vector2(100,22));ribbonRect.localRotation=Quaternion.identity;
+      title.fontSizeMax=15;break;
      case "face":
       // a face on a short card (the profile's faces, a friend request): ring, name, a line, the buttons
       Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-8),new Vector2(90,90));
       Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-3),new Vector2(100,100));
       Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(40,-84),new Vector2(36,36));
       Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-96),new Vector2(92,24));
-      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-102),new Vector2(-16,26));
-      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-128),new Vector2(-16,18));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-102),new Vector2(-28,26));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-128),new Vector2(-28,18));
       Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-148),new Vector2(120,14));
       Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-148),new Vector2(-24,14));
-      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-148),new Vector2(-16,ChipH));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-148),new Vector2(-28,ChipH));
       break;
      case "showcase":
       // the prize big: a 150 plate, then its name, the friends it takes and the bar
@@ -191,11 +208,11 @@ namespace Checkout {
       Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-3),new Vector2(160,160));
       Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(62,-140),new Vector2(44,44));
       Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-150),new Vector2(96,26));
-      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-162),new Vector2(-16,30));
-      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-192),new Vector2(-16,18));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-162),new Vector2(-28,30));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-192),new Vector2(-28,18));
       Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-212),new Vector2(120,14));
       Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-216),new Vector2(-24,15));
-      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-212),new Vector2(-16,ChipH));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-212),new Vector2(-28,ChipH));
       title.fontSizeMax=19;break;
      case "gift":
       // a present: big art (132), its sender, Abrir
@@ -203,23 +220,23 @@ namespace Checkout {
       Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,0),new Vector2(140,140));
       Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(54,-118),new Vector2(40,40));
       Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-130),new Vector2(96,26));
-      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-140),new Vector2(-16,28));
-      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-168),new Vector2(-16,18));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-140),new Vector2(-28,28));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-168),new Vector2(-28,18));
       Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-188),new Vector2(120,14));
       Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-190),new Vector2(-24,15));
-      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(-16,ChipH));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(-28,ChipH));
       break;
      default:
       Place(circle,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-12),new Vector2(112,112));
-      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-128),new Vector2(-16,38));
-      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-166),new Vector2(-16,18));
+      Place(titleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-128),new Vector2(-28,38));
+      Place(subtitleRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-166),new Vector2(-28,18));
       // Face is 258 tall (tile 268 minus the edge): pips, bar and button stack without touching.
       Place(pips.Rect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-181),new Vector2(120,14));
       Place(barRect,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-197),new Vector2(-24,15));
       Place(timerRect,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(0,-122),new Vector2(96,26));
       Place(ring.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-7),new Vector2(122,122));
       Place(cornerBack.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(.5f,.5f),new Vector2(46,-106),new Vector2(44,44));
-      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(-16,ChipRows*ChipH));
+      Place(chipsBox,new Vector2(0,1),new Vector2(1,1),new Vector2(.5f,1),new Vector2(0,-186),new Vector2(-28,ChipRows*ChipH));
       break;
     }
    }
@@ -227,7 +244,7 @@ namespace Checkout {
    public void Apply(DesktopTile t,bool asRows,bool isSelected){
     bool changed=data==null||data.id!=t.id;data=t;Id=t.id;rows=asRows;frame=t.frame??"";
     int chipRows=hud.boardChipRows;
-    string mode=asRows&&frame=="rank"?"rank":asRows?"row":frame=="line"?"line":frame=="showcase"?"showcase":frame=="gift"?"gift":chipRows>0?"compact":frame=="portrait"&&hud.boardFaces?"face":"card";
+    string mode=asRows&&frame=="rank"?"rank":asRows?"row":hud.boardPicker?"pick":frame=="line"?"line":frame=="showcase"?"showcase":frame=="gift"?"gift":chipRows>0?"compact":frame=="portrait"&&hud.boardFaces?"face":"card";
     Layout(mode,chipRows);if(changed)wobblePhase=(t.id??"").GetHashCode()%100*.07f;
     bool locked=t.state=="locked",done=t.state=="done";
     face.color=ToneFace(t.tone);circleImage.color=locked?K.C("D8CDBB"):Color.Lerp(Color.white,ToneFace(t.tone),.6f);
@@ -259,6 +276,8 @@ namespace Checkout {
     for(int i=0;i<chips.Count;i++){bool on=i<cs.Length;chips[i].rect.gameObject.SetActive(on);if(on)chips[i].Apply(cs[i]);}
     chipsBox.gameObject.SetActive(cs.Length>0);
     bool line=mode=="line";
+    // (a face picker's tile: no button, no line under the name; a tap on the card picks)
+    if(mode=="pick"){button.gameObject.SetActive(false);alt.gameObject.SetActive(false);subtitle.gameObject.SetActive(false);}
     // A slim row: the face, who and what; no buttons, bars or ribbons.
     if(line){barRect.gameObject.SetActive(false);pips.gameObject.SetActive(false);timer.gameObject.SetActive(false);ribbon.gameObject.SetActive(false);badge.gameObject.SetActive(false);button.gameObject.SetActive(false);chipsBox.gameObject.SetActive(false);hasButton=false;}
     if(t.frame=="portrait"&&hasRibbon)ribbon.color=PortraitGold;
@@ -276,13 +295,14 @@ namespace Checkout {
     var ar=(RectTransform)alt.transform;
     if(hasAlt&&hasButton){
      if(asRows){Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(150,52));Place(ar,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-170,-2),new Vector2(150,52));}
-     else{Place(buttonRect,new Vector2(0,0),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(2,4),new Vector2(-12,44));Place(ar,new Vector2(.5f,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(-2,4),new Vector2(-12,44));}
+     else{Place(buttonRect,new Vector2(0,0),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(5,9),new Vector2(-18,44));Place(ar,new Vector2(.5f,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(-5,9),new Vector2(-18,44));}
      alt.Apply(t.alt);
      // Two buttons on a narrow card (phones: four friends a row): words without icons, shrinking before any "…".
      bool tight=!asRows&&hud.boardCellWidth>0&&hud.boardCellWidth<300;
      button.Fit(tight);alt.Fit(tight);
     } else if(asRows)Place(buttonRect,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-12,-2),new Vector2(200,52));
-    else Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,4),new Vector2(-14,mode=="card"?40:44));
+    // (12 from the card's sides and 9 from its foot: the button no longer touches the edge, Lucas 05/11)
+    else Place(buttonRect,new Vector2(0,0),new Vector2(1,0),new Vector2(.5f,0),new Vector2(0,9),new Vector2(-24,mode=="card"?40:44));
     Select(isSelected);
    }
    // A ranking row: [place] [round face + stage badge] name / level ribbon + stage … [flag] [icon value] [button]. The
@@ -414,7 +434,7 @@ namespace Checkout {
     else if(icon.rectTransform.localRotation!=Quaternion.identity)icon.rectTransform.localRotation=Quaternion.identity;
    }
 
-   public void OnPointerClick(PointerEventData e){if(e.button!=PointerEventData.InputButton.Left||data==null)return;hud.BoardSelect(data.id);StartCoroutine(U.Pop(transform,1.05f,.18f));}
+   public void OnPointerClick(PointerEventData e){if(e.button!=PointerEventData.InputButton.Left||data==null)return;hud.BoardSelect(data.id);StartCoroutine(U.Pop(transform,1.05f,.18f));if(hud.boardPicker)hud.PressTileAction(rect,data.action);}
   }
 
   // The side panel: the picked tile up close with every action.

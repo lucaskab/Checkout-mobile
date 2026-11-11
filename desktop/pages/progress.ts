@@ -8,8 +8,8 @@ import {
 	isCurrencyPackAvailable,
 } from "@/data/currency-packs";
 import { getPackEvent, getPackPrice, iapStore, storePlatform } from "../iap";
-import { adsStore, getLastAdEvent, isAdOpening } from "../ads";
-import { getRewardedAdOffer } from "@/services/rewarded-ads";
+import { adStatusLine, adsStore, getLastAdEvent, isAdOpening } from "../ads";
+import { AD_DAILY_COIN_VIDEOS, AD_DAILY_DIAMONDS, AD_REWARD_DIAMONDS, formatAdWait, getRewardedAdOffer, getRewardedCoinAdOffer } from "@/services/rewarded-ads";
 import { getAchievementIcon, getMissionIcon } from "@/data/game-icon-assets";
 import { itemCatalog } from "@/data/market-products";
 import { missions } from "@/data/missions";
@@ -25,9 +25,12 @@ import {
 	canDoubleDailyLogin,
 	getLoginReward,
 	getNextLoginDay,
+	getStreakRecovery,
 	LOGIN_STREAK_DAYS,
 } from "@/services/daily-login";
 import type { Routes } from ".";
+import { getStarterOfferEnd, isStarterOfferOpen, STARTER_PACK_ID } from "@/services/perks";
+import { petCosmetics } from "@/data/pet";
 import { getWeekEnd, getWeeklyProgress, getWeeklyReward } from "@/services/weekly-event";
 import {
 	albumCollections,
@@ -36,6 +39,8 @@ import {
 	SALES_TO_COLLECT,
 } from "@/data/product-album";
 import {
+	type Button,
+	couponPlus,
 	act,
 	type Card,
 	card,
@@ -111,7 +116,7 @@ function weeklyEventCard(state: Parameters<Routes[string]>[0]): Card {
 	const progress = getWeeklyProgress(state.weeklyEvent, state.market.soldByProduct, now);
 	const reward = getWeeklyReward(state.era.id);
 	const daysLeft = Math.max(1, Math.ceil((getWeekEnd(now) - now) / (24 * 60 * 60_000)));
-	const prize = `${fmt(reward.coins)} moedas + ${reward.diamonds} diamantes`;
+	const prize = `${fmt(reward.coins)} moedas + ${reward.diamonds} diamantes${couponPlus(reward.coupons)}`;
 	return card(progress.theme.name, {
 		eyebrow: `EVENTO DA SEMANA · ${daysLeft === 1 ? "ÚLTIMO DIA" : `${daysLeft} DIAS`}`,
 		subtitle: `${progress.theme.description} Esses produtos vendem mais a semana toda.`,
@@ -146,6 +151,30 @@ function albumSummaryCard(state: Parameters<Routes[string]>[0]): Card {
 	});
 }
 
+// "Recuperar sequência" (Lucas 11/11): a streak broken by 1–3 days comes back for diamonds (or a video for 1 day).
+export function streakRecoveryButtons(state: Parameters<Routes[string]>[0], now = Date.now()): Button[] {
+	const offer = getStreakRecovery(state.dailyLogin, now);
+	if (!offer) return [];
+	const waiting = isAdOpening("streak");
+	return [
+		act(`Recuperar · ${offer.diamonds}`, "recoverLoginStreak", [], {
+			variant: "gem",
+			icon: gameIcon("diamond"),
+			ok: "Sequência recuperada! Resgate o presente de hoje.",
+		}),
+		...(offer.video
+			? [act(waiting ? "Abrindo…" : "Com vídeo", "watchRewardedAd", ["streak"], { variant: "coin", icon: gameIcon("television"), enabled: !waiting, ok: "" })]
+			: []),
+	];
+}
+export function streakRecoveryText(state: Parameters<Routes[string]>[0], now = Date.now()) {
+	const offer = getStreakRecovery(state.dailyLogin, now);
+	if (!offer) return "";
+	return offer.missed === 1
+		? `Você perdeu 1 dia e a sequência ia voltar ao dia 1. Recupere e continue do dia ${offer.streak + 1}.`
+		: `Você perdeu ${offer.missed} dias e a sequência ia voltar ao dia 1. Recupere e continue do dia ${offer.streak + 1}.`;
+}
+
 // Daily login gift: a 7-day streak shown as a row of days, the next one ready to claim once a day.
 function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 	const now = Date.now();
@@ -157,12 +186,25 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 		const day = index + 1;
 		const gift = getLoginReward(day, state.era.id);
 		const mark = day < today || (!ready && day === today) ? "ok" : day === today ? "hoje" : "";
-		return `Dia ${day}: ${gift.coins} moedas${gift.diamonds ? ` + ${gift.diamonds} diamantes` : ""}${mark ? ` · ${mark}` : ""}`;
+		return `Dia ${day}: ${gift.coins} moedas${gift.diamonds ? ` + ${gift.diamonds} diamantes` : ""}${couponPlus(gift.coupons)}${mark ? ` · ${mark}` : ""}`;
 	});
 	// After claiming, a video gives today's gift again (once a day).
 	const canDouble = canDoubleDailyLogin(state.dailyLogin, now);
 	const todays = getLoginReward(Math.max(1, state.dailyLogin?.streak ?? 1), state.era.id);
 	const waiting = isAdOpening("gift");
+	const recovery = streakRecoveryButtons(state, now);
+	if (recovery.length)
+		return card("Presente do dia", {
+			eyebrow: "SEQUÊNCIA PERDIDA",
+			subtitle: streakRecoveryText(state, now),
+			icon: gameIcon("flame"),
+			tone: "featured",
+			lines: days,
+			buttons: [
+				...recovery,
+				act("Recomeçar", "claimDailyLogin", [], { variant: "secondary", ok: "Presente resgatado!", fail: "Já resgatado hoje." }),
+			],
+		});
 	return card("Presente do dia", {
 		eyebrow: `SEQUÊNCIA ${Math.min(today, LOGIN_STREAK_DAYS)}/${LOGIN_STREAK_DAYS}`,
 		subtitle: ready
@@ -177,7 +219,7 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 		buttons: ready
 			? [
 					act(
-						`Resgatar ${reward.coins} moedas${reward.diamonds ? ` + ${reward.diamonds} diamantes` : ""}`,
+						`Resgatar ${reward.coins} moedas${reward.diamonds ? ` + ${reward.diamonds} diamantes` : ""}${couponPlus(reward.coupons)}`,
 						"claimDailyLogin",
 						[],
 						{ variant: "success", ok: "Presente resgatado! Assista um vídeo para dobrar.", fail: "Já resgatado hoje." },
@@ -189,18 +231,23 @@ function dailyGiftCard(state: Parameters<Routes[string]>[0]): Card {
 							waiting ? "Abrindo o vídeo…" : `Dobrar com vídeo · +${todays.coins} moedas${todays.diamonds ? ` + ${todays.diamonds} diamantes` : ""}`,
 							"watchRewardedAd",
 							["gift"],
-							{ variant: "gem", icon: gameIcon("television"), enabled: !waiting && adsStore.status !== "unavailable", ok: "" },
+							{ variant: "gem", icon: gameIcon("television"), enabled: !waiting, ok: "" },
 						),
 					]
 				: [],
 	});
 }
 
-// "Diamantes grátis": watch a short video for a few diamonds, as many as the player wants (no daily limit).
-function adCard(state: State, missing: number): Card {
-	const offer = getRewardedAdOffer(state.rewardedAds);
-	const last = getLastAdEvent();
-	const waiting = isAdOpening("diamonds");
+// The rewarded videos (Lucas 06/11 diamonds, 10/11 coins): the player picks the prize, 7 videos a day for each.
+// "diamonds" pays AD_REWARD_DIAMONDS; "coins" pays by the player's level (src/services/rewarded-ads.ts).
+function videoCard(state: Parameters<Routes[string]>[0], placement: "diamonds" | "coins", missing = 0): Card {
+	const coins = placement === "coins";
+	const offer = coins ? getRewardedCoinAdOffer(state.rewardedAds, state.market.level) : getRewardedAdOffer(state.rewardedAds);
+	const perDay = coins ? AD_DAILY_COIN_VIDEOS : Math.floor(AD_DAILY_DIAMONDS / AD_REWARD_DIAMONDS);
+	const prize = coins ? `+${fmt(offer.reward)} moedas` : `+${offer.reward} diamantes`;
+	const lastAny = getLastAdEvent();
+	const last = lastAny && (lastAny.placement ?? "diamonds") === placement ? lastAny : null;
+	const waiting = isAdOpening(placement);
 	const status = last?.kind === "rewarded"
 		? last.label || `Você ganhou +${last.diamonds} diamantes!`
 		: last?.kind === "failed"
@@ -209,27 +256,42 @@ function adCard(state: State, missing: number): Card {
 				? "Vídeo fechado antes do fim · sem prêmio"
 				: waiting
 					? "Abrindo o vídeo…"
-					: "";
-	const label = `Assistir · +${offer.reward}`;
-	return card("Diamantes grátis", {
-		eyebrow: "VÍDEO",
-		subtitle: `Assista um vídeo curto e ganhe +${offer.reward} diamantes · sem limite por dia${offer.watchedToday ? ` · hoje: ${offer.watchedToday}` : ""}`,
-		icon: gameIcon("television"),
+					: offer.available
+						? adStatusLine()
+						: "";
+	return card(coins ? "Moedas" : "Diamantes", {
+		eyebrow: "VÍDEO GRÁTIS",
+		subtitle: offer.available
+			? `Assista um vídeo curto e ganhe ${prize}`
+			: `Você já ganhou ${coins ? "as moedas" : "os diamantes"} de vídeo de hoje · volta em ${formatAdWait(offer.waitMs)}`,
+		icon: gameIcon(coins ? "coin" : "diamond"),
 		badge: missing > 0 && offer.available ? "Grátis" : "",
-		tone: last?.kind === "rewarded" ? "success" : last && last.kind !== "rewarded" ? "danger" : waiting ? "warning" : "info",
-		lines: status ? [status] : ["Quantos quiser: some os diamantes e acelere o que quiser"],
+		tone: last?.kind === "rewarded" ? "success" : last ? "danger" : waiting ? "warning" : "info",
+		lines: [
+			`Hoje: ${offer.watchedToday} de ${perDay} vídeos`,
+			...(status ? [status] : [offer.available ? (coins ? "O prêmio cresce a cada nível" : "Some os diamantes e acelere o que quiser") : "Novos vídeos à meia-noite"]),
+		],
 		buttons: [
-			act(waiting ? "Aguardando…" : label, "watchRewardedAd", [], {
-				variant: "gem",
-				enabled: offer.available && !waiting && adsStore.status !== "unavailable",
+			act(waiting ? "Aguardando…" : `Assistir · ${coins ? `+${fmt(offer.reward)}` : `+${offer.reward}`}`, "watchRewardedAd", [placement], {
+				variant: coins ? "coin" : "gem",
+				icon: gameIcon("television"),
+				// Pressable while the video loads or after a failed load: Unity loads one and opens it (Lucas 08/11).
+				enabled: offer.available && !waiting,
 				ok: "",
 			}),
-			// GDPR: where Google's consent tool asks for it, the player can change their ads choice at any time.
-			...(adsStore.privacyOptions
-				? [act("Privacidade dos anúncios", "openAdPrivacy", [], { variant: "secondary", ok: "" })]
-				: []),
 		],
 	});
+}
+
+// GDPR: where Google's consent tool asks for it, the player can change their ads choice at any time.
+function adPrivacyCard(): Card[] {
+	return adsStore.privacyOptions
+		? [card("Privacidade dos anúncios", {
+				subtitle: "Mude a sua escolha sobre os anúncios a qualquer momento.",
+				icon: gameIcon("television"),
+				buttons: [act("Privacidade dos anúncios", "openAdPrivacy", [], { variant: "secondary", ok: "" })],
+			})]
+		: [];
 }
 
 // "Prêmios grátis": everything free in one place, opened from the HUD's side buttons — the daily gift (and its
@@ -254,14 +316,73 @@ function accountNudgeCard(): Card | null {
 	});
 }
 
+// Pacote inicial (Lucas 11/11): once, in the first 48 h after the tutorial; the best value of the store.
+function leftText(ms: number) {
+	const minutes = Math.max(1, Math.ceil(ms / 60_000));
+	return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+}
+export function starterOfferCard(state: Parameters<Routes[string]>[0], now = Date.now()): Card | null {
+	const purchased = state.currencyPurchases.purchasedPackIds;
+	if (!isStarterOfferOpen(state.perks, purchased, now)) return null;
+	const pack = currencyPacks.find((item) => item.id === STARTER_PACK_ID);
+	if (!pack) return null;
+	const coins = getCurrencyPackCoins(pack, state.era.id);
+	const bandana = petCosmetics.find((item) => item.id === pack.extras?.petCosmeticId);
+	const price = getPackPrice(pack.productId);
+	const busy = iapStore.busyProductId === pack.productId;
+	const event = getPackEvent(pack.productId);
+	const coupons = pack.extras?.freightCoupons ?? 0;
+	return card(pack.name, {
+		eyebrow: "OFERTA",
+		subtitle: [
+			`${fmt(pack.diamonds)} diamantes`,
+			`${fmt(coins)} moedas`,
+			"+1 caminhão",
+			coupons === 1 ? "1 cupom de frete" : `${coupons} cupons de frete`,
+			...(bandana ? [`${bandana.name} para o Caramelo`] : []),
+		].join(" + "),
+		icon: gameIcon("gift"),
+		badge: `${Math.max(1, Math.ceil((getStarterOfferEnd(state.perks) - now) / 3_600_000))}h`,
+		tone: "featured",
+		lines: [
+			`Termina em ${leftText(getStarterOfferEnd(state.perks) - now)}`,
+			"Só uma vez: o melhor valor da loja.",
+			...(event?.text ? [event.text] : []),
+		],
+		buttons: [
+			act(busy ? "Aguardando…" : price ? `Comprar · ${price}` : "—", "buyCurrencyPack", [pack.id], {
+				variant: "primary",
+				enabled: !busy && !!price,
+				ok: "Abrindo a loja…",
+			}),
+		],
+	});
+}
+
 export const routes: Routes = {
+	// "Grátis" (the HUD's diamond button, Lucas 10/11): watch a video and pick the prize.
+	video: (state) =>
+		page("video", "Vídeo grátis", [videoCard(state, "diamonds"), videoCard(state, "coins"), ...adPrivacyCard()], {
+			icon: gameIcon("television"),
+			subtitle: "Assista um vídeo curto e escolha o seu prêmio",
+		}),
+	// "oferta": the starter pack alone (the HUD button and the one-time popup after the tutorial).
+	oferta: (state) => {
+		const starter = starterOfferCard(state);
+		return page("oferta", "Oferta especial", starter ? [starter] : [card("Oferta encerrada", { icon: gameIcon("gift"), tone: "locked", subtitle: "Esta oferta já acabou ou já foi comprada." })], {
+			icon: gameIcon("gift"),
+			subtitle: "Pacote Inicial",
+		});
+	},
 	gratis: (state) =>
 		page(
 			"gratis",
 			"Prêmios grátis",
 			[
 				dailyGiftCard(state),
-				adCard(state, 1),
+				videoCard(state, "diamonds", 1),
+				videoCard(state, "coins", 1),
+				...adPrivacyCard(),
 				...[accountNudgeCard()].filter((c): c is Card => !!c),
 				card("Loja de diamantes", {
 					eyebrow: "OFERTAS",
@@ -512,8 +633,12 @@ export const routes: Routes = {
 					lines: [`Você tem ${fmt(diamonds)} diamantes.`],
 				}),
 			);
+		// Pacote inicial first while it lasts (Lucas 11/11).
+		const starter = filter === "all" || filter === "bundle" ? starterOfferCard(state) : null;
+		if (starter) cards.push(starter);
 		// Free diamonds for a rewarded video (src/services/rewarded-ads.ts): by choice, a few a day.
-		if (filter === "all" || filter === "diamonds") cards.push(adCard(state, missing));
+		if (filter === "all" || filter === "diamonds") cards.push(videoCard(state, "diamonds", missing));
+		if (filter === "all" || filter === "coins") cards.push(videoCard(state, "coins"));
 		// The packs can only be bought once the store answered: until then no price and no "Comprar" (a price of our
 		// own table must never look purchasable, App Store review 29/10). Each device names only its own store.
 		const platform = storePlatform();
@@ -557,7 +682,8 @@ export const routes: Routes = {
 		for (const section of currencyPackSections) {
 			if (filter !== "all" && section.category !== filter) continue;
 			for (const pack of currencyPacks.filter((p) => p.category === section.category)) {
-				if (!isCurrencyPackAvailable(pack, purchased)) continue;
+				// The starter pack has its own card at the top.
+				if (pack.limitedTime || !isCurrencyPackAvailable(pack, purchased)) continue;
 				const coins = getCurrencyPackCoins(pack, state.era.id);
 				const rewards = [
 					coins > 0 ? `${fmt(coins)} moedas` : "",

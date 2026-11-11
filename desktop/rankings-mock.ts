@@ -379,6 +379,19 @@ export function createMockRankings(links: RankingsMockLinks, size = 400) {
 		},
 		league,
 		players,
+		/** In the top 100 of the world or of their country (GET /v1/social/players/:id/market allows only those). */
+		onBoard(id: string) {
+			const p = listed().find((row) => row.id === id);
+			if (!p) return false;
+			const sorted = listed().sort(compareLevelRows);
+			const world = sorted.findIndex((row) => row.id === id);
+			const local = sorted.filter((row) => row.country === p.country).findIndex((row) => row.id === id);
+			return (world >= 0 && world < 100) || (local >= 0 && local < 100);
+		},
+		/** A board player's public card (their level, stage and country) for a visit. */
+		player(id: string) {
+			return players.get(id) ?? null;
+		},
 	};
 }
 

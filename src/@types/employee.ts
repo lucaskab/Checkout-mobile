@@ -1,7 +1,7 @@
 import type { MarketEraId } from "@/@types/economy";
 import type { StoreIncidentKind } from "./store-incident";
 
-export type EmployeeRole = "cashier" | "stock_clerk" | "cleaner";
+export type EmployeeRole = "cashier" | "stock_clerk" | "cleaner" | "security";
 
 export type EmployeeDefinition = {
 	efficiency: number;

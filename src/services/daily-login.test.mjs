@@ -26,4 +26,7 @@ test("gifts grow during the week, follow the expansion and the 7th day gives dia
 	expect(getLoginReward(1, "mercadinho").coins).toBeGreaterThan(getLoginReward(1, "mesinha").coins);
 	expect(getLoginReward(6, "tenda").diamonds).toBe(0);
 	expect(getLoginReward(7, "tenda").diamonds).toBeGreaterThan(0);
+	// the 7th day is worth more than days 1–6 together
+	const six = [1, 2, 3, 4, 5, 6].reduce((sum, day) => sum + getLoginReward(day, "mercadinho").coins, 0);
+	expect(getLoginReward(7, "mercadinho").coins).toBeGreaterThan(six);
 });

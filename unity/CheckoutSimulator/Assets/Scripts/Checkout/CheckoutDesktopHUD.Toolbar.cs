@@ -28,6 +28,8 @@ namespace Checkout {
    if(CheckoutScreen.Handheld&&helpButton){if(helpButton.parent!=toolbar)helpButton.SetParent(toolbar,false);helpButton.SetAsLastSibling();}
    // ...and the gear (Opções: music and effects volume) right after it.
    if(CheckoutScreen.Handheld&&settingsButton){if(settingsButton.parent!=toolbar)settingsButton.SetParent(toolbar,false);settingsButton.SetAsLastSibling();}
+   // ...and the Discord button last.
+   if(CheckoutScreen.Handheld&&discordButton){if(discordButton.parent!=toolbar)discordButton.SetParent(toolbar,false);discordButton.SetAsLastSibling();}
    for(int i=0;i<tools.Count;i++){
     bool on=i<items.Length;tools[i].gameObject.SetActive(on);if(!on)continue;tools[i].Apply(items[i]);
     string pill=!items[i].enabled?LockLevel(items[i].fail):!string.IsNullOrEmpty(items[i].badge)?items[i].badge:items[i].route=="!missions"&&v.claimableMissions>0?v.claimableMissions.ToString():"";

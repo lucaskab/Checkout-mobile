@@ -16,7 +16,8 @@ import {
 } from "@/data/product-album";
 import { getShelfCapacity } from "@/data/shelf-capacity";
 import { allFixtures, getShelfSlotIds, maximumSlotsPerShelf } from "@/data/shelf-slots";
-import { getNextSupplierOrderSlotUpgrade } from "@/data/supplier-capacity";
+import { truckLane, cartBoxes } from "./trucks";
+import { getSupplierTrucks } from "@/data/supplier-capacity";
 import { getOrderBoxes, getOrderLines } from "@/services/supplier-cart";
 import { getEarliestInventoryExpiry } from "@/services/inventory-lots";
 import { describeProductLock } from "@/services/level-unlocks";
@@ -116,6 +117,7 @@ function productInfo(state: State, product: ItemDefinition, now: number) {
 	const fillQuote = fillQuantity > 0 ? getShelfOrderQuote(state, product.id, fillQuantity, now) : null;
 	// The price and time of ONE box.
 	const oneQuote = getShelfOrderQuote(state, product.id, 1, now);
+	const inCart = (state.logistics.cart ?? []).find((line) => line.productId === product.id)?.boxes ?? 0;
 	const expiresAt = getEarliestInventoryExpiry(state.inventoryLots?.[product.id]);
 	// The shelf place that misses the most units and can be refilled from the depot.
 	const refill = slots
@@ -149,6 +151,7 @@ function productInfo(state: State, product: ItemDefinition, now: number) {
 		fillQuantity,
 		fillQuote,
 		oneQuote,
+		inCart,
 		expiresAt,
 		refill,
 		status,
@@ -165,16 +168,20 @@ const needsStock = (info: Info) => info.status === "empty" || info.status === "l
 /** "1 caixa" or "N caixas", whole strings so each can be translated. */
 const boxesText = (boxes: number) => (boxes === 1 ? "1 caixa" : `${boxes} caixas`);
 
+// Every "Pedir caixas" puts boxes in the one supplier cart (Lucas 11/11); "Fazer pedido" sends the cart on one truck.
 function fillButton(product: ItemDefinition, info: Info, label?: string): Button {
 	if (!info.isSupplier)
 		return go("Produzir", "sectors", { icon: gameIcon("conveyor"), variant: "primary" });
 	if (info.fillQuantity > 0 && info.fillQuote)
-		return act(label ?? `Pedir ${boxesText(info.fillQuantity)}`, "placeSupplierOrder", [{ productId: product.id, boxes: info.fillQuantity }], {
+		return act(label ?? `+ Carrinho · ${boxesText(info.fillQuantity)}`, "addToSupplierCart", [{ productId: product.id, boxes: info.fillQuantity }], {
 			variant: "coin",
-			icon: gameIcon("deliveryTruck"),
-			ok: `${boxesText(info.fillQuantity)} de ${product.name} a caminho!`,
-			fail: "As condições do pedido mudaram.",
+			icon: gameIcon("cart"),
+			ok: `${boxesText(info.fillQuantity)} de ${product.name} no carrinho! Toque em Fazer pedido para mandar o caminhão.`,
+			fail: "Não coube no carrinho agora.",
 		});
+	// Already in the cart (and no more fits): the button opens the cart.
+	if (info.inCart > 0)
+		return go(`No carrinho · ${boxesText(info.inCart)}`, "@shop", { icon: gameIcon("cart"), variant: "primary" });
 	const reason = info.oneQuote?.reason;
 	return button(info.amount >= info.capacity ? "Estoque cheio" : info.incoming > 0 ? "A caminho" : "Sem vaga", {
 		icon: gameIcon(info.incoming > 0 ? "deliveryTruck" : "package"),
@@ -255,7 +262,7 @@ function stockTile(state: State, product: ItemDefinition, now: number, group: st
 	const [label, tone] = isNew ? ["NOVO", "gold"] : sticker[info.status];
 	const first = info.orders[0];
 	const actions = [
-		fillButton(product, info, info.fillQuantity > 0 ? `Encher estoque · ${boxesText(info.fillQuantity)} por ${fmt(info.fillQuote?.total ?? 0)}` : undefined),
+		fillButton(product, info, info.fillQuantity > 0 ? `+ Carrinho · ${boxesText(info.fillQuantity)} por ${fmt(info.fillQuote?.total ?? 0)}` : undefined),
 		...(info.isSupplier && info.oneQuote && !info.oneQuote.reason
 			? [go("Escolher quantidade", `order:${product.id}:1`, { icon: gameIcon("calculator") })]
 			: []),
@@ -309,7 +316,7 @@ function lockedTile(state: State, product: ItemDefinition): BoardTile {
 		detail: `${lock.detail} Vende por ${product.sellingPrice} e dá +${product.xpPerSale} XP por venda.`,
 		facts: [
 			stat(gameIcon("lock"), `Nv ${product.unlockLevel}`, "Libera no nível"),
-			...(lock.eraMissing ? [stat(gameIcon("market"), lock.eraMissing, "Precisa da expansão")] : []),
+			...(lock.eraMissing ? [stat(gameIcon("market"), t(lock.eraMissing), "Precisa da expansão")] : []),
 			stat(gameIcon("coin"), String(product.sellingPrice), "Preço de venda"),
 			stat(gameIcon("crown"), `+${product.xpPerSale}`, "XP por venda"),
 		],
@@ -412,12 +419,11 @@ function stockBoard(state: State, args: string[], aliasOf?: string) {
 				tone: share > 0.9 ? "danger" : share > 0.7 ? "warning" : "success",
 			}),
 			footer: [
-				act(orderable > 0 ? `Pedir tudo (${orderable})` : "Nada acabando", "orderLowStock", [], {
+				go(orderable > 0 ? `Pôr no carrinho o que acaba (${orderable})` : "Nada acabando", "@shop:low", {
 					variant: "coin",
-					icon: gameIcon("deliveryTruck"),
+					icon: gameIcon("cart"),
 					enabled: orderable > 0,
-					ok: "Pedidos feitos! Os caminhões já saíram.",
-					fail: orderable > 0 ? "Sem moedas, sem vagas de entrega ou sem espaço no estoque." : "Nada está acabando agora.",
+					fail: "Nada está acabando agora.",
 				}),
 				act(dock.length ? `Descarregar tudo (${dock.length})` : "Doca vazia", "unloadAllDeliveries", [], {
 					variant: "success",
@@ -692,38 +698,7 @@ function freeLane(index: number, _orderable: number): BoardTile {
 	});
 }
 
-function lockedLane(state: State): BoardTile | null {
-	const next = getNextSupplierOrderSlotUpgrade(state.logistics.supplierOrderSlots);
-	if (!next) return null;
-	const levelOk = state.market.level >= next.playerLevel;
-	const fail = levelOk ? "Moedas insuficientes." : `Disponível no nível ${next.playerLevel}.`;
-	const coins = act(`Liberar · ${fmt(next.coinCost)}`, "upgradeSupplierOrderSlots", ["coins"], {
-		variant: "coin",
-		icon: gameIcon("coin"),
-		enabled: levelOk && state.coins >= next.coinCost,
-		ok: `Agora você tem ${next.slots} caminhões!`,
-		fail,
-	});
-	const gems = act(`Liberar · ${next.diamondCost}`, "upgradeSupplierOrderSlots", ["diamonds"], {
-		variant: "gem",
-		icon: gameIcon("diamond"),
-		enabled: levelOk,
-		ok: `Agora você tem ${next.slots} caminhões!`,
-		fail: levelOk ? "Diamantes insuficientes." : fail,
-	});
-	return tile("slotnext", "Mais um caminhão", {
-		group: "CAMINHÕES NA ESTRADA",
-		icon: gameIcon("deliveryTruck"),
-		subtitle: levelOk ? "Mais caminhões = mais pedidos ao mesmo tempo" : `Libera no nível ${next.playerLevel}`,
-		sticker: levelOk ? "NOVA PISTA" : `NV ${next.playerLevel}`,
-		tone: levelOk ? "gold" : "locked",
-		state: levelOk ? "" : "locked",
-		action: coins,
-		actions: [coins, gems],
-		vehicle: "Game/lane_truck",
-		lane: "locked",
-	});
-}
+const lockedLane = (state: State): BoardTile | null => truckLane(state);
 
 type DeliveryTab = "estrada" | "central";
 
@@ -732,7 +707,7 @@ const withBadge = (button: Button, count: number): Button => ({ ...button, badge
 function suppliersBoard(state: State, args: string[]) {
 	const now = Date.now();
 	const running = activeOrders(state, now).sort((a, b) => orderEnd(a) - orderEnd(b));
-	const slots = state.logistics.supplierOrderSlots;
+	const slots = getSupplierTrucks(state);
 	const suppliers = unlockedProducts(state).filter((product) => product.acquisition === "supplier");
 	const infos = new Map(suppliers.map((product) => [product.id, productInfo(state, product, now)]));
 	const low = suppliers.filter((product) => needsStock(infos.get(product.id)!));
@@ -780,6 +755,18 @@ function suppliersBoard(state: State, args: string[]) {
 				action: go("Ver caminhões", "~suppliers:estrada", { icon: gameIcon("deliveryTruck") }),
 				actions: [go("Ver caminhões", "~suppliers:estrada", { icon: gameIcon("deliveryTruck") })],
 			}),
+			// Freight coupons (Lucas 11/11): 10% off one order, used in the cart; earned in the daily gift (days 3 and 7),
+			// the weekly event and some missions.
+			tile("coupons", "Cupons de frete", {
+				group: "CENTRAL LOGÍSTICA",
+				icon: gameIcon("receipt"),
+				subtitle: "Cada cupom dá 10% de desconto em um pedido",
+				badge: String(state.logistics.freightCoupons),
+				tone: state.logistics.freightCoupons > 0 ? "gold" : "",
+				detail: "Use no carrinho, em \"Usar cupom de frete\". Ganhe mais no 3º e no 7º dia do Presente do dia, no evento da semana e em algumas missões.",
+				action: go("Abrir o carrinho", "@shop", { icon: gameIcon("cart") }),
+				actions: [go("Abrir o carrinho", "@shop", { icon: gameIcon("cart") }), go("Ver presentes", "!missions:presentes", { icon: gameIcon("gift") })],
+			}),
 			lockedLane(state),
 		].filter((item): item is BoardTile => item !== null);
 	}
@@ -792,7 +779,8 @@ function suppliersBoard(state: State, args: string[]) {
 		tabs: [
 			withBadge(swap("Pistas", "suppliers:estrada", active === "estrada", gameIcon("deliveryTruck")), running.length + dock.length),
 			// The shop: the catalog, the cart and the boxes (@shop, drawn by Unity).
-			withBadge(go("Fazer pedido", "@shop", { icon: gameIcon("cart") }), low.length),
+			// The badge counts the boxes already in the cart, else what is running out.
+			withBadge(go("Fazer pedido", "@shop", { icon: gameIcon("cart") }), cartBoxes(state) || low.length),
 			withBadge(swap("Central", "suppliers:central", active === "central", gameIcon("lightning")), 0),
 		],
 		board: board(tiles, {
@@ -811,12 +799,11 @@ function suppliersBoard(state: State, args: string[]) {
 				tone: running.length >= slots ? "warning" : "info",
 			}),
 			footer: [
-				act(orderable > 0 ? `Pedir tudo (${orderable})` : "Nada acabando", "orderLowStock", [], {
+				go(orderable > 0 ? `Pôr no carrinho o que acaba (${orderable})` : "Nada acabando", "@shop:low", {
 					variant: "coin",
-					icon: gameIcon("deliveryTruck"),
+					icon: gameIcon("cart"),
 					enabled: orderable > 0,
-					ok: "Pedidos feitos! Os caminhões já saíram.",
-					fail: "Sem moedas, sem vagas de entrega ou sem espaço no estoque.",
+					fail: "Nada está acabando agora.",
 				}),
 				...(dock.length
 					? [act(`Descarregar tudo (${dock.length})`, "unloadAllDeliveries", [], {
@@ -832,11 +819,11 @@ function suppliersBoard(state: State, args: string[]) {
 					? "1 caminhão na doca! Descarregue para liberar o pátio."
 					: `${dock.length} caminhões na doca! Descarregue para liberar o pátio.`
 				: running.length >= slots
-					? "Todos os caminhões estão na estrada. Libere mais um na Central ou acelere com um ticket."
+					? "Todos os caminhões estão na estrada. O carrinho espera: o pedido sai quando um caminhão voltar."
 					: low.length > 0
 						? low.length === 1
-							? '1 produto precisa de pedido. Use "Pedir tudo" e deixe os caminhões trabalharem!'
-							: `${low.length} produtos precisam de pedido. Use "Pedir tudo" e deixe os caminhões trabalharem!`
+							? '1 produto precisa de pedido. Ponha no carrinho e faça um pedido só!'
+							: `${low.length} produtos precisam de pedido. Ponha no carrinho e faça um pedido só!`
 						: "Caminhões livres e estoque em dia. Bom trabalho!",
 			empty: "Nada por aqui ainda.",
 		}),

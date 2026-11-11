@@ -308,7 +308,8 @@ test("orders are supplier boxes: paid per box, unloaded box by box, shelved unit
 	const state = store();
 	const productId = state.market.unlockedProductIds[0];
 	const product = itemCatalog.find((item) => item.id === productId);
-	useGameStore.setState({ coins: 10_000, inventory: { ...state.inventory, [productId]: 0 }, inventoryCapacityLevels: { ...state.inventoryCapacityLevels, [productId]: 1 } });
+	// Three trucks (a new game has one, Lucas 11/11): two orders go on the road at once.
+	useGameStore.setState({ coins: 10_000, inventory: { ...state.inventory, [productId]: 0 }, inventoryCapacityLevels: { ...state.inventoryCapacityLevels, [productId]: 1 }, logistics: { ...state.logistics, supplierOrderSlots: 3 } });
 	expect(store().placeSupplierOrder({ productId, boxes: 2 })).toBe(true);
 	const order = store().logistics.orders[0];
 	expect(order.boxes).toBe(2);
@@ -340,7 +341,7 @@ test("a v45 save with special requests migrates to v46 keeping the progress (Luc
 		requests: [{ id: "r1", customerId: "c-1", customerName: "Ana", status: "served", expiresAt: 1, tip: 3 }],
 		stats: { ...old.day.stats, customers: 5, requestsServed: 2, requestsExpired: 1, loyaltyChange: 5, reputationChange: 2, tips: 3 },
 	};
-	expect(useGameStore.persist.getOptions().version).toBe(50); // 50: social v1 (src/services/social.ts)
+	expect(useGameStore.persist.getOptions().version).toBe(53); // 51: Rede de supermercados (src/services/chain.ts)
 	const next = await useGameStore.persist.getOptions().migrate(old, 45);
 	expect(next.coins).toBe(4321);
 	expect(next.market.level).toBe(7);

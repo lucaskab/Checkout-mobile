@@ -400,6 +400,9 @@ export function act(
 ) {
 	return button(label, { action, args: JSON.stringify(args), ...options });
 }
+/** " + 1 cupom de frete" / " + 2 cupons de frete" (Lucas 11/11), "" for none. */
+export const couponPlus = (coupons: number | undefined) =>
+	!coupons ? "" : coupons === 1 ? " + 1 cupom de frete" : ` + ${coupons} cupons de frete`;
 export const go = (label: string, route: string, options: Partial<Button> = {}) =>
 	button(label, { route, variant: "secondary", ...options });
 // "~" replaces the current page instead of pushing a new one (filters, steppers).

@@ -184,9 +184,11 @@ export function getOfflineEraIncome(
 	era: GameEraState,
 	awayMs: number,
 	fallbackTicket = 18,
+	/** The time away that still sells (8 h, or more bought in the store: src/services/perks.ts). */
+	capMs = OFFLINE_CAP_MS,
 ): OfflineEraIncome {
 	const definition = getMarketEra(era.id);
-	const counted = Math.min(Math.max(0, awayMs), OFFLINE_CAP_MS);
+	const counted = Math.min(Math.max(0, awayMs), capMs);
 	const turns = (counted / HOUR) * getOfflineTurnsPerHour(definition);
 	const turnProfit =
 		era.averageTurnProfit > 0

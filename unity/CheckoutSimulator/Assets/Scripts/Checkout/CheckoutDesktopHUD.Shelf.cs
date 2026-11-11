@@ -30,7 +30,7 @@ namespace Checkout {
   // ------------------------------------------------------------------ build
   void BuildShelf(){
    var node=N.Node("Shelf window",root);shelfWin=node.gameObject;Stretch(node,Vector2.zero,Vector2.zero);
-   var dim=shelfWin.AddComponent<Image>();dim.color=new Color(.10f,.07f,.04f,.58f);Clickable(shelfWin,()=>host.Route(""));
+   var dim=shelfWin.AddComponent<Image>();dim.color=CheckoutUiKit.TapCatcher;Clickable(shelfWin,()=>host.Route("")); // (no dark backdrop: a tap outside closes)
    var window=Stretch(N.Node("Window",node),CheckoutScreen.Handheld?new Vector2(8,8):new Vector2(64,118),CheckoutScreen.Handheld?new Vector2(-8,-6):new Vector2(-64,-18));
    var edge=window.gameObject.AddComponent<Image>();edge.sprite=K.Rounded(30);edge.type=Image.Type.Sliced;edge.color=K.C("8A5A2B");
    window.gameObject.AddComponent<Button>().transition=Selectable.Transition.None;
@@ -293,7 +293,7 @@ namespace Checkout {
   }
 
   // ------------------------------------------------------------------ helpers
-  static string Fmt(int value)=>value.ToString("N0",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+  static string Fmt(int value)=>CheckoutI18n.Number(value);
   static string Args(string text)=>"[\""+text+"\"]";
   static DesktopButton Btn(string label,string action,string args,string variant,string icon,bool enabled,string ok,string fail)=>
    new DesktopButton{label=label,action=action,args=args,variant=variant,icon=icon,enabled=enabled,ok=ok,fail=fail,route="",after="",badge=""};
@@ -352,7 +352,7 @@ namespace Checkout {
    gameObject.SetActive(!hidden);pile.gameObject.SetActive(!hidden);if(hidden)return;
    bool product=slot.state=="product";
    empty.SetActive(slot.state=="empty");locked.SetActive(slot.state=="locked");
-   if(slot.state=="locked")lockText.text=slot.unlockCost<=0?"Com a evolução":"Abrir · "+slot.unlockCost.ToString("N0",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+   if(slot.state=="locked")lockText.text=slot.unlockCost<=0?"Com a evolução":"Abrir · "+CheckoutI18n.Number(slot.unlockCost);
    tag.SetActive(product);stockChip.SetActive(product);levelChip.SetActive(product&&slot.level>0);
    if(product){
     tagText.text=slot.price.ToString();

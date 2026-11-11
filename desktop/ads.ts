@@ -1,15 +1,15 @@
 import type { GameStore } from "@/@types/game";
-import { getRewardedAdOffer } from "@/services/rewarded-ads";
+import { getRewardedAdOffer, getRewardedCoinAdOffer } from "@/services/rewarded-ads";
 import { canClaimConsolation } from "@/services/contract-pressure";
-import { canDoubleDailyLogin } from "@/services/daily-login";
+import { canDoubleDailyLogin, getStreakRecovery } from "@/services/daily-login";
 
 /**
- * What a video is for: the diamonds of "Diamantes grátis" (5 a day), the missed contract's consolation, or the
- * daily gift doubled. Unity only plays the video; the host remembers the placement and credits it when the video
+ * What a video is for: the diamonds or the coins of "Diamante grátis" (7 a day each, the player picks), the missed
+ * contract's consolation, or the daily gift doubled. Unity only plays the video; the host remembers the placement and credits it when the video
  * the host asked for ends.
  */
-export type AdPlacement = "diamonds" | "consolation" | "gift";
-export const adPlacements: AdPlacement[] = ["diamonds", "consolation", "gift"];
+export type AdPlacement = "diamonds" | "coins" | "consolation" | "gift" | "offline" | "streak";
+export const adPlacements: AdPlacement[] = ["diamonds", "coins", "consolation", "gift", "offline", "streak"];
 
 /**
  * Rewarded videos as the host sees them (rules: src/services/rewarded-ads.ts). The video itself plays in Unity
@@ -17,12 +17,15 @@ export const adPlacements: AdPlacement[] = ["diamonds", "consolation", "gift"];
  * - asks Unity to show one (`ad-show` with a fresh id) when the player presses "Assistir vídeo";
  * - credits it (claimRewardedAd) only when Unity reports that same id was watched to the end — a video it did not
  *   ask for, or the same one twice, gives nothing;
- * - keeps what Unity tells about the videos (ready, loading, none available) and the last result for the pages;
+ * - keeps what Unity tells about the videos (ready, loading, none available) and the last result for the pages —
+ *   only as a hint for the text: the button is never switched off because of it (Lucas 08/11, a friend on the App
+ *   Store found it dead). Pressing it always asks Unity, which loads a video and opens it as soon as one arrives, or
+ *   answers "failed" (the page then says the video did not load) and keeps trying in the background;
  * - shows "Privacidade dos anúncios" when Google's consent tool says the player must be able to change their choice
  *   (GDPR: Europe, UK, Switzerland) and asks Unity to open that form (`ad-privacy`).
  */
 export type AdsStatus = "starting" | "ready" | "loading" | "unavailable";
-export type AdEvent = { kind: "rewarded" | "closed" | "failed"; at: number; diamonds: number; label?: string };
+export type AdEvent = { kind: "rewarded" | "closed" | "failed"; at: number; diamonds: number; label?: string; placement?: AdPlacement };
 
 export const adsStore = {
 	status: "starting" as AdsStatus,
@@ -47,14 +50,22 @@ export function adPlacementBlock(state: GameStore, placement: AdPlacement, now =
 		return state.day.phase === "results" && canClaimConsolation(state.day.result) ? "" : "Este prêmio já foi resgatado.";
 	if (placement === "gift")
 		return canDoubleDailyLogin(state.dailyLogin, now) ? "" : "Resgate o presente de hoje primeiro (ou ele já foi dobrado).";
-	return getRewardedAdOffer(state.rewardedAds, now).available ? "" : "Espere um pouco para o próximo vídeo.";
+	// Lucas 11/11: the coins of the time away once more, and a daily-gift streak broken by one day.
+	if (placement === "offline")
+		return state.offlineSummary && state.offlineSummary.coins > 0 ? "" : "Estas vendas já foram coletadas.";
+	if (placement === "streak")
+		return getStreakRecovery(state.dailyLogin, now)?.video ? "" : "Não há sequência para recuperar com vídeo.";
+	if (placement === "coins")
+		return getRewardedCoinAdOffer(state.rewardedAds, state.market.level, now).available ? "" : "Você já ganhou as moedas de vídeo de hoje. Volte amanhã!";
+	return getRewardedAdOffer(state.rewardedAds, now).available ? "" : "Você já ganhou os diamantes de vídeo de hoje. Volte amanhã!";
 }
 
 /** "Assistir vídeo": checks the player may watch one now and builds the message for Unity. */
 export function requestRewardedAd(state: GameStore, now = Date.now(), placement: AdPlacement = "diamonds"): ShowAdResult {
 	const blocked = adPlacementBlock(state, placement, now);
 	if (blocked) return { ok: false, reason: blocked };
-	if (adsStore.status === "unavailable") return { ok: false, reason: "Nenhum vídeo disponível agora. Tente mais tarde." };
+	// No "no video" refusal here: with none loaded yet Unity starts a load and opens the video when it arrives
+	// (CheckoutAds.cs QueueShow), or reports "failed" after a few seconds.
 	// One at a time (a video left open more than 2 minutes is given up).
 	if (adsStore.pendingId && now - adsStore.pendingAt < 120_000) return { ok: false, reason: "O vídeo já está abrindo." };
 	adsStore.pendingId = `ad-${now.toString(36)}-${(++sequence).toString(36)}`;
@@ -83,12 +94,19 @@ export function applyAdsMessage(message: AdsUnityMessage, now = Date.now()) {
 	if (typeof message.privacy === "boolean") adsStore.privacyOptions = message.privacy;
 	if ((message.event === "closed" || message.event === "failed") && message.id === adsStore.pendingId) {
 		adsStore.pendingId = "";
-		adsStore.last = { kind: message.event, at: now, diamonds: 0 };
+		adsStore.last = { kind: message.event, at: now, diamonds: 0, placement: adsStore.pendingPlacement };
 	}
 }
 
-export function noteAdReward(diamonds: number | null, now = Date.now(), label = "") {
-	if ((diamonds && diamonds > 0) || label) adsStore.last = { kind: "rewarded", at: now, diamonds: diamonds ?? 0, label };
+/** What the video buttons say under them while no video is loaded ("" = one is ready or the state is unknown). */
+export function adStatusLine() {
+	if (adsStore.status === "loading") return "Carregando o vídeo…";
+	if (adsStore.status === "unavailable") return "Sem vídeo agora, tente em instantes.";
+	return "";
+}
+
+export function noteAdReward(diamonds: number | null, now = Date.now(), label = "", placement?: AdPlacement) {
+	if ((diamonds && diamonds > 0) || label) adsStore.last = { kind: "rewarded", at: now, diamonds: diamonds ?? 0, label, ...(placement ? { placement } : {}) };
 }
 
 /** "Privacidade dos anúncios": the message for Unity to reopen the consent form (only when Google asks for it). */

@@ -1,3 +1,4 @@
+import { interiorDecor } from "@/data/interior-decor";
 import { t } from "@/i18n";
 import type { EmployeeRole } from "@/@types/employee";
 import { getMarketEra } from "@/data/economy";
@@ -156,6 +157,8 @@ function roleIcon(role: string) {
 			return gameIcon("package");
 		case "cleaner":
 			return gameIcon("broom");
+		case "security":
+			return gameIcon("lock");
 	}
 	return gameIcon("manager");
 }
@@ -206,6 +209,28 @@ export function levelUpView(state: State): LevelUpView | null {
 	const tag = (level: number) => (multi ? `NÍVEL ${level}` : "NOVO");
 
 	const result: LevelUpGroup[] = [];
+	// The prize of these levels (src/data/level-rewards.ts), already in the player's pocket.
+	const prize = levelUp.rewards;
+	if (prize && (prize.coins > 0 || prize.diamonds > 0 || prize.decorIds.length)) {
+		const items: LevelUpItem[] = [];
+		if (prize.coins > 0)
+			items.push({ icon: gameIcon("coin"), title: `+${prize.coins.toLocaleString("pt-BR")} moedas`, detail: "Prêmio do nível, já no seu caixa", tag: "PRÊMIO" });
+		if (prize.diamonds > 0)
+			items.push({ icon: gameIcon("diamond"), title: `+${prize.diamonds} diamantes`, detail: "Use para acelerar obras e entregas", tag: "PRÊMIO" });
+		for (const id of prize.decorIds) {
+			const decor = interiorDecor.find((item) => item.id === id);
+			if (decor) items.push({ icon: decorIcon(id), title: decor.name, detail: "Decoração grátis: já está na Loja › Decoração para colocar", tag: "GRÁTIS" });
+		}
+		result.push({
+			title: "Prêmio do nível",
+			hint: "Todo nível traz um prêmio. Os níveis 5 e 10 de cada dezena dão diamantes, e alguns trazem decorações.",
+			icon: gameIcon("gift"),
+			tint: "C9932E",
+			button: prize.decorIds.length ? "Ver decoração" : "",
+			route: prize.decorIds.length ? "!loja:decoracao" : "",
+			items,
+		});
+	}
 	for (const kind of order) {
 		const spec = groups[kind];
 		const items: LevelUpItem[] =

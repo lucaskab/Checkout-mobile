@@ -117,7 +117,8 @@ test("the inbox: applied once, toasts, badge, then acked", async () => {
 	]);
 	expect(social.socialBadge()).toBe(4);
 	const view = createDesktopView(game(), 1, []);
-	expect(view.quick.find((b) => b.label === "Amigos").badge).toBe("4");
+	// Lucas 10/11: Amigos stands on the screen (no longer inside the Bônus menu)
+	expect(view.quickFixed.find((b) => b.label === "Amigos").badge).toBe("4");
 	expect(view.quickMain.badge).not.toBe("");
 	social.onSocialRoute("amigos");
 	expect(social.socialBadge()).toBe(1);

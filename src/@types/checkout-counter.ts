@@ -48,9 +48,15 @@ export type CheckoutOutcome = {
 	total: number;
 };
 
+/** A customer being rung up by a cashier or a kiosk (one per server: they work side by side). */
+export type CheckoutServing = { id: string; server: number; doneAt: number };
+
 export type CheckoutCounterState = {
 	lost: number;
+	/** (Before the parallel lanes: the one cashier's next customer. Kept null.) */
 	nextAutoAt: number | null;
+	/** Customers at the staffed counters and the kiosks right now. */
+	serving?: CheckoutServing[];
 	perfect: number;
 	queue: PendingCheckout[];
 	recent: CheckoutOutcome[];

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The game and its Google Play page (Lucas 10/11): the In-App Review sheet and the in-app updates check
+     (Plugins/Android/CheckoutAppStore.java, CheckoutAppStore.cs). Resolved by the External Dependency Manager. -->
+<dependencies>
+  <androidPackages>
+    <androidPackage spec="com.google.android.play:review:2.0.2" />
+    <androidPackage spec="com.google.android.play:app-update:2.1.0" />
+  </androidPackages>
+</dependencies>

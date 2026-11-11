@@ -92,3 +92,6 @@ scripts/qa/agents/
 # QA-only preview of assets still waiting for approval (not part of the game yet)
 unity/CheckoutSimulator/Assets/Art/Events/Rain/Resources/RainPreview/
 unity/CheckoutSimulator/Assets/Art/Events/Rain/Resources/RainPreview.meta
+
+# Firebase Unity packages (13.17.1, from dl.google.com/games/registry/unity): kept on the Mac, too big for git
+unity/CheckoutSimulator/GooglePackages/*.tgz

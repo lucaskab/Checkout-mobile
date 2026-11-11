@@ -29,13 +29,13 @@ namespace Checkout {
   const string AllKey="*",LowKey="!low";
   const string Blue="2E8CAE",Dark="2B2B2B",Muted="8A7560",Green="3DAA5C",Red="E15533",Cream="FFF6E6";
   const int CardW=206,CardH=326,CardGap=14,CartWidth=420,SideWidth=232,MaxLines=40;
-  static readonly CultureInfo Br=CultureInfo.GetCultureInfo("pt-BR");
+  static CultureInfo Local=>CheckoutI18n.Culture; // numbers written the player's way
 
   CheckoutBridge bridge;AudioSource sound;
   RectTransform root,frameRect,screenRect,body,deliveryBody,gridView,gridContent,sideContent,cartRect,cartList,cartContent,cartBadge;
   string tab=TabAtacado;TextMeshProUGUI titleText,deliveryBadgeText;Image deliveryBadge;CheckoutDesktopButton tabAtacado,tabDelivery;
   GameObject window,emptyNode,toast;CanvasGroup frameGroup;Image dim,meterImg,truckMover;GridLayoutGroup grid;
-  TextMeshProUGUI coinsText,trucksText,cartCount,meterText,totalText,discountText;
+  TextMeshProUGUI coinsText,trucksText,cartCount,meterText,meterLabel,totalText,discountText;
   CheckoutDesktopButton couponButton,helperButton,buyButton,clearButton,repeatButton;
   AudioClip clipTick,clipPage,clipAdd,clipPlus,clipMinus,clipRemove,clipError,clipChime;
   readonly List<CheckoutDesktopButton> catButtons=new List<CheckoutDesktopButton>();
@@ -43,12 +43,17 @@ namespace Checkout {
   readonly List<CartLine> cart=new List<CartLine>();
   readonly List<CartRow> rows=new List<CartRow>();
   string selected=AllKey,catalogSig="";bool useCoupon,busy;int lastRevision=int.MinValue,fade;float refreshAt,meterShown,meterTarget;
+  // The cart lives in the game (logistics.cart, Lucas 11/11) so every "Pedir caixas" button can add to it: this window
+  // sends its cart after each change (setSupplierCart) and takes the game's when it changed elsewhere.
+  int seenCartRev=int.MinValue,ownPushes;string pushedSig="";
 
   sealed class CartLine {public int productId,boxes;}
   sealed class ProductCard {public int productId;public RectTransform root,slide,lift;public CanvasGroup group;public Image edge,face,icon,lockIcon,ribbon,barFill;public TextMeshProUGUI title,sub,stock,price,unit,ribbonText;public CheckoutDesktopButton button;public float hover;public bool hovered;}
   sealed class CartRow {public int productId;public RectTransform rect,plus,minus;public Image icon;public TextMeshProUGUI title,units,cost,count;}
 
   public static void Show(int productId=0){if(Instance)Instance.Open(productId,TabAtacado);}
+  // "@shop:low": opens the shop with what is running out already in the cart ("Pôr no carrinho o que acaba").
+  public static void ShowLow(){if(!Instance)return;Instance.Open(0,TabAtacado);if(Instance.IsOpen)Instance.FillLow();}
   // Opens the computer on the Delivery tab (the Dynamic Island pill and the HUD "@delivery" route).
   public static void ShowDelivery(){if(Instance)Instance.Open(0,TabDelivery);}
 
@@ -68,7 +73,7 @@ namespace Checkout {
   void BuildWindow(){
    // Everything lives under one node, so hiding the window also hides the dim that catches the clicks.
    var holder=N.Node("Shop",root);U.Stretch(holder,Vector2.zero,Vector2.one);window=holder.gameObject;
-   dim=U.Box(holder,"Dim","000000",0,Vector2.zero,Vector2.one);dim.color=new Color(.12f,.08f,.05f,.62f);dim.raycastTarget=true;U.Stretch(dim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900)); // past the safe area: the whole screen darkens
+   dim=U.Box(holder,"Dim","000000",0,Vector2.zero,Vector2.one);dim.color=U.TapCatcher;dim.raycastTarget=true;U.Stretch(dim.rectTransform,Vector2.zero,Vector2.one,new Vector2(-900,-900),new Vector2(900,900)); // past the safe area: the whole screen darkens
    // The monitor: a dark rounded bezel around the app's screen.
    var bezel=N.Image(holder,"Bezel",K.C("2B2420"),34);bezel.raycastTarget=true;
    frameRect=U.Stretch(bezel.rectTransform,new Vector2(.035f,.05f),new Vector2(.965f,.95f));
@@ -165,7 +170,7 @@ namespace Checkout {
    // The truck's load: boxes out of the most the truck takes.
    var meter=N.Node("Meter",col);N.Column(meter.gameObject,4);Pref(meter.gameObject,-1,58);
    var mhead=N.Node("MeterHead",meter);N.Row(mhead.gameObject,6);Pref(mhead.gameObject,-1,22);
-   var mlabel=U.Label(mhead,"Label",K.Body,15,Muted,TextAlignmentOptions.Left);mlabel.text="Caminhão";Pref(mlabel.gameObject,-1,-1).flexibleWidth=1;
+   meterLabel=U.Label(mhead,"Label",K.Body,15,Muted,TextAlignmentOptions.Left);meterLabel.text="Caminhão";Pref(meterLabel.gameObject,-1,-1).flexibleWidth=1;
    meterText=U.Label(mhead,"Value",K.Body,15,Dark,TextAlignmentOptions.Right);
    var track=N.Image(meter,"Track",K.C("EADBC4"),8);Pref(track.gameObject,-1,16);
    meterImg=N.Image(track.transform,"Fill",K.C(Green),8);U.Stretch(meterImg.rectTransform,Vector2.zero,new Vector2(0,1));
@@ -221,7 +226,7 @@ namespace Checkout {
    var label=U.Label(img.transform,"Text",K.Headline,20,Dark);U.Stretch(label.rectTransform,Vector2.zero,Vector2.one);label.text=text;
    U.Tap(img,onTap);return img;
   }
-  static string Money(long v)=>v.ToString("N0",Br);
+  static string Money(long v)=>v.ToString("N0",Local);
   static float Ease(float t)=>1-Mathf.Pow(1-t,3);
   static DesktopButton Btn(string label,string variant,bool enabled,string icon,bool active=false)=>new DesktopButton{label=label,variant=variant,enabled=enabled,icon=icon,active=active,action="",args="[]",route="",after="",ok="",fail="",badge=""};
   // "Only N boxes fit." plus the reason, as two whole sentences (each one has its own translation).
@@ -304,7 +309,7 @@ namespace Checkout {
    c.barFill.rectTransform.anchorMax=new Vector2(Mathf.Clamp01(stockBoxes/(float)capacity),1);
    c.barFill.color=K.C(low?Red:Green);
    c.price.text=Money(Mathf.RoundToInt(p.boxPrice));
-   c.unit.text=string.Format("{0} por un. · vende a {1}",p.unitCost.ToString("N2",Br),p.salePrice.ToString("N2",Br));
+   c.unit.text=string.Format("{0} por un. · vende a {1}",p.unitCost.ToString("N2",Local),p.salePrice.ToString("N2",Local));
    c.ribbon.gameObject.SetActive(low);
    c.lockIcon.gameObject.SetActive(locked);
    c.icon.color=locked?new Color(1,1,1,.45f):Color.white;
@@ -366,6 +371,7 @@ namespace Checkout {
    if(!force&&s.revision==lastRevision)return;
    lastRevision=s.revision;
    SyncBadge();
+   AdoptCart();
    cart.RemoveAll(l=>Find(l.productId)==null);
    if(Info==null||Info.freightCoupons<=0)useCoupon=false;
    coinsText.text=Money((long)s.coins);
@@ -433,6 +439,39 @@ namespace Checkout {
    window.SetActive(false);frameGroup.alpha=1;frameRect.localScale=Vector3.one;dim.color=new Color(dim.color.r,dim.color.g,dim.color.b,.62f);
   }
 
+  // ------------------------------------------------------------------ cart: the game's saved cart
+  static string Sig(IEnumerable<CartLine> lines){var sb=new StringBuilder();foreach(var l in lines)sb.Append(l.productId).Append(':').Append(l.boxes).Append(',');return sb.ToString();}
+  // The game's cart replaces this one when it moved without us (a "Pedir caixas" button, an order, another device).
+  void AdoptCart(){
+   var info=Info;if(info==null||busy)return;
+   if(seenCartRev!=int.MinValue&&info.cartRevision==seenCartRev)return;
+   int delta=info.cartRevision-seenCartRev;bool first=seenCartRev==int.MinValue;seenCartRev=info.cartRevision;
+   if(!first&&delta>0&&delta<=ownPushes){ownPushes-=delta;return;}
+   ownPushes=0;cart.Clear();
+   if(info.cart!=null)foreach(var e in info.cart)if(e!=null&&e.boxes>0)cart.Add(new CartLine{productId=e.productId,boxes=e.boxes});
+   pushedSig=Sig(cart);
+  }
+  // After a change here: the game keeps the cart (each push moves its revision by one).
+  void PushCart(){
+   var sig=Sig(cart);if(sig==pushedSig||bridge==null||seenCartRev==int.MinValue)return;
+   pushedSig=sig;ownPushes++;
+   var sb=new StringBuilder("[[");
+   for(int i=0;i<cart.Count;i++){
+    if(i>0)sb.Append(',');
+    sb.Append("{\"productId\":").Append(cart[i].productId.ToString(CultureInfo.InvariantCulture)).Append(",\"boxes\":").Append(cart[i].boxes.ToString(CultureInfo.InvariantCulture)).Append('}');
+   }
+   sb.Append("]]");
+   bridge.Command("setSupplierCart",sb.ToString());
+  }
+  // Delivery time of the cart: the average of its products' times, a little more per extra product (supplier-cart.ts).
+  double CartSeconds(){
+   double sum=0;int n=0;
+   foreach(var l in cart){var p=Find(l.productId);if(p!=null){sum+=p.deliverySeconds;n++;}}
+   if(n==0)return 0;
+   var info=Info;float share=info?.extraProductShare??.1f,cap=info?.extraProductCap??.6f;
+   return sum/n*(1+Math.Min(cap,share*(n-1)));
+  }
+
   // ------------------------------------------------------------------ cart: numbers and checks
   int Boxes(int productId){var l=cart.Find(x=>x.productId==productId);return l==null?0:l.boxes;}
   int TotalBoxes(){int t=0;foreach(var l in cart)t+=l.boxes;return t;}
@@ -456,7 +495,7 @@ namespace Checkout {
   string Problem(){
    if(cart.Count==0)return "Seu carrinho está vazio.";
    var info=Info;if(info==null||bridge.State==null)return "Conectando ao fornecedor...";
-   if(info.active>=info.slots)return "Todos os caminhões estão na estrada";
+   if(info.active>=info.slots)return "Todos os caminhões estão na estrada. O carrinho fica guardado.";
    foreach(var l in cart){
     var p=Find(l.productId);
     if(p==null||p.locked)return "Um produto do carrinho não está disponível.";
@@ -518,6 +557,8 @@ namespace Checkout {
    // The truck's load: orange when nearly full, red when full.
    meterTarget=Mathf.Clamp01(boxes/(float)max);
    meterText.text=boxes+"/"+max+" caixas";
+   meterLabel.text=cart.Count>0?string.Format("Caminhão · chega em ~{0}",Duration(CartSeconds())):"Caminhão";
+   if(!busy)PushCart();
    meterImg.color=K.C(boxes>=max?Red:meterTarget>=.8f?"F0A030":Green);
    cartCount.text=boxes==1?"1 caixa":string.Format("{0} caixas",boxes);
    totalText.text=Money(Priced(Subtotal()));
@@ -648,8 +689,7 @@ namespace Checkout {
   IEnumerator PurchaseRoutine(){
    busy=true;RefreshCart();
    var beforeIds=new HashSet<string>((bridge.State?.orders??new Order[0]).Select(o=>o.id));
-   double slowest=0;
-   foreach(var l in cart){var p=Find(l.productId);if(p!=null&&p.deliverySeconds>slowest)slowest=p.deliverySeconds;}
+   double slowest=CartSeconds();
    // One cart, one order: the lines as the app takes them (the coupon only when it is on).
    var sb=new StringBuilder("[{\"lines\":[");
    for(int i=0;i<cart.Count;i++){
@@ -678,7 +718,7 @@ namespace Checkout {
    float endX=cartRect.rect.width*.5f+200;
    yield return U.Move(truckMover.rectTransform,new Vector2(endX,listAt.y),.9f);
    truckMover.gameObject.SetActive(false);
-   SaveLast();cart.Clear();useCoupon=false;busy=false;
+   SaveLast();cart.Clear();pushedSig=Sig(cart);useCoupon=false;busy=false;
    foreach(var r in rows)r.rect.localScale=Vector3.one;
    RefreshCart();
    Toast(string.Format("Pedido feito! Chega em {0}",Duration(slowest)),Green);

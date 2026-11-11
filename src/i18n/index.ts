@@ -85,11 +85,13 @@ const viewIdKeys = new Set([
 	"value", "qr", "avatar", "code", "friendId", "buildId", "friendName", "max", "frame", "corner",
 	// rankings v1: places, flags, the tile to scroll to, divisions (ids) and the badges' pictures
 	"rank", "flag", "scroll", "division", "movedTo", "badgeFrom", "badgeTo", "week", "moved",
+	// Rede: the branch cards' pins on the city map ("pin:x,y")
+	"look",
 ]);
 /** Snapshot keys Unity shows as text (names, labels); everything else in a snapshot is data. */
 const snapshotTextKeys = new Set([
 	"name", "productName", "shelfName", "contractTitle", "contractLabel", "message", "description", "effectLabel",
-	"nextName", "label", "ruinName", "neededBy", "title", "text", "categoryLabel",
+	"nextName", "label", "ruinName", "neededBy", "title", "text", "categoryLabel", "lockedNote",
 ]);
 
 function localize<T>(value: T, translate: (key: string) => boolean): T {

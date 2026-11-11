@@ -3,6 +3,7 @@ import type {
 	InteriorConstruction,
 } from "@/@types/interior-construction";
 import type { ProductionSectorId } from "@/@types/production";
+import { checkoutFixtures, getCheckoutFixture } from "./checkout-lanes";
 import { getMarketExpansionSkipCost } from "./market-expansions";
 import { shelves } from "./market-products";
 import { productionSectors } from "./production-sectors";
@@ -57,7 +58,12 @@ export function getShelfBuildDurationMs(shelfIndex: number) {
 /** Shop items that are furniture in the market: they are installed by the builders. */
 export const shopItemBuildDurations: Record<string, number> = {
 	"extra-checkout": 15 * MINUTE,
+	"checkout-3": 30 * MINUTE,
+	"checkout-4": 45 * MINUTE,
+	"checkout-5": 1 * HOUR,
 	"self-checkout": 2 * HOUR,
+	"extra-kiosks": 3 * HOUR,
+	"kiosks-3": 4 * HOUR,
 	// The cold room's tiers are built outside the depot / at the central warehouse: no piece to place, the works
 	// start when bought (src/stores/game-store.ts purchaseShopItem).
 	"cold-room-2": 30 * MINUTE,
@@ -69,8 +75,9 @@ export const shopItemBuildDurations: Record<string, number> = {
  * their own register (the minimercado is the first where the player places the checkout, the self-checkout
  * kiosks need the market building). */
 const shopItemPlaceEras: Record<string, MarketEraId> = {
-	"extra-checkout": "minimercado",
-	"self-checkout": "mercadinho",
+	// (src/data/checkout-lanes.ts: the second checkout from the mercadinho — the minimercado sends everyone to its one
+	// counter —, one more in each bigger market; the kiosks in pairs)
+	...Object.fromEntries(checkoutFixtures.map((fixture) => [fixture.itemId, fixture.era])),
 	// The checkout's steps ("Evoluções dos móveis"): the register already fits the small shops' fixed counter; the
 	// conveyor and the scanner need a placed checkout (minimercado), the premium one the supermarket's floor.
 	"checkout-register": "spati",
@@ -104,8 +111,11 @@ export function getInteriorBuildName(kind: InteriorBuildKind, targetId: string, 
 		return eraId
 			? getFixtureName(targetId, eraId)
 			: (shelves.find((shelf) => shelf.id === targetId)?.name ?? "Prateleira");
-	if (targetId === "extra-checkout") return "Caixa extra";
-	if (targetId === "self-checkout") return "Autoatendimento";
+	if (targetId === "extra-checkout") return "Caixa 2";
+	if (targetId === "checkout-3") return "Caixa 3";
+	if (targetId === "checkout-4") return "Caixa 4";
+	if (targetId === "checkout-5") return "Caixa 5";
+	if (getCheckoutFixture(targetId)) return "Autoatendimento";
 	if (targetId === "cold-room-2") return "Mini câmara fria";
 	if (targetId === "cold-room-3") return "Câmara fria";
 	if (targetId === "cold-storage") return "Câmara frigorífica";
@@ -195,8 +205,8 @@ export function findInteriorConstruction(
 export function interiorPieceIds(kind: InteriorBuildKind, targetId: string): string[] {
 	if (kind === "shelf") return [`shelf:${targetId}`];
 	if (kind === "sector") return [`sector:${targetId}`];
-	if (targetId === "extra-checkout") return ["checkout:extra"];
-	if (targetId === "self-checkout") return ["kiosk:1", "kiosk:2"];
+	const fixture = getCheckoutFixture(targetId);
+	if (fixture) return fixture.pieceIds;
 	return [];
 }
 
@@ -256,6 +266,36 @@ export function placeInteriorConstruction(
 		}),
 		now,
 	);
+}
+
+/**
+ * Shelves that are part of the stall model in the first expansions (Unity: CheckoutStall.BuiltIn): the register,
+ * the produce crates and the cooler, the fair stall's refrigerated display (banca) and the sweets shelf (contêiner).
+ * They have no spot to pick in build mode, so buying one starts the works right away instead of waiting in the
+ * inventory (a tester's "Expositor refrigerado" was stuck there in the banca, 09/11/2026).
+ */
+const STALL_BUILT_IN_SHELVES: Partial<Record<MarketEraId, readonly string[]>> = {
+	mesinha: ["produce", "drinks"],
+	tenda: ["produce", "drinks"],
+	banca: ["produce", "drinks", "dairy"],
+	conteiner: ["produce", "drinks", "dairy", "snacks"],
+};
+
+export function isStallBuiltInShelf(eraId: MarketEraId | undefined, shelfId: string) {
+	return Boolean(eraId && STALL_BUILT_IN_SHELVES[eraId]?.includes(shelfId));
+}
+
+/** Built-in shelves still waiting in the inventory (saves from before the fix) go to the builders now. */
+export function placeStallBuiltIns(
+	list: readonly InteriorConstruction[],
+	eraId: MarketEraId | undefined,
+	now = Date.now(),
+): InteriorConstruction[] {
+	let next = [...list];
+	for (const item of list)
+		if (item.pending && item.kind === "shelf" && isStallBuiltInShelf(eraId, item.targetId))
+			next = placeInteriorConstruction(next, item.id, now);
+	return next;
 }
 
 export const isQueuedConstruction = (item: InteriorConstruction, now = Date.now()) =>

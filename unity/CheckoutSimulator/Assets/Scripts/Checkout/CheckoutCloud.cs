@@ -34,8 +34,9 @@ namespace Checkout {
   public const string WebClientId="663095472642-8vg9kgj7o3fdfv56k74m0v37leaqb5ni.apps.googleusercontent.com";
   const string DesktopClientId="663095472642-6votj9sh26dh1nrqpnn196hf301jhtqk.apps.googleusercontent.com";
   // The iOS OAuth client (Google Cloud › Credentials › iOS, bundle id of the iPhone app). Empty = no Google button on
-  // the iPhone yet (Apple only). Its redirect is the reversed id: com.googleusercontent.apps.<id>:/oauth2redirect.
-  const string IosClientId="";
+  // the iPhone (Apple only). Its redirect is the reversed id: com.googleusercontent.apps.<id>:/oauth2redirect.
+  // "Checkout iPhone" (created 06/11, bundle com.lucasfurini.checkout, team 282CN823D6): iPhone = Apple + Google.
+  const string IosClientId="663095472642-7u2tltaqinuirqi9p1s9lns9opad3710.apps.googleusercontent.com";
   const float UploadEvery=300f,RetryOffline=60f;
   static string Server{get{var env=Environment.GetEnvironmentVariable("CHECKOUT_SERVER");return string.IsNullOrEmpty(env)?DefaultServer:env.TrimEnd('/');}}
   /// <summary>Social v1 (CheckoutSocial): the same server and session; the token stays in Unity.</summary>
@@ -350,7 +351,8 @@ namespace Checkout {
    if(r==null){Report("signed-out");yield break;}
    // Only the status: the reply carries the session token (never in a log).
    Debug.Log("CHECKOUT_CLOUD login reply "+r.code);
-   if(r.network||r.code>=500){Report("signed-out","Sem conexão com o servidor. Tente de novo.");yield break;}
+   // 429: the server's login limit (too many logins from one address in a minute): same as no connection, try again.
+   if(r.network||r.code>=500||r.code==429){Report("signed-out","Sem conexão com o servidor. Tente de novo.");yield break;}
    if(r.code!=200){Report("signed-out",CheckoutI18n.T(apple?"A Apple não confirmou o login ({0}).":"O Google não confirmou o login ({0}).").Replace("{0}",r.code.ToString()));yield break;}
    var auth=JsonUtility.FromJson<AuthReply>(r.text);
    token=auth.token;playerId=auth.player.id;email=auth.player.email??"";playerName=auth.player.name??"";

@@ -1,3 +1,5 @@
+import type { PerksState } from "@/services/perks";
+import type { CustomerSex } from "@/@types/customer-simulation";
 import type { GameEraState, MarketEraId } from "@/@types/economy";
 import type { FixtureEvolution } from "@/@types/fixture-evolution";
 export type GameInventory = Record<number, number>;
@@ -24,6 +26,11 @@ export type GameMarketCustomer = {
 	item: string;
 	mood: "calmo" | "com-pressa" | "feliz" | "estressado";
 	name: string;
+	/**
+	 * Sex of the customer (src/data/customer-names.ts): the name matches it and Unity picks a walker of the same
+	 * sex, so the checkout card and the 3D body agree. Absent in saves from before 11/2026 (derived from the name).
+	 */
+	sex?: CustomerSex;
 	satisfaction: number;
 	spent: number;
 	status: "pagou" | "no caixa" | "saiu sem comprar";
@@ -81,6 +88,8 @@ export type GameLevelUp = {
 	/** Level reached. */
 	to: number;
 	at: number;
+	/** The prizes these levels gave (src/data/level-rewards.ts), added up for the celebration. */
+	rewards?: { coins: number; diamonds: number; decorIds: string[] };
 };
 
 export type GameShiftState = {
@@ -119,6 +128,8 @@ export type OfflineRewardSummary = {
 	coins: number;
 	customers: number;
 	durationMs: number;
+	/** The time away reached the limit (the card offers a longer one). */
+	capped?: boolean;
 };
 
 export type ExperienceProgress = {
@@ -129,6 +140,8 @@ export type ExperienceProgress = {
 
 import type { GameStatistics } from "./achievement";
 import type { MarketPaintCurrency, MarketPaintState } from "./market-paint";
+import type { AppPromptsState } from "@/services/app-prompts";
+import type { MarketStyleCurrency, MarketStyleState } from "./market-style";
 import type { OnboardingState } from "./onboarding";
 import type { RewardedAdsState } from "@/services/rewarded-ads";
 import type { CheckoutCounterState } from "./checkout-counter";
@@ -165,7 +178,10 @@ import type { GameShopState, ShopCurrency } from "./shop";
 import type { ReceivingState } from "./receiving";
 import type { SocialInboxOutcome, SocialRequestMirror, SocialState } from "./social";
 import type { RankingsState } from "./rankings";
+import type { ChainBranchId, ChainEmblemId, ChainState, FleetTruckKind } from "./chain";
 import type { StoreIncidentKind, StoreIncidentsState } from "./store-incident";
+import type { StoreSecurityState } from "./security";
+import type { PetState } from "./pet";
 import type { SupplierOrderSlotCurrency } from "./supplier-capacity";
 
 export type RestockShelfInput = {
@@ -208,6 +224,9 @@ export type GameState = {
 	offlineSummary: OfflineRewardSummary | null;
 	/** Rewarded videos watched (daily count and cap: src/services/rewarded-ads.ts). */
 	rewardedAds: RewardedAdsState;
+	appPrompts: AppPromptsState;
+	/** Pacote inicial and the longer time away (src/services/perks.ts). */
+	perks: PerksState;
 	/**
 	 * The last time the player tried to spend more diamonds than they have (not saved): the HUD / app opens the
 	 * diamond store on it and clears it (dismissDiamondShortfall).
@@ -248,10 +267,18 @@ export type GameState = {
 	delivery: DeliveryState;
 	/** "Cores do mercado": the two colours the market is painted in (src/data/market-paint.ts). */
 	marketPaint: MarketPaintState;
+	/** "Estilo do mercado": floor, walls, uniform and sign (src/data/market-style.ts). */
+	marketStyle: MarketStyleState;
 	/** Social v1 (docs/social-api.md): inbox items applied, gifts opened today, profile cache, requests, invite rewards. */
 	social: SocialState;
 	/** Rankings v1 (docs/rankings-api.md): this week's league points, the opt-out, end-of-week cards to show. */
 	rankings: RankingsState;
+	/** Rede de supermercados (src/services/chain.ts): brand, distribution centre fleet, contracts and branches. */
+	chain: ChainState;
+	/** "Ladrão e segurança" (src/services/store-security.ts): the thief inside (at most one), the next one's clock, stats. */
+	security: StoreSecurityState;
+	/** "Mascote caramelo" (src/services/store-pet.ts): the adopted dog, his mood and cosmetics. */
+	pet: PetState;
 };
 
 /** Condition 0–100 of each physical fixture (shelf or sector counter). */
@@ -301,6 +328,9 @@ export type GameActions = {
 	devSetMarketEra: (eraId: MarketEraId) => boolean;
 	/** DEV: pretend the player was away this many hours (obras advance, offline sales are paid). */
 	devPassTime: (hours: number) => boolean;
+	/** QA: every order on its way jumps to at least this share of its trip (0.5 = on the road). */
+	devAdvanceOrders: (progress: number) => boolean;
+	devFleetJob: (truckId: string, kind: string, tripSeconds: number) => boolean;
 	/** Pays the next era and starts its obra. */
 	evolveMarketEra: () => boolean;
 	/** Pays the next level of a product (price set by the current expansion). */
@@ -363,9 +393,25 @@ export type GameActions = {
 	applyMarketPaint: (primary: string, accent: string, currency?: MarketPaintCurrency) => boolean;
 	/** "Voltar ao clássico": the brand navy and gold again, free. */
 	resetMarketPaint: () => boolean;
+	/** Wears `choiceJson` (a MarketStyleChoice as JSON), buying the items not owned yet; colours are free. */
+	applyMarketStyle: (choiceJson: string, currency?: MarketStyleCurrency) => boolean;
 	fixIncident: (incidentId: string) => boolean;
 	/** Engarrafamento: hand a drink through the window of the driver who asked (src/services/event-interactions.ts). */
 	serveWindowSale: (requestId: string) => boolean;
+	/** "Ladrão e segurança": the player taps the fleeing thief (false while he is still browsing or already gone). */
+	catchThief: (thiefId: string) => boolean;
+	/** Thieves come, run, get caught or escape; the guard and the dog act (host: every second). */
+	processStoreSecurity: (now?: number) => boolean;
+	/** DEV / QA video: a thief walks in right now (no timer, any era). */
+	devSpawnThief: () => boolean;
+	/** "Mascote caramelo": adopts the stray dog at the door (free, from the Späti on). */
+	adoptPet: () => boolean;
+	/** Pets the dog: happy for a minute (more customers), then a 2-minute break. */
+	petDog: () => boolean;
+	/** Buys a collar, bandana, bed or bowls for the dog (coins or diamonds, as the catalogue prices it). */
+	buyPetCosmetic: (cosmeticId: string) => boolean;
+	/** Wears an owned collar or bandana ("" takes the bandana off). */
+	equipPetCosmetic: (cosmeticId: string) => boolean;
 	hireEmployee: (role: EmployeeRole) => boolean;
 	grantCurrencyPurchase: (input: GrantCurrencyPurchaseInput) => boolean;
 	/**
@@ -377,11 +423,25 @@ export type GameActions = {
 	dismissDiamondShortfall: () => void;
 	/** A rewarded video watched to the end: its diamonds (null if refused: daily cap, too soon, repeated id). */
 	claimRewardedAd: (adId: string) => number | null;
+	claimRewardedCoinAd: (adId: string) => number | null;
 	placeSupplierOrder: (input: PlaceSupplierOrderInput) => boolean;
 	/** The shop's cart: one truck (one slot) carrying several products, each in boxes (src/services/supplier-cart.ts). */
 	placeSupplierCart: (input: PlaceSupplierCartInput) => boolean;
 	/** One truck with every product that is running out (as many boxes as the truck, room and coins allow). */
-	orderLowStock: () => boolean;
+	/** One truck with the products running low; "frota" = from the chain's distribution centre (Rede). */
+	orderLowStock: (via?: "frota") => boolean;
+	// Rede de supermercados (src/services/chain.ts)
+	nameChain: (name: string, emblem: ChainEmblemId) => boolean;
+	setChainAutoOrder: (enabled: boolean) => boolean;
+	buyFleetTruck: (kind: FleetTruckKind) => boolean;
+	upgradeFleetSpeed: () => boolean;
+	orderFromDistributionCenter: (lines: PlaceSupplierCartInput["lines"]) => boolean;
+	acceptChainContract: (contractId: string) => boolean;
+	buyChainBranch: (branchId: ChainBranchId) => boolean;
+	finishChainBranchNow: (branchId: ChainBranchId) => boolean;
+	sendChainBranchCargo: (branchId: ChainBranchId) => boolean;
+	collectChainBranches: () => boolean;
+	processChain: (now?: number) => boolean;
 	processGameEvents: () => boolean;
 	processCheckoutCounter: () => boolean;
 	processMarketDay: () => boolean;
@@ -413,9 +473,18 @@ export type GameActions = {
 	processNextCustomer: () => boolean;
 	processSessionResume: () => boolean;
 	dismissOfflineSummary: () => void;
+	claimOfflineAd: (adId: string) => number | null;
+	tripleOfflineCoins: () => boolean;
+	buyOfflineCap: () => boolean;
+	startStarterOffer: (now?: number) => boolean;
+	noteStarterShown: () => boolean;
+	devPreviewPerks: () => boolean;
+	recoverLoginStreak: () => boolean;
+	claimStreakAd: (adId: string) => boolean;
 	/** The player closed the level-up celebration. */
 	dismissLevelUp: () => void;
-	dismissCelebration: (id: string) => void;
+	dismissCelebration: (id: string) => "review" | undefined;
+	snoozeAppUpdate: (version: string) => boolean;
 	/** Moves the tutorial on when the game shows the step was played (host: every second and on page changes). */
 	processOnboarding: (route?: string) => boolean;
 	/** "Vamos lá" / "Entendi" on a tutorial card. */
@@ -451,7 +520,11 @@ export type GameActions = {
 	startProduction: (input: StartProductionInput) => boolean;
 	/** Production made by hand in the kitchen game (stars 1–3; 3 = one extra unit). */
 	cookByHand: (input: { recipeId: string; sectorId: ProductionSectorId; stars: number }) => boolean;
-	upgradeSupplierOrderSlots: (currency: SupplierOrderSlotCurrency) => boolean;
+	upgradeSupplierOrderSlots: (currency?: SupplierOrderSlotCurrency) => boolean;
+	addToSupplierCart: (input: { productId: number; boxes: number }) => boolean;
+	setSupplierCart: (lines: { productId: number; boxes: number }[]) => boolean;
+	removeFromSupplierCart: (productId: number) => boolean;
+	clearSupplierCart: () => boolean;
 	upgradeInventoryCapacity: (productId: number) => boolean;
 	expandShelfSlots: (shelfId: string) => boolean;
 	unlockNextShelf: () => boolean;

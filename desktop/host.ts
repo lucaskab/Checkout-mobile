@@ -1,4 +1,5 @@
 import "./require-shim";
+import { isStarterOfferOpen } from "@/services/perks";
 import { createInterface } from "node:readline";
 import type { GameActions } from "@/@types/game";
 import type { SimulatorPanel } from "@/@types/simulator";
@@ -10,7 +11,9 @@ import { getPiecesToPlaceBeforeOpening } from "@/services/market-era";
 import { getNextShelfBuildStatus, getSectorBuildStatus } from "@/services/interior-construction";
 import { getShopItemPieceId, hasInteriorRoom, NO_ROOM_REASON, setInteriorNoRoom } from "@/services/interior-room";
 import { createSimulatorSnapshot } from "@/services/simulator-snapshot";
-import { getMarketPaintCoinPrice } from "@/data/market-paint";
+import { getSecurityPetRejection } from "./pages/pet.ts";
+import { getMarketPaintCoinPrice, isOwnedPaint, normalizeHex } from "@/data/market-paint";
+import { getMarketStylePrice, normalizeMarketStyleChoice } from "@/data/market-style";
 import { useGameStore } from "@/stores/game-store";
 import { getCatalog, getLanguage, localizeSnapshot, localizeView, setLanguage, t } from "@/i18n";
 import { createDesktopView } from "./view.ts";
@@ -46,7 +49,11 @@ import {
 	visitActions,
 	visitSnapshot,
 } from "./social.ts";
+import { isChainUnlocked } from "@/services/chain";
+import { redeActions, requestRedeAction } from "./pages/rede.ts";
 import { initRankings, onRankingRoute, rankingActions, rankingTick, requestRankingAction, sendLeaguePoints } from "./rankings.ts";
+import { applyUpdateMessage, type UpdateUnityMessage, updateStore } from "./updates.ts";
+import { isUpdateSnoozed } from "@/services/app-prompts";
 import { type AdPlacement, adPlacements, type AdsUnityMessage, applyAdsMessage, noteAdReward, requestAdPrivacy, requestRewardedAd, takePendingAd } from "./ads.ts";
 
 // Desktop stand-in for the React Native app: owns the same zustand store, runs the same
@@ -96,6 +103,9 @@ const hudActions: (keyof GameActions)[] = [
 	"devAdjustInventory",
 	"devArriveDelivery",
 	"devPassTime",
+	"devPreviewPerks",
+	"devAdvanceOrders",
+	"devFleetJob",
 	"devSetMarketEra",
 	"devClearDock",
 	"devSpawnDeliveryOffer",
@@ -103,10 +113,12 @@ const hudActions: (keyof GameActions)[] = [
 	"devFinishInteriorConstructions",
 	"devFinishEvolutions",
 	"devTriggerIncident",
+	"devSpawnThief",
 	"devWearShelf",
 	"dismissOfflineSummary",
 	"dismissLevelUp",
 	"dismissCelebration",
+	"snoozeAppUpdate",
 	"onboardingNext",
 	"skipOnboarding",
 	"restartOnboarding",
@@ -131,14 +143,25 @@ const hudActions: (keyof GameActions)[] = [
 	"hireEmployee",
 	"placeSupplierOrder",
 	"placeSupplierCart",
+	"addToSupplierCart",
+	"setSupplierCart",
+	"removeFromSupplierCart",
+	"clearSupplierCart",
 	"orderLowStock",
 	"purchaseDecor",
 	"applyMarketPaint",
 	"resetMarketPaint",
+	"applyMarketStyle",
 	"purchaseShopItem",
 	"resetGame",
 	"restockShelf",
 	"serveWindowSale",
+	// "Ladrão e segurança" and "Mascote caramelo" (desktop/pages/pet.ts: the dog's card in Decoração).
+	"catchThief",
+	"adoptPet",
+	"petDog",
+	"buyPetCosmetic",
+	"equipPetCosmetic",
 	"setEmployeeWorking",
 	"setMarketLevel",
 	"setMarketOpen",
@@ -160,6 +183,21 @@ const hudActions: (keyof GameActions)[] = [
 	"upgradeInventoryCapacity",
 	"upgradeShelfCapacity",
 	"upgradeSupplierOrderSlots",
+	// Lucas 11/11: 3× the time away, a longer time away, the daily gift's streak back.
+	"tripleOfflineCoins",
+	"buyOfflineCap",
+	"recoverLoginStreak",
+	// Rede de supermercados (desktop/pages/rede.ts)
+	"nameChain",
+	"setChainAutoOrder",
+	"buyFleetTruck",
+	"upgradeFleetSpeed",
+	"orderFromDistributionCenter",
+	"acceptChainContract",
+	"buyChainBranch",
+	"finishChainBranchNow",
+	"sendChainBranchCargo",
+	"collectChainBranches",
 ];
 
 // Release builds (the testers' build and the iPhone) refuse the dev cheats even if a page still asked for one.
@@ -238,6 +276,8 @@ initSocial({
 		snapshot();
 		view();
 	},
+	// A Google / Apple login that lands while the Ranking window is open: its tab loads now (Amigos does it itself).
+	onOnline: () => onRankingRoute(routes.at(-1) ?? ""),
 });
 
 // Rankings v1 (desktop/rankings.ts): the boards and the week's league points go through the same pipe.
@@ -273,13 +313,66 @@ function openStoreOnShortfall() {
 	return true;
 }
 
+// The rede's works just ended (or a save already in the rede opened): the card to name the chain opens once, on the
+// main screen (never over another window, the tutorial or a celebration still to show).
+let chainNamingShown = false;
+// A newer version in the store (desktop/updates.ts): the card opens once a session on the main screen, never over a
+// window, the tutorial or a celebration, and not again for 2 days after "Agora não" for that version.
+let updateWaitLogged = "";
+function openUpdatePrompt() {
+	if (!updateStore.available || updateStore.shown || isVisiting() || routes.length > 0) return;
+	const state = useGameStore.getState();
+	const wait = state.onboarding.status === "active" ? "tutorial" : (state.celebrations?.length ?? 0) > 0 ? "celebration" : state.market.levelUp && state.market.levelUp.to > state.market.levelUp.from ? "level-up" : "";
+	if (wait) {
+		if (updateWaitLogged !== wait) console.error(`update: waiting (${wait})`);
+		updateWaitLogged = wait;
+		return;
+	}
+	if (isUpdateSnoozed(state.appPrompts, updateStore.latest)) return;
+	updateStore.shown = true;
+	navigate("!atualizar");
+}
+
+// Pacote inicial (Lucas 11/11): its 48 h begin after the tutorial, and its page opens on its own once, when nothing
+// else is on screen (later the HUD's "Oferta" button opens it).
+function openStarterOffer() {
+	if (isVisiting()) return;
+	const state = useGameStore.getState();
+	state.startStarterOffer();
+	const now = Date.now();
+	const fresh = useGameStore.getState();
+	if (fresh.perks.starterShown || !isStarterOfferOpen(fresh.perks, fresh.currencyPurchases.purchasedPackIds, now)) return;
+	if (routes.length > 0 || fresh.onboarding.status === "active" || (fresh.celebrations?.length ?? 0) > 0) return;
+	if (fresh.market.levelUp && fresh.market.levelUp.to > fresh.market.levelUp.from) return;
+	if (fresh.offlineSummary) return;
+	fresh.noteStarterShown();
+	navigate("!oferta");
+}
+
+function openChainNaming() {
+	if (chainNamingShown || isVisiting() || routes.length > 0) return;
+	const state = useGameStore.getState();
+	if (state.chain.brand.namedAt !== null || !isChainUnlocked(state.era.id)) return;
+	if (state.onboarding.status === "active" || (state.celebrations?.length ?? 0) > 0) return;
+	chainNamingShown = true;
+	navigate("!rede:marca");
+}
+
 // Why opening the shop / starting a day was refused, in words the player can act on.
 function rejectionReason(action: string, args: unknown[] = []) {
 	const state = useGameStore.getState();
 	// "Cores do mercado" for coins: how many are missing (diamonds open the diamond store instead).
-	if (action === "applyMarketPaint" && args[2] !== "diamonds") {
+	if (action === "applyMarketPaint" && args[2] !== "diamonds" && !isOwnedPaint(state.marketPaint, normalizeHex(args[0]) ?? "", normalizeHex(args[1]) ?? "")) {
 		const missing = getMarketPaintCoinPrice(state.era.id) - state.coins;
 		if (missing > 0) return t(missing === 1 ? "Falta 1 moeda." : `Faltam ${missing} moedas.`);
+	}
+	// "Estilo do mercado" for coins: how many are missing for the new items of the draft.
+	if (action === "applyMarketStyle" && args[1] !== "diamonds" && typeof args[0] === "string") {
+		try {
+			const choice = normalizeMarketStyleChoice(JSON.parse(args[0]), state.marketStyle);
+			const missing = getMarketStylePrice(state.marketStyle, choice, state.era.id).coins - state.coins;
+			if (missing > 0) return t(missing === 1 ? "Falta 1 moeda." : `Faltam ${missing} moedas.`);
+		} catch {}
 	}
 	// The piece has no spot on the shop floor (src/services/interior-room.ts).
 	if (action === "unlockNextShelf" && getNextShelfBuildStatus(state).noRoom) return t(NO_ROOM_REASON);
@@ -288,6 +381,9 @@ function rejectionReason(action: string, args: unknown[] = []) {
 		const piece = getShopItemPieceId(args[0]);
 		if (piece && !hasInteriorRoom(piece) && !state.shop.ownedItemIds.includes(args[0])) return t(NO_ROOM_REASON);
 	}
+	// The thief and the store dog say why (still browsing, the dog wants a break).
+	const securityOrPet = getSecurityPetRejection(state, action, Date.now());
+	if (securityOrPet) return t(securityOrPet);
 	if (action !== "setMarketOpen" && action !== "startDay") return null;
 	if (getPiecesToPlaceBeforeOpening(state) > 0) return t("Coloque os móveis que estão esperando antes de abrir a loja.");
 	if (state.day.phase === "results") return t("Veja o resultado do dia antes de abrir de novo.");
@@ -306,6 +402,13 @@ function runHudAction(message: {
 		const request = requestSocialAction(message.action, Array.isArray(message.args) ? message.args : []);
 		send({ kind: "result", id, action: message.action, ok: request.ok, reason: request.ok ? "quiet" : request.reason ? t(request.reason) : "quiet" });
 		if (request.ok && message.after === "back") routes.pop();
+		view();
+		return;
+	}
+	// The Rede window's own picks (desktop/pages/rede.ts): the logo chosen before saving.
+	if (typeof message.action === "string" && redeActions.includes(message.action)) {
+		const request = requestRedeAction(message.action, Array.isArray(message.args) ? message.args : []);
+		send({ kind: "result", id, action: message.action, ok: request.ok, reason: "quiet" });
 		view();
 		return;
 	}
@@ -393,12 +496,23 @@ function runHudAction(message: {
 		let ok = false;
 		if (placement === "diamonds") {
 			const diamonds = store.claimRewardedAd(String(adId));
-			noteAdReward(diamonds);
+			noteAdReward(diamonds, Date.now(), "", "diamonds");
 			ok = !!diamonds;
+		} else if (placement === "coins") {
+			const coins = store.claimRewardedCoinAd(String(adId));
+			noteAdReward(0, Date.now(), coins ? `Você ganhou +${coins} moedas!` : "", "coins");
+			ok = !!coins;
 		} else if (placement === "consolation") {
 			const prize = store.claimContractConsolation(String(adId));
 			noteAdReward(prize?.diamonds ?? 0, Date.now(), prize ? `Prêmio de consolação: ${prize.label}!` : "");
 			ok = !!prize;
+		} else if (placement === "offline") {
+			const coins = store.claimOfflineAd(String(adId));
+			noteAdReward(0, Date.now(), coins ? `Vendas em dobro: +${coins} moedas!` : "", "offline");
+			ok = !!coins;
+		} else if (placement === "streak") {
+			ok = store.claimStreakAd(String(adId));
+			noteAdReward(0, Date.now(), ok ? "Sequência recuperada! Resgate o presente de hoje." : "", "streak");
 		} else if (placement === "gift") {
 			const gift = store.claimDailyLoginBonus(String(adId));
 			noteAdReward(gift?.diamonds ?? 0, Date.now(), !gift ? "" : gift.diamonds ? `Presente dobrado: +${gift.coins} moedas e +${gift.diamonds} diamantes!` : `Presente dobrado: +${gift.coins} moedas!`);
@@ -416,6 +530,9 @@ function runHudAction(message: {
 		const run = useGameStore.getState()[action] as (...args: unknown[]) => unknown;
 		const value = run(...message.args);
 		const ok = value !== false && value !== null;
+		// The arrival of an expansion just closed and it is a good moment for a store rating (src/services/app-prompts.ts):
+		// Unity shows the system's own review sheet (CheckoutStoreReview.cs).
+		if (action === "dismissCelebration" && value === "review") send({ kind: "store-review" });
 		if (action === "grantCurrencyPack") noteGrantedPack(value as { coins: number; diamonds: number } | null);
 		const short = !ok ? useGameStore.getState().diamondShortfall : null;
 		const reason = ok
@@ -513,6 +630,9 @@ createInterface({ input: process.stdin }).on("line", (raw) => {
 	} else if (message.kind === "ad") {
 		applyAdsMessage(message as AdsUnityMessage);
 		view();
+	} else if (message.kind === "update") {
+		const available = applyUpdateMessage(message as UpdateUnityMessage);
+		console.error(`update: store ${updateStore.latest}, here ${updateStore.current}, newer ${available}`);
 	} else if (message.kind === "iap") {
 		applyIapMessage(message as IapUnityMessage);
 		view();
@@ -544,6 +664,8 @@ setInterval(live(() => store().processSupplierOrders()), 1_000);
 setInterval(live(() => {
 	store().processCheckoutCounter();
 	store().processStoreIncidents();
+	// Thieves walk in, run for the door, get caught (player, guard) or escape.
+	store().processStoreSecurity();
 	store().processReceiving();
 	store().processDelivery();
 	store().processOnboarding(routes.at(-1) ?? "");
@@ -557,6 +679,11 @@ setInterval(live(() => {
 	store().processInteriorConstructions();
 	// Evolutions end on the evolution crew's clock (it kept running while the game was closed).
 	store().processFixtureEvolutions();
+	// Rede: fleet trucks, city contracts, branches and the automatic restock.
+	store().processChain();
+	openChainNaming();
+	openUpdatePrompt();
+	openStarterOffer();
 }), 1_000);
 // Rankings v1: the week's league points at most every 10 minutes (sendLeaguePoints checks), the open Ranking tab
 // refreshed at most every 60 s.

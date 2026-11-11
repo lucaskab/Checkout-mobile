@@ -134,6 +134,15 @@ export const productAssets: Record<number, ImageSourcePropType> = {
 	169: require("../../assets/game-art/products/product-169.png"),
 	170: require("../../assets/game-art/products/product-170.png"),
 	171: require("../../assets/game-art/products/product-171.png"),
+	// Rede: the chain's own products (classic navy look; Unity tints them with the player's brand).
+	172: require("../../assets/game-art/products/product-172.png"),
+	173: require("../../assets/game-art/products/product-173.png"),
+	174: require("../../assets/game-art/products/product-174.png"),
+	175: require("../../assets/game-art/products/product-175.png"),
+	176: require("../../assets/game-art/products/product-176.png"),
+	177: require("../../assets/game-art/products/product-177.png"),
+	178: require("../../assets/game-art/products/product-178.png"),
+	179: require("../../assets/game-art/products/product-179.png"),
 };
 
 export function getProductAsset(productId: number): ImageSourcePropType {
